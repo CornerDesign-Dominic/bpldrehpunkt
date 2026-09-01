@@ -58,6 +58,11 @@
 - Stammdaten bevorzugt in direkt bearbeitbaren Masken darstellen
 - Separate Anzeige- und Bearbeitungsseiten vermeiden, wenn dieselben Daten betroffen sind
 - Interne Stammdatenmasken kompakt und auf schnelle Datenerfassung auslegen
+- Stammdaten und CRM als getrennte fachliche Bereiche behandeln
+- Stammdaten als zentrale Quelle für Geschäftspartner-Grunddaten verwenden
+- CRM-Funktionen über die interne Firestore-ID mit Geschäftspartnern verknüpfen
+- Stammdaten im CRM nicht unnötig duplizieren
+- Fachbereiche direkt verlinken, wenn dadurch unnötige Suche vermieden wird
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

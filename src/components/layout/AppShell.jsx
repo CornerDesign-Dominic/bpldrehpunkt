@@ -6,12 +6,14 @@ import Sidebar from './Sidebar.jsx'
 const pageTitles = {
   '/dashboard': 'Dashboard',
   '/kunden-unternehmer': 'Kunden & Unternehmer',
+  '/crm': 'CRM',
 }
 
 function getPageTitle(pathname) {
   if (pathname === '/kunden-unternehmer/neu') return 'Geschäftspartner anlegen'
   if (pathname.endsWith('/bearbeiten')) return 'Geschäftspartner bearbeiten'
   if (pathname.startsWith('/kunden-unternehmer/')) return 'Geschäftspartner'
+  if (pathname.startsWith('/crm/')) return 'CRM'
   return pageTitles[pathname] ?? 'Drehpunkt'
 }
 
