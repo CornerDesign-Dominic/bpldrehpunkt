@@ -24,7 +24,11 @@ export default function BusinessPartnerFormPage({ mode }) {
     setError('')
     try {
       const savedId = mode === 'create' ? await createBusinessPartner(values) : (await updateBusinessPartner(partnerId, values), partnerId)
-      navigate(`/kunden-unternehmer/${savedId}`)
+      if (mode === 'create') {
+        navigate('/kunden-unternehmer', { state: { toast: 'Geschäftspartner erfolgreich angelegt.' } })
+      } else {
+        navigate(`/kunden-unternehmer/${savedId}`, { state: { toast: 'Änderungen gespeichert.' } })
+      }
     } catch {
       setError('Speichern nicht möglich. Bitte Firestore-Zugriff und Verbindung prüfen.')
     } finally {

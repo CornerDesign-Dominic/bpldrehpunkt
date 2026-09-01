@@ -47,9 +47,14 @@
 - Firebase zentral in einer Infrastrukturdatei kapseln; Produktlogik bleibt davon getrennt
 - Firestore und künftige Authentifizierung nur bedarfsorientiert über diese zentrale Integration anbinden
 - Geschäftspartner zentral führen; Kunde und Unternehmer sind Rollen desselben Geschäftspartners
-- DICOS-Debitoren- und Kreditorennummern ausschließlich als externe Referenzen behandeln
+- Die interne operative Plattform heißt „DyCoS“
+- Externe Systeme über Referenznummern mit Drehpunkt verknüpfen
+- DyCoS-Debitoren- und Kreditorennummern ausschließlich als Strings und externe Referenzen behandeln
 - Niederlassungen als separate Geschäftspartner führen
+- Geschäftspartner besitzen genau einen Stammdatensatz
 - Tabellen kompakt halten
+- Formulare desktoporientiert und möglichst kompakt aufbauen
+- Erfolgreiche Aktionen über dezente Toast-Nachrichten bestätigen
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

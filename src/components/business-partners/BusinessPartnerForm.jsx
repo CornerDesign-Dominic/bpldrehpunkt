@@ -25,8 +25,8 @@ function Field({ label, name, value, onChange, error, type = 'text', placeholder
   )
 }
 
-function FormSection({ title, children }) {
-  return <section className="form-section"><h2>{title}</h2><div className="form-grid">{children}</div></section>
+function FormSection({ title, className = '', children }) {
+  return <section className="form-section"><h2>{title}</h2><div className={`form-grid ${className}`}>{children}</div></section>
 }
 
 export default function BusinessPartnerForm({ initialValue, onSubmit, isSubmitting, submitLabel, cancelTo }) {
@@ -59,14 +59,16 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, isSubmitti
       <FormSection title="Identifikation">
         <Field label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
         <Field label="Kurzname" name="shortName" value={form.shortName} onChange={handleChange} />
-        <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DICOS-Referenz" />
-        <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DICOS-Referenz" />
+        <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+        <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+        <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
+        <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
         {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
         <div className="form-field"><span>Geschäftspartner-Typ</span><output className="derived-value">{type}</output></div>
         <label className="form-field"><span>Status</span><select name="status" value={form.status} onChange={handleChange}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></select></label>
       </FormSection>
 
-      <FormSection title="Anschrift">
+      <FormSection title="Anschrift" className="form-grid--address">
         <Field label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
         <Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={handleChange} />
         <Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={handleChange} />
@@ -83,7 +85,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, isSubmitti
       <FormSection title="Unternehmensdaten">
         <Field label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
         <Field label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
-        <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
+        <div className="form-grid__wide"><Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} /></div>
       </FormSection>
 
       <div className="form-actions">
