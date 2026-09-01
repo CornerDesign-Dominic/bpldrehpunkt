@@ -1,0 +1,62 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #202632;
+  background: #f5f6f8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, a { font: inherit; }
+
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); background: #f5f6f8; }
+.app-shell.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
+.sidebar { position: relative; display: flex; min-height: 100vh; flex-direction: column; padding: 18px 12px; color: #ced5e0; background: #202935; }
+.sidebar__brand { display: flex; height: 42px; align-items: center; gap: 11px; padding: 0 9px; color: #fff; overflow: hidden; white-space: nowrap; }
+.brand-mark { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border: 1px solid #5d6b7e; border-radius: 7px; color: #f6f8fb; font-size: 13px; font-weight: 700; }
+.brand-name { font-size: 16px; font-weight: 650; letter-spacing: -0.2px; }
+.sidebar__nav { display: grid; gap: 5px; margin-top: 30px; }
+.nav-item { display: flex; height: 40px; align-items: center; gap: 12px; padding: 0 10px; border-radius: 6px; color: #b9c3d1; text-decoration: none; white-space: nowrap; font-size: 14px; font-weight: 500; }
+.nav-item:hover { color: #f4f6f8; background: #2c3745; }
+.nav-item--active { color: #fff; background: #344355; box-shadow: inset 2px 0 0 #91a7c2; }
+.nav-item svg { flex: 0 0 auto; }
+.sidebar-collapsed .sidebar { padding-inline: 11px; align-items: center; }
+.sidebar-collapsed .sidebar__brand { padding: 0; }
+.sidebar-collapsed .sidebar__nav { width: 100%; }
+.sidebar-collapsed .nav-item { justify-content: center; padding: 0; }
+.sidebar__toggle { display: grid; width: 32px; height: 32px; place-items: center; margin: auto 8px 1px; border: 1px solid #3d4a59; border-radius: 6px; color: #b9c3d1; background: transparent; cursor: pointer; }
+.sidebar__toggle:hover { color: #fff; background: #2c3745; }
+.sidebar-collapsed .sidebar__toggle { margin-inline: 0; }
+.toggle-icon { display: grid; transform: rotate(180deg); }
+.toggle-icon--collapsed { transform: none; }
+.content-frame { min-width: 0; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
+.app-header { display: flex; align-items: center; justify-content: space-between; padding: 0 36px; border-bottom: 1px solid #e1e5ea; background: #fff; }
+.app-header h1 { margin: 0; color: #222936; font-size: 18px; font-weight: 650; letter-spacing: -0.2px; }
+.user-placeholder { display: inline-flex; align-items: center; gap: 8px; color: #9aa4b2; font-size: 12px; }
+.user-placeholder__dot { width: 7px; height: 7px; border-radius: 50%; background: #c7ced8; }
+.app-content { min-height: 0; padding: 28px 36px 36px; overflow: auto; }
+.dashboard-page { display: grid; height: 100%; grid-template-rows: auto minmax(0, 1fr); gap: 21px; }
+.dashboard-intro { display: flex; align-items: baseline; gap: 12px; }
+.dashboard-intro p { margin: 0; color: #303947; font-size: 14px; font-weight: 650; }
+.dashboard-intro span { color: #87919e; font-size: 13px; }
+.dashboard-grid { display: grid; min-height: 0; grid-template-columns: 1.15fr 0.85fr; grid-template-rows: minmax(150px, 0.8fr) minmax(150px, 1.2fr); gap: 16px; }
+.placeholder-panel, .empty-content { border: 1px solid #e2e6eb; border-radius: 8px; background: #fff; }
+.placeholder-panel { position: relative; display: flex; min-height: 0; align-items: flex-start; padding: 17px 18px; }
+.placeholder-panel span { color: #8d97a4; font-size: 12px; font-weight: 600; }
+.placeholder-panel:nth-child(3) { grid-row: 1 / span 2; grid-column: 2; }
+.empty-content { min-height: 280px; height: 100%; }
+@media (max-width: 720px) {
+  .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+  .sidebar { padding-inline: 10px; align-items: center; }
+  .sidebar__brand { padding: 0; }
+  .brand-name, .nav-item span { display: none; }
+  .sidebar__nav { width: 100%; }
+  .nav-item { justify-content: center; padding: 0; }
+  .sidebar__toggle { margin-inline: 0; }
+  .app-header { padding-inline: 20px; }
+  .app-content { padding: 22px 20px; }
+  .dashboard-intro { display: grid; gap: 4px; }
+  .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: repeat(3, minmax(120px, auto)); }
+  .placeholder-panel:nth-child(3) { grid-column: auto; grid-row: auto; }
+}
