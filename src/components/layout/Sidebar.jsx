@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, PalletsIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
+import { ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, DrehpunktIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, PalletsIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
@@ -19,7 +19,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
-        <span className="brand-mark" aria-hidden="true">D</span>
+        <span className="brand-mark" aria-hidden="true"><DrehpunktIcon /></span>
         {!collapsed && <span className="brand-name">Drehpunkt</span>}
       </div>
 

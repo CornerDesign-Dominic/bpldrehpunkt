@@ -156,6 +156,14 @@
 - Operative Planungsansichten sind informationsdicht und für schnelle visuelle Erfassung ausgelegt.
 - Für den Bereich werden die Firestore-Collections `fleetVehicles` und `dispatchTrips` verwendet.
 
+## News
+- News ist ein eigener zentraler Informationsbereich.
+- Interne und externe Meldungen werden fachlich getrennt über `sourceType` gespeichert.
+- News-Kategorien werden über zentral definierte Werte verwaltet.
+- Externe News unterstützen immer Quelle und Veröffentlichungsdatum.
+- Newslisten werden kompakt und chronologisch dargestellt.
+- Die Datenstruktur muss spätere automatisierte KI- und News-Pipelines ermöglichen.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern
