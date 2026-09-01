@@ -13,6 +13,7 @@ import QualityGoalDetailPage from './pages/QualityGoalDetailPage.jsx'
 import QualityManagementPage from './pages/QualityManagementPage.jsx'
 import KnowledgeArticleDetailPage from './pages/KnowledgeArticleDetailPage.jsx'
 import KnowledgeListPage from './pages/KnowledgeListPage.jsx'
+import TodosPage from './pages/TodosPage.jsx'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/wissen/artikel/neu" element={<KnowledgeArticleDetailPage mode="create" />} />
         <Route path="/wissen/artikel/:articleId" element={<KnowledgeArticleDetailPage mode="existing" />} />
         <Route path="/wissen/:category" element={<KnowledgeListPage />} />
+        <Route path="/todos" element={<TodosPage />} />
         <Route path="/rechtsfaelle" element={<CaseListPage moduleKey="legal" />} />
         <Route path="/rechtsfaelle/neu" element={<CaseDetailPage moduleKey="legal" mode="create" />} />
         <Route path="/rechtsfaelle/:caseId" element={<CaseDetailPage moduleKey="legal" mode="existing" />} />

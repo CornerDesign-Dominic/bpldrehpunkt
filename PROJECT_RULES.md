@@ -141,6 +141,14 @@
 - Kategorien strukturieren den Inhalt, ohne Artikel in technische Einzelseiten aufzuteilen.
 - Titel, Kurzbeschreibung und Inhalt eines Artikels bleiben klar voneinander getrennt.
 
+## To-dos
+- To-dos können persönlich oder an Abteilungen adressiert werden.
+- Abteilungs-To-dos besitzen einen gemeinsamen Status für alle Mitglieder.
+- Abteilungs-To-dos können freiwillig von einem Benutzer übernommen werden.
+- Benutzer dürfen sich nur selbst als Bearbeiter eintragen.
+- Ersteller, Empfänger und Bearbeiter sind fachlich getrennte Rollen.
+- To-do-Datenstrukturen müssen spätere benutzer- und abteilungsbezogene Zugriffsrechte ermöglichen.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern

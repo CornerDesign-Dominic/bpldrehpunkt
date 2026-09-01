@@ -5,6 +5,7 @@ const pageTitles = [
   { path: '/paletten', title: 'Palettenmanagement' },
   { path: '/qm', title: 'Qualitätsmanagement' },
   { path: '/wissen', title: 'Wissen' },
+  { path: '/todos', title: 'To-dos' },
   { path: '/rechtsfaelle', title: 'Rechtsfälle' },
   { path: '/inkassofaelle', title: 'Inkassofälle' },
   { path: '/versicherungsfaelle', title: 'Versicherungsfälle / Schäden' },
