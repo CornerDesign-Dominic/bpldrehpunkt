@@ -71,6 +71,11 @@
 - CRM verwendet Geschäftspartner-Stammdaten ausschließlich als Basisreferenz
 - CRM-Übersichten dürfen andere Spalten zeigen als Stammdatenübersichten
 - CRM-Detailseiten kompakt und informationsorientiert aufbauen
+- Palettenmanagement besitzt eine zentrale Kontoübersicht und partnerbezogene Detailkonten
+- Ein Palettenkonto besteht aus Transportbewegungen sowie separaten Abschluss- und Korrekturbuchungen
+- Kontoabschlüsse verändern den Saldo, nicht jedoch historische Bewegungen
+- Kontostände müssen aus der Buchungshistorie nachvollziehbar berechnet werden
+- Geschäftspartner-Stammdaten im Palettenmanagement nur referenzieren, nicht duplizieren
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

@@ -5,6 +5,7 @@ import CustomersPage from './pages/CustomersPage.jsx'
 import CrmDetailPage from './pages/CrmDetailPage.jsx'
 import CrmPage from './pages/CrmPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
+import PalletAccountDetailPage from './pages/PalletAccountDetailPage.jsx'
 import PalletsPage from './pages/PalletsPage.jsx'
 
 export default function App() {
@@ -19,7 +20,7 @@ export default function App() {
         <Route path="/crm" element={<CrmPage />} />
         <Route path="/crm/:partnerId" element={<CrmDetailPage />} />
         <Route path="/paletten" element={<PalletsPage />} />
-        <Route path="/paletten/:partnerId" element={<PalletsPage />} />
+        <Route path="/paletten/:partnerId" element={<PalletAccountDetailPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AppShell>
