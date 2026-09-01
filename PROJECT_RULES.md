@@ -99,6 +99,12 @@
 - Eine Bewegung wird weiterhin nur einmal gespeichert
 - Bearbeitungen müssen zumindest technisch nachvollziehbar bleiben
 - createdAt bleibt unverändert, updatedAt wird bei Korrekturen aktualisiert
+- Fallmanagement wird fachlich in Rechtsfälle, Inkassofälle und Versicherungs-/Schadensfälle getrennt.
+- Jeder Fall besitzt eine Übersicht und eine direkt bearbeitbare Fallakte.
+- Status und Fristen werden strukturiert gespeichert und nicht ausschließlich als Freitext.
+- Geschäftspartner werden über ihre interne Firestore-ID referenziert.
+- Fallübersichten verwenden den gemeinsamen kompakten Tabellenstandard.
+- Datenmodelle sollen spätere modulübergreifende Fristenauswertungen ermöglichen.
 - Operative Eingabemasken orientieren sich am realen Arbeitsablauf und nicht an der technischen Buchungslogik
 - Berechnete Zwischenwerte werden nicht zwischen Eingabefeldern dargestellt, wenn sie für die Datenerfassung nicht erforderlich sind
 - Bei komplexen Buchungen werden Eingabe und Ergebnis visuell klar getrennt

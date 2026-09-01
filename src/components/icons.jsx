@@ -14,6 +14,18 @@ export function PalletsIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 7h16v10H4z" /><path d="M4 11h16M8 7v4m8-4v4M7 17v3m10-3v3M3 20h18" /></svg>
 }
 
+export function LegalIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.8 7 10 4-1.2 7-5.4 7-10V6l-7-3Z" /><path d="M8.5 11.5h7M12 8v7" /></svg>
+}
+
+export function DebtCollectionIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M14.7 8.8c-.5-.7-1.4-1.1-2.6-1.1-1.5 0-2.6.8-2.6 2 0 3 5.5 1.5 5.5 4.5 0 1.2-1.1 2.1-2.9 2.1-1.3 0-2.4-.5-3-1.4M12 6.2v11.6" /></svg>
+}
+
+export function InsuranceIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.8 7 10 4-1.2 7-5.4 7-10V6l-7-3Z" /><path d="M9 12.5 11 14.5l4-4" /></svg>
+}
+
 export function ChevronIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
 }
