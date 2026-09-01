@@ -4,9 +4,10 @@
 .business-partner-form .form-grid { gap: 8px 10px; }
 .masterdata-header { align-items: flex-start; }
 .masterdata-header h2 { font-size: 24px; }
-.masterdata-header__actions { --masterdata-dirty-area: 220px; --masterdata-save-area: 112px; display: grid; grid-template-areas: 'dirty save' 'navigation navigation'; grid-template-columns: var(--masterdata-dirty-area) var(--masterdata-save-area); grid-template-rows: 34px 34px; column-gap: 8px; row-gap: 11px; align-items: center; }
+.masterdata-header__actions { --masterdata-dirty-area: 220px; --masterdata-discard-area: 104px; --masterdata-save-area: 112px; display: grid; grid-template-areas: 'dirty discard save' 'navigation navigation navigation'; grid-template-columns: var(--masterdata-dirty-area) var(--masterdata-discard-area) var(--masterdata-save-area); grid-template-rows: 34px 34px; column-gap: 8px; row-gap: 11px; align-items: center; }
 .masterdata-header__save-action { display: contents; }
-.masterdata-header__save-action .button { grid-area: save; width: 100%; }
+.masterdata-header__discard-action { grid-area: discard; width: 100%; }
+.masterdata-header__save-button { grid-area: save; width: 100%; }
 .masterdata-header__navigation { display: flex; grid-area: navigation; align-items: center; justify-content: flex-end; gap: 8px; }
 .masterdata-header__nav-action { flex: 0 0 128px; }
 .dirty-hint { display: inline-flex; grid-area: dirty; align-items: center; justify-self: end; gap: 6px; min-height: 30px; padding: 0 8px; border: 1px solid var(--status-warning-text); border-radius: 5px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 12px; font-weight: 650; white-space: nowrap; }
@@ -87,7 +88,7 @@
 @media (max-width: 720px) {
   .form-grid--billing, .form-grid--company-address, .form-grid--references, .form-grid--contact, .form-grid--company-data { grid-template-columns: 1fr; }
   .form-field--company-address, .form-field--street, .form-field--status { grid-column: auto; }
-  .masterdata-header__actions { --masterdata-dirty-area: minmax(0, 1fr); --masterdata-save-area: 104px; width: 100%; }
+  .masterdata-header__actions { --masterdata-dirty-area: minmax(0, 1fr); --masterdata-discard-area: 94px; --masterdata-save-area: 104px; width: 100%; }
   .masterdata-header__navigation { width: 100%; }
   .masterdata-header__navigation { justify-content: flex-start; }
   .masterdata-header__nav-action { flex: 1 1 0; }

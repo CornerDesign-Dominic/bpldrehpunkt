@@ -27,6 +27,7 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [error, setError] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
   const [isDirty, setDirty] = useState(false)
+  const [resetVersion, setResetVersion] = useState(0)
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [crmRatings, setCrmRatings] = useState({})
 
@@ -66,6 +67,13 @@ export default function BusinessPartnerFormPage({ mode }) {
     }
   }
 
+  function discardChanges() {
+    setError('')
+    setCurrentValues(partner)
+    setDirty(false)
+    setResetVersion((current) => current + 1)
+  }
+
   if (loading) return <p className="page-state">Stammdaten werden geladen …</p>
   if (error && !partner) return <section className="page-state page-state--error"><p>{error}</p><Link className="button button--secondary" to="/kunden-unternehmer">Zur Übersicht</Link></section>
 
@@ -78,12 +86,12 @@ export default function BusinessPartnerFormPage({ mode }) {
       <header className="masterdata-header">
         <div className="masterdata-header__identity"><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2>{!isNew && <div className="masterdata-header__meta-row"><div className="detail-header__meta"><span>{getBusinessPartnerType(shownPartner)}</span><span className={`status-badge status-badge--${shownPartner.status}`}>{shownPartner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div><CrmShortStatus partner={partner} ratings={crmRatings} /></div>}</div>
         <div className="masterdata-header__actions">
-          <div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div>
+          <div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-header__discard-action" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-header__save-button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div>
           {!isNew && <div className="masterdata-header__navigation"><Link className="button button--secondary masterdata-header__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-header__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}
         </div>
       </header>
       {error && <p className="form-error">{error}</p>}
-      <BusinessPartnerForm formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} />
+      <BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} />
     </div>
   )
 }
