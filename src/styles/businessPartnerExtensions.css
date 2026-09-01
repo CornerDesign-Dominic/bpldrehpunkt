@@ -1,0 +1,55 @@
+.form-grid--billing { grid-template-columns: 180px 180px; }
+.masterdata-header__meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 7px; }
+.masterdata-header__meta-row .detail-header__meta { margin-top: 0; }
+.crm-short-status { display: flex; align-items: center; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border, var(--legacy-dfe4e9)); color: var(--legacy-727d8a); font-size: 11px; }
+.crm-short-status__title { color: var(--legacy-657180); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.crm-short-status__values { display: flex; align-items: center; gap: 11px; }
+.crm-short-status__rating, .crm-short-status__credit { display: flex; align-items: center; gap: 5px; }
+.crm-short-status__rating-value { display: inline-flex; align-items: center; gap: 4px; color: var(--text-secondary, var(--legacy-435061)); font-weight: 650; }
+.crm-short-status__credit { padding-left: 11px; border-left: 1px solid var(--border, var(--legacy-e0e5ea)); }
+.crm-short-status__credit strong { color: var(--text-secondary, var(--legacy-435061)); font-weight: 650; }
+.crm-rating-indicator { width: 7px; height: 7px; border-radius: 999px; background: var(--legacy-a0a8b2); }
+.crm-rating-indicator--good { background: var(--status-success-text, var(--legacy-35634b)); }
+.crm-rating-indicator--watch { background: var(--status-warning-text, var(--legacy-906e2b)); }
+.crm-rating-indicator--critical { background: var(--status-danger-text, var(--legacy-a44343)); }
+.portals-section { display: grid; gap: 9px; }
+.portals-section__header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.portals-section__header h2 { margin-bottom: 3px; }
+.portals-section__header p { margin: 0; color: var(--legacy-808b98); font-size: 12px; }
+.portals-section__content { display: grid; gap: 9px; }
+.portals-section__actions { display: flex; justify-content: flex-end; }
+.portals-table table { min-width: 0; table-layout: fixed; }
+.portals-table th, .portals-table td { height: 38px; padding: 6px 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portals-table th:nth-child(1) { width: 17%; }
+.portals-table th:nth-child(2) { width: 10%; }
+.portals-table th:nth-child(3) { width: 19%; }
+.portals-table th:nth-child(4) { width: 20%; }
+.portals-table th:nth-child(5) { width: 24%; }
+.portals-table th:nth-child(6) { width: 10%; }
+.portal-link { color: var(--legacy-475e76); font-size: 12px; font-weight: 600; text-decoration: none; }
+.portal-link:hover { color: var(--legacy-263e57); text-decoration: underline; }
+.portal-password { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.portal-password > span { overflow: hidden; text-overflow: ellipsis; }
+.portal-password button, .password-input button { flex: 0 0 auto; padding: 0; border: 0; color: var(--legacy-475e76); background: transparent; cursor: pointer; font: inherit; font-size: 11px; font-weight: 650; }
+.portal-password button:hover, .password-input button:hover { color: var(--legacy-263e57); text-decoration: underline; }
+.portal-editor { padding: 11px 12px; border: 1px solid var(--border, var(--legacy-dfe4e9)); border-radius: 6px; background: var(--surface-secondary, var(--legacy-fbfcfd)); }
+.portal-editor__grid { display: grid; grid-template-columns: 1fr 1.25fr 1.15fr 1.15fr; gap: 9px 12px; }
+.portal-editor__wide { grid-column: 1 / -1; }
+.portal-editor .form-actions { margin-top: 10px; }
+.password-input { display: flex; align-items: center; gap: 7px; }
+.password-input input { min-width: 0; }
+.crm-credit-limit-editor { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 13px 0; padding: 12px; border: 1px solid var(--border, var(--legacy-dfe4e9)); border-radius: 6px; background: var(--surface-secondary, var(--legacy-fbfcfd)); }
+.crm-credit-limit-editor h3 { margin: 0; color: var(--legacy-435061); font-size: 12px; font-weight: 700; }
+.crm-credit-limit-editor p { margin: 3px 0 0; color: var(--legacy-808b98); font-size: 11px; }
+.crm-credit-limit-editor__control { display: flex; align-items: end; gap: 8px; }
+.crm-credit-limit-editor__control .form-field { width: 155px; }
+.crm-credit-limit-editor .form-error { flex-basis: 100%; }
+
+@media (max-width: 720px) {
+  .form-grid--billing { grid-template-columns: 1fr; }
+  .masterdata-header__meta-row { align-items: flex-start; flex-direction: column; }
+  .crm-short-status { padding-left: 0; border-left: 0; }
+  .portals-section__header { align-items: flex-start; flex-direction: column; }
+  .portal-editor__grid { grid-template-columns: 1fr; }
+  .crm-credit-limit-editor { align-items: flex-start; flex-direction: column; }
+}

@@ -64,6 +64,27 @@ export function formatRatingScore(score) {
   return score === null || score === undefined ? '—' : new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(score)
 }
 
+export function getCrmRatingStatus(score) {
+  if (score === null || score === undefined) return 'unrated'
+  if (score >= 4) return 'good'
+  if (score >= 3) return 'watch'
+  return 'critical'
+}
+
+export function getCurrentCrmRatingPresentation(partner, currentRatings = {}) {
+  const roles = getRatingRoles(partner)
+  return roles.map((role) => {
+    const score = currentRatings[role]?.overallScore ?? null
+    return {
+      role,
+      label: roles.length > 1 ? (role === 'customer' ? 'Kunde' : 'Unternehmer') : 'Bewertung',
+      score,
+      value: score === null ? 'Nicht bewertet' : `${formatRatingScore(score)} / 5`,
+      status: getCrmRatingStatus(score),
+    }
+  })
+}
+
 export async function listCrmRatings(partnerId, role) {
   const snapshot = await getDocs(ratingsRef(partnerId))
   return snapshot.docs

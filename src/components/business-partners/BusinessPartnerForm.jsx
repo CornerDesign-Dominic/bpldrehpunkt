@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createEmptyBusinessPartner } from '../../lib/businessPartners.js'
+import '../../styles/businessPartnerExtensions.css'
 
 const departments = ['Geschäftsführung', 'Disposition', 'Einkauf', 'Verkauf', 'Logistik', 'Lager', 'Buchhaltung', 'Finanzbuchhaltung', 'Rechnungswesen', 'Controlling', 'Personal', 'Einkauf / Beschaffung', 'Kundenservice', 'Qualität / QM', 'IT', 'Empfang / Zentrale', 'Sonstiges']
 
@@ -20,8 +21,21 @@ function createContact() {
   return { id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: '', department: '', departmentOther: '', phone: '', mobile: '', email: '' }
 }
 
+function createPortal() {
+  return { id: `portal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: '', url: '', username: '', password: '', purpose: '' }
+}
+
 function normalizeForm(value) {
-  return { ...(value ?? createEmptyBusinessPartner()), contacts: value?.contacts ?? [] }
+  const defaults = createEmptyBusinessPartner()
+  return {
+    ...defaults,
+    ...(value ?? {}),
+    address: { ...defaults.address, ...(value?.address ?? {}) },
+    contact: { ...defaults.contact, ...(value?.contact ?? {}) },
+    companyData: { ...defaults.companyData, ...(value?.companyData ?? {}) },
+    contacts: (value?.contacts ?? []).map((contact) => ({ ...createContact(), ...contact })),
+    portals: (value?.portals ?? []).map((portal) => ({ ...createPortal(), ...portal })),
+  }
 }
 
 function Field({ label, name, value, onChange, error, type = 'text', placeholder, className = '' }) {
@@ -87,6 +101,49 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
   )
 }
 
+function PortalsSection({ portals, onChange }) {
+  const [expanded, setExpanded] = useState(false)
+  const [draft, setDraft] = useState(null)
+  const [errors, setErrors] = useState({})
+  const [visiblePasswords, setVisiblePasswords] = useState({})
+
+  function updateDraft(field, value) {
+    setDraft((current) => ({ ...current, [field]: value }))
+    setErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  function saveDraft() {
+    const nextErrors = {}
+    if (!draft.name.trim()) nextErrors.name = 'Portalname ist erforderlich.'
+    if (draft.url.trim() && !validateWebsite(draft.url)) nextErrors.url = 'Bitte eine vollständige Link-Adresse eingeben.'
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+
+    const exists = portals.some((portal) => portal.id === draft.id)
+    onChange(exists ? portals.map((portal) => portal.id === draft.id ? draft : portal) : [...portals, draft])
+    setDraft(null)
+  }
+
+  function removePortal(portalId) {
+    onChange(portals.filter((portal) => portal.id !== portalId))
+    if (draft?.id === portalId) setDraft(null)
+  }
+
+  return (
+    <section className="form-section portals-section">
+      <div className="portals-section__header">
+        <div><h2>Portale &amp; Zugänge</h2><p>Optionale Zugänge für diesen Geschäftspartner</p></div>
+        <button className="button button--secondary" type="button" onClick={() => setExpanded((current) => !current)} aria-expanded={expanded}>{expanded ? 'Schließen' : `Zugänge${portals.length ? ` (${portals.length})` : ''}`}</button>
+      </div>
+      {expanded && <div className="portals-section__content">
+        <div className="portals-section__actions"><button className="button button--secondary" type="button" onClick={() => { setErrors({}); setDraft(createPortal()) }}>Zugang hinzufügen</button></div>
+        <div className="portals-table table-frame"><table><thead><tr><th>Portal</th><th>Link</th><th>Benutzer / E-Mail</th><th>Passwort</th><th>Zweck</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => <tr key={portal.id}><td><strong>{portal.name}</strong></td><td>{portal.url ? <a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">Öffnen</a> : '—'}</td><td>{portal.username || '—'}</td><td><div className="portal-password"><span>{visiblePasswords[portal.id] ? (portal.password || '—') : portal.password ? '••••••••' : '—'}</span>{portal.password && <button type="button" onClick={() => setVisiblePasswords((current) => ({ ...current, [portal.id]: !current[portal.id] }))}>{visiblePasswords[portal.id] ? 'Ausblenden' : 'Anzeigen'}</button>}</div></td><td>{portal.purpose || '—'}</td><td><div className="contact-actions"><button type="button" onClick={() => { setErrors({}); setDraft({ ...portal }) }}>Bearbeiten</button><button type="button" onClick={() => removePortal(portal.id)}>Entfernen</button></div></td></tr>) : <tr><td className="table-state" colSpan="6">Noch keine Zugänge erfasst.</td></tr>}</tbody></table></div>
+        {draft && <div className="portal-editor"><div className="contact-editor__header"><h3>{portals.some((portal) => portal.id === draft.id) ? 'Zugang bearbeiten' : 'Zugang hinzufügen'}</h3><button className="button button--secondary" type="button" onClick={() => setDraft(null)}>Abbrechen</button></div><div className="portal-editor__grid"><Field label="Portalname *" name="portal-name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} error={errors.name} /><Field label="Link" name="portal-url" value={draft.url} onChange={(event) => updateDraft('url', event.target.value)} error={errors.url} placeholder="https://" /><Field label="Benutzer / E-Mail" name="portal-username" value={draft.username} onChange={(event) => updateDraft('username', event.target.value)} autoComplete="username" /><label className="form-field"><span>Passwort</span><div className="password-input"><input name="portal-password" value={draft.password} onChange={(event) => updateDraft('password', event.target.value)} type={visiblePasswords[draft.id] ? 'text' : 'password'} autoComplete="new-password" /><button type="button" onClick={() => setVisiblePasswords((current) => ({ ...current, [draft.id]: !current[draft.id] }))}>{visiblePasswords[draft.id] ? 'Ausblenden' : 'Anzeigen'}</button></div></label><Field className="portal-editor__wide" label="Zweck" name="portal-purpose" value={draft.purpose} onChange={(event) => updateDraft('purpose', event.target.value)} /></div><div className="form-actions"><button className="button" type="button" onClick={saveDraft}>Zugang übernehmen</button></div></div>}
+      </div>}
+    </section>
+  )
+}
+
 export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyChange, onFormChange, formId }) {
   const [form, setForm] = useState(() => normalizeForm(initialValue))
   const [savedForm, setSavedForm] = useState(() => normalizeForm(initialValue))
@@ -102,7 +159,8 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
   function handleChange(event) {
     const { name, value } = event.target
     const [group, field] = name.split('.')
-    const nextForm = field ? { ...form, [group]: { ...form[group], [field]: value } } : { ...form, [name]: value }
+    const normalizedValue = name === 'creditNoteProcedure' ? value === 'true' : value
+    const nextForm = field ? { ...form, [group]: { ...form[group], [field]: normalizedValue } } : { ...form, [name]: normalizedValue }
     updateForm(nextForm)
     setErrors((current) => ({ ...current, [name]: undefined }))
   }
@@ -112,6 +170,10 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     setErrors((current) => ({ ...current, contacts: undefined }))
   }
 
+  function updatePortals(portals) {
+    updateForm({ ...form, portals })
+  }
+
   async function handleSubmit(event) {
     event.preventDefault()
     const nextErrors = {}
@@ -119,6 +181,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     if (!form.debtorNumber.trim() && !form.creditorNumber.trim()) nextErrors.references = 'Mindestens eine Debitoren- oder Kreditorennummer ist erforderlich.'
     if (form.contact.email.trim() && !validateEmail(form.contact.email)) nextErrors['contact.email'] = 'Bitte eine gültige E-Mail-Adresse eingeben.'
     if (form.contact.website.trim() && !validateWebsite(form.contact.website)) nextErrors['contact.website'] = 'Bitte eine vollständige Website-Adresse eingeben.'
+    if (form.paymentTermDays !== '' && (!Number.isInteger(Number(form.paymentTermDays)) || Number(form.paymentTermDays) < 0)) nextErrors.paymentTermDays = 'Bitte volle Tage ab 0 eingeben.'
     if (form.contacts.some((contact) => !contact.name.trim() || !contact.department || (contact.email.trim() && !validateEmail(contact.email)))) nextErrors.contacts = 'Bitte die Ansprechpartnerangaben prüfen.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
@@ -162,8 +225,14 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
       </FormSection>
 
+      <FormSection title="Abrechnung" className="form-grid--billing">
+        <Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={handleChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" />
+        <label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={handleChange}><option value="false">Nein</option><option value="true">Ja</option></select></label>
+      </FormSection>
+
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
+      <PortalsSection portals={form.portals} onChange={updatePortals} />
     </form>
   )
 }
