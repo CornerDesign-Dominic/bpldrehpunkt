@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
-import { listAllPalletClosings, listAllPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
+import { isPalletMovementForPartner, listAllPalletClosings, listAllPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
 
 const filters = [
   { value: 'all', label: 'Alle' },
@@ -43,7 +43,7 @@ export default function PalletsPage() {
 
   const accountsByPartner = useMemo(() => partners.map((partner) => ({
     partner,
-    account: summarizePalletAccount(movements.filter((movement) => movement.partnerId === partner.id), closings.filter((closing) => closing.partnerId === partner.id)),
+    account: summarizePalletAccount(movements.filter((movement) => isPalletMovementForPartner(movement, partner.id)), closings.filter((closing) => closing.partnerId === partner.id), partner.id),
   })), [closings, movements, partners])
 
   const visibleAccounts = useMemo(() => {

@@ -80,6 +80,12 @@
 - Tabellen- und Listenansichten folgen einer gemeinsamen Breite und Gestaltung
 - Doppelte Seitentitel innerhalb derselben Ansicht vermeiden
 - Abkürzungen in der Navigation kurz halten und Seitentitel bei besserer Verständlichkeit ausschreiben
+- Palettenbewegungen bilden reale Transportvorgänge ab, keine manuell erzeugten Soll- oder Haben-Buchungen
+- Erhaltene und abgegebene Paletten ausschließlich als positive Stückzahlen oder 0 eingeben
+- Vorzeichen ausschließlich durch die Berechnungslogik erzeugen
+- Palettenbewegungen fachlich aus Sicht des Unternehmers berechnen und Kundenwirkungen automatisch spiegeln
+- Kunde und Unternehmer können optional sein; mindestens ein beteiligter Geschäftspartner ist erforderlich
+- Eine reale Palettenbewegung genau einmal speichern
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

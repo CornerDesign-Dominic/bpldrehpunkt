@@ -11,9 +11,59 @@ const toNumber = (value) => Number(value) || 0
 const trimValue = (value) => value.trim()
 const mapSnapshot = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 
+function getMovementSnapshots(partnerId) {
+  return Promise.all([
+    getDocs(query(palletMovementsRef, where('customerId', '==', partnerId))),
+    getDocs(query(palletMovementsRef, where('carrierId', '==', partnerId))),
+    getDocs(query(palletMovementsRef, where('partnerId', '==', partnerId))),
+  ])
+}
+
+export function isPalletMovementForPartner(movement, partnerId) {
+  return movement.customerId === partnerId || movement.carrierId === partnerId || movement.partnerId === partnerId
+}
+
+export function getPalletMovementChangeForPartner(movement, partnerId) {
+  if (movement.partnerId === partnerId) return toNumber(movement.incoming) - toNumber(movement.outgoing)
+
+  let change = 0
+  if (movement.carrierId === partnerId) change += toNumber(movement.carrierBalance)
+  if (movement.customerId === partnerId) change += toNumber(movement.customerBalance)
+  return change
+}
+
+export function getPalletMovementCounterpartyId(movement, partnerId) {
+  if (movement.carrierId === partnerId && movement.customerId !== partnerId) return movement.customerId
+  if (movement.customerId === partnerId && movement.carrierId !== partnerId) return movement.carrierId
+  return ''
+}
+
+export function calculatePalletMovement(values) {
+  const loadingPoint = {
+    received: toNumber(values.loadingPoint.received),
+    delivered: toNumber(values.loadingPoint.delivered),
+  }
+  const unloadingPoint = {
+    received: toNumber(values.unloadingPoint.received),
+    delivered: toNumber(values.unloadingPoint.delivered),
+  }
+
+  loadingPoint.carrierChange = loadingPoint.delivered - loadingPoint.received
+  unloadingPoint.carrierChange = unloadingPoint.delivered - unloadingPoint.received
+
+  const carrierBalance = loadingPoint.carrierChange + unloadingPoint.carrierChange
+  return {
+    loadingPoint,
+    unloadingPoint,
+    carrierBalance,
+    customerBalance: carrierBalance * -1,
+  }
+}
+
 export async function listPalletMovements(partnerId) {
-  const snapshot = await getDocs(query(palletMovementsRef, where('partnerId', '==', partnerId)))
-  return snapshot.docs.map(mapSnapshot)
+  const snapshots = await getMovementSnapshots(partnerId)
+  const movements = snapshots.flatMap((snapshot) => snapshot.docs.map(mapSnapshot))
+  return [...new Map(movements.map((movement) => [movement.id, movement])).values()]
 }
 
 export async function listPalletClosings(partnerId) {
@@ -31,15 +81,16 @@ export async function listAllPalletClosings() {
   return snapshot.docs.map(mapSnapshot)
 }
 
-export async function createPalletMovement(partnerId, values) {
+export async function createPalletMovement(values) {
+  const calculation = calculatePalletMovement(values)
   await addDoc(palletMovementsRef, {
-    partnerId,
-    date: values.date,
     tourNumber: trimValue(values.tourNumber),
-    counterAccount: trimValue(values.counterAccount),
-    incoming: toNumber(values.incoming),
-    outgoing: toNumber(values.outgoing),
+    date: values.date,
+    customerId: values.customerId || null,
+    carrierId: values.carrierId || null,
+    palletReceiptNumber: trimValue(values.palletReceiptNumber),
     note: trimValue(values.note),
+    ...calculation,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -64,10 +115,15 @@ function timestampValue(value) {
   return value?.toMillis?.() ?? 0
 }
 
-export function getPalletAccountEntries(movements, closings) {
+export function getPalletAccountEntries(movements, closings, partnerId) {
   const entries = [
-    ...movements.map((movement) => ({ ...movement, entryType: 'movement', incoming: toNumber(movement.incoming), outgoing: toNumber(movement.outgoing), change: toNumber(movement.incoming) - toNumber(movement.outgoing) })),
-    ...closings.map((closing) => ({ ...closing, entryType: 'closing', incoming: 0, outgoing: 0, change: toNumber(closing.adjustment) })),
+    ...movements.map((movement) => ({
+      ...movement,
+      entryType: 'movement',
+      change: getPalletMovementChangeForPartner(movement, partnerId),
+      counterpartyId: getPalletMovementCounterpartyId(movement, partnerId),
+    })),
+    ...closings.map((closing) => ({ ...closing, entryType: 'closing', change: toNumber(closing.adjustment) })),
   ].sort((first, second) => first.date.localeCompare(second.date) || timestampValue(first.createdAt) - timestampValue(second.createdAt))
 
   let balance = 0
@@ -77,13 +133,14 @@ export function getPalletAccountEntries(movements, closings) {
   })
 }
 
-export function summarizePalletAccount(movements, closings) {
-  const entries = getPalletAccountEntries(movements, closings)
+export function summarizePalletAccount(movements, closings, partnerId) {
+  const entries = getPalletAccountEntries(movements, closings, partnerId)
+  const movementChanges = movements.map((movement) => getPalletMovementChangeForPartner(movement, partnerId))
   const latestClosing = entries.filter((entry) => entry.entryType === 'closing').at(-1) ?? null
 
   return {
-    totalIncoming: movements.reduce((sum, movement) => sum + toNumber(movement.incoming), 0),
-    totalOutgoing: movements.reduce((sum, movement) => sum + toNumber(movement.outgoing), 0),
+    totalIncoming: movementChanges.filter((change) => change > 0).reduce((sum, change) => sum + change, 0),
+    totalOutgoing: movementChanges.filter((change) => change < 0).reduce((sum, change) => sum + Math.abs(change), 0),
     balance: entries.at(-1)?.balance ?? 0,
     latestClosing,
     entries,
