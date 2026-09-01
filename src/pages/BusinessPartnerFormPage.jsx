@@ -8,12 +8,12 @@ import { getHistoryActor } from '../lib/partnerHistory.js'
 import { useAuth } from '../auth/useAuth.js'
 
 function formatCreditLimit(value) {
-  return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
+  return value === null || value === undefined ? 'n/a' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-function CrmShortStatus({ partner, ratings }) {
+function MasterdataInfoCard({ partner, ratings }) {
   const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
-  return <aside className="crm-short-status" aria-label="CRM-Kurzstatus"><span className="crm-short-status__title">CRM</span><div className="crm-short-status__values"><div className="crm-short-status__rating"><span>Bewertung</span>{ratingItems.map((rating) => <span className="crm-short-status__rating-value" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{ratingItems.length > 1 && `${rating.label}: `}{rating.value}</span>)}</div><div className="crm-short-status__credit"><span>Kreditlimit</span><strong>{formatCreditLimit(partner.creditLimit)}</strong></div></div></aside>
+  return <aside className="masterdata-info-card" aria-label="Aktueller Geschäftspartnerstatus"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}</aside>
 }
 
 export default function BusinessPartnerFormPage({ mode }) {
@@ -84,11 +84,13 @@ export default function BusinessPartnerFormPage({ mode }) {
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <header className="masterdata-header">
-        <div className="masterdata-header__identity"><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2>{!isNew && <div className="masterdata-header__meta-row"><div className="detail-header__meta"><span>{getBusinessPartnerType(shownPartner)}</span><span className={`status-badge status-badge--${shownPartner.status}`}>{shownPartner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div><CrmShortStatus partner={partner} ratings={crmRatings} /></div>}</div>
-        <div className="masterdata-header__actions">
-          <div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-header__discard-action" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-header__save-button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div>
-          {!isNew && <div className="masterdata-header__navigation"><Link className="button button--secondary masterdata-header__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-header__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}
+        <div className="masterdata-header__identity"><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2></div>
+        <div className="masterdata-action-bar">
+          <div className="masterdata-action-bar__back"><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>
+          {!isNew && <div className="masterdata-action-bar__navigation"><Link className="button button--secondary masterdata-header__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-header__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}
+          <div className="masterdata-header__actions"><div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-header__discard-action" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-header__save-button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div>
         </div>
+        {!isNew && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} />}
       </header>
       {error && <p className="form-error">{error}</p>}
       <BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} />
