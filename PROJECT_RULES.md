@@ -99,12 +99,6 @@
 - Eine Bewegung wird weiterhin nur einmal gespeichert
 - Bearbeitungen müssen zumindest technisch nachvollziehbar bleiben
 - createdAt bleibt unverändert, updatedAt wird bei Korrekturen aktualisiert
-- Fallmanagement wird fachlich in Rechtsfälle, Inkassofälle und Versicherungs-/Schadensfälle getrennt.
-- Jeder Fall besitzt eine Übersicht und eine direkt bearbeitbare Fallakte.
-- Status und Fristen werden strukturiert gespeichert und nicht ausschließlich als Freitext.
-- Geschäftspartner werden über ihre interne Firestore-ID referenziert.
-- Fallübersichten verwenden den gemeinsamen kompakten Tabellenstandard.
-- Datenmodelle sollen spätere modulübergreifende Fristenauswertungen ermöglichen.
 - Operative Eingabemasken orientieren sich am realen Arbeitsablauf und nicht an der technischen Buchungslogik
 - Berechnete Zwischenwerte werden nicht zwischen Eingabefeldern dargestellt, wenn sie für die Datenerfassung nicht erforderlich sind
 - Bei komplexen Buchungen werden Eingabe und Ergebnis visuell klar getrennt
@@ -112,6 +106,10 @@
 - Der aktuelle Fachbereich wird immer im zentralen App-Header angezeigt
 - Seitentitel werden nicht zusätzlich im Inhaltsbereich wiederholt
 - Detailseiten zeigen im Header den Fachbereich und im Inhalt den konkreten Datensatz
+
+## Produktiver Funktionsumfang
+- Der produktive Hauptstand umfasst Dashboard, Kunden & Unternehmer, CRM, Palettenmanagement, News, Dokumente und To-dos.
+- Weitere Fachbereiche werden getrennt entwickelt und gehören nicht zum produktiven Hauptstand.
 
 ## CRM-Aktivitäten
 - CRM-Aktivitäten werden chronologisch und dauerhaft dokumentiert.
@@ -128,19 +126,6 @@
 - Die jeweils neueste Bewertung gilt als aktueller Bewertungsstand.
 - Bewertungen sollen mit Datum und optionaler Begründung nachvollziehbar bleiben.
 
-## Qualitätsmanagement
-- Qualitätsmanagement ist ein eigener Fachbereich.
-- Qualitätsziele besitzen eigene Detailseiten und nachvollziehbare Fortschrittswerte.
-- Maßnahmen, Abweichungen, Audits und Verbesserungen werden strukturiert geführt.
-- Status und Fristen werden nicht ausschließlich als Freitext gespeichert.
-- QM-Fristen sollen später zentral auswertbar sein.
-
-## Wissen
-- Wissen wird als eigener Fachbereich mit Kategorien und suchbaren Artikeln geführt.
-- Wissensartikel werden zentral in Firestore gespeichert und direkt bearbeitet.
-- Kategorien strukturieren den Inhalt, ohne Artikel in technische Einzelseiten aufzuteilen.
-- Titel, Kurzbeschreibung und Inhalt eines Artikels bleiben klar voneinander getrennt.
-
 ## To-dos
 - To-dos können persönlich oder an Abteilungen adressiert werden.
 - Abteilungs-To-dos besitzen einen gemeinsamen Status für alle Mitglieder.
@@ -148,13 +133,6 @@
 - Benutzer dürfen sich nur selbst als Bearbeiter eintragen.
 - Ersteller, Empfänger und Bearbeiter sind fachlich getrennte Rollen.
 - To-do-Datenstrukturen müssen spätere benutzer- und abteilungsbezogene Zugriffsrechte ermöglichen.
-
-## Dispo-Cockpit
-- Das Dispo-Cockpit ist eine Ressourcen-Zeit-Matrix für eingesetzte Fahrzeuge, kein herkömmlicher Kalender.
-- Fahrzeuge stehen vertikal, die Zeitachse horizontal; Touren werden über ihre exakten Start- und Endzeiten positioniert.
-- Jedes Fahrzeug hat zwei visuelle Spuren. Nicht überlappende Touren belegen die erste freie Spur; mehr als zwei gleichzeitige Touren sind ein sichtbarer Planungskonflikt.
-- Operative Planungsansichten sind informationsdicht und für schnelle visuelle Erfassung ausgelegt.
-- Für den Bereich werden die Firestore-Collections `fleetVehicles` und `dispatchTrips` verwendet.
 
 ## News
 - News ist ein eigener zentraler Informationsbereich.
@@ -170,21 +148,6 @@
 - Dokumente werden nicht hart gelöscht, sondern bevorzugt archiviert.
 - Dokumentlisten werden kompakt tabellarisch dargestellt.
 - Dateizugriffe müssen später rollenbasiert beschränkbar sein.
-
-## Personal
-- Personal ist ein eigener Fachbereich.
-- Abwesenheiten werden zentral und kalenderbasiert dargestellt.
-- Mitarbeiter können nach Person und Abteilung gefiltert werden.
-- Jeder Mitarbeiter besitzt eine eigene Urlaubs- und Abwesenheitsübersicht.
-- Gemeinsame Ansichten zeigen nur planungsrelevante Informationen.
-- Das Datenmodell muss spätere Genehmigungsworkflows unterstützen.
-- Abwesenheitsdaten müssen später mit Benutzerkonten verknüpfbar sein.
-
-## KI-Werkzeuge
-- KI-Werkzeuge werden als eigener Hauptbereich geführt.
-- Einzelne KI-Funktionen werden innerhalb des Bereichs über Tabs getrennt.
-- KI-Werkzeuge sollen fachlich klar abgegrenzt und modular erweiterbar sein.
-- API-, Upload- und Analyse-Logik wird nicht direkt in UI-Komponenten vermischt.
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

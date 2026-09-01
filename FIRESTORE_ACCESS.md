@@ -1,6 +1,6 @@
 # Firestore-Zugriff in der Entwicklung
 
-Die Anwendung verwendet die Collection `businessPartners`. Die Firebase-Web-Konfiguration ist bereits zentral in `src/lib/firebase.js` hinterlegt; zusätzliche Environment-Variablen sind derzeit nicht erforderlich.
+Die Anwendung verwendet Firestore für die produktiven Fachbereiche. Die Firebase-Web-Konfiguration ist bereits zentral in `src/lib/firebase.js` hinterlegt; zusätzliche Environment-Variablen sind derzeit nicht erforderlich.
 
 ## Aktueller Status
 
@@ -14,7 +14,7 @@ Nach der Authentifizierung sollte der Zugriff mindestens angemeldete Benutzer vo
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /businessPartners/{partnerId} {
+    match /{document=**} {
       allow read, write: if request.auth != null;
     }
   }

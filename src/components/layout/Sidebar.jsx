@@ -1,22 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { AiToolsIcon, ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, DocumentsIcon, DrehpunktIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, NewsIcon, PalletsIcon, PersonnelIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
+import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktIcon, NewsIcon, PalletsIcon, TodoIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon },
   { label: 'CRM', to: '/crm', icon: CrmIcon },
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon },
-  { label: 'Dispo-Cockpit', to: '/dispo-cockpit', icon: DispatchIcon },
   { label: 'News', to: '/news', icon: NewsIcon },
   { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon },
-  { label: 'Personal', to: '/personal', icon: PersonnelIcon },
-  { label: 'Qualitätsmanagement', to: '/qm', icon: QualityIcon },
-  { label: 'Wissen', to: '/wissen', icon: KnowledgeIcon },
   { label: 'To-dos', to: '/todos', icon: TodoIcon },
-  { label: 'KI-Werkzeuge', to: '/ki-werkzeuge', icon: AiToolsIcon },
-  { label: 'Rechtsfälle', to: '/rechtsfaelle', icon: LegalIcon },
-  { label: 'Inkassofälle', to: '/inkassofaelle', icon: DebtCollectionIcon },
-  { label: 'Versicherungsfälle / Schäden', to: '/versicherungsfaelle', icon: InsuranceIcon },
 ]
 
 export default function Sidebar({ collapsed, onToggle }) {

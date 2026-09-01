@@ -3,17 +3,9 @@ const pageTitles = [
   { path: '/kunden-unternehmer', title: 'Kunden & Unternehmer' },
   { path: '/crm', title: 'Customer Relationship Management (CRM)' },
   { path: '/paletten', title: 'Palettenmanagement' },
-  { path: '/dispo-cockpit', title: 'Dispo-Cockpit' },
   { path: '/news', title: 'News' },
   { path: '/dokumente', title: 'Dokumente' },
-  { path: '/personal', title: 'Personal' },
-  { path: '/qm', title: 'Qualitätsmanagement' },
-  { path: '/wissen', title: 'Wissen' },
   { path: '/todos', title: 'To-dos' },
-  { path: '/ki-werkzeuge', title: 'KI-Werkzeuge' },
-  { path: '/rechtsfaelle', title: 'Rechtsfälle' },
-  { path: '/inkassofaelle', title: 'Inkassofälle' },
-  { path: '/versicherungsfaelle', title: 'Versicherungsfälle / Schäden' },
 ]
 
 export function getPageTitle(pathname) {
