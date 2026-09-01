@@ -142,14 +142,21 @@ button, a { font: inherit; }
 .pallet-journal__header span { color: #838e9b; font-size: 12px; }
 .pallet-journal .table-frame table { table-layout: fixed; }
 .pallet-journal .table-frame th, .pallet-journal .table-frame td { height: 38px; padding: 5px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pallet-journal .table-frame th:nth-child(1) { width: 8%; }
-.pallet-journal .table-frame th:nth-child(2) { width: 12%; }
-.pallet-journal .table-frame th:nth-child(3) { width: 17%; }
-.pallet-journal .table-frame th:nth-child(4), .pallet-journal .table-frame th:nth-child(5), .pallet-journal .table-frame th:nth-child(6), .pallet-journal .table-frame th:nth-child(7) { width: 9%; }
-.pallet-journal .table-frame th:nth-child(8), .pallet-journal .table-frame th:nth-child(9) { width: 9%; }
-.pallet-journal .table-frame th:nth-child(10) { width: 9%; }
+.pallet-journal .table-frame th:nth-child(1) { width: 7%; }
+.pallet-journal .table-frame th:nth-child(2) { width: 11%; }
+.pallet-journal .table-frame th:nth-child(3) { width: 15%; }
+.pallet-journal .table-frame th:nth-child(4), .pallet-journal .table-frame th:nth-child(5), .pallet-journal .table-frame th:nth-child(6), .pallet-journal .table-frame th:nth-child(7) { width: 8%; }
+.pallet-journal .table-frame th:nth-child(8) { width: 8%; }
+.pallet-journal .table-frame th:nth-child(9) { width: 9%; }
+.pallet-journal .table-frame th:nth-child(10) { width: 10%; }
+.pallet-journal .table-frame th:nth-child(11) { width: 8%; }
 .table-header-stack { display: grid; line-height: 1.15; text-transform: none; }
 .pallet-tour { color: #34495e; font-weight: 700; }
+.pallet-movement-reference { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.pallet-edited-badge { display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border-radius: 4px; color: #6c7380; background: #f0f2f4; font-size: 10px; font-weight: 650; }
+.pallet-journal__action { text-align: right; }
+.pallet-journal__action button { padding: 0; border: 0; color: #475e76; background: transparent; cursor: pointer; font-size: 12px; font-weight: 600; }
+.pallet-journal__action button:hover { color: #263e57; text-decoration: underline; }
 .pallet-closing-reference { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .pallet-closing-reference .pallet-entry-badge { flex: 0 0 auto; }
 .pallet-quantity { color: #465362; text-align: right; font-variant-numeric: tabular-nums; }

@@ -94,6 +94,11 @@
 - Ansprechpartner kompakt tabellarisch darstellen
 - Abteilungen bevorzugt über standardisierte Auswahlwerte pflegen
 - Ansprechpartner gehören fachlich zum jeweiligen Geschäftspartner
+- Palettenbewegungen dürfen nachträglich korrigiert werden
+- Änderungen an historischen Bewegungen müssen nachfolgende Kontostände vollständig neu berechnen
+- Eine Bewegung wird weiterhin nur einmal gespeichert
+- Bearbeitungen müssen zumindest technisch nachvollziehbar bleiben
+- createdAt bleibt unverändert, updatedAt wird bei Korrekturen aktualisiert
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

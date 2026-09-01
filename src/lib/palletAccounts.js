@@ -1,4 +1,4 @@
-import { addDoc, collection, getDocs, query, serverTimestamp, where } from 'firebase/firestore'
+import { Timestamp, addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase.js'
 
 export const PALLET_MOVEMENTS_COLLECTION = 'palletMovements'
@@ -8,7 +8,7 @@ const palletMovementsRef = collection(db, PALLET_MOVEMENTS_COLLECTION)
 const palletClosingsRef = collection(db, PALLET_CLOSINGS_COLLECTION)
 
 const toNumber = (value) => Number(value) || 0
-const trimValue = (value) => value.trim()
+const trimValue = (value) => (value ?? '').trim()
 const mapSnapshot = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 
 function getMovementSnapshots(partnerId) {
@@ -92,6 +92,40 @@ export async function createPalletMovement(values) {
     note: trimValue(values.note),
     ...calculation,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+function createMovementHistorySnapshot(movement) {
+  return {
+    tourNumber: movement.tourNumber ?? '',
+    date: movement.date ?? '',
+    customerId: movement.customerId ?? null,
+    carrierId: movement.carrierId ?? null,
+    palletReceiptNumber: movement.palletReceiptNumber ?? '',
+    note: movement.note ?? '',
+    loadingPoint: movement.loadingPoint ?? { received: 0, delivered: 0, carrierChange: 0 },
+    unloadingPoint: movement.unloadingPoint ?? { received: 0, delivered: 0, carrierChange: 0 },
+    carrierBalance: toNumber(movement.carrierBalance),
+    customerBalance: toNumber(movement.customerBalance),
+  }
+}
+
+export async function updatePalletMovement(movementId, values) {
+  const movementRef = doc(db, PALLET_MOVEMENTS_COLLECTION, movementId)
+  const previousSnapshot = await getDoc(movementRef)
+  if (!previousSnapshot.exists()) throw new Error('Palettenbewegung nicht gefunden.')
+
+  const calculation = calculatePalletMovement(values)
+  await updateDoc(movementRef, {
+    tourNumber: trimValue(values.tourNumber),
+    date: values.date,
+    customerId: values.customerId || null,
+    carrierId: values.carrierId || null,
+    palletReceiptNumber: trimValue(values.palletReceiptNumber),
+    note: trimValue(values.note),
+    ...calculation,
+    editHistory: arrayUnion({ editedAt: Timestamp.now(), previousData: createMovementHistorySnapshot(previousSnapshot.data()) }),
     updatedAt: serverTimestamp(),
   })
 }

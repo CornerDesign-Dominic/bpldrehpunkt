@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Toast from '../components/ui/Toast.jsx'
 import { getBusinessPartner, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
-import { calculatePalletMovement, createPalletClosing, createPalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
+import { calculatePalletMovement, createPalletClosing, createPalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletMovement } from '../lib/palletAccounts.js'
 
 const closingTypes = ['Rechnung', 'Verrechnung', 'Rückgabe / Ausgleich', 'Sonstiges']
 const currentDate = () => new Date().toISOString().slice(0, 10)
@@ -17,7 +17,7 @@ function formatDate(date) {
 }
 
 function formatLastClosing(closing) {
-  return closing ? `${formatDate(closing.date)} · ${formatNumber(closing.newBalance, true)}` : '—'
+  return closing ? `${formatDate(closing.date)} · ${formatNumber(closing.balance, true)}` : '—'
 }
 
 function createMovementForm(partner) {
@@ -32,6 +32,19 @@ function createMovementForm(partner) {
     note: '',
     loadingPoint: { received: '', delivered: '' },
     unloadingPoint: { received: '', delivered: '' },
+  }
+}
+
+function createMovementFormFromEntry(movement) {
+  return {
+    tourNumber: movement.tourNumber ?? '',
+    date: movement.date ?? currentDate(),
+    customerId: movement.customerId ?? '',
+    carrierId: movement.carrierId ?? '',
+    palletReceiptNumber: movement.palletReceiptNumber ?? '',
+    note: movement.note ?? '',
+    loadingPoint: { received: String(movement.loadingPoint?.received ?? 0), delivered: String(movement.loadingPoint?.delivered ?? 0) },
+    unloadingPoint: { received: String(movement.unloadingPoint?.received ?? 0), delivered: String(movement.unloadingPoint?.delivered ?? 0) },
   }
 }
 
@@ -59,6 +72,7 @@ export default function PalletAccountDetailPage() {
   const [closings, setClosings] = useState([])
   const [accountError, setAccountError] = useState('')
   const [activeForm, setActiveForm] = useState('')
+  const [editingMovement, setEditingMovement] = useState(null)
   const [movementForm, setMovementForm] = useState(() => createMovementForm())
   const [closingForm, setClosingForm] = useState(() => createClosingForm(0))
   const [formError, setFormError] = useState('')
@@ -86,11 +100,31 @@ export default function PalletAccountDetailPage() {
   const selectedCustomer = partnersById.get(movementForm.customerId)
   const selectedCarrier = partnersById.get(movementForm.carrierId)
 
+  async function reloadAccount() {
+    const [loadedMovements, loadedClosings] = await fetchAccountData(partnerId)
+    setMovements(loadedMovements)
+    setClosings(loadedClosings)
+  }
+
+  function closeActiveForm() {
+    setActiveForm('')
+    setEditingMovement(null)
+    setFormError('')
+  }
+
   function openForm(form, partner) {
     setFormError('')
+    setEditingMovement(null)
     setActiveForm(form)
     if (form === 'closing') setClosingForm(createClosingForm(account.balance))
     if (form === 'movement') setMovementForm(createMovementForm(partner))
+  }
+
+  function openMovementEdit(movement) {
+    setFormError('')
+    setEditingMovement(movement)
+    setMovementForm(createMovementFormFromEntry(movement))
+    setActiveForm('movement')
   }
 
   function updateStation(point, field, value) {
@@ -111,14 +145,13 @@ export default function PalletAccountDetailPage() {
     setIsSubmitting(true)
     setFormError('')
     try {
-      await createPalletMovement(movementForm)
-      const [loadedMovements, loadedClosings] = await fetchAccountData(partnerId)
-      setMovements(loadedMovements)
-      setClosings(loadedClosings)
-      setActiveForm('')
-      setToast('Palettenbewegung gespeichert.')
+      if (editingMovement) await updatePalletMovement(editingMovement.id, movementForm)
+      else await createPalletMovement(movementForm)
+      await reloadAccount()
+      closeActiveForm()
+      setToast(editingMovement ? 'Palettenbewegung aktualisiert.' : 'Palettenbewegung gespeichert.')
     } catch {
-      setFormError('Die Palettenbewegung konnte nicht gespeichert werden.')
+      setFormError(editingMovement ? 'Die Palettenbewegung konnte nicht aktualisiert werden.' : 'Die Palettenbewegung konnte nicht gespeichert werden.')
     } finally {
       setIsSubmitting(false)
     }
@@ -133,10 +166,8 @@ export default function PalletAccountDetailPage() {
     setFormError('')
     try {
       await createPalletClosing(partnerId, { ...closingForm, previousBalance: account.balance, newBalance: newClosingBalance })
-      const [loadedMovements, loadedClosings] = await fetchAccountData(partnerId)
-      setMovements(loadedMovements)
-      setClosings(loadedClosings)
-      setActiveForm('')
+      await reloadAccount()
+      closeActiveForm()
       setToast('Kontoabschluss gespeichert.')
     } catch {
       setFormError('Der Kontoabschluss konnte nicht gespeichert werden.')
@@ -155,12 +186,58 @@ export default function PalletAccountDetailPage() {
   return (
     <div className="pallet-account-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <header className="pallet-account-header"><div><span className="page-kicker">Palettenkonto</span><h2>{partner.companyName}</h2><div className="pallet-account-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{address}</span><span>{location}</span><span>{partner.address?.country || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span></div></div><div className="pallet-account-header__actions"><button className="button" type="button" onClick={() => openForm('movement', partner)}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={() => openForm('closing', partner)}>Abschluss hinzufügen</button><Link className="button button--secondary" to="/paletten">Zurück zur Übersicht</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
+      <header className="pallet-account-header">
+        <div><span className="page-kicker">Palettenkonto</span><h2>{partner.companyName}</h2><div className="pallet-account-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{address}</span><span>{location}</span><span>{partner.address?.country || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span></div></div>
+        <div className="pallet-account-header__actions"><button className="button" type="button" onClick={() => openForm('movement', partner)}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={() => openForm('closing', partner)}>Abschluss hinzufügen</button><Link className="button button--secondary" to="/paletten">Zurück zur Übersicht</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div>
+      </header>
+
       <section className="pallet-account-summary"><div><span>Aktueller Palettensaldo</span><strong>{accountError ? '—' : formatNumber(account.balance, true)}</strong></div><div><span>Letzter Kontoabschluss</span><strong>{accountError ? '—' : formatLastClosing(account.latestClosing)}</strong></div></section>
       {accountError && <p className="form-error">{accountError}</p>}
-      {activeForm === 'movement' && <form className="pallet-entry-form pallet-movement-form" onSubmit={handleMovementSubmit}><div className="pallet-entry-form__header"><h3>Bewegung hinzufügen</h3><button className="button button--secondary" type="button" onClick={() => setActiveForm('')}>Abbrechen</button></div><div className="pallet-movement-form__header"><label className="form-field"><span>Tournummer / unsere Nummer</span><input value={movementForm.tourNumber} onChange={(event) => setMovementForm({ ...movementForm, tourNumber: event.target.value })} /></label><label className="form-field"><span>Datum</span><input type="date" value={movementForm.date} onChange={(event) => setMovementForm({ ...movementForm, date: event.target.value })} /></label><label className="form-field"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => setMovementForm({ ...movementForm, customerId: event.target.value })}><option value="">Kein Kunde</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Debitor {item.debtorNumber}</option>)}</select></label><label className="form-field"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => setMovementForm({ ...movementForm, carrierId: event.target.value })}><option value="">Kein Unternehmer</option>{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Kreditor {item.creditorNumber}</option>)}</select></label><label className="form-field"><span>Palettenschein-Nr.</span><input value={movementForm.palletReceiptNumber} onChange={(event) => setMovementForm({ ...movementForm, palletReceiptNumber: event.target.value })} /></label><label className="form-field pallet-movement-form__wide"><span>Bemerkung</span><input value={movementForm.note} onChange={(event) => setMovementForm({ ...movementForm, note: event.target.value })} /></label></div><div className="pallet-movement-partners">{selectedCustomer && <div><span>Kunde</span><strong>{selectedCustomer.companyName}</strong><small>DyCoS Debitor: {selectedCustomer.debtorNumber}</small></div>}{selectedCarrier && <div><span>Unternehmer</span><strong>{selectedCarrier.companyName}</strong><small>DyCoS Kreditor: {selectedCarrier.creditorNumber}</small></div>}</div><div className="pallet-stations"><fieldset><legend>Ladestelle</legend><div><label className="form-field"><span>Erhalten</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.received} onChange={(event) => updateStation('loadingPoint', 'received', event.target.value)} /></label><label className="form-field"><span>Abgegeben</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.delivered} onChange={(event) => updateStation('loadingPoint', 'delivered', event.target.value)} /></label><label className="form-field"><span>Veränderung Unternehmer</span><output className="derived-value">{formatNumber(movementCalculation.loadingPoint.carrierChange, true)}</output></label></div></fieldset><fieldset><legend>Entladestelle</legend><div><label className="form-field"><span>Erhalten</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.unloadingPoint.received} onChange={(event) => updateStation('unloadingPoint', 'received', event.target.value)} /></label><label className="form-field"><span>Abgegeben</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.unloadingPoint.delivered} onChange={(event) => updateStation('unloadingPoint', 'delivered', event.target.value)} /></label><label className="form-field"><span>Veränderung Unternehmer</span><output className="derived-value">{formatNumber(movementCalculation.unloadingPoint.carrierChange, true)}</output></label></div></fieldset></div><section className="pallet-movement-impact"><h4>Auswirkung auf Palettenkonten</h4>{selectedCarrier && <div><span>Unternehmer</span><strong>{formatNumber(movementCalculation.carrierBalance, true)} Paletten</strong></div>}{selectedCustomer && <div><span>Kunde</span><strong>{formatNumber(movementCalculation.customerBalance, true)} Paletten</strong></div>}{!selectedCarrier && !selectedCustomer && <p>Wählen Sie mindestens einen beteiligten Geschäftspartner aus.</p>}</section>{formError && <p className="field-error">{formError}</p>}<div className="form-actions"><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Bewegung speichern'}</button></div></form>}
-      {activeForm === 'closing' && <form className="pallet-entry-form" onSubmit={handleClosingSubmit}><div className="pallet-entry-form__header"><h3>Abschluss hinzufügen</h3><button className="button button--secondary" type="button" onClick={() => setActiveForm('')}>Abbrechen</button></div><div className="pallet-entry-form__grid pallet-closing-form__grid"><label className="form-field"><span>Datum</span><input type="date" value={closingForm.date} onChange={(event) => setClosingForm({ ...closingForm, date: event.target.value })} /></label><label className="form-field"><span>Aktueller Saldo vor Abschluss</span><output className="derived-value">{formatNumber(account.balance, true)}</output></label><label className="form-field"><span>Abschlussbetrag / Saldoänderung</span><input autoFocus inputMode="decimal" type="number" step="0.01" value={closingForm.adjustment} onChange={(event) => setClosingForm({ ...closingForm, adjustment: event.target.value })} /></label><label className="form-field"><span>Neuer Saldo</span><output className="derived-value">{formatNumber(newClosingBalance, true)}</output></label><label className="form-field"><span>Grund / Art des Abschlusses</span><select value={closingForm.type} onChange={(event) => setClosingForm({ ...closingForm, type: event.target.value })}>{closingTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label className="form-field"><span>Referenz</span><input value={closingForm.reference} onChange={(event) => setClosingForm({ ...closingForm, reference: event.target.value })} /></label><label className="form-field pallet-entry-form__wide"><span>Bemerkung</span><input value={closingForm.note} onChange={(event) => setClosingForm({ ...closingForm, note: event.target.value })} /></label></div>{formError && <p className="field-error">{formError}</p>}<div className="form-actions"><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Abschluss speichern'}</button></div></form>}
-      <section className="pallet-journal"><div className="pallet-journal__header"><h3>Kontoliste</h3><span>{account.entries.length} Buchungen</span></div><div className="table-frame"><table><thead><tr><th>Datum</th><th>Tour / Referenz</th><th>Gegenpartner</th><th><span className="table-header-stack"><span>Ladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Ladestelle</span><span>abgegeben</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>abgegeben</span></span></th><th>Veränderung</th><th>Kontostand</th><th>Palettenschein</th></tr></thead><tbody>{accountError ? <tr><td colSpan="10" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => { const counterparty = partnersById.get(entry.counterpartyId); const isMovement = entry.entryType === 'movement'; return <tr className={entry.entryType === 'closing' ? 'pallet-journal__closing' : ''} key={`${entry.entryType}-${entry.id}`}><td>{formatDate(entry.date)}</td><td>{isMovement ? <strong className="pallet-tour">{entry.tourNumber || '—'}</strong> : <span className="pallet-closing-reference"><span className="pallet-entry-badge pallet-entry-badge--closing">Abschluss</span>{entry.reference || '—'}</span>}</td><td>{isMovement ? counterparty?.companyName || '—' : '—'}</td><td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatNumber(entry.loadingPoint.received) : '—'}</td><td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatNumber(entry.loadingPoint.delivered) : '—'}</td><td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatNumber(entry.unloadingPoint.received) : '—'}</td><td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatNumber(entry.unloadingPoint.delivered) : '—'}</td><td className="pallet-quantity"><strong>{formatNumber(entry.change, true)}</strong></td><td className="pallet-quantity"><strong>{formatNumber(entry.balance, true)}</strong></td><td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td></tr> }) : <tr><td colSpan="10" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}</tbody></table></div></section>
+
+      {activeForm === 'movement' && <form className="pallet-entry-form pallet-movement-form" onSubmit={handleMovementSubmit}>
+        <div className="pallet-entry-form__header"><h3>{editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'}</h3><button className="button button--secondary" type="button" onClick={closeActiveForm}>Abbrechen</button></div>
+        <div className="pallet-movement-form__header">
+          <label className="form-field"><span>Tournummer / unsere Nummer</span><input value={movementForm.tourNumber} onChange={(event) => setMovementForm({ ...movementForm, tourNumber: event.target.value })} /></label>
+          <label className="form-field"><span>Datum</span><input type="date" value={movementForm.date} onChange={(event) => setMovementForm({ ...movementForm, date: event.target.value })} /></label>
+          <label className="form-field"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => setMovementForm({ ...movementForm, customerId: event.target.value })}><option value="">Kein Kunde</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Debitor {item.debtorNumber}</option>)}</select></label>
+          <label className="form-field"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => setMovementForm({ ...movementForm, carrierId: event.target.value })}><option value="">Kein Unternehmer</option>{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Kreditor {item.creditorNumber}</option>)}</select></label>
+          <label className="form-field"><span>Palettenschein-Nr.</span><input value={movementForm.palletReceiptNumber} onChange={(event) => setMovementForm({ ...movementForm, palletReceiptNumber: event.target.value })} /></label>
+          <label className="form-field pallet-movement-form__wide"><span>Bemerkung</span><input value={movementForm.note} onChange={(event) => setMovementForm({ ...movementForm, note: event.target.value })} /></label>
+        </div>
+        <div className="pallet-movement-partners">{selectedCustomer && <div><span>Kunde</span><strong>{selectedCustomer.companyName}</strong><small>DyCoS Debitor: {selectedCustomer.debtorNumber}</small></div>}{selectedCarrier && <div><span>Unternehmer</span><strong>{selectedCarrier.companyName}</strong><small>DyCoS Kreditor: {selectedCarrier.creditorNumber}</small></div>}</div>
+        <div className="pallet-stations">
+          <fieldset><legend>Ladestelle</legend><div><label className="form-field"><span>Erhalten</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.received} onChange={(event) => updateStation('loadingPoint', 'received', event.target.value)} /></label><label className="form-field"><span>Abgegeben</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.delivered} onChange={(event) => updateStation('loadingPoint', 'delivered', event.target.value)} /></label><label className="form-field"><span>Veränderung Unternehmer</span><output className="derived-value">{formatNumber(movementCalculation.loadingPoint.carrierChange, true)}</output></label></div></fieldset>
+          <fieldset><legend>Entladestelle</legend><div><label className="form-field"><span>Erhalten</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.unloadingPoint.received} onChange={(event) => updateStation('unloadingPoint', 'received', event.target.value)} /></label><label className="form-field"><span>Abgegeben</span><input inputMode="numeric" min="0" step="1" type="number" value={movementForm.unloadingPoint.delivered} onChange={(event) => updateStation('unloadingPoint', 'delivered', event.target.value)} /></label><label className="form-field"><span>Veränderung Unternehmer</span><output className="derived-value">{formatNumber(movementCalculation.unloadingPoint.carrierChange, true)}</output></label></div></fieldset>
+        </div>
+        <section className="pallet-movement-impact"><h4>Auswirkung auf Palettenkonten</h4>{selectedCarrier && <div><span>Unternehmer</span><strong>{formatNumber(movementCalculation.carrierBalance, true)} Paletten</strong></div>}{selectedCustomer && <div><span>Kunde</span><strong>{formatNumber(movementCalculation.customerBalance, true)} Paletten</strong></div>}{!selectedCarrier && !selectedCustomer && <p>Wählen Sie mindestens einen beteiligten Geschäftspartner aus.</p>}</section>
+        {formError && <p className="field-error">{formError}</p>}
+        <div className="form-actions"><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : editingMovement ? 'Änderung speichern' : 'Bewegung speichern'}</button></div>
+      </form>}
+
+      {activeForm === 'closing' && <form className="pallet-entry-form" onSubmit={handleClosingSubmit}><div className="pallet-entry-form__header"><h3>Abschluss hinzufügen</h3><button className="button button--secondary" type="button" onClick={closeActiveForm}>Abbrechen</button></div><div className="pallet-entry-form__grid pallet-closing-form__grid"><label className="form-field"><span>Datum</span><input type="date" value={closingForm.date} onChange={(event) => setClosingForm({ ...closingForm, date: event.target.value })} /></label><label className="form-field"><span>Aktueller Saldo vor Abschluss</span><output className="derived-value">{formatNumber(account.balance, true)}</output></label><label className="form-field"><span>Abschlussbetrag / Saldoänderung</span><input autoFocus inputMode="decimal" type="number" step="0.01" value={closingForm.adjustment} onChange={(event) => setClosingForm({ ...closingForm, adjustment: event.target.value })} /></label><label className="form-field"><span>Neuer Saldo</span><output className="derived-value">{formatNumber(newClosingBalance, true)}</output></label><label className="form-field"><span>Grund / Art des Abschlusses</span><select value={closingForm.type} onChange={(event) => setClosingForm({ ...closingForm, type: event.target.value })}>{closingTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label className="form-field"><span>Referenz</span><input value={closingForm.reference} onChange={(event) => setClosingForm({ ...closingForm, reference: event.target.value })} /></label><label className="form-field pallet-entry-form__wide"><span>Bemerkung</span><input value={closingForm.note} onChange={(event) => setClosingForm({ ...closingForm, note: event.target.value })} /></label></div>{formError && <p className="field-error">{formError}</p>}<div className="form-actions"><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Abschluss speichern'}</button></div></form>}
+
+      <section className="pallet-journal">
+        <div className="pallet-journal__header"><h3>Kontoliste</h3><span>{account.entries.length} Buchungen</span></div>
+        <div className="table-frame"><table><thead><tr><th>Datum</th><th>Tour / Referenz</th><th>Gegenpartner</th><th><span className="table-header-stack"><span>Ladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Ladestelle</span><span>abgegeben</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>abgegeben</span></span></th><th>Veränderung</th><th>Kontostand</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
+          {accountError ? <tr><td colSpan="11" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => {
+            const counterparty = partnersById.get(entry.counterpartyId)
+            const isMovement = entry.entryType === 'movement'
+            return <tr className={entry.entryType === 'closing' ? 'pallet-journal__closing' : ''} key={`${entry.entryType}-${entry.id}`}>
+              <td>{formatDate(entry.date)}</td>
+              <td>{isMovement ? <span className="pallet-movement-reference"><strong className="pallet-tour">{entry.tourNumber || '—'}</strong>{entry.editHistory?.length > 0 && <span className="pallet-edited-badge">bearbeitet</span>}</span> : <span className="pallet-closing-reference"><span className="pallet-entry-badge pallet-entry-badge--closing">Abschluss</span>{entry.reference || '—'}</span>}</td>
+              <td>{isMovement ? counterparty?.companyName || '—' : '—'}</td>
+              <td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatNumber(entry.loadingPoint.received) : '—'}</td>
+              <td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatNumber(entry.loadingPoint.delivered) : '—'}</td>
+              <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatNumber(entry.unloadingPoint.received) : '—'}</td>
+              <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatNumber(entry.unloadingPoint.delivered) : '—'}</td>
+              <td className="pallet-quantity"><strong>{formatNumber(entry.change, true)}</strong></td>
+              <td className="pallet-quantity"><strong>{formatNumber(entry.balance, true)}</strong></td>
+              <td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td>
+              <td className="pallet-journal__action">{isMovement && <button type="button" onClick={() => openMovementEdit(entry)}>Bearbeiten</button>}</td>
+            </tr>
+          }) : <tr><td colSpan="11" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
+        </tbody></table></div>
+      </section>
     </div>
   )
 }
