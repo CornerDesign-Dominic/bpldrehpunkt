@@ -4,6 +4,7 @@ const pageTitles = [
   { path: '/crm', title: 'Customer Relationship Management (CRM)' },
   { path: '/paletten', title: 'Palettenmanagement' },
   { path: '/qm', title: 'Qualitätsmanagement' },
+  { path: '/wissen', title: 'Wissen' },
   { path: '/rechtsfaelle', title: 'Rechtsfälle' },
   { path: '/inkassofaelle', title: 'Inkassofälle' },
   { path: '/versicherungsfaelle', title: 'Versicherungsfälle / Schäden' },

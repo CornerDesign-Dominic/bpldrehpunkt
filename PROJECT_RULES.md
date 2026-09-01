@@ -135,6 +135,12 @@
 - Status und Fristen werden nicht ausschließlich als Freitext gespeichert.
 - QM-Fristen sollen später zentral auswertbar sein.
 
+## Wissen
+- Wissen wird als eigener Fachbereich mit Kategorien und suchbaren Artikeln geführt.
+- Wissensartikel werden zentral in Firestore gespeichert und direkt bearbeitet.
+- Kategorien strukturieren den Inhalt, ohne Artikel in technische Einzelseiten aufzuteilen.
+- Titel, Kurzbeschreibung und Inhalt eines Artikels bleiben klar voneinander getrennt.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern
