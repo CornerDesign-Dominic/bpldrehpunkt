@@ -27,6 +27,14 @@
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .masterdata-half-grid .form-section { min-width: 0; }
 .contact-editor__actions { display: flex; align-items: center; gap: 7px; }
+.contacts-table th:nth-child(6) { width: 72px; }
+.contacts-table__action { text-align: right; }
+.contacts-table .contact-actions--icons { align-items: center; gap: 2px; }
+.contacts-table .contact-actions--icons button { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; }
+.contacts-table .contact-actions--icons button:last-child { color: var(--status-danger-text); }
+.contacts-table .contact-actions--icons button:hover { color: var(--text-primary); background: var(--surface-active); text-decoration: none; }
+.contacts-table .contact-actions--icons button:last-child:hover { color: var(--status-danger-text); background: var(--status-danger-background); }
+.contacts-table .contact-actions--icons button:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
 
 .form-grid--company-address {
   grid-template-columns: minmax(180px, 1.7fr) minmax(130px, 1fr) 110px 110px minmax(220px, 1.35fr) minmax(180px, 1.1fr);
