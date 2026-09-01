@@ -55,6 +55,9 @@
 - Tabellen kompakt halten
 - Formulare desktoporientiert und möglichst kompakt aufbauen
 - Erfolgreiche Aktionen über dezente Toast-Nachrichten bestätigen
+- Stammdaten bevorzugt in direkt bearbeitbaren Masken darstellen
+- Separate Anzeige- und Bearbeitungsseiten vermeiden, wenn dieselben Daten betroffen sind
+- Interne Stammdatenmasken kompakt und auf schnelle Datenerfassung auslegen
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
