@@ -69,3 +69,11 @@ export function CheckIcon({ size = 17 }) {
 export function CloseIcon({ size = 17 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
 }
+
+export function EyeIcon({ size = 17 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>
+}
+
+export function EyeOffIcon({ size = 17 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.5 3.1M6.5 6.5A17.2 17.2 0 0 0 2.5 12s3.5 6 9.5 6a10.7 10.7 0 0 0 3.2-.5" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
+}

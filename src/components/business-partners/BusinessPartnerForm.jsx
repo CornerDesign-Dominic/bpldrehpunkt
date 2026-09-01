@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CheckIcon, CloseIcon, EditIcon, TrashIcon } from '../icons.jsx'
+import { CheckIcon, CloseIcon, EditIcon, EyeIcon, EyeOffIcon, TrashIcon } from '../icons.jsx'
 import { createEmptyBusinessPartner } from '../../lib/businessPartners.js'
 import '../../styles/businessPartnerExtensions.css'
 
@@ -55,6 +55,14 @@ function FormSection({ title, className = '', children }) {
 
 function displayDepartment(contact) {
   return contact.department === 'Sonstiges' && contact.departmentOther ? `Sonstiges · ${contact.departmentOther}` : contact.department
+}
+
+function portalNameFromUrl(url) {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return ''
+  }
 }
 
 function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
@@ -130,44 +138,76 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
 }
 
 function PortalsSection({ portals, onChange }) {
-  const [expanded, setExpanded] = useState(false)
-  const [draft, setDraft] = useState(null)
-  const [errors, setErrors] = useState({})
+  const [editDraft, setEditDraft] = useState(null)
+  const [editErrors, setEditErrors] = useState({})
+  const [newPortal, setNewPortal] = useState(createPortal)
+  const [newErrors, setNewErrors] = useState({})
   const [visiblePasswords, setVisiblePasswords] = useState({})
 
-  function updateDraft(field, value) {
-    setDraft((current) => ({ ...current, [field]: value }))
-    setErrors((current) => ({ ...current, [field]: undefined }))
+  function togglePassword(id) {
+    setVisiblePasswords((current) => ({ ...current, [id]: !current[id] }))
   }
 
-  function saveDraft() {
+  function startEdit(portal) {
+    setEditErrors({})
+    setEditDraft({ ...portal })
+  }
+
+  function updateEditDraft(field, value) {
+    setEditDraft((current) => ({ ...current, [field]: value }))
+    setEditErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  function saveEditDraft() {
     const nextErrors = {}
-    if (!draft.name.trim()) nextErrors.name = 'Portalname ist erforderlich.'
-    if (draft.url.trim() && !validateWebsite(draft.url)) nextErrors.url = 'Bitte eine vollständige Link-Adresse eingeben.'
-    setErrors(nextErrors)
+    if (!editDraft.url.trim()) nextErrors.url = 'Link ist erforderlich.'
+    else if (!validateWebsite(editDraft.url)) nextErrors.url = 'Bitte eine vollständige Link-Adresse eingeben.'
+    setEditErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    const exists = portals.some((portal) => portal.id === draft.id)
-    onChange(exists ? portals.map((portal) => portal.id === draft.id ? draft : portal) : [...portals, draft])
-    setDraft(null)
+    onChange(portals.map((portal) => portal.id === editDraft.id ? editDraft : portal))
+    setEditDraft(null)
+  }
+
+  function updateNewPortal(field, value) {
+    setNewPortal((current) => ({ ...current, [field]: value }))
+    setNewErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  function resetNewPortal() {
+    setNewPortal(createPortal())
+    setNewErrors({})
+    setVisiblePasswords((current) => ({ ...current, new: false }))
+  }
+
+  function saveNewPortal() {
+    const nextErrors = {}
+    if (!newPortal.url.trim()) nextErrors.url = 'Link ist erforderlich.'
+    else if (!validateWebsite(newPortal.url)) nextErrors.url = 'Bitte eine vollständige Link-Adresse eingeben.'
+    setNewErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+
+    onChange([...portals, { ...newPortal, name: portalNameFromUrl(newPortal.url) || newPortal.name }])
+    resetNewPortal()
   }
 
   function removePortal(portalId) {
     onChange(portals.filter((portal) => portal.id !== portalId))
-    if (draft?.id === portalId) setDraft(null)
+    if (editDraft?.id === portalId) setEditDraft(null)
   }
 
   return (
     <section className="form-section portals-section">
-      <div className="portals-section__header">
-        <div><h2>Portale &amp; Zugänge</h2><p>Optionale Zugänge für diesen Geschäftspartner</p></div>
-        <button className="button button--secondary" type="button" onClick={() => setExpanded((current) => !current)} aria-expanded={expanded}>{expanded ? 'Schließen' : `Zugänge${portals.length ? ` (${portals.length})` : ''}`}</button>
-      </div>
-      {expanded && <div className="portals-section__content">
-        <div className="portals-section__actions"><button className="button button--secondary" type="button" onClick={() => { setErrors({}); setDraft(createPortal()) }}>Zugang hinzufügen</button></div>
-        <div className="portals-table table-frame"><table><thead><tr><th>Portal</th><th>Link</th><th>Benutzer / E-Mail</th><th>Passwort</th><th>Zweck</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => <tr key={portal.id}><td><strong>{portal.name}</strong></td><td>{portal.url ? <a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">Öffnen</a> : '—'}</td><td>{portal.username || '—'}</td><td><div className="portal-password"><span>{visiblePasswords[portal.id] ? (portal.password || '—') : portal.password ? '••••••••' : '—'}</span>{portal.password && <button type="button" onClick={() => setVisiblePasswords((current) => ({ ...current, [portal.id]: !current[portal.id] }))}>{visiblePasswords[portal.id] ? 'Ausblenden' : 'Anzeigen'}</button>}</div></td><td>{portal.purpose || '—'}</td><td><div className="contact-actions"><button type="button" onClick={() => { setErrors({}); setDraft({ ...portal }) }}>Bearbeiten</button><button type="button" onClick={() => removePortal(portal.id)}>Entfernen</button></div></td></tr>) : <tr><td className="table-state" colSpan="6">Noch keine Zugänge erfasst.</td></tr>}</tbody></table></div>
-        {draft && <div className="portal-editor"><div className="contact-editor__header"><h3>{portals.some((portal) => portal.id === draft.id) ? 'Zugang bearbeiten' : 'Zugang hinzufügen'}</h3><button className="button button--secondary" type="button" onClick={() => setDraft(null)}>Abbrechen</button></div><div className="portal-editor__grid"><Field label="Portalname *" name="portal-name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} error={errors.name} /><Field label="Link" name="portal-url" value={draft.url} onChange={(event) => updateDraft('url', event.target.value)} error={errors.url} placeholder="https://" /><Field label="Benutzer / E-Mail" name="portal-username" value={draft.username} onChange={(event) => updateDraft('username', event.target.value)} autoComplete="username" /><label className="form-field"><span>Passwort</span><div className="password-input"><input name="portal-password" value={draft.password} onChange={(event) => updateDraft('password', event.target.value)} type={visiblePasswords[draft.id] ? 'text' : 'password'} autoComplete="new-password" /><button type="button" onClick={() => setVisiblePasswords((current) => ({ ...current, [draft.id]: !current[draft.id] }))}>{visiblePasswords[draft.id] ? 'Ausblenden' : 'Anzeigen'}</button></div></label><Field className="portal-editor__wide" label="Zweck" name="portal-purpose" value={draft.purpose} onChange={(event) => updateDraft('purpose', event.target.value)} /></div><div className="form-actions"><button className="button" type="button" onClick={saveDraft}>Zugang übernehmen</button></div></div>}
-      </div>}
+      <h2>Zugänge auf Kundenportalen</h2>
+      <div className="portals-table table-frame"><table><thead><tr><th>Link</th><th>Benutzer / Mail</th><th>Kennwort</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => {
+        const isEditing = editDraft?.id === portal.id
+        return <tr key={portal.id} className={isEditing ? 'portals-table__row--editing' : ''}>
+          <td>{isEditing ? <input aria-label="Link" value={editDraft.url} onChange={(event) => updateEditDraft('url', event.target.value)} aria-invalid={Boolean(editErrors.url)} title={editErrors.url} placeholder="https://" /> : portal.url ? <a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">{portal.url}</a> : '—'}</td>
+          <td>{isEditing ? <input aria-label="Benutzer oder Mail" value={editDraft.username} onChange={(event) => updateEditDraft('username', event.target.value)} autoComplete="username" /> : portal.username || '—'}</td>
+          <td>{isEditing ? <div className="portal-password"><input aria-label="Kennwort" value={editDraft.password} onChange={(event) => updateEditDraft('password', event.target.value)} type={visiblePasswords[portal.id] ? 'text' : 'password'} autoComplete="new-password" /><button className="portal-password__toggle" type="button" onClick={() => togglePassword(portal.id)} title={visiblePasswords[portal.id] ? 'Kennwort ausblenden' : 'Kennwort anzeigen'} aria-label={visiblePasswords[portal.id] ? 'Kennwort ausblenden' : 'Kennwort anzeigen'}>{visiblePasswords[portal.id] ? <EyeOffIcon /> : <EyeIcon />}</button></div> : <div className="portal-password"><span>{visiblePasswords[portal.id] ? (portal.password || '—') : portal.password ? '••••••••' : '—'}</span>{portal.password && <button className="portal-password__toggle" type="button" onClick={() => togglePassword(portal.id)} title={visiblePasswords[portal.id] ? 'Kennwort ausblenden' : 'Kennwort anzeigen'} aria-label={visiblePasswords[portal.id] ? 'Kennwort ausblenden' : 'Kennwort anzeigen'}>{visiblePasswords[portal.id] ? <EyeOffIcon /> : <EyeIcon />}</button>}</div>}</td>
+          <td className="portals-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveEditDraft} title="Speichern" aria-label="Zugang speichern"><CheckIcon /></button><button type="button" onClick={() => setEditDraft(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen"><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(portal)} title="Bearbeiten" aria-label="Zugang bearbeiten"><EditIcon /></button><button type="button" onClick={() => removePortal(portal.id)} title="Entfernen" aria-label="Zugang entfernen"><TrashIcon /></button></>}</div></td>
+        </tr>
+      }) : null}<tr className="portals-table__row--new"><td><input aria-label="Link des neuen Zugangs" value={newPortal.url} onChange={(event) => updateNewPortal('url', event.target.value)} aria-invalid={Boolean(newErrors.url)} title={newErrors.url} placeholder="https://" /></td><td><input aria-label="Benutzer oder Mail des neuen Zugangs" value={newPortal.username} onChange={(event) => updateNewPortal('username', event.target.value)} autoComplete="username" /></td><td><div className="portal-password"><input aria-label="Kennwort des neuen Zugangs" value={newPortal.password} onChange={(event) => updateNewPortal('password', event.target.value)} type={visiblePasswords.new ? 'text' : 'password'} autoComplete="new-password" /><button className="portal-password__toggle" type="button" onClick={() => togglePassword('new')} title={visiblePasswords.new ? 'Kennwort ausblenden' : 'Kennwort anzeigen'} aria-label={visiblePasswords.new ? 'Kennwort ausblenden' : 'Kennwort anzeigen'}>{visiblePasswords.new ? <EyeOffIcon /> : <EyeIcon />}</button></div></td><td className="portals-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewPortal} title="Speichern" aria-label="Neuen Zugang speichern"><CheckIcon /></button><button type="button" onClick={resetNewPortal} title="Eingaben zurücksetzen" aria-label="Neue Zugangseingaben zurücksetzen"><CloseIcon /></button></div></td></tr></tbody></table></div>
     </section>
   )
 }
