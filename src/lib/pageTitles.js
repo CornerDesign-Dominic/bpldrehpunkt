@@ -6,6 +6,7 @@ const pageTitles = [
   { path: '/news', title: 'News' },
   { path: '/dokumente', title: 'Dokumente' },
   { path: '/todos', title: 'To-dos' },
+  { path: '/profil', title: 'Mein Profil' },
 ]
 
 export function getPageTitle(pathname) {

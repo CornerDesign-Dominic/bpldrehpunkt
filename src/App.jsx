@@ -13,6 +13,7 @@ import TodosPage from './pages/TodosPage.jsx'
 import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import ProfilePage from './pages/ProfilePage.jsx'
 
 function ProtectedAppLayout() {
   return <ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>
@@ -35,6 +36,7 @@ export default function App() {
         <Route path="/news" element={<NewsPage />} />
         <Route path="/dokumente" element={<DocumentsPage />} />
         <Route path="/todos" element={<TodosPage />} />
+        <Route path="/profil" element={<ProfilePage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
