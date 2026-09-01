@@ -214,17 +214,17 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         </FormSection>
 
         <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
-          <Field label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
-          <Field label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
-          <Field label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
-          <Field label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
+          <Field className="form-field--contact-phone" label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
+          <Field className="form-field--contact-fax" label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
+          <Field className="form-field--contact-email" label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
+          <Field className="form-field--contact-website" label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
         </FormSection>
 
         <FormSection title="Unternehmensdaten" className="form-grid--company-data">
-          <Field label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
-          <Field label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={handleChange} />
-          <Field label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
-          <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
+          <Field className="form-field--company-vat" label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
+          <Field className="form-field--company-tax" label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={handleChange} />
+          <Field className="form-field--company-register-number" label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
+          <Field className="form-field--company-register-court" label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
         </FormSection>
 
         <FormSection title="Abrechnung" className="form-grid--billing">

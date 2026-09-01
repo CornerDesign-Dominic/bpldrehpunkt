@@ -39,6 +39,16 @@
 
 .form-grid--references { grid-template-columns: minmax(180px, 300px); }
 .form-grid--contact, .form-grid--company-data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid--contact { grid-template-areas: 'phone fax' 'email website'; }
+.form-field--contact-phone { grid-area: phone; }
+.form-field--contact-fax { grid-area: fax; }
+.form-field--contact-email { grid-area: email; }
+.form-field--contact-website { grid-area: website; }
+.form-grid--company-data { grid-template-areas: 'vat tax' 'register-number register-court'; }
+.form-field--company-vat { grid-area: vat; }
+.form-field--company-tax { grid-area: tax; }
+.form-field--company-register-number { grid-area: register-number; }
+.form-field--company-register-court { grid-area: register-court; }
 .form-grid--billing { grid-template-columns: minmax(145px, 210px); }
 
 @media (max-width: 1180px) {
@@ -97,6 +107,8 @@
 
 @media (max-width: 720px) {
   .form-grid--billing, .form-grid--company-address, .form-grid--references, .form-grid--contact, .form-grid--company-data { grid-template-columns: 1fr; }
+  .form-grid--contact, .form-grid--company-data { grid-template-areas: none; }
+  .form-field--contact-phone, .form-field--contact-fax, .form-field--contact-email, .form-field--contact-website, .form-field--company-vat, .form-field--company-tax, .form-field--company-register-number, .form-field--company-register-court { grid-area: auto; }
   .form-field--company-address, .form-field--street, .form-field--status { grid-column: auto; }
   .masterdata-action-row { grid-template-columns: 1fr; grid-template-areas: 'back' 'navigation' 'actions'; gap: 10px; }
   .masterdata-record-actions { --masterdata-dirty-area: minmax(0, 1fr); --masterdata-discard-area: 94px; --masterdata-save-area: 104px; width: 100%; }
