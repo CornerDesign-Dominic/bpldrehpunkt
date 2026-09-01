@@ -120,6 +120,13 @@
 - Historien werden kompakt und scrollbar dargestellt, damit Detailseiten nicht unbegrenzt wachsen.
 - Neue Historieneinträge werden standardmäßig zuerst angezeigt.
 
+## Qualitätsmanagement
+- Qualitätsmanagement ist ein eigener Fachbereich.
+- Qualitätsziele besitzen eigene Detailseiten und nachvollziehbare Fortschrittswerte.
+- Maßnahmen, Abweichungen, Audits und Verbesserungen werden strukturiert geführt.
+- Status und Fristen werden nicht ausschließlich als Freitext gespeichert.
+- QM-Fristen sollen später zentral auswertbar sein.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern

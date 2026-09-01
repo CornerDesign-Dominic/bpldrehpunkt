@@ -26,6 +26,10 @@ export function InsuranceIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3 5 6v5c0 4.6 3 8.8 7 10 4-1.2 7-5.4 7-10V6l-7-3Z" /><path d="M9 12.5 11 14.5l4-4" /></svg>
 }
 
+export function QualityIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 3h8l3 3v12a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6a3 3 0 0 1 3-3Z" /><path d="M15 3v4h4M8 12l2.2 2.2L15.5 9M8 17h7" /></svg>
+}
+
 export function ChevronIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
 }
