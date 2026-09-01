@@ -3,6 +3,7 @@
 .business-partner-form .form-section h2 { margin-bottom: 8px; color: var(--text-primary); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
 .business-partner-form .form-grid { gap: 8px 10px; }
 .masterdata-header { align-items: flex-start; }
+.masterdata-header h2 { font-size: 24px; }
 .masterdata-header__actions { display: flex; flex-direction: column; align-items: flex-end; gap: 11px; }
 .masterdata-header__navigation, .masterdata-header__save-action { display: flex; align-items: center; gap: 8px; }
 .masterdata-header__nav-action { flex: 0 0 128px; }
