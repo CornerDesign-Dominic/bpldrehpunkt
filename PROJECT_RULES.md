@@ -44,6 +44,8 @@
 - Komponenten und Dateien nachvollziehbar benennen
 - Keine unnötigen Abhängigkeiten installieren
 - Bestehenden Tech-Stack des Projekts respektieren
+- Firebase zentral in einer Infrastrukturdatei kapseln; Produktlogik bleibt davon getrennt
+- Firestore und künftige Authentifizierung nur bedarfsorientiert über diese zentrale Integration anbinden
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
