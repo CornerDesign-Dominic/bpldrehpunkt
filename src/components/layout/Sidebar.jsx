@@ -29,7 +29,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
       </nav>
 
       <div className="sidebar__footer">
-        <button className="sidebar__theme-toggle" type="button" onClick={onThemeToggle} aria-label={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'} title={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'}>{theme === 'light' ? <MoonIcon /> : <SunIcon />}{!collapsed && <span>{theme === 'light' ? 'Dunkel' : 'Hell'}</span>}</button>
+        <button className="sidebar__theme-toggle" type="button" onClick={onThemeToggle} aria-label={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'} title={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'}>{theme === 'light' ? <MoonIcon /> : <SunIcon />}</button>
         <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'} title={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>
           <span className={collapsed ? 'toggle-icon toggle-icon--collapsed' : 'toggle-icon'}><ChevronIcon size={20} /></span>
         </button>

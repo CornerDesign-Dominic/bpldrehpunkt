@@ -59,8 +59,8 @@ export default function LoginPage() {
 
   return <main className="login-page">
     <section className="login-card" aria-labelledby="login-title">
-      <div className="login-card__brand"><span>Drehpunkt</span><p>Interne Anwendung</p></div>
-      <div className="login-card__heading"><h1 id="login-title">{isResetMode ? 'Passwort zurücksetzen' : 'Anmelden'}</h1><p>{isResetMode ? 'Geben Sie Ihre E-Mail-Adresse ein.' : 'Melden Sie sich mit Ihrem Benutzerkonto an.'}</p></div>
+      <div className="login-card__brand"><span>Drehpunkt</span><p>Eine Anwendung der Brennpunkt Logistik GmbH</p></div>
+      <div className="login-card__heading"><h1 id="login-title">{isResetMode ? 'Passwort zurücksetzen' : 'Anmelden'}</h1>{isResetMode && <p>Geben Sie Ihre E-Mail-Adresse ein.</p>}</div>
       <form className="login-form" onSubmit={isResetMode ? handlePasswordReset : handleLogin}>
         <label><span>E-Mail</span><input autoComplete="email" autoFocus type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
         {!isResetMode && <label><span>Passwort</span><input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>}
