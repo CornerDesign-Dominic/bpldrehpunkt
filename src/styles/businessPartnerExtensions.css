@@ -1,8 +1,31 @@
-.form-grid--billing { grid-template-columns: 180px 180px; }
-.form-grid--company-address { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.form-field--company-address { grid-column: span 4; }
+.business-partner-form { gap: 11px; }
+.business-partner-form .form-section { padding: 11px 13px 12px; border-color: var(--border); border-radius: 6px; }
+.business-partner-form .form-section h2 { margin-bottom: 8px; color: var(--text-primary); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.business-partner-form .form-grid { gap: 8px 10px; }
+
+.form-grid--company-address {
+  grid-template-columns: minmax(180px, 1.7fr) minmax(130px, 1fr) 110px 110px minmax(220px, 1.35fr) minmax(180px, 1.1fr);
+}
+.form-field--company-address { grid-column: span 5; }
+.form-field--status { grid-column: 6; }
 .form-field--street { grid-column: span 2; }
-.form-grid--references { grid-template-columns: repeat(4, minmax(0, 1fr)) 0.7fr; }
+
+.form-grid--references { grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(150px, 0.9fr) minmax(150px, 0.9fr); }
+.form-grid--contact { grid-template-columns: 170px 170px minmax(230px, 1.3fr) minmax(230px, 1.3fr); }
+.form-grid--company-data { grid-template-columns: 170px minmax(210px, 1.1fr) minmax(210px, 1.1fr); }
+.form-grid--billing { grid-template-columns: 145px 200px; }
+
+@media (max-width: 1180px) {
+  .form-grid--company-address {
+    grid-template-columns: minmax(170px, 1.6fr) 110px 110px minmax(180px, 1.2fr) 170px;
+  }
+
+  .form-field--company-address { grid-column: span 4; }
+  .form-field--status { grid-column: 5; }
+  .form-grid--references, .form-grid--contact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .form-grid--company-data { grid-template-columns: minmax(170px, 0.8fr) minmax(210px, 1fr); }
+}
+
 .masterdata-header__meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 7px; }
 .masterdata-header__meta-row .detail-header__meta { margin-top: 0; }
 .crm-short-status { display: flex; align-items: center; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border, var(--legacy-dfe4e9)); color: var(--legacy-727d8a); font-size: 11px; }
@@ -51,7 +74,7 @@
 
 @media (max-width: 720px) {
   .form-grid--billing, .form-grid--company-address, .form-grid--references { grid-template-columns: 1fr; }
-  .form-field--company-address, .form-field--street { grid-column: auto; }
+  .form-field--company-address, .form-field--street, .form-field--status { grid-column: auto; }
   .masterdata-header__meta-row { align-items: flex-start; flex-direction: column; }
   .crm-short-status { padding-left: 0; border-left: 0; }
   .portals-section__header { align-items: flex-start; flex-direction: column; }

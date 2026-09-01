@@ -196,6 +196,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate>
       <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address">
         <Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
+        <label className="form-field form-field--status"><span>Status</span><select name="status" value={form.status} onChange={handleChange}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></select></label>
         <Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
         <Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={handleChange} />
         <Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={handleChange} />
@@ -208,7 +209,6 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
         <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
         <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
-        <label className="form-field"><span>Status</span><select name="status" value={form.status} onChange={handleChange}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></select></label>
         {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
       </FormSection>
 
