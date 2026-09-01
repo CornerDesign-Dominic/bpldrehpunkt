@@ -379,12 +379,13 @@
 /* Theme-compatible component styles */
 
 * { box-sizing: border-box; }
+html, body, #root { height: 100%; overflow: hidden; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, a { font: inherit; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); background: var(--app-background); }
+.app-shell { height: 100vh; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr); overflow: hidden; background: var(--app-background); }
 .app-shell.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
-.sidebar { position: relative; display: flex; min-height: 100vh; flex-direction: column; padding: 18px 10px; color: var(--sidebar-text); background: var(--sidebar-background); }
+.sidebar { position: relative; display: flex; min-height: 0; height: 100%; flex-direction: column; overflow: hidden; padding: 18px 10px; color: var(--sidebar-text); background: var(--sidebar-background); }
 .sidebar__brand { display: flex; height: 52px; align-items: center; gap: 10px; padding: 0 6px; color: var(--sidebar-text-strong); overflow: hidden; white-space: nowrap; }
 .brand-mark { display: grid; width: 20px; height: 20px; flex: 0 0 20px; place-items: center; color: var(--sidebar-text-strong); }
 .brand-name { font-size: 26px; font-weight: 650; letter-spacing: -0.3px; }
@@ -407,12 +408,12 @@ button, a { font: inherit; }
 .sidebar-collapsed .sidebar__theme-toggle { width: 34px; padding: 0; }
 .toggle-icon { display: grid; transform: rotate(180deg); }
 .toggle-icon--collapsed { transform: none; }
-.content-frame { min-width: 0; display: grid; grid-template-rows: 86px minmax(0, 1fr); }
+.content-frame { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: 86px minmax(0, 1fr); overflow: hidden; }
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 36px; border-bottom: 1px solid var(--border); background: var(--header-background); }
 .app-header h1 { margin: 0; color: var(--legacy-303947); font-size: 34px; font-weight: 650; letter-spacing: -0.35px; line-height: 1.1; }
 .user-placeholder { display: inline-flex; align-items: center; gap: 8px; color: var(--legacy-9aa4b2); font-size: 12px; }
 .user-placeholder__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--legacy-c7ced8); }
-.app-content { min-height: 0; padding: 28px 36px 36px; overflow: auto; }
+.app-content { min-height: 0; padding: 28px 36px 36px; overflow-x: hidden; overflow-y: auto; }
 .dashboard-page { display: grid; height: 100%; grid-template-rows: auto minmax(0, 1fr); gap: 21px; }
 .dashboard-intro { display: flex; align-items: baseline; gap: 12px; }
 .dashboard-intro p { margin: 0; color: var(--legacy-303947); font-size: 14px; font-weight: 650; }
