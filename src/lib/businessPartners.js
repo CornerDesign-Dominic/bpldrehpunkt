@@ -43,7 +43,6 @@ export function getBusinessPartnerType({ debtorNumber, creditorNumber }) {
 export function createEmptyBusinessPartner() {
   return {
     companyName: '',
-    shortName: '',
     debtorNumber: '',
     creditorNumber: '',
     timocomNumber: '',
@@ -55,7 +54,7 @@ export function createEmptyBusinessPartner() {
     crmStatus: '',
     potential: '',
     address: { street: '', houseNumber: '', postalCode: '', city: '', country: '' },
-    contact: { phone: '', email: '', website: '' },
+    contact: { phone: '', fax: '', email: '', website: '' },
     contacts: [],
     portals: [],
     companyData: { vatId: '', commercialRegisterNumber: '', registerCourt: '' },
@@ -65,7 +64,6 @@ export function createEmptyBusinessPartner() {
 function createPayload(values) {
   return {
     companyName: trimValue(values.companyName),
-    shortName: trimValue(values.shortName),
     debtorNumber: trimValue(values.debtorNumber),
     creditorNumber: trimValue(values.creditorNumber),
     timocomNumber: trimValue(values.timocomNumber),
@@ -129,7 +127,7 @@ function createBusinessPartnerHistoryEntries(previous, next, actor) {
   if (changed(previous.paymentTermDays, next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${previous.paymentTermDays ?? '—'} auf ${next.paymentTermDays ?? '—'} Tage geändert`, { field: 'paymentTermDays', oldValue: previous.paymentTermDays ?? null, newValue: next.paymentTermDays ?? null })
   if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
 
-  const masterDataFields = ['companyName', 'shortName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'status', 'contact', 'companyData', 'portals']
+  const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'status', 'contact', 'companyData', 'portals']
   if (masterDataFields.some((field) => changed(previous[field], next[field]))) entry('masterData', 'Stammdaten geändert', { fields: masterDataFields.filter((field) => changed(previous[field], next[field])) })
   return entries
 }

@@ -196,7 +196,6 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate>
       <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address">
         <Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
-        <Field className="form-field--short-name" label="Kurzname" name="shortName" value={form.shortName} onChange={handleChange} />
         <Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
         <Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={handleChange} />
         <Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={handleChange} />
@@ -215,6 +214,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
 
       <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
         <Field label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
+        <Field label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
         <Field label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
         <Field label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
       </FormSection>

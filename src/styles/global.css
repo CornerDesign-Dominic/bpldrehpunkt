@@ -687,7 +687,7 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .form-grid--identification { grid-template-columns: 1.4fr 1fr 0.75fr 0.75fr; }
 .form-field--company { grid-column: span 2; }
 .form-grid--address { grid-template-columns: 2fr 0.55fr 0.75fr 1.25fr 1fr; }
-.form-grid--contact { grid-template-columns: 0.9fr 1.35fr 1.5fr; }
+.form-grid--contact { grid-template-columns: 1fr 1fr 1.35fr 1.35fr; }
 .form-grid--company-data { grid-template-columns: 1fr 1.25fr 1.4fr; }
 .form-grid__wide { grid-column: 1 / -1; }
 .form-field { display: grid; gap: 3px; color: var(--legacy-657180); font-size: 11px; font-weight: 650; }
