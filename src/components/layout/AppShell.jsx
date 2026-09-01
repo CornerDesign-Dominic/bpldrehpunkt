@@ -7,6 +7,7 @@ const pageTitles = {
   '/dashboard': 'Dashboard',
   '/kunden-unternehmer': 'Kunden & Unternehmer',
   '/crm': 'CRM',
+  '/paletten': 'Palettenmanagement',
 }
 
 function getPageTitle(pathname) {
@@ -14,6 +15,7 @@ function getPageTitle(pathname) {
   if (pathname.endsWith('/bearbeiten')) return 'Geschäftspartner bearbeiten'
   if (pathname.startsWith('/kunden-unternehmer/')) return 'Geschäftspartner'
   if (pathname.startsWith('/crm/')) return 'CRM'
+  if (pathname.startsWith('/paletten/')) return 'Palettenmanagement'
   return pageTitles[pathname] ?? 'Drehpunkt'
 }
 

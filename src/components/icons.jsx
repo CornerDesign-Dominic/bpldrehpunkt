@@ -10,6 +10,10 @@ export function CrmIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 5V3m8 2V3M3 10h18" /><path d="M8 14h3m2 0h3" /></svg>
 }
 
+export function PalletsIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 7h16v10H4z" /><path d="M4 11h16M8 7v4m8-4v4M7 17v3m10-3v3M3 20h18" /></svg>
+}
+
 export function ChevronIcon({ size = 18 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
 }

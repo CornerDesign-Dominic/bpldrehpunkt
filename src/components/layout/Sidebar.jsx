@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronIcon, CrmIcon, DashboardIcon, UsersIcon } from '../icons.jsx'
+import { ChevronIcon, CrmIcon, DashboardIcon, PalletsIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon },
   { label: 'CRM', to: '/crm', icon: CrmIcon },
+  { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon },
 ]
 
 export default function Sidebar({ collapsed, onToggle }) {

@@ -4,6 +4,7 @@ import BusinessPartnerFormPage from './pages/BusinessPartnerFormPage.jsx'
 import CustomersPage from './pages/CustomersPage.jsx'
 import CrmPage from './pages/CrmPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
+import PalletsPage from './pages/PalletsPage.jsx'
 
 export default function App() {
   return (
@@ -16,6 +17,8 @@ export default function App() {
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
         <Route path="/crm" element={<CrmPage />} />
         <Route path="/crm/:partnerId" element={<CrmPage />} />
+        <Route path="/paletten" element={<PalletsPage />} />
+        <Route path="/paletten/:partnerId" element={<PalletsPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </AppShell>

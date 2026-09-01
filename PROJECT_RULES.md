@@ -63,6 +63,10 @@
 - CRM-Funktionen über die interne Firestore-ID mit Geschäftspartnern verknüpfen
 - Stammdaten im CRM nicht unnötig duplizieren
 - Fachbereiche direkt verlinken, wenn dadurch unnötige Suche vermieden wird
+- Palettenmanagement als eigenen Fachbereich behandeln
+- Palettenkonten über die interne Firestore-ID mit Geschäftspartnern verknüpfen
+- Geschäftspartner-Stammdaten im Palettenmanagement nicht duplizieren
+- Aus Stammdaten direkte Sprünge in partnerbezogene Fachbereiche ermöglichen
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
