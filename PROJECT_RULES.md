@@ -46,6 +46,10 @@
 - Bestehenden Tech-Stack des Projekts respektieren
 - Firebase zentral in einer Infrastrukturdatei kapseln; Produktlogik bleibt davon getrennt
 - Firestore und künftige Authentifizierung nur bedarfsorientiert über diese zentrale Integration anbinden
+- Geschäftspartner zentral führen; Kunde und Unternehmer sind Rollen desselben Geschäftspartners
+- DICOS-Debitoren- und Kreditorennummern ausschließlich als externe Referenzen behandeln
+- Niederlassungen als separate Geschäftspartner führen
+- Tabellen kompakt halten
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

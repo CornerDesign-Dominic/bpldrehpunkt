@@ -8,10 +8,17 @@ const pageTitles = {
   '/kunden-unternehmer': 'Kunden & Unternehmer',
 }
 
+function getPageTitle(pathname) {
+  if (pathname === '/kunden-unternehmer/neu') return 'Geschäftspartner anlegen'
+  if (pathname.endsWith('/bearbeiten')) return 'Geschäftspartner bearbeiten'
+  if (pathname.startsWith('/kunden-unternehmer/')) return 'Geschäftspartner'
+  return pageTitles[pathname] ?? 'Drehpunkt'
+}
+
 export default function AppShell({ children }) {
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
   const location = useLocation()
-  const title = pageTitles[location.pathname] ?? 'Drehpunkt'
+  const title = getPageTitle(location.pathname)
 
   return (
     <div className={`app-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
