@@ -26,9 +26,9 @@ button, a { font: inherit; }
 .sidebar-collapsed .sidebar__brand { padding: 0 6px; }
 .sidebar-collapsed .sidebar__nav { width: 100%; }
 .sidebar-collapsed .nav-item { justify-content: flex-start; padding: 0 6px; }
-.sidebar__toggle { display: grid; width: 32px; height: 32px; place-items: center; margin: auto 8px 1px; border: 1px solid #3d4a59; border-radius: 6px; color: #b9c3d1; background: transparent; cursor: pointer; }
-.sidebar__toggle:hover { color: #fff; background: #2c3745; }
-.sidebar-collapsed .sidebar__toggle { margin-inline: 0; }
+.sidebar__toggle { display: grid; width: 34px; height: 34px; align-self: flex-end; place-items: center; margin: auto 2px 2px 0; border: 1px solid #465668; border-radius: 7px; color: #d9e1ea; background: rgba(255, 255, 255, 0.035); cursor: pointer; }
+.sidebar__toggle:hover { color: #fff; background: #344355; }
+.sidebar-collapsed .sidebar__toggle { align-self: flex-start; margin: auto 0 2px 6px; }
 .toggle-icon { display: grid; transform: rotate(180deg); }
 .toggle-icon--collapsed { transform: none; }
 .content-frame { min-width: 0; display: grid; grid-template-rows: 86px minmax(0, 1fr); }
