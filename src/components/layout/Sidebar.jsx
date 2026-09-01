@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktIcon, NewsIcon, PalletsIcon, TodoIcon, UsersIcon } from '../icons.jsx'
+import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktIcon, MoonIcon, NewsIcon, PalletsIcon, SunIcon, TodoIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
@@ -11,7 +11,7 @@ const navigationItems = [
   { label: 'To-dos', to: '/todos', icon: TodoIcon },
 ]
 
-export default function Sidebar({ collapsed, onToggle }) {
+export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -28,9 +28,12 @@ export default function Sidebar({ collapsed, onToggle }) {
         ))}
       </nav>
 
-      <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'} title={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>
-        <span className={collapsed ? 'toggle-icon toggle-icon--collapsed' : 'toggle-icon'}><ChevronIcon size={20} /></span>
-      </button>
+      <div className="sidebar__footer">
+        <button className="sidebar__theme-toggle" type="button" onClick={onThemeToggle} aria-label={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'} title={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'}>{theme === 'light' ? <MoonIcon /> : <SunIcon />}{!collapsed && <span>{theme === 'light' ? 'Dunkel' : 'Hell'}</span>}</button>
+        <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'} title={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>
+          <span className={collapsed ? 'toggle-icon toggle-icon--collapsed' : 'toggle-icon'}><ChevronIcon size={20} /></span>
+        </button>
+      </div>
     </aside>
   )
 }

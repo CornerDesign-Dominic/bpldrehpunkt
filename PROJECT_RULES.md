@@ -157,6 +157,9 @@
 - Dateizugriffe müssen später rollenbasiert beschränkbar sein.
 
 ## Entwicklung
+- Light und Dark Mode werden zentral unterstützt.
+- Farben werden ausschließlich über zentrale Theme-Tokens definiert.
+- Neue Komponenten müssen in beiden Themes funktionieren.
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern
 - Keine Dummy-Funktionen implementieren, wenn sie aktuell nicht benötigt werden
