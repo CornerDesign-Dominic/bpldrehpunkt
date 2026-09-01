@@ -35,6 +35,12 @@
 .contacts-table .contact-actions--icons button:hover { color: var(--text-primary); background: var(--surface-active); text-decoration: none; }
 .contacts-table .contact-actions--icons button:last-child:hover { color: var(--status-danger-text); background: var(--status-danger-background); }
 .contacts-table .contact-actions--icons button:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
+.contacts-table .contact-actions--icons .contact-actions__save { color: var(--status-success-text); }
+.contacts-table .contact-actions--icons .contact-actions__save:hover { color: var(--status-success-text); background: var(--status-success-background); }
+.contacts-table__row--editing { background: var(--surface-secondary); }
+.contacts-table__row--editing input, .contacts-table__row--editing select { width: 100%; min-width: 0; height: 29px; box-sizing: border-box; padding: 3px 6px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }
+.contacts-table__row--editing input:focus, .contacts-table__row--editing select:focus { outline: none; border-color: var(--button-background); box-shadow: 0 0 0 2px var(--focus-ring); }
+.contacts-table__row--editing input[aria-invalid='true'], .contacts-table__row--editing select[aria-invalid='true'] { border-color: var(--status-danger-text); }
 
 .form-grid--company-address {
   grid-template-columns: minmax(180px, 1.7fr) minmax(130px, 1fr) 110px 110px minmax(220px, 1.35fr) minmax(180px, 1.1fr);
