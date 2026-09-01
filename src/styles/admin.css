@@ -6,7 +6,7 @@
 .admin-tabs__tab--active { color: var(--text-primary); background: var(--surface-active); }
 .admin-panel { display: grid; gap: 11px; }
 .admin-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.admin-panel__heading h2, .admin-placeholder h2 { margin: 0; color: var(--text-primary); font-size: 14px; font-weight: 700; }
+.admin-panel__heading h2, .admin-placeholder h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .admin-panel__heading p, .admin-placeholder p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .admin-employees table { min-width: 870px; table-layout: fixed; }
 .admin-employees th, .admin-employees td { height: 40px; padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

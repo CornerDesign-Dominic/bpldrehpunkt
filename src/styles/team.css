@@ -6,7 +6,7 @@
 .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .team-card { min-width: 0; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .team-card__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.team-card__heading h2 { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: 14px; font-weight: 700; }
+.team-card__heading h2 { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .team-card__heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .team-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; max-width: 132px; color: var(--text-muted); font-size: 10px; font-weight: 650; white-space: nowrap; }
 .team-status i { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }

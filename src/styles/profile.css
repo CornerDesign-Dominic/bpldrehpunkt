@@ -16,7 +16,7 @@
 .profile-page__notice { margin: 0; color: var(--text-muted); font-size: 12px; }
 .profile-section { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
 .profile-section:last-child { border-bottom: 0; }
-.profile-section h2 { margin: 0 0 10px; color: var(--text-primary); font-size: 13px; font-weight: 700; }
+.profile-section h2 { margin: 0 0 10px; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .profile-readonly-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 12px; margin: 0; }
 .profile-readonly-grid div { min-width: 0; padding: 8px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
 .profile-readonly-grid dt { color: var(--text-muted); font-size: 10px; font-weight: 700; }

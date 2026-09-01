@@ -1,7 +1,7 @@
 .masterdata-page { display: grid; gap: 8px; }
 .business-partner-form { gap: 11px; }
 .business-partner-form .form-section { padding: 11px 13px 12px; border-color: var(--border); border-radius: 6px; }
-.business-partner-form .form-section h2 { margin-bottom: 8px; color: var(--text-primary); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.business-partner-form .form-section h2 { margin-bottom: 8px; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); letter-spacing: -0.01em; }
 .business-partner-form .form-grid { gap: 8px 10px; }
 .masterdata-action-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; min-width: 0; }
 .masterdata-record-actions { --masterdata-dirty-area: 220px; --masterdata-discard-area: 104px; --masterdata-save-area: 112px; display: grid; grid-column: 2; grid-template-areas: 'dirty discard save'; grid-template-columns: var(--masterdata-dirty-area) var(--masterdata-discard-area) var(--masterdata-save-area); grid-template-rows: 34px; justify-self: end; column-gap: 8px; align-items: center; }
