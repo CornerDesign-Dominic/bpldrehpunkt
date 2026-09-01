@@ -2,8 +2,8 @@ export function DashboardIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
 }
 
-export function DrehpunktIcon({ size = 20 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="2.5" /><circle cx="5" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" /><path d="M7.5 12h2M14.5 12h2M12 7.5v2M12 14.5v2" /></svg>
+export function DrehpunktLogoIcon({ size = 24 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11.5" cy="13" r="3.1" /><path d="M18.2 12.6A7.3 7.3 0 1 1 10.9 5.3h3.7V2.7l5.7 4.5-5.7 4.5V8.4h-3.7" /></svg>
 }
 
 export function SunIcon({ size = 19 }) {
