@@ -171,6 +171,15 @@
 - Dokumentlisten werden kompakt tabellarisch dargestellt.
 - Dateizugriffe müssen später rollenbasiert beschränkbar sein.
 
+## Personal
+- Personal ist ein eigener Fachbereich.
+- Abwesenheiten werden zentral und kalenderbasiert dargestellt.
+- Mitarbeiter können nach Person und Abteilung gefiltert werden.
+- Jeder Mitarbeiter besitzt eine eigene Urlaubs- und Abwesenheitsübersicht.
+- Gemeinsame Ansichten zeigen nur planungsrelevante Informationen.
+- Das Datenmodell muss spätere Genehmigungsworkflows unterstützen.
+- Abwesenheitsdaten müssen später mit Benutzerkonten verknüpfbar sein.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern

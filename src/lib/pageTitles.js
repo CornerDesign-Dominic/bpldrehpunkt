@@ -6,6 +6,7 @@ const pageTitles = [
   { path: '/dispo-cockpit', title: 'Dispo-Cockpit' },
   { path: '/news', title: 'News' },
   { path: '/dokumente', title: 'Dokumente' },
+  { path: '/personal', title: 'Personal' },
   { path: '/qm', title: 'Qualitätsmanagement' },
   { path: '/wissen', title: 'Wissen' },
   { path: '/todos', title: 'To-dos' },

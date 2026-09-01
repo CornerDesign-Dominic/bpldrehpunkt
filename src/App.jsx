@@ -17,6 +17,8 @@ import TodosPage from './pages/TodosPage.jsx'
 import DispatchCockpitPage from './pages/DispatchCockpitPage.jsx'
 import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
+import PersonnelPage from './pages/PersonnelPage.jsx'
+import EmployeeDetailPage from './pages/EmployeeDetailPage.jsx'
 
 export default function App() {
   return (
@@ -34,6 +36,8 @@ export default function App() {
         <Route path="/dispo-cockpit" element={<DispatchCockpitPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/dokumente" element={<DocumentsPage />} />
+        <Route path="/personal" element={<PersonnelPage />} />
+        <Route path="/personal/:employeeId" element={<EmployeeDetailPage />} />
         <Route path="/qm" element={<QualityManagementPage />} />
         <Route path="/qm/ziele/neu" element={<QualityGoalDetailPage mode="create" />} />
         <Route path="/qm/ziele/:goalId" element={<QualityGoalDetailPage mode="existing" />} />
