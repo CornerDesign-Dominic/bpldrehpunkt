@@ -13,24 +13,15 @@
 .profile-menu__content a, .profile-menu__content button { padding: 7px 8px; border: 0; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; text-align: left; text-decoration: none; }
 .profile-menu__content a:hover, .profile-menu__content button:hover { color: var(--text-primary); background: var(--surface-active); }
 .profile-page { display: grid; gap: 14px; max-width: 880px; margin: 0 auto; }
+.profile-page__notice { margin: 0; color: var(--text-muted); font-size: 12px; }
 .profile-section { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
-.profile-section--readonly { border-bottom: 0; }
-.profile-section__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
-.profile-section__heading h2 { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 700; }
-.profile-section__heading p { margin: 0; color: var(--text-muted); font-size: 12px; }
-.profile-edit-grid { display: grid; grid-template-columns: 1fr 1fr 150px 1fr 1fr; gap: 9px 12px; }
+.profile-section:last-child { border-bottom: 0; }
+.profile-section h2 { margin: 0 0 10px; color: var(--text-primary); font-size: 13px; font-weight: 700; }
 .profile-readonly-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 12px; margin: 0; }
 .profile-readonly-grid div { min-width: 0; padding: 8px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
 .profile-readonly-grid dt { color: var(--text-muted); font-size: 10px; font-weight: 700; }
 .profile-readonly-grid dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--text-secondary); font-size: 13px; }
-.profile-page .form-actions { margin-top: 10px; }
-
-@media (max-width: 900px) {
-  .profile-edit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @media (max-width: 720px) {
   .profile-menu__identity { display: none; }
-  .profile-section__heading { align-items: flex-start; flex-direction: column; gap: 3px; }
-  .profile-edit-grid, .profile-readonly-grid { grid-template-columns: 1fr; }
+  .profile-readonly-grid { grid-template-columns: 1fr; }
 }

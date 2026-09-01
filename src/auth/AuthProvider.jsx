@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, authPersistenceReady } from '../lib/firebase.js'
 import { getUserProfile } from '../lib/userProfiles.js'
@@ -33,18 +33,10 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
-  const refreshProfile = useCallback(async () => {
-    if (!authState.user) return null
-    const profile = await getUserProfile(authState.user.uid).catch(() => null)
-    setAuthState((current) => current.user?.uid === authState.user.uid ? { ...current, profile } : current)
-    return profile
-  }, [authState.user])
-
   const value = useMemo(() => ({
     ...authState,
     isProfileActive: authState.profile?.active !== false,
-    refreshProfile,
-  }), [authState, refreshProfile])
+  }), [authState])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
