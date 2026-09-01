@@ -3,10 +3,8 @@
 .business-partner-form .form-section { padding: 11px 13px 12px; border-color: var(--border); border-radius: 6px; }
 .business-partner-form .form-section h2 { margin-bottom: 8px; color: var(--text-primary); font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
 .business-partner-form .form-grid { gap: 8px 10px; }
-.masterdata-action-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; min-width: 0; }
-.masterdata-action-row__navigation { display: flex; justify-content: center; gap: 8px; }
-.masterdata-action-row__nav-action { flex: 0 0 128px; }
-.masterdata-record-actions { --masterdata-dirty-area: 220px; --masterdata-discard-area: 104px; --masterdata-save-area: 112px; display: grid; grid-column: 3; grid-template-areas: 'dirty discard save'; grid-template-columns: var(--masterdata-dirty-area) var(--masterdata-discard-area) var(--masterdata-save-area); grid-template-rows: 34px; justify-self: end; column-gap: 8px; align-items: center; }
+.masterdata-action-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 16px; min-width: 0; }
+.masterdata-record-actions { --masterdata-dirty-area: 220px; --masterdata-discard-area: 104px; --masterdata-save-area: 112px; display: grid; grid-column: 2; grid-template-areas: 'dirty discard save'; grid-template-columns: var(--masterdata-dirty-area) var(--masterdata-discard-area) var(--masterdata-save-area); grid-template-rows: 34px; justify-self: end; column-gap: 8px; align-items: center; }
 .masterdata-record-actions__content { display: contents; }
 .masterdata-record-actions__discard { grid-area: discard; width: 100%; }
 .masterdata-record-actions__save { grid-area: save; width: 100%; }
@@ -60,13 +58,7 @@
   .form-field--status { grid-column: 5; }
 }
 
-@media (max-width: 960px) {
-  .masterdata-half-grid { grid-template-columns: 1fr; }
-  .masterdata-action-row { grid-template-columns: 1fr auto; grid-template-areas: 'back actions' 'navigation navigation'; row-gap: 10px; }
-  .masterdata-action-row > :first-child { grid-area: back; }
-  .masterdata-action-row__navigation { grid-area: navigation; justify-content: flex-start; }
-  .masterdata-record-actions { grid-area: actions; }
-}
+@media (max-width: 960px) { .masterdata-half-grid { grid-template-columns: 1fr; } }
 
 .crm-rating-indicator { width: 7px; height: 7px; border-radius: 999px; background: var(--legacy-a0a8b2); }
 .crm-rating-indicator--good { background: var(--status-success-text, var(--legacy-35634b)); }
@@ -110,10 +102,9 @@
   .form-grid--contact, .form-grid--company-data { grid-template-areas: none; }
   .form-field--contact-phone, .form-field--contact-fax, .form-field--contact-email, .form-field--contact-website, .form-field--company-vat, .form-field--company-tax, .form-field--company-register-number, .form-field--company-register-court { grid-area: auto; }
   .form-field--company-address, .form-field--street, .form-field--status { grid-column: auto; }
-  .masterdata-action-row { grid-template-columns: 1fr; grid-template-areas: 'back' 'navigation' 'actions'; gap: 10px; }
+  .masterdata-action-row { grid-template-columns: 1fr; grid-template-areas: 'back' 'actions'; gap: 10px; }
+  .masterdata-action-row > :first-child { grid-area: back; }
   .masterdata-record-actions { --masterdata-dirty-area: minmax(0, 1fr); --masterdata-discard-area: 94px; --masterdata-save-area: 104px; width: 100%; }
-  .masterdata-action-row__navigation { width: 100%; justify-content: flex-start; }
-  .masterdata-action-row__nav-action { flex: 1 1 0; }
   .masterdata-info-card > span { padding-inline: 8px; }
   .pallet-account-info-card > span { padding-inline: 8px; }
   .portals-section__header { align-items: flex-start; flex-direction: column; }
