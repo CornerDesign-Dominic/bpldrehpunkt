@@ -1,4 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import ProtectedRoute from './auth/ProtectedRoute.jsx'
+import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
 import BusinessPartnerFormPage from './pages/BusinessPartnerFormPage.jsx'
 import CustomersPage from './pages/CustomersPage.jsx'
@@ -10,11 +12,17 @@ import PalletsPage from './pages/PalletsPage.jsx'
 import TodosPage from './pages/TodosPage.jsx'
 import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
+import LoginPage from './pages/LoginPage.jsx'
+
+function ProtectedAppLayout() {
+  return <ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>
+}
 
 export default function App() {
   return (
-    <AppShell>
-      <Routes>
+    <Routes>
+      <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+      <Route element={<ProtectedAppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/kunden-unternehmer" element={<CustomersPage />} />
         <Route path="/kunden-unternehmer/neu" element={<BusinessPartnerFormPage mode="create" />} />
@@ -28,7 +36,7 @@ export default function App() {
         <Route path="/dokumente" element={<DocumentsPage />} />
         <Route path="/todos" element={<TodosPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </AppShell>
+      </Route>
+    </Routes>
   )
 }

@@ -1,4 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
+import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
@@ -15,6 +16,7 @@ const firebaseConfig = {
 // Reuses the initialized app during hot module reloads in local development.
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig)
 
-// The application data layer uses this instance when Firestore-backed features are added.
+export const auth = getAuth(firebaseApp)
+export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => undefined)
 export const db = getFirestore(firebaseApp)
 export const storage = getStorage(firebaseApp)

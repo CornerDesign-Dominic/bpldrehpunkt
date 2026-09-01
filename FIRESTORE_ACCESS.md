@@ -22,3 +22,20 @@ service cloud.firestore {
 ```
 
 Für die Entwicklungsphase ohne Login ist ein lokaler Firestore Emulator der sichere Weg, um Anlegen und Bearbeiten zu testen. Eine dauerhafte Regel wie `allow read, write: if true` darf nicht für das Firebase-Projekt deployed werden.
+
+## Firebase Storage
+
+Die Storage-Regeln müssen ebenfalls mindestens eine angemeldete Firebase-Sitzung voraussetzen:
+
+```rules
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+Die genannten Regeln sind als Vorbereitung dokumentiert. Sie werden nicht durch dieses Repository in Firebase ausgerollt und müssen bei Bedarf in der Firebase Console gepflegt werden.

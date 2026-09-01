@@ -111,6 +111,13 @@
 - Der produktive Hauptstand umfasst Dashboard, Kunden & Unternehmer, CRM, Palettenmanagement, News, Dokumente und To-dos.
 - Weitere Fachbereiche werden getrennt entwickelt und gehören nicht zum produktiven Hauptstand.
 
+## Authentifizierung
+- Drehpunkt ist eine geschlossene interne Anwendung; Benutzerkonten werden nicht öffentlich registriert.
+- Geschützte Inhalte setzen Firebase Authentication voraus.
+- Authentifizierung und fachliche Berechtigungen sind getrennte Ebenen.
+- Eine UI-Ausblendung ersetzt niemals serverseitige Zugriffsregeln.
+- Benutzerprofile liegen optional unter `users/{uid}`; fehlende Profile dürfen die Anmeldung nicht verhindern.
+
 ## CRM-Aktivitäten
 - CRM-Aktivitäten werden chronologisch und dauerhaft dokumentiert.
 - Aktivitätsart und Hinweisstufe sind getrennte Eigenschaften.
