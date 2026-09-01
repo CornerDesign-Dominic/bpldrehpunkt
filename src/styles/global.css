@@ -441,7 +441,8 @@ button, a { font: inherit; }
 .empty-content { min-height: 280px; height: 100%; }
 .button { display: inline-flex; height: 34px; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid var(--legacy-314256); border-radius: 5px; color: var(--legacy-fff); background: var(--legacy-314256); cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .button:hover { background: var(--legacy-26384b); }
-.button:disabled { cursor: wait; opacity: 0.65; }
+.button:disabled { cursor: not-allowed; opacity: 0.65; }
+.button:disabled[aria-busy='true'] { cursor: wait; }
 .button--secondary { border-color: var(--legacy-d7dce3); color: var(--legacy-485463); background: var(--legacy-fff); }
 .button--secondary:hover { background: var(--legacy-f6f7f9); }
 .text-button { padding: 0; border: 0; color: var(--legacy-536f8b); background: transparent; cursor: pointer; font-size: 12px; font-weight: 650; }
