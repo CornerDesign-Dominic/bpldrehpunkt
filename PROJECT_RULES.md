@@ -164,6 +164,13 @@
 - Newslisten werden kompakt und chronologisch dargestellt.
 - Die Datenstruktur muss spätere automatisierte KI- und News-Pipelines ermöglichen.
 
+## Dokumente
+- Interne Dokumente werden zentral im Modul „Dokumente“ verwaltet.
+- Binärdateien werden in Firebase Storage gespeichert, Metadaten in Firestore.
+- Dokumente werden nicht hart gelöscht, sondern bevorzugt archiviert.
+- Dokumentlisten werden kompakt tabellarisch dargestellt.
+- Dateizugriffe müssen später rollenbasiert beschränkbar sein.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern
