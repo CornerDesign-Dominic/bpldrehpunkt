@@ -86,6 +86,10 @@
 - Palettenbewegungen fachlich aus Sicht des Unternehmers berechnen und Kundenwirkungen automatisch spiegeln
 - Kunde und Unternehmer können optional sein; mindestens ein beteiligter Geschäftspartner ist erforderlich
 - Eine reale Palettenbewegung genau einmal speichern
+- Palettenkonten primär tourbezogen darstellen
+- Tour oder interne Referenz als zentralen Bezugspunkt einer Transportbewegung verwenden
+- Stationswerte direkt sichtbar halten und nicht hinter Detail-Aufklappungen verbergen
+- Reale Bewegungsdaten unabhängig von der Kontoperspektive identisch halten; nur Saldoauswirkung und Kontostand partnerbezogen darstellen
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
