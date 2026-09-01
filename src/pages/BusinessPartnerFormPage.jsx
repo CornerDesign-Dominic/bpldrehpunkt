@@ -106,17 +106,13 @@ export default function BusinessPartnerFormPage({ mode }) {
   return (
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <header className="masterdata-header">
-        <div className="masterdata-header__primary-row">
-          <div className="masterdata-header__identity"><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2></div>
-          <div className="masterdata-header__actions"><div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-header__discard-action" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-header__save-button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div>
-        </div>
-        <div className="masterdata-header__navigation-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{!isNew && <div className="masterdata-header__navigation"><Link className="button button--secondary masterdata-header__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-header__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}<div aria-hidden="true" /></div>
+      <div className="masterdata-overview">
+        <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{!isNew && <div className="masterdata-action-row__navigation"><Link className="button button--secondary masterdata-action-row__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-action-row__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}<div className="masterdata-record-actions"><div className="masterdata-record-actions__content">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-record-actions__discard" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div></div>
         {!isNew && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} />}
         {!isNew && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
-      </header>
+      </div>
       {error && <p className="form-error">{error}</p>}
-      <BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} />
+      <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} /></section>
     </div>
   )
 }
