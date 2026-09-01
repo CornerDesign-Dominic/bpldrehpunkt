@@ -109,6 +109,9 @@
 - Berechnete Zwischenwerte werden nicht zwischen Eingabefeldern dargestellt, wenn sie für die Datenerfassung nicht erforderlich sind
 - Bei komplexen Buchungen werden Eingabe und Ergebnis visuell klar getrennt
 - Informationen dürfen innerhalb einer Maske nicht unnötig doppelt dargestellt werden
+- Der aktuelle Fachbereich wird immer im zentralen App-Header angezeigt
+- Seitentitel werden nicht zusätzlich im Inhaltsbereich wiederholt
+- Detailseiten zeigen im Header den Fachbereich und im Inhalt den konkreten Datensatz
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

@@ -53,7 +53,6 @@ export default function PalletsPage() {
 
   return (
     <div className="pallets-page">
-      <header className="list-page-heading"><div><h2>Palettenmanagement</h2><p>Palettenkonten und Bewegungen</p></div></header>
       <div className="list-toolbar pallets-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Palettenkonto suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">Partnerfilter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div></div>
       {partnerError && <p className="form-error">{partnerError}</p>}
       {accountError && <p className="form-error">{accountError}</p>}

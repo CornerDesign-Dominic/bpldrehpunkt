@@ -187,7 +187,7 @@ export default function PalletAccountDetailPage() {
     <div className="pallet-account-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <header className="pallet-account-header">
-        <div><span className="page-kicker">Palettenkonto</span><h2>{partner.companyName}</h2><div className="pallet-account-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{address}</span><span>{location}</span><span>{partner.address?.country || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span></div></div>
+        <div><h2>{partner.companyName}</h2><div className="pallet-account-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{address}</span><span>{location}</span><span>{partner.address?.country || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span></div></div>
         <div className="pallet-account-header__actions"><button className="button" type="button" onClick={() => openForm('movement', partner)}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={() => openForm('closing', partner)}>Abschluss hinzufügen</button><Link className="button button--secondary" to="/paletten">Zurück zur Übersicht</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div>
       </header>
 

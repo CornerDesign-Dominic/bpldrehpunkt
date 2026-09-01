@@ -32,7 +32,8 @@ button, a { font: inherit; }
 .toggle-icon { display: grid; transform: rotate(180deg); }
 .toggle-icon--collapsed { transform: none; }
 .content-frame { min-width: 0; display: grid; grid-template-rows: 72px minmax(0, 1fr); }
-.app-header { display: flex; align-items: center; justify-content: flex-end; padding: 0 36px; border-bottom: 1px solid #e1e5ea; background: #fff; }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 36px; border-bottom: 1px solid #e1e5ea; background: #fff; }
+.app-header h1 { margin: 0; color: #303947; font-size: 17px; font-weight: 650; letter-spacing: -0.15px; }
 .user-placeholder { display: inline-flex; align-items: center; gap: 8px; color: #9aa4b2; font-size: 12px; }
 .user-placeholder__dot { width: 7px; height: 7px; border-radius: 50%; background: #c7ced8; }
 .app-content { min-height: 0; padding: 28px 36px 36px; overflow: auto; }

@@ -30,7 +30,7 @@ export default function CrmDetailPage() {
   return (
     <div className="crm-detail-page">
       <header className="crm-detail-header">
-        <div><span className="page-kicker">CRM</span><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div></div>
+        <div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div></div>
         <div className="crm-detail-header__actions"><Link className="button button--secondary" to="/crm">Zurück zum CRM</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div>
       </header>
       <div className="crm-detail-sections">{detailSections.map(({ title, items }) => <section className="crm-detail-section" key={title}><h3>{title}</h3><dl>{items.map((item) => <div key={item}><dt>{item}</dt><dd>—</dd></div>)}</dl></section>)}</div>

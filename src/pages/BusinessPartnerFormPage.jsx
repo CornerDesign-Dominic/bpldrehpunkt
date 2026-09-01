@@ -55,7 +55,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <header className="masterdata-header">
-        <div className="masterdata-header__identity"><p className="page-kicker">{isNew ? 'Neuer Geschäftspartner' : 'Geschäftspartner'}</p><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2>{!isNew && <div className="detail-header__meta"><span>{getBusinessPartnerType(shownPartner)}</span><span className={`status-badge status-badge--${shownPartner.status}`}>{shownPartner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div>}</div>
+        <div className="masterdata-header__identity"><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2>{!isNew && <div className="detail-header__meta"><span>{getBusinessPartnerType(shownPartner)}</span><span className={`status-badge status-badge--${shownPartner.status}`}>{shownPartner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div>}</div>
         <div className="masterdata-header__actions"><Link className="button button--secondary" to="/kunden-unternehmer">Zur Übersicht</Link>{!isNew && <Link className="button button--secondary" to={`/crm/${partnerId}`}>Zum CRM</Link>}{!isNew && <Link className="button button--secondary" to={`/paletten/${partnerId}`}>Zum Palettenkonto</Link>}{isDirty && <span className="dirty-hint">Ungespeicherte Änderungen</span>}<button className="button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div>
       </header>
       {error && <p className="form-error">{error}</p>}
