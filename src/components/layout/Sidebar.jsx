@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, DrehpunktIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, PalletsIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
+import { ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, DrehpunktIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, NewsIcon, PalletsIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
@@ -7,6 +7,7 @@ const navigationItems = [
   { label: 'CRM', to: '/crm', icon: CrmIcon },
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon },
   { label: 'Dispo-Cockpit', to: '/dispo-cockpit', icon: DispatchIcon },
+  { label: 'News', to: '/news', icon: NewsIcon },
   { label: 'Qualitätsmanagement', to: '/qm', icon: QualityIcon },
   { label: 'Wissen', to: '/wissen', icon: KnowledgeIcon },
   { label: 'To-dos', to: '/todos', icon: TodoIcon },
