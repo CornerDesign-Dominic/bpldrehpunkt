@@ -11,14 +11,14 @@
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, a { font: inherit; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); background: #f5f6f8; }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); background: #f5f6f8; }
 .app-shell.sidebar-collapsed { grid-template-columns: 72px minmax(0, 1fr); }
-.sidebar { position: relative; display: flex; min-height: 100vh; flex-direction: column; padding: 18px 12px; color: #ced5e0; background: #202935; }
-.sidebar__brand { display: flex; height: 56px; align-items: center; gap: 12px; padding: 0 9px; color: #fff; overflow: hidden; white-space: nowrap; }
-.brand-mark { display: grid; width: 40px; height: 40px; flex: 0 0 40px; place-items: center; border: 1px solid #5d6b7e; border-radius: 9px; color: #f6f8fb; font-size: 19px; font-weight: 700; }
-.brand-name { font-size: 32px; font-weight: 650; letter-spacing: -0.4px; }
+.sidebar { position: relative; display: flex; min-height: 100vh; flex-direction: column; padding: 18px 10px; color: #ced5e0; background: #202935; }
+.sidebar__brand { display: flex; height: 52px; align-items: center; gap: 10px; padding: 0 8px; color: #fff; overflow: hidden; white-space: nowrap; }
+.brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border: 1px solid #5d6b7e; border-radius: 8px; color: #f6f8fb; font-size: 16px; font-weight: 700; }
+.brand-name { font-size: 26px; font-weight: 650; letter-spacing: -0.3px; }
 .sidebar__nav { display: grid; gap: 5px; margin-top: 30px; }
-.nav-item { display: flex; height: 40px; align-items: center; gap: 12px; padding: 0 10px; border-radius: 6px; color: #b9c3d1; text-decoration: none; white-space: nowrap; font-size: 14px; font-weight: 500; }
+.nav-item { display: flex; height: 40px; align-items: center; gap: 10px; padding: 0 6px; border-radius: 6px; color: #b9c3d1; text-decoration: none; white-space: nowrap; font-size: 14px; font-weight: 500; }
 .nav-item:hover { color: #f4f6f8; background: #2c3745; }
 .nav-item--active { color: #fff; background: #344355; box-shadow: inset 2px 0 0 #91a7c2; }
 .nav-item svg { flex: 0 0 auto; }
