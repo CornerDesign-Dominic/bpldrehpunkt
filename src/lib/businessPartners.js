@@ -15,7 +15,7 @@ export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
 
 const businessPartnersRef = collection(db, BUSINESS_PARTNERS_COLLECTION)
 
-const trimValue = (value) => value.trim()
+const trimValue = (value) => (value ?? '').trim()
 
 export function getBusinessPartnerType({ debtorNumber, creditorNumber }) {
   const hasDebtorNumber = Boolean(debtorNumber?.trim())
@@ -37,6 +37,7 @@ export function createEmptyBusinessPartner() {
     status: 'active',
     address: { street: '', houseNumber: '', postalCode: '', city: '', country: '' },
     contact: { phone: '', email: '', website: '' },
+    contacts: [],
     companyData: { vatId: '', commercialRegisterNumber: '', registerCourt: '' },
   }
 }
@@ -52,6 +53,7 @@ function createPayload(values) {
     status: values.status,
     address: Object.fromEntries(Object.entries(values.address).map(([key, value]) => [key, trimValue(value)])),
     contact: Object.fromEntries(Object.entries(values.contact).map(([key, value]) => [key, trimValue(value)])),
+    contacts: (values.contacts ?? []).map((contact) => ({ id: contact.id, name: trimValue(contact.name), department: contact.department, departmentOther: trimValue(contact.departmentOther), phone: trimValue(contact.phone), mobile: trimValue(contact.mobile), email: trimValue(contact.email) })),
     companyData: Object.fromEntries(Object.entries(values.companyData).map(([key, value]) => [key, trimValue(value)])),
   }
 }

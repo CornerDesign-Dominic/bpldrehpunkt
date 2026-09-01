@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { createEmptyBusinessPartner } from '../../lib/businessPartners.js'
 
+const departments = ['Geschäftsführung', 'Disposition', 'Einkauf', 'Verkauf', 'Logistik', 'Lager', 'Buchhaltung', 'Finanzbuchhaltung', 'Rechnungswesen', 'Controlling', 'Personal', 'Einkauf / Beschaffung', 'Kundenservice', 'Qualität / QM', 'IT', 'Empfang / Zentrale', 'Sonstiges']
+
 function validateEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
@@ -12,6 +14,14 @@ function validateWebsite(value) {
   } catch {
     return false
   }
+}
+
+function createContact() {
+  return { id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: '', department: '', departmentOther: '', phone: '', mobile: '', email: '' }
+}
+
+function normalizeForm(value) {
+  return { ...(value ?? createEmptyBusinessPartner()), contacts: value?.contacts ?? [] }
 }
 
 function Field({ label, name, value, onChange, error, type = 'text', placeholder, className = '' }) {
@@ -28,19 +38,78 @@ function FormSection({ title, className = '', children }) {
   return <section className="form-section"><h2>{title}</h2><div className={`form-grid ${className}`}>{children}</div></section>
 }
 
-export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyChange, onFormChange, formId }) {
-  const [form, setForm] = useState(initialValue ?? createEmptyBusinessPartner())
-  const [savedForm, setSavedForm] = useState(initialValue ?? createEmptyBusinessPartner())
+function displayDepartment(contact) {
+  return contact.department === 'Sonstiges' && contact.departmentOther ? `Sonstiges · ${contact.departmentOther}` : contact.department
+}
+
+function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
   const [errors, setErrors] = useState({})
+
+  function startAdd() {
+    setErrors({})
+    onDraftChange(createContact())
+  }
+
+  function startEdit(contact) {
+    setErrors({})
+    onDraftChange({ ...contact, departmentOther: contact.departmentOther ?? '' })
+  }
+
+  function updateDraft(field, value) {
+    onDraftChange({ ...draft, [field]: value })
+    setErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  function saveDraft() {
+    const nextErrors = {}
+    if (!draft.name.trim()) nextErrors.name = 'Name ist erforderlich.'
+    if (!draft.department) nextErrors.department = 'Abteilung ist erforderlich.'
+    if (draft.email.trim() && !validateEmail(draft.email)) nextErrors.email = 'Bitte eine gültige E-Mail-Adresse eingeben.'
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+
+    const exists = contacts.some((contact) => contact.id === draft.id)
+    onChange(exists ? contacts.map((contact) => contact.id === draft.id ? draft : contact) : [...contacts, draft])
+    onDraftChange(null)
+  }
+
+  function removeContact(contactId) {
+    onChange(contacts.filter((contact) => contact.id !== contactId))
+    if (draft?.id === contactId) onDraftChange(null)
+  }
+
+  return (
+    <section className="form-section contacts-section">
+      <div className="contacts-section__header"><div><h2>Ansprechpartner</h2><p>Personenbezogene Kontakte des Geschäftspartners</p></div><button className="button button--secondary" type="button" onClick={startAdd}>Ansprechpartner hinzufügen</button></div>
+      <div className="contacts-table table-frame"><table><thead><tr><th>Name</th><th>Abteilung</th><th>Telefon</th><th>Mobil</th><th>E-Mail</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => <tr key={contact.id}><td><strong>{contact.name}</strong></td><td>{displayDepartment(contact)}</td><td>{contact.phone || '—'}</td><td>{contact.mobile || '—'}</td><td>{contact.email || '—'}</td><td><div className="contact-actions"><button type="button" onClick={() => startEdit(contact)}>Bearbeiten</button><button type="button" onClick={() => removeContact(contact.id)}>Entfernen</button></div></td></tr>) : <tr><td className="table-state" colSpan="6">Noch keine Ansprechpartner erfasst.</td></tr>}</tbody></table></div>
+      {draft && <div className="contact-editor"><div className="contact-editor__header"><h3>{contacts.some((contact) => contact.id === draft.id) ? 'Ansprechpartner bearbeiten' : 'Ansprechpartner hinzufügen'}</h3><button className="button button--secondary" type="button" onClick={() => onDraftChange(null)}>Abbrechen</button></div><div className="contact-editor__grid"><Field label="Name *" name="contact-name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} error={errors.name} /><label className="form-field"><span>Abteilung *</span><select value={draft.department} onChange={(event) => updateDraft('department', event.target.value)} aria-invalid={Boolean(errors.department)}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select>{errors.department && <small className="field-error">{errors.department}</small>}</label><Field label="Telefon" name="contact-phone" value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} type="tel" /><Field label="Mobil" name="contact-mobile" value={draft.mobile} onChange={(event) => updateDraft('mobile', event.target.value)} type="tel" /><Field label="E-Mail" name="contact-email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} error={errors.email} type="email" />{draft.department === 'Sonstiges' && <Field className="contact-editor__wide" label="Abteilung ergänzen" name="contact-department-other" value={draft.departmentOther} onChange={(event) => updateDraft('departmentOther', event.target.value)} />}</div><div className="form-actions"><button className="button" type="button" onClick={saveDraft}>Ansprechpartner übernehmen</button></div></div>}
+    </section>
+  )
+}
+
+export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyChange, onFormChange, formId }) {
+  const [form, setForm] = useState(() => normalizeForm(initialValue))
+  const [savedForm, setSavedForm] = useState(() => normalizeForm(initialValue))
+  const [contactDraft, setContactDraft] = useState(null)
+  const [errors, setErrors] = useState({})
+
+  function updateForm(nextForm) {
+    setForm(nextForm)
+    onFormChange?.(nextForm)
+    onDirtyChange?.(JSON.stringify(nextForm) !== JSON.stringify(savedForm))
+  }
 
   function handleChange(event) {
     const { name, value } = event.target
     const [group, field] = name.split('.')
     const nextForm = field ? { ...form, [group]: { ...form[group], [field]: value } } : { ...form, [name]: value }
-    setForm(nextForm)
-    onFormChange?.(nextForm)
-    onDirtyChange?.(JSON.stringify(nextForm) !== JSON.stringify(savedForm))
+    updateForm(nextForm)
     setErrors((current) => ({ ...current, [name]: undefined }))
+  }
+
+  function updateContacts(contacts) {
+    updateForm({ ...form, contacts })
+    setErrors((current) => ({ ...current, contacts: undefined }))
   }
 
   async function handleSubmit(event) {
@@ -50,6 +119,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     if (!form.debtorNumber.trim() && !form.creditorNumber.trim()) nextErrors.references = 'Mindestens eine Debitoren- oder Kreditorennummer ist erforderlich.'
     if (form.contact.email.trim() && !validateEmail(form.contact.email)) nextErrors['contact.email'] = 'Bitte eine gültige E-Mail-Adresse eingeben.'
     if (form.contact.website.trim() && !validateWebsite(form.contact.website)) nextErrors['contact.website'] = 'Bitte eine vollständige Website-Adresse eingeben.'
+    if (form.contacts.some((contact) => !contact.name.trim() || !contact.department || (contact.email.trim() && !validateEmail(contact.email)))) nextErrors.contacts = 'Bitte die Ansprechpartnerangaben prüfen.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
     const saved = await onSubmit(form)
@@ -80,7 +150,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         <Field label="Land" name="address.country" value={form.address.country} onChange={handleChange} />
       </FormSection>
 
-      <FormSection title="Kontakt" className="form-grid--contact">
+      <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
         <Field label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
         <Field label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
         <Field label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
@@ -91,6 +161,9 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         <Field label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
         <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
       </FormSection>
+
+      <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
+      {errors.contacts && <p className="form-error">{errors.contacts}</p>}
     </form>
   )
 }

@@ -90,6 +90,10 @@
 - Tour oder interne Referenz als zentralen Bezugspunkt einer Transportbewegung verwenden
 - Stationswerte direkt sichtbar halten und nicht hinter Detail-Aufklappungen verbergen
 - Reale Bewegungsdaten unabhängig von der Kontoperspektive identisch halten; nur Saldoauswirkung und Kontostand partnerbezogen darstellen
+- Geschäftspartner besitzen einen allgemeinen Firmenkontakt und können zusätzlich mehrere Ansprechpartner haben
+- Ansprechpartner kompakt tabellarisch darstellen
+- Abteilungen bevorzugt über standardisierte Auswahlwerte pflegen
+- Ansprechpartner gehören fachlich zum jeweiligen Geschäftspartner
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
