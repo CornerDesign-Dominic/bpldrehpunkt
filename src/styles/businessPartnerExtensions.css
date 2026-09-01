@@ -26,7 +26,6 @@
 .masterdata-content-card { padding: 12px 13px; border: 1px solid var(--workspace-border); border-radius: 7px; background: var(--workspace-background); }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .masterdata-half-grid .form-section { min-width: 0; }
-.contact-editor__actions { display: flex; align-items: center; gap: 7px; }
 .contacts-table th:nth-child(6) { width: 72px; }
 .contacts-table__action { text-align: right; }
 .contacts-table .contact-actions--icons { align-items: center; gap: 2px; }

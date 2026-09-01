@@ -693,12 +693,8 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .contact-actions button { padding: 0; border: 0; color: var(--legacy-475e76); background: transparent; cursor: pointer; font-size: 12px; font-weight: 600; }
 .contact-actions button:hover { color: var(--legacy-263e57); text-decoration: underline; }
 .contact-actions button:last-child { color: var(--legacy-8b5a5a); }
-.contact-editor { padding: 11px 12px; border: 1px solid var(--legacy-dfe4e9); border-radius: 6px; background: var(--legacy-fbfcfd); }
 .contact-editor__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .contact-editor__header h3 { margin: 0; color: var(--legacy-435061); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
-.contact-editor__grid { display: grid; grid-template-columns: 1.15fr 1fr 0.85fr 0.85fr 1.35fr; gap: 9px 12px; }
-.contact-editor__wide { grid-column: 1 / -1; }
-.contact-editor .form-actions { margin-top: 10px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 12px; }
 .form-grid--identification { grid-template-columns: 1.4fr 1fr 0.75fr 0.75fr; }
 .form-field--company { grid-column: span 2; }
@@ -796,7 +792,7 @@ body, .app-content { color: var(--text-primary); background: var(--app-backgroun
 th { border-color: var(--border); color: var(--text-muted); background: var(--table-header-background); }
 td { border-color: var(--border); }
 tbody tr:hover { background: var(--table-hover-background); }
-.contact-editor, .todo-form, .news-form, .document-form, .pallet-movement-result, .crm-activity-form, .crm-rating-form { border-color: var(--border); background: var(--surface-secondary); }
+.todo-form, .news-form, .document-form, .pallet-movement-result, .crm-activity-form, .crm-rating-form { border-color: var(--border); background: var(--surface-secondary); }
 
 /* Shared visual hierarchy: app background → workspace → section and table surfaces. */
 .app-header { border-bottom-color: var(--header-border); box-shadow: 0 1px 0 var(--workspace-shadow); }
@@ -876,7 +872,6 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .news-tabs { flex-wrap: wrap; }.news-toolbar { align-items: flex-start; flex-direction: column; }.news-form__grid { grid-template-columns: 1fr; }.news-form__title, .news-form__wide { grid-column: auto; }.news-list { max-height: none; }.news-entry { grid-template-columns: 1fr; gap: 4px; }.news-entry__heading { flex-direction: column; gap: 6px; }
   .document-form__grid { grid-template-columns: 1fr; }.document-form__title, .document-form__description { grid-column: auto; }
   .contacts-section__header { flex-direction: column; }
-  .contact-editor__grid { grid-template-columns: 1fr; }
   .toast { top: 96px; right: 20px; left: 84px; }
   .masterdata-header { align-items: flex-start; flex-direction: column; }
   .masterdata-header__actions { flex-wrap: wrap; }
