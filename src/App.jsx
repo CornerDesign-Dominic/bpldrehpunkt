@@ -19,6 +19,7 @@ import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
 import PersonnelPage from './pages/PersonnelPage.jsx'
 import EmployeeDetailPage from './pages/EmployeeDetailPage.jsx'
+import AiToolsPage from './pages/AiToolsPage.jsx'
 
 export default function App() {
   return (
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/wissen/artikel/:articleId" element={<KnowledgeArticleDetailPage mode="existing" />} />
         <Route path="/wissen/:category" element={<KnowledgeListPage />} />
         <Route path="/todos" element={<TodosPage />} />
+        <Route path="/ki-werkzeuge" element={<AiToolsPage />} />
         <Route path="/rechtsfaelle" element={<CaseListPage moduleKey="legal" />} />
         <Route path="/rechtsfaelle/neu" element={<CaseDetailPage moduleKey="legal" mode="create" />} />
         <Route path="/rechtsfaelle/:caseId" element={<CaseDetailPage moduleKey="legal" mode="existing" />} />

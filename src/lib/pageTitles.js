@@ -10,6 +10,7 @@ const pageTitles = [
   { path: '/qm', title: 'Qualitätsmanagement' },
   { path: '/wissen', title: 'Wissen' },
   { path: '/todos', title: 'To-dos' },
+  { path: '/ki-werkzeuge', title: 'KI-Werkzeuge' },
   { path: '/rechtsfaelle', title: 'Rechtsfälle' },
   { path: '/inkassofaelle', title: 'Inkassofälle' },
   { path: '/versicherungsfaelle', title: 'Versicherungsfälle / Schäden' },

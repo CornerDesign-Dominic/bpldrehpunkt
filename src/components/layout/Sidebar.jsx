@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, DocumentsIcon, DrehpunktIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, NewsIcon, PalletsIcon, PersonnelIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
+import { AiToolsIcon, ChevronIcon, CrmIcon, DashboardIcon, DebtCollectionIcon, DispatchIcon, DocumentsIcon, DrehpunktIcon, InsuranceIcon, KnowledgeIcon, LegalIcon, NewsIcon, PalletsIcon, PersonnelIcon, QualityIcon, TodoIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
@@ -13,6 +13,7 @@ const navigationItems = [
   { label: 'Qualitätsmanagement', to: '/qm', icon: QualityIcon },
   { label: 'Wissen', to: '/wissen', icon: KnowledgeIcon },
   { label: 'To-dos', to: '/todos', icon: TodoIcon },
+  { label: 'KI-Werkzeuge', to: '/ki-werkzeuge', icon: AiToolsIcon },
   { label: 'Rechtsfälle', to: '/rechtsfaelle', icon: LegalIcon },
   { label: 'Inkassofälle', to: '/inkassofaelle', icon: DebtCollectionIcon },
   { label: 'Versicherungsfälle / Schäden', to: '/versicherungsfaelle', icon: InsuranceIcon },

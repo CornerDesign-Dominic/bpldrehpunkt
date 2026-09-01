@@ -180,6 +180,12 @@
 - Das Datenmodell muss spätere Genehmigungsworkflows unterstützen.
 - Abwesenheitsdaten müssen später mit Benutzerkonten verknüpfbar sein.
 
+## KI-Werkzeuge
+- KI-Werkzeuge werden als eigener Hauptbereich geführt.
+- Einzelne KI-Funktionen werden innerhalb des Bereichs über Tabs getrennt.
+- KI-Werkzeuge sollen fachlich klar abgegrenzt und modular erweiterbar sein.
+- API-, Upload- und Analyse-Logik wird nicht direkt in UI-Komponenten vermischt.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern
