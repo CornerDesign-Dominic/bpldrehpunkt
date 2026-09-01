@@ -216,12 +216,13 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
           <Field label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
           <Field label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
-          <Field className="form-field--contact-wide" label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
-          <Field className="form-field--contact-wide" label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
+          <Field label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
+          <Field label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
         </FormSection>
 
         <FormSection title="Unternehmensdaten" className="form-grid--company-data">
           <Field label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
+          <Field label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={handleChange} />
           <Field label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
           <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
         </FormSection>

@@ -57,7 +57,7 @@ export function createEmptyBusinessPartner() {
     contact: { phone: '', fax: '', email: '', website: '' },
     contacts: [],
     portals: [],
-    companyData: { vatId: '', commercialRegisterNumber: '', registerCourt: '' },
+    companyData: { vatId: '', taxNumber: '', commercialRegisterNumber: '', registerCourt: '' },
   }
 }
 
