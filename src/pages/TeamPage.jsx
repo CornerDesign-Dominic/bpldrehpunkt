@@ -1,0 +1,45 @@
+import { useEffect, useMemo, useState } from 'react'
+import { getUserAvailabilityStatus, listUserProfiles } from '../lib/userProfiles.js'
+import '../styles/team.css'
+
+function displayName(member) {
+  const name = [member.firstName, member.lastName].filter(Boolean).join(' ').trim()
+  return name || member.name || member.email || '—'
+}
+
+function memberFunction(member) {
+  return member.jobTitle || member.function || member.position || '—'
+}
+
+function TeamCard({ member }) {
+  const status = getUserAvailabilityStatus(member)
+  return <article className="team-card"><div className="team-card__heading"><div><h2>{displayName(member)}</h2><p>{memberFunction(member)}</p></div><span className={`team-status ${status ? 'team-status--set' : 'team-status--neutral'}`}><i aria-hidden="true" />{status?.label || 'Nicht festgelegt'}</span></div><dl className="team-card__details"><div><dt>Abteilung</dt><dd>{member.department || '—'}</dd></div><div><dt>Telefon / Durchwahl</dt><dd>{member.phone ? <a href={`tel:${member.phone}`}>{member.phone}</a> : '—'}</dd></div><div className="team-card__email"><dt>E-Mail</dt><dd>{member.email ? <a href={`mailto:${member.email}`}>{member.email}</a> : '—'}</dd></div></dl></article>
+}
+
+export default function TeamPage() {
+  const [members, setMembers] = useState([])
+  const [search, setSearch] = useState('')
+  const [department, setDepartment] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let current = true
+    listUserProfiles()
+      .then((profiles) => { if (current) setMembers(profiles) })
+      .catch(() => { if (current) setError('Das Teamverzeichnis konnte nicht geladen werden.') })
+      .finally(() => { if (current) setLoading(false) })
+    return () => { current = false }
+  }, [])
+
+  const departments = useMemo(() => [...new Set(members.map((member) => member.department?.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'de')), [members])
+  const visibleMembers = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase('de-DE')
+    return members
+      .filter((member) => department === 'all' || member.department?.trim() === department)
+      .filter((member) => !term || [displayName(member), member.department, memberFunction(member)].some((value) => value?.toLocaleLowerCase('de-DE').includes(term)))
+      .sort((left, right) => displayName(left).localeCompare(displayName(right), 'de'))
+  }, [department, members, search])
+
+  return <div className="team-page"><div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (visibleMembers.length ? <div className="team-grid">{visibleMembers.map((member) => <TeamCard key={member.id} member={member} />)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
+}

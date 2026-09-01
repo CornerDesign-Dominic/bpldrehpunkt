@@ -3,6 +3,7 @@ import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktIcon, Moon
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
+  { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon },
   { label: 'CRM', to: '/crm', icon: CrmIcon },
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon },

@@ -14,6 +14,7 @@ import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
+import TeamPage from './pages/TeamPage.jsx'
 
 function ProtectedAppLayout() {
   return <ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>
@@ -25,6 +26,7 @@ export default function App() {
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/team" element={<TeamPage />} />
         <Route path="/kunden-unternehmer" element={<CustomersPage />} />
         <Route path="/kunden-unternehmer/neu" element={<BusinessPartnerFormPage mode="create" />} />
         <Route path="/kunden-unternehmer/:partnerId" element={<BusinessPartnerFormPage mode="existing" />} />

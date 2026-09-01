@@ -1,5 +1,6 @@
 const pageTitles = [
   { path: '/dashboard', title: 'Dashboard' },
+  { path: '/team', title: 'Team Brennpunkt' },
   { path: '/kunden-unternehmer', title: 'Kunden & Unternehmer' },
   { path: '/crm', title: 'Customer Relationship Management (CRM)' },
   { path: '/paletten', title: 'Palettenmanagement' },
