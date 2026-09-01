@@ -204,31 +204,33 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
         <Field label="Land" name="address.country" value={form.address.country} onChange={handleChange} />
       </FormSection>
 
-      <FormSection title="Referenzen & Nummern" className="form-grid--references">
-        <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-        <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-        <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
-        <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
-        {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
-      </FormSection>
+      <div className="masterdata-half-grid">
+        <FormSection title="Referenzen & Nummern" className="form-grid--references">
+          <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+          <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+          <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
+          <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
+          {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
+        </FormSection>
 
-      <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
-        <Field label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
-        <Field label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
-        <Field label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
-        <Field label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
-      </FormSection>
+        <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
+          <Field label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
+          <Field label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
+          <Field className="form-field--contact-wide" label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
+          <Field className="form-field--contact-wide" label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
+        </FormSection>
 
-      <FormSection title="Unternehmensdaten" className="form-grid--company-data">
-        <Field label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
-        <Field label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
-        <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
-      </FormSection>
+        <FormSection title="Unternehmensdaten" className="form-grid--company-data">
+          <Field label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
+          <Field label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
+          <Field label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
+        </FormSection>
 
-      <FormSection title="Abrechnung" className="form-grid--billing">
-        <Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={handleChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" />
-        <label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={handleChange}><option value="false">Nein</option><option value="true">Ja</option></select></label>
-      </FormSection>
+        <FormSection title="Abrechnung" className="form-grid--billing">
+          <Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={handleChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" />
+          <label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={handleChange}><option value="false">Nein</option><option value="true">Ja</option></select></label>
+        </FormSection>
+      </div>
 
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
