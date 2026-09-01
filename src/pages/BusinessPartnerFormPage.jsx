@@ -78,8 +78,8 @@ export default function BusinessPartnerFormPage({ mode }) {
       <header className="masterdata-header">
         <div className="masterdata-header__identity"><h2>{shownPartner.companyName || 'Neuer Geschäftspartner'}</h2>{!isNew && <div className="masterdata-header__meta-row"><div className="detail-header__meta"><span>{getBusinessPartnerType(shownPartner)}</span><span className={`status-badge status-badge--${shownPartner.status}`}>{shownPartner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div><CrmShortStatus partner={partner} ratings={crmRatings} /></div>}</div>
         <div className="masterdata-header__actions">
-          {!isNew && <div className="masterdata-header__navigation"><Link className="button button--secondary masterdata-header__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-header__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}
           <div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div>
+          {!isNew && <div className="masterdata-header__navigation"><Link className="button button--secondary masterdata-header__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-header__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}
         </div>
       </header>
       {error && <p className="form-error">{error}</p>}
