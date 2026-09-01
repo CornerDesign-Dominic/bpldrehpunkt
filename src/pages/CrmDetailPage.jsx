@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import CrmActivityPanel from '../components/crm/CrmActivityPanel.jsx'
 import { getBusinessPartner, getBusinessPartnerType } from '../lib/businessPartners.js'
 
 const detailSections = [
@@ -34,6 +35,7 @@ export default function CrmDetailPage() {
         <div className="crm-detail-header__actions"><Link className="button button--secondary" to="/crm">Zurück zum CRM</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div>
       </header>
       <div className="crm-detail-sections">{detailSections.map(({ title, items }) => <section className="crm-detail-section" key={title}><h3>{title}</h3><dl>{items.map((item) => <div key={item}><dt>{item}</dt><dd>—</dd></div>)}</dl></section>)}</div>
+      <CrmActivityPanel partnerId={partnerId} />
     </div>
   )
 }

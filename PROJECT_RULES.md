@@ -113,6 +113,13 @@
 - Seitentitel werden nicht zusätzlich im Inhaltsbereich wiederholt
 - Detailseiten zeigen im Header den Fachbereich und im Inhalt den konkreten Datensatz
 
+## CRM-Aktivitäten
+- CRM-Aktivitäten werden chronologisch und dauerhaft dokumentiert.
+- Aktivitätsart und Hinweisstufe sind getrennte Eigenschaften.
+- Wachsende Historien werden als eigene Firestore-Subcollections gespeichert.
+- Historien werden kompakt und scrollbar dargestellt, damit Detailseiten nicht unbegrenzt wachsen.
+- Neue Historieneinträge werden standardmäßig zuerst angezeigt.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern
