@@ -13,17 +13,17 @@ function formatCreditLimit(value) {
   return value === null || value === undefined ? 'n/a' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-function MasterdataInfoCard({ partner, ratings }) {
+function MasterdataInfoCard({ partner, ratings, partnerId }) {
   const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
-  return <aside className="masterdata-info-card" aria-label="Aktueller Geschäftspartnerstatus"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}</aside>
+  return <Link className="masterdata-info-card" to={`/crm/${partnerId}`} aria-label="CRM des Geschäftspartners öffnen"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}<span className="masterdata-info-card__chevron" aria-hidden="true">→</span></Link>
 }
 
 function PalletAccountInfoCard({ account, movements, partnerId }) {
-  if (!account) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Palettenkonto: —</span></Link>
-  if (!movements.length) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Keine Palettenbewegungen vorhanden</span></Link>
+  if (!account) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Palettenkonto: —</span><span className="pallet-account-info-card__chevron" aria-hidden="true">→</span></Link>
+  if (!movements.length) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Keine Palettenbewegungen vorhanden</span><span className="pallet-account-info-card__chevron" aria-hidden="true">→</span></Link>
 
   const latestMovement = account.entries.filter((entry) => entry.entryType === 'movement').at(-1)
-  return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span className="pallet-account-info-card__balance">Palettensaldo: <strong>{formatPalletNumber(account.balance, true)}</strong></span><span>Letzte Bewegung: <strong>{latestMovement?.date ? formatPalletDate(latestMovement.date) : '—'}</strong></span><span>{movements.length} Bewegungen</span><span>Letzter Abschluss: <strong>{account.latestClosing?.date ? formatPalletDate(account.latestClosing.date) : '—'}</strong></span></Link>
+  return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span className="pallet-account-info-card__balance">Palettensaldo: <strong>{formatPalletNumber(account.balance, true)}</strong></span><span>Letzte Bewegung: <strong>{latestMovement?.date ? formatPalletDate(latestMovement.date) : '—'}</strong></span><span>{movements.length} Bewegungen</span><span>Letzter Abschluss: <strong>{account.latestClosing?.date ? formatPalletDate(account.latestClosing.date) : '—'}</strong></span><span className="pallet-account-info-card__chevron" aria-hidden="true">→</span></Link>
 }
 
 export default function BusinessPartnerFormPage({ mode }) {
@@ -107,7 +107,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{!isNew && <div className="masterdata-action-row__navigation"><Link className="button button--secondary masterdata-action-row__nav-action" to={`/crm/${partnerId}`}>CRM</Link><Link className="button button--secondary masterdata-action-row__nav-action" to={`/paletten/${partnerId}`}>Palettenkonto</Link></div>}<div className="masterdata-record-actions"><div className="masterdata-record-actions__content">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-record-actions__discard" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div></div>
-      {!isNew && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} />}
+      {!isNew && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} partnerId={partnerId} />}
       {!isNew && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
       {error && <p className="form-error">{error}</p>}
       <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} /></section>

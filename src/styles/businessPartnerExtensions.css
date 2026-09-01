@@ -12,19 +12,19 @@
 .masterdata-record-actions__save { grid-area: save; width: 100%; }
 .dirty-hint { display: inline-flex; grid-area: dirty; align-items: center; justify-self: end; gap: 6px; min-height: 30px; padding: 0 8px; border: 1px solid var(--status-warning-text); border-radius: 5px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 12px; font-weight: 650; white-space: nowrap; }
 .dirty-hint__icon { display: inline-flex; width: 14px; height: 14px; align-items: center; justify-content: center; border: 1px solid currentColor; border-radius: 50%; font-size: 10px; font-weight: 750; line-height: 1; }
-.masterdata-info-card { display: flex; width: 100%; box-sizing: border-box; align-items: center; flex-wrap: wrap; gap: 6px 0; min-height: 34px; padding: 7px 11px; border: 1px solid var(--section-border); border-radius: 6px; color: var(--text-secondary); background: var(--section-background); font-size: 12px; }
-.masterdata-info-card > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 11px; white-space: nowrap; }
+.masterdata-info-card, .pallet-account-info-card { display: flex; width: 100%; box-sizing: border-box; align-items: center; flex-wrap: wrap; gap: 6px 0; min-height: 34px; padding: 7px 11px; border: 1px solid var(--section-border); border-radius: 6px; color: var(--text-secondary); background: var(--section-background); cursor: pointer; font-size: 12px; text-decoration: none; transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+.masterdata-info-card:hover, .pallet-account-info-card:hover { border-color: var(--border-strong); background: var(--surface-secondary); }
+.masterdata-info-card:focus-visible, .pallet-account-info-card:focus-visible { outline: none; border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }
+.masterdata-info-card > span, .pallet-account-info-card > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 11px; white-space: nowrap; }
 .masterdata-info-card > span:first-child { padding-left: 0; color: var(--text-primary); font-weight: 650; }
-.masterdata-info-card > span + span { border-left: 1px solid var(--border); }
+.masterdata-info-card > span + span, .pallet-account-info-card > span + span { border-left: 1px solid var(--border); }
 .masterdata-info-card strong { color: var(--text-primary); font-weight: 650; }
 .masterdata-info-card__rating { font-weight: 500; }
-.pallet-account-info-card { display: flex; width: 100%; box-sizing: border-box; align-items: center; flex-wrap: wrap; gap: 6px 0; min-height: 34px; padding: 7px 11px; border: 1px solid var(--section-border); border-radius: 6px; color: var(--text-secondary); background: var(--section-background); font-size: 12px; text-decoration: none; }
-.pallet-account-info-card:hover { border-color: var(--border-strong); }
-.pallet-account-info-card > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 11px; white-space: nowrap; }
 .pallet-account-info-card > span:first-child { padding-left: 0; }
-.pallet-account-info-card > span + span { border-left: 1px solid var(--border); }
 .pallet-account-info-card strong { color: var(--text-primary); font-weight: 650; }
 .pallet-account-info-card__balance strong { font-weight: 700; }
+.masterdata-info-card__chevron, .pallet-account-info-card__chevron { margin-left: auto; padding: 0 !important; border-left: 0 !important; color: var(--text-muted); font-size: 15px; line-height: 1; transition: color 140ms ease, transform 140ms ease; }
+.masterdata-info-card:hover .masterdata-info-card__chevron, .pallet-account-info-card:hover .pallet-account-info-card__chevron, .masterdata-info-card:focus-visible .masterdata-info-card__chevron, .pallet-account-info-card:focus-visible .pallet-account-info-card__chevron { color: var(--text-primary); transform: translateX(2px); }
 .masterdata-content-card { padding: 12px 13px; border: 1px solid var(--section-border); border-radius: 7px; background: var(--section-background); }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .masterdata-half-grid .form-section { min-width: 0; }
