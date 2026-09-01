@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktIcon, MoonIcon, NewsIcon, PalletsIcon, SunIcon, TodoIcon, UsersIcon } from '../icons.jsx'
+import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SunIcon, TodoIcon, UsersIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
@@ -10,6 +10,7 @@ const navigationItems = [
   { label: 'News', to: '/news', icon: NewsIcon },
   { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon },
   { label: 'To-dos', to: '/todos', icon: TodoIcon },
+  { label: 'Adminbereich', to: '/admin', icon: ShieldIcon },
 ]
 
 export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {

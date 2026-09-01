@@ -49,3 +49,7 @@ export function ProfileIcon({ size = 18 }) {
 export function ChevronDownIcon({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
 }
+
+export function ShieldIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3 20 6v5c0 5.1-3.2 8.4-8 10-4.8-1.6-8-4.9-8-10V6l8-3Z" /><path d="M9 12h6m-3-3v6" /></svg>
+}
