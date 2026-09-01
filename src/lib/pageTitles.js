@@ -3,6 +3,7 @@ const pageTitles = [
   { path: '/kunden-unternehmer', title: 'Kunden & Unternehmer' },
   { path: '/crm', title: 'Customer Relationship Management (CRM)' },
   { path: '/paletten', title: 'Palettenmanagement' },
+  { path: '/dispo-cockpit', title: 'Dispo-Cockpit' },
   { path: '/qm', title: 'Qualitätsmanagement' },
   { path: '/wissen', title: 'Wissen' },
   { path: '/todos', title: 'To-dos' },

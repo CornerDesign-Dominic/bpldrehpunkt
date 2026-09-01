@@ -149,6 +149,13 @@
 - Ersteller, Empfänger und Bearbeiter sind fachlich getrennte Rollen.
 - To-do-Datenstrukturen müssen spätere benutzer- und abteilungsbezogene Zugriffsrechte ermöglichen.
 
+## Dispo-Cockpit
+- Das Dispo-Cockpit ist eine Ressourcen-Zeit-Matrix für eingesetzte Fahrzeuge, kein herkömmlicher Kalender.
+- Fahrzeuge stehen vertikal, die Zeitachse horizontal; Touren werden über ihre exakten Start- und Endzeiten positioniert.
+- Jedes Fahrzeug hat zwei visuelle Spuren. Nicht überlappende Touren belegen die erste freie Spur; mehr als zwei gleichzeitige Touren sind ein sichtbarer Planungskonflikt.
+- Operative Planungsansichten sind informationsdicht und für schnelle visuelle Erfassung ausgelegt.
+- Für den Bereich werden die Firestore-Collections `fleetVehicles` und `dispatchTrips` verwendet.
+
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
 - Bestehende Funktionen nicht unbeabsichtigt verändern

@@ -14,6 +14,7 @@ import QualityManagementPage from './pages/QualityManagementPage.jsx'
 import KnowledgeArticleDetailPage from './pages/KnowledgeArticleDetailPage.jsx'
 import KnowledgeListPage from './pages/KnowledgeListPage.jsx'
 import TodosPage from './pages/TodosPage.jsx'
+import DispatchCockpitPage from './pages/DispatchCockpitPage.jsx'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/crm/:partnerId" element={<CrmDetailPage />} />
         <Route path="/paletten" element={<PalletsPage />} />
         <Route path="/paletten/:partnerId" element={<PalletAccountDetailPage />} />
+        <Route path="/dispo-cockpit" element={<DispatchCockpitPage />} />
         <Route path="/qm" element={<QualityManagementPage />} />
         <Route path="/qm/ziele/neu" element={<QualityGoalDetailPage mode="create" />} />
         <Route path="/qm/ziele/:goalId" element={<QualityGoalDetailPage mode="existing" />} />
