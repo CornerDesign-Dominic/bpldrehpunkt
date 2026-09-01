@@ -76,6 +76,10 @@
 - Kontoabschlüsse verändern den Saldo, nicht jedoch historische Bewegungen
 - Kontostände müssen aus der Buchungshistorie nachvollziehbar berechnet werden
 - Geschäftspartner-Stammdaten im Palettenmanagement nur referenzieren, nicht duplizieren
+- Fachseiten verwenden eine einheitliche maximale Inhaltsbreite
+- Tabellen- und Listenansichten folgen einer gemeinsamen Breite und Gestaltung
+- Doppelte Seitentitel innerhalb derselben Ansicht vermeiden
+- Abkürzungen in der Navigation kurz halten und Seitentitel bei besserer Verständlichkeit ausschreiben
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
