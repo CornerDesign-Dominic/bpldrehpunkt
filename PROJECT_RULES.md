@@ -67,6 +67,10 @@
 - Palettenkonten über die interne Firestore-ID mit Geschäftspartnern verknüpfen
 - Geschäftspartner-Stammdaten im Palettenmanagement nicht duplizieren
 - Aus Stammdaten direkte Sprünge in partnerbezogene Fachbereiche ermöglichen
+- Fachbereiche besitzen eigene Übersichten und Detailseiten
+- CRM verwendet Geschäftspartner-Stammdaten ausschließlich als Basisreferenz
+- CRM-Übersichten dürfen andere Spalten zeigen als Stammdatenübersichten
+- CRM-Detailseiten kompakt und informationsorientiert aufbauen
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen

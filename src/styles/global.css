@@ -52,12 +52,14 @@ button, a { font: inherit; }
 .button--secondary { border-color: #d7dce3; color: #485463; background: #fff; }
 .button--secondary:hover { background: #f6f7f9; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.business-partners-page, .form-page, .detail-page, .masterdata-page { max-width: 1320px; margin: 0 auto; }
+.business-partners-page, .form-page, .detail-page, .masterdata-page, .crm-detail-page { max-width: 1320px; margin: 0 auto; }
 .crm-page { display: grid; max-width: 1180px; gap: 14px; margin: 0 auto; }
 .pallets-page { display: grid; max-width: 1180px; gap: 14px; margin: 0 auto; }
 .crm-heading { padding-bottom: 10px; border-bottom: 1px solid #dfe4e9; }
 .crm-heading h2 { margin: 0; color: #293341; font-size: 19px; font-weight: 650; letter-spacing: -0.2px; }
 .crm-heading p { margin: 3px 0 0; color: #7a8593; font-size: 12px; }
+.crm-toolbar { margin: 0; }
+.crm-table-frame table { min-width: 1130px; }
 .pallets-heading { padding-bottom: 10px; border-bottom: 1px solid #dfe4e9; }
 .pallets-heading h2 { margin: 0; color: #293341; font-size: 19px; font-weight: 650; letter-spacing: -0.2px; }
 .pallets-heading p { margin: 3px 0 0; color: #7a8593; font-size: 12px; }
@@ -91,6 +93,16 @@ button, a { font: inherit; }
 .crm-section-nav { display: flex; gap: 20px; height: 40px; align-items: center; padding: 0 14px; border-bottom: 1px solid #e4e8ec; color: #8a94a0; font-size: 12px; font-weight: 600; }
 .crm-section-nav span:first-child { color: #445a70; }
 .crm-workspace__empty { padding: 17px; color: #89939f; font-size: 13px; }
+.crm-detail-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #dfe4e9; }
+.crm-detail-header h2 { margin: 0; color: #293341; font-size: 19px; font-weight: 650; letter-spacing: -0.2px; }
+.crm-detail-header__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 15px; margin-top: 7px; color: #6f7a87; font-size: 12px; }
+.crm-detail-header__actions { display: flex; gap: 9px; }
+.crm-detail-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }
+.crm-detail-section { padding: 13px 0; border-bottom: 1px solid #e0e5ea; }
+.crm-detail-section h3 { margin: 0 0 10px; color: #435061; font-size: 12px; font-weight: 700; }
+.crm-detail-section dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 18px; margin: 0; }
+.crm-detail-section dt { color: #818c98; font-size: 11px; font-weight: 650; }
+.crm-detail-section dd { margin: 3px 0 0; color: #a0a8b2; font-size: 13px; }
 .pallets-workspace { min-height: 180px; border: 1px solid #e1e5ea; border-radius: 7px; background: #fff; }
 .pallets-section-nav { display: flex; gap: 20px; height: 40px; align-items: center; padding: 0 14px; border-bottom: 1px solid #e4e8ec; color: #8a94a0; font-size: 12px; font-weight: 600; }
 .pallets-section-nav span:first-child { color: #445a70; }
@@ -178,6 +190,9 @@ td strong { color: #2e3745; font-weight: 650; }
   .toast { top: 80px; right: 20px; left: 84px; }
   .masterdata-header { align-items: flex-start; flex-direction: column; }
   .masterdata-header__actions { flex-wrap: wrap; }
+  .crm-detail-header { align-items: flex-start; flex-direction: column; }
+  .crm-detail-header__actions { flex-wrap: wrap; }
+  .crm-detail-sections { grid-template-columns: 1fr; }
   .crm-selection, .crm-context { grid-template-columns: 1fr; }
   .crm-context { display: grid; align-items: start; }
   .pallets-selection, .pallets-context { grid-template-columns: 1fr; }

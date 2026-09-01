@@ -1,57 +1,46 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getBusinessPartner, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
+import { Link } from 'react-router-dom'
+import { getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
 
-const crmSections = ['Übersicht', 'Aktivitäten', 'Potenzial', 'Kontakte', 'Notizen']
+const filters = [
+  { value: 'all', label: 'Alle' },
+  { value: 'customer', label: 'Kunden' },
+  { value: 'supplier', label: 'Unternehmer' },
+  { value: 'both', label: 'Kunde & Unternehmer' },
+  { value: 'active', label: 'Aktiv' },
+  { value: 'inactive', label: 'Inaktiv' },
+]
+
+function matchesFilter(partner, filter) {
+  if (filter === 'all') return true
+  if (filter === 'active' || filter === 'inactive') return partner.status === filter
+
+  const type = getBusinessPartnerType(partner)
+  return (filter === 'customer' && type === 'Kunde') || (filter === 'supplier' && type === 'Unternehmer') || (filter === 'both' && type === 'Kunde & Unternehmer')
+}
 
 export default function CrmPage() {
-  const { partnerId } = useParams()
-  const navigate = useNavigate()
   const [partners, setPartners] = useState([])
   const [search, setSearch] = useState('')
-  const [selectionError, setSelectionError] = useState('')
-  const [partnerResult, setPartnerResult] = useState(null)
+  const [filter, setFilter] = useState('all')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    listBusinessPartners().then(setPartners).catch(() => setSelectionError('Die Geschäftspartner-Auswahl konnte nicht geladen werden.'))
+    listBusinessPartners().then(setPartners).catch(() => setError('Die CRM-Partnerübersicht konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.')).finally(() => setLoading(false))
   }, [])
-
-  useEffect(() => {
-    if (!partnerId) return undefined
-    let isCurrent = true
-    getBusinessPartner(partnerId)
-      .then((result) => {
-        if (!isCurrent) return
-        setPartnerResult({ id: partnerId, partner: result, error: result ? '' : 'Geschäftspartner nicht gefunden.' })
-      })
-      .catch(() => { if (isCurrent) setPartnerResult({ id: partnerId, partner: null, error: 'Geschäftspartner nicht gefunden.' }) })
-    return () => { isCurrent = false }
-  }, [partnerId])
 
   const visiblePartners = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
-    return partners.filter((item) => !term || [item.companyName, item.shortName].some((value) => value?.toLocaleLowerCase('de-DE').includes(term)))
-  }, [partners, search])
-  const activeResult = partnerResult?.id === partnerId ? partnerResult : null
-  const selectedPartner = activeResult?.partner ?? null
-  const partnerError = activeResult?.error ?? ''
-  const loadingPartner = Boolean(partnerId && !activeResult)
-
-  function selectPartner(event) {
-    const nextId = event.target.value
-    navigate(nextId ? `/crm/${nextId}` : '/crm')
-  }
+    return partners.filter((partner) => matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber].some((value) => value?.toLocaleLowerCase('de-DE').includes(term))))
+  }, [filter, partners, search])
 
   return (
     <div className="crm-page">
       <header className="crm-heading"><div><h2>CRM</h2><p>Customer Relationship Management</p></div></header>
-      <div className="crm-selection"><label className="search-field"><span className="sr-only">Geschäftspartner im CRM suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" /></label><label className="crm-select"><span className="sr-only">Geschäftspartner auswählen</span><select value={partnerId ?? ''} onChange={selectPartner}><option value="">Geschäftspartner auswählen</option>{visiblePartners.map((item) => <option key={item.id} value={item.id}>{item.companyName}{item.shortName ? ` · ${item.shortName}` : ''}</option>)}</select></label></div>
-      {selectionError && <p className="form-error">{selectionError}</p>}
-      {!partnerId && <section className="crm-empty-state"><h3>Geschäftspartner auswählen</h3><p>Wählen Sie einen Geschäftspartner aus, um den CRM-Kontext zu öffnen.</p></section>}
-      {partnerId && loadingPartner && <p className="page-state">Geschäftspartner wird geladen …</p>}
-      {partnerId && !loadingPartner && partnerError && <section className="crm-empty-state crm-empty-state--error"><h3>{partnerError}</h3><Link className="button button--secondary" to="/crm">Zur CRM-Auswahl</Link></section>}
-      {selectedPartner && !loadingPartner && <section className="crm-context"><div className="crm-context__identity"><span className="page-kicker">CRM-Kontext</span><h3>{selectedPartner.companyName}</h3><span>{getBusinessPartnerType(selectedPartner)}</span></div><dl><div><dt>DyCoS-Debitor</dt><dd>{selectedPartner.debtorNumber || '—'}</dd></div><div><dt>DyCoS-Kreditor</dt><dd>{selectedPartner.creditorNumber || '—'}</dd></div></dl></section>}
-      {selectedPartner && !loadingPartner && <section className="crm-workspace"><nav className="crm-section-nav" aria-label="Künftige CRM-Bereiche">{crmSections.map((section) => <span key={section}>{section}</span>)}</nav><div className="crm-workspace__empty">CRM-Inhalte werden für diesen Geschäftspartner hier ergänzt.</div></section>}
+      <div className="list-toolbar crm-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">CRM-Partner suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">CRM-Filter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div></div>
+      {error && <p className="form-error">{error}</p>}
+      <div className="table-frame crm-table-frame"><table><thead><tr><th>Firmenname</th><th>Typ</th><th>Ort</th><th>Debitor</th><th>Kreditor</th><th>CRM-Status</th><th>Bewertung</th><th>Potenzial</th><th>Öffnen</th></tr></thead><tbody>{loading ? <tr><td colSpan="9" className="table-state">CRM-Partner werden geladen …</td></tr> : error ? <tr><td colSpan="9" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>Nicht bewertet</td><td>—</td><td>—</td><td className="table-action"><Link to={`/crm/${partner.id}`}>Öffnen</Link></td></tr>) : <tr><td colSpan="9" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
     </div>
   )
 }
