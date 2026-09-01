@@ -99,6 +99,10 @@
 - Eine Bewegung wird weiterhin nur einmal gespeichert
 - Bearbeitungen müssen zumindest technisch nachvollziehbar bleiben
 - createdAt bleibt unverändert, updatedAt wird bei Korrekturen aktualisiert
+- Operative Eingabemasken orientieren sich am realen Arbeitsablauf und nicht an der technischen Buchungslogik
+- Berechnete Zwischenwerte werden nicht zwischen Eingabefeldern dargestellt, wenn sie für die Datenerfassung nicht erforderlich sind
+- Bei komplexen Buchungen werden Eingabe und Ergebnis visuell klar getrennt
+- Informationen dürfen innerhalb einer Maske nicht unnötig doppelt dargestellt werden
 
 ## Entwicklung
 - Vor größeren Änderungen zuerst bestehende Struktur prüfen
