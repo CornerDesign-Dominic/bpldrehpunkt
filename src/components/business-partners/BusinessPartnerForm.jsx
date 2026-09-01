@@ -194,23 +194,23 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
 
   return (
     <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate>
-      <FormSection title="Identifikation" className="form-grid--identification">
-        <Field className="form-field--company" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
-        <Field label="Kurzname" name="shortName" value={form.shortName} onChange={handleChange} />
-        <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-        <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-        <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
-        <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
-        {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
-        <label className="form-field"><span>Status</span><select name="status" value={form.status} onChange={handleChange}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></select></label>
-      </FormSection>
-
-      <FormSection title="Anschrift" className="form-grid--address">
-        <Field label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
+      <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address">
+        <Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
+        <Field className="form-field--short-name" label="Kurzname" name="shortName" value={form.shortName} onChange={handleChange} />
+        <Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
         <Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={handleChange} />
         <Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={handleChange} />
         <Field label="Ort" name="address.city" value={form.address.city} onChange={handleChange} />
         <Field label="Land" name="address.country" value={form.address.country} onChange={handleChange} />
+      </FormSection>
+
+      <FormSection title="Referenzen & Nummern" className="form-grid--references">
+        <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+        <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+        <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
+        <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
+        <label className="form-field"><span>Status</span><select name="status" value={form.status} onChange={handleChange}><option value="active">Aktiv</option><option value="inactive">Inaktiv</option></select></label>
+        {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
       </FormSection>
 
       <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">

@@ -1,4 +1,8 @@
 .form-grid--billing { grid-template-columns: 180px 180px; }
+.form-grid--company-address { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.form-field--company-address { grid-column: span 4; }
+.form-field--short-name, .form-field--street { grid-column: span 2; }
+.form-grid--references { grid-template-columns: repeat(4, minmax(0, 1fr)) 0.7fr; }
 .masterdata-header__meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 7px; }
 .masterdata-header__meta-row .detail-header__meta { margin-top: 0; }
 .crm-short-status { display: flex; align-items: center; gap: 8px; padding-left: 14px; border-left: 1px solid var(--border, var(--legacy-dfe4e9)); color: var(--legacy-727d8a); font-size: 11px; }
@@ -46,7 +50,8 @@
 .crm-credit-limit-editor .form-error { flex-basis: 100%; }
 
 @media (max-width: 720px) {
-  .form-grid--billing { grid-template-columns: 1fr; }
+  .form-grid--billing, .form-grid--company-address, .form-grid--references { grid-template-columns: 1fr; }
+  .form-field--company-address, .form-field--short-name, .form-field--street { grid-column: auto; }
   .masterdata-header__meta-row { align-items: flex-start; flex-direction: column; }
   .crm-short-status { padding-left: 0; border-left: 0; }
   .portals-section__header { align-items: flex-start; flex-direction: column; }
