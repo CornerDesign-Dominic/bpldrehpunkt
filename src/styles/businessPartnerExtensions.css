@@ -25,7 +25,6 @@
 .pallet-account-info-card > span + span { border-left: 1px solid var(--border); }
 .pallet-account-info-card strong { color: var(--text-primary); font-weight: 650; }
 .pallet-account-info-card__balance strong { font-weight: 700; }
-.masterdata-content-card { padding: 12px 13px; border: 1px solid var(--section-border); border-radius: 7px; background: var(--section-background); }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .masterdata-half-grid .form-section { min-width: 0; }
 .contact-editor__actions { display: flex; align-items: center; gap: 7px; }

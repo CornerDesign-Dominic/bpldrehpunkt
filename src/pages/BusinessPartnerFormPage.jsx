@@ -112,7 +112,7 @@ export default function BusinessPartnerFormPage({ mode }) {
         {!isNew && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
       </div>
       {error && <p className="form-error">{error}</p>}
-      <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} /></section>
+      <BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} />
     </div>
   )
 }
