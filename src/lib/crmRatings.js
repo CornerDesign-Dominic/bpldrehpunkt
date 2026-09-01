@@ -1,6 +1,7 @@
-import { addDoc, collection, getDocs, serverTimestamp } from 'firebase/firestore'
+import { collection, doc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { BUSINESS_PARTNERS_COLLECTION } from './businessPartners.js'
 import { db } from './firebase.js'
+import { createHistoryPayload } from './partnerHistory.js'
 
 export const CUSTOMER_RATING_CRITERIA = [
   { key: 'paymentBehavior', label: 'Zahlungsmoral' },
@@ -107,11 +108,15 @@ export async function listCurrentCrmRatings(partnerIds) {
   return Object.fromEntries(result)
 }
 
-export async function createCrmRating(partnerId, values) {
+export async function createCrmRating(partnerId, values, actor) {
   const overallScore = calculateOverallScore(values.role, values.scores)
   if (!values.date || overallScore === null) throw new Error('Ungültige Bewertung')
   const scores = Object.fromEntries(getRatingCriteria(values.role).map(({ key }) => [key, Number(values.scores[key])]))
-  await addDoc(ratingsRef(partnerId), {
+  const ratingRef = doc(ratingsRef(partnerId))
+  const historyRef = doc(collection(db, BUSINESS_PARTNERS_COLLECTION, partnerId, 'history'))
+  const roleLabel = values.role === 'customer' ? 'Kundenbewertung' : 'Unternehmerbewertung'
+  const batch = writeBatch(db)
+  batch.set(ratingRef, {
     role: values.role,
     date: values.date,
     scores,
@@ -120,4 +125,12 @@ export async function createCrmRating(partnerId, values) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  batch.set(historyRef, createHistoryPayload({
+    category: 'rating',
+    action: 'created',
+    summary: `${roleLabel} mit ${formatRatingScore(overallScore)} / 5 hinzugefügt`,
+    metadata: { ratingId: ratingRef.id, role: values.role, overallScore, scores, comment: trim(values.comment) },
+    actor,
+  }))
+  await batch.commit()
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Toast from '../ui/Toast.jsx'
+import { useAuth } from '../../auth/useAuth.js'
 import {
   calculateOverallScore,
   createCrmRating,
@@ -9,32 +10,27 @@ import {
   getRatingRoles,
   listCrmRatings,
 } from '../../lib/crmRatings.js'
+import { getHistoryActor } from '../../lib/partnerHistory.js'
 
 const roleLabels = { customer: 'Kundenbewertung', carrier: 'Unternehmerbewertung' }
+const initialDrafts = (roles) => Object.fromEntries(roles.map((role) => [role, createEmptyRating(role)]))
 
-function formatDate(value) {
-  return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—'
-}
-
-function initialDrafts(roles) {
-  return Object.fromEntries(roles.map((role) => [role, createEmptyRating(role)]))
-}
-
-export default function CrmRatingPanel({ partner, partnerId }) {
+export default function CrmRatingPanel({ partner, partnerId, onSaved }) {
+  const authState = useAuth()
   const roles = useMemo(() => getRatingRoles(partner), [partner])
   const [ratings, setRatings] = useState(() => Object.fromEntries(roles.map((role) => [role, []])))
   const [drafts, setDrafts] = useState(() => initialDrafts(roles))
+  const [openRole, setOpenRole] = useState('')
   const [loading, setLoading] = useState(true)
   const [savingRole, setSavingRole] = useState('')
   const [errors, setErrors] = useState({})
-  const [expanded, setExpanded] = useState({})
   const [toast, setToast] = useState('')
 
   useEffect(() => {
     let current = true
     Promise.all(roles.map(async (role) => [role, await listCrmRatings(partnerId, role)]))
       .then((entries) => { if (current) setRatings(Object.fromEntries(entries)) })
-      .catch(() => { if (current) setErrors({ load: 'Die Bewertungshistorie konnte nicht geladen werden.' }) })
+      .catch(() => { if (current) setErrors({ load: 'Die Bewertungen konnten nicht geladen werden.' }) })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [partnerId, roles])
@@ -57,11 +53,13 @@ export default function CrmRatingPanel({ partner, partnerId }) {
     setSavingRole(role)
     setErrors((current) => ({ ...current, [role]: undefined }))
     try {
-      await createCrmRating(partnerId, draft)
+      await createCrmRating(partnerId, draft, getHistoryActor(authState))
       const nextRatings = await listCrmRatings(partnerId, role)
       setRatings((current) => ({ ...current, [role]: nextRatings }))
       setDrafts((current) => ({ ...current, [role]: createEmptyRating(role) }))
+      setOpenRole('')
       setToast('Bewertung gespeichert.')
+      onSaved?.()
     } catch {
       setErrors((current) => ({ ...current, [role]: 'Die Bewertung konnte nicht gespeichert werden.' }))
     } finally {
@@ -71,32 +69,24 @@ export default function CrmRatingPanel({ partner, partnerId }) {
 
   return <section className="crm-ratings" aria-label="Bewertung">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="crm-ratings__heading"><h3>Bewertung</h3><span>1 = sehr schlecht, 5 = sehr gut</span></div>
+    <div className="crm-ratings__heading"><h3>Aktuelle Bewertungen</h3><span>1 = sehr schlecht, 5 = sehr gut</span></div>
     {errors.load && <p className="form-error">{errors.load}</p>}
     <div className={`crm-ratings__roles crm-ratings__roles--${roles.length}`}>
       {roles.map((role) => {
-        const draft = drafts[role]
         const criteria = getRatingCriteria(role)
-        const overallScore = calculateOverallScore(role, draft.scores)
-        const history = ratings[role] ?? []
-        const currentRating = history[0]
+        const draft = drafts[role]
+        const currentRating = ratings[role]?.[0]
+        const average = calculateOverallScore(role, draft.scores)
+        const isOpen = openRole === role
         return <section className="crm-rating-role" key={role}>
-          <div className="crm-rating-role__heading"><div><h4>{roleLabels[role]}</h4><span>Aktuell: {currentRating ? `${formatRatingScore(currentRating.overallScore)} / 5` : 'Nicht bewertet'}</span></div><strong>{overallScore === null ? '— / 5' : `${formatRatingScore(overallScore)} / 5`}</strong></div>
-          <div className="crm-rating-form">
+          <div className="crm-rating-role__heading"><div><h4>{roleLabels[role]}</h4><span>{loading ? 'Wird geladen …' : `${currentRating ? `${formatRatingScore(currentRating.overallScore)} / 5` : 'Nicht bewertet'} · ${ratings[role]?.length ?? 0} Bewertungen`}</span></div><button className="button button--secondary" type="button" onClick={() => isOpen ? setOpenRole('') : setOpenRole(role)}>{isOpen ? 'Abbrechen' : `${roleLabels[role]} hinzufügen`}</button></div>
+          {isOpen && <div className="crm-rating-form">
             <label className="form-field"><span>Datum</span><input type="date" value={draft.date} onChange={(event) => updateDraft(role, 'date', event.target.value)} required /></label>
             <div className="crm-rating-form__scores">{criteria.map(({ key, label }) => <label key={key}><span>{label}</span><select value={draft.scores[key]} onChange={(event) => updateScore(role, key, event.target.value)}><option value="">—</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>)}</div>
             <label className="form-field crm-rating-form__comment"><span>Kommentar / Begründung (optional)</span><textarea value={draft.comment} onChange={(event) => updateDraft(role, 'comment', event.target.value)} rows="2" /></label>
             {errors[role] && <p className="form-error">{errors[role]}</p>}
-            <div className="crm-rating-form__actions"><button className="button" type="button" onClick={() => saveRating(role)} disabled={savingRole === role}>{savingRole === role ? 'Wird gespeichert …' : 'Bewertung speichern'}</button></div>
-          </div>
-          <div className="crm-rating-history">
-            <div className="crm-rating-history__header"><span>Bewertungshistorie</span><span>Datum · Gesamt · Kommentar</span></div>
-            <div className="crm-rating-history__list">
-              {loading && <p>Bewertungen werden geladen …</p>}
-              {!loading && history.length === 0 && <p>Noch keine Bewertung vorhanden.</p>}
-              {!loading && history.map((rating) => <article key={rating.id} className="crm-rating-history__entry"><div><time dateTime={rating.date}>{formatDate(rating.date)}</time><strong>{formatRatingScore(rating.overallScore)} / 5</strong></div><p>{rating.comment || '—'}</p><button className="text-button" type="button" onClick={() => setExpanded((current) => ({ ...current, [rating.id]: !current[rating.id] }))}>{expanded[rating.id] ? 'Details schließen' : 'Details'}</button>{expanded[rating.id] && <div className="crm-rating-history__scores">{criteria.map(({ key, label }) => <span key={key}>{label}: <strong>{rating.scores?.[key] ?? '—'}</strong></span>)}</div>}</article>)}
-            </div>
-          </div>
+            <div className="crm-rating-form__actions"><span>{average === null ? 'Gesamtschnitt wird nach vollständiger Eingabe berechnet.' : `Gesamtschnitt: ${formatRatingScore(average)} / 5`}</span><button className="button" type="button" onClick={() => saveRating(role)} disabled={savingRole === role}>{savingRole === role ? 'Wird gespeichert …' : 'Bewertung speichern'}</button></div>
+          </div>}
         </section>
       })}
     </div>

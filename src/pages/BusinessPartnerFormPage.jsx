@@ -4,6 +4,8 @@ import BusinessPartnerForm from '../components/business-partners/BusinessPartner
 import Toast from '../components/ui/Toast.jsx'
 import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, getBusinessPartnerType, updateBusinessPartner } from '../lib/businessPartners.js'
 import { getCurrentCrmRatingPresentation, listCurrentCrmRatings } from '../lib/crmRatings.js'
+import { getHistoryActor } from '../lib/partnerHistory.js'
+import { useAuth } from '../auth/useAuth.js'
 
 function formatCreditLimit(value) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
@@ -15,6 +17,7 @@ function CrmShortStatus({ partner, ratings }) {
 }
 
 export default function BusinessPartnerFormPage({ mode }) {
+  const authState = useAuth()
   const { partnerId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -46,7 +49,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     setSubmitting(true)
     setError('')
     try {
-      const savedId = mode === 'create' ? await createBusinessPartner(values) : (await updateBusinessPartner(partnerId, values), partnerId)
+      const savedId = mode === 'create' ? await createBusinessPartner(values) : (await updateBusinessPartner(partnerId, values, getHistoryActor(authState)), partnerId)
       if (mode === 'create') {
         navigate(`/kunden-unternehmer/${savedId}`, { state: { toast: 'Geschäftspartner erfolgreich angelegt.' } })
       } else {

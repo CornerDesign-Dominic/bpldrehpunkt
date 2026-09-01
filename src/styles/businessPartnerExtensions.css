@@ -52,4 +52,8 @@
   .portals-section__header { align-items: flex-start; flex-direction: column; }
   .portal-editor__grid { grid-template-columns: 1fr; }
   .crm-credit-limit-editor { align-items: flex-start; flex-direction: column; }
+  .crm-current-overview__heading, .partner-history__heading, .crm-status-editor { align-items: flex-start; flex-direction: column; }
+  .crm-current-metrics { grid-template-columns: 1fr; }
+  .crm-current-metrics div + div { border-top: 1px solid var(--border); border-left: 0; }
+  .crm-status-editor__control { flex-wrap: wrap; }
 }

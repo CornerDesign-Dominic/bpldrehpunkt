@@ -7,9 +7,10 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from './firebase.js'
+import { createHistoryPayload } from './partnerHistory.js'
 
 export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
 
@@ -51,6 +52,8 @@ export function createEmptyBusinessPartner() {
     paymentTermDays: '',
     creditNoteProcedure: false,
     creditLimit: null,
+    crmStatus: '',
+    potential: '',
     address: { street: '', houseNumber: '', postalCode: '', city: '', country: '' },
     contact: { phone: '', email: '', website: '' },
     contacts: [],
@@ -71,6 +74,8 @@ function createPayload(values) {
     paymentTermDays: normalizeOptionalNonNegativeInteger(values.paymentTermDays, 'Zahlungsziel'),
     creditNoteProcedure: Boolean(values.creditNoteProcedure),
     creditLimit: normalizeOptionalNonNegativeNumber(values.creditLimit, 'Kreditlimit'),
+    crmStatus: trimValue(values.crmStatus),
+    potential: trimValue(values.potential),
     address: Object.fromEntries(Object.entries(values.address).map(([key, value]) => [key, trimValue(value)])),
     contact: Object.fromEntries(Object.entries(values.contact).map(([key, value]) => [key, trimValue(value)])),
     contacts: (values.contacts ?? []).map((contact) => ({ id: contact.id, name: trimValue(contact.name), department: contact.department, departmentOther: trimValue(contact.departmentOther), phone: trimValue(contact.phone), mobile: trimValue(contact.mobile), email: trimValue(contact.email) })),
@@ -104,16 +109,49 @@ export async function createBusinessPartner(values) {
   return partnerRef.id
 }
 
-export async function updateBusinessPartner(partnerId, values) {
-  await updateDoc(doc(db, BUSINESS_PARTNERS_COLLECTION, partnerId), {
-    ...createPayload(values),
-    updatedAt: serverTimestamp(),
-  })
+function formatCurrency(value) {
+  return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-export async function updateBusinessPartnerCreditLimit(partnerId, creditLimit) {
-  await updateDoc(doc(db, BUSINESS_PARTNERS_COLLECTION, partnerId), {
-    creditLimit: normalizeOptionalNonNegativeNumber(creditLimit, 'Kreditlimit'),
-    updatedAt: serverTimestamp(),
-  })
+function changed(left, right) {
+  return JSON.stringify(left ?? null) !== JSON.stringify(right ?? null)
+}
+
+function createBusinessPartnerHistoryEntries(previous, next, actor) {
+  const entries = []
+  const entry = (category, summary, metadata = {}) => entries.push({ category, action: 'updated', summary, metadata, actor })
+
+  if (changed(previous.creditLimit, next.creditLimit)) entry('creditLimit', `Kreditlimit von ${formatCurrency(previous.creditLimit)} auf ${formatCurrency(next.creditLimit)} geändert`, { oldValue: previous.creditLimit ?? null, newValue: next.creditLimit ?? null })
+  if (changed(previous.crmStatus, next.crmStatus)) entry('crm', `CRM-Status von ${previous.crmStatus || '—'} auf ${next.crmStatus || '—'} geändert`, { field: 'crmStatus', oldValue: previous.crmStatus || null, newValue: next.crmStatus || null })
+  if (changed(previous.potential, next.potential)) entry('crm', `Potenzial von ${previous.potential || '—'} auf ${next.potential || '—'} geändert`, { field: 'potential', oldValue: previous.potential || null, newValue: next.potential || null })
+  if (changed(previous.address, next.address)) entry('masterData', 'Adresse geändert', { field: 'address' })
+  if (changed(previous.contacts, next.contacts)) entry('contactPerson', 'Ansprechpartner geändert', { field: 'contacts' })
+  if (changed(previous.paymentTermDays, next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${previous.paymentTermDays ?? '—'} auf ${next.paymentTermDays ?? '—'} Tage geändert`, { field: 'paymentTermDays', oldValue: previous.paymentTermDays ?? null, newValue: next.paymentTermDays ?? null })
+  if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
+
+  const masterDataFields = ['companyName', 'shortName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'status', 'contact', 'companyData', 'portals']
+  if (masterDataFields.some((field) => changed(previous[field], next[field]))) entry('masterData', 'Stammdaten geändert', { fields: masterDataFields.filter((field) => changed(previous[field], next[field])) })
+  return entries
+}
+
+export async function updateBusinessPartner(partnerId, values, actor) {
+  const partnerRef = doc(db, BUSINESS_PARTNERS_COLLECTION, partnerId)
+  const previousSnapshot = await getDoc(partnerRef)
+  if (!previousSnapshot.exists()) throw new Error('Geschäftspartner nicht gefunden')
+  const next = createPayload(values)
+  const entries = createBusinessPartnerHistoryEntries(previousSnapshot.data(), next, actor)
+  const batch = writeBatch(db)
+  batch.update(partnerRef, { ...next, updatedAt: serverTimestamp() })
+  entries.forEach((entry) => batch.set(doc(collection(partnerRef, 'history')), createHistoryPayload(entry)))
+  await batch.commit()
+}
+
+export async function updateBusinessPartnerCrmFields(partnerId, values, actor) {
+  const current = await getBusinessPartner(partnerId)
+  if (!current) throw new Error('Geschäftspartner nicht gefunden')
+  await updateBusinessPartner(partnerId, { ...current, ...values }, actor)
+}
+
+export async function updateBusinessPartnerCreditLimit(partnerId, creditLimit, actor) {
+  await updateBusinessPartnerCrmFields(partnerId, { creditLimit }, actor)
 }
