@@ -129,6 +129,36 @@ button, a { font: inherit; }
 .crm-activity-priority--important { color: #843f3f; background: #fbeeee; }
 .crm-activity-log__details { display: flex; flex-wrap: wrap; gap: 5px 14px; margin-top: 8px; color: #6d7885; font-size: 12px; }
 .crm-activity-log__empty { margin: 0; padding: 15px 11px; color: #7f8994; font-size: 13px; }
+.crm-ratings { display: grid; gap: 13px; margin-top: 18px; padding-top: 15px; border-top: 1px solid #dfe4e9; }
+.crm-ratings__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+.crm-ratings__heading h3 { margin: 0; color: #435061; font-size: 13px; font-weight: 700; }
+.crm-ratings__heading span { color: #7b8693; font-size: 11px; }
+.crm-ratings__roles { display: grid; gap: 22px; }
+.crm-ratings__roles--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crm-rating-role { display: grid; gap: 10px; min-width: 0; padding: 12px 0; border-top: 1px solid #e0e5ea; }
+.crm-rating-role__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.crm-rating-role__heading h4 { margin: 0; color: #3f4b59; font-size: 12px; font-weight: 700; }
+.crm-rating-role__heading span { display: block; margin-top: 3px; color: #74808d; font-size: 11px; }
+.crm-rating-role__heading > strong { color: #344b61; font-size: 15px; font-weight: 700; }
+.crm-rating-form { display: grid; gap: 9px; }
+.crm-rating-form__scores { display: grid; grid-template-columns: minmax(0, 1fr) 62px; gap: 5px 10px; }
+.crm-rating-form__scores label { display: contents; }
+.crm-rating-form__scores label span { align-self: center; color: #596574; font-size: 12px; font-weight: 600; }
+.crm-rating-form__scores select { width: 100%; height: 28px; padding: 0 6px; border: 1px solid #d9dfe6; border-radius: 4px; color: #303947; background: #fff; font: inherit; font-size: 12px; outline: none; }
+.crm-rating-form__scores select:focus, .crm-rating-form textarea:focus { border-color: #778ca5; box-shadow: 0 0 0 2px rgba(119, 140, 165, 0.14); }
+.crm-rating-form textarea { width: 100%; resize: vertical; padding: 6px 8px; border: 1px solid #d9dfe6; border-radius: 4px; color: #303947; background: #fff; font: inherit; font-size: 12px; outline: none; }
+.crm-rating-form__actions { display: flex; justify-content: flex-end; }
+.crm-rating-history { display: grid; gap: 5px; margin-top: 2px; }
+.crm-rating-history__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #7a8593; font-size: 10px; font-weight: 650; text-transform: uppercase; }
+.crm-rating-history__header span:last-child { text-transform: none; font-weight: 500; }
+.crm-rating-history__list { max-height: 280px; overflow-y: auto; border-top: 1px solid #e4e8ec; }
+.crm-rating-history__list > p { margin: 0; padding: 12px 8px; color: #7e8995; font-size: 12px; }
+.crm-rating-history__entry { display: grid; grid-template-columns: 126px minmax(0, 1fr) auto; gap: 9px; align-items: start; padding: 8px; border-bottom: 1px solid #e4e8ec; }
+.crm-rating-history__entry > div:first-child { display: grid; gap: 3px; color: #6f7b88; font-size: 11px; }
+.crm-rating-history__entry > div:first-child strong { color: #405064; font-size: 12px; }
+.crm-rating-history__entry > p { min-width: 0; margin: 0; color: #566170; font-size: 12px; line-height: 1.35; white-space: pre-wrap; }
+.crm-rating-history__scores { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 4px 12px; padding-top: 2px; color: #697582; font-size: 11px; }
+.crm-rating-history__scores strong { color: #455262; }
 .pallets-workspace { min-height: 180px; border: 1px solid #e1e5ea; border-radius: 7px; background: #fff; }
 .pallets-section-nav { display: flex; gap: 20px; height: 40px; align-items: center; padding: 0 14px; border-bottom: 1px solid #e4e8ec; color: #8a94a0; font-size: 12px; font-weight: 600; }
 .pallets-section-nav span:first-child { color: #445a70; }
@@ -354,6 +384,9 @@ td strong { color: #2e3745; font-weight: 650; }
   .crm-detail-header { align-items: flex-start; flex-direction: column; }
   .crm-detail-header__actions { flex-wrap: wrap; }
   .crm-detail-sections { grid-template-columns: 1fr; }
+  .crm-ratings__roles--2 { grid-template-columns: 1fr; }
+  .crm-rating-history__entry { grid-template-columns: 1fr auto; }
+  .crm-rating-history__entry > p { grid-column: 1 / -1; }
   .crm-activity-form { grid-template-columns: 1fr; }
   .crm-activity-history__heading { flex-direction: column; }
   .crm-activity-log { grid-template-columns: 1fr; gap: 7px; }

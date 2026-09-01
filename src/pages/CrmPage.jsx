@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
+import { formatRatingScore, getRatingRoles, listCurrentCrmRatings } from '../lib/crmRatings.js'
 
 const filters = [
   { value: 'all', label: 'Alle' },
@@ -21,13 +22,18 @@ function matchesFilter(partner, filter) {
 
 export default function CrmPage() {
   const [partners, setPartners] = useState([])
+  const [ratings, setRatings] = useState({})
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    listBusinessPartners().then(setPartners).catch(() => setError('Die CRM-Partnerübersicht konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.')).finally(() => setLoading(false))
+    listBusinessPartners()
+      .then((businessPartners) => Promise.all([businessPartners, listCurrentCrmRatings(businessPartners.map((partner) => partner.id))]))
+      .then(([businessPartners, currentRatings]) => { setPartners(businessPartners); setRatings(currentRatings) })
+      .catch(() => setError('Die CRM-Partnerübersicht konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.'))
+      .finally(() => setLoading(false))
   }, [])
 
   const visiblePartners = useMemo(() => {
@@ -35,11 +41,20 @@ export default function CrmPage() {
     return partners.filter((partner) => matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber].some((value) => value?.toLocaleLowerCase('de-DE').includes(term))))
   }, [filter, partners, search])
 
+  function ratingLabel(partner) {
+    const current = ratings[partner.id]
+    if (!current) return 'Nicht bewertet'
+    const roles = getRatingRoles(partner)
+    if (roles.length === 1) return current[roles[0]] ? `${formatRatingScore(current[roles[0]].overallScore)} / 5` : 'Nicht bewertet'
+    if (!current.customer && !current.carrier) return 'Nicht bewertet'
+    return `K: ${current.customer ? formatRatingScore(current.customer.overallScore) : '—'} · U: ${current.carrier ? formatRatingScore(current.carrier.overallScore) : '—'}`
+  }
+
   return (
     <div className="crm-page">
       <div className="list-toolbar crm-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">CRM-Partner suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">CRM-Filter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
-      <div className="table-frame crm-table-frame"><table><thead><tr><th>Firmenname</th><th>Typ</th><th>Ort</th><th>Debitor</th><th>Kreditor</th><th>CRM-Status</th><th>Bewertung</th><th>Potenzial</th><th>Öffnen</th></tr></thead><tbody>{loading ? <tr><td colSpan="9" className="table-state">CRM-Partner werden geladen …</td></tr> : error ? <tr><td colSpan="9" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>Nicht bewertet</td><td>—</td><td>—</td><td className="table-action"><Link to={`/crm/${partner.id}`}>Öffnen</Link></td></tr>) : <tr><td colSpan="9" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
+      <div className="table-frame crm-table-frame"><table><thead><tr><th>Firmenname</th><th>Typ</th><th>Ort</th><th>Debitor</th><th>Kreditor</th><th>CRM-Status</th><th>Bewertung</th><th>Potenzial</th><th>Öffnen</th></tr></thead><tbody>{loading ? <tr><td colSpan="9" className="table-state">CRM-Partner werden geladen …</td></tr> : error ? <tr><td colSpan="9" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>Nicht bewertet</td><td>{ratingLabel(partner)}</td><td>—</td><td className="table-action"><Link to={`/crm/${partner.id}`}>Öffnen</Link></td></tr>) : <tr><td colSpan="9" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
     </div>
   )
 }

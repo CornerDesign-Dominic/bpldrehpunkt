@@ -120,6 +120,14 @@
 - Historien werden kompakt und scrollbar dargestellt, damit Detailseiten nicht unbegrenzt wachsen.
 - Neue Historieneinträge werden standardmäßig zuerst angezeigt.
 
+## CRM-Bewertungen
+- Geschäftspartnerbewertungen gehören fachlich ins CRM und nicht in die Stammdaten.
+- Kunden- und Unternehmerbewertungen werden getrennt geführt.
+- Höhere Bewertungswerte bedeuten bei allen Kriterien eine bessere Bewertung.
+- Neue Bewertungen überschreiben keine historischen Bewertungen.
+- Die jeweils neueste Bewertung gilt als aktueller Bewertungsstand.
+- Bewertungen sollen mit Datum und optionaler Begründung nachvollziehbar bleiben.
+
 ## Qualitätsmanagement
 - Qualitätsmanagement ist ein eigener Fachbereich.
 - Qualitätsziele besitzen eigene Detailseiten und nachvollziehbare Fortschrittswerte.
