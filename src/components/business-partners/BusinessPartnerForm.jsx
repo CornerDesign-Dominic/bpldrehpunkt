@@ -58,22 +58,18 @@ function displayDepartment(contact) {
 }
 
 function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
-  const [errors, setErrors] = useState({})
-  const isAdding = draft && !contacts.some((contact) => contact.id === draft.id)
-
-  function startAdd() {
-    setErrors({})
-    onDraftChange(createContact())
-  }
+  const [editErrors, setEditErrors] = useState({})
+  const [newContact, setNewContact] = useState(createContact)
+  const [newErrors, setNewErrors] = useState({})
 
   function startEdit(contact) {
-    setErrors({})
+    setEditErrors({})
     onDraftChange({ ...contact, departmentOther: contact.departmentOther ?? '' })
   }
 
   function updateDraft(field, value) {
     onDraftChange({ ...draft, [field]: value })
-    setErrors((current) => ({ ...current, [field]: undefined }))
+    setEditErrors((current) => ({ ...current, [field]: undefined }))
   }
 
   function saveDraft() {
@@ -81,12 +77,33 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
     if (!draft.name.trim()) nextErrors.name = 'Name ist erforderlich.'
     if (!draft.department) nextErrors.department = 'Abteilung ist erforderlich.'
     if (draft.email.trim() && !validateEmail(draft.email)) nextErrors.email = 'Bitte eine gültige E-Mail-Adresse eingeben.'
-    setErrors(nextErrors)
+    setEditErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    const exists = contacts.some((contact) => contact.id === draft.id)
-    onChange(exists ? contacts.map((contact) => contact.id === draft.id ? draft : contact) : [...contacts, draft])
+    onChange(contacts.map((contact) => contact.id === draft.id ? draft : contact))
     onDraftChange(null)
+  }
+
+  function updateNewContact(field, value) {
+    setNewContact((current) => ({ ...current, [field]: value }))
+    setNewErrors((current) => ({ ...current, [field]: undefined }))
+  }
+
+  function resetNewContact() {
+    setNewContact(createContact())
+    setNewErrors({})
+  }
+
+  function saveNewContact() {
+    const nextErrors = {}
+    if (!newContact.name.trim()) nextErrors.name = 'Name ist erforderlich.'
+    if (!newContact.department) nextErrors.department = 'Abteilung ist erforderlich.'
+    if (newContact.email.trim() && !validateEmail(newContact.email)) nextErrors.email = 'Bitte eine gültige E-Mail-Adresse eingeben.'
+    setNewErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+
+    onChange([...contacts, newContact])
+    resetNewContact()
   }
 
   function removeContact(contactId) {
@@ -96,19 +113,18 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
 
   return (
     <section className="form-section contacts-section">
-      <div className="contacts-section__header"><h2>Ansprechpartner</h2><button className="button button--secondary" type="button" onClick={startAdd}>Ansprechpartner hinzufügen</button></div>
-      {isAdding && <div className="contact-editor"><div className="contact-editor__header"><h3>Ansprechpartner hinzufügen</h3><div className="contact-editor__actions"><button className="button" type="button" onClick={saveDraft}>Hinzufügen</button><button className="button button--secondary" type="button" onClick={() => onDraftChange(null)}>Abbrechen</button></div></div><div className="contact-editor__grid"><Field label="Name *" name="contact-name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} error={errors.name} /><label className="form-field"><span>Abteilung *</span><select value={draft.department} onChange={(event) => updateDraft('department', event.target.value)} aria-invalid={Boolean(errors.department)}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select>{errors.department && <small className="field-error">{errors.department}</small>}</label><Field label="Telefon" name="contact-phone" value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} type="tel" /><Field label="Mobil" name="contact-mobile" value={draft.mobile} onChange={(event) => updateDraft('mobile', event.target.value)} type="tel" /><Field label="E-Mail" name="contact-email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} error={errors.email} type="email" />{draft.department === 'Sonstiges' && <Field className="contact-editor__wide" label="Abteilung ergänzen" name="contact-department-other" value={draft.departmentOther} onChange={(event) => updateDraft('departmentOther', event.target.value)} />}</div></div>}
+      <div className="contacts-section__header"><h2>Ansprechpartner</h2></div>
       <div className="contacts-table table-frame"><table><thead><tr><th>Name</th><th>Abteilung</th><th>Telefon</th><th>Mobil</th><th>E-Mail</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => {
         const isEditing = draft?.id === contact.id
         return <tr key={contact.id} className={isEditing ? 'contacts-table__row--editing' : ''}>
-          <td>{isEditing ? <input aria-label="Name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} aria-invalid={Boolean(errors.name)} title={errors.name} /> : <strong>{contact.name}</strong>}</td>
-          <td>{isEditing ? <select aria-label="Abteilung" value={draft.department} onChange={(event) => updateDraft('department', event.target.value)} aria-invalid={Boolean(errors.department)} title={errors.department}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select> : displayDepartment(contact)}</td>
+          <td>{isEditing ? <input aria-label="Name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} aria-invalid={Boolean(editErrors.name)} title={editErrors.name} /> : <strong>{contact.name}</strong>}</td>
+          <td>{isEditing ? <select aria-label="Abteilung" value={draft.department} onChange={(event) => updateDraft('department', event.target.value)} aria-invalid={Boolean(editErrors.department)} title={editErrors.department}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select> : displayDepartment(contact)}</td>
           <td>{isEditing ? <input aria-label="Telefon" type="tel" value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} /> : contact.phone || '—'}</td>
           <td>{isEditing ? <input aria-label="Mobil" type="tel" value={draft.mobile} onChange={(event) => updateDraft('mobile', event.target.value)} /> : contact.mobile || '—'}</td>
-          <td>{isEditing ? <input aria-label="E-Mail" type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} aria-invalid={Boolean(errors.email)} title={errors.email} /> : contact.email || '—'}</td>
+          <td>{isEditing ? <input aria-label="E-Mail" type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} aria-invalid={Boolean(editErrors.email)} title={editErrors.email} /> : contact.email || '—'}</td>
           <td className="contacts-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveDraft} title="Speichern" aria-label="Ansprechpartner speichern"><CheckIcon /></button><button type="button" onClick={() => onDraftChange(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen"><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(contact)} title="Bearbeiten" aria-label="Ansprechpartner bearbeiten"><EditIcon /></button><button type="button" onClick={() => removeContact(contact.id)} title="Entfernen" aria-label="Ansprechpartner entfernen"><TrashIcon /></button></>}</div></td>
         </tr>
-      }) : <tr><td className="table-state" colSpan="6">Noch keine Ansprechpartner erfasst.</td></tr>}</tbody></table></div>
+      }) : null}<tr className="contacts-table__row--new"><td><input aria-label="Name des neuen Ansprechpartners" value={newContact.name} onChange={(event) => updateNewContact('name', event.target.value)} aria-invalid={Boolean(newErrors.name)} title={newErrors.name} /></td><td><select aria-label="Abteilung des neuen Ansprechpartners" value={newContact.department} onChange={(event) => updateNewContact('department', event.target.value)} aria-invalid={Boolean(newErrors.department)} title={newErrors.department}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><input aria-label="Telefon des neuen Ansprechpartners" type="tel" value={newContact.phone} onChange={(event) => updateNewContact('phone', event.target.value)} /></td><td><input aria-label="Mobil des neuen Ansprechpartners" type="tel" value={newContact.mobile} onChange={(event) => updateNewContact('mobile', event.target.value)} /></td><td><input aria-label="E-Mail des neuen Ansprechpartners" type="email" value={newContact.email} onChange={(event) => updateNewContact('email', event.target.value)} aria-invalid={Boolean(newErrors.email)} title={newErrors.email} /></td><td className="contacts-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewContact} title="Speichern" aria-label="Neuen Ansprechpartner speichern"><CheckIcon /></button><button type="button" onClick={resetNewContact} title="Eingaben zurücksetzen" aria-label="Neue Ansprechpartner-Eingaben zurücksetzen"><CloseIcon /></button></div></td></tr></tbody></table></div>
     </section>
   )
 }
