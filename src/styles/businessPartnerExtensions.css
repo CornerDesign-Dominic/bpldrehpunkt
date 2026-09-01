@@ -19,6 +19,13 @@
 .masterdata-info-card > span + span { border-left: 1px solid var(--border); }
 .masterdata-info-card strong { color: var(--text-primary); font-weight: 650; }
 .masterdata-info-card__rating { font-weight: 500; }
+.pallet-account-info-card { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 0; min-height: 34px; padding: 7px 11px; border: 1px solid var(--section-border); border-radius: 6px; color: var(--text-secondary); background: var(--section-background); font-size: 12px; text-decoration: none; }
+.pallet-account-info-card:hover { border-color: var(--border-strong); }
+.pallet-account-info-card > span { display: inline-flex; align-items: center; gap: 5px; padding: 0 11px; white-space: nowrap; }
+.pallet-account-info-card > span:first-child { padding-left: 0; }
+.pallet-account-info-card > span + span { border-left: 1px solid var(--border); }
+.pallet-account-info-card strong { color: var(--text-primary); font-weight: 650; }
+.pallet-account-info-card__balance strong { font-weight: 700; }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
 .masterdata-half-grid .form-section { min-width: 0; }
 
@@ -95,6 +102,7 @@
   .masterdata-action-bar__navigation { width: 100%; justify-content: flex-start; }
   .masterdata-header__nav-action { flex: 1 1 0; }
   .masterdata-info-card > span { padding-inline: 8px; }
+  .pallet-account-info-card > span { padding-inline: 8px; }
   .portals-section__header { align-items: flex-start; flex-direction: column; }
   .portal-editor__grid { grid-template-columns: 1fr; }
   .crm-credit-limit-editor { align-items: flex-start; flex-direction: column; }

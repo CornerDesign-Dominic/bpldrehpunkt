@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, getBusinessPartnerType, updateBusinessPartner } from '../lib/businessPartners.js'
 import { getCurrentCrmRatingPresentation, listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
+import { listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
 import { useAuth } from '../auth/useAuth.js'
+import { formatPalletDate, formatPalletNumber } from '../components/pallets/palletFormatters.js'
 
 function formatCreditLimit(value) {
   return value === null || value === undefined ? 'n/a' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
@@ -14,6 +16,14 @@ function formatCreditLimit(value) {
 function MasterdataInfoCard({ partner, ratings }) {
   const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
   return <aside className="masterdata-info-card" aria-label="Aktueller Geschäftspartnerstatus"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}</aside>
+}
+
+function PalletAccountInfoCard({ account, movements, partnerId }) {
+  if (!account) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Palettenkonto: —</span></Link>
+  if (!movements.length) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Keine Palettenbewegungen vorhanden</span></Link>
+
+  const latestMovement = account.entries.filter((entry) => entry.entryType === 'movement').at(-1)
+  return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span className="pallet-account-info-card__balance">Palettensaldo: <strong>{formatPalletNumber(account.balance, true)}</strong></span><span>Letzte Bewegung: <strong>{latestMovement?.date ? formatPalletDate(latestMovement.date) : '—'}</strong></span><span>{movements.length} Bewegungen</span><span>Letzter Abschluss: <strong>{account.latestClosing?.date ? formatPalletDate(account.latestClosing.date) : '—'}</strong></span></Link>
 }
 
 export default function BusinessPartnerFormPage({ mode }) {
@@ -30,6 +40,8 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [resetVersion, setResetVersion] = useState(0)
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [crmRatings, setCrmRatings] = useState({})
+  const [palletMovements, setPalletMovements] = useState(null)
+  const [palletClosings, setPalletClosings] = useState(null)
 
   useEffect(() => {
     if (mode !== 'existing') return
@@ -37,6 +49,15 @@ export default function BusinessPartnerFormPage({ mode }) {
       .then((result) => { setPartner(result); setCurrentValues(result); if (!result) setError('Der Geschäftspartner wurde nicht gefunden.') })
       .catch(() => setError('Die Stammdaten konnten nicht geladen werden.'))
       .finally(() => setLoading(false))
+  }, [mode, partnerId])
+
+  useEffect(() => {
+    if (mode !== 'existing') return
+    let isCurrent = true
+    Promise.all([listPalletMovements(partnerId), listPalletClosings(partnerId)])
+      .then(([movements, closings]) => { if (isCurrent) { setPalletMovements(movements); setPalletClosings(closings) } })
+      .catch(() => { if (isCurrent) { setPalletMovements([]); setPalletClosings([]) } })
+    return () => { isCurrent = false }
   }, [mode, partnerId])
 
   useEffect(() => {
@@ -74,6 +95,8 @@ export default function BusinessPartnerFormPage({ mode }) {
     setResetVersion((current) => current + 1)
   }
 
+  const palletAccount = useMemo(() => (palletMovements && palletClosings ? summarizePalletAccount(palletMovements, palletClosings, partnerId) : null), [palletClosings, palletMovements, partnerId])
+
   if (loading) return <p className="page-state">Stammdaten werden geladen …</p>
   if (error && !partner) return <section className="page-state page-state--error"><p>{error}</p><Link className="button button--secondary" to="/kunden-unternehmer">Zur Übersicht</Link></section>
 
@@ -91,6 +114,7 @@ export default function BusinessPartnerFormPage({ mode }) {
           <div className="masterdata-header__actions"><div className="masterdata-header__save-action">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-header__discard-action" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button className="button masterdata-header__save-button" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div>
         </div>
         {!isNew && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} />}
+        {!isNew && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
       </header>
       {error && <p className="form-error">{error}</p>}
       <BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} />
