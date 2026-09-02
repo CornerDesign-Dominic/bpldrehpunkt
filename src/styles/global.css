@@ -634,10 +634,10 @@ button, a { font: inherit; }
 .pallet-journal .table-frame th, .pallet-journal .table-frame td { height: 38px; padding: 5px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pallet-journal .table-frame th:nth-child(1) { width: 7%; }
 .pallet-journal .table-frame th:nth-child(2) { width: 12%; }
-.pallet-journal .table-frame th:nth-child(3) { width: 16%; }
+.pallet-journal .table-frame th:nth-child(3) { width: 10%; }
 .pallet-journal .table-frame th:nth-child(4), .pallet-journal .table-frame th:nth-child(5), .pallet-journal .table-frame th:nth-child(6), .pallet-journal .table-frame th:nth-child(7) { width: 8%; }
 .pallet-journal .table-frame th:nth-child(8) { width: 9%; }
-.pallet-journal .table-frame th:nth-child(9) { width: 14%; }
+.pallet-journal .table-frame th:nth-child(9) { width: 20%; }
 .pallet-journal .table-frame th:nth-child(10) { width: 10%; }
 .table-header-stack { display: grid; line-height: 1.15; text-transform: none; }
 .pallet-tour { color: var(--legacy-34495e); font-weight: 700; }

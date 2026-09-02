@@ -1,5 +1,12 @@
 import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 
+function formatCounterpartyReference(entry, counterparty) {
+  if (!counterparty || !entry.counterpartyId) return '—'
+  const isCustomer = entry.customerId === entry.counterpartyId
+  const number = isCustomer ? counterparty.debtorNumber : counterparty.creditorNumber
+  return number?.trim() ? `${isCustomer ? 'D' : 'K'}-${number.trim()}` : '—'
+}
+
 export default function PalletJournal({ account, accountError, onAddClosing, onAddMovement, onEditMovement, partnersById }) {
   return <section className="pallet-journal">
     <div className="pallet-journal__header"><h3>Kontoliste</h3><div className="pallet-journal__actions"><button className="button" type="button" onClick={onAddMovement}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={onAddClosing}>Abschluss hinzufügen</button></div></div>
@@ -10,7 +17,7 @@ export default function PalletJournal({ account, accountError, onAddClosing, onA
         return <tr className={entry.entryType === 'closing' ? 'pallet-journal__closing' : ''} key={`${entry.entryType}-${entry.id}`}>
           <td>{formatPalletDate(entry.date)}</td>
           <td>{isMovement ? <span className="pallet-movement-reference"><strong className="pallet-tour">{entry.tourNumber || '—'}</strong>{entry.editHistory?.length > 0 && <span className="pallet-edited-badge">bearbeitet</span>}</span> : <span className="pallet-closing-reference"><span className="pallet-entry-badge pallet-entry-badge--closing">Abschluss</span>{entry.reference || '—'}</span>}</td>
-          <td>{isMovement ? counterparty?.companyName || '—' : '—'}</td>
+          <td>{isMovement ? formatCounterpartyReference(entry, counterparty) : '—'}</td>
           <td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatPalletNumber(entry.loadingPoint.received) : '—'}</td>
           <td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatPalletNumber(entry.loadingPoint.delivered) : '—'}</td>
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.received) : '—'}</td>
