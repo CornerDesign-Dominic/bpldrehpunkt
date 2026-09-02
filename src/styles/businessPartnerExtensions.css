@@ -24,7 +24,7 @@
 .masterdata-info-card__chevron, .pallet-account-info-card__chevron { margin-left: auto; padding: 0 !important; border-left: 0 !important; color: var(--text-muted); font-size: 15px; line-height: 1; transition: color 140ms ease, transform 140ms ease; }
 .masterdata-info-card:hover .masterdata-info-card__chevron, .pallet-account-info-card:hover .pallet-account-info-card__chevron, .masterdata-info-card:focus-visible .masterdata-info-card__chevron, .pallet-account-info-card:focus-visible .pallet-account-info-card__chevron { color: var(--text-primary); transform: translateX(2px); }
 .masterdata-content-card { padding: 12px 13px; border: 1px solid var(--workspace-border); border-radius: 7px; background: var(--workspace-background); }
-.masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 11px; }
 .masterdata-half-grid .form-section { min-width: 0; }
 .contacts-table th:nth-child(6) { width: 72px; }
 .portals-table th:nth-child(4) { width: 72px; }

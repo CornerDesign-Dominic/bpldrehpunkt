@@ -689,6 +689,9 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .table-action { text-align: right; }
 .table-action a { color: var(--legacy-475e76); font-weight: 600; text-decoration: none; }
 .table-action a:hover { color: var(--legacy-263e57); text-decoration: underline; }
+.table-action .table-action__open { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 5px; color: var(--text-secondary); }
+.table-action .table-action__open:hover { color: var(--text-primary); background: var(--surface-active); text-decoration: none; }
+.table-action .table-action__open:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
 .table-state { height: 120px; color: var(--legacy-7f8996); text-align: center; }
 .status-badge { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 4px; font-size: 11px; font-weight: 650; }
 .status-badge--active { color: var(--legacy-35634b); background: var(--legacy-eaf3ed); }
