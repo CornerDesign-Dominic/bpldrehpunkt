@@ -13,7 +13,6 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
       <label className="form-field pallet-movement-partner"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => onChange('carrierId', event.target.value)}><option value="">Unternehmer auswählen</option>{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Kreditor {item.creditorNumber}</option>)}</select>{selectedCarrier && <small>{selectedCarrier.companyName} · DyCoS Kreditor: {selectedCarrier.creditorNumber}</small>}</label>
     </section>
     <section className="pallet-movement-matrix">
-      <h4>Palettenbewegung</h4>
       <div className="pallet-movement-matrix__grid">
         <span></span><span>Erhalten</span><span>Abgegeben</span>
         <strong>Ladestelle</strong><label><span className="sr-only">Ladestelle erhalten</span><input aria-label="Ladestelle erhalten" inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.received} onChange={(event) => onStationChange('loadingPoint', 'received', event.target.value)} /></label><label><span className="sr-only">Ladestelle abgegeben</span><input aria-label="Ladestelle abgegeben" inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.delivered} onChange={(event) => onStationChange('loadingPoint', 'delivered', event.target.value)} /></label>
