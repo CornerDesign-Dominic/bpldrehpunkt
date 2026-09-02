@@ -6,3 +6,4 @@ export const PALLET_ACCOUNT_FILTERS = [
 ]
 
 export const PALLET_CLOSING_TYPES = ['Rechnung', 'Verrechnung', 'Rückgabe / Ausgleich', 'Sonstiges']
+export const PALLET_TYPES = ['Europalette', 'Düsseldorfer', 'Gitterbox']

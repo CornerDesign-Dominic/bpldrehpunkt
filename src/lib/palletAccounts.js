@@ -1,5 +1,6 @@
 import { Timestamp, addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase.js'
+import { PALLET_TYPES } from '../constants/pallets.js'
 
 export const PALLET_MOVEMENTS_COLLECTION = 'palletMovements'
 export const PALLET_CLOSINGS_COLLECTION = 'palletClosings'
@@ -9,6 +10,7 @@ const palletClosingsRef = collection(db, PALLET_CLOSINGS_COLLECTION)
 
 const toNumber = (value) => Number(value) || 0
 const trimValue = (value) => (value ?? '').trim()
+const normalizePalletType = (value) => (PALLET_TYPES.includes(value) ? value : PALLET_TYPES[0])
 const mapSnapshot = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 
 function getMovementSnapshots(partnerId) {
@@ -89,6 +91,7 @@ export async function createPalletMovement(values) {
     customerId: values.customerId || null,
     carrierId: values.carrierId || null,
     palletReceiptNumber: trimValue(values.palletReceiptNumber),
+    palletType: normalizePalletType(values.palletType),
     note: trimValue(values.note),
     ...calculation,
     loadingPoint: { ...calculation.loadingPoint, note: trimValue(values.loadingPoint?.note) },
@@ -105,6 +108,7 @@ function createMovementHistorySnapshot(movement) {
     customerId: movement.customerId ?? null,
     carrierId: movement.carrierId ?? null,
     palletReceiptNumber: movement.palletReceiptNumber ?? '',
+    palletType: normalizePalletType(movement.palletType),
     note: movement.note ?? '',
     loadingPoint: movement.loadingPoint ?? { received: 0, delivered: 0, carrierChange: 0 },
     unloadingPoint: movement.unloadingPoint ?? { received: 0, delivered: 0, carrierChange: 0 },
@@ -125,6 +129,7 @@ export async function updatePalletMovement(movementId, values) {
     customerId: values.customerId || null,
     carrierId: values.carrierId || null,
     palletReceiptNumber: trimValue(values.palletReceiptNumber),
+    palletType: normalizePalletType(values.palletType),
     note: trimValue(values.note),
     ...calculation,
     loadingPoint: { ...calculation.loadingPoint, note: trimValue(values.loadingPoint?.note) },

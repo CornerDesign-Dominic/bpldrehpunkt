@@ -1,4 +1,5 @@
 import { formatPalletNumber } from './palletFormatters.js'
+import { PALLET_TYPES } from '../../constants/pallets.js'
 
 export default function PalletMovementForm({ carriers, customers, editingMovement, formError, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
   return <form className="pallet-entry-form pallet-movement-form" onSubmit={onSubmit}>
@@ -7,6 +8,7 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
       <label className="form-field"><span>Tournummer / unsere Nummer</span><input value={movementForm.tourNumber} onChange={(event) => onChange('tourNumber', event.target.value)} /></label>
       <label className="form-field"><span>Datum</span><input type="date" value={movementForm.date} onChange={(event) => onChange('date', event.target.value)} /></label>
       <label className="form-field"><span>Palettenschein-Nr.</span><input value={movementForm.palletReceiptNumber} onChange={(event) => onChange('palletReceiptNumber', event.target.value)} /></label>
+      <label className="form-field"><span>Palettenart</span><select value={movementForm.palletType} onChange={(event) => onChange('palletType', event.target.value)}>{PALLET_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
     </div>
     <section className="pallet-movement-partner-grid">
       <label className="form-field pallet-movement-partner"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => onChange('customerId', event.target.value)}><option value="">Kunde auswählen</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Debitor {item.debtorNumber}</option>)}</select></label>
