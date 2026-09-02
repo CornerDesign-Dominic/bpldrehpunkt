@@ -57,6 +57,8 @@ export function createEmptyBusinessPartner() {
     creditorNumber: '',
     timocomNumber: '',
     transeuNumber: '',
+    dplNumber: '',
+    pakiNumber: '',
     status: 'active',
     paymentTermDays: '',
     creditNoteProcedure: false,
@@ -79,6 +81,8 @@ function createPayload(values) {
     creditorNumber: trimValue(values.creditorNumber),
     timocomNumber: trimValue(values.timocomNumber),
     transeuNumber: trimValue(values.transeuNumber),
+    dplNumber: trimValue(values.dplNumber),
+    pakiNumber: trimValue(values.pakiNumber),
     status: values.status,
     paymentTermDays: normalizeOptionalNonNegativeInteger(values.paymentTermDays, 'Zahlungsziel'),
     creditNoteProcedure: Boolean(values.creditNoteProcedure),
@@ -139,7 +143,7 @@ function createBusinessPartnerHistoryEntries(previous, next, actor) {
   if (changed(previous.paymentTermDays, next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${previous.paymentTermDays ?? '—'} auf ${next.paymentTermDays ?? '—'} Tage geändert`, { field: 'paymentTermDays', oldValue: previous.paymentTermDays ?? null, newValue: next.paymentTermDays ?? null })
   if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
 
-  const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'status', 'contact', 'companyData', 'portals', 'palletNote']
+  const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'dplNumber', 'pakiNumber', 'status', 'contact', 'companyData', 'portals', 'palletNote']
   if (masterDataFields.some((field) => changed(previous[field], next[field]))) entry('masterData', 'Stammdaten geändert', { fields: masterDataFields.filter((field) => changed(previous[field], next[field])) })
   return entries
 }
