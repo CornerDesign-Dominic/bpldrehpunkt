@@ -3,8 +3,8 @@ import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 export default function PalletJournal({ account, accountError, onAddClosing, onAddMovement, onEditMovement, partnersById }) {
   return <section className="pallet-journal">
     <div className="pallet-journal__header"><h3>Kontoliste</h3><div className="pallet-journal__actions"><button className="button" type="button" onClick={onAddMovement}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={onAddClosing}>Abschluss hinzufügen</button></div></div>
-    <div className="table-frame"><table><thead><tr><th>Datum</th><th>Tour / Referenz</th><th>Gegenpartner</th><th><span className="table-header-stack"><span>Ladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Ladestelle</span><span>abgegeben</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>abgegeben</span></span></th><th>Veränderung</th><th>Kontostand</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
-      {accountError ? <tr><td colSpan="11" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => {
+    <div className="table-frame"><table><thead><tr><th>Datum</th><th>Tour / Referenz</th><th>Gegenpartner</th><th><span className="table-header-stack"><span>Ladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Ladestelle</span><span>abgegeben</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>erhalten</span></span></th><th><span className="table-header-stack"><span>Entladestelle</span><span>abgegeben</span></span></th><th>Veränderung</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
+      {accountError ? <tr><td colSpan="10" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => {
         const counterparty = partnersById.get(entry.counterpartyId)
         const isMovement = entry.entryType === 'movement'
         return <tr className={entry.entryType === 'closing' ? 'pallet-journal__closing' : ''} key={`${entry.entryType}-${entry.id}`}>
@@ -16,11 +16,10 @@ export default function PalletJournal({ account, accountError, onAddClosing, onA
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.received) : '—'}</td>
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.delivered) : '—'}</td>
           <td className="pallet-quantity"><strong>{formatPalletNumber(entry.change, true)}</strong></td>
-          <td className="pallet-quantity"><strong>{formatPalletNumber(entry.balance, true)}</strong></td>
           <td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td>
           <td className="pallet-journal__action">{isMovement && <button type="button" onClick={() => onEditMovement(entry)}>Bearbeiten</button>}</td>
         </tr>
-      }) : <tr><td colSpan="11" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
+      }) : <tr><td colSpan="10" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
     </tbody></table></div>
   </section>
 }
