@@ -842,6 +842,65 @@ tbody tr:hover { background: var(--table-hover-background); }
 .pallet-account-workspace { padding: 20px; border: 1px solid var(--workspace-border); border-radius: 10px; background: var(--workspace-background); box-shadow: 0 1px 2px var(--workspace-shadow); }
 .pallet-account-partner-card, .pallet-account-overview-card { border-color: var(--section-border); background: var(--section-background); }
 
+/* Keep the pallet account on the same dark surface ladder as master data. */
+:root[data-theme='dark'] .pallet-account-partner-card h2,
+:root[data-theme='dark'] .pallet-entry-form h3,
+:root[data-theme='dark'] .pallet-journal h3,
+:root[data-theme='dark'] .pallet-account-overview-card__balances strong,
+:root[data-theme='dark'] .pallet-movement-change strong {
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .pallet-account-partner-card__meta,
+:root[data-theme='dark'] .pallet-account-overview-card__balances span,
+:root[data-theme='dark'] .pallet-account-overview-card__note label > span,
+:root[data-theme='dark'] .pallet-movement-change span,
+:root[data-theme='dark'] .pallet-movement-matrix__grid > span,
+:root[data-theme='dark'] .pallet-journal__header span {
+  color: var(--text-muted);
+}
+
+:root[data-theme='dark'] .pallet-account-overview-card__balances {
+  border-color: var(--border);
+}
+
+:root[data-theme='dark'] .pallet-entry-form {
+  border-color: var(--section-border);
+  background: var(--section-background);
+}
+
+:root[data-theme='dark'] .pallet-movement-partner-grid {
+  border-color: var(--border);
+}
+
+:root[data-theme='dark'] .pallet-movement-partner > span,
+:root[data-theme='dark'] .pallet-movement-matrix__grid > strong {
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .pallet-journal__action button {
+  color: var(--text-secondary);
+}
+
+:root[data-theme='dark'] .pallet-journal__action button:hover {
+  color: var(--text-primary);
+}
+
+:root[data-theme='dark'] .pallet-entry-badge--movement {
+  color: var(--text-secondary);
+  background: var(--surface-active);
+}
+
+:root[data-theme='dark'] .pallet-entry-badge--closing {
+  color: var(--status-warning-text);
+  background: var(--status-warning-background);
+}
+
+:root[data-theme='dark'] .pallet-journal__closing td {
+  border-color: var(--table-border);
+  background: var(--surface-secondary);
+}
+
 .table-frame { border-color: var(--table-border); background: var(--table-background); }
 th { border-bottom-color: var(--table-border); color: var(--text-secondary); background: var(--table-header-background); }
 td { border-bottom-color: var(--table-border); background: var(--table-background); }
