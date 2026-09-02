@@ -3,13 +3,14 @@ import { useAuth } from '../auth/useAuth.js'
 import Toast from '../components/ui/Toast.jsx'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
-  VACATION_STATUSES,
   businessDays,
   createVacationChangeRequest,
+  createVacationCancellationRequest,
   createVacationRequest,
   dateValue,
   formatVacationPeriod,
   getVacationStatus,
+  listVacationCalendarItems,
   listVacationRequests,
   requestOverlaps,
   todayValue,
@@ -42,9 +43,9 @@ function previousYearCarryover(profile) {
 }
 
 async function loadVacationData(currentUser, currentProfile) {
-  const [profiles, requests] = await Promise.all([listUserProfiles(), listVacationRequests(currentUser.uid)])
+  const [profiles, requests, calendarItems] = await Promise.all([listUserProfiles(), listVacationRequests(currentUser.uid), listVacationCalendarItems()])
   const ownProfile = { id: currentUser.uid, ...currentProfile, email: currentUser.email || currentProfile?.email }
-  return { users: profiles.some((item) => item.id === currentUser.uid) ? profiles : [...profiles, ownProfile], requests }
+  return { users: profiles.some((item) => item.id === currentUser.uid) ? profiles : [...profiles, ownProfile], requests, ...calendarItems }
 }
 
 function requestDaysInYear(request, year) {
@@ -89,6 +90,32 @@ function RequestDetail({ request, onClose, onChange }) {
   return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-detail-title">Urlaubsantrag</h2><p>{formatVacationPeriod(request)}</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><dl className="vacation-detail-list"><div><dt>Urlaubstage</dt><dd>{request.days ?? businessDays(request.startDate, request.endDate)}</dd></div><div><dt>Status</dt><dd><StatusBadge status={request.status} /></dd></div>{request.note && <div className="vacation-detail-list__wide"><dt>Notiz</dt><dd>{request.note}</dd></div>}{request.originalRequestId && <div className="vacation-detail-list__wide"><dt>Bezug</dt><dd>Änderungsantrag zu einem bestehenden Urlaub.</dd></div>}</dl><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button><button className="button" type="button" onClick={onChange}>Änderung beantragen</button></div></section></div>
 }
 
+function RequestPicker({ mode, requests, onClose, onSelect }) {
+  const title = mode === 'change' ? 'Urlaub für Änderung auswählen' : 'Urlaub für Storno auswählen'
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--picker" role="dialog" aria-modal="true" aria-labelledby="vacation-picker-title"><div className="vacation-modal__heading"><div><h2 id="vacation-picker-title">{title}</h2><p>Der ursprüngliche Antrag bleibt unverändert.</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><div className="vacation-picker-list">{requests.length ? requests.map((request) => <button key={request.id} className="vacation-picker-item" type="button" onClick={() => onSelect(request)}><strong>{formatVacationPeriod(request)}</strong><span>{request.days ?? businessDays(request.startDate, request.endDate)} Tage <StatusBadge status={request.status} /></span></button>) : <p className="vacation-state">Keine eigenen Urlaubsanträge verfügbar.</p>}</div></section></div>
+}
+
+function CancellationModal({ request, onClose, onSubmit }) {
+  const [note, setNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(event) {
+    event.preventDefault()
+    setSubmitting(true)
+    setError('')
+    try {
+      await onSubmit({ note })
+    } catch {
+      setError('Der Stornoantrag konnte nicht gespeichert werden.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal" role="dialog" aria-modal="true" aria-labelledby="vacation-cancellation-title"><div className="vacation-modal__heading"><div><h2 id="vacation-cancellation-title">Storno beantragen</h2><p>{formatVacationPeriod(request)} · {request.days ?? businessDays(request.startDate, request.endDate)} Tage</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><form onSubmit={submit} noValidate><label className="form-field"><span>Notiz (optional)</span><textarea rows="3" value={note} onChange={(event) => setNote(event.target.value)} /></label>{error && <p className="form-error">{error}</p>}<div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gesendet …' : 'Stornoantrag senden'}</button></div></form></section></div>
+}
+
 export default function VacationPage() {
   const { user, profile } = useAuth()
   const today = todayValue()
@@ -100,9 +127,12 @@ export default function VacationPage() {
   const [employee, setEmployee] = useState('all')
   const [users, setUsers] = useState([])
   const [requests, setRequests] = useState([])
+  const [holidays, setHolidays] = useState([])
+  const [vacationBlocks, setVacationBlocks] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null)
+  const [picker, setPicker] = useState(null)
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [listYear, setListYear] = useState(currentYear)
   const [toast, setToast] = useState('')
@@ -111,6 +141,8 @@ export default function VacationPage() {
     const result = await loadVacationData(user, profile)
     setUsers(result.users)
     setRequests(result.requests)
+    setHolidays(result.holidays)
+    setVacationBlocks(result.blocks)
   }
 
   useEffect(() => {
@@ -120,6 +152,8 @@ export default function VacationPage() {
         if (!active) return
         setUsers(result.users)
         setRequests(result.requests)
+        setHolidays(result.holidays)
+        setVacationBlocks(result.blocks)
       })
       .catch(() => { if (active) setError('Urlaubsdaten konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (active) setLoading(false) })
@@ -132,12 +166,14 @@ export default function VacationPage() {
   const visibleRequests = useMemo(() => requests.filter((request) => {
     const isOwn = request.userId === user.uid
     const owner = usersById.get(request.userId)
-    return requestOverlaps(request, `${year}-${String(month + 1).padStart(2, '0')}-01`, `${year}-${String(month + 1).padStart(2, '0')}-31`)
+    return !request.originalRequestId
+      && requestOverlaps(request, `${year}-${String(month + 1).padStart(2, '0')}-01`, `${year}-${String(month + 1).padStart(2, '0')}-31`)
       && (isOwn || request.status === 'approved')
       && (department === 'all' || owner?.department?.trim() === department)
       && (employee === 'all' || request.userId === employee)
   }), [department, employee, month, requests, user.uid, usersById, year])
   const ownRequests = useMemo(() => requests.filter((request) => request.userId === user.uid), [requests, user.uid])
+  const selectableOwnRequests = useMemo(() => ownRequests.filter((request) => !request.originalRequestId && request.status !== 'rejected').sort((left, right) => right.startDate.localeCompare(left.startDate)), [ownRequests])
   const ownList = useMemo(() => ownRequests.filter((request) => requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`)).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listYear, ownRequests])
   const summary = useMemo(() => {
     const relevant = ownRequests.filter((request) => request.status === 'approved' && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`))
@@ -165,5 +201,42 @@ export default function VacationPage() {
     setToast(modal?.type === 'change' ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.')
   }
 
-  return <div className="vacation-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<section className="vacation-calendar-card"><div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Abteilung</span><select value={department} onChange={(event) => { setDepartment(event.target.value); setEmployee('all') }}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span className="sr-only">Mitarbeiter</span><select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="all">Alle Mitarbeiter</option>{selectableUsers.map((item) => <option key={item.id} value={item.id}>{displayName(item)}</option>)}</select></label></div></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><div className="vacation-calendar" aria-label={`Urlaubskalender ${MONTHS[month]} ${year}`}><div className="vacation-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div><div className="vacation-calendar__days">{calendarDays.map((date, index) => { if (!date) return <div key={`empty-${index}`} className="vacation-day vacation-day--empty" />; const value = dateValue(date); const matching = visibleRequests.filter((request) => requestOverlaps(request, value, value)); const isToday = value === today; return <div key={value} className={`vacation-day ${isToday ? 'vacation-day--today' : ''}`}><time dateTime={value}>{date.getDate()}</time><div className="vacation-day__entries">{matching.slice(0, 3).map((request) => { const own = request.userId === user.uid; const owner = usersById.get(request.userId); return <span key={request.id} className={`vacation-day-entry vacation-day-entry--${request.status} ${own ? 'vacation-day-entry--own' : ''}`} title={`${displayName(owner || {})} · ${getVacationStatus(request.status).label}`}>{displayName(owner || {}).split(' ')[0]}</span> })}{matching.length > 3 && <span className="vacation-day-entry vacation-day-entry--more">+{matching.length - 3}</span>}</div></div> })}</div></div><div className="vacation-legend">{VACATION_STATUSES.map((status) => <span key={status.value} className={`vacation-legend__item vacation-legend__item--${status.value}`}>{status.label}</span>)}</div></>}</section><aside className="vacation-sidebar"><section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div><button className="button" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section><section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2></div><label className="filter-field"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <button className="vacation-request" key={request.id} type="button" onClick={() => setSelectedRequest(request)}><span className="vacation-request__period">{formatVacationPeriod(request)}</span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage <StatusBadge status={request.status} /></span>{request.note && <span className="vacation-request__note">{request.note}</span>}</button>) : <p className="vacation-state">Keine Urlaubsanträge in diesem Jahr.</p>}</div></section></aside>{modal && <RequestModal request={modal.type === 'change' ? modal.request : null} onClose={() => setModal(null)} onSubmit={saveRequest} />}{selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onChange={() => { setModal({ type: 'change', request: selectedRequest }); setSelectedRequest(null) }} />}</div>
+  async function saveCancellation(form) {
+    await createVacationCancellationRequest(modal.request, user.uid, form)
+    await reload()
+    setModal(null)
+    setToast('Stornoantrag gesendet.')
+  }
+
+  return <div className="vacation-page">
+    {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
+    <section className="vacation-calendar-card">
+      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Abteilung</span><select value={department} onChange={(event) => { setDepartment(event.target.value); setEmployee('all') }}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span className="sr-only">Mitarbeiter</span><select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="all">Alle Mitarbeiter</option>{selectableUsers.map((item) => <option key={item.id} value={item.id}>{displayName(item)}</option>)}</select></label></div></div>
+      {error && <p className="form-error">{error}</p>}
+      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><div className="vacation-calendar" aria-label={`Urlaubskalender ${MONTHS[month]} ${year}`}><div className="vacation-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div><div className="vacation-calendar__days">{calendarDays.map((date, index) => {
+        if (!date) return <div key={`empty-${index}`} className="vacation-day vacation-day--empty" />
+        const value = dateValue(date)
+        const matching = [
+          ...holidays.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ ...item, kind: 'holiday' })),
+          ...vacationBlocks.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ ...item, kind: 'block' })),
+          ...visibleRequests.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ ...item, kind: 'vacation' })),
+        ]
+        return <div key={value} className={`vacation-day ${value === today ? 'vacation-day--today' : ''}`}><time dateTime={value}>{date.getDate()}</time><div className="vacation-day__entries">{matching.slice(0, 3).map((item) => {
+          const owner = usersById.get(item.userId)
+          const label = item.kind === 'vacation' ? displayName(owner || {}).split(' ')[0] : item.label
+          const kindClass = item.kind === 'vacation' ? item.status : item.kind
+          return <span key={`${item.kind}-${item.id}`} className={`vacation-day-entry vacation-day-entry--${kindClass} ${item.userId === user.uid ? 'vacation-day-entry--own' : ''}`} title={item.kind === 'vacation' ? `${displayName(owner || {})} · ${getVacationStatus(item.status).label}` : item.label}>{label}</span>
+        })}{matching.length > 3 && <span className="vacation-day-entry vacation-day-entry--more">+{matching.length - 3}</span>}</div></div>
+      })}</div></div><div className="vacation-legend"><span className="vacation-legend__item vacation-legend__item--holiday">Feiertag</span><span className="vacation-legend__item vacation-legend__item--approved">Genehmigter Urlaub</span><span className="vacation-legend__item vacation-legend__item--block">Urlaubssperre</span></div></>}
+    </section>
+    <aside className="vacation-sidebar">
+      <section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>
+      <section className="vacation-actions" aria-label="Urlaubsaktionen"><button className="button button--secondary" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button><button className="button button--secondary" type="button" onClick={() => setPicker('change')}>Änderung beantragen</button><button className="button button--secondary" type="button" onClick={() => setPicker('cancellation')}>Storno beantragen</button></section>
+      <section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2></div><label className="filter-field"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <button className="vacation-request" key={request.id} type="button" onClick={() => setSelectedRequest(request)}><span className="vacation-request__period">{formatVacationPeriod(request)}</span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage <StatusBadge status={request.status} /></span>{request.note && <span className="vacation-request__note">{request.note}</span>}</button>) : <p className="vacation-state">Keine Urlaubsanträge in diesem Jahr.</p>}</div></section>
+    </aside>
+    {picker && <RequestPicker mode={picker} requests={selectableOwnRequests} onClose={() => setPicker(null)} onSelect={(request) => { setModal({ type: picker, request }); setPicker(null) }} />}
+    {(modal?.type === 'new' || modal?.type === 'change') && <RequestModal request={modal.type === 'change' ? modal.request : null} onClose={() => setModal(null)} onSubmit={saveRequest} />}
+    {modal?.type === 'cancellation' && <CancellationModal request={modal.request} onClose={() => setModal(null)} onSubmit={saveCancellation} />}
+    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onChange={() => { setModal({ type: 'change', request: selectedRequest }); setSelectedRequest(null) }} />}
+  </div>
 }

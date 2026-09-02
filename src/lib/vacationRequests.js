@@ -2,15 +2,20 @@ import { collection, doc, getDocs, query, serverTimestamp, setDoc, where } from 
 import { db } from './firebase.js'
 
 export const VACATION_REQUESTS_COLLECTION = 'vacationRequests'
+export const CALENDAR_HOLIDAYS_COLLECTION = 'calendarHolidays'
+export const VACATION_BLOCKS_COLLECTION = 'vacationBlocks'
 
 export const VACATION_STATUSES = [
   { value: 'approved', label: 'Genehmigt' },
   { value: 'pending', label: 'Ausstehend' },
   { value: 'rejected', label: 'Abgelehnt' },
   { value: 'change_requested', label: 'Änderungsantrag' },
+  { value: 'cancellation_requested', label: 'Stornoantrag' },
 ]
 
 const requestsRef = collection(db, VACATION_REQUESTS_COLLECTION)
+const holidaysRef = collection(db, CALENDAR_HOLIDAYS_COLLECTION)
+const vacationBlocksRef = collection(db, VACATION_BLOCKS_COLLECTION)
 const trim = (value) => (value ?? '').trim()
 
 export function toDate(value) {
@@ -44,7 +49,7 @@ export function businessDays(startDate, endDate) {
 }
 
 export function requestOverlaps(request, startDate, endDate) {
-  return request?.startDate <= endDate && request?.endDate >= startDate
+  return Boolean(request?.startDate && request?.endDate && request.startDate <= endDate && request.endDate >= startDate)
 }
 
 export function getVacationStatus(status) {
@@ -68,6 +73,21 @@ export async function listVacationRequests(userId) {
     .map((item) => ({ id: item.id, ...item.data() }))
     .filter((item) => item.type === 'vacation' || !item.type)
     .sort((left, right) => (right.startDate || '').localeCompare(left.startDate || '') || (right.endDate || '').localeCompare(left.endDate || ''))
+}
+
+function calendarEntry(snapshot, fallbackLabel) {
+  const data = snapshot.data()
+  const startDate = data.startDate || data.date || ''
+  const endDate = data.endDate || data.date || startDate
+  return { id: snapshot.id, ...data, startDate, endDate, label: trim(data.label || data.name) || fallbackLabel }
+}
+
+export async function listVacationCalendarItems() {
+  const [holidaySnapshot, blockSnapshot] = await Promise.all([getDocs(holidaysRef).catch(() => null), getDocs(vacationBlocksRef).catch(() => null)])
+  return {
+    holidays: holidaySnapshot?.docs.map((item) => calendarEntry(item, 'Feiertag')).filter((item) => item.startDate && item.endDate) || [],
+    blocks: blockSnapshot?.docs.map((item) => calendarEntry(item, 'Urlaubssperre')).filter((item) => item.startDate && item.endDate) || [],
+  }
 }
 
 function requestPayload(userId, values, extra = {}) {
@@ -105,6 +125,27 @@ export async function createVacationChangeRequest(originalRequest, userId, value
       status: 'change_requested',
       originalRequestId: originalRequest.id,
       changeRequest: {
+        originalStartDate: originalRequest.startDate,
+        originalEndDate: originalRequest.endDate,
+        originalDays: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
+      },
+    }),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  return requestRef.id
+}
+
+export async function createVacationCancellationRequest(originalRequest, userId, values = {}) {
+  if (!originalRequest?.id || originalRequest.userId !== userId) throw new Error('Ungültiger Stornoantrag.')
+  const requestRef = doc(requestsRef)
+  await setDoc(requestRef, {
+    id: requestRef.id,
+    ...requestPayload(userId, { startDate: originalRequest.startDate, endDate: originalRequest.endDate, note: values.note }, {
+      status: 'cancellation_requested',
+      requestKind: 'cancellation',
+      originalRequestId: originalRequest.id,
+      cancellationRequest: {
         originalStartDate: originalRequest.startDate,
         originalEndDate: originalRequest.endDate,
         originalDays: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),

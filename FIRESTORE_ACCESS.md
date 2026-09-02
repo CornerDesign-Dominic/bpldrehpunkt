@@ -25,7 +25,9 @@ Für die Entwicklungsphase ohne Login ist ein lokaler Firestore Emulator der sic
 
 ## Urlaubsanträge
 
-Die persönliche Urlaubsübersicht verwendet `vacationRequests`. Ein Antrag enthält unter anderem `userId`, `startDate`, `endDate`, `days`, `status`, `type`, `note`, `createdAt` und `updatedAt`. Änderungsanträge werden als neuer Datensatz mit `originalRequestId` und `changeRequest` angelegt; der ursprüngliche Antrag wird nie überschrieben. Die Anwendung lädt nur eigene Anträge und genehmigte Anträge anderer Mitarbeitender.
+Die persönliche Urlaubsübersicht verwendet `vacationRequests`. Ein Antrag enthält unter anderem `userId`, `startDate`, `endDate`, `days`, `status`, `type`, `note`, `createdAt` und `updatedAt`. Änderungs- und Stornoanträge werden als neue Datensätze mit `originalRequestId` sowie `changeRequest` beziehungsweise `cancellationRequest` angelegt; der ursprüngliche Antrag wird nie überschrieben. Die Anwendung lädt nur eigene Anträge und genehmigte Anträge anderer Mitarbeitender.
+
+Feiertage werden unter `calendarHolidays` vorbereitet (`date` oder `startDate`/`endDate`, `label`). Spätere Verwaltungsfunktionen können Urlaubssperren unter `vacationBlocks` anlegen (`startDate`, `endDate`, `label`, optional `note`, `createdAt`, `updatedAt`). Beide Collections werden nur gelesen und im Kalender dezent als eigene Eintragstypen dargestellt.
 
 Für den produktiven Einsatz müssen Firestore-Regeln Schreibzugriffe auf den eigenen Benutzer beschränken. Die Kalenderansicht benötigt Leserechte für genehmigte Anträge aller Mitarbeitenden sowie für die eigenen Anträge. Diese fachliche Sichtbarkeit muss durch geeignete Regeln oder eine serverseitige Abfrage abgesichert werden; eine reine UI-Filterung ist keine Berechtigungskontrolle.
 
