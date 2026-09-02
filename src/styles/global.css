@@ -620,13 +620,14 @@ button, a { font: inherit; }
 .pallet-movement-change strong { min-height: 30px; display: flex; align-items: center; color: var(--legacy-344150); font-size: 13px; font-weight: 700; white-space: nowrap; }
 @media (min-width: 721px) { .pallet-movement-partner-grid > :nth-child(3) { padding-left: 14px; border-left: 1px solid var(--border); } }
 .pallet-movement-matrix { display: grid; gap: 8px; padding: 11px 0 2px; }
+.pallet-movement-details { display: grid; grid-template-columns: minmax(340px, auto) minmax(0, 1fr); gap: 18px; align-items: start; }
 .pallet-movement-matrix__grid { display: grid; grid-template-columns: minmax(112px, 1fr) 88px 88px; width: min(340px, 100%); gap: 7px 10px; align-items: center; }
 .pallet-movement-matrix__grid > span { color: var(--legacy-7e8996); font-size: 11px; font-weight: 700; text-align: center; text-transform: uppercase; }
 .pallet-movement-matrix__grid > strong { color: var(--legacy-4c5866); font-size: 13px; font-weight: 650; }
 .pallet-movement-matrix__grid label { display: block; }
 .pallet-movement-matrix__grid input { width: 100%; height: 30px; padding: 0 8px; border: 1px solid var(--legacy-d9dfe6); border-radius: 4px; color: var(--legacy-303947); background: var(--legacy-fff); font: inherit; font-size: 13px; outline: none; }
 .pallet-movement-matrix__grid input:focus { border-color: var(--legacy-778ca5); box-shadow: 0 0 0 2px var(--legacy-rgba-rgba-119-140-165-0-14); }
-.pallet-movement-note { padding-top: 1px; }
+.pallet-movement-note { padding-top: 11px; }
 .pallet-journal { margin-top: 15px; }
 .pallet-journal__header span { color: var(--legacy-838e9b); font-size: 12px; }
 .pallet-journal .table-frame table { table-layout: fixed; }
@@ -960,6 +961,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .pallet-entry-form__grid, .pallet-closing-form__grid { grid-template-columns: 1fr; }
   .pallet-movement-reference-grid { grid-template-columns: 1fr; }
   .pallet-movement-partner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pallet-movement-details { grid-template-columns: 1fr; gap: 0; }
   .crm-selection, .crm-context { grid-template-columns: 1fr; }
   .crm-context { display: grid; align-items: start; }
   .pallets-selection, .pallets-context { grid-template-columns: 1fr; }
