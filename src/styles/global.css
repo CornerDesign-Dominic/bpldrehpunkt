@@ -614,7 +614,7 @@ button, a { font: inherit; }
 .pallet-movement-partner small { min-height: 14px; color: var(--legacy-7e8996); font-size: 11px; font-weight: 500; }
 .pallet-movement-matrix { display: grid; gap: 8px; padding: 11px 0 2px; }
 .pallet-movement-matrix h4, .pallet-movement-result h4 { margin: 0; color: var(--legacy-435061); font-size: 12px; font-weight: 700; }
-.pallet-movement-matrix__grid { display: grid; grid-template-columns: minmax(132px, 0.92fr) minmax(108px, 0.58fr) minmax(108px, 0.58fr); width: min(520px, 100%); gap: 7px 10px; align-items: center; }
+.pallet-movement-matrix__grid { display: grid; grid-template-columns: minmax(112px, 1fr) 88px 88px; width: min(340px, 100%); gap: 7px 10px; align-items: center; }
 .pallet-movement-matrix__grid > span { color: var(--legacy-7e8996); font-size: 11px; font-weight: 700; text-align: center; text-transform: uppercase; }
 .pallet-movement-matrix__grid > strong { color: var(--legacy-4c5866); font-size: 13px; font-weight: 650; }
 .pallet-movement-matrix__grid label { display: block; }
