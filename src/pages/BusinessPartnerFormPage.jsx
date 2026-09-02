@@ -8,6 +8,7 @@ import { getCurrentCrmRatingPresentation, listCurrentCrmRatings } from '../lib/c
 import { getHistoryActor } from '../lib/partnerHistory.js'
 import { listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
 import { useAuth } from '../auth/useAuth.js'
+import { usePermissions } from '../auth/usePermissions.js'
 import { formatPalletDate, formatPalletNumber } from '../components/pallets/palletFormatters.js'
 
 function formatCreditLimit(value) {
@@ -29,6 +30,7 @@ function PalletAccountInfoCard({ account, movements, partnerId }) {
 
 export default function BusinessPartnerFormPage({ mode }) {
   const authState = useAuth()
+  const { canEdit, canView } = usePermissions()
   const { partnerId } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
@@ -103,15 +105,16 @@ export default function BusinessPartnerFormPage({ mode }) {
 
   const shownPartner = currentValues ?? partner
   const isNew = mode === 'create'
+  const editable = canEdit('masterData')
 
   return (
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div><div className="masterdata-record-actions"><div className="masterdata-record-actions__content">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-record-actions__discard" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div></div>
-      {!isNew && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} partnerId={partnerId} />}
-      {!isNew && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
+      <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{editable && <div className="masterdata-record-actions"><div className="masterdata-record-actions__content">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-record-actions__discard" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div>}</div>
+      {!isNew && canView('crm') && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} partnerId={partnerId} />}
+      {!isNew && canView('pallets') && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
       {error && <p className="form-error">{error}</p>}
-      <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} /></section>
+      <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} readOnly={!editable} /></section>
     </div>
   )
 }

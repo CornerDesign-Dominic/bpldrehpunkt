@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function ownProfile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function role() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? ownProfile().role : 'user'; }
+    function superadmin() { return role() == 'superadmin'; }
+    function admin() { return role() == 'admin' || superadmin(); }
+    function level(module) { return superadmin() ? 'edit' : ownProfile().permissions[module]; }
+    function view(module) { return signedIn() && (superadmin() || level(module) in ['view', 'edit']); }
+    function edit(module) { return signedIn() && (superadmin() || level(module) == 'edit'); }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (userId == request.auth.uid || admin() || view('team'));
+      allow list: if admin() || view('team') || view('vacation');
+      // Accounts are only created by the Admin SDK callable function.
+      allow create, delete: if false;
+      allow update: if superadmin() || (admin() && resource.data.role == 'user'
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.permissions == resource.data.permissions
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'active', 'employmentStart', 'personnelNumber', 'updatedAt']));
+    }
+
+    match /businessPartners/{partnerId} {
+      allow read: if view('masterData') || view('crm') || view('pallets');
+      allow create, delete: if edit('masterData');
+      allow update: if edit('masterData') || (edit('crm') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'potential', 'updatedAt']));
+      match /history/{entryId} { allow read: if view('masterData') || view('crm'); allow create: if edit('masterData') || edit('crm'); allow update, delete: if false; }
+      match /activities/{entryId} { allow read: if view('crm'); allow create, update: if edit('crm'); allow delete: if false; }
+      match /ratings/{ratingId} { allow read: if view('crm'); allow create: if edit('crm'); allow update, delete: if false; }
+    }
+
+    match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
+    match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
+    match /newsItems/{id} { allow read: if view('news'); allow create, update, delete: if edit('news'); }
+    match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
+    match /todos/{id} { allow read: if view('todos'); allow create, update, delete: if edit('todos'); }
+    match /vacationRequests/{id} { allow read: if view('vacation'); allow create, update, delete: if edit('vacation'); }
+    match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
+    match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
+  }
+}

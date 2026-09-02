@@ -1,6 +1,6 @@
 import { formatNewsDate, getNewsCategory, getNewsPriority } from '../../lib/news.js'
 
-export default function NewsList({ items, loading, onEdit, onArchive }) {
+export default function NewsList({ items, loading, onEdit, onArchive, canEdit }) {
   if (loading) return <div className="news-list"><p className="news-list__state">News werden geladen …</p></div>
   if (!items.length) return <div className="news-list"><p className="news-list__state">Für diese Auswahl sind keine News vorhanden.</p></div>
 
@@ -10,7 +10,7 @@ export default function NewsList({ items, loading, onEdit, onArchive }) {
       <p className="news-entry__meta">{getNewsCategory(item.category)}{item.source ? ` · ${item.source}` : ''}</p>
       <p className="news-entry__summary">{item.aiSummary || item.summary}</p>
       {item.content && <p className="news-entry__details">{item.content}</p>}
-      <div className="news-entry__actions">{item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noreferrer">Quelle öffnen</a>}{item.sourceType === 'internal' && <><button type="button" onClick={() => onEdit(item)}>Bearbeiten</button><button className="news-entry__archive" type="button" onClick={() => onArchive(item)}>Archivieren</button></>}</div>
+      <div className="news-entry__actions">{item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noreferrer">Quelle öffnen</a>}{canEdit && item.sourceType === 'internal' && <><button type="button" onClick={() => onEdit(item)}>Bearbeiten</button><button className="news-entry__archive" type="button" onClick={() => onArchive(item)}>Archivieren</button></>}</div>
     </div>
   </article>)}</div>
 }

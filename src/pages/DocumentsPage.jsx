@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import DocumentsTable from '../components/documents/DocumentsTable.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { usePermissions } from '../auth/usePermissions.js'
 import {
   archiveInternalDocument,
   createInternalDocument,
@@ -11,6 +12,7 @@ import {
 } from '../lib/documents.js'
 
 export default function DocumentsPage() {
+  const { canEdit } = usePermissions()
   const [documents, setDocuments] = useState([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('active')
@@ -87,11 +89,12 @@ export default function DocumentsPage() {
     }
   }
 
+  const editable = canEdit('documents')
   return <div className="documents-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="list-toolbar documents-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Dokumente suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Dokumente suchen" /></label><label className="filter-field"><span className="sr-only">Status filtern</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="active">Aktiv</option><option value="archived">Archiviert</option><option value="all">Alle</option></select></label></div><button className="button" type="button" onClick={() => setEditingDocument('new')}>Dokument hochladen</button></div>
+    <div className="list-toolbar documents-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Dokumente suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Dokumente suchen" /></label><label className="filter-field"><span className="sr-only">Status filtern</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="active">Aktiv</option><option value="archived">Archiviert</option><option value="all">Alle</option></select></label></div>{editable && <button className="button" type="button" onClick={() => setEditingDocument('new')}>Dokument hochladen</button>}</div>
     {editingDocument && <DocumentForm key={selectedDocument?.id || 'new'} documentItem={selectedDocument} onCancel={() => setEditingDocument(undefined)} onSubmit={saveDocument} />}
     {error && <p className="form-error">{error}</p>}
-    <DocumentsTable documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onEdit={setEditingDocument} onArchive={archiveDocument} />
+    <DocumentsTable documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onEdit={setEditingDocument} onArchive={archiveDocument} canEdit={editable} />
   </div>
 }

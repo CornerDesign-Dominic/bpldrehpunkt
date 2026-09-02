@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import NewsForm from '../components/news/NewsForm.jsx'
 import NewsList from '../components/news/NewsList.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { usePermissions } from '../auth/usePermissions.js'
 import {
   archiveNewsItem,
   createNewsItem,
@@ -26,6 +27,7 @@ const periodFilters = [
 ]
 
 export default function NewsPage() {
+  const { canEdit } = usePermissions()
   const [items, setItems] = useState([])
   const [category, setCategory] = useState('internal')
   const [priorityFilter, setPriorityFilter] = useState('all')
@@ -80,10 +82,10 @@ export default function NewsPage() {
   return <div className="news-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <div className="news-tabs" role="tablist" aria-label="News-Kategorien">{NEWS_CATEGORIES.map((item) => <button key={item.value} type="button" role="tab" aria-selected={category === item.value} className={category === item.value ? 'news-tabs__tab news-tabs__tab--active' : 'news-tabs__tab'} onClick={() => selectCategory(item.value)}>{item.label}</button>)}</div>
-    <div className="news-toolbar"><div className="news-toolbar__filters"><div className="news-filter-group" aria-label="Priorität filtern">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}</div><label className="filter-field"><span className="sr-only">Zeitraum filtern</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label></div>{category === 'internal' && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}</div>
+    <div className="news-toolbar"><div className="news-toolbar__filters"><div className="news-filter-group" aria-label="Priorität filtern">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}</div><label className="filter-field"><span className="sr-only">Zeitraum filtern</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label></div>{category === 'internal' && canEdit('news') && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}</div>
     {category !== 'internal' && <p className="news-external-hint">Externe News können später automatisiert importiert werden. Quelle, Link, Veröffentlichungszeitpunkt, KI-Zusammenfassung und Relevanz sind bereits im Datenmodell vorgesehen.</p>}
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}
     {error && <p className="form-error">{error}</p>}
-    <NewsList items={visibleItems} loading={loading} onEdit={setEditingItem} onArchive={archiveItem} />
+    <NewsList items={visibleItems} loading={loading} onEdit={setEditingItem} onArchive={archiveItem} canEdit={canEdit('news')} />
   </div>
 }

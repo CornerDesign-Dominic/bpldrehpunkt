@@ -393,6 +393,7 @@
 /* Theme-compatible component styles */
 
 * { box-sizing: border-box; }
+fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 html, body, #root { height: 100%; overflow: hidden; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, a { font: inherit; }

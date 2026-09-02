@@ -20,9 +20,22 @@
 .admin-employees__action button { padding: 0; border: 0; color: var(--text-muted); background: transparent; font: inherit; font-size: 11px; font-weight: 650; }
 .admin-placeholder { padding: 15px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .admin-placeholder ul { display: grid; gap: 5px; margin: 12px 0 0; padding-left: 17px; color: var(--text-secondary); font-size: 12px; }
+.admin-user-form { display: grid; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
+.admin-user-form__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.admin-user-form__heading h2 { margin: 0; font-size: var(--font-size-section-title); }
+.admin-user-form__heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
+.admin-user-form form { display: grid; gap: 15px; }
+.admin-user-form__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.admin-permissions { margin: 0; padding: 10px; border: 1px solid var(--border); border-radius: 5px; }
+.admin-permissions legend { padding: 0 4px; color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.admin-permissions__list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px; }
+.admin-permissions__list label { display: grid; grid-template-columns: minmax(0, 1fr) 130px; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 12px; }
+.admin-permissions__list select { min-width: 0; }
+.admin-user-form__actions { display: flex; justify-content: flex-end; }
 
 @media (max-width: 720px) {
   .admin-tabs { overflow-x: auto; }
   .admin-tabs > div { min-width: max-content; }
   .admin-panel__heading { align-items: flex-start; flex-direction: column; }
+  .admin-user-form__grid, .admin-permissions__list { grid-template-columns: 1fr; }
 }

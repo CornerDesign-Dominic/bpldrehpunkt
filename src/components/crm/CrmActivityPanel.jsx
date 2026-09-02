@@ -9,7 +9,7 @@ const referenceTypes = new Set(['offer', 'complaint'])
 const today = () => new Date().toISOString().slice(0, 10)
 const emptyActivity = () => ({ date: today(), type: 'phone', priority: 'info', text: '', contactPerson: '', reference: '' })
 
-export default function CrmActivityPanel({ partnerId, onSaved }) {
+export default function CrmActivityPanel({ partnerId, onSaved, canEdit }) {
   const authState = useAuth()
   const [isOpen, setOpen] = useState(false)
   const [form, setForm] = useState(emptyActivity)
@@ -59,7 +59,7 @@ export default function CrmActivityPanel({ partnerId, onSaved }) {
 
   return <section className="crm-activities" aria-label="Aktivität hinzufügen">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="crm-activities__heading"><h3>Aktivitäten</h3><button className="button button--secondary" type="button" onClick={() => isOpen ? closeForm() : setOpen(true)}>{isOpen ? 'Abbrechen' : 'Aktivität hinzufügen'}</button></div>
+    <div className="crm-activities__heading"><h3>Aktivitäten</h3>{canEdit && <button className="button button--secondary" type="button" onClick={() => isOpen ? closeForm() : setOpen(true)}>{isOpen ? 'Abbrechen' : 'Aktivität hinzufügen'}</button>}</div>
     {isOpen && <form className="crm-activity-form" onSubmit={handleSubmit}>
       <label>Datum<input type="date" value={form.date} onChange={(event) => updateField('date', event.target.value)} required /></label>
       <label>Art<select value={form.type} onChange={(event) => updateType(event.target.value)}>{ACTIVITY_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>

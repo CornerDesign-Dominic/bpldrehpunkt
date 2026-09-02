@@ -1,29 +1,50 @@
 import { useEffect, useState } from 'react'
 import AdminEmployeesTable from '../components/admin/AdminEmployeesTable.jsx'
-import AdminPlaceholderPanel from '../components/admin/AdminPlaceholderPanel.jsx'
+import UserManagementForm from '../components/admin/UserManagementForm.jsx'
+import Toast from '../components/ui/Toast.jsx'
+import { usePermissions } from '../auth/usePermissions.js'
+import { getSafeProfileDefaults } from '../lib/permissions.js'
+import { createManagedUser, updateManagedUser } from '../lib/userManagement.js'
 import { listUserProfiles } from '../lib/userProfiles.js'
 import '../styles/admin.css'
 
-const tabs = [
-  { id: 'employees', label: 'Mitarbeiter' },
-  { id: 'roles', label: 'Rollen & Berechtigungen' },
-  { id: 'settings', label: 'Einstellungen' },
-]
+const emptyUser = () => ({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', phone: '', personnelNumber: '', employmentStart: '', active: true, role: 'user', permissions: {} })
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState('employees')
+  const { canManagePermissions } = usePermissions()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(null)
+  const [isNew, setNew] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
+  async function reload() {
+    setLoading(true)
+    try { setUsers(await listUserProfiles()) } catch { setError('Mitarbeiterdaten konnten nicht geladen werden.') } finally { setLoading(false) }
+  }
 
   useEffect(() => {
-    let current = true
+    let active = true
     listUserProfiles()
-      .then((profiles) => { if (current) setUsers(profiles) })
-      .catch(() => { if (current) setError('Mitarbeiterdaten konnten nicht geladen werden.') })
-      .finally(() => { if (current) setLoading(false) })
-    return () => { current = false }
+      .then((profiles) => { if (active) setUsers(profiles) })
+      .catch(() => { if (active) setError('Mitarbeiterdaten konnten nicht geladen werden.') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
   }, [])
 
-  return <div className="admin-page"><div className="admin-tabs" role="tablist" aria-label="Adminbereich"><div>{tabs.map((tab) => <button key={tab.id} id={`admin-tab-${tab.id}`} className={activeTab === tab.id ? 'admin-tabs__tab admin-tabs__tab--active' : 'admin-tabs__tab'} type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`admin-panel-${tab.id}`} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div></div>{activeTab === 'employees' && <section id="admin-panel-employees" role="tabpanel" aria-labelledby="admin-tab-employees" className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Bestehende Benutzerprofile aus der internen Benutzerverwaltung.</p></div><button className="button" type="button" disabled title="Die Benutzeranlage wird später sicher ergänzt">Mitarbeiter anlegen</button></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} /></section>}{activeTab === 'roles' && <div id="admin-panel-roles" role="tabpanel" aria-labelledby="admin-tab-roles"><AdminPlaceholderPanel title="Rollen & Berechtigungen" description="Struktur für die spätere, sichere Rechteverwaltung." items={['Rollen', 'Modulzugriffe', 'hidden / requestable / granted', 'Abteilungszuordnung']} /></div>}{activeTab === 'settings' && <div id="admin-panel-settings" role="tabpanel" aria-labelledby="admin-tab-settings"><AdminPlaceholderPanel title="Einstellungen" description="Platz für spätere systemweite Einstellungen." items={['Systemweite Vorgaben', 'Modulkonfiguration', 'Allgemeine Verwaltungsoptionen']} /></div>}</div>
+  async function save(event) {
+    event.preventDefault()
+    setSaving(true); setError('')
+    try {
+      if (isNew) await createManagedUser(editing)
+      else await updateManagedUser(editing.id, editing)
+      await reload(); setEditing(null); setToast(isNew ? 'Mitarbeiter angelegt.' : 'Mitarbeiter aktualisiert.')
+    } catch (saveError) {
+      setError(saveError?.message?.replace(/^.*?:\s*/, '') || 'Mitarbeiter konnte nicht gespeichert werden.')
+    } finally { setSaving(false) }
+  }
+
+  return <div className="admin-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>}</div>
 }

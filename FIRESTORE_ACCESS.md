@@ -2,6 +2,12 @@
 
 Die Anwendung verwendet Firestore für die produktiven Fachbereiche. Die Firebase-Web-Konfiguration ist bereits zentral in `src/lib/firebase.js` hinterlegt; zusätzliche Environment-Variablen sind derzeit nicht erforderlich.
 
+## Rollen- und Berechtigungsmodell
+
+Die produktiven Regeln liegen nun in `firestore.rules` und `storage.rules`; sie werden über `firebase.json` ausgerollt. Sie prüfen die Modulrechte auf dem Benutzerprofil und verbieten sämtliche Client-Änderungen an `role` und `permissions`. Benutzeranlage sowie Änderungen an Rollen und Berechtigungen laufen ausschließlich über die Callable Functions in `functions/index.js`.
+
+Vor dem ersten Deployment muss ein bestehendes vertrauenswürdiges Konto einmalig als `superadmin` im Profil `users/{uid}` angelegt werden. Danach werden alle weiteren Änderungen nur noch über die Anwendung bzw. die Functions vorgenommen. Für die Functions zuerst in `functions/` die Abhängigkeiten installieren und anschließend `firebase deploy --only firestore:rules,storage,functions` ausführen.
+
 ## Aktueller Status
 
 Die Firestore-Regeln des Projekts blockieren anonyme Lese- und Schreibzugriffe mit `permission-denied`. Das ist ohne implementierte Authentifizierung erwartbar und sicherer, als die Produktionsdatenbank öffentlich zu öffnen.

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
+import { usePermissions } from '../auth/usePermissions.js'
 import Toast from '../components/ui/Toast.jsx'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
@@ -87,7 +88,7 @@ function RequestModal({ request, onClose, onSubmit }) {
 }
 
 function RequestDetail({ request, onClose, onChange }) {
-  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-detail-title">Urlaubsantrag</h2><p>{formatVacationPeriod(request)}</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><dl className="vacation-detail-list"><div><dt>Urlaubstage</dt><dd>{request.days ?? businessDays(request.startDate, request.endDate)}</dd></div><div><dt>Status</dt><dd><StatusBadge status={request.status} /></dd></div>{request.note && <div className="vacation-detail-list__wide"><dt>Notiz</dt><dd>{request.note}</dd></div>}{request.originalRequestId && <div className="vacation-detail-list__wide"><dt>Bezug</dt><dd>Änderungsantrag zu einem bestehenden Urlaub.</dd></div>}</dl><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button><button className="button" type="button" onClick={onChange}>Änderung beantragen</button></div></section></div>
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-detail-title">Urlaubsantrag</h2><p>{formatVacationPeriod(request)}</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><dl className="vacation-detail-list"><div><dt>Urlaubstage</dt><dd>{request.days ?? businessDays(request.startDate, request.endDate)}</dd></div><div><dt>Status</dt><dd><StatusBadge status={request.status} /></dd></div>{request.note && <div className="vacation-detail-list__wide"><dt>Notiz</dt><dd>{request.note}</dd></div>}{request.originalRequestId && <div className="vacation-detail-list__wide"><dt>Bezug</dt><dd>Änderungsantrag zu einem bestehenden Urlaub.</dd></div>}</dl><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button>{onChange && <button className="button" type="button" onClick={onChange}>Änderung beantragen</button>}</div></section></div>
 }
 
 function RequestPicker({ mode, requests, onClose, onSelect }) {
@@ -117,6 +118,7 @@ function CancellationModal({ request, onClose, onSubmit }) {
 }
 
 export default function VacationPage() {
+  const { canEdit } = usePermissions()
   const { user, profile } = useAuth()
   const today = todayValue()
   const currentYear = new Date().getFullYear()
@@ -208,6 +210,7 @@ export default function VacationPage() {
     setToast('Stornoantrag gesendet.')
   }
 
+  const editable = canEdit('vacation')
   return <div className="vacation-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <section className="vacation-calendar-card">
@@ -231,12 +234,12 @@ export default function VacationPage() {
     </section>
     <aside className="vacation-sidebar">
       <section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>
-      <section className="vacation-actions" aria-label="Urlaubsaktionen"><button className="button button--secondary" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button><button className="button button--secondary" type="button" onClick={() => setPicker('change')}>Änderung beantragen</button><button className="button button--secondary" type="button" onClick={() => setPicker('cancellation')}>Storno beantragen</button></section>
+      {editable && <section className="vacation-actions" aria-label="Urlaubsaktionen"><button className="button button--secondary" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button><button className="button button--secondary" type="button" onClick={() => setPicker('change')}>Änderung beantragen</button><button className="button button--secondary" type="button" onClick={() => setPicker('cancellation')}>Storno beantragen</button></section>}
       <section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2></div><label className="filter-field"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <button className="vacation-request" key={request.id} type="button" onClick={() => setSelectedRequest(request)}><span className="vacation-request__period">{formatVacationPeriod(request)}</span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage <StatusBadge status={request.status} /></span>{request.note && <span className="vacation-request__note">{request.note}</span>}</button>) : <p className="vacation-state">Keine Urlaubsanträge in diesem Jahr.</p>}</div></section>
     </aside>
     {picker && <RequestPicker mode={picker} requests={selectableOwnRequests} onClose={() => setPicker(null)} onSelect={(request) => { setModal({ type: picker, request }); setPicker(null) }} />}
     {(modal?.type === 'new' || modal?.type === 'change') && <RequestModal request={modal.type === 'change' ? modal.request : null} onClose={() => setModal(null)} onSubmit={saveRequest} />}
     {modal?.type === 'cancellation' && <CancellationModal request={modal.request} onClose={() => setModal(null)} onSubmit={saveCancellation} />}
-    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onChange={() => { setModal({ type: 'change', request: selectedRequest }); setSelectedRequest(null) }} />}
+    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onChange={editable ? () => { setModal({ type: 'change', request: selectedRequest }); setSelectedRequest(null) } : null} />}
   </div>
 }

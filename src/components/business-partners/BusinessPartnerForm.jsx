@@ -212,7 +212,7 @@ function PortalsSection({ portals, onChange }) {
   )
 }
 
-export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyChange, onFormChange, formId }) {
+export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false }) {
   const [form, setForm] = useState(() => normalizeForm(initialValue))
   const [savedForm, setSavedForm] = useState(() => normalizeForm(initialValue))
   const [contactDraft, setContactDraft] = useState(null)
@@ -261,7 +261,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
   }
 
   return (
-    <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate>
+    <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate><fieldset disabled={readOnly} className="business-partner-form__fieldset">
       <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address">
         <Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
         <label className="form-field form-field--status"><span>Status</span><select name="status" value={form.status} onChange={handleChange}>{BUSINESS_PARTNER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
@@ -306,6 +306,6 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
       <PortalsSection portals={form.portals} onChange={updatePortals} />
-    </form>
+    </fieldset></form>
   )
 }

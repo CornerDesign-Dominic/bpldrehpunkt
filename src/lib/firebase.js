@@ -2,6 +2,7 @@ import { getApp, getApps, initializeApp } from 'firebase/app'
 import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
+import { getFunctions } from 'firebase/functions'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBYklJVALDla-I1xfJODOUkuw_oHpIOfDY',
@@ -20,3 +21,4 @@ export const auth = getAuth(firebaseApp)
 export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => undefined)
 export const db = getFirestore(firebaseApp)
 export const storage = getStorage(firebaseApp)
+export const functions = getFunctions(firebaseApp, 'europe-west3')
