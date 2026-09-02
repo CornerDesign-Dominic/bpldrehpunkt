@@ -12,8 +12,8 @@ export function createPalletMovementForm(partner) {
     carrierId: isCarrier ? partner.id : '',
     palletReceiptNumber: '',
     note: '',
-    loadingPoint: { received: '', delivered: '' },
-    unloadingPoint: { received: '', delivered: '' },
+    loadingPoint: { received: '', delivered: '', note: '' },
+    unloadingPoint: { received: '', delivered: '', note: '' },
   }
 }
 
@@ -25,8 +25,8 @@ export function createPalletMovementFormFromEntry(movement) {
     carrierId: movement.carrierId ?? '',
     palletReceiptNumber: movement.palletReceiptNumber ?? '',
     note: movement.note ?? '',
-    loadingPoint: { received: String(movement.loadingPoint?.received ?? 0), delivered: String(movement.loadingPoint?.delivered ?? 0) },
-    unloadingPoint: { received: String(movement.unloadingPoint?.received ?? 0), delivered: String(movement.unloadingPoint?.delivered ?? 0) },
+    loadingPoint: { received: String(movement.loadingPoint?.received ?? 0), delivered: String(movement.loadingPoint?.delivered ?? 0), note: movement.loadingPoint?.note ?? movement.note ?? '' },
+    unloadingPoint: { received: String(movement.unloadingPoint?.received ?? 0), delivered: String(movement.unloadingPoint?.delivered ?? 0), note: movement.unloadingPoint?.note ?? '' },
   }
 }
 

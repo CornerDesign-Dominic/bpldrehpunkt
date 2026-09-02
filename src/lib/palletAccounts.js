@@ -91,6 +91,8 @@ export async function createPalletMovement(values) {
     palletReceiptNumber: trimValue(values.palletReceiptNumber),
     note: trimValue(values.note),
     ...calculation,
+    loadingPoint: { ...calculation.loadingPoint, note: trimValue(values.loadingPoint?.note) },
+    unloadingPoint: { ...calculation.unloadingPoint, note: trimValue(values.unloadingPoint?.note) },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -125,6 +127,8 @@ export async function updatePalletMovement(movementId, values) {
     palletReceiptNumber: trimValue(values.palletReceiptNumber),
     note: trimValue(values.note),
     ...calculation,
+    loadingPoint: { ...calculation.loadingPoint, note: trimValue(values.loadingPoint?.note) },
+    unloadingPoint: { ...calculation.unloadingPoint, note: trimValue(values.unloadingPoint?.note) },
     editHistory: arrayUnion({ editedAt: Timestamp.now(), previousData: createMovementHistorySnapshot(previousSnapshot.data()) }),
     updatedAt: serverTimestamp(),
   })

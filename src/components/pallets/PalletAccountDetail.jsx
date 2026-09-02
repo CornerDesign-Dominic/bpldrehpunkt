@@ -87,7 +87,7 @@ export default function PalletAccountDetail({ partnerId }) {
   }
 
   function updateStation(point, field, value) {
-    if (!isPalletQuantityInput(value)) return
+    if (field !== 'note' && !isPalletQuantityInput(value)) return
     setMovementForm({ ...movementForm, [point]: { ...movementForm[point], [field]: value } })
   }
 
