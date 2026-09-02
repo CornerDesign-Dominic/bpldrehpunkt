@@ -590,6 +590,7 @@ button, a { font: inherit; }
 .pallet-account-partner-card { padding: 14px 20px; border: 1px solid var(--legacy-e0e5ea); border-radius: 8px; background: var(--legacy-fff); }
 .pallet-account-partner-card h2 { margin: 0; color: var(--legacy-293341); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); letter-spacing: -0.2px; }
 .pallet-account-partner-card__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--legacy-6f7a87); font-size: 12px; }
+.pallet-account-navigation { display: flex; align-items: center; gap: 8px; }
 .pallet-account-header { display: flex; justify-content: flex-end; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--legacy-dfe4e9); }
 .pallet-account-header__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .pallet-account-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--legacy-e0e5ea); border-radius: 7px; background: var(--legacy-fff); }
