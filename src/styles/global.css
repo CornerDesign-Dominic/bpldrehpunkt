@@ -841,7 +841,9 @@ tbody tr:hover { background: var(--table-hover-background); }
 .detail-section { border-color: var(--section-border); background: var(--section-background); }
 .masterdata-header, .detail-header, .crm-detail-header { border-bottom-color: var(--workspace-border); }
 .pallet-account-page { display: grid; gap: 10px; }
-.pallet-account-workspace { padding: 20px; border: 1px solid var(--workspace-border); border-radius: 10px; background: var(--workspace-background); box-shadow: 0 1px 2px var(--workspace-shadow); }
+.pallet-account-workspace { padding: 14px 20px 20px; border: 1px solid var(--workspace-border); border-radius: 10px; background: var(--workspace-background); box-shadow: 0 1px 2px var(--workspace-shadow); }
+.pallet-account-workspace > .pallet-journal { margin-top: 0; }
+.pallet-account-workspace > .pallet-entry-form + .pallet-journal { margin-top: 15px; }
 .pallet-account-partner-card, .pallet-account-overview-card { border-color: var(--section-border); background: var(--section-background); }
 
 /* Keep the pallet account on the same dark surface ladder as master data. */
