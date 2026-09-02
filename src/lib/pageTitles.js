@@ -9,6 +9,7 @@ const pageTitles = [
   { path: '/todos', title: 'To-dos' },
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin', title: 'Adminbereich' },
+  { path: '/urlaub', title: 'Urlaubsübersicht' },
 ]
 
 export function getPageTitle(pathname) {

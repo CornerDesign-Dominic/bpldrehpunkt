@@ -16,6 +16,7 @@ import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import TeamPage from './pages/TeamPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
+import VacationPage from './pages/VacationPage.jsx'
 
 function ProtectedAppLayout() {
   return <ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/todos" element={<TodosPage />} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/urlaub" element={<VacationPage />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
