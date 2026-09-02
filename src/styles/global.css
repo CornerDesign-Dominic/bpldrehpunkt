@@ -592,11 +592,16 @@ button, a { font: inherit; }
 .pallet-account-partner-card__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--legacy-6f7a87); font-size: 12px; }
 .pallet-account-navigation { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
 .pallet-account-navigation > :first-child { justify-self: start; }
-.pallet-account-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--legacy-e0e5ea); border-radius: 7px; background: var(--legacy-fff); }
-.pallet-account-summary div { display: grid; gap: 4px; min-height: 66px; padding: 11px 14px; }
-.pallet-account-summary div + div { border-left: 1px solid var(--legacy-e7ebef); }
-.pallet-account-summary span { color: var(--legacy-7d8895); font-size: 11px; font-weight: 650; }
-.pallet-account-summary strong { color: var(--legacy-344150); font-size: 15px; font-weight: 650; }
+.pallet-account-overview-card { display: grid; grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr); gap: 18px; padding: 13px 16px; border: 1px solid var(--legacy-e0e5ea); border-radius: 8px; background: var(--legacy-fff); }
+.pallet-account-overview-card__balances { display: grid; align-content: center; gap: 11px; padding-right: 18px; border-right: 1px solid var(--legacy-e7ebef); }
+.pallet-account-overview-card__balances div { display: grid; gap: 3px; }
+.pallet-account-overview-card__balances span, .pallet-account-overview-card__note label > span { color: var(--legacy-7d8895); font-size: 11px; font-weight: 650; }
+.pallet-account-overview-card__balances strong { color: var(--legacy-344150); font-size: 15px; font-weight: 700; }
+.pallet-account-overview-card__note { display: grid; gap: 7px; min-width: 0; }
+.pallet-account-overview-card__note label { display: grid; gap: 5px; }
+.pallet-account-overview-card__note textarea { min-height: 72px; resize: vertical; padding: 8px 9px; border: 1px solid var(--input-border); border-radius: 5px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; line-height: 1.4; }
+.pallet-account-overview-card__note textarea:focus { outline: none; border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }
+.pallet-account-overview-card__actions { display: flex; justify-content: flex-end; }
 .pallet-entry-form { margin-top: 13px; padding: 13px 14px; border: 1px solid var(--legacy-dfe4e9); border-radius: 7px; background: var(--legacy-fff); }
 .pallet-entry-form__header, .pallet-journal__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
 .pallet-entry-form h3, .pallet-journal h3 { margin: 0; color: var(--legacy-435061); font-size: 13px; font-weight: 700; }
@@ -778,8 +783,8 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .login-message--error { border: 1px solid rgba(218, 98, 98, 0.55); color: #ffadad; background: rgba(154, 53, 53, 0.32); }
 /* Shared surface hierarchy for both themes. */
 body, .app-content { color: var(--text-primary); background: var(--app-background); }
-.placeholder-panel, .empty-content, .table-frame, .detail-section, .crm-workspace, .pallets-workspace, .pallet-account-summary, .pallet-entry-form, .login-card { border-color: var(--border); background: var(--content-background); }
-.form-section, .masterdata-header, .detail-header, .crm-detail-header, .pallet-account-header, .news-tabs, .todo-tabs { border-color: var(--border); }
+.placeholder-panel, .empty-content, .table-frame, .detail-section, .crm-workspace, .pallets-workspace, .pallet-entry-form, .login-card { border-color: var(--border); background: var(--content-background); }
+.form-section, .masterdata-header, .detail-header, .crm-detail-header, .news-tabs, .todo-tabs { border-color: var(--border); }
 .button { border-color: var(--button-background); color: var(--button-text); background: var(--button-background); }
 .button:hover:not(:disabled) { filter: brightness(1.08); }
 .button--secondary { border-color: var(--border-strong); color: var(--text-secondary); background: var(--content-background); }
@@ -832,10 +837,10 @@ tbody tr:hover { background: var(--table-hover-background); }
 .form-section:last-of-type { border: 1px solid var(--section-border); }
 .form-section h2, .detail-section h2 { margin-bottom: 10px; color: var(--text-primary); font-weight: 700; }
 .detail-section { border-color: var(--section-border); background: var(--section-background); }
-.masterdata-header, .detail-header, .crm-detail-header, .pallet-account-header { border-bottom-color: var(--workspace-border); }
+.masterdata-header, .detail-header, .crm-detail-header { border-bottom-color: var(--workspace-border); }
 .pallet-account-page { display: grid; gap: 10px; }
 .pallet-account-workspace { padding: 20px; border: 1px solid var(--workspace-border); border-radius: 10px; background: var(--workspace-background); box-shadow: 0 1px 2px var(--workspace-shadow); }
-.pallet-account-partner-card { border-color: var(--section-border); background: var(--section-background); }
+.pallet-account-partner-card, .pallet-account-overview-card { border-color: var(--section-border); background: var(--section-background); }
 
 .table-frame { border-color: var(--table-border); background: var(--table-background); }
 th { border-bottom-color: var(--table-border); color: var(--text-secondary); background: var(--table-header-background); }
@@ -891,9 +896,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .crm-activity-form { grid-template-columns: 1fr; }
   .crm-activity-history__heading { flex-direction: column; }
   .crm-activity-log { grid-template-columns: 1fr; gap: 7px; }
-  .pallet-account-header { align-items: flex-start; flex-direction: column; }
-  .pallet-account-summary { grid-template-columns: 1fr; }
-  .pallet-account-summary div + div { border-top: 1px solid var(--legacy-e7ebef); border-left: 0; }
+  .pallet-account-overview-card { grid-template-columns: 1fr; }
+  .pallet-account-overview-card__balances { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-right: 0; padding-bottom: 11px; border-right: 0; border-bottom: 1px solid var(--border); }
   .pallet-entry-form__grid, .pallet-closing-form__grid { grid-template-columns: 1fr; }
   .pallet-movement-reference-grid { grid-template-columns: 1fr; }
   .pallet-movement-partner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

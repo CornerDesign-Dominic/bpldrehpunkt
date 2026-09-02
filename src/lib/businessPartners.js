@@ -51,6 +51,7 @@ export function createEmptyBusinessPartner() {
     paymentTermDays: '',
     creditNoteProcedure: false,
     creditLimit: null,
+    palletNote: '',
     crmStatus: '',
     potential: '',
     address: { street: '', houseNumber: '', postalCode: '', city: '', country: '' },
@@ -72,6 +73,7 @@ function createPayload(values) {
     paymentTermDays: normalizeOptionalNonNegativeInteger(values.paymentTermDays, 'Zahlungsziel'),
     creditNoteProcedure: Boolean(values.creditNoteProcedure),
     creditLimit: normalizeOptionalNonNegativeNumber(values.creditLimit, 'Kreditlimit'),
+    palletNote: trimValue(values.palletNote),
     crmStatus: trimValue(values.crmStatus),
     potential: trimValue(values.potential),
     address: Object.fromEntries(Object.entries(values.address).map(([key, value]) => [key, trimValue(value)])),
@@ -127,7 +129,7 @@ function createBusinessPartnerHistoryEntries(previous, next, actor) {
   if (changed(previous.paymentTermDays, next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${previous.paymentTermDays ?? '—'} auf ${next.paymentTermDays ?? '—'} Tage geändert`, { field: 'paymentTermDays', oldValue: previous.paymentTermDays ?? null, newValue: next.paymentTermDays ?? null })
   if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
 
-  const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'status', 'contact', 'companyData', 'portals']
+  const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'status', 'contact', 'companyData', 'portals', 'palletNote']
   if (masterDataFields.some((field) => changed(previous[field], next[field]))) entry('masterData', 'Stammdaten geändert', { fields: masterDataFields.filter((field) => changed(previous[field], next[field])) })
   return entries
 }
@@ -152,4 +154,8 @@ export async function updateBusinessPartnerCrmFields(partnerId, values, actor) {
 
 export async function updateBusinessPartnerCreditLimit(partnerId, creditLimit, actor) {
   await updateBusinessPartnerCrmFields(partnerId, { creditLimit }, actor)
+}
+
+export async function updateBusinessPartnerPalletNote(partnerId, palletNote) {
+  await updateBusinessPartnerCrmFields(partnerId, { palletNote })
 }

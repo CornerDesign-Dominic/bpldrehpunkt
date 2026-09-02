@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import Toast from '../ui/Toast.jsx'
 import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
 import { calculatePalletMovement, createPalletClosing, createPalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletMovement } from '../../lib/palletAccounts.js'
-import PalletAccountHeader from './PalletAccountHeader.jsx'
+import PalletAccountOverviewCard from './PalletAccountOverviewCard.jsx'
 import PalletAccountPartnerCard from './PalletAccountPartnerCard.jsx'
 import PalletClosingForm from './PalletClosingForm.jsx'
 import PalletJournal from './PalletJournal.jsx'
@@ -148,8 +148,8 @@ export default function PalletAccountDetail({ partnerId }) {
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <div className="pallet-account-navigation"><Link className="button button--secondary" to="/paletten">Zurück</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Stammdaten</Link></div>
     <PalletAccountPartnerCard partner={partner} />
+    <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={partnerId} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">
-      <PalletAccountHeader account={account} accountError={accountError} />
       {accountError && <p className="form-error">{accountError}</p>}
       {activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
       {activeForm === 'closing' && <PalletClosingForm accountBalance={account.balance} closingForm={closingForm} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onSubmit={handleClosingSubmit} />}
