@@ -730,6 +730,11 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .form-error { padding: 9px 11px; border: 1px solid var(--legacy-f0d6d6); border-radius: 5px; background: var(--legacy-fff7f7); }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
 .form-actions__delete { margin-right: auto; }
+.confirm-dialog-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--app-background) 78%, transparent); }
+.confirm-dialog { width: min(100%, 390px); padding: 18px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--content-background); box-shadow: 0 14px 32px var(--shadow); }
+.confirm-dialog h2 { margin: 0; color: var(--text-primary); font-size: 16px; font-weight: 700; }
+.confirm-dialog p { margin: 7px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.45; }
+.confirm-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .toast { position: fixed; z-index: 10; top: 102px; right: 34px; padding: 10px 13px; border: 1px solid var(--legacy-cfe1d4); border-radius: 6px; color: var(--legacy-35634b); background: var(--legacy-f6fbf7); box-shadow: 0 5px 16px var(--legacy-rgba-rgba-32-41-53-0-12); font-size: 13px; font-weight: 600; }
 .page-state { margin: 0; color: var(--legacy-798493); font-size: 13px; }
 .page-state--error { display: flex; align-items: center; gap: 14px; }

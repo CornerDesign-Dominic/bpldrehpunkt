@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import ConfirmDialog from '../ui/ConfirmDialog.jsx'
 import Toast from '../ui/Toast.jsx'
 import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
 import { calculatePalletMovement, createPalletClosing, createPalletMovement, deletePalletClosing, deletePalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletClosing, updatePalletMovement } from '../../lib/palletAccounts.js'
@@ -28,6 +29,7 @@ export default function PalletAccountDetail({ partnerId }) {
   const [formError, setFormError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [toast, setToast] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   useEffect(() => {
     let isCurrent = true
@@ -63,6 +65,7 @@ export default function PalletAccountDetail({ partnerId }) {
     setActiveForm('')
     setEditingMovement(null)
     setEditingClosing(null)
+    setDeleteTarget(null)
     setFormError('')
   }
 
@@ -137,21 +140,8 @@ export default function PalletAccountDetail({ partnerId }) {
     }
   }
 
-  async function handleMovementDelete() {
-    if (!editingMovement || !window.confirm('Diese Palettenbewegung wirklich löschen?')) return
-
-    setIsSubmitting(true)
-    setFormError('')
-    try {
-      await deletePalletMovement(editingMovement.id)
-      await reloadAccount()
-      closeActiveForm()
-      setToast('Palettenbewegung gelöscht.')
-    } catch {
-      setFormError('Die Palettenbewegung konnte nicht gelöscht werden.')
-    } finally {
-      setIsSubmitting(false)
-    }
+  function requestMovementDelete() {
+    if (editingMovement) setDeleteTarget({ type: 'movement', id: editingMovement.id })
   }
 
   async function handleClosingSubmit(event) {
@@ -176,20 +166,25 @@ export default function PalletAccountDetail({ partnerId }) {
     }
   }
 
-  async function handleClosingDelete() {
-    if (!editingClosing || !window.confirm('Diesen Kontoabschluss wirklich löschen?')) return
+  function requestClosingDelete() {
+    if (editingClosing) setDeleteTarget({ type: 'closing', id: editingClosing.id })
+  }
 
+  async function confirmDelete() {
+    if (!deleteTarget) return
     setIsSubmitting(true)
     setFormError('')
     try {
-      await deletePalletClosing(editingClosing.id)
+      if (deleteTarget.type === 'movement') await deletePalletMovement(deleteTarget.id)
+      else await deletePalletClosing(deleteTarget.id)
       await reloadAccount()
       closeActiveForm()
-      setToast('Kontoabschluss gelöscht.')
+      setToast(deleteTarget.type === 'movement' ? 'Palettenbewegung gelöscht.' : 'Kontoabschluss gelöscht.')
     } catch {
-      setFormError('Der Kontoabschluss konnte nicht gelöscht werden.')
+      setFormError(deleteTarget.type === 'movement' ? 'Die Palettenbewegung konnte nicht gelöscht werden.' : 'Der Kontoabschluss konnte nicht gelöscht werden.')
     } finally {
       setIsSubmitting(false)
+      setDeleteTarget(null)
     }
   }
 
@@ -200,13 +195,14 @@ export default function PalletAccountDetail({ partnerId }) {
 
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
+    <ConfirmDialog open={Boolean(deleteTarget)} title={deleteTarget?.type === 'movement' ? 'Palettenbewegung löschen?' : 'Kontoabschluss löschen?'} message={deleteTarget?.type === 'movement' ? 'Diese Palettenbewegung wird dauerhaft gelöscht.' : 'Dieser Kontoabschluss wird dauerhaft gelöscht.'} confirmLabel="Löschen" isSubmitting={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
     <div className="pallet-account-navigation"><Link className="button button--secondary" to="/paletten">Zurück</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Stammdaten</Link></div>
     <PalletAccountPartnerCard partner={partner} />
     <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={partnerId} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">
       {accountError && <p className="form-error">{accountError}</p>}
-      {activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onDelete={handleMovementDelete} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
-      {activeForm === 'closing' && <PalletClosingForm accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onDelete={handleClosingDelete} onSubmit={handleClosingSubmit} />}
+      {activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onDelete={requestMovementDelete} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
+      {activeForm === 'closing' && <PalletClosingForm accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onDelete={requestClosingDelete} onSubmit={handleClosingSubmit} />}
       <PalletJournal account={account} accountError={accountError} isEntryFormActive={Boolean(activeForm)} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} onEditClosing={openClosingEdit} onEditMovement={openMovementEdit} />
     </section>
   </div>
