@@ -2,7 +2,7 @@ import { formatPalletNumber } from './palletFormatters.js'
 
 export default function PalletMovementForm({ carriers, customers, editingMovement, formError, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
   return <form className="pallet-entry-form pallet-movement-form" onSubmit={onSubmit}>
-    <div className="pallet-entry-form__header"><h3>{editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'}</h3><button className="button button--secondary" type="button" onClick={onCancel}>Abbrechen</button></div>
+    <div className="pallet-entry-form__header"><h3>{editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'}</h3></div>
     <div className="pallet-movement-reference-grid">
       <label className="form-field"><span>Tournummer / unsere Nummer</span><input value={movementForm.tourNumber} onChange={(event) => onChange('tourNumber', event.target.value)} /></label>
       <label className="form-field"><span>Datum</span><input type="date" value={movementForm.date} onChange={(event) => onChange('date', event.target.value)} /></label>
@@ -26,6 +26,6 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
     </section>
     <label className="form-field pallet-movement-note"><span>Bemerkung</span><input value={movementForm.note} onChange={(event) => onChange('note', event.target.value)} /></label>
     {formError && <p className="field-error">{formError}</p>}
-    <div className="form-actions"><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : editingMovement ? 'Änderung speichern' : 'Bewegung speichern'}</button></div>
+    <div className="form-actions"><button className="button button--secondary" type="button" onClick={onCancel}>Verwerfen</button><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Speichern'}</button></div>
   </form>
 }
