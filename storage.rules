@@ -3,9 +3,18 @@ service firebase.storage {
   match /b/{bucket}/o {
     function profile() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
     function documentsLevel() { return profile().role == 'superadmin' ? 'edit' : profile().permissions.documents; }
+    function canReadDocuments() { return request.auth != null && documentsLevel() in ['view', 'edit']; }
+    function canEditDocuments() { return request.auth != null && documentsLevel() == 'edit'; }
+    function isPdfUpload() {
+      return request.resource.contentType == 'application/pdf'
+        && request.resource.name.matches('.*\\.pdf')
+        && request.resource.size <= 20 * 1024 * 1024;
+    }
+
     match /internalDocuments/{allPaths=**} {
-      allow read: if request.auth != null && documentsLevel() in ['view', 'edit'];
-      allow write: if request.auth != null && documentsLevel() == 'edit';
+      allow read: if canReadDocuments();
+      allow create, update: if canEditDocuments() && isPdfUpload();
+      allow delete: if canEditDocuments();
     }
   }
 }
