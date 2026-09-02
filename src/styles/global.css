@@ -591,8 +591,7 @@ button, a { font: inherit; }
 .pallet-account-partner-card h2 { margin: 0; color: var(--legacy-293341); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); letter-spacing: -0.2px; }
 .pallet-account-partner-card__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--legacy-6f7a87); font-size: 12px; }
 .pallet-account-navigation { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
-.pallet-account-header { display: flex; justify-content: flex-end; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--legacy-dfe4e9); }
-.pallet-account-header__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.pallet-account-navigation > :first-child { justify-self: start; }
 .pallet-account-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--legacy-e0e5ea); border-radius: 7px; background: var(--legacy-fff); }
 .pallet-account-summary div { display: grid; gap: 4px; min-height: 66px; padding: 11px 14px; }
 .pallet-account-summary div + div { border-left: 1px solid var(--legacy-e7ebef); }
@@ -601,6 +600,7 @@ button, a { font: inherit; }
 .pallet-entry-form { margin-top: 13px; padding: 13px 14px; border: 1px solid var(--legacy-dfe4e9); border-radius: 7px; background: var(--legacy-fff); }
 .pallet-entry-form__header, .pallet-journal__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
 .pallet-entry-form h3, .pallet-journal h3 { margin: 0; color: var(--legacy-435061); font-size: 13px; font-weight: 700; }
+.pallet-journal__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .pallet-entry-form__grid { display: grid; grid-template-columns: 0.8fr 1fr 1fr 0.65fr 0.65fr; gap: 9px 12px; }
 .pallet-closing-form__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pallet-entry-form__wide { grid-column: 1 / -1; }
