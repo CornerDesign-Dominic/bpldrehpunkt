@@ -24,6 +24,7 @@ export const createManagedUser = onCall({ region: 'europe-west3' }, async (reque
   const actor = await assertManager(request)
   const data = request.data ?? {}
   if (!data.email || !data.password || !data.firstName || !data.lastName) throw new HttpsError('invalid-argument', 'Name, E-Mail und Initialpasswort sind erforderlich.')
+  if (data.password.length < 8) throw new HttpsError('invalid-argument', 'Das Initialpasswort muss mindestens 8 Zeichen enthalten.')
   const role = actor.role === 'superadmin' && roles.has(data.role) ? data.role : 'user'
   const user = await getAuth().createUser({ email: data.email, password: data.password, disabled: data.active === false })
   await getAuth().setCustomUserClaims(user.uid, { role })
@@ -40,10 +41,11 @@ export const updateManagedUser = onCall({ region: 'europe-west3' }, async (reque
   const old = target.data()
   if (actor.role !== 'superadmin' && old.role !== 'user') throw new HttpsError('permission-denied', 'Admins dürfen keine privilegierten Konten verwalten.')
   const role = actor.role === 'superadmin' && roles.has(data.role) ? data.role : old.role
+  if (data.password && data.password.length < 8) throw new HttpsError('invalid-argument', 'Das neue Passwort muss mindestens 8 Zeichen enthalten.')
   const update = { ...profileFields(data), updatedAt: FieldValue.serverTimestamp() }
   if (actor.role === 'superadmin') { update.role = role; update.permissions = permissions(data.permissions) }
   await ref.update(update)
-  await getAuth().updateUser(uid, { email: data.email ?? old.email, disabled: data.active === false })
+  await getAuth().updateUser(uid, { email: data.email ?? old.email, disabled: data.active === false, ...(data.password ? { password: data.password } : {}) })
   if (actor.role === 'superadmin') await getAuth().setCustomUserClaims(uid, { role })
   return { uid }
 })
