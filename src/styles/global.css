@@ -606,7 +606,22 @@ button, a { font: inherit; }
 .pallet-entry-form h3, .pallet-journal h3 { margin: 0; color: var(--legacy-435061); font-size: 13px; font-weight: 700; }
 .pallet-journal__actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .pallet-entry-form__grid { display: grid; grid-template-columns: 0.8fr 1fr 1fr 0.65fr 0.65fr; gap: 9px 12px; }
-.pallet-closing-form__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pallet-closing-reference-grid { display: grid; grid-template-columns: 160px minmax(180px, 1fr) minmax(180px, 1fr); gap: 9px 12px; }
+.pallet-closing-adjustment, .pallet-closing-note { display: grid; gap: 9px; padding: 11px 0; border-top: 1px solid var(--border); }
+.pallet-closing-adjustment h4, .pallet-closing-note h4 { margin: 0; color: var(--text-secondary); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.pallet-closing-adjustment__content { display: grid; grid-template-columns: minmax(160px, 0.36fr) minmax(0, 1fr); gap: 10px 24px; }
+.pallet-closing-value { display: grid; align-content: start; gap: 4px; }
+.pallet-closing-value > span, .pallet-closing-change > span { color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.pallet-closing-value strong { color: var(--text-primary); font-size: 15px; font-weight: 700; }
+.pallet-closing-value--new { grid-column: 2; }
+.pallet-closing-change { display: grid; gap: 5px; }
+.pallet-closing-change__controls { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+.pallet-closing-direction { display: flex; gap: 5px; align-self: end; }
+.pallet-closing-direction button { height: 30px; padding: 0 9px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-secondary); background: var(--button-secondary-background); cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
+.pallet-closing-direction button:hover { color: var(--text-primary); background: var(--button-secondary-hover-background); }
+.pallet-closing-direction button.is-active { border-color: var(--button-background); color: var(--button-text); background: var(--button-background); }
+.pallet-closing-quantity { width: 126px; }
+.pallet-closing-unit { align-self: end; height: 30px; display: flex; align-items: center; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
 .pallet-entry-form__wide { grid-column: 1 / -1; }
 .pallet-entry-form .form-actions { margin-top: 10px; }
 .pallet-movement-form { display: grid; gap: 13px; }
@@ -957,7 +972,9 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .crm-activity-log { grid-template-columns: 1fr; gap: 7px; }
   .pallet-account-overview-card { grid-template-columns: 1fr; }
   .pallet-account-overview-card__balances { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-right: 0; padding-bottom: 11px; border-right: 0; border-bottom: 1px solid var(--border); }
-  .pallet-entry-form__grid, .pallet-closing-form__grid { grid-template-columns: 1fr; }
+  .pallet-entry-form__grid, .pallet-closing-reference-grid, .pallet-closing-adjustment__content { grid-template-columns: 1fr; }
+  .pallet-closing-value { padding-bottom: 4px; }
+  .pallet-closing-value--new { grid-column: auto; }
   .pallet-movement-reference-grid { grid-template-columns: 1fr; }
   .pallet-movement-partner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .crm-selection, .crm-context { grid-template-columns: 1fr; }

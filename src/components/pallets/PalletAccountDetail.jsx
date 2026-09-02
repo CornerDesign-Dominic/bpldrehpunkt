@@ -42,7 +42,9 @@ export default function PalletAccountDetail({ partnerId }) {
 
   const account = useMemo(() => summarizePalletAccount(movements, closings, partnerId), [closings, movements, partnerId])
   const movementCalculation = useMemo(() => calculatePalletMovement(movementForm), [movementForm])
-  const newClosingBalance = account.balance + (Number(closingForm.adjustment) || 0)
+  const closingQuantity = Number(closingForm.quantity) || 0
+  const closingAdjustment = closingForm.direction === 'add' ? closingQuantity : closingForm.direction === 'subtract' ? closingQuantity * -1 : 0
+  const newClosingBalance = account.balance + closingAdjustment
   const partnersById = useMemo(() => new Map(partners.map((partner) => [partner.id, partner])), [partners])
   const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
   const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
@@ -92,6 +94,7 @@ export default function PalletAccountDetail({ partnerId }) {
   }
 
   function updateClosingField(field, value) {
+    if (field === 'quantity' && !isPalletQuantityInput(value)) return
     setClosingForm({ ...closingForm, [field]: value })
   }
 
@@ -122,13 +125,14 @@ export default function PalletAccountDetail({ partnerId }) {
 
   async function handleClosingSubmit(event) {
     event.preventDefault()
-    const adjustment = Number(closingForm.adjustment)
-    if (!closingForm.date || !Number.isFinite(adjustment) || adjustment === 0) return setFormError('Datum und eine Saldoänderung ungleich 0 sind erforderlich.')
+    if (!closingForm.date) return setFormError('Bitte wählen Sie ein Datum.')
+    if (!closingForm.direction) return setFormError('Wählen Sie Hinzufügen oder Abziehen.')
+    if (!closingForm.quantity || !isNonNegativePalletQuantity(closingForm.quantity) || closingQuantity === 0) return setFormError('Geben Sie eine positive ganze Anzahl Paletten ein.')
 
     setIsSubmitting(true)
     setFormError('')
     try {
-      await createPalletClosing(partnerId, { ...closingForm, previousBalance: account.balance, newBalance: newClosingBalance })
+      await createPalletClosing(partnerId, { ...closingForm, adjustment: closingAdjustment, previousBalance: account.balance, newBalance: newClosingBalance })
       await reloadAccount()
       closeActiveForm()
       setToast('Kontoabschluss gespeichert.')

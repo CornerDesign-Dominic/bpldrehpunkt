@@ -33,7 +33,7 @@ export function createPalletMovementFormFromEntry(movement) {
 }
 
 export function createPalletClosingForm(balance) {
-  return { date: currentDate(), type: PALLET_CLOSING_TYPES[0], reference: '', note: '', adjustment: '', previousBalance: balance }
+  return { date: currentDate(), type: PALLET_CLOSING_TYPES[0], reference: '', note: '', direction: '', quantity: '', previousBalance: balance }
 }
 
 export function isPalletQuantityInput(value) {

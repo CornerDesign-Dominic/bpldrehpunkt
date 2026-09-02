@@ -17,7 +17,7 @@ export default function PalletJournal({ account, accountError, isEntryFormActive
           <td className="pallet-quantity">{isMovement && entry.loadingPoint ? formatPalletNumber(entry.loadingPoint.delivered) : '—'}</td>
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.received) : '—'}</td>
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.delivered) : '—'}</td>
-          <td className="pallet-quantity"><strong>{formatPalletNumber(entry.change, true)}</strong></td>
+          <td className="pallet-quantity"><strong>{formatPalletNumber(entry.change, true)}{entry.entryType === 'closing' ? ' Paletten' : ''}</strong></td>
           <td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td>
           <td className="pallet-journal__action">{isMovement && <button type="button" onClick={() => onEditMovement(entry)} disabled={isEntryFormActive} title="Bearbeiten" aria-label="Palettenbewegung bearbeiten"><EditIcon /></button>}</td>
         </tr>
