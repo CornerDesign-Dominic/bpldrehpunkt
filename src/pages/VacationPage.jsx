@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import Toast from '../components/ui/Toast.jsx'
+import { canEdit as canApproveVacation } from '../lib/permissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
   businessDays,
@@ -9,6 +10,7 @@ import {
   createVacationCancellationRequest,
   createVacationRequest,
   dateValue,
+  formatVacationDate,
   formatVacationPeriod,
   getVacationStatus,
   listVacationCalendarItems,
@@ -23,6 +25,13 @@ const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
 function displayName(profile) {
   return getUserDisplayName(profile, profile)
+}
+
+function vacationApproverEmails(users, requesterId) {
+  return [...new Set(users
+    .filter((item) => item.id !== requesterId && item.active !== false && canApproveVacation(item, 'vacation'))
+    .map((item) => item.email?.trim())
+    .filter(Boolean))]
 }
 
 function monthDays(year, month) {
@@ -147,6 +156,26 @@ export default function VacationPage() {
     setVacationBlocks(result.blocks)
   }
 
+  async function notifyVacationApprovers(notification) {
+    const recipients = vacationApproverEmails(users, user.uid)
+    if (!recipients.length) return 'no-recipient'
+
+    const outcomes = await Promise.all(recipients.map(async (to) => {
+      try {
+        const response = await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to, ...notification }),
+        })
+        return response.ok
+      } catch {
+        return false
+      }
+    }))
+
+    return outcomes.every(Boolean) ? 'sent' : 'failed'
+  }
+
   useEffect(() => {
     let active = true
     loadVacationData(user, profile)
@@ -196,18 +225,42 @@ export default function VacationPage() {
   }
 
   async function saveRequest(form) {
-    if (modal?.type === 'change') await createVacationChangeRequest(modal.request, user.uid, form)
+    const isChange = modal?.type === 'change'
+    const originalRequest = modal?.request
+    const applicantName = getUserDisplayName(profile, user)
+    if (isChange) await createVacationChangeRequest(originalRequest, user.uid, form)
     else await createVacationRequest(user.uid, form)
-    await reload()
+
     setModal(null)
-    setToast(modal?.type === 'change' ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.')
+    const notification = isChange
+      ? {
+          type: 'vacation_change',
+          subject: `Urlaub [Änderung] - ${applicantName}`,
+          message: `${applicantName} hat eine Änderung für den Urlaub vom ${formatVacationDate(originalRequest.startDate)} bis ${formatVacationDate(originalRequest.endDate)} beantragt.\n\nGewünschter Zeitraum:\n${formatVacationDate(form.startDate)} bis ${formatVacationDate(form.endDate)}\n\nBitte im Drehpunkt prüfen.`,
+        }
+      : {
+          type: 'vacation_request',
+          subject: `Urlaub [Antrag] - ${applicantName}`,
+          message: `${applicantName} hat einen Urlaubsantrag für den Zeitraum ${formatVacationDate(form.startDate)} bis ${formatVacationDate(form.endDate)} gestellt.\n\nBitte im Drehpunkt prüfen.`,
+        }
+    const notificationResult = await notifyVacationApprovers(notification)
+    await reload().catch(() => undefined)
+    const successMessage = isChange ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.'
+    setToast(notificationResult === 'failed' ? `${successMessage} Benachrichtigung konnte nicht vollständig gesendet werden.` : notificationResult === 'no-recipient' ? `${successMessage} Kein zuständiger Genehmiger mit Urlaubsberechtigung hinterlegt.` : successMessage)
   }
 
   async function saveCancellation(form) {
-    await createVacationCancellationRequest(modal.request, user.uid, form)
-    await reload()
+    const originalRequest = modal.request
+    const applicantName = getUserDisplayName(profile, user)
+    await createVacationCancellationRequest(originalRequest, user.uid, form)
     setModal(null)
-    setToast('Stornoantrag gesendet.')
+    const notificationResult = await notifyVacationApprovers({
+      type: 'vacation_cancel',
+      subject: `Urlaub [Storno] - ${applicantName}`,
+      message: `${applicantName} hat die Stornierung des Urlaubs vom ${formatVacationDate(originalRequest.startDate)} bis ${formatVacationDate(originalRequest.endDate)} beantragt.\n\nBitte im Drehpunkt prüfen.`,
+    })
+    await reload().catch(() => undefined)
+    setToast(notificationResult === 'failed' ? 'Stornoantrag gesendet. Benachrichtigung konnte nicht vollständig gesendet werden.' : notificationResult === 'no-recipient' ? 'Stornoantrag gesendet. Kein zuständiger Genehmiger mit Urlaubsberechtigung hinterlegt.' : 'Stornoantrag gesendet.')
   }
 
   const editable = canEdit('vacation')
