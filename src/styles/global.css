@@ -595,10 +595,10 @@ button, a { font: inherit; }
 .pallet-account-overview-card { display: grid; grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr); gap: 18px; padding: 13px 16px; border: 1px solid var(--legacy-e0e5ea); border-radius: 8px; background: var(--legacy-fff); }
 .pallet-account-overview-card__balances { display: grid; align-content: center; gap: 11px; padding-right: 18px; border-right: 1px solid var(--legacy-e7ebef); }
 .pallet-account-overview-card__balances div { display: grid; gap: 3px; }
-.pallet-account-overview-card__balances span, .pallet-account-overview-card__note label > span { color: var(--legacy-7d8895); font-size: 11px; font-weight: 650; }
+.pallet-account-overview-card__balances span, .pallet-account-overview-card__note-header label { color: var(--legacy-7d8895); font-size: 11px; font-weight: 650; }
 .pallet-account-overview-card__balances strong { color: var(--legacy-344150); font-size: 15px; font-weight: 700; }
 .pallet-account-overview-card__note { display: grid; gap: 7px; min-width: 0; }
-.pallet-account-overview-card__note label { display: grid; gap: 5px; }
+.pallet-account-overview-card__note-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .pallet-account-overview-card__note textarea { min-height: 72px; resize: vertical; padding: 8px 9px; border: 1px solid var(--input-border); border-radius: 5px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; line-height: 1.4; }
 .pallet-account-overview-card__note textarea:focus { outline: none; border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }
 .pallet-account-overview-card__actions { display: flex; justify-content: flex-end; }
@@ -853,7 +853,7 @@ tbody tr:hover { background: var(--table-hover-background); }
 
 :root[data-theme='dark'] .pallet-account-partner-card__meta,
 :root[data-theme='dark'] .pallet-account-overview-card__balances span,
-:root[data-theme='dark'] .pallet-account-overview-card__note label > span,
+:root[data-theme='dark'] .pallet-account-overview-card__note-header label,
 :root[data-theme='dark'] .pallet-movement-change span,
 :root[data-theme='dark'] .pallet-movement-matrix__grid > span,
 :root[data-theme='dark'] .pallet-journal__header span {
