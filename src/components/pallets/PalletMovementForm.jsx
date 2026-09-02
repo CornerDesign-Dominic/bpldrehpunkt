@@ -1,7 +1,7 @@
 import { formatPalletNumber } from './palletFormatters.js'
 import { PALLET_TYPES } from '../../constants/pallets.js'
 
-export default function PalletMovementForm({ carriers, customers, editingMovement, formError, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
+export default function PalletMovementForm({ carriers, customers, editingMovement, formError, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onDelete, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
   return <form className="pallet-entry-form pallet-movement-form" onSubmit={onSubmit}>
     <div className="pallet-entry-form__header"><h3>{editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'}</h3></div>
     <div className="pallet-movement-reference-grid">
@@ -24,6 +24,6 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
       </div>
     </section>
     {formError && <p className="field-error">{formError}</p>}
-    <div className="form-actions"><button className="button button--secondary" type="button" onClick={onCancel}>Verwerfen</button><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Speichern'}</button></div>
+    <div className="form-actions">{editingMovement && <button className="button button--danger form-actions__delete" type="button" onClick={onDelete} disabled={isSubmitting}>Löschen</button>}<button className="button button--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>Verwerfen</button><button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird gespeichert …' : 'Speichern'}</button></div>
   </form>
 }

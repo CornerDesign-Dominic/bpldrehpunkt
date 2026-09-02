@@ -729,6 +729,7 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .field-error, .form-error { margin: 0; color: var(--legacy-a94343); font-size: 12px; font-weight: 500; }
 .form-error { padding: 9px 11px; border: 1px solid var(--legacy-f0d6d6); border-radius: 5px; background: var(--legacy-fff7f7); }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.form-actions__delete { margin-right: auto; }
 .toast { position: fixed; z-index: 10; top: 102px; right: 34px; padding: 10px 13px; border: 1px solid var(--legacy-cfe1d4); border-radius: 6px; color: var(--legacy-35634b); background: var(--legacy-f6fbf7); box-shadow: 0 5px 16px var(--legacy-rgba-rgba-32-41-53-0-12); font-size: 13px; font-weight: 600; }
 .page-state { margin: 0; color: var(--legacy-798493); font-size: 13px; }
 .page-state--error { display: flex; align-items: center; gap: 14px; }
@@ -929,6 +930,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .button:hover:not(:disabled) { background: var(--button-hover-background); filter: none; }
 .button--secondary { border-color: var(--border-strong); color: var(--text-secondary); background: var(--button-secondary-background); }
 .button--secondary:hover:not(:disabled) { background: var(--button-secondary-hover-background); }
+.button--danger { border-color: var(--status-danger-text); color: var(--status-danger-text); background: var(--status-danger-background); }
+.button--danger:hover:not(:disabled) { filter: brightness(1.08); }
 
 .search-field input, .filter-field select, .form-field input, .form-field select, .derived-value, .crm-activity-form input, .crm-activity-form select, .crm-activity-form textarea, .crm-rating-form__scores select, .crm-rating-form textarea, .pallet-movement-matrix__grid input, .todo-form textarea, .news-form textarea, .document-form textarea, .login-form input { border-color: var(--input-border); background: var(--input-background); }
 .search-field input:focus, .filter-field select:focus, .form-field input:focus, .form-field select:focus, .crm-activity-form input:focus, .crm-activity-form select:focus, .crm-activity-form textarea:focus, .crm-rating-form__scores select:focus, .crm-rating-form textarea:focus, .pallet-movement-matrix__grid input:focus, .todo-form textarea:focus, .news-form textarea:focus, .document-form textarea:focus, .login-form input:focus { border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }

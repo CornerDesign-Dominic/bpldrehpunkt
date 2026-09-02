@@ -1,4 +1,4 @@
-import { Timestamp, addDoc, arrayUnion, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { Timestamp, addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { PALLET_TYPES } from '../constants/pallets.js'
 
@@ -154,6 +154,10 @@ export async function createPalletClosing(partnerId, values) {
   })
 }
 
+export async function deletePalletMovement(movementId) {
+  await deleteDoc(doc(db, PALLET_MOVEMENTS_COLLECTION, movementId))
+}
+
 function createClosingHistorySnapshot(closing) {
   return {
     date: closing.date ?? '',
@@ -182,6 +186,10 @@ export async function updatePalletClosing(closingId, values) {
     editHistory: arrayUnion({ editedAt: Timestamp.now(), previousData: createClosingHistorySnapshot(previousSnapshot.data()) }),
     updatedAt: serverTimestamp(),
   })
+}
+
+export async function deletePalletClosing(closingId) {
+  await deleteDoc(doc(db, PALLET_CLOSINGS_COLLECTION, closingId))
 }
 
 function timestampValue(value) {

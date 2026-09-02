@@ -1,7 +1,7 @@
 import { PALLET_CLOSING_TYPES } from '../../constants/pallets.js'
 import { formatPalletNumber } from './palletFormatters.js'
 
-export default function PalletClosingForm({ accountBalance, closingForm, editingClosing, formError, isSubmitting, newClosingBalance, onCancel, onChange, onSubmit }) {
+export default function PalletClosingForm({ accountBalance, closingForm, editingClosing, formError, isSubmitting, newClosingBalance, onCancel, onChange, onDelete, onSubmit }) {
   const formatAmount = (value) => `${formatPalletNumber(value)} Paletten`
   const hasDirection = Boolean(closingForm.direction)
 
@@ -14,6 +14,6 @@ export default function PalletClosingForm({ accountBalance, closingForm, editing
     </div>
     <section className="pallet-closing-adjustment"><div className="pallet-closing-change"><h4>Saldoänderung</h4><div className="pallet-closing-change__controls"><div className="pallet-closing-direction"><button className={closingForm.direction === 'add' ? 'is-active' : ''} type="button" onClick={() => onChange('direction', 'add')} aria-pressed={closingForm.direction === 'add'}>+ Hinzufügen</button><button className={closingForm.direction === 'subtract' ? 'is-active' : ''} type="button" onClick={() => onChange('direction', 'subtract')} aria-pressed={closingForm.direction === 'subtract'}>− Abziehen</button></div><div className="pallet-closing-quantity-row"><label className="form-field pallet-closing-quantity"><span>Anzahl</span><input autoFocus inputMode="numeric" min="0" step="1" type="number" value={closingForm.quantity} onChange={(event) => onChange('quantity', event.target.value)} /></label><span className="pallet-closing-unit">Paletten</span></div></div></div><div className="pallet-closing-balances"><div className="pallet-closing-value"><span>Aktueller Saldo</span><strong>{formatAmount(accountBalance)}</strong></div><div className="pallet-closing-value"><span>Neuer Saldo</span><strong>{formatAmount(newClosingBalance)}</strong></div></div><div className="pallet-closing-note"><h4>Bemerkung</h4><label className="form-field"><span className="sr-only">Bemerkung</span><input value={closingForm.note} onChange={(event) => onChange('note', event.target.value)} /></label></div></section>
     {formError && <p className="field-error">{formError}</p>}
-    <div className="form-actions"><button className="button button--secondary" type="button" onClick={onCancel}>Verwerfen</button><button className="button" type="submit" disabled={isSubmitting || !hasDirection}>{isSubmitting ? 'Wird gespeichert …' : 'Speichern'}</button></div>
+    <div className="form-actions">{editingClosing && <button className="button button--danger form-actions__delete" type="button" onClick={onDelete} disabled={isSubmitting}>Löschen</button>}<button className="button button--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>Verwerfen</button><button className="button" type="submit" disabled={isSubmitting || !hasDirection}>{isSubmitting ? 'Wird gespeichert …' : 'Speichern'}</button></div>
   </form>
 }
