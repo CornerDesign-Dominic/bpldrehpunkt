@@ -1,5 +1,7 @@
 /* global process */
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 function sendJson(response, status, payload) {
   return response.status(status).json(payload)
 }
@@ -19,8 +21,11 @@ export default async function handler(request, response) {
     }
   }
 
-  if (!body || typeof body.name !== 'string' || typeof body.message !== 'string') {
-    return sendJson(response, 400, { error: 'Name und Nachricht müssen Zeichenketten sein.' })
+  const to = typeof body?.to === 'string' ? body.to.trim() : ''
+  const subject = typeof body?.subject === 'string' ? body.subject.trim() : ''
+  const message = typeof body?.message === 'string' ? body.message.trim() : ''
+  if (!emailPattern.test(to) || !subject || !message || (body?.type !== undefined && typeof body.type !== 'string')) {
+    return sendJson(response, 400, { error: 'Empfänger, Betreff und Nachricht müssen gültig angegeben werden.' })
   }
 
   const notificationUrl = process.env.POWER_AUTOMATE_NOTIFICATION_URL
@@ -33,7 +38,7 @@ export default async function handler(request, response) {
     const notificationResponse = await fetch(notificationUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: body.name, message: body.message }),
+      body: JSON.stringify({ to, subject, message, ...(typeof body.type === 'string' && body.type.trim() ? { type: body.type.trim() } : {}) }),
     })
 
     if (!notificationResponse.ok) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import AdminEmployeesTable from '../components/admin/AdminEmployeesTable.jsx'
 import UserManagementForm from '../components/admin/UserManagementForm.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getSafeProfileDefaults } from '../lib/permissions.js'
 import { createManagedUser, updateManagedUser } from '../lib/userManagement.js'
@@ -11,6 +12,7 @@ import '../styles/admin.css'
 const emptyUser = () => ({ firstName: '', lastName: '', email: '', department: '', jobTitle: '', phone: '', personnelNumber: '', employmentStart: '', active: true, role: 'user', permissions: {} })
 
 export default function AdminPage() {
+  const { user, profile } = useAuth()
   const { canManagePermissions } = usePermissions()
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -48,12 +50,19 @@ export default function AdminPage() {
   }
 
   async function testPowerAutomate() {
+    const testRecipient = typeof user?.email === 'string' && user.email.trim()
+      ? user.email.trim()
+      : (typeof profile?.email === 'string' ? profile.email.trim() : '')
+    if (!testRecipient) {
+      setToast('Die E-Mail-Adresse des angemeldeten Administrators ist nicht verfügbar.')
+      return
+    }
     setTestingNotification(true)
     try {
-      const response = await fetch('/api/test-notification', {
+      const response = await fetch('/api/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Drehpunkt', message: 'Die Verbindung zwischen Drehpunkt und Power Automate funktioniert.' }),
+        body: JSON.stringify({ to: testRecipient, subject: 'Drehpunkt Testmail', message: 'Die generische Drehpunkt-Mail-Schnittstelle funktioniert.', type: 'system_test' }),
       })
       if (!response.ok) throw new Error('request-failed')
       setToast('Power Automate wurde erfolgreich ausgelöst.')
