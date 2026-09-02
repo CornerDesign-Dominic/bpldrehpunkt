@@ -10,9 +10,9 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
     </div>
     <section className="pallet-movement-partner-grid">
       <label className="form-field pallet-movement-partner"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => onChange('customerId', event.target.value)}><option value="">Kunde auswählen</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Debitor {item.debtorNumber}</option>)}</select></label>
-      <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCustomer ? `${formatPalletNumber(movementCalculation.customerBalance, true)} Paletten` : '—'}</strong></output>
+      <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCustomer ? `${formatPalletNumber(movementCalculation.customerBalance, true)} Paletten` : '0 Paletten'}</strong></output>
       <label className="form-field pallet-movement-partner"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => onChange('carrierId', event.target.value)}><option value="">Unternehmer auswählen</option>{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Kreditor {item.creditorNumber}</option>)}</select></label>
-      <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCarrier ? `${formatPalletNumber(movementCalculation.carrierBalance, true)} Paletten` : '—'}</strong></output>
+      <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCarrier ? `${formatPalletNumber(movementCalculation.carrierBalance, true)} Paletten` : '0 Paletten'}</strong></output>
     </section>
     <section className="pallet-movement-matrix">
       <div className="pallet-movement-matrix__grid">
