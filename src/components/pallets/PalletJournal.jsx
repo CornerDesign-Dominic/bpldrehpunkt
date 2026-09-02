@@ -1,4 +1,5 @@
 import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
+import { EditIcon } from '../icons.jsx'
 
 function formatCounterpartyReference(entry, counterparty) {
   if (!counterparty || !entry.counterpartyId) return '—'
@@ -24,7 +25,7 @@ export default function PalletJournal({ account, accountError, isEntryFormActive
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.delivered) : '—'}</td>
           <td className="pallet-quantity"><strong>{formatPalletNumber(entry.change, true)}</strong></td>
           <td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td>
-          <td className="pallet-journal__action">{isMovement && <button type="button" onClick={() => onEditMovement(entry)} disabled={isEntryFormActive}>Bearbeiten</button>}</td>
+          <td className="pallet-journal__action">{isMovement && <button type="button" onClick={() => onEditMovement(entry)} disabled={isEntryFormActive} title="Bearbeiten" aria-label="Palettenbewegung bearbeiten"><EditIcon /></button>}</td>
         </tr>
       }) : <tr><td colSpan="10" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
     </tbody></table></div>
