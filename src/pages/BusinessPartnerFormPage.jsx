@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
+import { ChevronIcon } from '../components/icons.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartner } from '../lib/businessPartners.js'
 import { getCurrentCrmRatingPresentation, listCurrentCrmRatings } from '../lib/crmRatings.js'
@@ -15,15 +16,15 @@ function formatCreditLimit(value) {
 
 function MasterdataInfoCard({ partner, ratings, partnerId }) {
   const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
-  return <Link className="masterdata-info-card" to={`/crm/${partnerId}`} aria-label="CRM des Geschäftspartners öffnen"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{getBusinessPartnerStatusLabel(partner.status)}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}<span className="masterdata-info-card__chevron" aria-hidden="true">→</span></Link>
+  return <Link className="masterdata-info-card" to={`/crm/${partnerId}`} aria-label="CRM des Geschäftspartners öffnen"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{getBusinessPartnerStatusLabel(partner.status)}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}<span className="masterdata-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
 }
 
 function PalletAccountInfoCard({ account, movements, partnerId }) {
-  if (!account) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Palettenkonto: —</span><span className="pallet-account-info-card__chevron" aria-hidden="true">→</span></Link>
-  if (!movements.length) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Keine Palettenbewegungen vorhanden</span><span className="pallet-account-info-card__chevron" aria-hidden="true">→</span></Link>
+  if (!account) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Palettenkonto: —</span><span className="pallet-account-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
+  if (!movements.length) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Keine Palettenbewegungen vorhanden</span><span className="pallet-account-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
 
   const latestMovement = account.entries.filter((entry) => entry.entryType === 'movement').at(-1)
-  return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span className="pallet-account-info-card__balance">Palettensaldo: <strong>{formatPalletNumber(account.balance, true)}</strong></span><span>Letzte Bewegung: <strong>{latestMovement?.date ? formatPalletDate(latestMovement.date) : '—'}</strong></span><span>{movements.length} Bewegungen</span><span>Letzter Abschluss: <strong>{account.latestClosing?.date ? formatPalletDate(account.latestClosing.date) : '—'}</strong></span><span className="pallet-account-info-card__chevron" aria-hidden="true">→</span></Link>
+  return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span className="pallet-account-info-card__balance">Palettensaldo: <strong>{formatPalletNumber(account.balance, true)}</strong></span><span>Letzte Bewegung: <strong>{latestMovement?.date ? formatPalletDate(latestMovement.date) : '—'}</strong></span><span>{movements.length} Bewegungen</span><span>Letzter Abschluss: <strong>{account.latestClosing?.date ? formatPalletDate(account.latestClosing.date) : '—'}</strong></span><span className="pallet-account-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
 }
 
 export default function BusinessPartnerFormPage({ mode }) {
