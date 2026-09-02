@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
+import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
 import { formatRatingScore, getRatingRoles, listCurrentCrmRatings } from '../lib/crmRatings.js'
 
 const filters = [
@@ -8,13 +8,12 @@ const filters = [
   { value: 'customer', label: 'Kunden' },
   { value: 'supplier', label: 'Unternehmer' },
   { value: 'both', label: 'Kunde & Unternehmer' },
-  { value: 'active', label: 'Aktiv' },
-  { value: 'inactive', label: 'Inaktiv' },
+  ...BUSINESS_PARTNER_STATUSES,
 ]
 
 function matchesFilter(partner, filter) {
   if (filter === 'all') return true
-  if (filter === 'active' || filter === 'inactive') return partner.status === filter
+  if (BUSINESS_PARTNER_STATUSES.some((status) => status.value === filter)) return partner.status === filter
 
   const type = getBusinessPartnerType(partner)
   return (filter === 'customer' && type === 'Kunde') || (filter === 'supplier' && type === 'Unternehmer') || (filter === 'both' && type === 'Kunde & Unternehmer')

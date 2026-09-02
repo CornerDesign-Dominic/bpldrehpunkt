@@ -4,7 +4,7 @@ import { useAuth } from '../auth/useAuth.js'
 import CrmActivityPanel from '../components/crm/CrmActivityPanel.jsx'
 import PartnerHistoryPanel from '../components/crm/PartnerHistoryPanel.jsx'
 import CrmRatingPanel from '../components/crm/CrmRatingPanel.jsx'
-import { getBusinessPartner, getBusinessPartnerType, updateBusinessPartnerCreditLimit, updateBusinessPartnerCrmFields } from '../lib/businessPartners.js'
+import { getBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartnerCreditLimit, updateBusinessPartnerCrmFields } from '../lib/businessPartners.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
 import '../styles/businessPartnerExtensions.css'
 
@@ -77,7 +77,7 @@ export default function CrmDetailPage() {
   const refreshHistory = () => setHistoryVersion((current) => current + 1)
 
   return <div className="crm-detail-page">
-    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</span></div></div><div className="crm-detail-header__actions"><Link className="button button--secondary" to="/crm">Zurück zum CRM</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
+    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div></div><div className="crm-detail-header__actions"><Link className="button button--secondary" to="/crm">Zurück zum CRM</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
     <section className="crm-current-overview" aria-label="Aktueller Stand">
       <div className="crm-current-overview__heading"><h3>Aktueller Stand</h3><span>Historische Änderungen stehen ausschließlich in der Partner-Historie.</span></div>
       <div className="crm-current-metrics"><div><span>Kennzahlen</span><strong>—</strong></div><div><span>Zahlungsziel</span><strong>{partner.paymentTermDays ?? '—'}{partner.paymentTermDays === null || partner.paymentTermDays === undefined ? '' : ' Tage'}</strong></div><div><span>Bonität</span><strong>—</strong></div></div>

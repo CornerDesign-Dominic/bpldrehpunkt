@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, getBusinessPartnerType, updateBusinessPartner } from '../lib/businessPartners.js'
+import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartner } from '../lib/businessPartners.js'
 import { getCurrentCrmRatingPresentation, listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
 import { listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
@@ -15,7 +15,7 @@ function formatCreditLimit(value) {
 
 function MasterdataInfoCard({ partner, ratings, partnerId }) {
   const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
-  return <Link className="masterdata-info-card" to={`/crm/${partnerId}`} aria-label="CRM des Geschäftspartners öffnen"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{partner.status === 'active' ? 'Aktiv' : 'Inaktiv'}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}<span className="masterdata-info-card__chevron" aria-hidden="true">→</span></Link>
+  return <Link className="masterdata-info-card" to={`/crm/${partnerId}`} aria-label="CRM des Geschäftspartners öffnen"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{getBusinessPartnerStatusLabel(partner.status)}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}<span className="masterdata-info-card__chevron" aria-hidden="true">→</span></Link>
 }
 
 function PalletAccountInfoCard({ account, movements, partnerId }) {

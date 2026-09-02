@@ -13,6 +13,12 @@ import { db } from './firebase.js'
 import { createHistoryPayload } from './partnerHistory.js'
 
 export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
+export const BUSINESS_PARTNER_STATUSES = [
+  { value: 'active', label: 'Aktiv' },
+  { value: 'inactive', label: 'Inaktiv' },
+  { value: 'insolvency', label: 'Insolvenz' },
+  { value: 'blocked', label: 'Gesperrt' },
+]
 
 const businessPartnersRef = collection(db, BUSINESS_PARTNERS_COLLECTION)
 
@@ -38,6 +44,10 @@ export function getBusinessPartnerType({ debtorNumber, creditorNumber }) {
   if (hasDebtorNumber && hasCreditorNumber) return 'Kunde & Unternehmer'
   if (hasDebtorNumber) return 'Kunde'
   return 'Unternehmer'
+}
+
+export function getBusinessPartnerStatusLabel(status) {
+  return BUSINESS_PARTNER_STATUSES.find((item) => item.value === status)?.label || '—'
 }
 
 export function createEmptyBusinessPartner() {
