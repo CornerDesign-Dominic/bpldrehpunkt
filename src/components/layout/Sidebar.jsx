@@ -1,20 +1,24 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../../auth/useAuth.js'
+import { canManageUsers, canView } from '../../lib/permissions.js'
 import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SunIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
-  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon },
-  { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon },
-  { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon },
-  { label: 'CRM', to: '/crm', icon: CrmIcon },
-  { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon },
-  { label: 'News', to: '/news', icon: NewsIcon },
-  { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon },
-  { label: 'To-dos', to: '/todos', icon: TodoIcon },
-  { label: 'Adminbereich', to: '/admin', icon: ShieldIcon },
+  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation' },
+  { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon, module: 'team' },
+  { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData' },
+  { label: 'CRM', to: '/crm', icon: CrmIcon, module: 'crm' },
+  { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets' },
+  { label: 'News', to: '/news', icon: NewsIcon, module: 'news' },
+  { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon, module: 'documents' },
+  { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos' },
+  { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true },
 ]
 
 export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
+  const { profile } = useAuth()
+  const visibleItems = navigationItems.filter((item) => item.administration ? canManageUsers(profile) : !item.module || canView(profile, item.module))
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
@@ -23,7 +27,7 @@ export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
       </div>
 
       <nav className="sidebar__nav" aria-label="Hauptnavigation">
-        {navigationItems.map(({ label, to, icon: Icon }) => (
+        {visibleItems.map(({ label, to, icon: Icon }) => (
           <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`} title={collapsed ? label : undefined}>
             <Icon />
             {!collapsed && <span>{label}</span>}

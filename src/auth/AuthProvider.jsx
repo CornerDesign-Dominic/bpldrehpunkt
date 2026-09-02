@@ -35,6 +35,7 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => ({
     ...authState,
+    // A missing legacy profile gets no module access via the permission helpers.
     isProfileActive: authState.profile?.active !== false,
   }), [authState])
 

@@ -1,10 +1,11 @@
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
 import { db } from './firebase.js'
+import { USER_ROLES, getSafeProfileDefaults } from './permissions.js'
 
 export const USER_PROFILES_COLLECTION = 'users'
-export const USER_ROLES = ['admin', 'user']
-export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'role', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
-export const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'role', 'active', 'employmentStart', 'personnelNumber']
+export { USER_ROLES }
+export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'role', 'permissions', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
+export const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'active', 'employmentStart', 'personnelNumber']
 export const USER_AVAILABILITY_STATUSES = [
   { value: 'working', label: 'Arbeitend' },
   { value: 'vacation', label: 'Urlaub' },
@@ -17,12 +18,12 @@ export const USER_AVAILABILITY_STATUSES = [
 
 export async function getUserProfile(uid) {
   const snapshot = await getDoc(doc(db, USER_PROFILES_COLLECTION, uid))
-  return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null
+  return snapshot.exists() ? getSafeProfileDefaults({ id: snapshot.id, ...snapshot.data() }) : null
 }
 
 export async function listUserProfiles() {
   const snapshot = await getDocs(collection(db, USER_PROFILES_COLLECTION))
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+  return snapshot.docs.map((item) => getSafeProfileDefaults({ id: item.id, ...item.data() }))
 }
 
 export function getUserDisplayName(profile, user) {
@@ -31,7 +32,7 @@ export function getUserDisplayName(profile, user) {
 }
 
 export function canManageUserProfiles(profile) {
-  return profile?.role === 'admin'
+  return ['admin', 'superadmin'].includes(profile?.role)
 }
 
 export function getUserAvailabilityStatus(profile) {

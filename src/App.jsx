@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './auth/ProtectedRoute.jsx'
+import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
 import BusinessPartnerFormPage from './pages/BusinessPartnerFormPage.jsx'
@@ -28,21 +29,21 @@ export default function App() {
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/team" element={<TeamPage />} />
-        <Route path="/kunden-unternehmer" element={<CustomersPage />} />
-        <Route path="/kunden-unternehmer/neu" element={<BusinessPartnerFormPage mode="create" />} />
-        <Route path="/kunden-unternehmer/:partnerId" element={<BusinessPartnerFormPage mode="existing" />} />
+        <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
-        <Route path="/crm" element={<CrmPage />} />
-        <Route path="/crm/:partnerId" element={<CrmDetailPage />} />
-        <Route path="/paletten" element={<PalletsPage />} />
-        <Route path="/paletten/:partnerId" element={<PalletAccountDetailPage />} />
-        <Route path="/news" element={<NewsPage />} />
-        <Route path="/dokumente" element={<DocumentsPage />} />
-        <Route path="/todos" element={<TodosPage />} />
+        <Route path="/crm" element={<PermissionRoute module="crm"><CrmPage /></PermissionRoute>} />
+        <Route path="/crm/:partnerId" element={<PermissionRoute module="crm"><CrmDetailPage /></PermissionRoute>} />
+        <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
+        <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
+        <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
+        <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
+        <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/urlaub" element={<VacationPage />} />
+        <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
+        <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>
