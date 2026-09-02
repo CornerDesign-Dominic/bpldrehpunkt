@@ -587,9 +587,10 @@ button, a { font: inherit; }
 .pallets-placeholder-grid div:last-child { border-right: 0; }
 .pallets-placeholder-grid span { color: var(--legacy-83909d); font-size: 11px; font-weight: 650; }
 .pallets-placeholder-grid strong { color: var(--legacy-b0b8c1); font-size: 17px; font-weight: 500; }
-.pallet-account-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--legacy-dfe4e9); }
-.pallet-account-header h2 { margin: 0; color: var(--legacy-293341); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); letter-spacing: -0.2px; }
-.pallet-account-header__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--legacy-6f7a87); font-size: 12px; }
+.pallet-account-partner-card { padding: 14px 20px; border: 1px solid var(--legacy-e0e5ea); border-radius: 8px; background: var(--legacy-fff); }
+.pallet-account-partner-card h2 { margin: 0; color: var(--legacy-293341); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); letter-spacing: -0.2px; }
+.pallet-account-partner-card__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--legacy-6f7a87); font-size: 12px; }
+.pallet-account-header { display: flex; justify-content: flex-end; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--legacy-dfe4e9); }
 .pallet-account-header__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
 .pallet-account-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--legacy-e0e5ea); border-radius: 7px; background: var(--legacy-fff); }
 .pallet-account-summary div { display: grid; gap: 4px; min-height: 66px; padding: 11px 14px; }
@@ -800,6 +801,14 @@ tbody tr:hover { background: var(--table-hover-background); }
 .user-placeholder { color: var(--text-muted); }
 .user-placeholder__dot { background: var(--text-muted); }
 
+.app-content > .pallet-account-page {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
 .app-content > .dashboard-page,
 .app-content > .business-partners-page,
 .app-content > .crm-page,
@@ -809,8 +818,7 @@ tbody tr:hover { background: var(--table-hover-background); }
 .app-content > .todos-page,
 .app-content > .form-page,
 .app-content > .detail-page,
-.app-content > .crm-detail-page,
-.app-content > .pallet-account-page {
+.app-content > .crm-detail-page {
   padding: 20px;
   border: 1px solid var(--workspace-border);
   border-radius: 10px;
@@ -829,6 +837,9 @@ tbody tr:hover { background: var(--table-hover-background); }
 .form-section h2, .detail-section h2 { margin-bottom: 10px; color: var(--text-primary); font-weight: 700; }
 .detail-section { border-color: var(--section-border); background: var(--section-background); }
 .masterdata-header, .detail-header, .crm-detail-header, .pallet-account-header { border-bottom-color: var(--workspace-border); }
+.pallet-account-page { display: grid; gap: 10px; }
+.pallet-account-workspace { padding: 20px; border: 1px solid var(--workspace-border); border-radius: 10px; background: var(--workspace-background); box-shadow: 0 1px 2px var(--workspace-shadow); }
+.pallet-account-partner-card { border-color: var(--section-border); background: var(--section-background); }
 
 .table-frame { border-color: var(--table-border); background: var(--table-background); }
 th { border-bottom-color: var(--table-border); color: var(--text-secondary); background: var(--table-header-background); }

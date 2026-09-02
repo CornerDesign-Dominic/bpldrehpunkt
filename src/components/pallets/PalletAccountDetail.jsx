@@ -4,6 +4,7 @@ import Toast from '../ui/Toast.jsx'
 import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
 import { calculatePalletMovement, createPalletClosing, createPalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletMovement } from '../../lib/palletAccounts.js'
 import PalletAccountHeader from './PalletAccountHeader.jsx'
+import PalletAccountPartnerCard from './PalletAccountPartnerCard.jsx'
 import PalletClosingForm from './PalletClosingForm.jsx'
 import PalletJournal from './PalletJournal.jsx'
 import PalletMovementForm from './PalletMovementForm.jsx'
@@ -145,10 +146,13 @@ export default function PalletAccountDetail({ partnerId }) {
 
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <PalletAccountHeader account={account} accountError={accountError} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} partner={partner} partnerId={partnerId} />
-    {accountError && <p className="form-error">{accountError}</p>}
-    {activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
-    {activeForm === 'closing' && <PalletClosingForm accountBalance={account.balance} closingForm={closingForm} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onSubmit={handleClosingSubmit} />}
-    <PalletJournal account={account} accountError={accountError} onEditMovement={openMovementEdit} partnersById={partnersById} />
+    <PalletAccountPartnerCard partner={partner} />
+    <section className="pallet-account-workspace">
+      <PalletAccountHeader account={account} accountError={accountError} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} partnerId={partnerId} />
+      {accountError && <p className="form-error">{accountError}</p>}
+      {activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
+      {activeForm === 'closing' && <PalletClosingForm accountBalance={account.balance} closingForm={closingForm} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onSubmit={handleClosingSubmit} />}
+      <PalletJournal account={account} accountError={accountError} onEditMovement={openMovementEdit} partnersById={partnersById} />
+    </section>
   </div>
 }
