@@ -772,7 +772,6 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .todo-tabs__tab:hover { color: var(--legacy-43596f); background: var(--legacy-edf1f4); }
 .todo-tabs__tab--active { color: var(--legacy-394f65); background: var(--legacy-e8eef4); }
 .todo-toolbar { margin: 0; }
-.todo-demo-hint { margin: -5px 0 0; color: var(--legacy-7b8693); font-size: 11px; }
 .todo-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--legacy-dfe4e9); border-radius: 6px; background: var(--legacy-fbfcfd); }
 .todo-form__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .todo-form__heading h2 { margin: 0; color: var(--legacy-435061); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
@@ -790,11 +789,14 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .todos-table th:nth-child(7) { width: 12%; }
 .todo-status { display: inline-flex; align-items: center; min-height: 22px; padding: 0 7px; border-radius: 4px; font-size: 11px; font-weight: 650; }
 .todo-status--open { color: var(--legacy-546676); background: var(--legacy-edf1f4); }
+.todo-status--in_progress { color: var(--legacy-765d30); background: var(--legacy-f8f1e5); }
 .todo-status--completed { color: var(--legacy-35634b); background: var(--legacy-eaf3ed); }
+.todo-status--withdrawn { color: var(--legacy-8a4141); background: var(--legacy-f9eaea); }
 .todo-actions { text-align: right; }
 .todo-actions button { padding: 0; border: 0; color: var(--legacy-475e76); background: transparent; cursor: pointer; font-size: 12px; font-weight: 600; }
 .todo-actions button + button::before { padding-right: 7px; color: var(--legacy-bdc5ce); content: '·'; }
 .todo-actions button:hover { color: var(--legacy-263e57); text-decoration: underline; }
+.todo-actions .todo-actions__withdraw { color: var(--legacy-8b5a5a); }
 .news-page { display: grid; gap: 13px; max-width: var(--list-content-max-width); margin: 0 auto; }
 .news-tabs { display: flex; gap: 3px; padding-bottom: 8px; border-bottom: 1px solid var(--legacy-dfe4e9); }
 .news-tabs__tab { height: 30px; padding: 0 10px; border: 0; border-radius: 4px; color: var(--legacy-75808d); background: transparent; cursor: pointer; font-size: 12px; font-weight: 650; }

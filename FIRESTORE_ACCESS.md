@@ -10,7 +10,7 @@ Vor dem ersten Deployment muss ein bestehendes vertrauenswürdiges Konto einmali
 
 ## Aktueller Status
 
-Die Firestore-Regeln des Projekts blockieren anonyme Lese- und Schreibzugriffe mit `permission-denied`. Das ist ohne implementierte Authentifizierung erwartbar und sicherer, als die Produktionsdatenbank öffentlich zu öffnen.
+Die Firestore-Regeln des Projekts blockieren anonyme Lese- und Schreibzugriffe mit `permission-denied`. Das ist ohne implementierte Authentifizierung erwartbar und sicherer, als die Produktionsdatenbank öffentlich zu öffnen. Die produktiven Regeln und Indizes werden über `firebase deploy --only firestore:rules,firestore:indexes` ausgerollt.
 
 ## Empfohlene Regel nach Einführung der Authentifizierung
 
@@ -52,4 +52,10 @@ service firebase.storage {
 }
 ```
 
-Die genannten Regeln sind als Vorbereitung dokumentiert. Sie werden nicht durch dieses Repository in Firebase ausgerollt und müssen bei Bedarf in der Firebase Console gepflegt werden.
+Die Storage-Regeln werden getrennt über `firebase deploy --only storage` ausgerollt.
+
+## To-dos
+
+To-dos liegen unter `todos/{todoId}`. Sie verwenden `creatorUserId`/`creatorName`, `audienceType` (`all`, `department`, `person`), `audienceId`, `audienceLabel`, die unabhängigen Bearbeiterfelder `assignedUserId`/`assignedUserName`/`assignedAt` sowie den Status `open`, `in_progress`, `completed` oder `withdrawn`.
+
+Die Firestore-Regeln erlauben Leserechte nur für berechtigte Benutzer, die jeweils Ersteller, Bearbeiter oder Teil der Zielgruppe sind; zurückgezogene Einträge bleiben Ersteller und Superadmin vorbehalten. Übernahmen, Freigaben und Erledigungen prüfen die zulässigen Statuswechsel und den aktuellen Benutzer. Client-Hard-Deletes sind verboten. Die Abfragen für Zielgruppen verwenden die Composite-Indizes aus `firestore.indexes.json`.

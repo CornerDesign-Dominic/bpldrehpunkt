@@ -12,7 +12,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if signedIn() && (userId == request.auth.uid || admin() || view('team'));
-      allow list: if admin() || view('team') || view('vacation');
+      allow list: if admin() || view('team') || view('vacation') || edit('todos');
       // Accounts are only created by the Admin SDK callable function.
       allow create, delete: if false;
       allow update: if superadmin() || (admin() && resource.data.role == 'user'
@@ -34,7 +34,95 @@ service cloud.firestore {
     match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
     match /newsItems/{id} { allow read: if view('news'); allow create, update, delete: if edit('news'); }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
-    match /todos/{id} { allow read: if view('todos'); allow create, update, delete: if edit('todos'); }
+    function todoKeysAreValid(data) {
+      return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+    }
+    function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
+    function activeProfile(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId))
+        && get(/databases/$(database)/documents/users/$(userId)).data.active != false;
+    }
+    function validTodoAudience(data) {
+      return (data.audienceType == 'all' && data.audienceId == null && data.audienceLabel == 'Alle')
+        || (data.audienceType == 'department' && data.audienceId is string && data.audienceId.size() > 0 && data.audienceLabel == data.audienceId)
+        || (data.audienceType == 'person' && data.audienceId is string && activeProfile(data.audienceId)
+          && data.audienceLabel == profileName(get(/databases/$(database)/documents/users/$(data.audienceId)).data));
+    }
+    function validTodoContent(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 240
+        && data.description is string && data.description.size() <= 4000
+        && (data.dueDate == null || data.dueDate is string)
+        && validTodoAudience(data);
+    }
+    function isTodoAudienceMember(data) {
+      return data.audienceType == 'all'
+        || (data.audienceType == 'person' && data.audienceId == request.auth.uid)
+        || (data.audienceType == 'department' && data.audienceId == ownProfile().department);
+    }
+    function canReadTodo(data) {
+      return superadmin() || data.creatorUserId == request.auth.uid || data.assignedUserId == request.auth.uid
+        || (data.status != 'withdrawn' && isTodoAudienceMember(data));
+    }
+    function isCreatorOrSuperadmin() { return superadmin() || resource.data.creatorUserId == request.auth.uid; }
+    function hasOpenAssignment(data) {
+      return data.status == 'open' && data.assignedUserId == null && data.assignedUserName == null && data.assignedAt == null
+        && data.completedAt == null && data.completedByUserId == null && data.completedByName == null
+        && data.withdrawnAt == null && data.withdrawnByUserId == null;
+    }
+    function isCreatedTodo() {
+      return todoKeysAreValid(request.resource.data) && validTodoContent(request.resource.data)
+        && request.resource.data.creatorUserId == request.auth.uid && request.resource.data.creatorName == profileName(ownProfile())
+        && hasOpenAssignment(request.resource.data) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+    }
+    function isTakeover() {
+      return resource.data.status == 'open' && resource.data.assignedUserId == null && isTodoAudienceMember(resource.data)
+        && request.resource.data.status == 'in_progress' && request.resource.data.assignedUserId == request.auth.uid
+        && request.resource.data.assignedUserName == profileName(ownProfile()) && request.resource.data.assignedAt == request.time
+        && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
+        && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+    }
+    function isRelease() {
+      return resource.data.status == 'in_progress' && resource.data.assignedUserId == request.auth.uid
+        && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+    }
+    function isCompletion() {
+      return resource.data.status == 'in_progress' && resource.data.assignedUserId == request.auth.uid
+        && request.resource.data.status == 'completed' && request.resource.data.assignedUserId == request.auth.uid
+        && request.resource.data.completedAt == request.time && request.resource.data.completedByUserId == request.auth.uid
+        && request.resource.data.completedByName == profileName(ownProfile()) && request.resource.data.updatedAt == request.time
+        && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
+    }
+    function isCreatorContentEdit() {
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
+        && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
+        && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
+        && request.resource.data.audienceType == resource.data.audienceType && request.resource.data.audienceId == resource.data.audienceId && request.resource.data.audienceLabel == resource.data.audienceLabel
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'updatedAt']);
+    }
+    function isCreatorResetAssignment() {
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
+        && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+    }
+    function isWithdrawal() {
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
+        && request.resource.data.status == 'withdrawn' && request.resource.data.assignedUserId == null && request.resource.data.assignedUserName == null && request.resource.data.assignedAt == null
+        && request.resource.data.withdrawnAt == request.time && request.resource.data.withdrawnByUserId == request.auth.uid
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt', 'withdrawnByUserId', 'assignedUserId', 'assignedUserName', 'assignedAt', 'updatedAt']);
+    }
+    match /todos/{id} {
+      allow read: if view('todos') && canReadTodo(resource.data);
+      allow create: if edit('todos') && isCreatedTodo();
+      allow update: if edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal());
+      allow delete: if false;
+    }
     match /vacationRequests/{id} { allow read: if view('vacation'); allow create, update, delete: if edit('vacation'); }
     match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
