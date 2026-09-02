@@ -3,6 +3,7 @@ import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, 
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
+  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon },
   { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon },
   { label: 'CRM', to: '/crm', icon: CrmIcon },
@@ -10,7 +11,6 @@ const navigationItems = [
   { label: 'News', to: '/news', icon: NewsIcon },
   { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon },
   { label: 'To-dos', to: '/todos', icon: TodoIcon },
-  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon },
   { label: 'Adminbereich', to: '/admin', icon: ShieldIcon },
 ]
 

@@ -404,7 +404,7 @@ button, a { font: inherit; }
 .brand-mark { display: grid; width: 24px; height: 24px; flex: 0 0 24px; place-items: center; color: var(--sidebar-text-strong); }
 .brand-mark svg { display: block; }
 .brand-name { font-size: var(--font-size-brand); font-weight: var(--font-weight-brand); letter-spacing: -0.3px; }
-.sidebar__nav { display: grid; gap: 5px; margin-top: 30px; }
+.sidebar__nav { display: grid; min-height: 0; flex: 1; align-content: start; gap: 5px; margin-top: 30px; overflow-y: auto; scrollbar-width: thin; }
 .nav-item { display: flex; height: 40px; align-items: center; gap: 10px; padding: 0 6px; border-radius: 6px; color: var(--sidebar-text); text-decoration: none; white-space: nowrap; font-size: 14px; font-weight: 500; }
 .nav-item:hover { color: var(--sidebar-text-strong); background: var(--sidebar-hover); }
 .nav-item--active { color: var(--sidebar-text-strong); background: var(--sidebar-active); box-shadow: inset 2px 0 0 var(--border-strong); }
