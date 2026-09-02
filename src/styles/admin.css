@@ -6,6 +6,7 @@
 .admin-tabs__tab--active { color: var(--text-primary); background: var(--surface-active); }
 .admin-panel { display: grid; gap: 11px; }
 .admin-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.admin-panel__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .admin-panel__heading h2, .admin-placeholder h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .admin-panel__heading p, .admin-placeholder p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .admin-employees table { min-width: 870px; table-layout: fixed; }
@@ -49,6 +50,7 @@
   .admin-tabs { overflow-x: auto; }
   .admin-tabs > div { min-width: max-content; }
   .admin-panel__heading { align-items: flex-start; flex-direction: column; }
+  .admin-panel__actions { justify-content: flex-start; }
   .admin-user-form__grid, .admin-permissions__list { grid-template-columns: 1fr; }
   .admin-permission-row { grid-template-columns: 1fr; padding: 9px 0; }
   .admin-permission-row:nth-last-child(-n + 2) { border-bottom: 1px solid var(--border); }

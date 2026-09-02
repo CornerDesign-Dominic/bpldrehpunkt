@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [editing, setEditing] = useState(null)
   const [isNew, setNew] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [testingNotification, setTestingNotification] = useState(false)
   const [toast, setToast] = useState('')
 
   async function reload() {
@@ -46,5 +47,22 @@ export default function AdminPage() {
     } finally { setSaving(false) }
   }
 
-  return <div className="admin-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>}</div>
+  async function testPowerAutomate() {
+    setTestingNotification(true)
+    try {
+      const response = await fetch('/api/test-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Drehpunkt', message: 'Die Verbindung zwischen Drehpunkt und Power Automate funktioniert.' }),
+      })
+      if (!response.ok) throw new Error('request-failed')
+      setToast('Power Automate wurde erfolgreich ausgelöst.')
+    } catch {
+      setToast('Power Automate konnte nicht ausgelöst werden.')
+    } finally {
+      setTestingNotification(false)
+    }
+  }
+
+  return <div className="admin-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Power Automate testen'}</button><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>}</div>
 }
