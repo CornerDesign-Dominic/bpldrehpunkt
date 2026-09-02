@@ -73,15 +73,22 @@ export default function PalletAccountList() {
     setSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' })
   }
 
+  function resetFilters() {
+    setSearch('')
+    setFilter('all')
+  }
+
   function renderSortableHeader(key, label) {
     const isActive = sort.key === key
     const direction = isActive ? sort.direction : 'none'
-    const indicator = isActive ? sort.direction === 'asc' ? '↑' : '↓' : '↕'
-    return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}>{label}<span aria-hidden="true">{indicator}</span><span className="sr-only">{isActive ? `, aktuell ${sort.direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert` : ', sortieren'}</span></button></th>
+    const indicator = isActive ? sort.direction === 'asc' ? '▲' : '▼' : '↕'
+    return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}>{label}<span className={isActive ? 'table-sort-button__indicator table-sort-button__indicator--active' : 'table-sort-button__indicator'} aria-hidden="true">{indicator}</span><span className="sr-only">{isActive ? `, aktuell ${sort.direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert` : ', sortieren'}</span></button></th>
   }
 
+  const hasActiveFilters = Boolean(search.trim()) || filter !== 'all'
+
   return <div className="pallets-page">
-    <div className="list-toolbar pallets-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Palettenkonto suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">Partnerfilter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{PALLET_ACCOUNT_FILTERS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div></div>
+    <div className="list-toolbar pallets-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Palettenkonto suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">Partnerfilter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{PALLET_ACCOUNT_FILTERS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div><button className="button button--secondary" type="button" onClick={resetFilters} disabled={!hasActiveFilters}>Filter zurücksetzen</button></div>
     {partnerError && <p className="form-error">{partnerError}</p>}
     {accountError && <p className="form-error">{accountError}</p>}
     <div className="table-frame pallets-table-frame"><table><thead><tr>{renderSortableHeader('companyName', 'Firmenname')}{renderSortableHeader('city', 'Ort')}{renderSortableHeader('debtorNumber', 'Debitor')}{renderSortableHeader('creditorNumber', 'Kreditor')}{renderSortableHeader('balance', 'Saldo')}{renderSortableHeader('closingDate', 'Letzter Kontoabschluss')}<th><span className="sr-only">Öffnen</span></th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="table-state">Palettenkonten werden geladen …</td></tr> : partnerError ? <tr><td colSpan="7" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visibleAccounts.length ? visibleAccounts.map(({ partner, account }) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{accountError ? '—' : formatPalletNumber(account.balance, true)}</td><td>{accountError ? '—' : formatClosing(account.latestClosing)}</td><td className="table-action"><Link className="table-action__open" to={`/paletten/${partner.id}`} aria-label={`${partner.companyName} öffnen`} title="Öffnen"><ChevronIcon size={20} /><span className="sr-only">Öffnen</span></Link></td></tr>) : <tr><td colSpan="7" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
