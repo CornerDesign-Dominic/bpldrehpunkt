@@ -10,7 +10,9 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
     </div>
     <section className="pallet-movement-partner-grid">
       <label className="form-field pallet-movement-partner"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => onChange('customerId', event.target.value)}><option value="">Kunde auswählen</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Debitor {item.debtorNumber}</option>)}</select></label>
+      <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCustomer ? `${formatPalletNumber(movementCalculation.customerBalance, true)} Paletten` : '—'}</strong></output>
       <label className="form-field pallet-movement-partner"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => onChange('carrierId', event.target.value)}><option value="">Unternehmer auswählen</option>{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · Kreditor {item.creditorNumber}</option>)}</select></label>
+      <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCarrier ? `${formatPalletNumber(movementCalculation.carrierBalance, true)} Paletten` : '—'}</strong></output>
     </section>
     <section className="pallet-movement-matrix">
       <div className="pallet-movement-matrix__grid">
@@ -18,10 +20,6 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
         <strong>Ladestelle</strong><label><span className="sr-only">Ladestelle erhalten</span><input aria-label="Ladestelle erhalten" inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.received} onChange={(event) => onStationChange('loadingPoint', 'received', event.target.value)} /></label><label><span className="sr-only">Ladestelle abgegeben</span><input aria-label="Ladestelle abgegeben" inputMode="numeric" min="0" step="1" type="number" value={movementForm.loadingPoint.delivered} onChange={(event) => onStationChange('loadingPoint', 'delivered', event.target.value)} /></label>
         <strong>Entladestelle</strong><label><span className="sr-only">Entladestelle erhalten</span><input aria-label="Entladestelle erhalten" inputMode="numeric" min="0" step="1" type="number" value={movementForm.unloadingPoint.received} onChange={(event) => onStationChange('unloadingPoint', 'received', event.target.value)} /></label><label><span className="sr-only">Entladestelle abgegeben</span><input aria-label="Entladestelle abgegeben" inputMode="numeric" min="0" step="1" type="number" value={movementForm.unloadingPoint.delivered} onChange={(event) => onStationChange('unloadingPoint', 'delivered', event.target.value)} /></label>
       </div>
-    </section>
-    <section className="pallet-movement-result">
-      <h4>Ergebnis der Buchung</h4>
-      <div>{selectedCarrier && <article><span>Unternehmer</span><strong>{selectedCarrier.companyName}</strong><output>{formatPalletNumber(movementCalculation.carrierBalance, true)} Paletten</output></article>}{selectedCustomer && <article><span>Kunde</span><strong>{selectedCustomer.companyName}</strong><output>{formatPalletNumber(movementCalculation.customerBalance, true)} Paletten</output></article>}</div>
     </section>
     <label className="form-field pallet-movement-note"><span>Bemerkung</span><input value={movementForm.note} onChange={(event) => onChange('note', event.target.value)} /></label>
     {formError && <p className="field-error">{formError}</p>}
