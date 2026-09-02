@@ -31,6 +31,10 @@
 .admin-user-form__section h3 { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 700; }
 .admin-user-form__section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .admin-user-form__section-heading p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.admin-checkbox { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.admin-checkbox input { width: 15px; height: 15px; margin: 0; accent-color: var(--button-background); }
+.admin-vacation-manager { display: grid; gap: 9px; padding: 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
+.admin-vacation-manager select { min-height: 88px; }
 .admin-user-form__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .admin-user-form__grid--details { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .admin-password-reset { display: flex; align-items: end; gap: 8px; }

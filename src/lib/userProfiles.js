@@ -4,7 +4,7 @@ import { USER_ROLES, getSafeProfileDefaults } from './permissions.js'
 
 export const USER_PROFILES_COLLECTION = 'users'
 export { USER_ROLES }
-export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'role', 'permissions', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
+export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'role', 'permissions', 'vacationManager', 'vacationManagerAllDepartments', 'vacationManagerDepartments', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
 export const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'active', 'employmentStart', 'personnelNumber']
 export const USER_AVAILABILITY_STATUSES = [
   { value: 'working', label: 'Arbeitend' },

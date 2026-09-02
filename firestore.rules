@@ -123,7 +123,17 @@ service cloud.firestore {
       allow update: if edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal());
       allow delete: if false;
     }
-    match /vacationRequests/{id} { allow read: if view('vacation'); allow create, update, delete: if edit('vacation'); }
+    function ownVacationRequest(data) {
+      return data.userId == request.auth.uid && data.type == 'vacation'
+        && data.status in ['pending', 'change_requested', 'cancellation_requested'];
+    }
+    match /vacationRequests/{id} {
+      allow read: if view('vacation') && (resource.data.userId == request.auth.uid || resource.data.status == 'approved');
+      allow create: if edit('vacation') && ownVacationRequest(request.resource.data);
+      // Approval, rejection and all other changes are handled by the callable
+      // function, which validates the manager's department server-side.
+      allow update, delete: if false;
+    }
     match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
   }

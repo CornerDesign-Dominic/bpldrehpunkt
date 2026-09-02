@@ -40,7 +40,13 @@ export const canView = (profile, module) => hasPermission(profile, module, 'view
 export const canEdit = (profile, module) => hasPermission(profile, module, 'edit')
 export const canManageUsers = (profile) => ['admin', 'superadmin'].includes(normalizeRole(profile?.role))
 export const canManagePermissions = (profile) => normalizeRole(profile?.role) === 'superadmin'
+export const canManageVacations = (profile) => normalizeRole(profile?.role) === 'superadmin' || profile?.vacationManager === true
 
 export function getSafeProfileDefaults(profile) {
-  return { ...profile, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions) }
+  const vacationManager = profile?.vacationManager === true
+  const vacationManagerAllDepartments = vacationManager && profile?.vacationManagerAllDepartments === true
+  const vacationManagerDepartments = vacationManager && !vacationManagerAllDepartments && Array.isArray(profile?.vacationManagerDepartments)
+    ? [...new Set(profile.vacationManagerDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
+    : []
+  return { ...profile, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
 }

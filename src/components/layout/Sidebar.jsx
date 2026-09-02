@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
-import { canManageUsers, canView } from '../../lib/permissions.js'
+import { canManageUsers, canManageVacations, canView } from '../../lib/permissions.js'
 import { ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SunIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
   { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation' },
+  { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true },
   { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon, module: 'team' },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData' },
   { label: 'CRM', to: '/crm', icon: CrmIcon, module: 'crm' },
@@ -18,7 +19,7 @@ const navigationItems = [
 
 export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
   const { profile } = useAuth()
-  const visibleItems = navigationItems.filter((item) => item.administration ? canManageUsers(profile) : !item.module || canView(profile, item.module))
+  const visibleItems = navigationItems.filter((item) => item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : !item.module || canView(profile, item.module))
   return (
     <aside className="sidebar">
       <div className="sidebar__brand">
