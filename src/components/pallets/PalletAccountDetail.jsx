@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Toast from '../ui/Toast.jsx'
 import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
-import { calculatePalletMovement, createPalletClosing, createPalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletMovement } from '../../lib/palletAccounts.js'
+import { calculatePalletMovement, createPalletClosing, createPalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletClosing, updatePalletMovement } from '../../lib/palletAccounts.js'
 import PalletAccountOverviewCard from './PalletAccountOverviewCard.jsx'
 import PalletAccountPartnerCard from './PalletAccountPartnerCard.jsx'
 import PalletClosingForm from './PalletClosingForm.jsx'
 import PalletJournal from './PalletJournal.jsx'
 import PalletMovementForm from './PalletMovementForm.jsx'
-import { createPalletClosingForm, createPalletMovementForm, createPalletMovementFormFromEntry, isNonNegativePalletQuantity, isPalletQuantityInput } from './palletFormState.js'
+import { createPalletClosingForm, createPalletClosingFormFromEntry, createPalletMovementForm, createPalletMovementFormFromEntry, isNonNegativePalletQuantity, isPalletQuantityInput } from './palletFormState.js'
 
 function fetchAccountData(partnerId) {
   return Promise.all([listPalletMovements(partnerId), listPalletClosings(partnerId)])
@@ -22,6 +22,7 @@ export default function PalletAccountDetail({ partnerId }) {
   const [accountError, setAccountError] = useState('')
   const [activeForm, setActiveForm] = useState('')
   const [editingMovement, setEditingMovement] = useState(null)
+  const [editingClosing, setEditingClosing] = useState(null)
   const [movementForm, setMovementForm] = useState(() => createPalletMovementForm())
   const [closingForm, setClosingForm] = useState(() => createPalletClosingForm(0))
   const [formError, setFormError] = useState('')
@@ -44,7 +45,8 @@ export default function PalletAccountDetail({ partnerId }) {
   const movementCalculation = useMemo(() => calculatePalletMovement(movementForm), [movementForm])
   const closingQuantity = Number(closingForm.quantity) || 0
   const closingAdjustment = closingForm.direction === 'add' ? closingQuantity : closingForm.direction === 'subtract' ? closingQuantity * -1 : 0
-  const newClosingBalance = account.balance + closingAdjustment
+  const closingBaseBalance = editingClosing ? account.balance - (Number(editingClosing.adjustment) || 0) : account.balance
+  const newClosingBalance = closingBaseBalance + closingAdjustment
   const partnersById = useMemo(() => new Map(partners.map((partner) => [partner.id, partner])), [partners])
   const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
   const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
@@ -60,12 +62,14 @@ export default function PalletAccountDetail({ partnerId }) {
   function closeActiveForm() {
     setActiveForm('')
     setEditingMovement(null)
+    setEditingClosing(null)
     setFormError('')
   }
 
   function openMovementForm(partner) {
     setFormError('')
     setEditingMovement(null)
+    setEditingClosing(null)
     setMovementForm(createPalletMovementForm(partner))
     setActiveForm('movement')
   }
@@ -73,6 +77,7 @@ export default function PalletAccountDetail({ partnerId }) {
   function openClosingForm() {
     setFormError('')
     setEditingMovement(null)
+    setEditingClosing(null)
     setClosingForm(createPalletClosingForm(account.balance))
     setActiveForm('closing')
   }
@@ -80,8 +85,17 @@ export default function PalletAccountDetail({ partnerId }) {
   function openMovementEdit(movement) {
     setFormError('')
     setEditingMovement(movement)
+    setEditingClosing(null)
     setMovementForm(createPalletMovementFormFromEntry(movement))
     setActiveForm('movement')
+  }
+
+  function openClosingEdit(closing) {
+    setFormError('')
+    setEditingMovement(null)
+    setEditingClosing(closing)
+    setClosingForm(createPalletClosingFormFromEntry(closing))
+    setActiveForm('closing')
   }
 
   function updateMovementField(field, value) {
@@ -132,12 +146,14 @@ export default function PalletAccountDetail({ partnerId }) {
     setIsSubmitting(true)
     setFormError('')
     try {
-      await createPalletClosing(partnerId, { ...closingForm, adjustment: closingAdjustment, previousBalance: account.balance, newBalance: newClosingBalance })
+      const values = { ...closingForm, adjustment: closingAdjustment, previousBalance: closingBaseBalance, newBalance: newClosingBalance }
+      if (editingClosing) await updatePalletClosing(editingClosing.id, values)
+      else await createPalletClosing(partnerId, values)
       await reloadAccount()
       closeActiveForm()
-      setToast('Kontoabschluss gespeichert.')
+      setToast(editingClosing ? 'Kontoabschluss aktualisiert.' : 'Kontoabschluss gespeichert.')
     } catch {
-      setFormError('Der Kontoabschluss konnte nicht gespeichert werden.')
+      setFormError(editingClosing ? 'Der Kontoabschluss konnte nicht aktualisiert werden.' : 'Der Kontoabschluss konnte nicht gespeichert werden.')
     } finally {
       setIsSubmitting(false)
     }
@@ -156,8 +172,8 @@ export default function PalletAccountDetail({ partnerId }) {
     <section className="pallet-account-workspace">
       {accountError && <p className="form-error">{accountError}</p>}
       {activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
-      {activeForm === 'closing' && <PalletClosingForm accountBalance={account.balance} closingForm={closingForm} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onSubmit={handleClosingSubmit} />}
-      <PalletJournal account={account} accountError={accountError} isEntryFormActive={Boolean(activeForm)} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} onEditMovement={openMovementEdit} />
+      {activeForm === 'closing' && <PalletClosingForm accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onSubmit={handleClosingSubmit} />}
+      <PalletJournal account={account} accountError={accountError} isEntryFormActive={Boolean(activeForm)} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} onEditClosing={openClosingEdit} onEditMovement={openMovementEdit} />
     </section>
   </div>
 }

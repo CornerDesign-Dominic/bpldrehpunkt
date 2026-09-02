@@ -36,6 +36,19 @@ export function createPalletClosingForm(balance) {
   return { date: currentDate(), type: PALLET_CLOSING_TYPES[0], reference: '', note: '', direction: '', quantity: '', previousBalance: balance }
 }
 
+export function createPalletClosingFormFromEntry(closing) {
+  const adjustment = Number(closing.adjustment) || 0
+  return {
+    date: closing.date ?? currentDate(),
+    type: PALLET_CLOSING_TYPES.includes(closing.type) ? closing.type : PALLET_CLOSING_TYPES[0],
+    reference: closing.reference ?? '',
+    note: closing.note ?? '',
+    direction: adjustment > 0 ? 'add' : adjustment < 0 ? 'subtract' : '',
+    quantity: adjustment ? String(Math.abs(adjustment)) : '',
+    previousBalance: closing.previousBalance ?? 0,
+  }
+}
+
 export function isPalletQuantityInput(value) {
   return value === '' || /^\d+$/.test(value)
 }

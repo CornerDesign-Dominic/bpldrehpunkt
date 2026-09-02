@@ -154,6 +154,36 @@ export async function createPalletClosing(partnerId, values) {
   })
 }
 
+function createClosingHistorySnapshot(closing) {
+  return {
+    date: closing.date ?? '',
+    type: closing.type ?? '',
+    reference: closing.reference ?? '',
+    note: closing.note ?? '',
+    previousBalance: toNumber(closing.previousBalance),
+    adjustment: toNumber(closing.adjustment),
+    newBalance: toNumber(closing.newBalance),
+  }
+}
+
+export async function updatePalletClosing(closingId, values) {
+  const closingRef = doc(db, PALLET_CLOSINGS_COLLECTION, closingId)
+  const previousSnapshot = await getDoc(closingRef)
+  if (!previousSnapshot.exists()) throw new Error('Kontoabschluss nicht gefunden.')
+
+  await updateDoc(closingRef, {
+    date: values.date,
+    type: values.type,
+    reference: trimValue(values.reference),
+    note: trimValue(values.note),
+    previousBalance: toNumber(values.previousBalance),
+    adjustment: toNumber(values.adjustment),
+    newBalance: toNumber(values.newBalance),
+    editHistory: arrayUnion({ editedAt: Timestamp.now(), previousData: createClosingHistorySnapshot(previousSnapshot.data()) }),
+    updatedAt: serverTimestamp(),
+  })
+}
+
 function timestampValue(value) {
   return value?.toMillis?.() ?? 0
 }

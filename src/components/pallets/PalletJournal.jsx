@@ -2,7 +2,7 @@ import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 import { PALLET_TYPES } from '../../constants/pallets.js'
 import { EditIcon } from '../icons.jsx'
 
-export default function PalletJournal({ account, accountError, isEntryFormActive, onAddClosing, onAddMovement, onEditMovement }) {
+export default function PalletJournal({ account, accountError, isEntryFormActive, onAddClosing, onAddMovement, onEditClosing, onEditMovement }) {
   return <section className="pallet-journal">
     <div className="pallet-journal__header"><h3>Kontoliste</h3><div className="pallet-journal__actions"><button className="button" type="button" onClick={onAddMovement} disabled={isEntryFormActive}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={onAddClosing} disabled={isEntryFormActive}>Abschluss hinzufügen</button></div></div>
     <div className="table-frame"><table><thead><tr><th>Datum</th><th>Art</th><th>Tournummer</th><th>Palettentyp</th><th>Lade-Zug.</th><th>Lade-Abg.</th><th>Entl.-Zug.</th><th>Entl.-Abg.</th><th>Veränderung</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
@@ -19,7 +19,7 @@ export default function PalletJournal({ account, accountError, isEntryFormActive
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.delivered) : '—'}</td>
           <td className="pallet-quantity"><strong>{formatPalletNumber(entry.change, true)}{entry.entryType === 'closing' ? ' Paletten' : ''}</strong></td>
           <td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td>
-          <td className="pallet-journal__action">{isMovement && <button type="button" onClick={() => onEditMovement(entry)} disabled={isEntryFormActive} title="Bearbeiten" aria-label="Palettenbewegung bearbeiten"><EditIcon /></button>}</td>
+          <td className="pallet-journal__action"><button type="button" onClick={() => isMovement ? onEditMovement(entry) : onEditClosing(entry)} disabled={isEntryFormActive} title="Bearbeiten" aria-label={isMovement ? 'Palettenbewegung bearbeiten' : 'Kontoabschluss bearbeiten'}><EditIcon /></button></td>
         </tr>
       }) : <tr><td colSpan="11" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
     </tbody></table></div>

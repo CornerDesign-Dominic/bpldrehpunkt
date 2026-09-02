@@ -1,12 +1,12 @@
 import { PALLET_CLOSING_TYPES } from '../../constants/pallets.js'
 import { formatPalletNumber } from './palletFormatters.js'
 
-export default function PalletClosingForm({ accountBalance, closingForm, formError, isSubmitting, newClosingBalance, onCancel, onChange, onSubmit }) {
+export default function PalletClosingForm({ accountBalance, closingForm, editingClosing, formError, isSubmitting, newClosingBalance, onCancel, onChange, onSubmit }) {
   const formatAmount = (value) => `${formatPalletNumber(value)} Paletten`
   const hasDirection = Boolean(closingForm.direction)
 
   return <form className="pallet-entry-form pallet-closing-form" onSubmit={onSubmit}>
-    <div className="pallet-entry-form__header"><h3>Abschluss hinzufügen</h3></div>
+    <div className="pallet-entry-form__header"><h3>{editingClosing ? 'Abschluss bearbeiten' : 'Abschluss hinzufügen'}</h3></div>
     <div className="pallet-closing-reference-grid">
       <label className="form-field"><span>Datum</span><input type="date" value={closingForm.date} onChange={(event) => onChange('date', event.target.value)} /></label>
       <label className="form-field"><span>Art des Abschlusses</span><select value={closingForm.type} onChange={(event) => onChange('type', event.target.value)}>{PALLET_CLOSING_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
