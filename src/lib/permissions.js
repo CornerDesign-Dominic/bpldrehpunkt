@@ -48,5 +48,9 @@ export function getSafeProfileDefaults(profile) {
   const vacationManagerDepartments = vacationManager && !vacationManagerAllDepartments && Array.isArray(profile?.vacationManagerDepartments)
     ? [...new Set(profile.vacationManagerDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
     : []
-  return { ...profile, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
+  const departmentId = typeof profile?.departmentId === 'string' ? profile.departmentId.trim() : ''
+  const departmentName = typeof profile?.departmentName === 'string' && profile.departmentName.trim()
+    ? profile.departmentName.trim()
+    : (typeof profile?.department === 'string' ? profile.department.trim() : '')
+  return { ...profile, departmentId, departmentName, department: departmentName, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
 }

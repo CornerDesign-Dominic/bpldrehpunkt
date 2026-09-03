@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { auth, authPersistenceReady } from '../lib/firebase.js'
-import { getUserProfile } from '../lib/userProfiles.js'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { auth, authPersistenceReady, db } from '../lib/firebase.js'
+import { getSafeProfileDefaults } from '../lib/permissions.js'
 import { AuthContext } from './authContext.js'
 
 export function AuthProvider({ children }) {
@@ -12,24 +13,29 @@ export function AuthProvider({ children }) {
     let stateVersion = 0
 
     let unsubscribe = () => {}
+    let unsubscribeProfile = () => {}
     authPersistenceReady.finally(() => {
       if (!isMounted) return
-      unsubscribe = onAuthStateChanged(auth, async (user) => {
+      unsubscribe = onAuthStateChanged(auth, (user) => {
         const currentVersion = ++stateVersion
+        unsubscribeProfile()
         if (!user) {
           if (isMounted) setAuthState({ user: null, profile: null, isLoading: false })
           return
         }
-
-        const profile = await getUserProfile(user.uid).catch(() => null)
-
-        if (isMounted && currentVersion === stateVersion) setAuthState({ user, profile, isLoading: false })
+        unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
+          const profile = snapshot.exists() ? getSafeProfileDefaults({ id: snapshot.id, ...snapshot.data() }) : null
+          if (isMounted && currentVersion === stateVersion) setAuthState({ user, profile, isLoading: false })
+        }, () => {
+          if (isMounted && currentVersion === stateVersion) setAuthState({ user, profile: null, isLoading: false })
+        })
       })
     })
 
     return () => {
       isMounted = false
       unsubscribe()
+      unsubscribeProfile()
     }
   }, [])
 

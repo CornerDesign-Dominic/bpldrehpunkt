@@ -21,6 +21,12 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'active', 'employmentStart', 'personnelNumber', 'updatedAt']));
     }
 
+    match /departments/{departmentId} {
+      allow read: if signedIn();
+      // Central department maintenance runs through superadmin-only callable functions.
+      allow write: if false;
+    }
+
     match /businessPartners/{partnerId} {
       allow read: if view('masterData') || view('crm') || view('pallets');
       allow create, delete: if edit('masterData');

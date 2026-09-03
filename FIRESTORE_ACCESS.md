@@ -33,7 +33,13 @@ Für die Entwicklungsphase ohne Login ist ein lokaler Firestore Emulator der sic
 
 Die persönliche Urlaubsübersicht verwendet `vacationRequests`. Ein Antrag enthält unter anderem `userId`, `startDate`, `endDate`, `days`, `status`, `type`, `note`, `createdAt` und `updatedAt`. Änderungs- und Stornoanträge werden als neue Datensätze mit `originalRequestId` sowie `changeRequest` beziehungsweise `cancellationRequest` angelegt; der ursprüngliche Antrag wird nie überschrieben. Die Anwendung lädt nur eigene Anträge und genehmigte Anträge anderer Mitarbeitender.
 
-Das Urlaubsmanagement ist über die Benutzerfelder `vacationManager`, `vacationManagerAllDepartments` und `vacationManagerDepartments` abgesichert. Die Callable Functions `listManagedVacationRequests` und `processVacationRequest` prüfen die Zuständigkeit des angemeldeten Managers anhand der Abteilung des Antragstellers erneut serverseitig. Genehmigung und Ablehnung erfolgen ausschließlich darüber; Firestore-Clients dürfen Anträge nicht direkt aktualisieren oder löschen.
+Das Urlaubsmanagement ist über die Benutzerfelder `vacationManager`, `vacationManagerAllDepartments` und `vacationManagerDepartments` abgesichert. `vacationManagerDepartments` enthält ausschließlich IDs aus der zentralen Collection `departments`. Die Callable Functions `listManagedVacationRequests` und `processVacationRequest` prüfen die Zuständigkeit des angemeldeten Managers anhand der Abteilungs-ID des Antragstellers erneut serverseitig. Genehmigung und Ablehnung erfolgen ausschließlich darüber; Firestore-Clients dürfen Anträge nicht direkt aktualisieren oder löschen.
+
+## Zentrale Abteilungen
+
+Abteilungen liegen zentral unter `departments/{id}` mit `id`, `name`, `normalizedName`, `active`, `createdAt` und `updatedAt`. Anlegen, Umbenennen sowie Aktivieren/Deaktivieren ist ausschließlich über die Superadmin-Callable-Functions `createDepartment` und `updateDepartment` möglich. Benutzer speichern `departmentId`; die Felder `department` und `departmentName` bleiben für bestehende Ansichten als lesbare Spiegelwerte erhalten.
+
+Beim ersten Öffnen der Benutzerverwaltung durch einen Superadmin übernimmt `migrateLegacyDepartments` vorhandene Freitext-Abteilungen und frühere Urlaubsmanager-Zuständigkeiten sicher in die zentrale Struktur. Dadurch bleiben vorhandene Benutzer- und Berechtigungsdaten nutzbar.
 
 Feiertage werden unter `calendarHolidays` vorbereitet (`date` oder `startDate`/`endDate`, `label`). Spätere Verwaltungsfunktionen können Urlaubssperren unter `vacationBlocks` anlegen (`startDate`, `endDate`, `label`, optional `note`, `createdAt`, `updatedAt`). Beide Collections werden nur gelesen und im Kalender dezent als eigene Eintragstypen dargestellt.
 
