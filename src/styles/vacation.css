@@ -8,6 +8,7 @@
 .vacation-nav-button:hover { color: var(--text-primary); background: var(--surface-active); }
 .vacation-calendar { display: flex; min-height: 0; flex: 1; flex-direction: column; padding-top: 12px; }
 .vacation-calendar__weekdays, .vacation-calendar-week__days, .vacation-calendar-week__bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.vacation-calendar-week__days { height: 100%; }
 .vacation-calendar__weekdays { border: 1px solid var(--border); border-bottom: 0; border-radius: 5px 5px 0 0; background: var(--surface-secondary); }
 .vacation-calendar__weekdays span { padding: 7px 4px; color: var(--text-muted); font-size: 10px; font-weight: 700; text-align: center; text-transform: uppercase; }
 .vacation-calendar__weeks { display: grid; min-height: 0; flex: 1; grid-auto-rows: minmax(0, 1fr); border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
