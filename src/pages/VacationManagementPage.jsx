@@ -5,6 +5,7 @@ import Toast from '../components/ui/Toast.jsx'
 import { businessDays, formatVacationPeriod, getVacationType, todayValue } from '../lib/vacationRequests.js'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import { listManagedVacationData, processVacationRequest } from '../lib/vacationManagement.js'
+import { notifyVacationDecision } from '../lib/vacationNotifications.js'
 import '../styles/vacation.css'
 import '../styles/vacationManagement.css'
 
@@ -109,7 +110,7 @@ export default function VacationManagementPage() {
   }, [filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
 
   function moveMonth(delta) { const next = new Date(year, month + delta, 1); setYear(next.getFullYear()); setMonth(next.getMonth()) }
-  async function process(request, decision, managerComment) { setProcessingId(request.id); try { await processVacationRequest(request.id, decision, managerComment); await reload(); setSelectedRequest(null); const actionLabel = requestTypes[requestType(request)] || 'Antrag'; setToast(decision === 'approved' ? `${actionLabel} genehmigt.` : `${actionLabel} abgelehnt.`) } catch { setToast('Der Urlaubsantrag konnte nicht bearbeitet werden.') } finally { setProcessingId('') } }
+  async function process(request, decision, managerComment) { setProcessingId(request.id); try { await processVacationRequest(request.id, decision, managerComment); let notificationSent = false; try { notificationSent = await notifyVacationDecision({ request: { ...request, managerComment }, decision }) } catch { notificationSent = false } await reload(); setSelectedRequest(null); const actionLabel = requestTypes[requestType(request)] || 'Antrag'; const successMessage = decision === 'approved' ? `${actionLabel} genehmigt.` : `${actionLabel} abgelehnt.`; setToast(notificationSent ? successMessage : `${successMessage} Benachrichtigung konnte nicht gesendet werden.`) } catch { setToast('Der Urlaubsantrag konnte nicht bearbeitet werden.') } finally { setProcessingId('') } }
   function requestProcess(request, decision, managerComment) { setConfirmation({ request, decision, managerComment }) }
 
   const selectedOriginal = selectedRequest?.originalRequestId ? requestsById.get(selectedRequest.originalRequestId) : null

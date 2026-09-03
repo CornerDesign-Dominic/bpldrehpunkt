@@ -4,14 +4,12 @@ import { usePermissions } from '../auth/usePermissions.js'
 import VacationCalendar from '../components/vacation/VacationCalendar.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
-import { canEdit as canApproveVacation } from '../lib/permissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
   businessDays,
   createVacationChangeRequest,
   createVacationCancellationRequest,
   createVacationRequest,
-  formatVacationDate,
   formatVacationPeriod,
   getVacationStatus,
   getVacationType,
@@ -21,17 +19,15 @@ import {
   requestOverlaps,
   todayValue,
 } from '../lib/vacationRequests.js'
+import { notifyVacationSubmission } from '../lib/vacationNotifications.js'
 import '../styles/vacation.css'
 
 function displayName(profile) {
   return getUserDisplayName(profile, profile)
 }
 
-function vacationApproverEmails(users, requesterId) {
-  return [...new Set(users
-    .filter((item) => item.id !== requesterId && item.active !== false && canApproveVacation(item, 'vacation'))
-    .map((item) => item.email?.trim())
-    .filter(Boolean))]
+function departmentKey(profile) {
+  return profile?.departmentId || profile?.department?.trim() || ''
 }
 
 function vacationAllowance(profile) {
@@ -145,8 +141,7 @@ export default function VacationPage() {
   const currentMonth = new Date().getMonth()
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentMonth)
-  const [department, setDepartment] = useState('all')
-  const [employee, setEmployee] = useState('all')
+  const [calendarScope, setCalendarScope] = useState('self')
   const [users, setUsers] = useState([])
   const [requests, setRequests] = useState([])
   const [holidays, setHolidays] = useState([])
@@ -166,26 +161,6 @@ export default function VacationPage() {
     setVacationBlocks(result.blocks)
   }
 
-  async function notifyVacationApprovers(notification) {
-    const recipients = vacationApproverEmails(users, user.uid)
-    if (!recipients.length) return 'no-recipient'
-
-    const outcomes = await Promise.all(recipients.map(async (to) => {
-      try {
-        const response = await fetch('/api/notifications', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to, ...notification }),
-        })
-        return response.ok
-      } catch {
-        return false
-      }
-    }))
-
-    return outcomes.every(Boolean) ? 'sent' : 'failed'
-  }
-
   useEffect(() => {
     let active = true
     loadVacationData(user, profile)
@@ -201,18 +176,15 @@ export default function VacationPage() {
     return () => { active = false }
   }, [profile, user])
 
-  const departments = useMemo(() => [...new Set(users.map((item) => item.department?.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'de')), [users])
-  const selectableUsers = useMemo(() => users.filter((item) => department === 'all' || item.department?.trim() === department).sort((left, right) => displayName(left).localeCompare(displayName(right), 'de')), [department, users])
   const usersById = useMemo(() => new Map(users.map((item) => [item.id, item])), [users])
+  const ownDepartment = departmentKey(usersById.get(user.uid) || profile)
   const visibleRequests = useMemo(() => requests.filter((request) => {
     const isOwn = request.userId === user.uid
     const owner = usersById.get(request.userId)
     return !request.originalRequestId
       && requestOverlaps(request, `${year}-${String(month + 1).padStart(2, '0')}-01`, `${year}-${String(month + 1).padStart(2, '0')}-31`)
-      && (isOwn || request.status === 'approved')
-      && (department === 'all' || owner?.department?.trim() === department)
-      && (employee === 'all' || request.userId === employee)
-  }), [department, employee, month, requests, user.uid, usersById, year])
+      && (isOwn || (calendarScope === 'department' && ownDepartment && departmentKey(owner) === ownDepartment && request.status === 'approved'))
+  }), [calendarScope, month, ownDepartment, requests, user.uid, usersById, year])
   const ownRequests = useMemo(() => requests.filter((request) => request.userId === user.uid), [requests, user.uid])
   const ownRelatedByOriginal = useMemo(() => ownRequests.filter((request) => request.originalRequestId).reduce((map, request) => { const related = map.get(request.originalRequestId) || []; related.push(request); map.set(request.originalRequestId, related); return map }, new Map()), [ownRequests])
   const ownList = useMemo(() => ownRequests.filter((request) => {
@@ -261,40 +233,67 @@ export default function VacationPage() {
   async function saveRequest(form) {
     const isChange = modal?.type === 'change'
     const originalRequest = modal?.request
-    const applicantName = getUserDisplayName(profile, user)
-    if (isChange) await createVacationChangeRequest(originalRequest, user.uid, form)
-    else await createVacationRequest(user.uid, form)
+    const requestId = isChange
+      ? await createVacationChangeRequest(originalRequest, user.uid, form)
+      : await createVacationRequest(user.uid, form)
+    const applicant = {
+      ...users.find((item) => item.id === user.uid),
+      ...profile,
+      id: user.uid,
+      email: user.email || profile?.email || '',
+    }
+    const savedRequest = isChange
+      ? {
+          id: requestId,
+          ...form,
+          userId: user.uid,
+          status: 'change_requested',
+          originalRequestId: originalRequest.id,
+          changeRequest: {
+            originalStartDate: originalRequest.startDate,
+            originalEndDate: originalRequest.endDate,
+            originalDays: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
+          },
+        }
+      : { id: requestId, ...form, userId: user.uid, status: 'pending' }
 
     setModal(null)
-    const notification = isChange
-      ? {
-          type: 'vacation_change',
-          subject: `Urlaub [Änderung] - ${applicantName}`,
-          message: `${applicantName} hat eine Änderung für den Urlaub vom ${formatVacationDate(originalRequest.startDate)} bis ${formatVacationDate(originalRequest.endDate)} beantragt.\n\nGewünschter Zeitraum:\n${formatVacationDate(form.startDate)} bis ${formatVacationDate(form.endDate)}\n\nBitte im Drehpunkt prüfen.`,
-        }
-      : {
-          type: 'vacation_request',
-          subject: `Urlaub [Antrag] - ${applicantName}`,
-          message: `${applicantName} hat einen Urlaubsantrag für den Zeitraum ${formatVacationDate(form.startDate)} bis ${formatVacationDate(form.endDate)} gestellt.\n\nBitte im Drehpunkt prüfen.`,
-        }
-    const notificationResult = await notifyVacationApprovers(notification)
+    const notificationSent = await notifyVacationSubmission({ applicant, request: savedRequest, users })
     await reload().catch(() => undefined)
     const successMessage = isChange ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.'
-    setToast(notificationResult === 'failed' ? `${successMessage} Benachrichtigung konnte nicht vollständig gesendet werden.` : notificationResult === 'no-recipient' ? `${successMessage} Kein zuständiger Genehmiger mit Urlaubsberechtigung hinterlegt.` : successMessage)
+    setToast(notificationSent ? successMessage : `${successMessage} Benachrichtigung konnte nicht vollständig gesendet werden.`)
   }
 
   async function saveCancellation(form) {
     const originalRequest = modal.request
-    const applicantName = getUserDisplayName(profile, user)
-    await createVacationCancellationRequest(originalRequest, user.uid, form)
+    const requestId = await createVacationCancellationRequest(originalRequest, user.uid, form)
+    const applicant = {
+      ...users.find((item) => item.id === user.uid),
+      ...profile,
+      id: user.uid,
+      email: user.email || profile?.email || '',
+    }
+    const savedRequest = {
+      id: requestId,
+      userId: user.uid,
+      startDate: originalRequest.startDate,
+      endDate: originalRequest.endDate,
+      days: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
+      vacationType: originalRequest.vacationType,
+      requestComment: form.requestComment,
+      status: 'cancellation_requested',
+      requestKind: 'cancellation',
+      originalRequestId: originalRequest.id,
+      cancellationRequest: {
+        originalStartDate: originalRequest.startDate,
+        originalEndDate: originalRequest.endDate,
+        originalDays: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
+      },
+    }
     setModal(null)
-    const notificationResult = await notifyVacationApprovers({
-      type: 'vacation_cancel',
-      subject: `Urlaub [Storno] - ${applicantName}`,
-      message: `${applicantName} hat die Stornierung des Urlaubs vom ${formatVacationDate(originalRequest.startDate)} bis ${formatVacationDate(originalRequest.endDate)} beantragt.\n\nBitte im Drehpunkt prüfen.`,
-    })
+    const notificationSent = await notifyVacationSubmission({ applicant, request: savedRequest, users })
     await reload().catch(() => undefined)
-    setToast(notificationResult === 'failed' ? 'Stornoantrag gesendet. Benachrichtigung konnte nicht vollständig gesendet werden.' : notificationResult === 'no-recipient' ? 'Stornoantrag gesendet. Kein zuständiger Genehmiger mit Urlaubsberechtigung hinterlegt.' : 'Stornoantrag gesendet.')
+    setToast(notificationSent ? 'Stornoantrag gesendet.' : 'Stornoantrag gesendet. Benachrichtigung konnte nicht vollständig gesendet werden.')
   }
 
   const editable = canEdit('vacation')
@@ -302,7 +301,7 @@ export default function VacationPage() {
   return <div className="vacation-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <section className="vacation-calendar-card">
-      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Abteilung</span><select value={department} onChange={(event) => { setDepartment(event.target.value); setEmployee('all') }}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span className="sr-only">Mitarbeiter</span><select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="all">Alle Mitarbeiter</option>{selectableUsers.map((item) => <option key={item.id} value={item.id}>{displayName(item)}</option>)}</select></label></div></div>
+      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Kalenderansicht</span><select value={calendarScope} onChange={(event) => setCalendarScope(event.target.value)}><option value="self">Mein Kalender</option>{ownDepartment && <option value="department">Meine Abteilung</option>}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
       {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar year={year} month={month} today={today} entries={calendarEntries} /><div className="vacation-legend"><span className="vacation-legend__item vacation-legend__item--holiday">Feiertag</span><span className="vacation-legend__item vacation-legend__item--approved">Genehmigter Urlaub</span><span className="vacation-legend__item vacation-legend__item--block">Urlaubssperre</span></div></>}
     </section>

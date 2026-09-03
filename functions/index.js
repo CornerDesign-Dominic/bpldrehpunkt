@@ -205,7 +205,7 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, as
     .filter((item) => canManageVacationDepartment(manager, employees.get(item.userId)?.departmentId || employees.get(item.userId)?.department || ''))
     .map((item) => {
       const employee = employees.get(item.userId) || {}
-      return { ...item, employeeName: [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || employee.email || '—', employeeDepartment: employee.departmentName || employee.department || '—', employeeDepartmentId: employee.departmentId || employee.department || '', requestType: requestType(item), submittedAt: submittedAt(item) }
+      return { ...item, employeeName: [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || employee.email || '—', employeeEmail: employee.email || '', employeeDepartment: employee.departmentName || employee.department || '—', employeeDepartmentId: employee.departmentId || employee.department || '', requestType: requestType(item), submittedAt: submittedAt(item) }
     })
   const calendarItems = (snapshot, fallbackLabel) => snapshot.docs.map((item) => {
     const data = item.data()
