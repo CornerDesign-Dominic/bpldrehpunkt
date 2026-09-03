@@ -74,7 +74,9 @@ function RequestModal({ request, onClose, onSubmit }) {
   function setDate(field, value) {
     setForm((current) => {
       const next = { ...current, [field]: value }
-      return daysEdited ? next : { ...next, days: String(businessDays(next.startDate, next.endDate)) }
+      if (field === 'startDate') next.endDate = value
+      if (field === 'endDate' && value < current.startDate) next.endDate = current.startDate
+      return { ...next, days: String(businessDays(next.startDate, next.endDate)) }
     })
   }
 
