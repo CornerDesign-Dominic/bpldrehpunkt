@@ -66,20 +66,25 @@ export default function VacationManagementPage() {
   const relatedByOriginal = useMemo(() => filteredRequests.filter((item) => item.originalRequestId).reduce((map, item) => { const related = map.get(item.originalRequestId) || []; related.push(item); map.set(item.originalRequestId, related); return map }, new Map()), [filteredRequests])
 
   const calendarEntries = useMemo(() => {
-    const baseRequests = filteredRequests.filter((item) => !item.originalRequestId && requestStatus(item) !== 'rejected')
-    const changeRequests = filteredRequests.filter((item) => requestType(item) === 'change' && ['pending', 'approved'].includes(requestStatus(item)))
+    const baseRequests = filteredRequests.filter((item) => !item.originalRequestId)
     return [
       ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
       ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
-      ...baseRequests.map((item) => {
+      ...baseRequests.flatMap((item) => {
         const related = relatedByOriginal.get(item.id) || []
-        const pendingChange = related.find((relatedRequest) => requestType(relatedRequest) === 'change' && requestStatus(relatedRequest) === 'pending')
+        const changes = related.filter((relatedRequest) => requestType(relatedRequest) === 'change')
+        const latestChange = changes.sort((left, right) => (right.submittedAt || '').localeCompare(left.submittedAt || '') || (right.startDate || '').localeCompare(left.startDate || ''))[0]
         const pendingCancellation = related.find((relatedRequest) => requestType(relatedRequest) === 'cancellation' && requestStatus(relatedRequest) === 'pending')
         const approvedCancellation = related.find((relatedRequest) => requestType(relatedRequest) === 'cancellation' && requestStatus(relatedRequest) === 'approved')
-        const annotation = pendingCancellation ? 'Storno angefragt' : pendingChange ? 'Änderung angefragt' : approvedCancellation ? 'Storno genehmigt' : ''
-        return { id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: requestStatus(item), modifier: pendingCancellation ? 'cancellation_requested' : pendingChange ? 'change_requested' : '', title: `${item.employeeName} · ${annotation || statusLabels[requestStatus(item)]}` }
+        if (latestChange && requestStatus(latestChange) === 'approved') return [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: latestChange.employeeName.split(' ')[0], kind: 'approved', title: `${latestChange.employeeName} · Änderung genehmigt` }]
+        if (latestChange && requestStatus(latestChange) === 'pending') return [
+          { id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]} · Änderung angefragt`, kind: requestStatus(item), modifier: 'change_requested', title: `${item.employeeName} · Änderung angefragt` },
+          { id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: `${latestChange.employeeName.split(' ')[0]} · Änderung angefragt`, kind: 'pending', title: `${latestChange.employeeName} · Änderung angefragt` },
+        ]
+        if (requestStatus(item) === 'rejected') return []
+        const annotation = pendingCancellation ? 'Storno angefragt' : approvedCancellation ? 'Storno genehmigt' : ''
+        return [{ id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: requestStatus(item), modifier: pendingCancellation ? 'cancellation_requested' : '', title: `${item.employeeName} · ${annotation || statusLabels[requestStatus(item)]}` }]
       }),
-      ...changeRequests.map((item) => ({ id: `change-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]} · Änderung`, kind: requestStatus(item), modifier: requestStatus(item) === 'pending' ? 'change_requested' : '', title: `${item.employeeName} · ${requestStatus(item) === 'approved' ? 'Änderung genehmigt' : 'Änderung angefragt'}` })),
     ]
   }, [filteredRequests, holidays, relatedByOriginal, vacationBlocks])
 

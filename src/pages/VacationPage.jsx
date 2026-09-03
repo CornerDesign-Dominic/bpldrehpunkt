@@ -104,6 +104,18 @@ function RequestDetail({ request, onClose, onChange }) {
   return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-detail-title">Urlaubsantrag</h2><p>{formatVacationPeriod(request)}</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><dl className="vacation-detail-list"><div><dt>Urlaubsart</dt><dd>{getVacationType(request.vacationType).label}</dd></div><div><dt>Urlaubstage</dt><dd>{request.days ?? businessDays(request.startDate, request.endDate)}</dd></div><div><dt>Status</dt><dd><StatusBadge status={request.status} /></dd></div><div className="vacation-detail-list__wide"><dt>Kommentar des Mitarbeiters</dt><dd>{request.requestComment || request.note || 'Kein Kommentar'}</dd></div>{request.managerComment !== undefined && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd>{request.managerComment || 'Kein Kommentar'}</dd></div>}{request.originalRequestId && <div className="vacation-detail-list__wide"><dt>Bezug</dt><dd>Änderungsantrag zu einem bestehenden Urlaub.</dd></div>}</dl><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button>{onChange && <button className="button" type="button" onClick={onChange}>Änderung beantragen</button>}</div></section></div>
 }
 
+function requestSortValue(request) {
+  const timestamp = request.updatedAt || request.createdAt || request.processedAt
+  if (typeof timestamp?.toMillis === 'function') return timestamp.toMillis()
+  if (timestamp instanceof Date) return timestamp.getTime()
+  if (typeof timestamp === 'string') return Date.parse(timestamp) || 0
+  return 0
+}
+
+function latestRequest(requests) {
+  return [...requests].sort((left, right) => requestSortValue(right) - requestSortValue(left) || (right.startDate || '').localeCompare(left.startDate || '') || (right.id || '').localeCompare(left.id || ''))[0]
+}
+
 function RequestPicker({ mode, requests, onClose, onSelect }) {
   const title = mode === 'change' ? 'Urlaub für Änderung auswählen' : 'Urlaub für Storno auswählen'
   return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--picker" role="dialog" aria-modal="true" aria-labelledby="vacation-picker-title"><div className="vacation-modal__heading"><div><h2 id="vacation-picker-title">{title}</h2><p>Der ursprüngliche Antrag bleibt unverändert.</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><div className="vacation-picker-list">{requests.length ? requests.map((request) => <button key={request.id} className="vacation-picker-item" type="button" onClick={() => onSelect(request)}><strong>{formatVacationPeriod(request)}</strong><span>{request.days ?? businessDays(request.startDate, request.endDate)} Tage <StatusBadge status={request.status} /></span></button>) : <p className="vacation-state">Keine eigenen Urlaubsanträge verfügbar.</p>}</div></section></div>
@@ -210,7 +222,10 @@ export default function VacationPage() {
   const ownRequests = useMemo(() => requests.filter((request) => request.userId === user.uid), [requests, user.uid])
   const ownRelatedByOriginal = useMemo(() => ownRequests.filter((request) => request.originalRequestId).reduce((map, request) => { const related = map.get(request.originalRequestId) || []; related.push(request); map.set(request.originalRequestId, related); return map }, new Map()), [ownRequests])
   const selectableOwnRequests = useMemo(() => ownRequests.filter((request) => !request.originalRequestId && request.status !== 'rejected').sort((left, right) => right.startDate.localeCompare(left.startDate)), [ownRequests])
-  const ownList = useMemo(() => ownRequests.filter((request) => requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`)).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listYear, ownRequests])
+  const ownList = useMemo(() => ownRequests.filter((request) => {
+    if (!request.originalRequestId) return !ownRelatedByOriginal.has(request.id)
+    return latestRequest(ownRelatedByOriginal.get(request.originalRequestId) || [])?.id === request.id
+  }).filter((request) => requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`)).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listYear, ownRelatedByOriginal, ownRequests])
   const summary = useMemo(() => {
     const relevant = ownRequests.filter((request) => request.status === 'approved' && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`))
     const taken = relevant.filter((request) => request.endDate < today).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
@@ -225,16 +240,24 @@ export default function VacationPage() {
   const calendarEntries = useMemo(() => [
     ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
     ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
-    ...visibleRequests.map((item) => {
+    ...visibleRequests.flatMap((item) => {
       const owner = usersById.get(item.userId)
+      const ownerName = displayName(owner || {})
       const related = ownRelatedByOriginal.get(item.id) || []
-      const pendingChange = related.find((request) => request.status === 'change_requested')
-      const pendingCancellation = related.find((request) => request.status === 'cancellation_requested')
-      const annotation = pendingCancellation ? 'Storno angefragt' : pendingChange ? 'Änderung angefragt' : ''
-      return { id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${displayName(owner || {}).split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: item.status, modifier: pendingCancellation ? 'cancellation_requested' : pendingChange ? 'change_requested' : '', own: item.userId === user.uid, title: `${displayName(owner || {})} · ${annotation || getVacationStatus(item.status).label}` }
+      const latestChange = latestRequest(related.filter((request) => request.status === 'change_requested' || request.changeRequest))
+      const pendingCancellation = latestRequest(related.filter((request) => request.status === 'cancellation_requested'))
+      const own = item.userId === user.uid
+
+      if (latestChange?.status === 'approved') return [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: ownerName.split(' ')[0], kind: 'approved', own, title: `${ownerName} · Änderung genehmigt` }]
+      if (latestChange?.status === 'change_requested') return [
+        { id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${ownerName.split(' ')[0]} · Änderung angefragt`, kind: item.status, modifier: 'change_requested', own, title: `${ownerName} · Änderung angefragt` },
+        { id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: `${ownerName.split(' ')[0]} · Änderung angefragt`, kind: 'pending', own, title: `${ownerName} · Änderung angefragt` },
+      ]
+
+      const annotation = pendingCancellation ? 'Storno angefragt' : ''
+      return [{ id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${ownerName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: item.status, modifier: pendingCancellation ? 'cancellation_requested' : '', own, title: `${ownerName} · ${annotation || getVacationStatus(item.status).label}` }]
     }),
-    ...ownRequests.filter((item) => item.originalRequestId && item.status === 'change_requested' && (employee === 'all' || employee === user.uid) && (department === 'all' || usersById.get(user.uid)?.department?.trim() === department)).map((item) => ({ id: `change-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: 'Änderung angefragt', kind: 'pending', modifier: 'change_requested', own: true, title: 'Änderung angefragt' })),
-  ], [department, employee, holidays, ownRelatedByOriginal, ownRequests, user.uid, usersById, vacationBlocks, visibleRequests])
+  ], [holidays, ownRelatedByOriginal, user.uid, usersById, vacationBlocks, visibleRequests])
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)
