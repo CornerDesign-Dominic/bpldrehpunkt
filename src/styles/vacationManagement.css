@@ -1,5 +1,5 @@
-.vacation-management-page { display: grid; gap: 13px; height: 100%; max-width: var(--list-content-max-width); margin: 0 auto; }
-.vacation-management-heading h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
+.vacation-management-page { display: grid; height: 100%; max-width: var(--list-content-max-width); margin: 0 auto; }
+.vacation-management-heading { display: none; }
 .vacation-management-layout { display: grid; min-height: 0; grid-template-columns: minmax(0, 1.65fr) minmax(310px, 1fr); gap: 14px; }
 .vacation-management-calendar { min-height: 610px; }
 .vacation-management-list { display: flex; min-height: 0; flex-direction: column; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
