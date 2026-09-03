@@ -8,9 +8,13 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
   assignTodoToCurrentUser,
+  addTodoNote,
+  audienceHasChanged,
   completeTodoForCurrentUser,
   getTodoById,
   isAudienceMember,
+  isSelfTodo,
+  listTodoUpdates,
   releaseTodoFromCurrentUser,
   TODO_STATUS,
   updateTodoByCreator,
@@ -41,11 +45,11 @@ function Detail({ label, children }) {
 function TodoActions({ actor, editable, onAction, onEdit, todo }) {
   const canManage = actor.profile?.role === 'superadmin' || todo.creatorUserId === actor.user.uid
   const isAssignee = todo.assignedUserId === actor.user.uid
-  const isPersonalOwnTodo = todo.creatorUserId === actor.user.uid && todo.audienceType === 'person' && todo.audienceId === actor.user.uid
+  const isPersonalOwnTodo = isSelfTodo(todo, actor.user.uid)
   const canTake = editable && todo.status === 'open' && !todo.assignedUserId && isAudienceMember(todo, actor)
   if (!editable) return null
   return <div className="todo-detail-actions">
-    {canTake && <button className="button" type="button" onClick={() => onAction('assign', todo)}>Übernehmen</button>}
+    {canTake && <button className="button" type="button" onClick={() => onAction('assign', todo)}>Aufgabe annehmen</button>}
     {isAssignee && todo.status === 'in_progress' && <>{!isPersonalOwnTodo && <button className="button button--secondary" type="button" onClick={() => onAction('release', todo)}>Freigeben</button>}<button className="button" type="button" onClick={() => onAction('complete', todo)}>Erledigen</button></>}
     {canManage && ['open', 'in_progress'].includes(todo.status) && <><button className="button button--secondary" type="button" onClick={() => onEdit(todo, false)}>Bearbeiten</button><button className="button button--secondary" type="button" onClick={() => onEdit(todo, true)}>Neu zuweisen</button><button className="button button--danger" type="button" onClick={() => onAction('withdraw', todo)}>Zurückziehen</button></>}
   </div>
@@ -54,10 +58,14 @@ function TodoActions({ actor, editable, onAction, onEdit, todo }) {
 export default function TodoDetailPage() {
   const { todoId } = useParams()
   const { user, profile } = useAuth()
-  const { canEdit } = usePermissions()
+  const { canEdit, canView } = usePermissions()
   const actor = useMemo(() => ({ user, profile }), [profile, user])
   const [result, setResult] = useState(null)
   const [users, setUsers] = useState([])
+  const [updates, setUpdates] = useState([])
+  const [updatesLoading, setUpdatesLoading] = useState(true)
+  const [note, setNote] = useState('')
+  const [noteSaving, setNoteSaving] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmation, setConfirmation] = useState(null)
   const [error, setError] = useState('')
@@ -67,21 +75,23 @@ export default function TodoDetailPage() {
   const usersById = useMemo(() => new Map(activeUsers.map((item) => [item.id, item])), [activeUsers])
 
   async function loadTodo() {
-    const todo = await getTodoById(todoId)
+    const [todo, todoUpdates] = await Promise.all([getTodoById(todoId), listTodoUpdates(todoId)])
     setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' })
+    setUpdates(todoUpdates)
+    setUpdatesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getTodoById(todoId), editable ? listUserProfiles() : Promise.resolve([])])
-      .then(([todo, profiles]) => { if (current) { setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' }); setUsers(profiles) } })
-      .catch((loadError) => { if (current) setResult({ todo: null, error: loadError.code === 'permission-denied' ? 'Kein Zugriff auf diese Aufgabe.' : 'Aufgabe nicht gefunden.' }) })
+    Promise.all([getTodoById(todoId), listTodoUpdates(todoId), editable ? listUserProfiles() : Promise.resolve([])])
+      .then(([todo, todoUpdates, profiles]) => { if (current) { setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' }); setUpdates(todoUpdates); setUpdatesLoading(false); setUsers(profiles) } })
+      .catch((loadError) => { if (current) { setResult({ todo: null, error: loadError.code === 'permission-denied' ? 'Kein Zugriff auf diese Aufgabe.' : 'Aufgabe nicht gefunden.' }); setUpdatesLoading(false) } })
     return () => { current = false }
   }, [editable, todoId])
 
   async function saveEdit(values) {
     const todo = result.todo
-    const audienceChanged = todo.audienceType !== values.audienceType || todo.audienceId !== (values.audienceType === 'all' ? null : values.audienceId)
+    const audienceChanged = audienceHasChanged(todo, values, user.uid)
     const resetAssignment = editing.reassign || audienceChanged
     if (todo.assignedUserId && resetAssignment) {
       setConfirmation({ type: 'save', values, title: 'Übernahme zurücksetzen?', message: 'Das To-do wurde bereits übernommen. Durch diese Änderung wird die Bearbeitung beendet und das To-do wieder geöffnet.' })
@@ -91,7 +101,7 @@ export default function TodoDetailPage() {
   }
 
   async function performSave(values, resetAssignment) {
-    await updateTodoByCreator(result.todo.id, values, usersById, resetAssignment)
+    await updateTodoByCreator(result.todo.id, values, usersById, resetAssignment, actor)
     await loadTodo()
     setEditing(null)
     setToast(resetAssignment ? 'To-do neu zugewiesen und wieder geöffnet.' : 'To-do aktualisiert.')
@@ -109,7 +119,7 @@ export default function TodoDetailPage() {
       if (action === 'complete') await completeTodoForCurrentUser(todo.id, actor)
       if (action === 'withdraw') await withdrawTodo(todo.id, actor)
       await loadTodo()
-      setToast({ assign: 'To-do übernommen.', release: 'Bearbeitung freigegeben.', complete: 'To-do erledigt.', withdraw: 'To-do zurückgezogen.' }[action])
+      setToast({ assign: 'Aufgabe angenommen.', release: 'Bearbeitung freigegeben.', complete: 'To-do erledigt.', withdraw: 'To-do zurückgezogen.' }[action])
     } catch (actionError) {
       setError(actionError.message || 'Die Änderung konnte nicht gespeichert werden.')
     }
@@ -130,6 +140,22 @@ export default function TodoDetailPage() {
     }
   }
 
+  async function saveNote(event) {
+    event.preventDefault()
+    setError('')
+    setNoteSaving(true)
+    try {
+      await addTodoNote(todoId, note, actor)
+      setNote('')
+      await loadTodo()
+      setToast('Hinweis hinzugefügt.')
+    } catch (noteError) {
+      setError(noteError.message || 'Der Hinweis konnte nicht gespeichert werden.')
+    } finally {
+      setNoteSaving(false)
+    }
+  }
+
   if (!result) return <p className="page-state">Aufgabe wird geladen …</p>
   if (result.error) return <section className="todo-detail-empty"><h2>{result.error}</h2><Link className="button button--secondary" to="/todos">Zurück zu To-dos</Link></section>
 
@@ -141,5 +167,6 @@ export default function TodoDetailPage() {
     {error && <p className="form-error">{error}</p>}
     {editing && <section className="todo-detail-editor"><TodoForm key={editing.todo.id} currentUserId={user.uid} initialTodo={editing.todo} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} /></section>}
     <section className="todo-detail-content"><dl className="todo-detail-list"><Detail label="Beschreibung"><span className="todo-detail-list__description">{todo.description || 'Keine zusätzliche Beschreibung.'}</span></Detail><Detail label="Fälligkeit"><span className={dueClass(todo)}>{formatDate(todo.dueDate)}</span></Detail><Detail label="Status">{TODO_STATUS[todo.status] || '—'}</Detail><Detail label="Zielgruppe / Empfänger">{todo.audienceLabel}</Detail><Detail label="Ersteller">{todo.creatorName}</Detail><Detail label="Bearbeiter">{todo.assignedUserName || 'Noch nicht übernommen'}</Detail><Detail label="Erstellt am">{formatTimestamp(todo.createdAt)}</Detail><Detail label="Zuletzt geändert">{formatTimestamp(todo.updatedAt)}</Detail><Detail label="Übernommen am">{formatTimestamp(todo.assignedAt)}</Detail>{todo.completedAt && <><Detail label="Erledigt am">{formatTimestamp(todo.completedAt)}</Detail><Detail label="Erledigt von">{todo.completedByName}</Detail></>}{todo.withdrawnAt && <><Detail label="Zurückgezogen am">{formatTimestamp(todo.withdrawnAt)}</Detail><Detail label="Zurückgezogen von">{todo.withdrawnByUserId}</Detail></>}</dl></section>
+    <section className="todo-updates" aria-labelledby="todo-updates-title"><div className="todo-updates__heading"><h3 id="todo-updates-title">Aktualisierungen</h3><span>{updates.length}</span></div>{canView('todos') && <form className="todo-updates__form" onSubmit={saveNote}><label className="form-field"><span>Kurzer Hinweis</span><textarea rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Hinweis zur Aufgabe hinzufügen …" /></label><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Hinweis hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Aktualisierungen werden geladen …</p> : updates.length ? <ol className="todo-updates__list">{updates.map((update) => <li key={update.id} className={`todo-updates__item todo-updates__item--${update.type}`}><div><strong>{update.createdByName}</strong><span>{update.type === 'system' ? 'System' : 'Hinweis'} · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Aktualisierungen.</p>}</section>
   </div>
 }

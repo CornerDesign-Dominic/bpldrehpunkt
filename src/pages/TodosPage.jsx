@@ -10,9 +10,11 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
   assignTodoToCurrentUser,
+  audienceHasChanged,
   completeTodoForCurrentUser,
   createTodo,
   isAudienceMember,
+  isSelfTodo,
   listTodosForActor,
   releaseTodoFromCurrentUser,
   updateTodoByCreator,
@@ -34,11 +36,11 @@ function dueClass(todo) {
 function TodoActions({ actor, editable, onAction, onEdit, todo }) {
   const canManage = actor.profile?.role === 'superadmin' || todo.creatorUserId === actor.user.uid
   const isAssignee = todo.assignedUserId === actor.user.uid
-  const isPersonalOwnTodo = todo.creatorUserId === actor.user.uid && todo.audienceType === 'person' && todo.audienceId === actor.user.uid
+  const isPersonalOwnTodo = isSelfTodo(todo, actor.user.uid)
   const canTake = editable && todo.status === 'open' && !todo.assignedUserId && isAudienceMember(todo, actor)
   if (!editable) return null
   return <div className="todo-actions">
-    {canTake && <button type="button" onClick={() => onAction('assign', todo)}>Übernehmen</button>}
+    {canTake && <button type="button" onClick={() => onAction('assign', todo)}>Aufgabe annehmen</button>}
     {isAssignee && todo.status === 'in_progress' && <>{!isPersonalOwnTodo && <button type="button" onClick={() => onAction('release', todo)}>Freigeben</button>}<button type="button" onClick={() => onAction('complete', todo)}>Erledigen</button></>}
     {canManage && ['open', 'in_progress'].includes(todo.status) && <><button type="button" onClick={() => onEdit(todo, false)}>Bearbeiten</button><button type="button" onClick={() => onEdit(todo, true)}>Neu zuweisen</button><button className="todo-actions__withdraw" type="button" onClick={() => onAction('withdraw', todo)}>Zurückziehen</button></>}
   </div>
@@ -77,8 +79,10 @@ export default function TodosPage() {
 
   const todoGroups = useMemo(() => ({
     mine: todos.filter((todo) => todo.assignedUserId === user.uid),
-    created: todos.filter((todo) => todo.creatorUserId === user.uid && !(todo.audienceType === 'person' && todo.audienceId === user.uid)),
-    pool: todos.filter((todo) => isAudienceMember(todo, actor) && todo.status !== 'withdrawn' && !(todo.creatorUserId === user.uid && todo.audienceType === 'person' && todo.audienceId === user.uid)),
+    created: todos.filter((todo) => todo.creatorUserId === user.uid && !isSelfTodo(todo, user.uid)),
+    // Übernommene Aufgaben bleiben für die berechtigte Zielgruppe sichtbar;
+    // nur die Übernahmeaktion selbst verschwindet dann.
+    pool: todos.filter((todo) => isAudienceMember(todo, actor) && todo.status !== 'withdrawn' && !isSelfTodo(todo, user.uid)),
   }), [actor, todos, user.uid])
 
   async function addTodo(values) {
@@ -88,7 +92,7 @@ export default function TodosPage() {
   }
 
   async function saveEdit(values) {
-    const audienceChanged = editing.todo.audienceType !== values.audienceType || editing.todo.audienceId !== (values.audienceType === 'all' ? null : values.audienceId)
+    const audienceChanged = audienceHasChanged(editing.todo, values, user.uid)
     const resetAssignment = editing.reassign || audienceChanged
     if (editing.todo.assignedUserId && resetAssignment) {
       setConfirmation({
@@ -102,7 +106,7 @@ export default function TodosPage() {
   }
 
   async function performSave(values, resetAssignment) {
-    await updateTodoByCreator(editing.todo.id, values, usersById, resetAssignment)
+    await updateTodoByCreator(editing.todo.id, values, usersById, resetAssignment, actor)
     await loadTodos()
     setEditing(null)
     setToast(resetAssignment ? 'To-do neu zugewiesen und wieder geöffnet.' : 'To-do aktualisiert.')
@@ -120,7 +124,7 @@ export default function TodosPage() {
       if (action === 'complete') await completeTodoForCurrentUser(todo.id, actor)
       if (action === 'withdraw') await withdrawTodo(todo.id, actor)
       await loadTodos()
-      setToast({ assign: 'To-do übernommen.', release: 'Bearbeitung freigegeben.', complete: 'To-do erledigt.', withdraw: 'To-do zurückgezogen.' }[action])
+      setToast({ assign: 'Aufgabe angenommen.', release: 'Bearbeitung freigegeben.', complete: 'To-do erledigt.', withdraw: 'To-do zurückgezogen.' }[action])
     } catch (actionError) {
       setError(actionError.message || 'Die Änderung konnte nicht gespeichert werden.')
     }

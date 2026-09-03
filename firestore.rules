@@ -102,18 +102,25 @@ service cloud.firestore {
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
     }
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
       return exists(/databases/$(database)/documents/users/$(userId))
         && get(/databases/$(database)/documents/users/$(userId)).data.active != false;
     }
+    function noAudienceIds(data) {
+      return !data.keys().hasAny(['audienceIds']) || data.audienceIds == null;
+    }
     function validTodoAudience(data) {
-      return (data.audienceType == 'all' && data.audienceId == null && data.audienceLabel == 'Alle')
-        || (data.audienceType == 'department' && data.audienceId is string && data.audienceId.size() > 0 && data.audienceLabel == data.audienceId)
+      return (data.audienceType == 'all' && data.audienceId == null && noAudienceIds(data) && data.audienceLabel == 'Alle')
+        || (data.audienceType == 'department' && data.audienceId is string && data.audienceId.size() > 0 && noAudienceIds(data)
+          && (data.audienceLabel == data.audienceId || data.audienceLabel == 'Abteilung: ' + data.audienceId))
         || (data.audienceType == 'person' && data.audienceId is string && activeProfile(data.audienceId)
-          && data.audienceLabel == profileName(get(/databases/$(database)/documents/users/$(data.audienceId)).data));
+          && noAudienceIds(data) && data.audienceLabel == profileName(get(/databases/$(database)/documents/users/$(data.audienceId)).data))
+        || (data.audienceType == 'people' && data.audienceId == null && data.keys().hasAll(['audienceIds'])
+          && data.audienceIds is list && data.audienceIds.size() > 0 && data.audienceIds.size() <= 50
+          && data.audienceLabel is string && data.audienceLabel.size() > 0 && data.audienceLabel.size() <= 4000);
     }
     function validTodoContent(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 240
@@ -124,6 +131,7 @@ service cloud.firestore {
     function isTodoAudienceMember(data) {
       return data.audienceType == 'all'
         || (data.audienceType == 'person' && data.audienceId == request.auth.uid)
+        || (data.audienceType == 'people' && request.auth.uid in data.audienceIds)
         || (data.audienceType == 'department' && data.audienceId == ownProfile().department);
     }
     function canReadTodo(data) {
@@ -179,14 +187,13 @@ service cloud.firestore {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
-        && request.resource.data.audienceType == resource.data.audienceType && request.resource.data.audienceId == resource.data.audienceId && request.resource.data.audienceLabel == resource.data.audienceLabel
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
@@ -195,11 +202,27 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt', 'withdrawnByUserId', 'assignedUserId', 'assignedUserName', 'assignedAt', 'updatedAt']);
     }
+    function todoDocument(todoId) { return get(/databases/$(database)/documents/todos/$(todoId)).data; }
+    function todoAfter(todoId) { return getAfter(/databases/$(database)/documents/todos/$(todoId)).data; }
+    function validTodoUpdate(data) {
+      return data.keys().hasAll(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
+        && data.keys().hasOnly(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
+        && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
+        && data.type in ['note', 'system'] && data.createdByUserId == request.auth.uid
+        && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
+    }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if edit('todos') && isCreatedTodo();
       allow update: if edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal());
       allow delete: if false;
+
+      match /updates/{updateId} {
+        allow read: if view('todos') && canReadTodo(todoDocument(id));
+        allow create: if view('todos') && canReadTodo(todoAfter(id)) && validTodoUpdate(request.resource.data)
+          && (request.resource.data.type == 'note' || (request.resource.data.type == 'system' && edit('todos')));
+        allow update, delete: if false;
+      }
     }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'
