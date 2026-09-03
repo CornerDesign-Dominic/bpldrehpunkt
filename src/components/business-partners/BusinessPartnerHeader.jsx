@@ -1,0 +1,50 @@
+import { Link } from 'react-router-dom'
+import { ChevronIcon } from '../icons.jsx'
+import { getBusinessPartnerType } from '../../lib/businessPartners.js'
+import { getCurrentCrmRatingPresentation } from '../../lib/crmRatings.js'
+import { formatPalletNumber } from '../pallets/palletFormatters.js'
+
+function formatCreditLimit(value) {
+  return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
+}
+
+function PartnerHeaderTile({ ariaLabel, children, to }) {
+  const content = <>{children}{to && <span className="partner-header__tile-chevron" aria-hidden="true"><ChevronIcon size={18} /></span>}</>
+  return to
+    ? <Link className="partner-header__tile partner-header__tile--link" to={to} aria-label={ariaLabel}>{content}</Link>
+    : <div className="partner-header__tile">{content}</div>
+}
+
+export default function BusinessPartnerHeader({ account, canViewCrm, canViewPallets, partner, partnerId, ratings }) {
+  const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
+  const ratingsByRole = Object.fromEntries(ratingItems.map((rating) => [rating.role, rating]))
+  const customerRating = ratingsByRole.customer
+  const carrierRating = ratingsByRole.carrier
+
+  return <section className="partner-header" aria-labelledby="partner-header-title">
+    <div className="partner-header__identity">
+      <h1 id="partner-header-title">{partner.companyName || 'Geschäftspartner'}</h1>
+      <p>{getBusinessPartnerType(partner)}</p>
+      <p className="partner-header__numbers">Debitor: <strong>{partner.debtorNumber || '—'}</strong><span aria-hidden="true">·</span>Kreditor: <strong>{partner.creditorNumber || '—'}</strong></p>
+    </div>
+
+    <div className="partner-header__tiles">
+      <PartnerHeaderTile ariaLabel="Palettenkonto öffnen" to={canViewPallets ? `/paletten/${partnerId}` : undefined}>
+        <span className="partner-header__tile-label">Palettenkonto</span>
+        <strong className="partner-header__tile-value">{account ? formatPalletNumber(account.balance, true) : '—'}</strong>
+        <span className="partner-header__tile-meta">Aktueller Saldo</span>
+      </PartnerHeaderTile>
+
+      <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
+        <span className="partner-header__tile-label">Partner-Ranking</span>
+        <span className="partner-header__rating"><span>Kundenbewertung</span><strong data-status={customerRating?.status}>{customerRating?.value ?? '—'}</strong></span>
+        <span className="partner-header__rating"><span>Unternehmerbewertung</span><strong data-status={carrierRating?.status}>{carrierRating?.value ?? '—'}</strong></span>
+      </PartnerHeaderTile>
+
+      <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
+        <span className="partner-header__tile-label">Kreditlimit</span>
+        <strong className="partner-header__tile-value">{formatCreditLimit(partner.creditLimit)}</strong>
+      </PartnerHeaderTile>
+    </div>
+  </section>
+}

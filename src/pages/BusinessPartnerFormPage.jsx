@@ -1,32 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
-import { ChevronIcon } from '../components/icons.jsx'
+import BusinessPartnerHeader from '../components/business-partners/BusinessPartnerHeader.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartner } from '../lib/businessPartners.js'
-import { getCurrentCrmRatingPresentation, listCurrentCrmRatings } from '../lib/crmRatings.js'
+import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, updateBusinessPartner } from '../lib/businessPartners.js'
+import { listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
 import { listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
-import { formatPalletDate, formatPalletNumber } from '../components/pallets/palletFormatters.js'
-
-function formatCreditLimit(value) {
-  return value === null || value === undefined ? 'n/a' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
-}
-
-function MasterdataInfoCard({ partner, ratings, partnerId }) {
-  const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
-  return <Link className="masterdata-info-card" to={`/crm/${partnerId}`} aria-label="CRM des Geschäftspartners öffnen"><span>{getBusinessPartnerType(partner)}</span><span>Status: <strong>{getBusinessPartnerStatusLabel(partner.status)}</strong></span><span>Kreditlimit: <strong>{formatCreditLimit(partner.creditLimit)}</strong></span>{ratingItems.map((rating) => <span className="masterdata-info-card__rating" key={rating.role}><i className={`crm-rating-indicator crm-rating-indicator--${rating.status}`} aria-hidden="true" />{rating.role === 'customer' ? 'Kunde' : 'UTN'}: <strong>{rating.value}</strong></span>)}<span className="masterdata-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
-}
-
-function PalletAccountInfoCard({ account, movements, partnerId }) {
-  if (!account) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Palettenkonto: —</span><span className="pallet-account-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
-  if (!movements.length) return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span>Keine Palettenbewegungen vorhanden</span><span className="pallet-account-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
-
-  const latestMovement = account.entries.filter((entry) => entry.entryType === 'movement').at(-1)
-  return <Link className="pallet-account-info-card" to={`/paletten/${partnerId}`} aria-label="Palettenkonto öffnen"><span className="pallet-account-info-card__balance">Palettensaldo: <strong>{formatPalletNumber(account.balance, true)}</strong></span><span>Letzte Bewegung: <strong>{latestMovement?.date ? formatPalletDate(latestMovement.date) : '—'}</strong></span><span>{movements.length} Bewegungen</span><span>Letzter Abschluss: <strong>{account.latestClosing?.date ? formatPalletDate(account.latestClosing.date) : '—'}</strong></span><span className="pallet-account-info-card__chevron" aria-hidden="true"><ChevronIcon size={20} /></span></Link>
-}
 
 export default function BusinessPartnerFormPage({ mode }) {
   const authState = useAuth()
@@ -111,8 +93,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{editable && <div className="masterdata-record-actions"><div className="masterdata-record-actions__content">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-record-actions__discard" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div>}</div>
-      {!isNew && canView('crm') && <MasterdataInfoCard partner={shownPartner} ratings={crmRatings} partnerId={partnerId} />}
-      {!isNew && canView('pallets') && <PalletAccountInfoCard account={palletAccount} movements={palletMovements ?? []} partnerId={partnerId} />}
+      {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={canView('crm')} canViewPallets={canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
       {error && <p className="form-error">{error}</p>}
       <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} readOnly={!editable} /></section>
     </div>
