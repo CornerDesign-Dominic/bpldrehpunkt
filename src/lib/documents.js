@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   serverTimestamp,
@@ -10,13 +11,9 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { db, storage } from './firebase.js'
 
 export const INTERNAL_DOCUMENTS_COLLECTION = 'internalDocuments'
-export const DOCUMENT_STATUSES = [
-  { value: 'active', label: 'Aktiv' },
-  { value: 'archived', label: 'Archiviert' },
-]
 
 // Central action names provide a stable base for future role checks.
-export const DOCUMENT_ACTIONS = ['view', 'download', 'upload', 'edit', 'archive']
+export const DOCUMENT_ACTIONS = ['view', 'download', 'upload', 'edit', 'replace', 'delete']
 
 const documentsRef = collection(db, INTERNAL_DOCUMENTS_COLLECTION)
 const trim = (value) => (value ?? '').trim()
@@ -34,9 +31,8 @@ function timestampValue(value) {
 function metadataPayload(values) {
   return {
     title: trim(values.title),
+    category: trim(values.category),
     description: trim(values.description),
-    documentDate: values.documentDate || null,
-    status: values.status || 'active',
   }
 }
 
@@ -45,13 +41,7 @@ function sanitizeFileName(name) {
 }
 
 export function createEmptyDocument() {
-  return { title: '', description: '', documentDate: todayValue(), status: 'active' }
-}
-
-export function todayValue() {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+  return { title: '', category: '', description: '' }
 }
 
 export function isPdfFile(file) {
@@ -75,8 +65,8 @@ export async function listInternalDocuments() {
 
 async function uploadDocumentFile(documentId, file) {
   if (!isPdfFile(file)) throw new Error('Nur PDF-Dateien sind zulässig.')
-  const storagePath = `internalDocuments/${documentId}/${sanitizeFileName(file.name)}`
-  await uploadBytes(ref(storage, storagePath), file, { contentType: 'application/pdf', contentDisposition: `attachment; filename="${sanitizeFileName(file.name)}"` })
+  const storagePath = `internalDocuments/${documentId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`
+  await uploadBytes(ref(storage, storagePath), file, { contentType: 'application/pdf', contentDisposition: `inline; filename="${sanitizeFileName(file.name)}"` })
   return { fileName: file.name, storagePath, contentType: 'application/pdf', fileSize: file.size }
 }
 
@@ -96,12 +86,18 @@ export async function createInternalDocument(values, file) {
 export async function updateInternalDocument(document, values, file) {
   let fileData = null
   if (file) fileData = await uploadDocumentFile(document.id, file)
-  await updateDoc(doc(db, INTERNAL_DOCUMENTS_COLLECTION, document.id), { ...metadataPayload(values), ...(fileData || {}), updatedAt: serverTimestamp() })
-  if (fileData && document.storagePath && document.storagePath !== fileData.storagePath) await deleteObject(ref(storage, document.storagePath)).catch(() => {})
+  try {
+    await updateDoc(doc(db, INTERNAL_DOCUMENTS_COLLECTION, document.id), { ...metadataPayload(values), ...(fileData || {}), updatedAt: serverTimestamp() })
+  } catch (error) {
+    if (fileData) await deleteObject(ref(storage, fileData.storagePath)).catch(() => {})
+    throw error
+  }
+  if (fileData && document.storagePath && document.storagePath !== fileData.storagePath) await deleteObject(ref(storage, document.storagePath))
 }
 
-export async function archiveInternalDocument(documentId) {
-  await updateDoc(doc(db, INTERNAL_DOCUMENTS_COLLECTION, documentId), { status: 'archived', updatedAt: serverTimestamp() })
+export async function deleteInternalDocument(document) {
+  if (document.storagePath) await deleteObject(ref(storage, document.storagePath))
+  await deleteDoc(doc(db, INTERNAL_DOCUMENTS_COLLECTION, document.id))
 }
 
 export async function getInternalDocumentUrl(document) {

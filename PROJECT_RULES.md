@@ -152,8 +152,9 @@
 ## Dokumente
 - Interne Dokumente werden zentral im Modul „Dokumente“ verwaltet.
 - Binärdateien werden in Firebase Storage gespeichert, Metadaten in Firestore.
-- Dokumente werden nicht hart gelöscht, sondern bevorzugt archiviert.
-- Dokumentlisten werden kompakt tabellarisch dargestellt.
+- Das Ersetzen einer PDF entfernt die bisherige Datei dauerhaft; eine Versionshistorie wird nicht geführt.
+- Das Löschen eines Dokuments entfernt Datei und Metadaten dauerhaft; eine Archivierung wird nicht geführt.
+- Dokumente werden als PDF-Galerie dargestellt.
 - Dateizugriffe müssen später rollenbasiert beschränkbar sein.
 
 ## Entwicklung

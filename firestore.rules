@@ -9,6 +9,34 @@ service cloud.firestore {
     function level(module) { return superadmin() ? 'edit' : ownProfile().permissions[module]; }
     function view(module) { return signedIn() && (superadmin() || level(module) in ['view', 'edit']); }
     function edit(module) { return signedIn() && (superadmin() || level(module) == 'edit'); }
+    function calendarDocument(calendarId) { return get(/databases/$(database)/documents/calendars/$(calendarId)).data; }
+    function calendarPermissionLevel(calendarId) {
+      return exists(/databases/$(database)/documents/calendarPermissions/$(calendarId + '_' + request.auth.uid))
+        ? get(/databases/$(database)/documents/calendarPermissions/$(calendarId + '_' + request.auth.uid)).data.level
+        : 'none';
+    }
+    function canReadCalendar(calendarId) {
+      return superadmin() || calendarDocument(calendarId).ownerUserId == request.auth.uid || calendarPermissionLevel(calendarId) in ['view', 'edit'];
+    }
+    function canEditCalendar(calendarId) {
+      return superadmin() || (calendarDocument(calendarId).active != false && (calendarDocument(calendarId).ownerUserId == request.auth.uid || calendarPermissionLevel(calendarId) == 'edit'));
+    }
+    function validPersonalCalendar(calendarId, data) {
+      return calendarId == 'personal-' + request.auth.uid
+        && data.keys().hasAll(['name', 'color', 'kind', 'ownerUserId', 'active', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'color', 'kind', 'ownerUserId', 'active', 'createdAt', 'updatedAt'])
+        && data.name == 'Mein Kalender' && data.kind == 'personal' && data.ownerUserId == request.auth.uid
+        && data.active == true && data.createdAt == request.time && data.updatedAt == request.time;
+    }
+    function validCalendarEvent(data) {
+      return data.keys().hasAll(['title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'createdByUserId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'createdByUserId', 'createdAt', 'updatedAt'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 160
+        && data.description is string && data.description.size() <= 4000
+        && data.startDate is string && data.startDate.size() == 10 && data.endDate is string && data.endDate.size() == 10 && data.endDate >= data.startDate
+        && data.allDay is bool && data.startTime is string && data.endTime is string
+        && data.createdByUserId is string;
+    }
 
     match /users/{userId} {
       allow get: if signedIn() && (userId == request.auth.uid || admin() || view('team'));
@@ -25,6 +53,35 @@ service cloud.firestore {
       allow read: if signedIn();
       // Central department maintenance runs through superadmin-only callable functions.
       allow write: if false;
+    }
+
+    match /calendars/{calendarId} {
+      allow get: if view('calendar') && canReadCalendar(calendarId);
+      allow list: if view('calendar') && superadmin();
+      // Personal calendars are provisioned on first use. Shared calendars and
+      // their lifecycle are deliberately restricted to superadmins.
+      allow create: if superadmin() || (view('calendar') && validPersonalCalendar(calendarId, request.resource.data));
+      allow update: if superadmin();
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if view('calendar') && canReadCalendar(calendarId);
+        allow create: if view('calendar') && canEditCalendar(calendarId) && validCalendarEvent(request.resource.data)
+          && request.resource.data.createdByUserId == request.auth.uid && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if view('calendar') && canEditCalendar(calendarId) && validCalendarEvent(request.resource.data)
+          && request.resource.data.createdByUserId == resource.data.createdByUserId && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time;
+        allow delete: if view('calendar') && canEditCalendar(calendarId);
+      }
+    }
+
+    match /calendarPermissions/{permissionId} {
+      allow read: if view('calendar') && (superadmin() || resource.data.userId == request.auth.uid);
+      allow create, update: if superadmin()
+        && request.resource.data.keys().hasAll(['calendarId', 'userId', 'level', 'updatedAt'])
+        && request.resource.data.keys().hasOnly(['calendarId', 'userId', 'level', 'updatedAt'])
+        && request.resource.data.calendarId is string && request.resource.data.userId is string
+        && request.resource.data.level in ['none', 'view', 'edit'] && request.resource.data.updatedAt == request.time;
+      allow delete: if superadmin();
     }
 
     match /businessPartners/{partnerId} {

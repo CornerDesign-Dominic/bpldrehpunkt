@@ -19,6 +19,7 @@ import TeamPage from './pages/TeamPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
 import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
+import CalendarPage from './pages/CalendarPage.jsx'
 
 function ProtectedAppLayout() {
   return <ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
+        <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
         <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

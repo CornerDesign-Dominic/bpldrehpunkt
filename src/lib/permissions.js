@@ -4,6 +4,7 @@ export const PERMISSION_LEVELS = ['none', 'view', 'edit']
 // small, explicit change: add it here, protect its route and add it to navigation.
 export const MODULES = {
   vacation: { label: 'Urlaub' },
+  calendar: { label: 'Kalender' },
   team: { label: 'Team' },
   masterData: { label: 'Stammdaten' },
   crm: { label: 'CRM' },

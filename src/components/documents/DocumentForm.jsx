@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { createEmptyDocument, isPdfFile } from '../../lib/documents.js'
 
-export default function DocumentForm({ documentItem, onCancel, onSubmit }) {
-  const [form, setForm] = useState(documentItem ? { title: documentItem.title || '', description: documentItem.description || '', documentDate: documentItem.documentDate || '', status: documentItem.status || 'active' } : createEmptyDocument())
+export default function DocumentForm({ documentItem, onCancel, onSubmit, replacing = false }) {
+  const [form, setForm] = useState(documentItem ? { title: documentItem.title || '', category: documentItem.category || '', description: documentItem.description || '' } : createEmptyDocument())
   const [file, setFile] = useState(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -16,8 +16,8 @@ export default function DocumentForm({ documentItem, onCancel, onSubmit }) {
 
   async function submit(event) {
     event.preventDefault()
-    if (!form.title.trim() || !form.documentDate || (!documentItem && !file)) {
-      setError('Bitte Titel, Dokumentdatum und eine PDF-Datei erfassen.')
+    if (!form.title.trim() || ((!documentItem || replacing) && !file)) {
+      setError('Bitte Titel und eine PDF-Datei erfassen.')
       return
     }
     if (file && !isPdfFile(file)) { setError('Bitte ausschließlich eine PDF-Datei auswählen.'); return }
@@ -26,14 +26,14 @@ export default function DocumentForm({ documentItem, onCancel, onSubmit }) {
   }
 
   return <form className="document-form" onSubmit={submit} noValidate>
-    <div className="document-form__heading"><h2>{documentItem ? 'Dokument bearbeiten' : 'Dokument hochladen'}</h2><button className="text-button" type="button" onClick={onCancel}>Abbrechen</button></div>
+    <div className="document-form__heading"><h2>{replacing ? 'PDF ersetzen' : documentItem ? 'Dokument bearbeiten' : 'Dokument hochladen'}</h2><button className="text-button" type="button" onClick={onCancel}>Abbrechen</button></div>
     <div className="document-form__grid">
       <label className="form-field document-form__title"><span>Titel *</span><input value={form.title} onChange={(event) => update('title', event.target.value)} autoFocus /></label>
-      <label className="form-field"><span>Dokumentdatum *</span><input type="date" value={form.documentDate} onChange={(event) => update('documentDate', event.target.value)} /></label>
-      <label className="form-field document-form__file"><span>{documentItem ? 'PDF ersetzen (optional)' : 'PDF-Datei *'}</span><input type="file" accept="application/pdf,.pdf" onChange={(event) => changeFile(event.target.files?.[0])} />{documentItem && !file && <small>{documentItem.fileName} bleibt erhalten</small>}</label>
+      <label className="form-field"><span>Kategorie <small>(optional)</small></span><input value={form.category} onChange={(event) => update('category', event.target.value)} placeholder="z. B. Versicherungen" /></label>
+      {(!documentItem || replacing) && <label className="form-field document-form__file"><span>PDF-Datei *</span><input type="file" accept="application/pdf,.pdf" onChange={(event) => changeFile(event.target.files?.[0])} />{replacing && !file && <small>Die bisherige PDF wird nach Bestätigung dauerhaft gelöscht.</small>}</label>}
       <label className="form-field document-form__description"><span>Kurzbeschreibung</span><textarea rows="2" value={form.description} onChange={(event) => update('description', event.target.value)} /></label>
     </div>
     {error && <p className="form-error">{error}</p>}
-    <div className="form-actions"><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : documentItem ? 'Änderungen speichern' : 'Dokument speichern'}</button></div>
+    <div className="form-actions"><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : replacing ? 'PDF ersetzen' : documentItem ? 'Änderungen speichern' : 'Dokument speichern'}</button></div>
   </form>
 }

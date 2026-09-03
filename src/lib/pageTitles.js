@@ -10,6 +10,7 @@ const pageTitles = [
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin', title: 'Adminbereich' },
   { path: '/urlaub', title: 'Urlaubsübersicht' },
+  { path: '/kalender', title: 'Kalender' },
   { path: '/urlaubsmanagement', title: 'Urlaubsmanagement' },
 ]
 
