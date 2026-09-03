@@ -6,7 +6,7 @@ import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getSafeProfileDefaults } from '../lib/permissions.js'
-import { createDepartment, listDepartments, migrateLegacyDepartments, updateDepartment } from '../lib/departments.js'
+import { createDepartment, listDepartments, updateDepartment } from '../lib/departments.js'
 import { createManagedUser, updateManagedUser } from '../lib/userManagement.js'
 import { listUserProfiles } from '../lib/userProfiles.js'
 import '../styles/admin.css'
@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [departments, setDepartments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [departmentError, setDepartmentError] = useState('')
   const [editing, setEditing] = useState(null)
   const [isNew, setNew] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -29,24 +30,22 @@ export default function AdminPage() {
 
   async function reload() {
     setLoading(true)
-    try {
-      if (canManagePermissions) await migrateLegacyDepartments()
-      const [profiles, centralDepartments] = await Promise.all([listUserProfiles(), listDepartments()])
-      setUsers(profiles)
-      setDepartments(centralDepartments)
-    } catch { setError('Mitarbeiterdaten konnten nicht geladen werden.') } finally { setLoading(false) }
+    setError('')
+    try { setUsers(await listUserProfiles()) } catch { setError('Mitarbeiterdaten konnten nicht geladen werden.') } finally { setLoading(false) }
+    try { setDepartments(await listDepartments()); setDepartmentError('') } catch { setDepartments([]); setDepartmentError('Zentrale Abteilungen konnten nicht geladen werden.') }
   }
 
   useEffect(() => {
     let active = true
-    const migration = canManagePermissions ? migrateLegacyDepartments().catch(() => null) : Promise.resolve()
-    migration
-      .then(() => Promise.all([listUserProfiles(), listDepartments()]))
-      .then(([profiles, centralDepartments]) => { if (active) { setUsers(profiles); setDepartments(centralDepartments) } })
+    listUserProfiles()
+      .then((profiles) => { if (active) setUsers(profiles) })
       .catch(() => { if (active) setError('Mitarbeiterdaten konnten nicht geladen werden.') })
       .finally(() => { if (active) setLoading(false) })
+    listDepartments()
+      .then((centralDepartments) => { if (active) { setDepartments(centralDepartments); setDepartmentError('') } })
+      .catch(() => { if (active) { setDepartments([]); setDepartmentError('Zentrale Abteilungen konnten nicht geladen werden.') } })
     return () => { active = false }
-  }, [canManagePermissions])
+  }, [])
 
   async function save(event) {
     event.preventDefault()
@@ -100,7 +99,7 @@ export default function AdminPage() {
     }
   }
 
-  const orderedDepartments = useMemo(() => [...departments].sort((left, right) => left.name.localeCompare(right.name, 'de')), [departments])
+  const orderedDepartments = useMemo(() => [...departments].sort((left, right) => String(left.name).localeCompare(String(right.name), 'de')), [departments])
 
-  return <div className="admin-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Power Automate testen'}</button><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>{canManagePermissions && <DepartmentManagementPanel departments={orderedDepartments} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} />}</>}</div>
+  return <div className="admin-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Power Automate testen'}</button><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>{canManagePermissions && <DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} />}</>}</div>
 }

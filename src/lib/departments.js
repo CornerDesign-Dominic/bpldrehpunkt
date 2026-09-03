@@ -6,7 +6,12 @@ export const DEPARTMENTS_COLLECTION = 'departments'
 
 export async function listDepartments() {
   const snapshot = await getDocs(collection(db, DEPARTMENTS_COLLECTION))
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((left, right) => left.name.localeCompare(right.name, 'de'))
+  return snapshot.docs
+    .map((item) => {
+      const data = item.data()
+      return { id: item.id, ...data, name: typeof data.name === 'string' && data.name.trim() ? data.name.trim() : 'Unbenannte Abteilung', active: data.active !== false }
+    })
+    .sort((left, right) => String(left.name).localeCompare(String(right.name), 'de'))
 }
 
 export function migrateLegacyDepartments() {

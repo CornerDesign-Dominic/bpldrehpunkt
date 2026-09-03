@@ -52,5 +52,8 @@ export function getSafeProfileDefaults(profile) {
   const departmentName = typeof profile?.departmentName === 'string' && profile.departmentName.trim()
     ? profile.departmentName.trim()
     : (typeof profile?.department === 'string' ? profile.department.trim() : '')
-  return { ...profile, departmentId, departmentName, department: departmentName, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
+  const safeProfile = { ...profile, departmentName, department: departmentName, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
+  if (departmentId) safeProfile.departmentId = departmentId
+  else delete safeProfile.departmentId
+  return safeProfile
 }

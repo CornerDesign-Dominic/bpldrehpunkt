@@ -39,7 +39,7 @@ Das Urlaubsmanagement ist über die Benutzerfelder `vacationManager`, `vacationM
 
 Abteilungen liegen zentral unter `departments/{id}` mit `id`, `name`, `normalizedName`, `active`, `createdAt` und `updatedAt`. Anlegen, Umbenennen sowie Aktivieren/Deaktivieren ist ausschließlich über die Superadmin-Callable-Functions `createDepartment` und `updateDepartment` möglich. Benutzer speichern `departmentId`; die Felder `department` und `departmentName` bleiben für bestehende Ansichten als lesbare Spiegelwerte erhalten.
 
-Beim ersten Öffnen der Benutzerverwaltung durch einen Superadmin übernimmt `migrateLegacyDepartments` vorhandene Freitext-Abteilungen und frühere Urlaubsmanager-Zuständigkeiten sicher in die zentrale Struktur. Dadurch bleiben vorhandene Benutzer- und Berechtigungsdaten nutzbar.
+`migrateLegacyDepartments` kann vorhandene Freitext-Abteilungen und frühere Urlaubsmanager-Zuständigkeiten in die zentrale Struktur übernehmen. Die Benutzerliste lädt jedoch immer unabhängig davon; alte Profile bleiben mit ihrem bisherigen Abteilungsnamen sichtbar.
 
 Feiertage werden unter `calendarHolidays` vorbereitet (`date` oder `startDate`/`endDate`, `label`). Spätere Verwaltungsfunktionen können Urlaubssperren unter `vacationBlocks` anlegen (`startDate`, `endDate`, `label`, optional `note`, `createdAt`, `updatedAt`). Beide Collections werden nur gelesen und im Kalender dezent als eigene Eintragstypen dargestellt.
 

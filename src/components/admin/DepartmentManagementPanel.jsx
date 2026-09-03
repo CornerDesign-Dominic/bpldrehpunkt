@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function DepartmentManagementPanel({ departments, saving, onCreate, onUpdate }) {
+export default function DepartmentManagementPanel({ departments, error, saving, onCreate, onUpdate }) {
   const [newName, setNewName] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
@@ -23,6 +23,7 @@ export default function DepartmentManagementPanel({ departments, saving, onCreat
 
   return <section className="admin-panel admin-departments">
     <div className="admin-panel__heading"><div><h2>Abteilungen</h2><p>Zentrale Abteilungen für Mitarbeiter, Zuständigkeiten und weitere Module.</p></div></div>
+    {error && <p className="form-error">{error}</p>}
     <form className="admin-departments__create" onSubmit={create}>
       <input aria-label="Neue Abteilung" placeholder="Neue Abteilung" value={newName} onChange={(event) => setNewName(event.target.value)} disabled={saving} />
       <button className="button" type="submit" disabled={saving || !newName.trim()}>Abteilung anlegen</button>

@@ -19,7 +19,8 @@ async function vacationManagerFields(value, fallback = {}) {
   const vacationManagerDepartments = vacationManager && !vacationManagerAllDepartments && Array.isArray(requestedDepartments)
     ? [...new Set(requestedDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
     : []
-  if (value?.vacationManagerDepartments !== undefined && vacationManager && !vacationManagerAllDepartments) {
+  const unchangedLegacyDepartments = JSON.stringify(vacationManagerDepartments) === JSON.stringify(fallback?.vacationManagerDepartments || [])
+  if (value?.vacationManagerDepartments !== undefined && vacationManager && !vacationManagerAllDepartments && !unchangedLegacyDepartments) {
     if (vacationManagerDepartments.some((id) => id.includes('/'))) throw new HttpsError('invalid-argument', 'Eine ausgewählte Abteilung ist ungültig.')
     const selectedDepartments = await Promise.all(vacationManagerDepartments.map((id) => db.doc(`departments/${id}`).get()))
     if (selectedDepartments.some((department) => !department.exists || department.data().active === false)) throw new HttpsError('invalid-argument', 'Eine ausgewählte Abteilung ist nicht verfügbar.')
