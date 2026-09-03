@@ -8,8 +8,8 @@ function formatCreditLimit(value) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-function PartnerHeaderTile({ ariaLabel, children, to }) {
-  const content = <>{children}{to && <span className="partner-header__tile-chevron" aria-hidden="true"><ChevronIcon size={18} /></span>}</>
+function PartnerHeaderTile({ ariaLabel, children, title, to }) {
+  const content = <><span className="partner-header__tile-heading"><span className="partner-header__tile-label">{title}</span>{to && <span className="partner-header__tile-chevron" aria-hidden="true"><ChevronIcon size={18} /></span>}</span>{children}</>
   return to
     ? <Link className="partner-header__tile partner-header__tile--link" to={to} aria-label={ariaLabel}>{content}</Link>
     : <div className="partner-header__tile">{content}</div>
@@ -29,20 +29,16 @@ export default function BusinessPartnerHeader({ account, canViewCrm, canViewPall
     </div>
 
     <div className="partner-header__tiles">
-      <PartnerHeaderTile ariaLabel="Palettenkonto öffnen" to={canViewPallets ? `/paletten/${partnerId}` : undefined}>
-        <span className="partner-header__tile-label">Palettenkonto</span>
+      <PartnerHeaderTile ariaLabel="Palettenkonto öffnen" title="Paletten" to={canViewPallets ? `/paletten/${partnerId}` : undefined}>
         <strong className="partner-header__tile-value">{account ? formatPalletNumber(account.balance, true) : '—'}</strong>
-        <span className="partner-header__tile-meta">Aktueller Saldo</span>
       </PartnerHeaderTile>
 
-      <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
-        <span className="partner-header__tile-label">Partner-Ranking</span>
-        <span className="partner-header__rating"><span>Kundenbewertung</span><strong data-status={customerRating?.status}>{customerRating?.value ?? '—'}</strong></span>
-        <span className="partner-header__rating"><span>Unternehmerbewertung</span><strong data-status={carrierRating?.status}>{carrierRating?.value ?? '—'}</strong></span>
+      <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" title="Ranking" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
+        <span className="partner-header__rating"><span>Kunde</span><strong data-status={customerRating?.status}>{customerRating?.value ?? '—'}</strong></span>
+        <span className="partner-header__rating"><span>Unternehmer</span><strong data-status={carrierRating?.status}>{carrierRating?.value ?? '—'}</strong></span>
       </PartnerHeaderTile>
 
-      <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
-        <span className="partner-header__tile-label">Kreditlimit</span>
+      <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" title="Kreditlimit" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
         <strong className="partner-header__tile-value">{formatCreditLimit(partner.creditLimit)}</strong>
       </PartnerHeaderTile>
     </div>
