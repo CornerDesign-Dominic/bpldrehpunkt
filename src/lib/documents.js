@@ -44,11 +44,12 @@ function timestampValue(value) {
   return new Date(value).getTime() || 0
 }
 
-function metadataPayload(values) {
+function metadataPayload(values, { includePageCount = false } = {}) {
   return {
     title: trim(values.title),
     description: trim(values.description),
     expirationDate: values.expirationDate || null,
+    ...(includePageCount ? { pageCount: Number.isInteger(values.pageCount) && values.pageCount > 0 ? values.pageCount : null } : {}),
   }
 }
 
@@ -106,12 +107,12 @@ async function uploadDocumentFile(documentId, file) {
   return { fileName: file.name, storagePath, contentType: 'application/pdf', fileSize: file.size }
 }
 
-export async function createInternalDocument(values, file) {
+export async function createInternalDocument(values, file, uploader = {}) {
   if (!isPdfFile(file)) throw new Error('Nur PDF-Dateien sind zulässig.')
   const documentRef = doc(documentsRef)
   const fileData = await uploadDocumentFile(documentRef.id, file)
   try {
-    await setDoc(documentRef, { id: documentRef.id, ...metadataPayload(values), ...fileData, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+    await setDoc(documentRef, { id: documentRef.id, ...metadataPayload(values, { includePageCount: true }), ...fileData, uploadedByUserId: uploader.id || null, uploadedByName: trim(uploader.name), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
   } catch (error) {
     await deleteObject(ref(storage, fileData.storagePath)).catch((cleanupError) => console.error('Dokumente: hochgeladene PDF konnte nach fehlgeschlagenem Firestore-Eintrag nicht entfernt werden.', cleanupError))
     throw documentFailure('createRecord', error)

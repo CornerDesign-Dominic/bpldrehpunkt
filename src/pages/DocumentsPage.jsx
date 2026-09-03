@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
+import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
 import DocumentsGallery from '../components/documents/DocumentsGallery.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
+import { useAuth } from '../auth/useAuth.js'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import {
   createInternalDocument,
   deleteInternalDocument,
@@ -13,11 +17,32 @@ import {
   updateInternalDocument,
 } from '../lib/documents.js'
 
+GlobalWorkerOptions.workerSrc = pdfWorker
+
+async function getPdfPageCount(file) {
+  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+  try {
+    const pdf = await loadingTask.promise
+    const pageCount = pdf.numPages
+    await pdf.destroy()
+    return pageCount
+  } finally {
+    loadingTask.destroy()
+  }
+}
+
+function uploaderName(profile, user) {
+  const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim()
+  return fullName || user?.email || ''
+}
+
 export default function DocumentsPage() {
   const { canEdit } = usePermissions()
+  const { profile, user } = useAuth()
   const [documents, setDocuments] = useState([])
   const [search, setSearch] = useState('')
   const [editingDocument, setEditingDocument] = useState(undefined)
+  const [detailsDocument, setDetailsDocument] = useState(null)
   const [confirmation, setConfirmation] = useState(null)
   const [isConfirming, setIsConfirming] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -58,7 +83,11 @@ export default function DocumentsPage() {
     try {
       requireDocumentEditPermission()
       if (documentItem) await updateInternalDocument(documentItem, values)
-      else await createInternalDocument(values, file)
+      else {
+        let pageCount = null
+        try { pageCount = await getPdfPageCount(file) } catch (pageCountError) { console.warn('Dokumente: Seitenzahl konnte nicht ermittelt werden.', pageCountError) }
+        await createInternalDocument({ ...values, pageCount }, file, { id: user?.uid, name: uploaderName(profile, user) })
+      }
       await reloadDocuments()
       setEditingDocument(undefined)
       setToast(documentItem ? 'Dokument aktualisiert.' : 'Dokument hochgeladen.')
@@ -129,10 +158,11 @@ export default function DocumentsPage() {
   const selectedEditDocument = editingDocument && editingDocument !== 'new' ? (editingDocument.document || editingDocument) : null
   return <div className="documents-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
+    {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(confirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isConfirming} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
     <div className="list-toolbar documents-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Dokumente suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Dokumente suchen" /></label></div>{editable && <button className="button" type="button" onClick={() => setEditingDocument('new')}>Dokument hochladen</button>}</div>
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingDocument(undefined) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={selectedEditDocument ? 'Dokument bearbeiten' : 'Dokument hochladen'}><DocumentForm key={selectedEditDocument?.id || 'new'} documentItem={selectedEditDocument} onCancel={() => setEditingDocument(undefined)} onSubmit={saveDocument} /></section></div>}
     {error && <p className="form-error">{error}</p>}
-    <DocumentsGallery documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onEdit={(documentItem) => setEditingDocument(documentItem)} onDelete={(documentItem) => setConfirmation({ type: 'delete', document: documentItem })} canEdit={editable} />
+    <DocumentsGallery documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onDetails={setDetailsDocument} onEdit={(documentItem) => setEditingDocument(documentItem)} onDelete={(documentItem) => setConfirmation({ type: 'delete', document: documentItem })} canEdit={editable} />
   </div>
 }

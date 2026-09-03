@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { getInternalDocumentBlob } from '../../lib/documents.js'
@@ -55,7 +55,26 @@ function DocumentPreview({ documentItem, onOpen }) {
   </button>
 }
 
-export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onEdit, onDelete, canEdit }) {
+function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    function closeOnOutsideClick(event) { if (!menuRef.current?.contains(event.target)) setOpen(false) }
+    function closeOnEscape(event) { if (event.key === 'Escape') setOpen(false) }
+    window.document.addEventListener('pointerdown', closeOnOutsideClick)
+    window.document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      window.document.removeEventListener('pointerdown', closeOnOutsideClick)
+      window.document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open])
+
+  return <div ref={menuRef} className="document-card__menu" onMouseLeave={() => setOpen(false)}><button className="document-card__menu-trigger" type="button" aria-label={`Aktionen für ${documentItem.title}`} aria-expanded={open} title="Weitere Aktionen" onClick={() => setOpen((current) => !current)}><MoreIcon /></button>{open && <div role="menu"><button role="menuitem" type="button" onClick={() => { setOpen(false); onDetails(documentItem) }}>Details</button><button role="menuitem" type="button" onClick={() => { setOpen(false); onEdit(documentItem) }}>Bearbeiten</button><button className="document-card__delete" role="menuitem" type="button" onClick={() => { setOpen(false); onDelete(documentItem) }}>Löschen</button></div>}</div>
+}
+
+export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onDetails, onEdit, onDelete, canEdit }) {
   if (loading) return <p className="documents-gallery__state">Dokumente werden geladen …</p>
   if (!documents.length) return <p className="documents-gallery__state">Keine Dokumente gespeichert.</p>
 
@@ -63,8 +82,7 @@ export default function DocumentsGallery({ documents, loading, onOpen, onDownloa
     {documents.map((documentItem) => <article className="document-card" key={documentItem.id}>
       <DocumentPreview documentItem={documentItem} onOpen={onOpen} />
       <div className="document-card__content">
-        <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div>{canEdit && <details className="document-card__menu"><summary aria-label={`Aktionen für ${documentItem.title}`} title="Weitere Aktionen"><MoreIcon /></summary><div><button type="button" onClick={() => onEdit(documentItem)}>Angaben bearbeiten</button><button className="document-card__delete" type="button" onClick={() => onDelete(documentItem)}>Löschen</button></div></details>}</div>
-        <div className="document-card__actions"><button type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></div>
+        <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div><div className="document-card__heading-actions">{canEdit && <DocumentActionsMenu documentItem={documentItem} onDetails={onDetails} onEdit={onEdit} onDelete={onDelete} />}<button className="document-card__download" type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></div></div>
       </div>
     </article>)}
   </div>
