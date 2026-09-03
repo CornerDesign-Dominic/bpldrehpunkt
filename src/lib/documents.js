@@ -13,7 +13,7 @@ import { db, storage } from './firebase.js'
 export const INTERNAL_DOCUMENTS_COLLECTION = 'internalDocuments'
 
 // Central action names provide a stable base for future role checks.
-export const DOCUMENT_ACTIONS = ['view', 'download', 'upload', 'edit', 'replace', 'delete']
+export const DOCUMENT_ACTIONS = ['view', 'download', 'upload', 'edit', 'delete']
 
 const documentsRef = collection(db, INTERNAL_DOCUMENTS_COLLECTION)
 const trim = (value) => (value ?? '').trim()
@@ -119,21 +119,11 @@ export async function createInternalDocument(values, file) {
   return documentRef.id
 }
 
-export async function updateInternalDocument(document, values, file) {
-  let fileData = null
-  if (file) fileData = await uploadDocumentFile(document.id, file)
+export async function updateInternalDocument(document, values) {
   try {
-    await updateDoc(doc(db, INTERNAL_DOCUMENTS_COLLECTION, document.id), { ...metadataPayload(values), ...(fileData || {}), updatedAt: serverTimestamp() })
+    await updateDoc(doc(db, INTERNAL_DOCUMENTS_COLLECTION, document.id), { ...metadataPayload(values), updatedAt: serverTimestamp() })
   } catch (error) {
-    if (fileData) await deleteObject(ref(storage, fileData.storagePath)).catch((cleanupError) => console.error('Dokumente: neue PDF konnte nach fehlgeschlagenem Firestore-Update nicht entfernt werden.', cleanupError))
     throw documentFailure('updateRecord', error)
-  }
-  if (fileData && document.storagePath && document.storagePath !== fileData.storagePath) {
-    try {
-      await deleteObject(ref(storage, document.storagePath))
-    } catch (error) {
-      throw documentFailure('deleteReplacedFile', error)
-    }
   }
 }
 

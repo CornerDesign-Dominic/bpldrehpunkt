@@ -51,21 +51,17 @@ export default function DocumentsPage() {
 
   async function saveDocument(values, file) {
     requireDocumentEditPermission()
-    if (selectedDocument && file) {
-      setConfirmation({ type: 'replace', document: selectedDocument, values, file })
-      return
-    }
     await performSave(selectedDocument, values, file)
   }
 
   async function performSave(documentItem, values, file) {
     try {
       requireDocumentEditPermission()
-      if (documentItem) await updateInternalDocument(documentItem, values, file)
+      if (documentItem) await updateInternalDocument(documentItem, values)
       else await createInternalDocument(values, file)
       await reloadDocuments()
       setEditingDocument(undefined)
-      setToast(documentItem ? (file ? 'PDF ersetzt.' : 'Dokument aktualisiert.') : 'Dokument hochgeladen.')
+      setToast(documentItem ? 'Dokument aktualisiert.' : 'Dokument hochgeladen.')
     } catch (saveError) {
       setError(getDocumentErrorMessage(saveError))
       throw saveError
@@ -89,8 +85,7 @@ export default function DocumentsPage() {
     if (!target) return
     setIsConfirming(true)
     try {
-      if (target.type === 'delete') await deleteDocument(target.document)
-      else await performSave(target.document, target.values, target.file)
+      await deleteDocument(target.document)
       setConfirmation(null)
     } catch {
       // The operation helper has already logged the original Firebase error and
@@ -132,13 +127,12 @@ export default function DocumentsPage() {
 
   const editable = canEdit('documents')
   const selectedEditDocument = editingDocument && editingDocument !== 'new' ? (editingDocument.document || editingDocument) : null
-  const isReplacing = Boolean(editingDocument && editingDocument !== 'new' && editingDocument.replace)
   return <div className="documents-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.type === 'replace' ? 'PDF ersetzen?' : 'Dokument dauerhaft löschen?'} message={confirmation?.type === 'replace' ? 'Die bisherige PDF-Datei wird dauerhaft gelöscht und durch die neue ersetzt.' : 'Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden.'} confirmLabel={confirmation?.type === 'replace' ? 'PDF ersetzen' : 'Endgültig löschen'} submittingLabel={confirmation?.type === 'replace' ? 'Wird ersetzt …' : 'Wird gelöscht …'} variant="danger" isSubmitting={isConfirming} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
+    <ConfirmDialog open={Boolean(confirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isConfirming} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
     <div className="list-toolbar documents-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Dokumente suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Dokumente suchen" /></label></div>{editable && <button className="button" type="button" onClick={() => setEditingDocument('new')}>Dokument hochladen</button>}</div>
-    {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingDocument(undefined) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={isReplacing ? 'PDF ersetzen' : selectedEditDocument ? 'Dokument bearbeiten' : 'Dokument hochladen'}><DocumentForm key={selectedEditDocument?.id || 'new'} documentItem={selectedEditDocument} replacing={isReplacing} onCancel={() => setEditingDocument(undefined)} onSubmit={saveDocument} /></section></div>}
+    {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingDocument(undefined) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={selectedEditDocument ? 'Dokument bearbeiten' : 'Dokument hochladen'}><DocumentForm key={selectedEditDocument?.id || 'new'} documentItem={selectedEditDocument} onCancel={() => setEditingDocument(undefined)} onSubmit={saveDocument} /></section></div>}
     {error && <p className="form-error">{error}</p>}
-    <DocumentsGallery documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onEdit={(documentItem) => setEditingDocument(documentItem)} onReplace={(documentItem) => setEditingDocument({ document: documentItem, replace: true })} onDelete={(documentItem) => setConfirmation({ type: 'delete', document: documentItem })} canEdit={editable} />
+    <DocumentsGallery documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onEdit={(documentItem) => setEditingDocument(documentItem)} onDelete={(documentItem) => setConfirmation({ type: 'delete', document: documentItem })} canEdit={editable} />
   </div>
 }

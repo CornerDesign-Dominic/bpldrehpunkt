@@ -59,7 +59,7 @@ function DocumentPreview({ documentItem, onOpen }) {
   </button>
 }
 
-export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onEdit, onReplace, onDelete, canEdit }) {
+export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onEdit, onDelete, canEdit }) {
   if (loading) return <p className="documents-gallery__state">Dokumente werden geladen …</p>
   if (!documents.length) return <p className="documents-gallery__state">Keine Dokumente gespeichert.</p>
 
@@ -67,7 +67,7 @@ export default function DocumentsGallery({ documents, loading, onOpen, onDownloa
     {documents.map((documentItem) => <article className="document-card" key={documentItem.id}>
       <DocumentPreview documentItem={documentItem} onOpen={onOpen} />
       <div className="document-card__content">
-        <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div>{canEdit && <details className="document-card__menu"><summary aria-label={`Aktionen für ${documentItem.title}`} title="Weitere Aktionen"><MoreIcon /></summary><div><button type="button" onClick={() => onEdit(documentItem)}>Angaben bearbeiten</button><button type="button" onClick={() => onReplace(documentItem)}>PDF ersetzen</button><button className="document-card__delete" type="button" onClick={() => onDelete(documentItem)}>Löschen</button></div></details>}</div>
+        <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div>{canEdit && <details className="document-card__menu"><summary aria-label={`Aktionen für ${documentItem.title}`} title="Weitere Aktionen"><MoreIcon /></summary><div><button type="button" onClick={() => onEdit(documentItem)}>Angaben bearbeiten</button><button className="document-card__delete" type="button" onClick={() => onDelete(documentItem)}>Löschen</button></div></details>}</div>
         <div className="document-card__actions"><button type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Öffnen"><EyeIcon /></button><button type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></div>
       </div>
     </article>)}
