@@ -29,6 +29,19 @@ function uniqueIds(ids) { return [...new Set((ids || []).filter(Boolean))] }
 function optionalId(value) { return trim(value) || null }
 function optionalName(value) { return trim(value) || null }
 function priorityValue(value) { return ['low', 'medium', 'high'].includes(value) ? value : 'medium' }
+function localDayNumber(value = new Date()) { return Math.floor(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / 86400000) }
+function dateDayNumber(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '')
+  if (!match) return null
+  const year = Number(match[1]); const month = Number(match[2]); const day = Number(match[3])
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? Math.floor(Date.UTC(year, month - 1, day) / 86400000) : null
+}
+function priorityRank(todo) { return { high: 0, medium: 1, low: 2 }[todoPriority(todo)] }
+function activeTodo(todo) { return ['open', 'in_progress'].includes(todo.status) }
+function dueDistance(todo, now) { const dueDay = dateDayNumber(todo.dueDate); return dueDay === null ? Number.MAX_SAFE_INTEGER : dueDay - localDayNumber(now) }
+function terminalRank(todo) { return todo.status === 'completed' ? 0 : 1 }
+function terminalTimestamp(todo) { return timestampValue(todo.completedAt || todo.withdrawnAt || todo.updatedAt) }
 
 function todoFields(values) {
   return {
@@ -64,6 +77,54 @@ async function queryTodos(...constraints) { return (await getDocs(query(todosRef
 export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
+
+export function todoDuePresentation(todo, now = new Date()) {
+  if (!activeTodo(todo)) return { kind: 'none', label: todo.dueDate ? 'Keine aktive Frist' : 'Keine Fälligkeit', days: null }
+  const days = dueDistance(todo, now)
+  if (days === Number.MAX_SAFE_INTEGER) return { kind: 'none', label: 'Keine Fälligkeit', days: null }
+  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
+  if (days === 0) return { kind: 'today', label: 'Heute fällig', days }
+  if (days <= 3) return { kind: 'soon', label: `Fällig in ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  return { kind: 'none', label: 'Fällig später', days }
+}
+
+function compareStandard(left, right, now) {
+  const leftUrgency = todoDuePresentation(left, now); const rightUrgency = todoDuePresentation(right, now)
+  const urgencyOrder = { overdue: 0, today: 1, soon: 2, none: 3 }
+  const urgencyDifference = urgencyOrder[leftUrgency.kind] - urgencyOrder[rightUrgency.kind]
+  if (urgencyDifference) return urgencyDifference
+  const priorityDifference = priorityRank(left) - priorityRank(right)
+  if (priorityDifference) return priorityDifference
+  const dateDifference = dueDistance(left, now) - dueDistance(right, now)
+  if (dateDifference) return dateDifference
+  return timestampValue(right.updatedAt) - timestampValue(left.updatedAt)
+}
+
+export function sortTodosForGroup(todos, group, now = new Date()) {
+  return [...todos].sort((left, right) => {
+    const leftActive = activeTodo(left); const rightActive = activeTodo(right)
+    if (leftActive !== rightActive) return leftActive ? -1 : 1
+    if (!leftActive) {
+      const statusDifference = terminalRank(left) - terminalRank(right)
+      return statusDifference || terminalTimestamp(right) - terminalTimestamp(left)
+    }
+    if (group === 'created') {
+      const leftUrgency = todoDuePresentation(left, now); const rightUrgency = todoDuePresentation(right, now)
+      const urgencyOrder = { overdue: 0, today: 1, soon: 2, none: 3 }
+      const urgencyDifference = urgencyOrder[leftUrgency.kind] - urgencyOrder[rightUrgency.kind]
+      if (urgencyDifference) return urgencyDifference
+      const followUpRank = (todo) => todo.status === 'open' && !todo.assignedUserId ? 0 : todo.status === 'in_progress' ? 1 : 2
+      const followUpDifference = followUpRank(left) - followUpRank(right)
+      return followUpDifference || compareStandard(left, right, now)
+    }
+    if (group === 'pool') {
+      const availabilityRank = (todo) => todo.status === 'open' && !todo.assignedUserId ? 0 : 1
+      const availabilityDifference = availabilityRank(left) - availabilityRank(right)
+      if (availabilityDifference) return availabilityDifference
+    }
+    return compareStandard(left, right, now)
+  })
+}
 
 export function audienceHasChanged(todo, values, uid) {
   if (values.audienceType === 'self') return !isSelfTodo(todo, uid)
