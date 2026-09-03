@@ -2,18 +2,18 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function profile() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
-    function documentsLevel() { return profile().role == 'superadmin' ? 'edit' : profile().permissions.documents; }
-    function canReadDocuments() { return request.auth != null && documentsLevel() in ['view', 'edit']; }
-    function canEditDocuments() { return request.auth != null && documentsLevel() == 'edit'; }
-    function isPdfUpload() {
+    function hasProfile() { return request.auth != null && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)); }
+    function canReadDocuments() { return hasProfile() && profile().active != false && (profile().role == 'superadmin' || profile().permissions.documents in ['view', 'edit']); }
+    function canEditDocuments() { return hasProfile() && profile().active != false && (profile().role == 'superadmin' || profile().permissions.documents == 'edit'); }
+    function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
-        && request.resource.name.matches('.*\\.pdf')
+        && fileName.matches('.*\\.pdf')
         && request.resource.size <= 20 * 1024 * 1024;
     }
 
-    match /internalDocuments/{allPaths=**} {
+    match /internalDocuments/{documentId}/{fileName} {
       allow read: if canReadDocuments();
-      allow create, update: if canEditDocuments() && isPdfUpload();
+      allow create, update: if canEditDocuments() && isPdfUpload(fileName);
       allow delete: if canEditDocuments();
     }
   }

@@ -7,7 +7,8 @@ import { usePermissions } from '../auth/usePermissions.js'
 import {
   createInternalDocument,
   deleteInternalDocument,
-  getInternalDocumentUrl,
+  getDocumentErrorMessage,
+  getInternalDocumentBlob,
   listInternalDocuments,
   updateInternalDocument,
 } from '../lib/documents.js'
@@ -41,7 +42,15 @@ export default function DocumentsPage() {
 
   const selectedDocument = editingDocument && editingDocument !== 'new' ? (editingDocument.document || editingDocument) : null
 
+  function requireDocumentEditPermission() {
+    if (canEdit('documents')) return
+    const permissionError = new Error('Keine Berechtigung zum Hochladen von Dokumenten.')
+    permissionError.code = 'storage/unauthorized'
+    throw permissionError
+  }
+
   async function saveDocument(values, file) {
+    requireDocumentEditPermission()
     if (selectedDocument && file) {
       setConfirmation({ type: 'replace', document: selectedDocument, values, file })
       return
@@ -51,24 +60,27 @@ export default function DocumentsPage() {
 
   async function performSave(documentItem, values, file) {
     try {
+      requireDocumentEditPermission()
       if (documentItem) await updateInternalDocument(documentItem, values, file)
       else await createInternalDocument(values, file)
       await reloadDocuments()
       setEditingDocument(undefined)
       setToast(documentItem ? (file ? 'PDF ersetzt.' : 'Dokument aktualisiert.') : 'Dokument hochgeladen.')
     } catch (saveError) {
-      setError('Das Dokument konnte nicht gespeichert werden.')
+      setError(getDocumentErrorMessage(saveError))
       throw saveError
     }
   }
 
   async function deleteDocument(documentItem) {
     try {
+      requireDocumentEditPermission()
       await deleteInternalDocument(documentItem)
       await reloadDocuments()
       setToast('Dokument dauerhaft gelöscht.')
-    } catch {
-      setError('Das Dokument konnte nicht gelöscht werden.')
+    } catch (deleteError) {
+      setError(getDocumentErrorMessage(deleteError))
+      throw deleteError
     }
   }
 
@@ -80,24 +92,30 @@ export default function DocumentsPage() {
       if (target.type === 'delete') await deleteDocument(target.document)
       else await performSave(target.document, target.values, target.file)
       setConfirmation(null)
+    } catch {
+      // The operation helper has already logged the original Firebase error and
+      // placed a readable message in the form/page.
     } finally { setIsConfirming(false) }
   }
 
   async function openDocument(documentItem) {
     const openedWindow = window.open('', '_blank', 'noopener')
     try {
-      const url = await getInternalDocumentUrl(documentItem)
+      const blob = await getInternalDocumentBlob(documentItem)
+      const url = URL.createObjectURL(blob)
       if (openedWindow) openedWindow.location.href = url
       else window.open(url, '_blank', 'noopener')
-    } catch {
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (openError) {
       openedWindow?.close()
-      setError('Die Dokumentdatei konnte nicht geöffnet werden.')
+      setError(getDocumentErrorMessage(openError))
     }
   }
 
   async function downloadDocument(documentItem) {
     try {
-      const url = await getInternalDocumentUrl(documentItem)
+      const blob = await getInternalDocumentBlob(documentItem)
+      const url = URL.createObjectURL(blob)
       const anchor = window.document.createElement('a')
       anchor.href = url
       anchor.download = documentItem.fileName
@@ -105,8 +123,9 @@ export default function DocumentsPage() {
       window.document.body.append(anchor)
       anchor.click()
       anchor.remove()
-    } catch {
-      setError('Die Dokumentdatei konnte nicht heruntergeladen werden.')
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    } catch (downloadError) {
+      setError(getDocumentErrorMessage(downloadError))
     }
   }
 

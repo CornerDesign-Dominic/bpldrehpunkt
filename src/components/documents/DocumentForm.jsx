@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createEmptyDocument, isPdfFile } from '../../lib/documents.js'
+import { createEmptyDocument, getDocumentErrorMessage, isPdfFile } from '../../lib/documents.js'
 
 export default function DocumentForm({ documentItem, onCancel, onSubmit, replacing = false }) {
   const [form, setForm] = useState(documentItem ? { title: documentItem.title || '', category: documentItem.category || '', description: documentItem.description || '' } : createEmptyDocument())
@@ -22,7 +22,7 @@ export default function DocumentForm({ documentItem, onCancel, onSubmit, replaci
     }
     if (file && !isPdfFile(file)) { setError('Bitte ausschließlich eine PDF-Datei auswählen.'); return }
     setSubmitting(true); setError('')
-    try { await onSubmit(form, file) } catch { setError('Das Dokument konnte nicht gespeichert werden.') } finally { setSubmitting(false) }
+    try { await onSubmit(form, file) } catch (submitError) { setError(getDocumentErrorMessage(submitError)) } finally { setSubmitting(false) }
   }
 
   return <form className="document-form" onSubmit={submit} noValidate>

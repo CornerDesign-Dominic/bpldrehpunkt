@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatDocumentDate, formatFileSize, getInternalDocumentUrl } from '../../lib/documents.js'
+import { formatDocumentDate, formatFileSize, getInternalDocumentBlob } from '../../lib/documents.js'
 
 function EyeIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>
@@ -18,8 +18,13 @@ function DocumentPreview({ documentItem, onOpen }) {
 
   useEffect(() => {
     let current = true
-    getInternalDocumentUrl(documentItem).then((nextUrl) => { if (current) setUrl(nextUrl) }).catch(() => { if (current) setUrl('') })
-    return () => { current = false }
+    let objectUrl = ''
+    getInternalDocumentBlob(documentItem).then((blob) => {
+      objectUrl = URL.createObjectURL(blob)
+      if (current) setUrl(objectUrl)
+      else URL.revokeObjectURL(objectUrl)
+    }).catch(() => { if (current) setUrl('') })
+    return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [documentItem])
 
   return <button className="document-card__preview" type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
