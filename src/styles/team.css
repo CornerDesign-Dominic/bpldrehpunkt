@@ -19,9 +19,8 @@
 .team-card__details { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 12px; margin: 10px 0 0; }
 .team-card__details div { min-width: 0; }
 .team-card__details .team-card__email { grid-column: 1 / -1; }
-.team-card__details dt { color: var(--text-muted); font-size: 10px; font-weight: 700; }
-.team-card__details dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--text-secondary); font-size: 12px; }
-.team-card__details a { color: var(--text-secondary); text-decoration: none; }
+.team-card__details { color: var(--text-secondary); font-size: 12px; }
+.team-card__details a { overflow-wrap: anywhere; color: var(--text-secondary); text-decoration: none; }
 .team-card__details a:hover { color: var(--text-primary); text-decoration: underline; }
 .team-email { display: inline-flex; max-width: 100%; align-items: center; gap: 4px; }
 .team-email__copy { display: inline-grid; width: 25px; height: 25px; flex: 0 0 25px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 4px; color: var(--text-muted); background: transparent; cursor: pointer; }
