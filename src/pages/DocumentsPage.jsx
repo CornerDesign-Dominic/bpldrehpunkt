@@ -37,7 +37,7 @@ export default function DocumentsPage() {
 
   const visibleDocuments = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
-    return documents.filter((documentItem) => !term || [documentItem.title, documentItem.category, documentItem.description, documentItem.fileName].some((value) => value?.toLocaleLowerCase('de-DE').includes(term)))
+    return documents.filter((documentItem) => !term || [documentItem.title, documentItem.description, documentItem.fileName].some((value) => value?.toLocaleLowerCase('de-DE').includes(term)))
   }, [documents, search])
 
   const selectedDocument = editingDocument && editingDocument !== 'new' ? (editingDocument.document || editingDocument) : null

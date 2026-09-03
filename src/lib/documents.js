@@ -47,8 +47,8 @@ function timestampValue(value) {
 function metadataPayload(values) {
   return {
     title: trim(values.title),
-    category: trim(values.category),
     description: trim(values.description),
+    expirationDate: values.expirationDate || null,
   }
 }
 
@@ -57,7 +57,7 @@ function sanitizeFileName(name) {
 }
 
 export function createEmptyDocument() {
-  return { title: '', category: '', description: '' }
+  return { title: '', description: '', expirationDate: '' }
 }
 
 export function isPdfFile(file) {
