@@ -21,7 +21,7 @@ function RequestDetailModal({ request, originalRequest, onClose, onProcess }) {
   const type = requestType(request)
   const status = requestStatus(request)
   const original = originalPeriod(request, originalRequest)
-  const actionLabel = type === 'change' ? 'Änderung' : type === 'cancellation' ? 'Storno' : 'Antrag'
+  const actionLabel = type === 'change' ? 'Änderung' : type === 'cancellation' ? 'Storno' : 'Urlaubsantrag'
   const [managerComment, setManagerComment] = useState('')
   const requestComment = request.requestComment || request.note || 'Kein Kommentar'
   const savedManagerComment = request.managerComment || 'Kein Kommentar'
