@@ -7,7 +7,9 @@ service cloud.firestore {
     function superadmin() { return role() == 'superadmin'; }
     function admin() { return role() == 'admin' || superadmin(); }
     function level(module) { return superadmin() ? 'edit' : ownProfile().permissions[module]; }
-    function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && ownProfile().active != false; }
+    // Profiles created before the active flag existed remain active unless they
+    // are explicitly marked as inactive.
+    function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (!ownProfile().keys().hasAll(['active']) || ownProfile().active != false); }
     function view(module) { return active() && (superadmin() || level(module) in ['view', 'edit']); }
     function edit(module) { return active() && (superadmin() || level(module) == 'edit'); }
     function calendarDocument(calendarId) { return get(/databases/$(database)/documents/calendars/$(calendarId)).data; }

@@ -3,8 +3,11 @@ service firebase.storage {
   match /b/{bucket}/o {
     function profile() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data; }
     function hasProfile() { return request.auth != null && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)); }
-    function canReadDocuments() { return hasProfile() && profile().active != false && (profile().role == 'superadmin' || profile().permissions.documents in ['view', 'edit']); }
-    function canEditDocuments() { return hasProfile() && profile().active != false && (profile().role == 'superadmin' || profile().permissions.documents == 'edit'); }
+    // Legacy profiles may not have an `active` field. The application treats
+    // those profiles as active, so the server-side rule must do the same.
+    function profileIsActive() { return !profile().keys().hasAll(['active']) || profile().active != false; }
+    function canReadDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.documents in ['view', 'edit']); }
+    function canEditDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.documents == 'edit'); }
     function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
         && fileName.matches('.*\\.pdf')
