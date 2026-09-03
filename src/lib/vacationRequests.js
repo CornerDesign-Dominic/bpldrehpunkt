@@ -118,6 +118,7 @@ function requestPayload(userId, values, extra = {}) {
     status: extra.status || 'pending',
     type: 'vacation',
     note: trim(values.note),
+    requestComment: trim(values.requestComment),
     ...extra,
   }
 }
@@ -158,7 +159,7 @@ export async function createVacationCancellationRequest(originalRequest, userId,
   const requestRef = doc(requestsRef)
   await setDoc(requestRef, {
     id: requestRef.id,
-    ...requestPayload(userId, { startDate: originalRequest.startDate, endDate: originalRequest.endDate, note: values.note, vacationType: originalRequest.vacationType }, {
+    ...requestPayload(userId, { startDate: originalRequest.startDate, endDate: originalRequest.endDate, requestComment: values.requestComment, vacationType: originalRequest.vacationType }, {
       status: 'cancellation_requested',
       requestKind: 'cancellation',
       originalRequestId: originalRequest.id,

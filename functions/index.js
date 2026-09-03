@@ -218,11 +218,12 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, as
 
 export const processVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
   const manager = await assertVacationManager(request)
-  const { requestId, decision } = request.data ?? {}
+  const { requestId, decision, managerComment } = request.data ?? {}
   if (typeof requestId !== 'string' || !['approved', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
+  if (managerComment !== undefined && typeof managerComment !== 'string') throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
   const { requestRef, vacationRequest } = await managedVacationRequest(manager, requestId)
   if (!['pending', 'change_requested', 'cancellation_requested'].includes(vacationRequest.data().status)) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
-  const processed = { status: decision, processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
+  const processed = { status: decision, managerComment: (managerComment || '').trim(), processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
   await requestRef.update(processed)
   return { requestId, status: decision }
 })
