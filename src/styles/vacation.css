@@ -22,6 +22,9 @@
 .vacation-day-entry--pending, .vacation-legend__item--pending::before { background: var(--status-warning-background); color: var(--status-warning-text); }
 .vacation-day-entry--rejected, .vacation-legend__item--rejected::before { background: var(--status-danger-background); color: var(--status-danger-text); }
 .vacation-day-entry--change_requested, .vacation-legend__item--change_requested::before { background: var(--surface-active); color: var(--text-secondary); }
+.vacation-day-entry--change_requested { outline: 1px dashed var(--text-muted); outline-offset: -1px; }
+.vacation-day-entry--cancellation_requested, .vacation-legend__item--cancellation_requested::before { color: var(--status-danger-text); background: var(--status-danger-background); }
+.vacation-day-entry--cancellation_requested { outline: 1px dashed currentColor; outline-offset: -1px; }
 .vacation-day-entry--holiday, .vacation-legend__item--holiday::before { color: var(--text-secondary); background: var(--surface-secondary); border: 1px solid var(--border-strong); }
 .vacation-day-entry--block, .vacation-legend__item--block::before { color: var(--status-warning-text); background: var(--status-warning-background); border: 1px dashed var(--status-warning-text); }
 .vacation-day-entry--own { outline: 1px solid currentColor; outline-offset: -1px; font-weight: 750; }

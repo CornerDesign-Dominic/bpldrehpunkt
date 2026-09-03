@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
+import VacationCalendar from '../components/vacation/VacationCalendar.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import { canEdit as canApproveVacation } from '../lib/permissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
@@ -9,7 +11,6 @@ import {
   createVacationChangeRequest,
   createVacationCancellationRequest,
   createVacationRequest,
-  dateValue,
   formatVacationDate,
   formatVacationPeriod,
   getVacationStatus,
@@ -20,9 +21,6 @@ import {
 } from '../lib/vacationRequests.js'
 import '../styles/vacation.css'
 
-const MONTHS = Array.from({ length: 12 }, (_, month) => new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date(2024, month, 1)))
-const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-
 function displayName(profile) {
   return getUserDisplayName(profile, profile)
 }
@@ -32,16 +30,6 @@ function vacationApproverEmails(users, requesterId) {
     .filter((item) => item.id !== requesterId && item.active !== false && canApproveVacation(item, 'vacation'))
     .map((item) => item.email?.trim())
     .filter(Boolean))]
-}
-
-function monthDays(year, month) {
-  const first = new Date(year, month, 1)
-  const last = new Date(year, month + 1, 0)
-  const startOffset = (first.getDay() + 6) % 7
-  const result = Array.from({ length: startOffset }, () => null)
-  for (let day = 1; day <= last.getDate(); day += 1) result.push(new Date(year, month, day))
-  while (result.length % 7) result.push(null)
-  return result
 }
 
 function vacationAllowance(profile) {
@@ -215,8 +203,18 @@ export default function VacationPage() {
     const carryover = previousYearCarryover(profile)
     return { allowance, carryover, taken, planned, pending, remaining: allowance + carryover - taken - planned }
   }, [ownRequests, profile, today, year])
-  const calendarDays = useMemo(() => monthDays(year, month), [month, year])
   const years = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
+
+  function calendarEntriesForDate(value) {
+    return [
+      ...holidays.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ id: `holiday-${item.id}`, label: item.label, kind: 'holiday' })),
+      ...vacationBlocks.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ id: `block-${item.id}`, label: item.label, kind: 'block' })),
+      ...visibleRequests.filter((item) => requestOverlaps(item, value, value)).map((item) => {
+        const owner = usersById.get(item.userId)
+        return { id: `vacation-${item.id}`, label: displayName(owner || {}).split(' ')[0], kind: item.status, own: item.userId === user.uid, title: `${displayName(owner || {})} · ${getVacationStatus(item.status).label}` }
+      }),
+    ]
+  }
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)
@@ -267,23 +265,9 @@ export default function VacationPage() {
   return <div className="vacation-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <section className="vacation-calendar-card">
-      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Abteilung</span><select value={department} onChange={(event) => { setDepartment(event.target.value); setEmployee('all') }}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span className="sr-only">Mitarbeiter</span><select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="all">Alle Mitarbeiter</option>{selectableUsers.map((item) => <option key={item.id} value={item.id}>{displayName(item)}</option>)}</select></label></div></div>
+      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Abteilung</span><select value={department} onChange={(event) => { setDepartment(event.target.value); setEmployee('all') }}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span className="sr-only">Mitarbeiter</span><select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="all">Alle Mitarbeiter</option>{selectableUsers.map((item) => <option key={item.id} value={item.id}>{displayName(item)}</option>)}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
-      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><div className="vacation-calendar" aria-label={`Urlaubskalender ${MONTHS[month]} ${year}`}><div className="vacation-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div><div className="vacation-calendar__days">{calendarDays.map((date, index) => {
-        if (!date) return <div key={`empty-${index}`} className="vacation-day vacation-day--empty" />
-        const value = dateValue(date)
-        const matching = [
-          ...holidays.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ ...item, kind: 'holiday' })),
-          ...vacationBlocks.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ ...item, kind: 'block' })),
-          ...visibleRequests.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ ...item, kind: 'vacation' })),
-        ]
-        return <div key={value} className={`vacation-day ${value === today ? 'vacation-day--today' : ''}`}><time dateTime={value}>{date.getDate()}</time><div className="vacation-day__entries">{matching.slice(0, 3).map((item) => {
-          const owner = usersById.get(item.userId)
-          const label = item.kind === 'vacation' ? displayName(owner || {}).split(' ')[0] : item.label
-          const kindClass = item.kind === 'vacation' ? item.status : item.kind
-          return <span key={`${item.kind}-${item.id}`} className={`vacation-day-entry vacation-day-entry--${kindClass} ${item.userId === user.uid ? 'vacation-day-entry--own' : ''}`} title={item.kind === 'vacation' ? `${displayName(owner || {})} · ${getVacationStatus(item.status).label}` : item.label}>{label}</span>
-        })}{matching.length > 3 && <span className="vacation-day-entry vacation-day-entry--more">+{matching.length - 3}</span>}</div></div>
-      })}</div></div><div className="vacation-legend"><span className="vacation-legend__item vacation-legend__item--holiday">Feiertag</span><span className="vacation-legend__item vacation-legend__item--approved">Genehmigter Urlaub</span><span className="vacation-legend__item vacation-legend__item--block">Urlaubssperre</span></div></>}
+      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar year={year} month={month} today={today} entriesForDate={calendarEntriesForDate} /><div className="vacation-legend"><span className="vacation-legend__item vacation-legend__item--holiday">Feiertag</span><span className="vacation-legend__item vacation-legend__item--approved">Genehmigter Urlaub</span><span className="vacation-legend__item vacation-legend__item--block">Urlaubssperre</span></div></>}
     </section>
     <aside className="vacation-sidebar">
       <section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>

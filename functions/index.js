@@ -192,8 +192,14 @@ function submittedAt(data) {
 
 export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, async (request) => {
   const manager = await assertVacationManager(request)
-  const [requestSnapshot, employeeSnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get()])
+  const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get()])
   const employees = new Map(employeeSnapshot.docs.map((item) => [item.id, item.data()]))
+  const managedEmployees = employeeSnapshot.docs
+    .filter((item) => canManageVacationDepartment(manager, item.data().departmentId || item.data().department || ''))
+    .map((item) => {
+      const employee = item.data()
+      return { id: item.id, name: [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || employee.email || '—', department: employee.departmentName || employee.department || 'Keine Abteilung', departmentId: employee.departmentId || employee.department || '' }
+    })
   const requests = requestSnapshot.docs
     .map((item) => ({ id: item.id, ...item.data() }))
     .filter((item) => canManageVacationDepartment(manager, employees.get(item.userId)?.departmentId || employees.get(item.userId)?.department || ''))
@@ -201,7 +207,13 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, as
       const employee = employees.get(item.userId) || {}
       return { ...item, employeeName: [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || employee.email || '—', employeeDepartment: employee.departmentName || employee.department || '—', employeeDepartmentId: employee.departmentId || employee.department || '', requestType: requestType(item), submittedAt: submittedAt(item) }
     })
-  return { requests }
+  const calendarItems = (snapshot, fallbackLabel) => snapshot.docs.map((item) => {
+    const data = item.data()
+    const startDate = data.startDate || data.date || ''
+    const endDate = data.endDate || data.date || startDate
+    return { id: item.id, ...data, startDate, endDate, label: departmentName(data.label || data.name) || fallbackLabel }
+  }).filter((item) => item.startDate && item.endDate)
+  return { requests, employees: managedEmployees, holidays: calendarItems(holidaySnapshot, 'Feiertag'), blocks: calendarItems(blockSnapshot, 'Urlaubssperre') }
 })
 
 export const processVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
