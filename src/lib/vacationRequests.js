@@ -13,6 +13,12 @@ export const VACATION_STATUSES = [
   { value: 'cancellation_requested', label: 'Stornoantrag' },
 ]
 
+export const VACATION_TYPES = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'overtime', label: 'Überstundenabbau' },
+  { value: 'special', label: 'Sonderurlaub' },
+]
+
 const requestsRef = collection(db, VACATION_REQUESTS_COLLECTION)
 const holidaysRef = collection(db, CALENDAR_HOLIDAYS_COLLECTION)
 const vacationBlocksRef = collection(db, VACATION_BLOCKS_COLLECTION)
@@ -75,6 +81,14 @@ export async function listVacationRequests(userId) {
     .sort((left, right) => (right.startDate || '').localeCompare(left.startDate || '') || (right.endDate || '').localeCompare(left.endDate || ''))
 }
 
+export function getVacationType(type) {
+  return VACATION_TYPES.find((item) => item.value === type) ?? VACATION_TYPES[0]
+}
+
+export function reducesVacationAllowance(request) {
+  return getVacationType(request?.vacationType).value === 'normal'
+}
+
 function calendarEntry(snapshot, fallbackLabel) {
   const data = snapshot.data()
   const startDate = data.startDate || data.date || ''
@@ -94,11 +108,13 @@ function requestPayload(userId, values, extra = {}) {
   const startDate = values.startDate || ''
   const endDate = values.endDate || ''
   const requestedDays = Number(values.days)
+  const vacationType = getVacationType(values.vacationType).value
   return {
     userId,
     startDate,
     endDate,
     days: Number.isFinite(requestedDays) && requestedDays >= 0 ? requestedDays : businessDays(startDate, endDate),
+    vacationType,
     status: extra.status || 'pending',
     type: 'vacation',
     note: trim(values.note),
@@ -142,7 +158,7 @@ export async function createVacationCancellationRequest(originalRequest, userId,
   const requestRef = doc(requestsRef)
   await setDoc(requestRef, {
     id: requestRef.id,
-    ...requestPayload(userId, { startDate: originalRequest.startDate, endDate: originalRequest.endDate, note: values.note }, {
+    ...requestPayload(userId, { startDate: originalRequest.startDate, endDate: originalRequest.endDate, note: values.note, vacationType: originalRequest.vacationType }, {
       status: 'cancellation_requested',
       requestKind: 'cancellation',
       originalRequestId: originalRequest.id,
