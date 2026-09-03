@@ -58,6 +58,7 @@ function DocumentPreview({ documentItem, onOpen }) {
 function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
+  const closeTimerRef = useRef(null)
 
   useEffect(() => {
     if (!open) return undefined
@@ -71,7 +72,15 @@ function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit }) {
     }
   }, [open])
 
-  return <div ref={menuRef} className="document-card__menu" onMouseLeave={() => setOpen(false)}><button className="document-card__menu-trigger" type="button" aria-label={`Aktionen für ${documentItem.title}`} aria-expanded={open} title="Weitere Aktionen" onClick={() => setOpen((current) => !current)}><MoreIcon /></button>{open && <div role="menu"><button role="menuitem" type="button" onClick={() => { setOpen(false); onDetails(documentItem) }}>Details</button><button role="menuitem" type="button" onClick={() => { setOpen(false); onEdit(documentItem) }}>Bearbeiten</button><button className="document-card__delete" role="menuitem" type="button" onClick={() => { setOpen(false); onDelete(documentItem) }}>Löschen</button></div>}</div>
+  useEffect(() => () => window.clearTimeout(closeTimerRef.current), [])
+
+  function cancelScheduledClose() { window.clearTimeout(closeTimerRef.current) }
+  function scheduleClose() {
+    cancelScheduledClose()
+    closeTimerRef.current = window.setTimeout(() => setOpen(false), 350)
+  }
+
+  return <div ref={menuRef} className="document-card__menu" onMouseEnter={cancelScheduledClose} onMouseLeave={scheduleClose}><button className="document-card__menu-trigger" type="button" aria-label={`Aktionen für ${documentItem.title}`} aria-expanded={open} title="Weitere Aktionen" onClick={() => setOpen((current) => !current)}><MoreIcon /></button>{open && <div role="menu"><button role="menuitem" type="button" onClick={() => { setOpen(false); onDetails(documentItem) }}>Details</button><button role="menuitem" type="button" onClick={() => { setOpen(false); onEdit(documentItem) }}>Bearbeiten</button><button className="document-card__delete" role="menuitem" type="button" onClick={() => { setOpen(false); onDelete(documentItem) }}>Löschen</button></div>}</div>
 }
 
 export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onDetails, onEdit, onDelete, canEdit }) {
