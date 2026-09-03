@@ -81,8 +81,7 @@ export default function PalletAccountList() {
   function renderSortableHeader(key, label) {
     const isActive = sort.key === key
     const direction = isActive ? sort.direction : 'none'
-    const indicator = isActive ? sort.direction === 'asc' ? '▲' : '▼' : '↕'
-    return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}>{label}<span className={isActive ? 'table-sort-button__indicator table-sort-button__indicator--active' : 'table-sort-button__indicator'} aria-hidden="true">{indicator}</span><span className="sr-only">{isActive ? `, aktuell ${sort.direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert` : ', sortieren'}</span></button></th>
+    return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}><span>{label}</span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{isActive ? `, aktuell ${sort.direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert` : ', sortieren'}</span></button></th>
   }
 
   const hasActiveFilters = Boolean(search.trim()) || filter !== 'all'
