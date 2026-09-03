@@ -3,7 +3,7 @@
 .team-toolbar .search-field { flex: 1; max-width: 360px; }
 .team-toolbar .search-field input { width: 100%; }
 .team-toolbar .filter-field select { width: 190px; }
-.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.team-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .team-card { min-width: 0; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .team-card__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .team-card__heading h2 { margin: 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
