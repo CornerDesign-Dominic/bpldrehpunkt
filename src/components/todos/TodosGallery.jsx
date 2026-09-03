@@ -2,7 +2,7 @@ import { TODO_STATUS } from '../../lib/todos.js'
 
 export default function TodosGallery({ formatDate, getDueClass, loading, onDetails, todos }) {
   if (loading) return <p className="todos-gallery__state">To-dos werden geladen …</p>
-  if (!todos.length) return <p className="todos-gallery__state">Für diese Auswahl gibt es keine To-dos.</p>
+  if (!todos.length) return <p className="todos-gallery__state">Keine To-dos vorhanden.</p>
 
   return <div className="todos-gallery">
     {todos.map((todo) => <article className="todo-card" key={todo.id}>

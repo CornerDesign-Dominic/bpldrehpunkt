@@ -48,8 +48,6 @@ export default function TodosPage() {
   const actor = useMemo(() => ({ user, profile }), [profile, user])
   const [todos, setTodos] = useState([])
   const [users, setUsers] = useState([])
-  const [tab, setTab] = useState('mine')
-  const [statusFilter, setStatusFilter] = useState('active')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [detailsTodo, setDetailsTodo] = useState(null)
@@ -74,18 +72,11 @@ export default function TodosPage() {
     return () => { current = false }
   }, [actor, editable])
 
-  const visibleTodos = useMemo(() => todos.filter((todo) => {
-    if (tab === 'mine') return todo.assignedUserId === user.uid && (statusFilter === 'active' ? todo.status === 'in_progress' : statusFilter === 'all' || todo.status === statusFilter)
-    if (tab === 'created') return todo.creatorUserId === user.uid || profile?.role === 'superadmin'
-    if (!isAudienceMember(todo, actor) || todo.status === 'withdrawn') return false
-    if (statusFilter === 'available') return todo.status === 'open' && !todo.assignedUserId
-    return statusFilter === 'all' || todo.status === statusFilter
-  }), [actor, profile?.role, statusFilter, tab, todos, user.uid])
-
-  function selectTab(nextTab) {
-    setTab(nextTab)
-    setStatusFilter(nextTab === 'pool' ? 'available' : nextTab === 'mine' ? 'active' : 'all')
-  }
+  const todoGroups = useMemo(() => ({
+    mine: todos.filter((todo) => todo.assignedUserId === user.uid),
+    created: todos.filter((todo) => todo.creatorUserId === user.uid || profile?.role === 'superadmin'),
+    pool: todos.filter((todo) => isAudienceMember(todo, actor) && todo.status !== 'withdrawn'),
+  }), [actor, profile?.role, todos, user.uid])
 
   async function addTodo(values) {
     await createTodo(values, actor, usersById)
@@ -151,11 +142,10 @@ export default function TodosPage() {
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} confirmLabel="Bestätigen" onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
     {detailsTodo && <TodoDetailsModal todo={detailsTodo} formatDate={formatDate} getDueClass={dueClass} onClose={() => setDetailsTodo(null)}><TodoActions actor={actor} editable={editable} onAction={(action, todo) => { setDetailsTodo(null); handleAction(action, todo) }} onEdit={(todo, reassign) => { setDetailsTodo(null); setShowForm(false); setEditing({ todo, reassign }) }} todo={detailsTodo} /></TodoDetailsModal>}
-    <div className="todo-tabs" role="tablist" aria-label="To-do-Bereich"><button className={tab === 'mine' ? 'todo-tabs__tab todo-tabs__tab--active' : 'todo-tabs__tab'} type="button" onClick={() => selectTab('mine')}>Meine Aufgaben</button><button className={tab === 'created' ? 'todo-tabs__tab todo-tabs__tab--active' : 'todo-tabs__tab'} type="button" onClick={() => selectTab('created')}>Von mir erstellt</button><button className={tab === 'pool' ? 'todo-tabs__tab todo-tabs__tab--active' : 'todo-tabs__tab'} type="button" onClick={() => selectTab('pool')}>Aufgabenpool</button></div>
-    <div className="list-toolbar todo-toolbar"><div className="list-controls"><label className="filter-field"><span className="sr-only">Status filtern</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>{tab === 'pool' ? <><option value="available">Verfügbar</option><option value="in_progress">In Bearbeitung</option><option value="completed">Erledigt</option><option value="all">Alle</option></> : tab === 'mine' ? <><option value="active">Aktive Aufgaben</option><option value="completed">Erledigt</option><option value="all">Alle</option></> : <option value="all">Alle Status</option>}</select></label></div>{editable && <button className="button" type="button" onClick={() => { setEditing(null); setShowForm(true) }}>To-do anlegen</button>}</div>
+    <div className="list-toolbar todo-toolbar">{editable && <button className="button" type="button" onClick={() => { setEditing(null); setShowForm(true) }}>To-do anlegen</button>}</div>
     {showForm && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen"><TodoForm key="new" users={activeUsers} onCancel={() => setShowForm(false)} onSubmit={addTodo} /></section></div>}
     {editing && <TodoForm key={editing.todo.id} initialTodo={editing.todo} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
     {error && <p className="form-error">{error}</p>}
-    <TodosGallery todos={visibleTodos} loading={loading} formatDate={formatDate} getDueClass={dueClass} onDetails={setDetailsTodo} />
+    {loading ? <p className="todos-gallery__state">To-dos werden geladen …</p> : <div className="todo-sections"><section className="todo-section"><div className="todo-section__heading"><h2>Meine Aufgaben</h2><span>{todoGroups.mine.length}</span></div><TodosGallery todos={todoGroups.mine} formatDate={formatDate} getDueClass={dueClass} onDetails={setDetailsTodo} /></section><section className="todo-section"><div className="todo-section__heading"><h2>Von mir erstellt</h2><span>{todoGroups.created.length}</span></div><TodosGallery todos={todoGroups.created} formatDate={formatDate} getDueClass={dueClass} onDetails={setDetailsTodo} /></section><section className="todo-section"><div className="todo-section__heading"><h2>Aufgabenpool</h2><span>{todoGroups.pool.length}</span></div><TodosGallery todos={todoGroups.pool} formatDate={formatDate} getDueClass={dueClass} onDetails={setDetailsTodo} /></section></div>}
   </div>
 }

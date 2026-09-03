@@ -799,6 +799,7 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .todo-tabs__tab:hover { color: var(--legacy-43596f); background: var(--legacy-edf1f4); }
 .todo-tabs__tab--active { color: var(--legacy-394f65); background: var(--legacy-e8eef4); }
 .todo-toolbar { margin: 0; }
+.todo-sections { display: grid; gap: 18px; }.todo-section { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }.todo-section__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.todo-section__heading h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }.todo-section__heading span { display: inline-flex; min-width: 23px; height: 23px; align-items: center; justify-content: center; padding: 0 7px; border-radius: 12px; color: var(--text-secondary); background: var(--content-background); font-size: 11px; font-weight: 700; }
 .todo-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--legacy-dfe4e9); border-radius: 6px; background: var(--legacy-fbfcfd); }
 .todo-form__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .todo-form__heading h2 { margin: 0; color: var(--legacy-435061); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
