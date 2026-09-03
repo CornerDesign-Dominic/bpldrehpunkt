@@ -5,10 +5,6 @@ import { getInternalDocumentBlob } from '../../lib/documents.js'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
 
-function EyeIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" /></svg>
-}
-
 function DownloadIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
 }
@@ -68,7 +64,7 @@ export default function DocumentsGallery({ documents, loading, onOpen, onDownloa
       <DocumentPreview documentItem={documentItem} onOpen={onOpen} />
       <div className="document-card__content">
         <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div>{canEdit && <details className="document-card__menu"><summary aria-label={`Aktionen für ${documentItem.title}`} title="Weitere Aktionen"><MoreIcon /></summary><div><button type="button" onClick={() => onEdit(documentItem)}>Angaben bearbeiten</button><button className="document-card__delete" type="button" onClick={() => onDelete(documentItem)}>Löschen</button></div></details>}</div>
-        <div className="document-card__actions"><button type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Öffnen"><EyeIcon /></button><button type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></div>
+        <div className="document-card__actions"><button type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></div>
       </div>
     </article>)}
   </div>
