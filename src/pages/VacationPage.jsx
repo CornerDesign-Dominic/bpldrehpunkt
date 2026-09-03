@@ -17,7 +17,9 @@ import {
   listVacationRequests,
   reducesVacationAllowance,
   requestOverlaps,
+  replacePendingVacationRequest,
   todayValue,
+  withdrawVacationRequest,
 } from '../lib/vacationRequests.js'
 import { notifyVacationSubmission } from '../lib/vacationNotifications.js'
 import '../styles/vacation.css'
@@ -56,8 +58,17 @@ function StatusBadge({ status }) {
   return <span className={`vacation-status vacation-status--${item.value}`}>{item.label}</span>
 }
 
+function isCancellationRequest(request) {
+  return request?.requestKind === 'cancellation' || Boolean(request?.cancellationRequest)
+}
+
+function displayRequestStatus(request) {
+  return isCancellationRequest(request) && request.status === 'approved' ? 'cancelled' : request.status
+}
+
 function RequestModal({ request, onClose, onSubmit }) {
   const isChange = Boolean(request)
+  const isPendingReplacement = request?.status === 'pending' && !request?.originalRequestId && !isCancellationRequest(request)
   const initialStartDate = request?.startDate || todayValue()
   const initialEndDate = request?.endDate || todayValue()
   const [form, setForm] = useState({ startDate: initialStartDate, endDate: initialEndDate, days: String(request?.days ?? businessDays(initialStartDate, initialEndDate)), vacationType: getVacationType(request?.vacationType).value, requestComment: '' })
@@ -93,11 +104,11 @@ function RequestModal({ request, onClose, onSubmit }) {
     }
   }
 
-  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal" role="dialog" aria-modal="true" aria-labelledby="vacation-modal-title"><div className="vacation-modal__heading"><div><h2 id="vacation-modal-title">{isChange ? 'Änderung beantragen' : 'Urlaub beantragen'}</h2>{isChange && <p>Der ursprüngliche Antrag bleibt unverändert erhalten.</p>}</div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><form onSubmit={submit} noValidate><div className="vacation-modal__fields"><label className="form-field"><span>Von</span><input type="date" value={form.startDate} onChange={(event) => setDate('startDate', event.target.value)} /></label><label className="form-field"><span>Bis</span><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setDate('endDate', event.target.value)} /></label><label className="form-field vacation-form-days"><span>Urlaubstage</span><input type="number" min="0" step="0.5" required value={form.days} onChange={(event) => { setDaysEdited(true); setForm((current) => ({ ...current, days: event.target.value })) }} />{!daysEdited && <small>Vorschlag aus Zeitraum: {suggestedDays}</small>}</label><label className="form-field vacation-form-type"><span>Urlaubsart</span><select required value={form.vacationType} onChange={(event) => setForm((current) => ({ ...current, vacationType: event.target.value }))}><option value="normal">Normal</option><option value="overtime">Überstundenabbau</option><option value="special">Sonderurlaub</option></select></label><label className="form-field vacation-modal__note"><span>Kommentar (optional)</span><textarea rows="3" value={form.requestComment} onChange={(event) => setForm((current) => ({ ...current, requestComment: event.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gesendet …' : isChange ? 'Änderungsantrag senden' : 'Antrag senden'}</button></div></form></section></div>
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal" role="dialog" aria-modal="true" aria-labelledby="vacation-modal-title"><div className="vacation-modal__heading"><div><h2 id="vacation-modal-title">{isPendingReplacement ? 'Antrag überarbeiten' : isChange ? 'Änderung beantragen' : 'Urlaub beantragen'}</h2>{isChange && <p>{isPendingReplacement ? 'Der bisherige Antrag wird durch die überarbeitete Version ersetzt.' : 'Der ursprüngliche Antrag bleibt unverändert erhalten.'}</p>}</div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><form onSubmit={submit} noValidate><div className="vacation-modal__fields"><label className="form-field"><span>Von</span><input type="date" value={form.startDate} onChange={(event) => setDate('startDate', event.target.value)} /></label><label className="form-field"><span>Bis</span><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setDate('endDate', event.target.value)} /></label><label className="form-field vacation-form-days"><span>Urlaubstage</span><input type="number" min="0" step="0.5" required value={form.days} onChange={(event) => { setDaysEdited(true); setForm((current) => ({ ...current, days: event.target.value })) }} />{!daysEdited && <small>Vorschlag aus Zeitraum: {suggestedDays}</small>}</label><label className="form-field vacation-form-type"><span>Urlaubsart</span><select required value={form.vacationType} onChange={(event) => setForm((current) => ({ ...current, vacationType: event.target.value }))}><option value="normal">Normal</option><option value="overtime">Überstundenabbau</option><option value="special">Sonderurlaub</option></select></label><label className="form-field vacation-modal__note"><span>Kommentar (optional)</span><textarea rows="3" value={form.requestComment} onChange={(event) => setForm((current) => ({ ...current, requestComment: event.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gesendet …' : isPendingReplacement ? 'Überarbeiteten Antrag senden' : isChange ? 'Änderungsantrag senden' : 'Antrag senden'}</button></div></form></section></div>
 }
 
-function RequestDetail({ request, onClose, onChange, onCancel }) {
-  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-detail-title">Urlaubsantrag</h2><p>{formatVacationPeriod(request)}</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><dl className="vacation-detail-list"><div><dt>Urlaubsart</dt><dd>{getVacationType(request.vacationType).label}</dd></div><div><dt>Urlaubstage</dt><dd>{request.days ?? businessDays(request.startDate, request.endDate)}</dd></div><div><dt>Status</dt><dd><StatusBadge status={request.status} /></dd></div><div className="vacation-detail-list__wide"><dt>Kommentar des Mitarbeiters</dt><dd>{request.requestComment || request.note || 'Kein Kommentar'}</dd></div>{request.managerComment !== undefined && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd>{request.managerComment || 'Kein Kommentar'}</dd></div>}{request.originalRequestId && <div className="vacation-detail-list__wide"><dt>Bezug</dt><dd>Änderungsantrag zu einem bestehenden Urlaub.</dd></div>}</dl><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button>{onCancel && <button className="button button--secondary" type="button" onClick={onCancel}>Storno beantragen</button>}{onChange && <button className="button" type="button" onClick={onChange}>Änderung beantragen</button>}</div></section></div>
+function RequestDetail({ request, onClose, onChange, onCancel, onWithdraw }) {
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-detail-title">Urlaubsantrag</h2><p>{formatVacationPeriod(request)}</p></div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><dl className="vacation-detail-list"><div><dt>Urlaubsart</dt><dd>{getVacationType(request.vacationType).label}</dd></div><div><dt>Urlaubstage</dt><dd>{request.days ?? businessDays(request.startDate, request.endDate)}</dd></div><div><dt>Status</dt><dd><StatusBadge status={displayRequestStatus(request)} /></dd></div><div className="vacation-detail-list__wide"><dt>Kommentar des Mitarbeiters</dt><dd>{request.requestComment || request.note || 'Kein Kommentar'}</dd></div>{request.managerComment !== undefined && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd>{request.managerComment || 'Kein Kommentar'}</dd></div>}{request.originalRequestId && <div className="vacation-detail-list__wide"><dt>Bezug</dt><dd>Änderungsantrag zu einem bestehenden Urlaub.</dd></div>}</dl><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button>{onWithdraw && <button className="button button--secondary" type="button" onClick={onWithdraw}>Antrag zurückziehen</button>}{onCancel && <button className="button button--secondary" type="button" onClick={onCancel}>Storno beantragen</button>}{onChange && <button className="button" type="button" onClick={onChange}>Änderung beantragen</button>}</div></section></div>
 }
 
 function requestSortValue(request) {
@@ -182,6 +193,7 @@ export default function VacationPage() {
     const isOwn = request.userId === user.uid
     const owner = usersById.get(request.userId)
     return !request.originalRequestId
+      && !['cancelled', 'withdrawn', 'superseded'].includes(request.status)
       && requestOverlaps(request, `${year}-${String(month + 1).padStart(2, '0')}-01`, `${year}-${String(month + 1).padStart(2, '0')}-31`)
       && (isOwn || (calendarScope === 'department' && ownDepartment && departmentKey(owner) === ownDepartment && request.status === 'approved'))
   }), [calendarScope, month, ownDepartment, requests, user.uid, usersById, year])
@@ -190,16 +202,16 @@ export default function VacationPage() {
   const ownList = useMemo(() => ownRequests.filter((request) => {
     if (!request.originalRequestId) return !ownRelatedByOriginal.has(request.id)
     return latestRequest(ownRelatedByOriginal.get(request.originalRequestId) || [])?.id === request.id
-  }).filter((request) => requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`)).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listYear, ownRelatedByOriginal, ownRequests])
+  }).filter((request) => request.status !== 'superseded' && requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`)).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listYear, ownRelatedByOriginal, ownRequests])
   const summary = useMemo(() => {
-    const relevant = ownRequests.filter((request) => request.status === 'approved' && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`))
+    const relevant = ownRequests.filter((request) => request.status === 'approved' && !ownRelatedByOriginal.get(request.id)?.some((related) => (isCancellationRequest(related) && related.status === 'approved') || related.status === 'cancelled') && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`))
     const taken = relevant.filter((request) => request.endDate < today).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
     const planned = relevant.filter((request) => request.endDate >= today).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
     const pending = ownRequests.filter((request) => request.status === 'pending' && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`)).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
     const allowance = vacationAllowance(profile)
     const carryover = previousYearCarryover(profile)
     return { allowance, carryover, taken, planned, pending, remaining: allowance + carryover - taken - planned }
-  }, [ownRequests, profile, today, year])
+  }, [ownRelatedByOriginal, ownRequests, profile, today, year])
   const years = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
 
   const calendarEntries = useMemo(() => [
@@ -211,8 +223,11 @@ export default function VacationPage() {
       const related = ownRelatedByOriginal.get(item.id) || []
       const latestChange = latestRequest(related.filter((request) => request.status === 'change_requested' || request.changeRequest))
       const pendingCancellation = latestRequest(related.filter((request) => request.status === 'cancellation_requested'))
+      const approvedCancellation = related.some((request) => isCancellationRequest(request) && request.status === 'approved')
       const own = item.userId === user.uid
 
+      if (item.status === 'cancelled' || approvedCancellation) return []
+      if (latestChange?.status === 'cancelled') return []
       if (latestChange?.status === 'approved') return [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: ownerName.split(' ')[0], kind: 'approved', own, title: `${ownerName} · Änderung genehmigt` }]
       if (latestChange?.status === 'change_requested') return [
         { id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${ownerName.split(' ')[0]} · Änderung angefragt`, kind: item.status, modifier: 'change_requested', own, title: `${ownerName} · Änderung angefragt` },
@@ -233,16 +248,19 @@ export default function VacationPage() {
   async function saveRequest(form) {
     const isChange = modal?.type === 'change'
     const originalRequest = modal?.request
-    const requestId = isChange
-      ? await createVacationChangeRequest(originalRequest, user.uid, form)
-      : await createVacationRequest(user.uid, form)
+    const isPendingReplacement = isChange && originalRequest?.status === 'pending' && !originalRequest?.originalRequestId && !isCancellationRequest(originalRequest)
+    const requestId = isPendingReplacement
+      ? (await replacePendingVacationRequest(originalRequest.id, form)).requestId
+      : isChange
+        ? await createVacationChangeRequest(originalRequest, user.uid, form)
+        : await createVacationRequest(user.uid, form)
     const applicant = {
       ...users.find((item) => item.id === user.uid),
       ...profile,
       id: user.uid,
       email: user.email || profile?.email || '',
     }
-    const savedRequest = isChange
+    const savedRequest = isChange && !isPendingReplacement
       ? {
           id: requestId,
           ...form,
@@ -260,7 +278,7 @@ export default function VacationPage() {
     setModal(null)
     const notificationSent = await notifyVacationSubmission({ applicant, request: savedRequest, users })
     await reload().catch(() => undefined)
-    const successMessage = isChange ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.'
+    const successMessage = isPendingReplacement ? 'Antrag überarbeitet.' : isChange ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.'
     setToast(notificationSent ? successMessage : `${successMessage} Benachrichtigung konnte nicht vollständig gesendet werden.`)
   }
 
@@ -296,8 +314,20 @@ export default function VacationPage() {
     setToast(notificationSent ? 'Stornoantrag gesendet.' : 'Stornoantrag gesendet. Benachrichtigung konnte nicht vollständig gesendet werden.')
   }
 
+  async function withdrawRequest(request) {
+    try {
+      await withdrawVacationRequest(request.id)
+      setSelectedRequest(null)
+      await reload().catch(() => undefined)
+      setToast('Antrag zurückgezogen.')
+    } catch {
+      setToast('Der Antrag konnte nicht zurückgezogen werden.')
+    }
+  }
+
   const editable = canEdit('vacation')
   const selectedBaseRequest = selectedRequest?.originalRequestId ? ownRequests.find((request) => request.id === selectedRequest.originalRequestId) || selectedRequest : selectedRequest
+  const cancellableRequest = selectedRequest && !isCancellationRequest(selectedRequest) && selectedRequest.status === 'approved' ? selectedRequest : selectedBaseRequest && !isCancellationRequest(selectedBaseRequest) && selectedBaseRequest.status === 'approved' ? selectedBaseRequest : null
   return <div className="vacation-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <section className="vacation-calendar-card">
@@ -307,10 +337,10 @@ export default function VacationPage() {
     </section>
     <aside className="vacation-sidebar">
       <section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>
-      <section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2><label className="filter-field vacation-list-year"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{editable && <button className="button" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button>}</div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <button className="vacation-request" key={request.id} type="button" onClick={() => setSelectedRequest(request)}><span className="vacation-request__period">{formatVacationPeriod(request)}</span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage · {getVacationType(request.vacationType).label} <StatusBadge status={request.status} /></span>{request.note && <span className="vacation-request__note">{request.note}</span>}</button>) : <p className="vacation-state">Keine Urlaubsanträge in diesem Jahr.</p>}</div></section>
+      <section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2><label className="filter-field vacation-list-year"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{editable && <button className="button" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button>}</div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <button className="vacation-request" key={request.id} type="button" onClick={() => setSelectedRequest(request)}><span className="vacation-request__period">{formatVacationPeriod(request)}</span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage · {getVacationType(request.vacationType).label} <StatusBadge status={displayRequestStatus(request)} /></span>{request.note && <span className="vacation-request__note">{request.note}</span>}</button>) : <p className="vacation-state">Keine Urlaubsanträge in diesem Jahr.</p>}</div></section>
     </aside>
     {(modal?.type === 'new' || modal?.type === 'change') && <RequestModal request={modal.type === 'change' ? modal.request : null} onClose={() => setModal(null)} onSubmit={saveRequest} />}
     {modal?.type === 'cancellation' && <CancellationModal request={modal.request} onClose={() => setModal(null)} onSubmit={saveCancellation} />}
-    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onChange={editable && selectedBaseRequest.status !== 'rejected' ? () => { setModal({ type: 'change', request: selectedBaseRequest }); setSelectedRequest(null) } : null} onCancel={editable && selectedBaseRequest.status !== 'rejected' ? () => { setModal({ type: 'cancellation', request: selectedBaseRequest }); setSelectedRequest(null) } : null} />}
+    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onWithdraw={editable && ['pending', 'change_requested', 'cancellation_requested'].includes(selectedRequest.status) ? () => withdrawRequest(selectedRequest) : null} onChange={editable && !isCancellationRequest(selectedBaseRequest) && !['rejected', 'cancelled', 'withdrawn', 'superseded'].includes(selectedBaseRequest.status) ? () => { setModal({ type: 'change', request: selectedBaseRequest }); setSelectedRequest(null) } : null} onCancel={editable && cancellableRequest ? () => { setModal({ type: 'cancellation', request: cancellableRequest }); setSelectedRequest(null) } : null} />}
   </div>
 }

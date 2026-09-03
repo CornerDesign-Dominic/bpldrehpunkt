@@ -191,7 +191,11 @@ service cloud.firestore {
     }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'
-        && data.status in ['pending', 'change_requested', 'cancellation_requested'];
+        && data.status in ['pending', 'change_requested', 'cancellation_requested']
+        && (data.status != 'cancellation_requested' || (data.originalRequestId is string
+          && exists(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId))
+          && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.userId == request.auth.uid
+          && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.status == 'approved'));
     }
     match /vacationRequests/{id} {
       allow read: if view('vacation') && (resource.data.userId == request.auth.uid || resource.data.status == 'approved');

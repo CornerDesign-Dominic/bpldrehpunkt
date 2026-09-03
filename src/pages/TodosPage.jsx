@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import TodoDetailsModal from '../components/todos/TodoDetailsModal.jsx'
 import TodoForm from '../components/todos/TodoForm.jsx'
+import TodosGallery from '../components/todos/TodosGallery.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -12,7 +14,6 @@ import {
   isAudienceMember,
   listTodosForActor,
   releaseTodoFromCurrentUser,
-  TODO_STATUS,
   updateTodoByCreator,
   withdrawTodo,
 } from '../lib/todos.js'
@@ -51,6 +52,7 @@ export default function TodosPage() {
   const [statusFilter, setStatusFilter] = useState('active')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [detailsTodo, setDetailsTodo] = useState(null)
   const [confirmation, setConfirmation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -148,13 +150,12 @@ export default function TodosPage() {
   return <div className="todos-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} confirmLabel="Bestätigen" onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
+    {detailsTodo && <TodoDetailsModal todo={detailsTodo} formatDate={formatDate} getDueClass={dueClass} onClose={() => setDetailsTodo(null)}><TodoActions actor={actor} editable={editable} onAction={(action, todo) => { setDetailsTodo(null); handleAction(action, todo) }} onEdit={(todo, reassign) => { setDetailsTodo(null); setShowForm(false); setEditing({ todo, reassign }) }} todo={detailsTodo} /></TodoDetailsModal>}
     <div className="todo-tabs" role="tablist" aria-label="To-do-Bereich"><button className={tab === 'mine' ? 'todo-tabs__tab todo-tabs__tab--active' : 'todo-tabs__tab'} type="button" onClick={() => selectTab('mine')}>Meine Aufgaben</button><button className={tab === 'created' ? 'todo-tabs__tab todo-tabs__tab--active' : 'todo-tabs__tab'} type="button" onClick={() => selectTab('created')}>Von mir erstellt</button><button className={tab === 'pool' ? 'todo-tabs__tab todo-tabs__tab--active' : 'todo-tabs__tab'} type="button" onClick={() => selectTab('pool')}>Aufgabenpool</button></div>
     <div className="list-toolbar todo-toolbar"><div className="list-controls"><label className="filter-field"><span className="sr-only">Status filtern</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>{tab === 'pool' ? <><option value="available">Verfügbar</option><option value="in_progress">In Bearbeitung</option><option value="completed">Erledigt</option><option value="all">Alle</option></> : tab === 'mine' ? <><option value="active">Aktive Aufgaben</option><option value="completed">Erledigt</option><option value="all">Alle</option></> : <option value="all">Alle Status</option>}</select></label></div>{editable && <button className="button" type="button" onClick={() => { setEditing(null); setShowForm(true) }}>To-do anlegen</button>}</div>
     {showForm && <TodoForm key="new" users={activeUsers} onCancel={() => setShowForm(false)} onSubmit={addTodo} />}
     {editing && <TodoForm key={editing.todo.id} initialTodo={editing.todo} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
     {error && <p className="form-error">{error}</p>}
-    <div className="table-frame todos-table"><table><thead><tr><th>To-do</th><th>Zielgruppe</th><th>Ersteller</th><th>Bearbeiter</th><th>Fälligkeit</th><th>Status</th><th>Aktion</th></tr></thead><tbody>
-      {loading ? <tr><td colSpan="7" className="table-state">To-dos werden geladen …</td></tr> : visibleTodos.length ? visibleTodos.map((todo) => <tr key={todo.id}><td><strong>{todo.title}</strong>{todo.description && <span className="table-subline">{todo.description}</span>}</td><td>{todo.audienceLabel || '—'}</td><td>{todo.creatorName || '—'}</td><td>{todo.assignedUserName || '—'}</td><td><span className={dueClass(todo)}>{formatDate(todo.dueDate)}</span></td><td><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></td><td><TodoActions actor={actor} editable={editable} onAction={handleAction} onEdit={(todo, reassign) => { setShowForm(false); setEditing({ todo, reassign }) }} todo={todo} /></td></tr>) : <tr><td colSpan="7" className="table-state">Für diese Auswahl gibt es keine To-dos.</td></tr>}
-    </tbody></table></div>
+    <TodosGallery todos={visibleTodos} loading={loading} formatDate={formatDate} getDueClass={dueClass} onDetails={setDetailsTodo} />
   </div>
 }

@@ -1,6 +1,6 @@
 .vacation-management-page { display: grid; height: 100%; max-width: var(--list-content-max-width); margin: 0 auto; }
 .vacation-management-heading { display: none; }
-.vacation-management-layout { display: grid; min-height: 0; grid-template-columns: minmax(0, 1.65fr) minmax(310px, 1fr); gap: 14px; }
+.vacation-management-layout { display: grid; min-height: 0; grid-template-columns: minmax(560px, 1.25fr) minmax(340px, 0.85fr); gap: 14px; }
 .vacation-management-calendar { min-height: 610px; }
 .vacation-management-list { display: flex; min-height: 0; flex-direction: column; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .vacation-management-list__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
@@ -11,6 +11,6 @@
 .vacation-management-request:hover { background: var(--surface-secondary); }.vacation-management-request:last-child { border-bottom: 0; }
 .vacation-management-request__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }.vacation-management-request__top strong { min-width: 0; overflow: hidden; color: var(--text-primary); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .vacation-management-request small { color: var(--text-muted); font-size: 10px; }
-.vacation-management-status { display: inline-flex; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; }.vacation-management-status--pending { color: var(--status-warning-text); background: var(--status-warning-background); }.vacation-management-status--approved { color: var(--status-success-text); background: var(--status-success-background); }.vacation-management-status--rejected { color: var(--status-danger-text); background: var(--status-danger-background); }
+.vacation-management-status { display: inline-flex; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; }.vacation-management-status--pending { color: var(--status-warning-text); background: var(--status-warning-background); }.vacation-management-status--approved { color: var(--status-success-text); background: var(--status-success-background); }.vacation-management-status--rejected, .vacation-management-status--cancelled, .vacation-management-status--withdrawn { color: var(--status-danger-text); background: var(--status-danger-background); }
 @media (max-width: 1020px) { .vacation-management-page { height: auto; }.vacation-management-layout { grid-template-columns: 1fr; }.vacation-management-calendar { min-height: 630px; }.vacation-management-list { min-height: 340px; }.vacation-management-request-list { max-height: 420px; } }
 @media (max-width: 720px) { .vacation-management-list__heading { align-items: flex-start; flex-direction: column; }.vacation-management-list__heading select { width: 100%; }.vacation-management-calendar { min-height: 0; } }

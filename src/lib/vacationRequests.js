@@ -1,5 +1,7 @@
 import { collection, doc, getDocs, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 import { db } from './firebase.js'
+import { functions } from './firebase.js'
 
 export const VACATION_REQUESTS_COLLECTION = 'vacationRequests'
 export const CALENDAR_HOLIDAYS_COLLECTION = 'calendarHolidays'
@@ -9,6 +11,9 @@ export const VACATION_STATUSES = [
   { value: 'approved', label: 'Genehmigt' },
   { value: 'pending', label: 'Ausstehend' },
   { value: 'rejected', label: 'Abgelehnt' },
+  { value: 'cancelled', label: 'Storniert' },
+  { value: 'withdrawn', label: 'Zurückgezogen' },
+  { value: 'superseded', label: 'Überarbeitet' },
   { value: 'change_requested', label: 'Änderungsantrag' },
   { value: 'cancellation_requested', label: 'Stornoantrag' },
 ]
@@ -86,7 +91,7 @@ export function getVacationType(type) {
 }
 
 export function reducesVacationAllowance(request) {
-  return getVacationType(request?.vacationType).value === 'normal'
+  return getVacationType(request?.vacationType).value === 'normal' && request?.requestKind !== 'cancellation' && !request?.cancellationRequest
 }
 
 function calendarEntry(snapshot, fallbackLabel) {
@@ -173,4 +178,12 @@ export async function createVacationCancellationRequest(originalRequest, userId,
     updatedAt: serverTimestamp(),
   })
   return requestRef.id
+}
+
+export function withdrawVacationRequest(requestId) {
+  return httpsCallable(functions, 'withdrawVacationRequest')({ requestId }).then((result) => result.data)
+}
+
+export function replacePendingVacationRequest(requestId, values) {
+  return httpsCallable(functions, 'replacePendingVacationRequest')({ requestId, values }).then((result) => result.data)
 }
