@@ -30,7 +30,6 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
       <div className="todo-card__content">
         <div className="todo-card__meta"><h2 className="todo-card__title" title={todo.title}>{todo.title}</h2><PriorityChip priority={priority} /></div>
         <p className={`todo-card__due ${getDueClass(todo)}`}>{dueLabel}</p>
-        <div className="todo-card__status"><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div>
         <dl className="todo-card__details">
           <div><dt>Erstellt von</dt><dd>{todo.creatorName || '—'}</dd></div>
           <div><dt>{contextLabel}</dt><dd>{contextValue}</dd></div>
@@ -38,7 +37,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
           <div className="todo-card__updated"><dt>Zuletzt aktualisiert</dt><dd>{formatTimestamp(todo.updatedAt)}</dd></div>
         </dl>
       </div>
-      <div className="todo-card__footer"><button className="todo-card__open" type="button" onClick={() => onOpen(todo)}>Öffnen</button></div>
+      <div className="todo-card__footer"><span className={`todo-status todo-card__status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span><button className="todo-card__open" type="button" onClick={() => onOpen(todo)}>Öffnen</button></div>
     </article>
     })}
   </div>
