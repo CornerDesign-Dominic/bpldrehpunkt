@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { createEmptyTodo } from '../../lib/todos.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 
-export default function TodoForm({ initialTodo, onCancel, onSubmit, users }) {
+export default function TodoForm({ currentUserId, initialTodo, onCancel, onSubmit, users }) {
   const [form, setForm] = useState(() => initialTodo ? {
     title: initialTodo.title || '', description: initialTodo.description || '', dueDate: initialTodo.dueDate || '', audienceType: initialTodo.audienceType || 'all', audienceId: initialTodo.audienceId || '',
   } : createEmptyTodo())
@@ -20,7 +20,7 @@ export default function TodoForm({ initialTodo, onCancel, onSubmit, users }) {
 
   async function submit(event) {
     event.preventDefault()
-    if (!form.title.trim() || (form.audienceType !== 'all' && !form.audienceId)) {
+    if (!form.title.trim() || (!['all', 'self'].includes(form.audienceType) && !form.audienceId)) {
       setError('Bitte Titel und Zielgruppe erfassen.')
       return
     }
@@ -41,9 +41,9 @@ export default function TodoForm({ initialTodo, onCancel, onSubmit, users }) {
     <div className="todo-form__grid">
       <label className="form-field todo-form__title"><span>Titel *</span><input value={form.title} onChange={(event) => update('title', event.target.value)} autoFocus /></label>
       <label className="form-field"><span>Fälligkeit</span><input type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} /></label>
-      <label className="form-field"><span>Zielgruppe</span><select value={form.audienceType} onChange={(event) => changeAudienceType(event.target.value)}><option value="all">Alle</option><option value="department">Bestimmte Abteilung</option><option value="person">Bestimmte Person</option></select></label>
+      <label className="form-field"><span>Zielgruppe</span><select value={form.audienceType} onChange={(event) => changeAudienceType(event.target.value)}>{!initialTodo && <option value="self">Für mich</option>}<option value="person">Bestimmte Person</option><option value="department">Bestimmte Abteilung</option><option value="all">Alle</option></select></label>
       {form.audienceType === 'department' && <label className="form-field"><span>Abteilung</span><select value={form.audienceId} onChange={(event) => update('audienceId', event.target.value)}><option value="">Bitte wählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>}
-      {form.audienceType === 'person' && <label className="form-field"><span>Person</span><select value={form.audienceId} onChange={(event) => update('audienceId', event.target.value)}><option value="">Bitte wählen</option>{users.map((user) => <option key={user.id} value={user.id}>{getUserDisplayName(user, user)}</option>)}</select></label>}
+      {form.audienceType === 'person' && <label className="form-field"><span>Person</span><select value={form.audienceId} onChange={(event) => update('audienceId', event.target.value)}><option value="">Bitte wählen</option>{users.filter((user) => user.id !== currentUserId).map((user) => <option key={user.id} value={user.id}>{getUserDisplayName(user, user)}</option>)}</select></label>}
       <label className="form-field todo-form__note"><span>Beschreibung / Notiz</span><textarea value={form.description} onChange={(event) => update('description', event.target.value)} rows="2" /></label>
     </div>
     {error && <p className="form-error">{error}</p>}

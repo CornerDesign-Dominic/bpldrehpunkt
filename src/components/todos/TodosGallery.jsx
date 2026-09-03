@@ -1,6 +1,6 @@
 import { TODO_STATUS } from '../../lib/todos.js'
 
-export default function TodosGallery({ formatDate, getDueClass, loading, onDetails, todos }) {
+export default function TodosGallery({ formatDate, getDueClass, loading, onOpen, onPreview, todos }) {
   if (loading) return <p className="todos-gallery__state">To-dos werden geladen …</p>
   if (!todos.length) return <p className="todos-gallery__state">Keine To-dos vorhanden.</p>
 
@@ -16,7 +16,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onDetai
           <div><dt>Ersteller</dt><dd>{todo.creatorName || '—'}</dd></div>
         </dl>
       </div>
-      <div className="todo-card__footer"><button type="button" onClick={() => onDetails(todo)}>Details ansehen</button></div>
+      <div className="todo-card__footer"><button type="button" onClick={() => onPreview(todo)}>Vorschau</button><button type="button" onClick={() => onOpen(todo)}>Öffnen</button></div>
     </article>)}
   </div>
 }

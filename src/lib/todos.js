@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   runTransaction,
@@ -30,7 +31,8 @@ function actorName(actor) {
   return getUserDisplayName(actor.profile, actor.user)
 }
 
-function audienceValues(values, usersById) {
+function audienceValues(values, usersById, actor) {
+  if (values.audienceType === 'self') return { audienceType: 'person', audienceId: actor.user.uid, audienceLabel: actorName(actor) }
   if (values.audienceType === 'all') return { audienceType: 'all', audienceId: null, audienceLabel: 'Alle' }
   if (values.audienceType === 'department') {
     const department = trim(values.audienceId)
@@ -50,8 +52,13 @@ async function queryTodos(...constraints) {
   return snapshot.docs.map(mapSnapshot)
 }
 
+export async function getTodoById(todoId) {
+  const snapshot = await getDoc(doc(db, TODOS_COLLECTION, todoId))
+  return snapshot.exists() ? mapSnapshot(snapshot) : null
+}
+
 export function createEmptyTodo() {
-  return { title: '', description: '', dueDate: '', audienceType: 'all', audienceId: '' }
+  return { title: '', description: '', dueDate: '', audienceType: 'self', audienceId: '' }
 }
 
 export function isAudienceMember(todo, actor) {
@@ -80,17 +87,18 @@ export async function listTodosForActor(actor) {
 
 export async function createTodo(values, actor, usersById) {
   const todoRef = doc(todosRef)
+  const isForSelf = values.audienceType === 'self'
   await setDoc(todoRef, {
     title: trim(values.title),
     description: trim(values.description),
     dueDate: values.dueDate || null,
     creatorUserId: actor.user.uid,
     creatorName: actorName(actor),
-    ...audienceValues(values, usersById),
-    assignedUserId: null,
-    assignedUserName: null,
-    assignedAt: null,
-    status: 'open',
+    ...audienceValues(values, usersById, actor),
+    assignedUserId: isForSelf ? actor.user.uid : null,
+    assignedUserName: isForSelf ? actorName(actor) : null,
+    assignedAt: isForSelf ? serverTimestamp() : null,
+    status: isForSelf ? 'in_progress' : 'open',
     completedAt: null,
     completedByUserId: null,
     completedByName: null,

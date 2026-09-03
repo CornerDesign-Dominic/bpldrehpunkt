@@ -136,10 +136,21 @@ service cloud.firestore {
         && data.completedAt == null && data.completedByUserId == null && data.completedByName == null
         && data.withdrawnAt == null && data.withdrawnByUserId == null;
     }
+    function isCreatedOpenTodo() {
+      return hasOpenAssignment(request.resource.data);
+    }
+    function isCreatedOwnTodo() {
+      return request.resource.data.audienceType == 'person' && request.resource.data.audienceId == request.auth.uid
+        && request.resource.data.audienceLabel == profileName(ownProfile())
+        && request.resource.data.status == 'in_progress' && request.resource.data.assignedUserId == request.auth.uid
+        && request.resource.data.assignedUserName == profileName(ownProfile()) && request.resource.data.assignedAt == request.time
+        && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
+        && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null;
+    }
     function isCreatedTodo() {
       return todoKeysAreValid(request.resource.data) && validTodoContent(request.resource.data)
         && request.resource.data.creatorUserId == request.auth.uid && request.resource.data.creatorName == profileName(ownProfile())
-        && hasOpenAssignment(request.resource.data) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        && (isCreatedOpenTodo() || isCreatedOwnTodo()) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
     }
     function isTakeover() {
       return resource.data.status == 'open' && resource.data.assignedUserId == null && isTodoAudienceMember(resource.data)
@@ -152,6 +163,7 @@ service cloud.firestore {
     }
     function isRelease() {
       return resource.data.status == 'in_progress' && resource.data.assignedUserId == request.auth.uid
+        && !(resource.data.creatorUserId == request.auth.uid && resource.data.audienceType == 'person' && resource.data.audienceId == request.auth.uid)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }

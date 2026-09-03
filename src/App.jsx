@@ -11,6 +11,7 @@ import DashboardPage from './pages/DashboardPage.jsx'
 import PalletAccountDetailPage from './pages/PalletAccountDetailPage.jsx'
 import PalletsPage from './pages/PalletsPage.jsx'
 import TodosPage from './pages/TodosPage.jsx'
+import TodoDetailPage from './pages/TodoDetailPage.jsx'
 import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -43,6 +44,7 @@ export default function App() {
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
+        <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
