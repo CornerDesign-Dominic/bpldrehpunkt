@@ -59,15 +59,26 @@ function StatusBadge({ status }) {
 
 function RequestModal({ request, onClose, onSubmit }) {
   const isChange = Boolean(request)
-  const [form, setForm] = useState({ startDate: request?.startDate || todayValue(), endDate: request?.endDate || todayValue(), note: request?.note || '' })
+  const initialStartDate = request?.startDate || todayValue()
+  const initialEndDate = request?.endDate || todayValue()
+  const [form, setForm] = useState({ startDate: initialStartDate, endDate: initialEndDate, days: String(request?.days ?? businessDays(initialStartDate, initialEndDate)), note: request?.note || '' })
+  const [daysEdited, setDaysEdited] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const days = businessDays(form.startDate, form.endDate)
+  const suggestedDays = businessDays(form.startDate, form.endDate)
+  const days = Number(form.days)
+
+  function setDate(field, value) {
+    setForm((current) => {
+      const next = { ...current, [field]: value }
+      return daysEdited ? next : { ...next, days: String(businessDays(next.startDate, next.endDate)) }
+    })
+  }
 
   async function submit(event) {
     event.preventDefault()
-    if (!form.startDate || !form.endDate || form.endDate < form.startDate || !days) {
-      setError('Bitte einen gültigen Zeitraum mit mindestens einem Arbeitstag wählen.')
+    if (!form.startDate || !form.endDate || form.endDate < form.startDate || !form.days.trim() || !Number.isFinite(days) || days < 0) {
+      setError('Bitte Zeitraum und Urlaubstage gültig angeben.')
       return
     }
     setSubmitting(true)
@@ -81,7 +92,7 @@ function RequestModal({ request, onClose, onSubmit }) {
     }
   }
 
-  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal" role="dialog" aria-modal="true" aria-labelledby="vacation-modal-title"><div className="vacation-modal__heading"><div><h2 id="vacation-modal-title">{isChange ? 'Änderung beantragen' : 'Urlaub beantragen'}</h2>{isChange && <p>Der ursprüngliche Antrag bleibt unverändert erhalten.</p>}</div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><form onSubmit={submit} noValidate><div className="vacation-modal__fields"><label className="form-field"><span>Von</span><input type="date" value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value }))} /></label><label className="form-field"><span>Bis</span><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setForm((current) => ({ ...current, endDate: event.target.value }))} /></label><div className="vacation-form-days"><span>Urlaubstage</span><strong>{days}</strong></div><label className="form-field vacation-modal__note"><span>Notiz (optional)</span><textarea rows="3" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gesendet …' : isChange ? 'Änderungsantrag senden' : 'Antrag senden'}</button></div></form></section></div>
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal" role="dialog" aria-modal="true" aria-labelledby="vacation-modal-title"><div className="vacation-modal__heading"><div><h2 id="vacation-modal-title">{isChange ? 'Änderung beantragen' : 'Urlaub beantragen'}</h2>{isChange && <p>Der ursprüngliche Antrag bleibt unverändert erhalten.</p>}</div><button className="vacation-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div><form onSubmit={submit} noValidate><div className="vacation-modal__fields"><label className="form-field"><span>Von</span><input type="date" value={form.startDate} onChange={(event) => setDate('startDate', event.target.value)} /></label><label className="form-field"><span>Bis</span><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setDate('endDate', event.target.value)} /></label><label className="form-field vacation-form-days"><span>Urlaubstage</span><input type="number" min="0" step="0.5" required value={form.days} onChange={(event) => { setDaysEdited(true); setForm((current) => ({ ...current, days: event.target.value })) }} />{!daysEdited && <small>Vorschlag aus Zeitraum: {suggestedDays}</small>}</label><label className="form-field vacation-modal__note"><span>Notiz (optional)</span><textarea rows="3" value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gesendet …' : isChange ? 'Änderungsantrag senden' : 'Antrag senden'}</button></div></form></section></div>
 }
 
 function RequestDetail({ request, onClose, onChange }) {
@@ -192,6 +203,7 @@ export default function VacationPage() {
       && (employee === 'all' || request.userId === employee)
   }), [department, employee, month, requests, user.uid, usersById, year])
   const ownRequests = useMemo(() => requests.filter((request) => request.userId === user.uid), [requests, user.uid])
+  const ownRelatedByOriginal = useMemo(() => ownRequests.filter((request) => request.originalRequestId).reduce((map, request) => { const related = map.get(request.originalRequestId) || []; related.push(request); map.set(request.originalRequestId, related); return map }, new Map()), [ownRequests])
   const selectableOwnRequests = useMemo(() => ownRequests.filter((request) => !request.originalRequestId && request.status !== 'rejected').sort((left, right) => right.startDate.localeCompare(left.startDate)), [ownRequests])
   const ownList = useMemo(() => ownRequests.filter((request) => requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`)).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listYear, ownRequests])
   const summary = useMemo(() => {
@@ -205,16 +217,19 @@ export default function VacationPage() {
   }, [ownRequests, profile, today, year])
   const years = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
 
-  function calendarEntriesForDate(value) {
-    return [
-      ...holidays.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ id: `holiday-${item.id}`, label: item.label, kind: 'holiday' })),
-      ...vacationBlocks.filter((item) => requestOverlaps(item, value, value)).map((item) => ({ id: `block-${item.id}`, label: item.label, kind: 'block' })),
-      ...visibleRequests.filter((item) => requestOverlaps(item, value, value)).map((item) => {
-        const owner = usersById.get(item.userId)
-        return { id: `vacation-${item.id}`, label: displayName(owner || {}).split(' ')[0], kind: item.status, own: item.userId === user.uid, title: `${displayName(owner || {})} · ${getVacationStatus(item.status).label}` }
-      }),
-    ]
-  }
+  const calendarEntries = useMemo(() => [
+    ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
+    ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
+    ...visibleRequests.map((item) => {
+      const owner = usersById.get(item.userId)
+      const related = ownRelatedByOriginal.get(item.id) || []
+      const pendingChange = related.find((request) => request.status === 'change_requested')
+      const pendingCancellation = related.find((request) => request.status === 'cancellation_requested')
+      const annotation = pendingCancellation ? 'Storno angefragt' : pendingChange ? 'Änderung angefragt' : ''
+      return { id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${displayName(owner || {}).split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: item.status, modifier: pendingCancellation ? 'cancellation_requested' : pendingChange ? 'change_requested' : '', own: item.userId === user.uid, title: `${displayName(owner || {})} · ${annotation || getVacationStatus(item.status).label}` }
+    }),
+    ...ownRequests.filter((item) => item.originalRequestId && item.status === 'change_requested' && (employee === 'all' || employee === user.uid) && (department === 'all' || usersById.get(user.uid)?.department?.trim() === department)).map((item) => ({ id: `change-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: 'Änderung angefragt', kind: 'pending', modifier: 'change_requested', own: true, title: 'Änderung angefragt' })),
+  ], [department, employee, holidays, ownRelatedByOriginal, ownRequests, user.uid, usersById, vacationBlocks, visibleRequests])
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)
@@ -267,7 +282,7 @@ export default function VacationPage() {
     <section className="vacation-calendar-card">
       <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Abteilung</span><select value={department} onChange={(event) => { setDepartment(event.target.value); setEmployee('all') }}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field"><span className="sr-only">Mitarbeiter</span><select value={employee} onChange={(event) => setEmployee(event.target.value)}><option value="all">Alle Mitarbeiter</option>{selectableUsers.map((item) => <option key={item.id} value={item.id}>{displayName(item)}</option>)}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
-      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar year={year} month={month} today={today} entriesForDate={calendarEntriesForDate} /><div className="vacation-legend"><span className="vacation-legend__item vacation-legend__item--holiday">Feiertag</span><span className="vacation-legend__item vacation-legend__item--approved">Genehmigter Urlaub</span><span className="vacation-legend__item vacation-legend__item--block">Urlaubssperre</span></div></>}
+      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar year={year} month={month} today={today} entries={calendarEntries} /><div className="vacation-legend"><span className="vacation-legend__item vacation-legend__item--holiday">Feiertag</span><span className="vacation-legend__item vacation-legend__item--approved">Genehmigter Urlaub</span><span className="vacation-legend__item vacation-legend__item--block">Urlaubssperre</span></div></>}
     </section>
     <aside className="vacation-sidebar">
       <section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>

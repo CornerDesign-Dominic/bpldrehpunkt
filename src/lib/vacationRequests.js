@@ -93,11 +93,12 @@ export async function listVacationCalendarItems() {
 function requestPayload(userId, values, extra = {}) {
   const startDate = values.startDate || ''
   const endDate = values.endDate || ''
+  const requestedDays = Number(values.days)
   return {
     userId,
     startDate,
     endDate,
-    days: businessDays(startDate, endDate),
+    days: Number.isFinite(requestedDays) && requestedDays >= 0 ? requestedDays : businessDays(startDate, endDate),
     status: extra.status || 'pending',
     type: 'vacation',
     note: trim(values.note),
