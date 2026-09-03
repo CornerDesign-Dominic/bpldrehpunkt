@@ -99,12 +99,13 @@ export default function DocumentsPage() {
   }
 
   async function openDocument(documentItem) {
-    const openedWindow = window.open('', '_blank', 'noopener')
+    const openedWindow = window.open('about:blank', '_blank')
+    if (openedWindow) openedWindow.opener = null
     try {
       const blob = await getInternalDocumentBlob(documentItem)
       const url = URL.createObjectURL(blob)
       if (openedWindow) openedWindow.location.href = url
-      else window.open(url, '_blank', 'noopener')
+      else window.location.assign(url)
       window.setTimeout(() => URL.revokeObjectURL(url), 60000)
     } catch (openError) {
       openedWindow?.close()

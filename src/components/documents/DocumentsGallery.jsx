@@ -23,7 +23,10 @@ function DocumentPreview({ documentItem, onOpen }) {
       objectUrl = URL.createObjectURL(blob)
       if (current) setUrl(objectUrl)
       else URL.revokeObjectURL(objectUrl)
-    }).catch(() => { if (current) setUrl('') })
+    }).catch((error) => {
+      console.error('Dokumente: PDF-Vorschau konnte nicht geladen werden.', error)
+      if (current) setUrl('')
+    })
     return () => { current = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [documentItem])
 
