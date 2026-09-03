@@ -33,6 +33,7 @@
 .partner-header__rating strong[data-status='critical'] { color: var(--status-danger-text); }
 .masterdata-content-card { padding: 12px 13px; border: 1px solid var(--workspace-border); border-radius: 7px; background: var(--workspace-background); }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.masterdata-half-grid__column { display: grid; align-content: start; gap: 12px; min-width: 0; }
 .masterdata-half-grid .form-section { min-width: 0; }
 .contacts-table th:nth-child(6) { width: 72px; }
 .portals-table th:nth-child(4) { width: 72px; }

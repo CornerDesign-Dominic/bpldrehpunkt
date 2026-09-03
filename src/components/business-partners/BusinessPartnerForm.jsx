@@ -273,34 +273,38 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
       </FormSection>
 
       <div className="masterdata-half-grid">
-        <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
-          <Field className="form-field--contact-phone" label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
-          <Field className="form-field--contact-fax" label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
-          <Field className="form-field--contact-email" label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
-          <Field className="form-field--contact-website" label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
-        </FormSection>
+        <div className="masterdata-half-grid__column">
+          <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
+            <Field className="form-field--contact-phone" label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
+            <Field className="form-field--contact-fax" label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
+            <Field className="form-field--contact-email" label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
+            <Field className="form-field--contact-website" label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
+          </FormSection>
 
-        <FormSection title="Referenzen & Nummern" className="form-grid--references">
-          <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-          <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-          <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
-          <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
-          <Field label="DPL-Nummer" name="dplNumber" value={form.dplNumber} onChange={handleChange} />
-          <Field label="Paki-Nummer" name="pakiNumber" value={form.pakiNumber} onChange={handleChange} />
-          {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
-        </FormSection>
+          <FormSection title="Unternehmensdaten" className="form-grid--company-data">
+            <Field className="form-field--company-vat" label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
+            <Field className="form-field--company-tax" label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={handleChange} />
+            <Field className="form-field--company-register-number" label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
+            <Field className="form-field--company-register-court" label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
+          </FormSection>
+        </div>
 
-        <FormSection title="Unternehmensdaten" className="form-grid--company-data">
-          <Field className="form-field--company-vat" label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
-          <Field className="form-field--company-tax" label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={handleChange} />
-          <Field className="form-field--company-register-number" label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
-          <Field className="form-field--company-register-court" label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
-        </FormSection>
+        <div className="masterdata-half-grid__column">
+          <FormSection title="Referenzen & Nummern" className="form-grid--references">
+            <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+            <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
+            <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
+            <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
+            <Field label="DPL-Nummer" name="dplNumber" value={form.dplNumber} onChange={handleChange} />
+            <Field label="Paki-Nummer" name="pakiNumber" value={form.pakiNumber} onChange={handleChange} />
+            {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
+          </FormSection>
 
-        <FormSection title="Abrechnung" className="form-grid--billing">
-          <Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={handleChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" />
-          <label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={handleChange}><option value="false">Nein</option><option value="true">Ja</option></select></label>
-        </FormSection>
+          <FormSection title="Abrechnung" className="form-grid--billing">
+            <Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={handleChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" />
+            <label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={handleChange}><option value="false">Nein</option><option value="true">Ja</option></select></label>
+          </FormSection>
+        </div>
       </div>
 
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
