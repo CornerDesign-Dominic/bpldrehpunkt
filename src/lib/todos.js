@@ -7,7 +7,6 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   where,
   writeBatch,
 } from 'firebase/firestore'
@@ -16,6 +15,7 @@ import { getUserDisplayName } from './userProfiles.js'
 
 export const TODOS_COLLECTION = 'todos'
 export const TODO_STATUS = { open: 'Offen', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
+export const TODO_PRIORITY = { low: 'Gering', medium: 'Mittel', high: 'Hoch' }
 const todosRef = collection(db, TODOS_COLLECTION)
 const activePoolStatuses = ['open', 'in_progress', 'completed']
 const trim = (value) => (value ?? '').trim()
@@ -26,6 +26,24 @@ function actorName(actor) { return getUserDisplayName(actor.profile, actor.user)
 function updateCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'updates') }
 function systemUpdate(text, actor) { return { text, type: 'system', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() } }
 function uniqueIds(ids) { return [...new Set((ids || []).filter(Boolean))] }
+function optionalId(value) { return trim(value) || null }
+function optionalName(value) { return trim(value) || null }
+function priorityValue(value) { return ['low', 'medium', 'high'].includes(value) ? value : 'medium' }
+
+function todoFields(values) {
+  return {
+    title: trim(values.title),
+    description: trim(values.description),
+    dueDate: values.dueDate || null,
+    reminderDate: values.reminderDate || null,
+    priority: priorityValue(values.priority),
+    customerId: optionalId(values.customerId),
+    customerName: optionalName(values.customerName),
+    carrierId: optionalId(values.carrierId),
+    carrierName: optionalName(values.carrierName),
+    reference: optionalName(values.reference),
+  }
+}
 
 function audienceValues(values, usersById, actor) {
   if (values.audienceType === 'self') return { audienceType: 'person', audienceId: actor.user.uid, audienceIds: null, audienceLabel: actorName(actor) }
@@ -43,8 +61,9 @@ function audienceValues(values, usersById, actor) {
 function sortTodos(todos) { return [...todos].sort((left, right) => timestampValue(right.createdAt) - timestampValue(left.createdAt)) }
 async function queryTodos(...constraints) { return (await getDocs(query(todosRef, ...constraints))).docs.map(mapSnapshot) }
 
-export function createEmptyTodo() { return { title: '', description: '', dueDate: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
+export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
+export function todoPriority(todo) { return priorityValue(todo.priority) }
 
 export function audienceHasChanged(todo, values, uid) {
   if (values.audienceType === 'self') return !isSelfTodo(todo, uid)
@@ -93,7 +112,7 @@ export async function createTodo(values, actor, usersById) {
   const isForSelf = values.audienceType === 'self'
   const batch = writeBatch(db)
   batch.set(todoRef, {
-    title: trim(values.title), description: trim(values.description), dueDate: values.dueDate || null,
+    ...todoFields(values),
     creatorUserId: actor.user.uid, creatorName: actorName(actor), ...audienceValues(values, usersById, actor),
     assignedUserId: isForSelf ? actor.user.uid : null, assignedUserName: isForSelf ? actorName(actor) : null, assignedAt: isForSelf ? serverTimestamp() : null,
     status: isForSelf ? 'in_progress' : 'open', completedAt: null, completedByUserId: null, completedByName: null, withdrawnAt: null, withdrawnByUserId: null,
@@ -107,7 +126,10 @@ export async function createTodo(values, actor, usersById) {
 export async function addTodoNote(todoId, text, actor) {
   const note = trim(text)
   if (!note) throw new Error('Bitte einen Hinweis eingeben.')
-  await setDoc(doc(updateCollection(todoId)), { text: note, type: 'note', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() })
+  const batch = writeBatch(db)
+  batch.update(doc(db, TODOS_COLLECTION, todoId), { updatedAt: serverTimestamp() })
+  batch.set(doc(updateCollection(todoId)), { text: note, type: 'note', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() })
+  await batch.commit()
 }
 
 export async function assignTodoToCurrentUser(todoId, actor) {
@@ -147,12 +169,26 @@ export async function completeTodoForCurrentUser(todoId, actor) {
   })
 }
 
-export async function updateTodoByCreator(todoId, values, usersById, resetAssignment, actor) {
-  const fields = { title: trim(values.title), description: trim(values.description), dueDate: values.dueDate || null, ...audienceValues(values, usersById, actor), updatedAt: serverTimestamp() }
+function changedFieldLabels(todo, fields) {
+  const labels = []
+  if (todo.title !== fields.title) labels.push('den Titel')
+  if (todo.description !== fields.description) labels.push('die Beschreibung')
+  if (todo.priority !== fields.priority) labels.push('die Wichtigkeit')
+  if ((todo.dueDate || null) !== fields.dueDate) labels.push('die Fälligkeit')
+  if ((todo.reminderDate || null) !== fields.reminderDate) labels.push('die Erinnerung')
+  if ((todo.customerId || null) !== fields.customerId) labels.push('den Kunden')
+  if ((todo.carrierId || null) !== fields.carrierId) labels.push('den Unternehmer')
+  if ((todo.reference || null) !== fields.reference) labels.push('die Referenz')
+  return labels
+}
+
+export async function updateTodoByCreator(todo, values, usersById, resetAssignment, actor) {
+  const fields = { ...todoFields(values), ...audienceValues(values, usersById, actor), updatedAt: serverTimestamp() }
   if (resetAssignment) Object.assign(fields, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open' })
   const batch = writeBatch(db)
-  batch.update(doc(db, TODOS_COLLECTION, todoId), fields)
-  batch.set(doc(updateCollection(todoId)), systemUpdate(resetAssignment ? `${actorName(actor)} hat die Aufgabe neu zugewiesen.` : `${actorName(actor)} hat die Aufgabe aktualisiert.`, actor))
+  batch.update(doc(db, TODOS_COLLECTION, todo.id), fields)
+  const messages = resetAssignment ? ['hat die Aufgabe neu zugewiesen.'] : changedFieldLabels(todo, fields).map((label) => `hat ${label} geändert.`)
+  ;(messages.length ? messages : ['hat die Aufgabe aktualisiert.']).forEach((message) => batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} ${message}`, actor)))
   await batch.commit()
 }
 

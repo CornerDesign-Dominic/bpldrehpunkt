@@ -6,6 +6,7 @@ import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
+import { listBusinessPartners } from '../lib/businessPartners.js'
 import {
   assignTodoToCurrentUser,
   addTodoNote,
@@ -17,6 +18,8 @@ import {
   listTodoUpdates,
   releaseTodoFromCurrentUser,
   TODO_STATUS,
+  TODO_PRIORITY,
+  todoPriority,
   updateTodoByCreator,
   withdrawTodo,
 } from '../lib/todos.js'
@@ -62,6 +65,7 @@ export default function TodoDetailPage() {
   const actor = useMemo(() => ({ user, profile }), [profile, user])
   const [result, setResult] = useState(null)
   const [users, setUsers] = useState([])
+  const [partners, setPartners] = useState([])
   const [updates, setUpdates] = useState([])
   const [updatesLoading, setUpdatesLoading] = useState(true)
   const [note, setNote] = useState('')
@@ -71,6 +75,7 @@ export default function TodoDetailPage() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const editable = canEdit('todos')
+  const canViewMasterData = canView('masterData')
   const activeUsers = useMemo(() => users.filter((item) => item.active !== false).sort((left, right) => getUserDisplayName(left, left).localeCompare(getUserDisplayName(right, right), 'de')), [users])
   const usersById = useMemo(() => new Map(activeUsers.map((item) => [item.id, item])), [activeUsers])
 
@@ -83,11 +88,11 @@ export default function TodoDetailPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([getTodoById(todoId), listTodoUpdates(todoId), editable ? listUserProfiles() : Promise.resolve([])])
-      .then(([todo, todoUpdates, profiles]) => { if (current) { setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' }); setUpdates(todoUpdates); setUpdatesLoading(false); setUsers(profiles) } })
+    Promise.all([getTodoById(todoId), listTodoUpdates(todoId), editable ? listUserProfiles() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      .then(([todo, todoUpdates, profiles, businessPartners]) => { if (current) { setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' }); setUpdates(todoUpdates); setUpdatesLoading(false); setUsers(profiles); setPartners(businessPartners) } })
       .catch((loadError) => { if (current) { setResult({ todo: null, error: loadError.code === 'permission-denied' ? 'Kein Zugriff auf diese Aufgabe.' : 'Aufgabe nicht gefunden.' }); setUpdatesLoading(false) } })
     return () => { current = false }
-  }, [editable, todoId])
+  }, [canViewMasterData, editable, todoId])
 
   async function saveEdit(values) {
     const todo = result.todo
@@ -101,7 +106,7 @@ export default function TodoDetailPage() {
   }
 
   async function performSave(values, resetAssignment) {
-    await updateTodoByCreator(result.todo.id, values, usersById, resetAssignment, actor)
+    await updateTodoByCreator(result.todo, values, usersById, resetAssignment, actor)
     await loadTodo()
     setEditing(null)
     setToast(resetAssignment ? 'To-do neu zugewiesen und wieder geöffnet.' : 'To-do aktualisiert.')
@@ -165,8 +170,7 @@ export default function TodoDetailPage() {
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} confirmLabel="Bestätigen" variant={confirmation?.type === 'withdraw' ? 'danger' : 'primary'} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
     <header className="todo-detail-header"><div><Link className="todo-detail-header__back" to="/todos">← Zurück zu To-dos</Link><div className="todo-detail-header__title"><h2>{todo.title}</h2><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div></div><TodoActions actor={actor} editable={editable} onAction={handleAction} onEdit={(item, reassign) => setEditing({ todo: item, reassign })} todo={todo} /></header>
     {error && <p className="form-error">{error}</p>}
-    {editing && <section className="todo-detail-editor"><TodoForm key={editing.todo.id} currentUserId={user.uid} initialTodo={editing.todo} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} /></section>}
-    <section className="todo-detail-content"><dl className="todo-detail-list"><Detail label="Beschreibung"><span className="todo-detail-list__description">{todo.description || 'Keine zusätzliche Beschreibung.'}</span></Detail><Detail label="Fälligkeit"><span className={dueClass(todo)}>{formatDate(todo.dueDate)}</span></Detail><Detail label="Status">{TODO_STATUS[todo.status] || '—'}</Detail><Detail label="Zielgruppe / Empfänger">{todo.audienceLabel}</Detail><Detail label="Ersteller">{todo.creatorName}</Detail><Detail label="Bearbeiter">{todo.assignedUserName || 'Noch nicht übernommen'}</Detail><Detail label="Erstellt am">{formatTimestamp(todo.createdAt)}</Detail><Detail label="Zuletzt geändert">{formatTimestamp(todo.updatedAt)}</Detail><Detail label="Übernommen am">{formatTimestamp(todo.assignedAt)}</Detail>{todo.completedAt && <><Detail label="Erledigt am">{formatTimestamp(todo.completedAt)}</Detail><Detail label="Erledigt von">{todo.completedByName}</Detail></>}{todo.withdrawnAt && <><Detail label="Zurückgezogen am">{formatTimestamp(todo.withdrawnAt)}</Detail><Detail label="Zurückgezogen von">{todo.withdrawnByUserId}</Detail></>}</dl></section>
-    <section className="todo-updates" aria-labelledby="todo-updates-title"><div className="todo-updates__heading"><h3 id="todo-updates-title">Aktualisierungen</h3><span>{updates.length}</span></div>{canView('todos') && <form className="todo-updates__form" onSubmit={saveNote}><label className="form-field"><span>Kurzer Hinweis</span><textarea rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Hinweis zur Aufgabe hinzufügen …" /></label><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Hinweis hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Aktualisierungen werden geladen …</p> : updates.length ? <ol className="todo-updates__list">{updates.map((update) => <li key={update.id} className={`todo-updates__item todo-updates__item--${update.type}`}><div><strong>{update.createdByName}</strong><span>{update.type === 'system' ? 'System' : 'Hinweis'} · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Aktualisierungen.</p>}</section>
+    {editing && <section className="todo-detail-editor"><TodoForm key={editing.todo.id} currentUserId={user.uid} initialTodo={editing.todo} partners={partners} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} /></section>}
+    <div className="todo-detail-layout"><main className="todo-detail-main"><section className="todo-detail-content"><h3>Beschreibung</h3><p className="todo-detail-description">{todo.description || 'Keine Beschreibung hinterlegt.'}</p></section><section className="todo-updates" aria-labelledby="todo-updates-title"><div className="todo-updates__heading"><h3 id="todo-updates-title">Aktualisierungen</h3><span>{updates.length}</span></div>{canView('todos') && <form className="todo-updates__form" onSubmit={saveNote}><label className="form-field"><span>Kurzer Hinweis</span><textarea rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Hinweis zur Aufgabe hinzufügen …" /></label><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Hinweis hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Aktualisierungen werden geladen …</p> : updates.length ? <ol className="todo-updates__list">{updates.map((update) => <li key={update.id} className={`todo-updates__item todo-updates__item--${update.type}`}><div><strong>{update.createdByName}</strong><span>{update.type === 'system' ? 'System' : 'Hinweis'} · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Aktualisierungen.</p>}</section></main><aside className="todo-detail-sidebar"><section><h3>Zuständigkeit</h3><dl><Detail label="Zielgruppe">{todo.audienceLabel}</Detail><Detail label="Aktueller Bearbeiter">{todo.assignedUserName || 'Noch nicht übernommen'}</Detail></dl></section><section><h3>Wichtigkeit</h3><span className={`todo-priority todo-priority--${todoPriority(todo)}`}>{TODO_PRIORITY[todoPriority(todo)]}</span></section><section><h3>Termine</h3><dl><Detail label="Fällig am"><span className={dueClass(todo)}>{formatDate(todo.dueDate)}</span></Detail><Detail label="Erinnerung am">{formatDate(todo.reminderDate)}</Detail></dl></section><section><h3>Verknüpfungen</h3><dl><Detail label="Kunde">{todo.customerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${todo.customerId}`}>{todo.customerName || 'Kunde öffnen'}</Link> : todo.customerName}</Detail><Detail label="Unternehmer">{todo.carrierId && canViewMasterData ? <Link to={`/kunden-unternehmer/${todo.carrierId}`}>{todo.carrierName || 'Unternehmer öffnen'}</Link> : todo.carrierName}</Detail><Detail label="Referenz">{todo.reference}</Detail></dl></section><section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Erstellt von">{todo.creatorName}</Detail><Detail label="Erstellt am">{formatTimestamp(todo.createdAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(todo.updatedAt)}</Detail><Detail label="Übernommen am">{formatTimestamp(todo.assignedAt)}</Detail>{todo.completedAt && <><Detail label="Erledigt am">{formatTimestamp(todo.completedAt)}</Detail><Detail label="Erledigt von">{todo.completedByName}</Detail></>}{todo.withdrawnAt && <><Detail label="Zurückgezogen am">{formatTimestamp(todo.withdrawnAt)}</Detail><Detail label="Zurückgezogen von">{todo.withdrawnByUserId}</Detail></>}</dl></section></aside></div>
   </div>
 }

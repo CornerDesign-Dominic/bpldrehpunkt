@@ -102,7 +102,7 @@ service cloud.firestore {
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
     }
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
@@ -122,11 +122,33 @@ service cloud.firestore {
           && data.audienceIds is list && data.audienceIds.size() > 0 && data.audienceIds.size() <= 50
           && data.audienceLabel is string && data.audienceLabel.size() > 0 && data.audienceLabel.size() <= 4000);
     }
+    function validTodoExtras(data) {
+      return (!data.keys().hasAny(['priority']) || data.priority in ['low', 'medium', 'high'])
+        && (!data.keys().hasAny(['reminderDate']) || data.reminderDate == null || (data.reminderDate is string && data.reminderDate.size() == 10))
+        && validCustomerLink(data) && validCarrierLink(data)
+        && (!data.keys().hasAny(['reference']) || data.reference == null || (data.reference is string && data.reference.size() <= 240));
+    }
+    function validCustomerLink(data) {
+      return !data.keys().hasAny(['customerId', 'customerName']) || (data.customerId == null && data.customerName == null)
+        || (data.customerId is string && data.customerName is string
+          && exists(/databases/$(database)/documents/businessPartners/$(data.customerId))
+          && get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.debtorNumber is string
+          && get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.debtorNumber.size() > 0
+          && data.customerName == get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.companyName);
+    }
+    function validCarrierLink(data) {
+      return !data.keys().hasAny(['carrierId', 'carrierName']) || (data.carrierId == null && data.carrierName == null)
+        || (data.carrierId is string && data.carrierName is string
+          && exists(/databases/$(database)/documents/businessPartners/$(data.carrierId))
+          && get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.creditorNumber is string
+          && get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.creditorNumber.size() > 0
+          && data.carrierName == get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.companyName);
+    }
     function validTodoContent(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 240
         && data.description is string && data.description.size() <= 4000
         && (data.dueDate == null || data.dueDate is string)
-        && validTodoAudience(data);
+        && validTodoAudience(data) && validTodoExtras(data);
     }
     function isTodoAudienceMember(data) {
       return data.audienceType == 'all'
@@ -188,12 +210,12 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
@@ -201,6 +223,10 @@ service cloud.firestore {
         && request.resource.data.withdrawnAt == request.time && request.resource.data.withdrawnByUserId == request.auth.uid
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt', 'withdrawnByUserId', 'assignedUserId', 'assignedUserName', 'assignedAt', 'updatedAt']);
+    }
+    function isNoteTimestampTouch() {
+      return request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt']);
     }
     function todoDocument(todoId) { return get(/databases/$(database)/documents/todos/$(todoId)).data; }
     function todoAfter(todoId) { return getAfter(/databases/$(database)/documents/todos/$(todoId)).data; }
@@ -214,7 +240,8 @@ service cloud.firestore {
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if edit('todos') && isCreatedTodo();
-      allow update: if edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal());
+      allow update: if (edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
+        || (view('todos') && todoKeysAreValid(request.resource.data) && isNoteTimestampTouch());
       allow delete: if false;
 
       match /updates/{updateId} {

@@ -1,4 +1,4 @@
-import { TODO_STATUS } from '../../lib/todos.js'
+import { TODO_PRIORITY, TODO_STATUS, todoPriority } from '../../lib/todos.js'
 
 export default function TodosGallery({ formatDate, getDueClass, loading, onOpen, onPreview, todos }) {
   if (loading) return <p className="todos-gallery__state">To-dos werden geladen …</p>
@@ -7,7 +7,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
   return <div className="todos-gallery">
     {todos.map((todo) => <article className="todo-card" key={todo.id}>
       <div className="todo-card__content">
-        <div className="todo-card__heading"><h2 title={todo.title}>{todo.title}</h2><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div>
+        <div className="todo-card__heading"><h2 title={todo.title}>{todo.title}</h2><div><span className={`todo-priority todo-priority--${todoPriority(todo)}`}>{TODO_PRIORITY[todoPriority(todo)]}</span><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div></div>
         <p className="todo-card__description">{todo.description || 'Keine zusätzliche Beschreibung.'}</p>
         <dl className="todo-card__details">
           <div><dt>Fälligkeit</dt><dd className={getDueClass(todo)}>{formatDate(todo.dueDate)}</dd></div>

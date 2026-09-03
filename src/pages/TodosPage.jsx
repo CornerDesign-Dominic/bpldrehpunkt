@@ -8,6 +8,7 @@ import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
+import { listBusinessPartners } from '../lib/businessPartners.js'
 import {
   assignTodoToCurrentUser,
   audienceHasChanged,
@@ -49,10 +50,11 @@ function TodoActions({ actor, editable, onAction, onEdit, todo }) {
 export default function TodosPage() {
   const { user, profile } = useAuth()
   const navigate = useNavigate()
-  const { canEdit } = usePermissions()
+  const { canEdit, canView } = usePermissions()
   const actor = useMemo(() => ({ user, profile }), [profile, user])
   const [todos, setTodos] = useState([])
   const [users, setUsers] = useState([])
+  const [partners, setPartners] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [detailsTodo, setDetailsTodo] = useState(null)
@@ -61,6 +63,7 @@ export default function TodosPage() {
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
   const editable = canEdit('todos')
+  const canViewMasterData = canView('masterData')
   const activeUsers = useMemo(() => users.filter((item) => item.active !== false).sort((left, right) => getUserDisplayName(left, left).localeCompare(getUserDisplayName(right, right), 'de')), [users])
   const usersById = useMemo(() => new Map(activeUsers.map((item) => [item.id, item])), [activeUsers])
 
@@ -70,12 +73,12 @@ export default function TodosPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([listTodosForActor(actor), editable ? listUserProfiles() : Promise.resolve([])])
-      .then(([entries, profiles]) => { if (current) { setTodos(entries); setUsers(profiles) } })
+    Promise.all([listTodosForActor(actor), editable ? listUserProfiles() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      .then(([entries, profiles, businessPartners]) => { if (current) { setTodos(entries); setUsers(profiles); setPartners(businessPartners) } })
       .catch(() => { if (current) setError('Die To-dos konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
-  }, [actor, editable])
+  }, [actor, canViewMasterData, editable])
 
   const todoGroups = useMemo(() => ({
     mine: todos.filter((todo) => todo.assignedUserId === user.uid),
@@ -106,7 +109,7 @@ export default function TodosPage() {
   }
 
   async function performSave(values, resetAssignment) {
-    await updateTodoByCreator(editing.todo.id, values, usersById, resetAssignment, actor)
+    await updateTodoByCreator(editing.todo, values, usersById, resetAssignment, actor)
     await loadTodos()
     setEditing(null)
     setToast(resetAssignment ? 'To-do neu zugewiesen und wieder geöffnet.' : 'To-do aktualisiert.')
@@ -150,8 +153,8 @@ export default function TodosPage() {
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} confirmLabel="Bestätigen" onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
     {detailsTodo && <TodoDetailsModal todo={detailsTodo} formatDate={formatDate} getDueClass={dueClass} onClose={() => setDetailsTodo(null)}><TodoActions actor={actor} editable={editable} onAction={(action, todo) => { setDetailsTodo(null); handleAction(action, todo) }} onEdit={(todo, reassign) => { setDetailsTodo(null); setShowForm(false); setEditing({ todo, reassign }) }} todo={detailsTodo} /></TodoDetailsModal>}
     <div className="list-toolbar todo-toolbar">{editable && <button className="button" type="button" onClick={() => { setEditing(null); setShowForm(true) }}>To-do anlegen</button>}</div>
-    {showForm && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen"><TodoForm key="new" currentUserId={user.uid} users={activeUsers} onCancel={() => setShowForm(false)} onSubmit={addTodo} /></section></div>}
-    {editing && <TodoForm key={editing.todo.id} currentUserId={user.uid} initialTodo={editing.todo} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
+    {showForm && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen"><TodoForm key="new" currentUserId={user.uid} partners={partners} users={activeUsers} onCancel={() => setShowForm(false)} onSubmit={addTodo} /></section></div>}
+    {editing && <TodoForm key={editing.todo.id} currentUserId={user.uid} initialTodo={editing.todo} partners={partners} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
     {error && <p className="form-error">{error}</p>}
     {loading ? <p className="todos-gallery__state">To-dos werden geladen …</p> : <div className="todo-sections"><section className="todo-section"><div className="todo-section__heading"><h2>Meine Aufgaben</h2><span>{todoGroups.mine.length}</span></div><TodosGallery todos={todoGroups.mine} formatDate={formatDate} getDueClass={dueClass} onPreview={setDetailsTodo} onOpen={(todo) => navigate(`/todos/${todo.id}`)} /></section><section className="todo-section"><div className="todo-section__heading"><h2>Von mir erstellt</h2><span>{todoGroups.created.length}</span></div><TodosGallery todos={todoGroups.created} formatDate={formatDate} getDueClass={dueClass} onPreview={setDetailsTodo} onOpen={(todo) => navigate(`/todos/${todo.id}`)} /></section><section className="todo-section"><div className="todo-section__heading"><h2>Aufgabenpool</h2><span>{todoGroups.pool.length}</span></div><TodosGallery todos={todoGroups.pool} formatDate={formatDate} getDueClass={dueClass} onPreview={setDetailsTodo} onOpen={(todo) => navigate(`/todos/${todo.id}`)} /></section></div>}
   </div>

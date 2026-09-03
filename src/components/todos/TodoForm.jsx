@@ -1,19 +1,20 @@
 import { useMemo, useState } from 'react'
-import { createEmptyTodo, isSelfTodo } from '../../lib/todos.js'
+import { createEmptyTodo, isSelfTodo, TODO_PRIORITY } from '../../lib/todos.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 
 function initialValues(todo, currentUserId) {
   if (!todo) return createEmptyTodo()
   const isSelf = isSelfTodo(todo, currentUserId)
   return {
-    title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '',
+    title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '', reminderDate: todo.reminderDate || '', priority: todo.priority || 'medium',
+    customerId: todo.customerId || '', customerName: todo.customerName || '', carrierId: todo.carrierId || '', carrierName: todo.carrierName || '', reference: todo.reference || '',
     audienceType: isSelf ? 'self' : todo.audienceType === 'department' ? 'department' : todo.audienceType === 'all' ? 'all' : 'people',
     audienceId: todo.audienceType === 'department' ? todo.audienceId || '' : '',
     audienceIds: todo.audienceType === 'people' ? todo.audienceIds || [] : todo.audienceType === 'person' && !isSelf ? [todo.audienceId] : [],
   }
 }
 
-export default function TodoForm({ currentUserId, initialTodo, onCancel, onSubmit, users }) {
+export default function TodoForm({ currentUserId, initialTodo, onCancel, onSubmit, partners = [], users }) {
   const [form, setForm] = useState(() => initialValues(initialTodo, currentUserId))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -22,6 +23,14 @@ export default function TodoForm({ currentUserId, initialTodo, onCancel, onSubmi
   function update(field, value) { setForm((current) => ({ ...current, [field]: value })) }
   function changeAudienceType(audienceType) { setForm((current) => ({ ...current, audienceType, audienceId: '', audienceIds: [] })) }
   function changePeople(event) { update('audienceIds', Array.from(event.target.selectedOptions, (option) => option.value)) }
+  function changePartner(kind, event) {
+    const partner = partners.find((item) => item.id === event.target.value)
+    if (kind === 'customer') setForm((current) => ({ ...current, customerId: partner?.id || '', customerName: partner?.companyName || '' }))
+    else setForm((current) => ({ ...current, carrierId: partner?.id || '', carrierName: partner?.companyName || '' }))
+  }
+
+  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
 
   async function submit(event) {
     event.preventDefault()
@@ -38,11 +47,16 @@ export default function TodoForm({ currentUserId, initialTodo, onCancel, onSubmi
     <div className="todo-form__heading"><h2>{initialTodo ? 'To-do bearbeiten / neu zuweisen' : 'To-do anlegen'}</h2><button className="text-button" type="button" onClick={onCancel}>Abbrechen</button></div>
     <div className="todo-form__grid">
       <label className="form-field todo-form__title"><span>Titel *</span><input value={form.title} onChange={(event) => update('title', event.target.value)} autoFocus /></label>
-      <label className="form-field"><span>Fälligkeit</span><input type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} /></label>
+      <label className="form-field"><span>Wichtigkeit</span><select value={form.priority} onChange={(event) => update('priority', event.target.value)}>{Object.entries(TODO_PRIORITY).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+      <label className="form-field"><span>Fällig am</span><input type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} /></label>
+      <label className="form-field"><span>Erinnerung am</span><input type="date" value={form.reminderDate} onChange={(event) => update('reminderDate', event.target.value)} /></label>
       <label className="form-field"><span>Aufgabe für</span><select value={form.audienceType} onChange={(event) => changeAudienceType(event.target.value)}><option value="self">Für mich</option><option value="department">Abteilung</option><option value="all">Alle</option><option value="people">Person/en</option></select></label>
       {form.audienceType === 'department' && <label className="form-field"><span>Abteilung</span><select value={form.audienceId} onChange={(event) => update('audienceId', event.target.value)}><option value="">Bitte wählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>}
       {form.audienceType === 'people' && <label className="form-field todo-form__people"><span>Person/en *</span><select multiple value={form.audienceIds} onChange={changePeople} size="5">{users.filter((user) => user.id !== currentUserId).map((user) => <option key={user.id} value={user.id}>{getUserDisplayName(user, user)}</option>)}</select><small>Mehrfachauswahl mit Strg oder Cmd.</small></label>}
-      <label className="form-field todo-form__note"><span>Beschreibung / Notiz</span><textarea value={form.description} onChange={(event) => update('description', event.target.value)} rows="2" /></label>
+      <label className="form-field"><span>Kunde</span><select value={form.customerId} onChange={(event) => changePartner('customer', event)}><option value="">Kein Kunde verknüpft</option>{form.customerId && !customers.some((partner) => partner.id === form.customerId) && <option value={form.customerId}>{form.customerName || 'Verknüpfter Kunde'}</option>}{customers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
+      <label className="form-field"><span>Unternehmer</span><select value={form.carrierId} onChange={(event) => changePartner('carrier', event)}><option value="">Kein Unternehmer verknüpft</option>{form.carrierId && !carriers.some((partner) => partner.id === form.carrierId) && <option value={form.carrierId}>{form.carrierName || 'Verknüpfter Unternehmer'}</option>}{carriers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
+      <label className="form-field"><span>Referenz</span><input value={form.reference} maxLength="240" onChange={(event) => update('reference', event.target.value)} placeholder="Auftrags-, Tour- oder Rechnungsnummer" /></label>
+      <label className="form-field todo-form__note"><span>Beschreibung</span><textarea value={form.description} onChange={(event) => update('description', event.target.value)} rows="5" /></label>
     </div>
     {error && <p className="form-error">{error}</p>}
     <div className="form-actions"><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : initialTodo ? 'Änderungen speichern' : 'To-do speichern'}</button></div>
