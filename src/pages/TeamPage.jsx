@@ -19,7 +19,7 @@ function isOnVacation(member) {
 
 function TeamCard({ member, onCopyEmail }) {
   const onVacation = isOnVacation(member)
-  return <article className="team-card"><div className="team-card__heading"><div><h2>{displayName(member)}</h2><p>{member.department || 'Keine Abteilung'}</p></div><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{onVacation ? 'Im Urlaub' : 'Aktiv'}</span></div><dl className="team-card__details"><div><dt>Telefon / Durchwahl</dt><dd>{member.phone ? <a href={`tel:${member.phone}`}>{member.phone}</a> : '—'}</dd></div><div className="team-card__email"><dt>E-Mail</dt><dd>{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={`E-Mail-Adresse von ${displayName(member)} kopieren`} title="E-Mail-Adresse kopieren"><CopyIcon /></button></span> : '—'}</dd></div></dl></article>
+  return <article className="team-card"><div className="team-card__heading"><h2>{displayName(member)}</h2><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{onVacation ? 'Im Urlaub' : 'Aktiv'}</span></div><dl className="team-card__details"><div><dt>Telefon / Durchwahl</dt><dd>{member.phone ? <a href={`tel:${member.phone}`}>{member.phone}</a> : '—'}</dd></div><div className="team-card__email"><dt>E-Mail</dt><dd>{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={`E-Mail-Adresse von ${displayName(member)} kopieren`} title="E-Mail-Adresse kopieren"><CopyIcon /></button></span> : '—'}</dd></div></dl></article>
 }
 
 export default function TeamPage() {
@@ -48,6 +48,15 @@ export default function TeamPage() {
       .sort((left, right) => displayName(left).localeCompare(displayName(right), 'de'))
   }, [department, members, search])
 
+  const departmentGroups = useMemo(() => {
+    const groups = new Map()
+    visibleMembers.forEach((member) => {
+      const name = member.department?.trim() || 'Ohne Abteilung'
+      groups.set(name, [...(groups.get(name) || []), member])
+    })
+    return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right, 'de'))
+  }, [visibleMembers])
+
   async function copyEmail(email) {
     try {
       if (navigator.clipboard?.writeText) {
@@ -69,5 +78,5 @@ export default function TeamPage() {
     }
   }
 
-  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (visibleMembers.length ? <div className="team-grid">{visibleMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} />)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
+  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (departmentGroups.length ? <div className="team-departments">{departmentGroups.map(([name, groupMembers]) => <section className="team-department" key={name}><h2>{name}</h2><div className="team-grid">{groupMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} />)}</div></section>)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
 }
