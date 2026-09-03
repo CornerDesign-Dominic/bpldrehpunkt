@@ -28,7 +28,7 @@ function DocumentPreview({ documentItem, onOpen }) {
   }, [documentItem])
 
   return <button className="document-card__preview" type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
-    {url ? <object data={`${url}#page=1&view=FitH`} type="application/pdf" tabIndex="-1" aria-hidden="true"><span>PDF</span></object> : <span className="document-card__preview-fallback">PDF</span>}
+    {url ? <iframe src={`${url}#page=1&view=FitH&toolbar=0`} title="" tabIndex="-1" aria-hidden="true" /> : <span className="document-card__preview-fallback">PDF</span>}
     <span className="document-card__preview-overlay">Vorschau öffnen</span>
   </button>
 }
