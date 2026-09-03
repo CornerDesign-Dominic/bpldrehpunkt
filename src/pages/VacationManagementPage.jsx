@@ -13,7 +13,7 @@ const statusLabels = { pending: 'Ausstehend', approved: 'Genehmigt', rejected: '
 
 function requestStatus(request) { return ['pending', 'change_requested', 'cancellation_requested'].includes(request.status) ? 'pending' : request.status }
 function requestType(request) { return request.requestType || (request.requestKind === 'cancellation' || request.cancellationRequest ? 'cancellation' : request.originalRequestId ? 'change' : 'request') }
-function submittedAt(request) { const date = request.submittedAt ? new Date(request.submittedAt) : null; return !date || Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('de-DE').format(date) }
+function submittedAt(request) { const date = request.submittedAt ? new Date(request.submittedAt) : null; return !date || Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(date) }
 function requestDays(request) { return request.days ?? businessDays(request.startDate, request.endDate) }
 function originalPeriod(request, originalRequest) { const details = request.changeRequest || request.cancellationRequest || {}; return { startDate: details.originalStartDate || originalRequest?.startDate || request.startDate, endDate: details.originalEndDate || originalRequest?.endDate || request.endDate } }
 

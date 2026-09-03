@@ -692,6 +692,8 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .table-action a:hover { color: var(--legacy-263e57); text-decoration: underline; }
 .pallets-table-frame th { padding: 0; }
 .pallets-table-frame th:not(:last-child) { border-right: 1px solid var(--table-border); }
+.business-partners-table-frame th { padding: 0; }
+.business-partners-table-frame th:not(:last-child) { border-right: 1px solid var(--table-border); }
 .table-sort-button { display: flex; width: 100%; min-height: 37px; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; font-weight: inherit; text-align: left; }
 .table-sort-button__indicator { position: relative; flex: 0 0 9px; width: 9px; height: 14px; }
 .table-sort-button__indicator::before, .table-sort-button__indicator::after { position: absolute; left: 1px; width: 0; height: 0; content: ''; opacity: 0.45; }

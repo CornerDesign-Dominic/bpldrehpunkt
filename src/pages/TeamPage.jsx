@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { CopyIcon } from '../components/icons.jsx'
+import Toast from '../components/ui/Toast.jsx'
 import { getUserAvailabilityStatus, listUserProfiles } from '../lib/userProfiles.js'
 import '../styles/team.css'
 
@@ -11,9 +13,13 @@ function memberFunction(member) {
   return member.jobTitle || member.function || member.position || '—'
 }
 
-function TeamCard({ member }) {
-  const status = getUserAvailabilityStatus(member)
-  return <article className="team-card"><div className="team-card__heading"><div><h2>{displayName(member)}</h2><p>{memberFunction(member)}</p></div><span className={`team-status ${status ? 'team-status--set' : 'team-status--neutral'}`}><i aria-hidden="true" />{status?.label || 'Nicht festgelegt'}</span></div><dl className="team-card__details"><div><dt>Abteilung</dt><dd>{member.department || '—'}</dd></div><div><dt>Telefon / Durchwahl</dt><dd>{member.phone ? <a href={`tel:${member.phone}`}>{member.phone}</a> : '—'}</dd></div><div className="team-card__email"><dt>E-Mail</dt><dd>{member.email ? <a href={`mailto:${member.email}`}>{member.email}</a> : '—'}</dd></div></dl></article>
+function isOnVacation(member) {
+  return getUserAvailabilityStatus(member)?.value === 'vacation'
+}
+
+function TeamCard({ member, onCopyEmail }) {
+  const onVacation = isOnVacation(member)
+  return <article className="team-card"><div className="team-card__heading"><div><h2>{displayName(member)}</h2><p>{memberFunction(member)}</p></div><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{onVacation ? 'Im Urlaub' : 'Aktiv'}</span></div><dl className="team-card__details"><div><dt>Abteilung</dt><dd>{member.department || '—'}</dd></div><div><dt>Telefon / Durchwahl</dt><dd>{member.phone ? <a href={`tel:${member.phone}`}>{member.phone}</a> : '—'}</dd></div><div className="team-card__email"><dt>E-Mail</dt><dd>{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={`E-Mail-Adresse von ${displayName(member)} kopieren`} title="E-Mail-Adresse kopieren"><CopyIcon /></button></span> : '—'}</dd></div></dl></article>
 }
 
 export default function TeamPage() {
@@ -22,6 +28,7 @@ export default function TeamPage() {
   const [department, setDepartment] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [toast, setToast] = useState('')
 
   useEffect(() => {
     let current = true
@@ -41,5 +48,26 @@ export default function TeamPage() {
       .sort((left, right) => displayName(left).localeCompare(displayName(right), 'de'))
   }, [department, members, search])
 
-  return <div className="team-page"><div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (visibleMembers.length ? <div className="team-grid">{visibleMembers.map((member) => <TeamCard key={member.id} member={member} />)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
+  async function copyEmail(email) {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(email)
+      } else {
+        const input = document.createElement('textarea')
+        input.value = email
+        input.setAttribute('readonly', '')
+        input.style.position = 'fixed'
+        input.style.opacity = '0'
+        document.body.append(input)
+        input.select()
+        document.execCommand('copy')
+        input.remove()
+      }
+      setToast('E-Mail-Adresse kopiert.')
+    } catch {
+      setToast('E-Mail-Adresse konnte nicht kopiert werden.')
+    }
+  }
+
+  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (visibleMembers.length ? <div className="team-grid">{visibleMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} />)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
 }
