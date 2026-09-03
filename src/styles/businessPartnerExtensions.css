@@ -56,6 +56,10 @@
 }
 .form-field--company-address { grid-column: span 5; }
 .form-field--status { grid-column: 6; }
+.form-field--status { --partner-status-text: var(--status-success-text); --partner-status-background: var(--status-success-background); }
+.form-field--status-inactive, .form-field--status-insolvency { --partner-status-text: var(--status-warning-text); --partner-status-background: var(--status-warning-background); }
+.form-field--status-blocked { --partner-status-text: var(--status-danger-text); --partner-status-background: var(--status-danger-background); }
+.business-partner-form .form-field--status select { border-color: var(--partner-status-text); color: var(--partner-status-text); background: var(--partner-status-background); font-weight: 700; }
 .form-field--street { grid-column: span 2; }
 
 .form-grid--references { grid-template-columns: minmax(180px, 300px); }

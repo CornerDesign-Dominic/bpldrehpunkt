@@ -264,7 +264,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate><fieldset disabled={readOnly} className="business-partner-form__fieldset">
       <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address">
         <Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
-        <label className="form-field form-field--status"><span>Status</span><select name="status" value={form.status} onChange={handleChange}>{BUSINESS_PARTNER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
+        <label className={`form-field form-field--status form-field--status-${form.status}`}><span>Status</span><select name="status" value={form.status} onChange={handleChange}>{BUSINESS_PARTNER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
         <Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
         <Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={handleChange} />
         <Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={handleChange} />
