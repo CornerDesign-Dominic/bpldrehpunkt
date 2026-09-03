@@ -11,6 +11,7 @@ import { deleteObject, getBlob, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from './firebase.js'
 
 export const INTERNAL_DOCUMENTS_COLLECTION = 'internalDocuments'
+export const MAX_DOCUMENT_FILE_SIZE = 20 * 1024 * 1024
 
 // Central action names provide a stable base for future role checks.
 export const DOCUMENT_ACTIONS = ['view', 'download', 'upload', 'edit', 'delete']
@@ -65,6 +66,13 @@ export function isPdfFile(file) {
   return Boolean(file) && (file.type === 'application/pdf' || file.name.toLocaleLowerCase('de-DE').endsWith('.pdf'))
 }
 
+export function getPdfFileError(file) {
+  if (!file) return ''
+  if (!isPdfFile(file)) return 'Bitte ausschließlich eine PDF-Datei auswählen.'
+  if (file.size > MAX_DOCUMENT_FILE_SIZE) return 'Die PDF darf maximal 20 MB groß sein.'
+  return ''
+}
+
 export function formatDocumentDate(value) {
   const date = value?.toDate?.() ?? (value ? new Date(`${value}T12:00:00`) : null)
   return date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat('de-DE').format(date) : '—'
@@ -97,7 +105,8 @@ export async function listInternalDocuments() {
 }
 
 async function uploadDocumentFile(documentId, file) {
-  if (!isPdfFile(file)) throw new Error('Nur PDF-Dateien sind zulässig.')
+  const fileError = getPdfFileError(file)
+  if (fileError) throw new Error(fileError)
   const storagePath = `internalDocuments/${documentId}/${crypto.randomUUID()}-${sanitizeFileName(file.name)}`
   try {
     await uploadBytes(ref(storage, storagePath), file, { contentType: 'application/pdf', contentDisposition: `inline; filename="${sanitizeFileName(file.name)}"` })
