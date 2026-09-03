@@ -1,6 +1,5 @@
 .masterdata-page { display: grid; gap: 12px; }
-.business-partner-form { gap: 0; }
-.business-partner-form > * + * { margin-top: 14px; }
+.business-partner-form__fieldset { display: grid; min-width: 0; margin: 0; padding: 0; border: 0; gap: 12px; }
 .business-partner-form .form-section { padding: 11px 13px 12px; border-color: var(--border); border-radius: 6px; }
 .business-partner-form .form-section h2 { margin-bottom: 8px; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); letter-spacing: -0.01em; }
 .business-partner-form .form-grid { gap: 8px 10px; }
@@ -25,7 +24,7 @@
 .masterdata-info-card__chevron, .pallet-account-info-card__chevron { margin-left: auto; padding: 0 !important; border-left: 0 !important; color: var(--text-muted); font-size: 15px; line-height: 1; transition: color 140ms ease, transform 140ms ease; }
 .masterdata-info-card:hover .masterdata-info-card__chevron, .pallet-account-info-card:hover .pallet-account-info-card__chevron, .masterdata-info-card:focus-visible .masterdata-info-card__chevron, .pallet-account-info-card:focus-visible .pallet-account-info-card__chevron { color: var(--text-primary); transform: translateX(2px); }
 .masterdata-content-card { padding: 12px 13px; border: 1px solid var(--workspace-border); border-radius: 7px; background: var(--workspace-background); }
-.masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 14px; }
+.masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
 .masterdata-half-grid .form-section { min-width: 0; }
 .contacts-table th:nth-child(6) { width: 72px; }
 .portals-table th:nth-child(4) { width: 72px; }
