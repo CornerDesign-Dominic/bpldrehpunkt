@@ -67,6 +67,18 @@ export default function VacationManagementPage() {
 
   const calendarEntries = useMemo(() => {
     const baseRequests = filteredRequests.filter((item) => !item.originalRequestId)
+    if (status === 'all') return [
+      ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
+      ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
+      ...baseRequests.map((item) => {
+        const related = relatedByOriginal.get(item.id) || []
+        const pendingChange = related.find((relatedRequest) => requestType(relatedRequest) === 'change' && requestStatus(relatedRequest) === 'pending')
+        const pendingCancellation = related.find((relatedRequest) => requestType(relatedRequest) === 'cancellation' && requestStatus(relatedRequest) === 'pending')
+        const annotation = pendingCancellation ? 'Storno angefragt' : pendingChange ? 'Änderung angefragt' : ''
+        return { id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: requestStatus(item), modifier: pendingCancellation ? 'cancellation_requested' : pendingChange ? 'change_requested' : '', title: `${item.employeeName} · ${annotation || statusLabels[requestStatus(item)]}` }
+      }),
+      ...filteredRequests.filter((item) => requestType(item) === 'change').map((item) => ({ id: `change-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]} · Änderung`, kind: requestStatus(item), title: `${item.employeeName} · ${requestStatus(item) === 'approved' ? 'Änderung genehmigt' : requestStatus(item) === 'rejected' ? 'Änderung abgelehnt' : 'Änderung angefragt'}` })),
+    ]
     return [
       ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
       ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
@@ -76,17 +88,25 @@ export default function VacationManagementPage() {
         const latestChange = changes.sort((left, right) => (right.submittedAt || '').localeCompare(left.submittedAt || '') || (right.startDate || '').localeCompare(left.startDate || ''))[0]
         const pendingCancellation = related.find((relatedRequest) => requestType(relatedRequest) === 'cancellation' && requestStatus(relatedRequest) === 'pending')
         const approvedCancellation = related.find((relatedRequest) => requestType(relatedRequest) === 'cancellation' && requestStatus(relatedRequest) === 'approved')
-        if (latestChange && requestStatus(latestChange) === 'approved') return [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: latestChange.employeeName.split(' ')[0], kind: 'approved', title: `${latestChange.employeeName} · Änderung genehmigt` }]
-        if (latestChange && requestStatus(latestChange) === 'pending') return [
-          { id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]} · Änderung angefragt`, kind: requestStatus(item), modifier: 'change_requested', title: `${item.employeeName} · Änderung angefragt` },
-          { id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: `${latestChange.employeeName.split(' ')[0]} · Änderung angefragt`, kind: 'pending', title: `${latestChange.employeeName} · Änderung angefragt` },
-        ]
-        if (requestStatus(item) === 'rejected') return []
+        if (latestChange && requestStatus(latestChange) === 'approved') return status === 'approved'
+          ? [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: latestChange.employeeName.split(' ')[0], kind: 'approved', title: `${latestChange.employeeName} · Änderung genehmigt` }]
+          : requestStatus(item) === status ? [{ id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.employeeName.split(' ')[0], kind: requestStatus(item), title: `${item.employeeName} · ${statusLabels[requestStatus(item)]}` }] : []
+        if (latestChange && requestStatus(latestChange) === 'pending') {
+          if (status !== 'pending') return requestStatus(item) === status ? [{ id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.employeeName.split(' ')[0], kind: requestStatus(item), title: `${item.employeeName} · ${statusLabels[requestStatus(item)]}` }] : []
+          return [
+            { id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]} · Änderung angefragt`, kind: requestStatus(item), modifier: 'change_requested', title: `${item.employeeName} · Änderung angefragt` },
+            { id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: `${latestChange.employeeName.split(' ')[0]} · Änderung angefragt`, kind: 'pending', title: `${latestChange.employeeName} · Änderung angefragt` },
+          ]
+        }
+        if (latestChange && requestStatus(latestChange) === 'rejected') return status === 'rejected'
+          ? [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: latestChange.employeeName.split(' ')[0], kind: 'rejected', title: `${latestChange.employeeName} · Änderung abgelehnt` }]
+          : requestStatus(item) === status ? [{ id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.employeeName.split(' ')[0], kind: requestStatus(item), title: `${item.employeeName} · ${statusLabels[requestStatus(item)]}` }] : []
+        if (requestStatus(item) !== status) return []
         const annotation = pendingCancellation ? 'Storno angefragt' : approvedCancellation ? 'Storno genehmigt' : ''
         return [{ id: `base-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${item.employeeName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: requestStatus(item), modifier: pendingCancellation ? 'cancellation_requested' : '', title: `${item.employeeName} · ${annotation || statusLabels[requestStatus(item)]}` }]
       }),
     ]
-  }, [filteredRequests, holidays, relatedByOriginal, vacationBlocks])
+  }, [filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
 
   function moveMonth(delta) { const next = new Date(year, month + delta, 1); setYear(next.getFullYear()); setMonth(next.getMonth()) }
   async function process(request, decision, managerComment) { setProcessingId(request.id); try { await processVacationRequest(request.id, decision, managerComment); await reload(); setSelectedRequest(null); const actionLabel = requestTypes[requestType(request)] || 'Antrag'; setToast(decision === 'approved' ? `${actionLabel} genehmigt.` : `${actionLabel} abgelehnt.`) } catch { setToast('Der Urlaubsantrag konnte nicht bearbeitet werden.') } finally { setProcessingId('') } }
