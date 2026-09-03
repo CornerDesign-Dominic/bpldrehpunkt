@@ -30,7 +30,7 @@ function DocumentPreview({ documentItem, onOpen }) {
 
 export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onEdit, onReplace, onDelete, canEdit }) {
   if (loading) return <p className="documents-gallery__state">Dokumente werden geladen …</p>
-  if (!documents.length) return <p className="documents-gallery__state">Für diese Auswahl sind keine Dokumente vorhanden.</p>
+  if (!documents.length) return <p className="documents-gallery__state">Keine Dokumente gespeichert.</p>
 
   return <div className="documents-gallery">
     {documents.map((documentItem) => <article className="document-card" key={documentItem.id}>
