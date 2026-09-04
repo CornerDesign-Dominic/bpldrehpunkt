@@ -117,15 +117,17 @@ service cloud.firestore {
     match /newsItemReadStates/{userId} {
       allow read, write: if false;
       match /items/{itemId} {
-        function validNewsItemReadState() {
+        function validNewsItemPersonalState() {
           return exists(/databases/$(database)/documents/newsItems/$(itemId))
-            && request.resource.data.keys().hasAll(['itemId', 'readAt'])
-            && request.resource.data.keys().hasOnly(['itemId', 'readAt'])
+            && request.resource.data.keys().hasAll(['itemId'])
+            && request.resource.data.keys().hasOnly(['itemId', 'readAt', 'later', 'favorite'])
             && request.resource.data.itemId == itemId
-            && request.resource.data.readAt == request.time;
+            && (!request.resource.data.keys().hasAny(['readAt']) || request.resource.data.readAt is timestamp)
+            && (!request.resource.data.keys().hasAny(['later']) || request.resource.data.later is bool)
+            && (!request.resource.data.keys().hasAny(['favorite']) || request.resource.data.favorite is bool);
         }
         allow read: if view('news') && userId == request.auth.uid;
-        allow create, update: if view('news') && userId == request.auth.uid && validNewsItemReadState();
+        allow create, update: if view('news') && userId == request.auth.uid && validNewsItemPersonalState();
         allow delete: if false;
       }
     }

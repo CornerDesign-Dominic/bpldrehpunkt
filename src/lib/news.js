@@ -200,15 +200,26 @@ export async function listNewsItems() {
   return snapshot.docs.map(mapSnapshot).sort((left, right) => dateToMillis(right.publishedAt) - dateToMillis(left.publishedAt) || dateToMillis(right.updatedAt || right.createdAt) - dateToMillis(left.updatedAt || left.createdAt))
 }
 
-export async function listNewsItemReadStates(uid) {
-  if (!uid) return []
+export async function listNewsItemPersonalStates(uid) {
+  if (!uid) return { readItemIds: [], laterItemIds: [], favoriteItemIds: [] }
   const snapshot = await getDocs(collection(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items'))
-  return snapshot.docs.map((item) => item.id)
+  return snapshot.docs.reduce((states, item) => {
+    const state = item.data()
+    if (state.readAt) states.readItemIds.push(item.id)
+    if (state.later === true) states.laterItemIds.push(item.id)
+    if (state.favorite === true) states.favoriteItemIds.push(item.id)
+    return states
+  }, { readItemIds: [], laterItemIds: [], favoriteItemIds: [] })
 }
 
 export async function markNewsItemSeen(uid, itemId) {
   if (!uid || !itemId) return
-  await setDoc(doc(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items', itemId), { itemId, readAt: serverTimestamp() })
+  await setDoc(doc(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items', itemId), { itemId, readAt: serverTimestamp() }, { merge: true })
+}
+
+export async function setNewsItemMarker(uid, itemId, marker, enabled) {
+  if (!uid || !itemId || !['later', 'favorite'].includes(marker)) return
+  await setDoc(doc(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items', itemId), { itemId, [marker]: enabled === true }, { merge: true })
 }
 
 export async function createNewsItem(values) {
