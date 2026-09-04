@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import NewsForm from '../components/news/NewsForm.jsx'
 import NewsList from '../components/news/NewsList.jsx'
@@ -73,6 +73,7 @@ export default function NewsPage() {
   const [showLater, setShowLater] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const advancedFiltersRef = useRef(null)
   const [editingItem, setEditingItem] = useState(undefined)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -110,6 +111,20 @@ export default function NewsPage() {
       affects: EXTERNAL_NEWS_AFFECTS.filter((item) => affects.has(item.value)).map((item) => ({ value: item.value, label: getExternalNewsAffects(item.value) })),
     }
   }, [category, categoryItems])
+  useEffect(() => {
+    function closeAdvancedFilters(event) {
+      if (advancedFiltersRef.current && !advancedFiltersRef.current.contains(event.target)) setShowAdvancedFilters(false)
+    }
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setShowAdvancedFilters(false)
+    }
+    document.addEventListener('pointerdown', closeAdvancedFilters)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeAdvancedFilters)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
   const unreadCounts = useMemo(() => Object.fromEntries(NEWS_CATEGORIES.map((item) => [item.value, readItemsLoaded ? items.filter((news) => news.status === 'active' && normalizeNewsCategory(news.category) === item.value && !readItemIds.has(news.id)).length : 0])), [items, readItemIds, readItemsLoaded])
   const visibleItems = useMemo(() => {
     const searchTerm = search.trim().toLocaleLowerCase('de-DE')
@@ -238,7 +253,26 @@ export default function NewsPage() {
       })}</div>
     </section>
     <section className="news-header-card">
-      <div className="news-toolbar"><div className="news-toolbar__filters"><div className="news-toolbar__search-row"><label className="search-field news-toolbar__search"><span className="sr-only">News durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="News durchsuchen" /></label><label className="filter-field news-toolbar__period"><span>Zeitraum</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label></div><div className="news-toolbar__quick-row"><span className="news-filter-group__label">Schnellfilter</span><div className="news-filter-group" aria-label="Schnellfilter">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}<button className={showLater ? 'news-filter news-filter--active' : 'news-filter'} type="button" aria-pressed={showLater} onClick={() => setShowLater((value) => !value)}>Später lesen</button><button className={showFavorites ? 'news-filter news-filter--active' : 'news-filter'} type="button" aria-pressed={showFavorites} onClick={() => setShowFavorites((value) => !value)}>Favoriten</button></div></div><div className="news-toolbar__advanced-row"><button className={showAdvancedFilters ? 'news-advanced-filter-button news-advanced-filter-button--active' : 'news-advanced-filter-button'} type="button" aria-expanded={showAdvancedFilters} onClick={() => setShowAdvancedFilters((value) => !value)}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2.5 3.5h11M4.5 8h7M6.5 12.5h3" /></svg>Weitere Filter</button>{hasActiveFilters && <button className="news-filter-reset" type="button" onClick={resetFilters}><span aria-hidden="true">×</span>Filter zurücksetzen</button>}</div>{showAdvancedFilters && <section className="news-toolbar__advanced-filters" aria-label="Weitere Filter"><div className="news-toolbar__advanced-filter"><span>Länder</span><NewsMultiSelect label="Länder auswählen" options={filterOptions.countries} selected={selectedCountries} onToggle={(value, checked) => toggleSelection(setSelectedCountries, value, checked)} /></div><div className="news-toolbar__advanced-filter"><span>Themen</span><NewsMultiSelect label="Themen auswählen" options={filterOptions.tags} selected={selectedTags} onToggle={(value, checked) => toggleSelection(setSelectedTags, value, checked)} /></div><div className="news-toolbar__advanced-filter"><span>Betrifft Abteilung</span><NewsMultiSelect label="Abteilungen auswählen" options={filterOptions.affects} selected={selectedAffects} onToggle={(value, checked) => toggleSelection(setSelectedAffects, value, checked)} /></div></section>}{(selectedCountries.length || selectedTags.length || selectedAffects.length) > 0 && <div className="news-filter-chips" aria-label="Ausgewählte weitere Filter">{selectedCountries.map((value) => <button className="news-filter-chip" key={`country-${value}`} type="button" onClick={() => toggleSelection(setSelectedCountries, value, false)}>Land: {value}<span aria-hidden="true">×</span></button>)}{selectedTags.map((value) => <button className="news-filter-chip" key={`tag-${value}`} type="button" onClick={() => toggleSelection(setSelectedTags, value, false)}>Thema: {getExternalNewsTag(value)}<span aria-hidden="true">×</span></button>)}{selectedAffects.map((value) => <button className="news-filter-chip" key={`affects-${value}`} type="button" onClick={() => toggleSelection(setSelectedAffects, value, false)}>Betrifft: {getExternalNewsAffects(value)}<span aria-hidden="true">×</span></button>)}</div>}</div>{category === 'internal' && canEdit('news') && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}</div>
+      <div className="news-toolbar">
+        <div className="news-toolbar__filters">
+          <div className="news-toolbar__primary-row">
+            <label className="search-field news-toolbar__search"><span className="sr-only">News durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="News durchsuchen" /></label>
+            <label className="filter-field news-toolbar__period"><span>Zeitraum:</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label>
+            <div className="news-filter-popover" ref={advancedFiltersRef}>
+              <button className={showAdvancedFilters ? 'news-filter-button news-filter-button--active' : 'news-filter-button'} type="button" aria-controls="news-advanced-filters" aria-expanded={showAdvancedFilters} aria-haspopup="dialog" onClick={() => setShowAdvancedFilters((value) => !value)}><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M2 3.25h12l-4.7 5.1v3.55l-2.6.85V8.35L2 3.25Z" /></svg>Filter<span className="news-filter-button__chevron" aria-hidden="true">⌄</span></button>
+              {showAdvancedFilters && <section id="news-advanced-filters" className="news-toolbar__advanced-filters" role="dialog" aria-label="Weitere Filter"><div className="news-toolbar__advanced-filter"><span>Länder</span><NewsMultiSelect label="Länder auswählen" options={filterOptions.countries} selected={selectedCountries} onToggle={(value, checked) => toggleSelection(setSelectedCountries, value, checked)} /></div><div className="news-toolbar__advanced-filter"><span>Themen</span><NewsMultiSelect label="Themen auswählen" options={filterOptions.tags} selected={selectedTags} onToggle={(value, checked) => toggleSelection(setSelectedTags, value, checked)} /></div><div className="news-toolbar__advanced-filter"><span>Betrifft Abteilung</span><NewsMultiSelect label="Abteilungen auswählen" options={filterOptions.affects} selected={selectedAffects} onToggle={(value, checked) => toggleSelection(setSelectedAffects, value, checked)} /></div></section>}
+            </div>
+            {(selectedCountries.length || selectedTags.length || selectedAffects.length) > 0 && <div className="news-filter-chips" aria-label="Ausgewählte Filter">{selectedCountries.map((value) => <button className="news-filter-chip" key={`country-${value}`} type="button" onClick={() => toggleSelection(setSelectedCountries, value, false)}>{value}<span aria-hidden="true">×</span></button>)}{selectedTags.map((value) => <button className="news-filter-chip" key={`tag-${value}`} type="button" onClick={() => toggleSelection(setSelectedTags, value, false)}>{getExternalNewsTag(value)}<span aria-hidden="true">×</span></button>)}{selectedAffects.map((value) => <button className="news-filter-chip" key={`affects-${value}`} type="button" onClick={() => toggleSelection(setSelectedAffects, value, false)}>{getExternalNewsAffects(value)}<span aria-hidden="true">×</span></button>)}</div>}
+            {hasActiveFilters && <button className="news-filter-reset" type="button" onClick={resetFilters}><span aria-hidden="true">×</span>Zurücksetzen</button>}
+          </div>
+          <div className="news-toolbar__quick-row" aria-label="News-Ansichten">
+            <div className="news-filter-group">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}</div>
+            <span className="news-toolbar__quick-divider" aria-hidden="true" />
+            <div className="news-toolbar__personal-filters"><button className={showLater ? 'news-filter news-filter--active' : 'news-filter'} type="button" aria-pressed={showLater} onClick={() => setShowLater((value) => !value)}><span aria-hidden="true">🔖</span>Später lesen</button><button className={showFavorites ? 'news-filter news-filter--active' : 'news-filter'} type="button" aria-pressed={showFavorites} onClick={() => setShowFavorites((value) => !value)}><span aria-hidden="true">☆</span>Favoriten</button></div>
+          </div>
+        </div>
+        {category === 'internal' && canEdit('news') && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}
+      </div>
       {category !== 'internal' && <div className="news-external-hint"><span>Recherche täglich um 07:00 Uhr · nur quellenbasierte Meldungen.</span></div>}
     </section>
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}

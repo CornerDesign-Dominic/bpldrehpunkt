@@ -1179,3 +1179,22 @@ tbody tr:hover td { background: var(--table-hover-background); }
 @media (max-width: 720px) { .news-tabs__tab { min-height: 60px; padding-inline: 10px; }.news-tabs__content { gap: 8px; padding-right: 14px; }.news-toolbar__search { flex-basis: 100%; max-width: none; }.news-toolbar__advanced-filters { grid-template-columns: 1fr; }.news-toolbar__quick-row > .news-filter-group__label { width: 100%; }.news-toolbar__period { flex: 1; justify-content: space-between; } }
 @media (max-width: 430px) { .news-tabs { grid-template-columns: 1fr; }.news-tabs__tab { min-height: 56px; } }
 @media (max-width: 720px) { .news-toolbar__search { flex-basis: 100%; max-width: none; }.news-toolbar__filter-row--details { align-items: flex-start; }.news-filter-reset { margin-left: 0; } }
+
+/* Compact news-filter toolbar. The category navigation and individual news cards remain separate. */
+.news-header-card { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.news-header-card > .news-toolbar { padding-top: 0; border-top: 0; }
+.news-toolbar { align-items: flex-start; gap: 10px; }
+.news-toolbar__filters { display: grid; flex: 1 1 680px; gap: 4px; }
+.news-toolbar__primary-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.news-toolbar__search { flex: 0 1 260px; max-width: none; }
+.news-toolbar__period { gap: 4px; min-height: 30px; padding: 0 8px; white-space: nowrap; }
+.news-toolbar__period select { min-width: 50px; }
+.news-filter-popover { position: relative; display: inline-flex; }
+.news-filter-button { display: inline-flex; height: 30px; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; font: inherit; font-size: 11px; font-weight: 750; }
+.news-filter-button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.5; }.news-filter-button__chevron { margin-left: 1px; color: var(--text-muted); font-size: 13px; line-height: 1; }.news-filter-button:hover, .news-filter-button--active { border-color: var(--button-background); color: var(--text-primary); background: var(--surface-active); }.news-filter-button--active .news-filter-button__chevron { transform: rotate(180deg); }.news-filter-button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.news-filter-popover .news-toolbar__advanced-filters { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; display: grid; width: min(320px, calc(100vw - 40px)); grid-template-columns: 1fr; gap: 8px; padding: 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--content-background); box-shadow: 0 8px 20px var(--shadow); }
+.news-filter-popover .news-toolbar__advanced-filter { gap: 4px; }.news-filter-popover .news-toolbar__advanced-filter .news-multiselect, .news-filter-popover .news-toolbar__advanced-filter .news-multiselect__trigger { width: 100%; }.news-filter-popover .news-toolbar__advanced-filter .news-multiselect__options { right: auto; left: 0; min-width: 100%; }
+.news-filter-chips { gap: 4px; }.news-filter-chip { min-height: 28px; padding: 2px 7px; font-size: 10px; }
+.news-filter-reset { height: 28px; margin-left: 0; padding: 0 2px; border: 0; background: transparent; }
+.news-toolbar__quick-row { gap: 6px; padding: 0; }.news-toolbar__quick-row .news-filter-group { flex-wrap: nowrap; }.news-toolbar__quick-divider { width: 1px; height: 18px; background: var(--border); }.news-toolbar__personal-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }.news-toolbar__personal-filters .news-filter { display: inline-flex; align-items: center; gap: 4px; }
+@media (max-width: 720px) { .news-toolbar { flex-direction: column; }.news-toolbar__search { flex: 1 1 100%; width: 100%; }.news-toolbar__period { flex: 0 0 auto; }.news-toolbar__quick-row .news-filter-group { flex-wrap: wrap; }.news-filter-popover .news-toolbar__advanced-filters { width: min(320px, calc(100vw - 64px)); } }
