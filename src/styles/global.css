@@ -1036,6 +1036,25 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-form__people small { display: block; margin-top: 6px; }
 .todo-form .form-actions { padding-top: 2px; border-top: 0; }
 .todo-updates__form > textarea { flex: 1; }
+.todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.todo-detail-section-edit { display: inline-grid; width: 27px; height: 27px; flex: 0 0 auto; padding: 0; place-items: center; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; }
+.todo-detail-section-edit:hover { color: var(--text-primary); background: var(--content-background); }
+.todo-quick-edit-modal { width: min(100%, 540px); max-height: calc(100vh - 40px); overflow: auto; padding: 18px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--content-background); box-shadow: 0 18px 42px var(--shadow); }
+.todo-quick-editor { display: grid; gap: 15px; }
+.todo-quick-editor__heading h2 { margin: 0; color: var(--text-primary); font-size: 16px; line-height: 1.35; }
+.todo-quick-editor__grid { display: grid; gap: 11px; }
+.todo-quick-editor__grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.todo-quick-editor textarea { width: 100%; min-height: 116px; padding: 7px 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 13px; resize: vertical; }
+.todo-quick-editor textarea:focus { border-color: var(--button-background); outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.todo-quick-editor__people { min-width: 0; margin: 0; padding: 0; border: 0; }
+.todo-quick-editor__people legend { padding: 0; color: var(--text-secondary); font-size: var(--font-size-field-label); font-weight: var(--font-weight-field-label); }
+.todo-quick-editor__people > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 185px; margin-top: 6px; overflow: auto; }
+.todo-quick-editor__person { display: flex; min-width: 0; min-height: 32px; align-items: center; gap: 7px; padding: 6px 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); cursor: pointer; font-size: 12px; font-weight: 500; }
+.todo-quick-editor__person:hover { border-color: var(--border-strong); }
+.todo-quick-editor__person--selected { border-color: var(--button-background); background: var(--surface-secondary); }
+.todo-quick-editor__person input { width: 14px; height: 14px; flex: 0 0 auto; margin: 0; accent-color: var(--button-background); }
+.todo-quick-editor__person span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-quick-editor__hint { margin: 0; padding: 8px 9px; border-left: 2px solid var(--border-strong); color: var(--text-secondary); background: var(--surface-secondary); font-size: 12px; line-height: 1.4; }
 
 @media (max-width: 720px) {
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
@@ -1063,6 +1082,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .todo-form__section-grid--schedule, .todo-form__section-grid--assignment, .todo-form__section-grid--links { grid-template-columns: 1fr; }
   .todo-form__wide, .todo-form__section .todo-form__people { grid-column: auto; }
   .todo-form__people-options { grid-template-columns: 1fr; }
+  .todo-quick-editor__grid--three, .todo-quick-editor__people > div { grid-template-columns: 1fr; }
   .todo-detail-header { flex-direction: column; }
   .todo-detail-actions { justify-content: flex-start; }
   .todo-detail-list { grid-template-columns: 1fr; }

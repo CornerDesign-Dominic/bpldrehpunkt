@@ -259,7 +259,10 @@ function changedFieldMessages(todo, fields, resetAssignment) {
 }
 
 export async function updateTodoByCreator(todo, values, usersById, resetAssignment, actor) {
-  const fields = { ...todoFields(values), ...audienceValues(values, usersById, actor), updatedAt: serverTimestamp() }
+  const audience = audienceHasChanged(todo, values, actor.user.uid)
+    ? audienceValues(values, usersById, actor)
+    : { audienceType: todo.audienceType, audienceId: todo.audienceId ?? null, audienceIds: todo.audienceIds ?? null, audienceLabel: todo.audienceLabel }
+  const fields = { ...todoFields(values), ...audience, updatedAt: serverTimestamp() }
   if (resetAssignment) Object.assign(fields, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open' })
   const batch = writeBatch(db)
   batch.update(doc(db, TODOS_COLLECTION, todo.id), fields)
