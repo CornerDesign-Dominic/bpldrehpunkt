@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
+import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createCalendarEvent, deleteCalendarEvent, listCalendarEvents, listUserCalendars, updateCalendarEvent } from '../lib/calendars.js'
 import '../styles/calendar.css'
 
 const weekdayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+const monthOptions = Array.from({ length: 12 }, (_, month) => ({ value: month, label: new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date(2026, month, 1)) }))
 const monthFormatter = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' })
 const dateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -55,6 +57,7 @@ function EventModal({ event, calendars, initialDate, editable, onClose, onSave, 
   }))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false)
 
   async function submit(eventSubmit) {
     eventSubmit.preventDefault()
@@ -69,8 +72,11 @@ function EventModal({ event, calendars, initialDate, editable, onClose, onSave, 
     }
   }
 
-  async function remove() {
-    if (!window.confirm('Diesen Termin wirklich löschen?')) return
+  function remove() {
+    setDeleteConfirmationOpen(true)
+  }
+
+  async function confirmRemove() {
     setSubmitting(true)
     setError('')
     try {
@@ -78,10 +84,29 @@ function EventModal({ event, calendars, initialDate, editable, onClose, onSave, 
     } catch {
       setError('Der Termin konnte nicht gelöscht werden.')
       setSubmitting(false)
+      setDeleteConfirmationOpen(false)
     }
   }
 
+  if (deleteConfirmationOpen) return <ConfirmDialog open title="Termin wirklich löschen?" message="Dieser Termin wird endgültig gelöscht." confirmLabel="Termin löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={submitting} onCancel={() => setDeleteConfirmationOpen(false)} onConfirm={confirmRemove} />
+
   return <div className="calendar-modal-backdrop" role="presentation" onMouseDown={(eventMouse) => { if (eventMouse.target === eventMouse.currentTarget) onClose() }}><section className="calendar-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title"><div className="calendar-modal__heading"><div><h2 id="calendar-event-title">{isExisting ? editable ? 'Termin bearbeiten' : 'Termin' : 'Neuer Termin'}</h2>{isExisting && <p>{event.calendarName} · {formatPeriod(event)}</p>}</div><button type="button" className="calendar-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></div>{!editable ? <><dl className="calendar-event-detail"><div><dt>Zeitraum</dt><dd>{formatPeriod(event)}</dd></div><div><dt>Kalender</dt><dd><span className="calendar-color-dot" style={{ background: event.calendarColor }} />{event.calendarName}</dd></div>{event.description && <div className="calendar-event-detail__wide"><dt>Beschreibung</dt><dd>{event.description}</dd></div>}</dl><div className="calendar-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></> : <form onSubmit={submit} noValidate><div className="calendar-modal__fields"><label className="form-field calendar-modal__title"><span>Titel *</span><input required autoFocus value={form.title} onChange={(input) => setForm((current) => ({ ...current, title: input.target.value }))} /></label>{!isExisting && <label className="form-field"><span>Kalender</span><select value={form.calendarId} onChange={(input) => setForm((current) => ({ ...current, calendarId: input.target.value }))}>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}</select></label>}<label className="form-field"><span>Von</span><input type="date" required value={form.startDate} onChange={(input) => setForm((current) => ({ ...current, startDate: input.target.value, endDate: input.target.value > current.endDate ? input.target.value : current.endDate }))} /></label><label className="form-field"><span>Bis</span><input type="date" required min={form.startDate} value={form.endDate} onChange={(input) => setForm((current) => ({ ...current, endDate: input.target.value }))} /></label><label className="calendar-checkbox"><input type="checkbox" checked={form.allDay} onChange={(input) => setForm((current) => ({ ...current, allDay: input.target.checked }))} />Ganztägig</label>{!form.allDay && <><label className="form-field"><span>Von</span><input type="time" value={form.startTime} onChange={(input) => setForm((current) => ({ ...current, startTime: input.target.value }))} /></label><label className="form-field"><span>Bis</span><input type="time" value={form.endTime} onChange={(input) => setForm((current) => ({ ...current, endTime: input.target.value }))} /></label></>}<label className="form-field calendar-modal__description"><span>Beschreibung (optional)</span><textarea rows="4" value={form.description} onChange={(input) => setForm((current) => ({ ...current, description: input.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="calendar-modal__actions">{isExisting && <button className="button button--danger" type="button" disabled={submitting} onClick={remove}>Löschen</button>}<span /><button className="button button--secondary" type="button" disabled={submitting} onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : 'Speichern'}</button></div></form>}</section></div>
+}
+
+function weekBars(events, week, weekIndex) {
+  const weekStart = week[0].date
+  const weekEnd = week[6].date
+  const laneEnds = []
+  return events.filter((event) => overlaps(event, weekStart, weekEnd)).sort((left, right) => left.startDate.localeCompare(right.startDate) || left.endDate.localeCompare(right.endDate) || left.id.localeCompare(right.id)).map((event) => {
+    const startDate = event.startDate > weekStart ? event.startDate : weekStart
+    const endDate = event.endDate < weekEnd ? event.endDate : weekEnd
+    const startColumn = week.findIndex((day) => day.date === startDate) + 1
+    const endColumn = week.findIndex((day) => day.date === endDate) + 1
+    let lane = laneEnds.findIndex((end) => end < startColumn)
+    if (lane < 0) lane = laneEnds.length
+    laneEnds[lane] = endColumn
+    return { ...event, startColumn, endColumn, lane, showLabel: (event.startDate >= weekStart && event.startDate <= weekEnd) || weekIndex === 0 }
+  })
 }
 
 function MonthGrid({ year, month, events, onDayClick, onEventClick }) {
@@ -95,8 +120,9 @@ function MonthGrid({ year, month, events, onDayClick, onEventClick }) {
     if (day > daysInMonth) return { date: dateValue(year, month + 1, day - daysInMonth), day: day - daysInMonth, outside: true }
     return { date: dateValue(year, month, day), day, outside: false }
   })
+  const weeks = Array.from({ length: 6 }, (_, index) => cells.slice(index * 7, index * 7 + 7))
   const today = todayValue()
-  return <div className="calendar-month"><div className="calendar-month__weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-month__days">{cells.map((cell) => { const dayEvents = events.filter((event) => overlaps(event, cell.date, cell.date)); return <div className={`calendar-day${cell.outside ? ' calendar-day--outside' : ''}${cell.date === today ? ' calendar-day--today' : ''}`} key={cell.date}><button type="button" className="calendar-day__number" onClick={() => onDayClick(cell.date)} aria-label={`Termin am ${cell.date} anlegen`}>{cell.day}</button><div className="calendar-day__events">{dayEvents.slice(0, 3).map((event) => <button type="button" className="calendar-event-chip" key={event.id} style={{ '--calendar-color': event.calendarColor }} title={`${event.title} · ${event.calendarName}`} onClick={() => onEventClick(event)}>{!event.allDay && event.startTime && <time>{event.startTime}</time>}<span>{event.title}</span></button>)}{dayEvents.length > 3 && <span className="calendar-day__more">+ {dayEvents.length - 3} weitere</span>}</div></div>})}</div></div>
+  return <div className="calendar-month"><div className="calendar-month__weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-month__weeks">{weeks.map((week, weekIndex) => <div className="calendar-month__week" key={week[0].date}><div className="calendar-month__week-days">{week.map((cell) => <div className={`calendar-day${cell.outside ? ' calendar-day--outside' : ''}${cell.date === today ? ' calendar-day--today' : ''}`} key={cell.date}><button type="button" className="calendar-day__number" onClick={() => onDayClick(cell.date)} aria-label={`Termin am ${cell.date} anlegen`}>{cell.day}</button></div>)}</div><div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className="calendar-event-bar" key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div></div>)}</div></div>
 }
 
 export default function CalendarPage() {
@@ -144,6 +170,7 @@ export default function CalendarPage() {
   const editableCalendars = useMemo(() => calendars.filter((calendar) => calendar.accessLevel === 'edit' || calendar.ownerUserId === userId || isSuperadmin), [calendars, isSuperadmin, userId])
   const monthStart = dateValue(year, month, 1)
   const monthEnd = dateValue(year, month + 1, 0)
+  const selectableYears = Array.from({ length: 9 }, (_, index) => now.getFullYear() - 3 + index)
   const upcoming = useMemo(() => visibleEvents.filter((event) => event.endDate >= todayValue()).sort((left, right) => left.startDate.localeCompare(right.startDate) || (left.startTime || '').localeCompare(right.startTime || '')).slice(0, 10), [visibleEvents])
   const monthEvents = useMemo(() => visibleEvents.filter((event) => overlaps(event, monthStart, monthEnd)), [monthEnd, monthStart, visibleEvents])
 
@@ -182,5 +209,5 @@ export default function CalendarPage() {
   }
 
   const eventCanEdit = (event) => editableCalendars.some((calendar) => calendar.id === event.calendarId)
-  return <div className="calendar-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{modal && <EventModal event={modal.event} calendars={editableCalendars} initialDate={modal.initialDate} editable={!modal.event || eventCanEdit(modal.event)} onClose={() => setModal(null)} onSave={saveEvent} onDelete={removeEvent} />}<section className="calendar-workspace"><aside className="calendar-sidebar"><div className="calendar-sidebar__heading"><h2>Meine Kalender</h2><p>Einblendung nur für diese Ansicht.</p></div><div className="calendar-selector">{calendars.map((calendar) => <label key={calendar.id} className="calendar-selector__item"><input type="checkbox" checked={visibleCalendarIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /><span className="calendar-color-dot" style={{ background: calendar.color }} /><span>{calendar.name}</span>{calendar.kind === 'personal' && <small>Persönlich</small>}</label>)}</div>{editableCalendars.length > 0 && <button className="button calendar-sidebar__new" type="button" onClick={() => setModal({ initialDate: todayValue() })}>Termin anlegen</button>}</aside><main className="calendar-main"><div className="calendar-toolbar"><div className="calendar-toolbar__navigation"><button className="button button--secondary" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="button button--secondary" type="button" onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }}>Heute</button><button className="button button--secondary" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><h2>{monthFormatter.format(new Date(year, month, 1))}</h2></div>{loading ? <p className="calendar-state">Kalender werden geladen …</p> : error ? <p className="calendar-state">{error}</p> : <MonthGrid year={year} month={month} events={monthEvents} onDayClick={openDay} onEventClick={(event) => setModal({ event })} />}</main><aside className="calendar-upcoming"><div className="calendar-sidebar__heading"><h2>Nächste Termine</h2><p>Aus den eingeblendeten Kalendern.</p></div><div className="calendar-upcoming__list">{loading ? <p>Termine werden geladen …</p> : upcoming.length ? upcoming.map((event) => <button type="button" key={event.id} className="calendar-upcoming__item" onClick={() => setModal({ event })}><span className="calendar-color-dot" style={{ background: event.calendarColor }} /><span><strong>{event.title}</strong><small>{formatPeriod(event)} · {event.calendarName}</small></span></button>) : <p>Keine anstehenden Termine.</p>}</div></aside></section></div>
+  return <div className="calendar-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{modal && <EventModal event={modal.event} calendars={editableCalendars} initialDate={modal.initialDate} editable={!modal.event || eventCanEdit(modal.event)} onClose={() => setModal(null)} onSave={saveEvent} onDelete={removeEvent} />}<section className="calendar-workspace"><aside className="calendar-sidebar"><div className="calendar-sidebar__heading"><h2>Termine anzeigen</h2></div><div className="calendar-selector">{calendars.map((calendar) => <label key={calendar.id} className="calendar-selector__item"><input type="checkbox" checked={visibleCalendarIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /><span className="calendar-color-dot" style={{ background: calendar.color }} /><span>{calendar.name}</span>{calendar.kind === 'personal' && <small>Persönlich</small>}</label>)}</div></aside><main className="calendar-main"><div className="calendar-toolbar"><div className="calendar-toolbar__navigation"><button className="button button--secondary" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="button button--secondary" type="button" onClick={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }}>Heute</button><button className="button button--secondary" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="calendar-toolbar__filters"><label><span>Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{monthOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{selectableYears.map((option) => <option key={option} value={option}>{option}</option>)}</select></label></div><h2>{monthFormatter.format(new Date(year, month, 1))}</h2></div>{loading ? <p className="calendar-state">Kalender werden geladen …</p> : error ? <p className="calendar-state">{error}</p> : <MonthGrid year={year} month={month} events={monthEvents} onDayClick={openDay} onEventClick={(event) => setModal({ event })} />}</main><div className="calendar-upcoming-column">{editableCalendars.length > 0 && <button className="button calendar-upcoming-column__new" type="button" onClick={() => setModal({ initialDate: todayValue() })}>Termin anlegen</button>}<aside className="calendar-upcoming"><div className="calendar-sidebar__heading"><h2>Nächste Termine</h2><p>Aus den eingeblendeten Kalendern.</p></div><div className="calendar-upcoming__list">{loading ? <p>Termine werden geladen …</p> : upcoming.length ? upcoming.map((event) => <button type="button" key={event.id} className="calendar-upcoming__item" onClick={() => setModal({ event })}><span className="calendar-color-dot" style={{ background: event.calendarColor }} /><span><strong>{event.title}</strong><small>{formatPeriod(event)} · {event.calendarName}</small></span></button>) : <p>Keine anstehenden Termine.</p>}</div></aside></div></section></div>
 }

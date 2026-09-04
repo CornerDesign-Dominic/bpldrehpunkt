@@ -5,6 +5,7 @@ export const CALENDARS_COLLECTION = 'calendars'
 export const CALENDAR_PERMISSIONS_COLLECTION = 'calendarPermissions'
 export const CALENDAR_LEVELS = ['none', 'view', 'edit']
 export const DEFAULT_CALENDAR_COLOR = '#55758d'
+export const PERSONAL_CALENDAR_COLOR = '#c99a3d'
 
 export function personalCalendarId(userId) {
   return `personal-${userId}`
@@ -58,16 +59,17 @@ export async function ensurePersonalCalendar(userId) {
   if (!current.exists()) {
     await setDoc(reference, {
       name: 'Mein Kalender',
-      color: DEFAULT_CALENDAR_COLOR,
+      color: PERSONAL_CALENDAR_COLOR,
       kind: 'personal',
       ownerUserId: userId,
       active: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
-    return normalizeCalendar(reference.id, { name: 'Mein Kalender', color: DEFAULT_CALENDAR_COLOR, kind: 'personal', ownerUserId: userId, active: true })
+    return normalizeCalendar(reference.id, { name: 'Mein Kalender', color: PERSONAL_CALENDAR_COLOR, kind: 'personal', ownerUserId: userId, active: true })
   }
-  return normalizeCalendar(current.id, current.data())
+  if (current.data().color !== PERSONAL_CALENDAR_COLOR) await updateDoc(reference, { color: PERSONAL_CALENDAR_COLOR, updatedAt: serverTimestamp() })
+  return normalizeCalendar(current.id, { ...current.data(), color: PERSONAL_CALENDAR_COLOR })
 }
 
 export async function listCalendars() {
@@ -75,9 +77,17 @@ export async function listCalendars() {
   return snapshot.docs.map((item) => normalizeCalendar(item.id, item.data())).sort((left, right) => left.name.localeCompare(right.name, 'de'))
 }
 
+function calendarSortOrder(left, right, userId) {
+  const priority = (calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId ? 0 : calendar.kind === 'shared' ? 1 : 2
+  return priority(left) - priority(right) || left.name.localeCompare(right.name, 'de')
+}
+
 export async function listUserCalendars(userId, isSuperadmin) {
   const personal = await ensurePersonalCalendar(userId)
-  if (isSuperadmin) return (await listCalendars()).filter((calendar) => calendar.active !== false).map((calendar) => ({ ...calendar, accessLevel: 'edit' }))
+  if (isSuperadmin) return (await listCalendars())
+    .filter((calendar) => calendar.active !== false)
+    .map((calendar) => ({ ...calendar, accessLevel: 'edit' }))
+    .sort((left, right) => calendarSortOrder(left, right, userId))
 
   const permissions = await getDocs(query(collection(db, CALENDAR_PERMISSIONS_COLLECTION), where('userId', '==', userId)))
   const granted = permissions.docs.map((item) => item.data()).filter((item) => ['view', 'edit'].includes(item.level))
@@ -87,7 +97,7 @@ export async function listUserCalendars(userId, isSuperadmin) {
   }))
   return [{ ...personal, accessLevel: 'edit' }, ...sharedCalendars.filter((item) => item && item.id !== personal.id)]
     .filter((item) => item.active !== false)
-    .sort((left, right) => (left.kind === 'personal' ? -1 : right.kind === 'personal' ? 1 : left.name.localeCompare(right.name, 'de')))
+    .sort((left, right) => calendarSortOrder(left, right, userId))
 }
 
 export async function listCalendarPermissions(calendarId) {

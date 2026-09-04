@@ -6,6 +6,18 @@ export function DrehpunktLogoIcon({ size = 24 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11.5" cy="13" r="3.1" /><path d="M18.2 12.6A7.3 7.3 0 1 1 10.9 5.3h3.7V2.7l5.7 4.5-5.7 4.5V8.4h-3.7" /></svg>
 }
 
+export function TruckFrontIcon({ size = 24 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 5h12l1.5 6v7.5H4.5V11L6 5Z" /><path d="M7.5 9h9M4.5 14h15M8 18.5v1m8-1v1" /><circle cx="8" cy="17" r="1.2" /><circle cx="16" cy="17" r="1.2" /></svg>
+}
+
+export function ParagraphIcon({ size = 24 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="18" fill="currentColor" fontFamily="Arial, sans-serif" fontSize="19" fontWeight="700" textAnchor="middle">§</text></svg>
+}
+
+export function TrendUpIcon({ size = 24 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 19V5m0 14h16" /><path d="m6.5 15 4-4 3 2.5 5-6" /><path d="M15.5 7.5h3v3" /></svg>
+}
+
 export function SunIcon({ size = 19 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" /></svg>
 }

@@ -64,7 +64,9 @@ service cloud.firestore {
       // Personal calendars are provisioned on first use. Shared calendars and
       // their lifecycle are deliberately restricted to superadmins.
       allow create: if superadmin() || (view('calendar') && validPersonalCalendar(calendarId, request.resource.data));
-      allow update: if superadmin();
+      allow update: if superadmin() || (view('calendar') && resource.data.kind == 'personal' && resource.data.ownerUserId == request.auth.uid
+        && request.resource.data.color == '#c99a3d' && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['color', 'updatedAt']));
       allow delete: if false;
 
       match /events/{eventId} {
