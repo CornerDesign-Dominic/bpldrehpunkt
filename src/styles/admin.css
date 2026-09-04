@@ -82,6 +82,7 @@
 .admin-password-reset { display: flex; align-items: end; gap: 8px; }
 .admin-password-reset .form-field { flex: 1; }
 .admin-password-reset__cancel { height: 32px; padding: 0; border: 0; color: var(--text-muted); background: transparent; cursor: pointer; font: inherit; font-size: 12px; }
+.admin-user-form .form-field input[aria-invalid='true'] { border-color: var(--status-danger-text); }
 .admin-permissions__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
 .admin-permission-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(285px, 1.3fr); align-items: center; gap: 12px; min-height: 43px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; }
 .admin-permission-row:nth-last-child(-n + 2) { border-bottom: 0; }

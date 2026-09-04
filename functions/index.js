@@ -12,6 +12,8 @@ const normalFields = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'j
 
 function permissions(value) { return Object.fromEntries(modules.map((module) => [module, levels.has(value?.[module]) ? value[module] : 'none'])) }
 function profileFields(value) { return Object.fromEntries(normalFields.filter((key) => value[key] !== undefined).map((key) => [key, value[key]])) }
+function passwordIsValid(value) { return typeof value === 'string' && value.length >= 6 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) }
+const passwordRequirementMessage = 'Das Passwort muss mindestens 6 Zeichen sowie einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.'
 async function vacationManagerFields(value, fallback = {}) {
   const vacationManager = value?.vacationManager === undefined ? fallback?.vacationManager === true : value.vacationManager === true
   const vacationManagerAllDepartments = vacationManager && (value?.vacationManagerAllDepartments === undefined ? fallback?.vacationManagerAllDepartments === true : value.vacationManagerAllDepartments === true)
@@ -59,7 +61,7 @@ export const createManagedUser = onCall({ region: 'europe-west3' }, async (reque
   const actor = await assertManager(request)
   const data = request.data ?? {}
   if (!data.email || !data.password || !data.firstName || !data.lastName) throw new HttpsError('invalid-argument', 'Name, E-Mail und Initialpasswort sind erforderlich.')
-  if (data.password.length < 8) throw new HttpsError('invalid-argument', 'Das Initialpasswort muss mindestens 8 Zeichen enthalten.')
+  if (!passwordIsValid(data.password)) throw new HttpsError('invalid-argument', passwordRequirementMessage)
   const role = actor.role === 'superadmin' && roles.has(data.role) ? data.role : 'user'
   const selectedDepartment = await departmentFields(data)
   const selectedVacationManagerFields = await vacationManagerFields(actor.role === 'superadmin' ? data : {})
@@ -78,7 +80,7 @@ export const updateManagedUser = onCall({ region: 'europe-west3' }, async (reque
   const old = target.data()
   if (actor.role !== 'superadmin' && old.role !== 'user') throw new HttpsError('permission-denied', 'Admins dürfen keine privilegierten Konten verwalten.')
   const role = actor.role === 'superadmin' && roles.has(data.role) ? data.role : old.role
-  if (data.password && data.password.length < 8) throw new HttpsError('invalid-argument', 'Das neue Passwort muss mindestens 8 Zeichen enthalten.')
+  if (data.password && !passwordIsValid(data.password)) throw new HttpsError('invalid-argument', passwordRequirementMessage)
   const update = { ...profileFields(data), ...(await departmentFields(data, old)), updatedAt: FieldValue.serverTimestamp() }
   if (typeof data.email === 'string' && data.email.trim()) update.email = data.email.trim()
   if (actor.role === 'superadmin') { update.role = role; update.permissions = permissions(data.permissions); Object.assign(update, await vacationManagerFields(data, old)) }
