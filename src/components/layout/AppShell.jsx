@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Header from './Header.jsx'
 import Sidebar from './Sidebar.jsx'
 import { useTheme } from '../../theme/useTheme.js'
+import BugReportButton from '../bug-reports/BugReportButton.jsx'
 
 export default function AppShell({ children }) {
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -14,6 +15,7 @@ export default function AppShell({ children }) {
         <Header />
         <main className="app-content">{children}</main>
       </div>
+      <BugReportButton />
     </div>
   )
 }

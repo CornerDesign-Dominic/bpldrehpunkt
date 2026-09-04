@@ -285,3 +285,4 @@ export const processVacationRequest = onCall({ region: 'europe-west3' }, async (
 })
 
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
+export { submitBugReport } from './bugReports.js'

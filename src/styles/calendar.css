@@ -19,8 +19,8 @@
 .calendar-toolbar h2 { justify-self: end; }
 .calendar-toolbar__navigation { display: flex; gap: 5px; }
 .calendar-toolbar__navigation .button { min-width: 31px; height: 30px; padding: 0 8px; font-size: 12px; }
-.calendar-toolbar__filters { display: flex; align-items: end; gap: 7px; }
-.calendar-toolbar__filters label { display: grid; gap: 3px; color: var(--text-muted); font-size: 10px; font-weight: 650; }
+.calendar-toolbar__filters { display: flex; gap: 7px; }
+.calendar-toolbar__filters label { display: grid; }
 .calendar-toolbar__filters select { height: 30px; min-width: 94px; padding: 0 24px 0 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; outline: none; }
 .calendar-toolbar__filters label:last-child select { min-width: 72px; }
 .calendar-toolbar__filters select:focus { border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }
