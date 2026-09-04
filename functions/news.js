@@ -82,9 +82,9 @@ function researchPrompt() {
     'Arbeite ausschließlich mit verlässlichen Primärquellen, Behörden, Infrastrukturbetreibern, anerkannten Verbänden oder ergänzend seriöser Fachpresse. Nutze keine Blogs, Social Media, PR-Meldungen oder allgemeinen Marktkommentare. Jede Meldung braucht eine direkte Quell-URL und darf ohne Quelle nicht ausgegeben werden.',
     'Ordne exakt einer Kategorie zu: traffic_infrastructure (Verkehr & Infrastruktur: Straße, Autobahn, Maut, Fahrverbote sowie relevante Bahn-, Hafen-, Fähr-, Terminal- und Grenzthemen), law_regulations (Recht & Vorgaben: Gesetze, Zoll, Compliance) oder logistics_market (Logistik & Markt: Branche, operative Logistik, Markt sowie IT-/Sicherheitsthemen).',
     'Bewerte priority als information, notice oder important. important ausschließlich bei Frist oder Pflicht, zentraler Verkehrsbeeinträchtigung, deutlicher Kostenwirkung oder unmittelbarem Handlungsbedarf.',
-    'Gib für jede Meldung betroffene Länder als 1–8 ISO-Kürzel aus: DE, NL, BE, LU, FR, PL, AT, CH, CZ, IT, ES, DK, UK oder EU für EU-weite Regelungen. Gib außerdem 1–3 kategoriepassende Themen-Tags und mindestens einen Bereich unter betrifft aus.',
+    'Ordne 1–3 passende Themen-Tags zu. Betroffene Länder und betrifft-Werte gib nur aus, wenn sie aus Inhalt und operativer Auswirkung konkret ableitbar sind; ansonsten jeweils ein leeres Array. Erlaubte Länder sind DE, NL, BE, LU, FR, PL, AT, CH, CZ, IT, ES, DK, UK und EU.',
     'Erlaubte Themen-Tags: traffic_infrastructure = construction, road_closure, driving_ban, toll, border_disruption, strike, port_ferry, rail_terminal, weather; law_regulations = transport_law, accounting_taxes, personnel_social, customs_foreign_trade, environment, eu_law, case_law; logistics_market = market_prices, capacity, partners_insolvencies, industry_development, operational_disruption. Erlaubte betrifft-Werte: dispatch, accounting, personnel, management, it.',
-    'Formuliere auf Deutsch, nüchtern und ohne Spekulation. summary: höchstens 420 Zeichen. content: höchstens 900 Zeichen und konkret mit „Bedeutung für BPL“ sowie, falls sinnvoll, „Nächster Schritt“. Erfasse validFrom und validUntil ausschließlich als YYYY-MM-DD, wenn sie in der Quelle klar belegt sind; sonst leer. status ist active, resolved oder openEnded.',
+    'Titel auf Deutsch und höchstens 110 Zeichen: konkret, operativ und sofort verständlich mit Auswirkung, Ort und gegebenenfalls Zeitpunkt. Keine Quellenbezeichnung, Floskeln oder langen Satz-Titel. summary für die geschlossene Card höchstens 260 Zeichen und ausschließlich konkrete Änderung oder Auswirkung. content höchstens 900 Zeichen, nüchtern, belegt und ohne Wiederholungen. Handlungshinweise nur als konkreter, belegbarer „Nächster Schritt“. Erfasse validFrom und validUntil ausschließlich als YYYY-MM-DD, wenn sie in der Quelle klar belegt sind; bei unklarer Zeitangabe niemals ein Datum erfinden, sondern status openEnded oder active verwenden. status ist active, resolved oder openEnded.',
     'Wenn keine wirklich relevante neue Meldung vorliegt, gib ein leeres items-Array zurück.',
   ].join('\n')
 }
@@ -102,9 +102,9 @@ const newsSchema = {
         additionalProperties: false,
         required: ['title', 'summary', 'content', 'category', 'priority', 'source', 'sourceUrl', 'publishedAt', 'validFrom', 'validUntil', 'status', 'relevance', 'affectedCountries', 'topicTags', 'affects'],
         properties: {
-          title: { type: 'string' },
-          summary: { type: 'string' },
-          content: { type: 'string' },
+          title: { type: 'string', maxLength: 110 },
+          summary: { type: 'string', maxLength: 260 },
+          content: { type: 'string', maxLength: 900 },
           category: { type: 'string', enum: ['traffic_infrastructure', 'law_regulations', 'logistics_market'] },
           priority: { type: 'string', enum: ['information', 'notice', 'important'] },
           source: { type: 'string' },
@@ -114,9 +114,9 @@ const newsSchema = {
           validUntil: { type: 'string' },
           status: { type: 'string', enum: ['active', 'resolved', 'openEnded'] },
           relevance: { type: 'integer', minimum: 1, maximum: 100 },
-          affectedCountries: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'string', enum: [...COUNTRIES] } },
+          affectedCountries: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: [...COUNTRIES] } },
           topicTags: { type: 'array', minItems: 1, maxItems: 3, uniqueItems: true, items: { type: 'string', enum: Object.values(TAGS_BY_CATEGORY).flatMap((tags) => [...tags]) } },
-          affects: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: [...AFFECTS] } },
+          affects: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', enum: [...AFFECTS] } },
         },
       },
     },
@@ -141,7 +141,7 @@ const newsReviewSchema = {
           status: { type: 'string', enum: ['active', 'resolved', 'openEnded', 'unchanged'] },
           validFrom: { type: 'string' },
           validUntil: { type: 'string' },
-          summary: { type: 'string' },
+          summary: { type: 'string', maxLength: 220 },
           source: { type: 'string' },
           sourceUrl: { type: 'string' },
         },
@@ -188,7 +188,7 @@ function reviewPrompt(items) {
   return [
     'Prüfe die folgenden aktiven Logistikmeldungen mit Websuche erneut. Nutze nur verlässliche Primärquellen, Behörden oder Infrastrukturbetreiber.',
     'Gib nur outcome "update" zurück, wenn eine Quelle eine konkrete Änderung von Status, Beginn oder Ende belegt (Verlängerung, Aufhebung, neues Datum oder relevante operative Änderung). Keine Vermutungen und keine neuen Meldungen.',
-    'Für outcome "update" sind sourceUrl, source, status und eine sehr kurze deutsche summary Pflicht. validFrom und validUntil nur als YYYY-MM-DD ausgeben, wenn die Quelle sie klar bestätigt; sonst leer lassen. Für "unchanged" alle übrigen Felder leer lassen.',
+    'Für outcome "update" sind eine eigene direkte sourceUrl, source, status und eine kurze deutsche summary mit konkreter Änderung Pflicht. summary maximal 220 Zeichen; niemals nur eine erneute Prüfung protokollieren. validFrom und validUntil nur als YYYY-MM-DD ausgeben, wenn die Quelle sie klar bestätigt; sonst leer lassen. Unklare Zeitangaben nie in ein Datum umwandeln. Für "unchanged" alle übrigen Felder leer lassen.',
     `Zu prüfen: ${JSON.stringify(items)}`,
   ].join('\n')
 }
@@ -197,7 +197,7 @@ function normalizeReview(value) {
   if (value?.outcome !== 'update' || !NEWS_STATUSES.has(value.status)) return null
   const sourceUrl = cleanUrl(value.sourceUrl)
   const source = cleanText(value.source, 120)
-  const summary = cleanText(value.summary, 240)
+  const summary = cleanText(value.summary, 220)
   if (!sourceUrl || !source || !summary) return null
   const validFrom = validDate(value.validFrom) ? value.validFrom : null
   const validUntil = validDate(value.validUntil) ? value.validUntil : null
@@ -249,8 +249,8 @@ async function recheckActiveNews() {
 
 function normalizeCandidate(candidate) {
   const sourceUrl = cleanUrl(candidate?.sourceUrl)
-  const title = cleanText(candidate?.title, 160)
-  const summary = cleanText(candidate?.summary, 420)
+  const title = cleanText(candidate?.title, 110)
+  const summary = cleanText(candidate?.summary, 260)
   const content = cleanText(candidate?.content, 900)
   const source = cleanText(candidate?.source, 120) || (sourceUrl ? new URL(sourceUrl).hostname.replace(/^www\./, '') : '')
   const category = CATEGORIES.has(candidate?.category) ? candidate.category : ''
@@ -264,7 +264,7 @@ function normalizeCandidate(candidate) {
   const topicTags = normalizeSelections(candidate?.topicTags, TAGS_BY_CATEGORY[category] || new Set(), 3)
   const affects = normalizeSelections(candidate?.affects, AFFECTS, 5)
 
-  if (!sourceUrl || !title || !summary || !content || !category || !source || relevance === null || !affectedCountries.length || !topicTags.length || !affects.length) return null
+  if (!sourceUrl || !title || !summary || !content || !category || !source || relevance === null || !topicTags.length) return null
   return { title, summary, content, category, priority, source, sourceUrl, publishedAt, validFrom, validUntil, status, relevance, affectedCountries, topicTags, affects }
 }
 
