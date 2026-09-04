@@ -99,6 +99,21 @@ service cloud.firestore {
     match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
     match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
     match /newsItems/{id} { allow read: if view('news'); allow create, update, delete: if edit('news'); }
+    match /newsCategoryReadStates/{userId} {
+      allow read, write: if false;
+      match /categories/{categoryId} {
+        function validNewsCategoryReadState() {
+          return categoryId in ['internal', 'traffic_infrastructure', 'law_regulations', 'logistics_market']
+            && request.resource.data.keys().hasAll(['category', 'seenAt'])
+            && request.resource.data.keys().hasOnly(['category', 'seenAt'])
+            && request.resource.data.category == categoryId
+            && request.resource.data.seenAt == request.time;
+        }
+        allow read: if signedIn() && userId == request.auth.uid;
+        allow create, update: if signedIn() && userId == request.auth.uid && validNewsCategoryReadState();
+        allow delete: if false;
+      }
+    }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
