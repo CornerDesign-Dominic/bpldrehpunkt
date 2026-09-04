@@ -98,7 +98,16 @@ service cloud.firestore {
 
     match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
     match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
-    match /newsItems/{id} { allow read: if view('news'); allow create, update, delete: if edit('news'); }
+    match /newsItems/{id} {
+      allow read: if view('news');
+      allow create, update, delete: if edit('news');
+      // Research updates are written only by the Admin SDK. They remain
+      // readable with the parent news item but cannot be changed by clients.
+      match /updates/{updateId} {
+        allow read: if view('news');
+        allow write: if false;
+      }
+    }
     match /newsCategoryReadStates/{userId} {
       allow read, write: if false;
       match /categories/{categoryId} {

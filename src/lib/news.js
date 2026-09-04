@@ -98,6 +98,12 @@ function dateToMillis(value) {
   return new Date(`${value}T12:00:00`).getTime() || 0
 }
 
+function asDate(value) {
+  if (!value) return null
+  const date = value?.toDate?.() ?? new Date(`${value}T12:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 function payload(values) {
   const sourceType = values.sourceType || 'internal'
   const internalCategory = INTERNAL_NEWS_CATEGORIES.some((item) => item.value === values.internalCategory)
@@ -121,6 +127,7 @@ function payload(values) {
     source: trim(values.source),
     sourceUrl: trim(values.sourceUrl),
     publishedAt: values.publishedAt || null,
+    validFrom: values.validFrom || null,
     validUntil: values.validUntil || null,
     status: values.status || 'active',
     // External importers can fill these fields later without a model migration.
@@ -139,7 +146,7 @@ function normalizeSelections(values, allowedValues, maximum) {
 export function createEmptyInternalNewsItem() {
   return {
     title: '', summary: '', content: '', category: 'internal', priority: 'information', sourceType: 'internal',
-    internalCategory: 'general', source: '', sourceUrl: '', publishedAt: todayValue(), validUntil: '', status: 'active', fetchedAt: null, aiSummary: '', relevance: null,
+    internalCategory: 'general', source: '', sourceUrl: '', publishedAt: todayValue(), validFrom: '', validUntil: '', status: 'active', fetchedAt: null, aiSummary: '', relevance: null,
   }
 }
 
@@ -191,13 +198,42 @@ export function isNewsInPeriod(item, period, today = new Date()) {
 }
 
 export function formatNewsDate(value) {
-  const date = value?.toDate?.() ?? (value ? new Date(`${value}T12:00:00`) : null)
+  const date = asDate(value)
   return date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat('de-DE').format(date) : '—'
+}
+
+export function isNewsCurrent(item, today = new Date()) {
+  if ((item.status || 'active') === 'resolved' || item.status === 'archived') return false
+  const validUntil = asDate(item.validUntil)
+  if (!validUntil) return true
+  const endOfDay = new Date(validUntil)
+  endOfDay.setHours(23, 59, 59, 999)
+  return endOfDay.getTime() >= today.getTime()
+}
+
+export function formatNewsCurrentStatus(item) {
+  if (item.status === 'resolved') return 'aufgehoben'
+  const validFrom = asDate(item.validFrom)
+  const validUntil = asDate(item.validUntil)
+  if (validFrom && validUntil) {
+    const formatter = new Intl.DateTimeFormat('de-DE')
+    return `${formatter.format(validFrom)}–${formatter.format(validUntil)}`
+  }
+  if (validFrom) return `ab ${formatNewsDate(item.validFrom)}`
+  if (validUntil) return `bis ${formatNewsDate(item.validUntil)}`
+  if (item.status === 'openEnded') return 'laufend'
+  return 'Termin offen'
 }
 
 export async function listNewsItems() {
   const snapshot = await getDocs(newsItemsRef)
   return snapshot.docs.map(mapSnapshot).sort((left, right) => dateToMillis(right.publishedAt) - dateToMillis(left.publishedAt) || dateToMillis(right.updatedAt || right.createdAt) - dateToMillis(left.updatedAt || left.createdAt))
+}
+
+export async function listNewsUpdates(itemId) {
+  if (!itemId) return []
+  const snapshot = await getDocs(collection(db, NEWS_ITEMS_COLLECTION, itemId, 'updates'))
+  return snapshot.docs.map(mapSnapshot).sort((left, right) => dateToMillis(right.changedAt) - dateToMillis(left.changedAt))
 }
 
 export async function listNewsItemPersonalStates(uid) {

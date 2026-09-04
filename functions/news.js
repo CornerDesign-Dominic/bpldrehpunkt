@@ -23,6 +23,8 @@ const TAGS_BY_CATEGORY = {
   logistics_market: new Set(['market_prices', 'capacity', 'partners_insolvencies', 'industry_development', 'operational_disruption']),
 }
 const MAX_ITEMS_PER_RUN = 7
+const MAX_RECHECKS_PER_RUN = 12
+const NEWS_STATUSES = new Set(['active', 'resolved', 'openEnded'])
 
 function cleanText(value, maxLength) {
   if (typeof value !== 'string') return ''
@@ -82,7 +84,7 @@ function researchPrompt() {
     'Bewerte priority als information, notice oder important. important ausschließlich bei Frist oder Pflicht, zentraler Verkehrsbeeinträchtigung, deutlicher Kostenwirkung oder unmittelbarem Handlungsbedarf.',
     'Gib für jede Meldung betroffene Länder als 1–8 ISO-Kürzel aus: DE, NL, BE, LU, FR, PL, AT, CH, CZ, IT, ES, DK, UK oder EU für EU-weite Regelungen. Gib außerdem 1–3 kategoriepassende Themen-Tags und mindestens einen Bereich unter betrifft aus.',
     'Erlaubte Themen-Tags: traffic_infrastructure = construction, road_closure, driving_ban, toll, border_disruption, strike, port_ferry, rail_terminal, weather; law_regulations = transport_law, accounting_taxes, personnel_social, customs_foreign_trade, environment, eu_law, case_law; logistics_market = market_prices, capacity, partners_insolvencies, industry_development, operational_disruption. Erlaubte betrifft-Werte: dispatch, accounting, personnel, management, it.',
-    'Formuliere auf Deutsch, nüchtern und ohne Spekulation. summary: höchstens 420 Zeichen. content: höchstens 900 Zeichen und konkret mit „Bedeutung für BPL“ sowie, falls sinnvoll, „Nächster Schritt“.',
+    'Formuliere auf Deutsch, nüchtern und ohne Spekulation. summary: höchstens 420 Zeichen. content: höchstens 900 Zeichen und konkret mit „Bedeutung für BPL“ sowie, falls sinnvoll, „Nächster Schritt“. Erfasse validFrom und validUntil ausschließlich als YYYY-MM-DD, wenn sie in der Quelle klar belegt sind; sonst leer. status ist active, resolved oder openEnded.',
     'Wenn keine wirklich relevante neue Meldung vorliegt, gib ein leeres items-Array zurück.',
   ].join('\n')
 }
@@ -98,7 +100,7 @@ const newsSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'summary', 'content', 'category', 'priority', 'source', 'sourceUrl', 'publishedAt', 'relevance', 'affectedCountries', 'topicTags', 'affects'],
+        required: ['title', 'summary', 'content', 'category', 'priority', 'source', 'sourceUrl', 'publishedAt', 'validFrom', 'validUntil', 'status', 'relevance', 'affectedCountries', 'topicTags', 'affects'],
         properties: {
           title: { type: 'string' },
           summary: { type: 'string' },
@@ -108,10 +110,40 @@ const newsSchema = {
           source: { type: 'string' },
           sourceUrl: { type: 'string' },
           publishedAt: { type: 'string' },
+          validFrom: { type: 'string' },
+          validUntil: { type: 'string' },
+          status: { type: 'string', enum: ['active', 'resolved', 'openEnded'] },
           relevance: { type: 'integer', minimum: 1, maximum: 100 },
           affectedCountries: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'string', enum: [...COUNTRIES] } },
           topicTags: { type: 'array', minItems: 1, maxItems: 3, uniqueItems: true, items: { type: 'string', enum: Object.values(TAGS_BY_CATEGORY).flatMap((tags) => [...tags]) } },
           affects: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: [...AFFECTS] } },
+        },
+      },
+    },
+  },
+}
+
+const newsReviewSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['items'],
+  properties: {
+    items: {
+      type: 'array',
+      maxItems: MAX_RECHECKS_PER_RUN,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'outcome', 'status', 'validFrom', 'validUntil', 'summary', 'source', 'sourceUrl'],
+        properties: {
+          id: { type: 'string' },
+          outcome: { type: 'string', enum: ['unchanged', 'update'] },
+          status: { type: 'string', enum: ['active', 'resolved', 'openEnded', 'unchanged'] },
+          validFrom: { type: 'string' },
+          validUntil: { type: 'string' },
+          summary: { type: 'string' },
+          source: { type: 'string' },
+          sourceUrl: { type: 'string' },
         },
       },
     },
@@ -143,6 +175,78 @@ async function researchWithOpenAi() {
   return parseCandidates(await response.json())
 }
 
+function isOpenForRecheck(data) {
+  if (data.sourceType !== 'external' || !['active', 'openEnded'].includes(data.status || 'active')) return false
+  return !validDate(data.validUntil) || data.validUntil >= dateToday()
+}
+
+function timestampMillis(value) {
+  return typeof value?.toMillis === 'function' ? value.toMillis() : 0
+}
+
+function reviewPrompt(items) {
+  return [
+    'Prüfe die folgenden aktiven Logistikmeldungen mit Websuche erneut. Nutze nur verlässliche Primärquellen, Behörden oder Infrastrukturbetreiber.',
+    'Gib nur outcome "update" zurück, wenn eine Quelle eine konkrete Änderung von Status, Beginn oder Ende belegt (Verlängerung, Aufhebung, neues Datum oder relevante operative Änderung). Keine Vermutungen und keine neuen Meldungen.',
+    'Für outcome "update" sind sourceUrl, source, status und eine sehr kurze deutsche summary Pflicht. validFrom und validUntil nur als YYYY-MM-DD ausgeben, wenn die Quelle sie klar bestätigt; sonst leer lassen. Für "unchanged" alle übrigen Felder leer lassen.',
+    `Zu prüfen: ${JSON.stringify(items)}`,
+  ].join('\n')
+}
+
+function normalizeReview(value) {
+  if (value?.outcome !== 'update' || !NEWS_STATUSES.has(value.status)) return null
+  const sourceUrl = cleanUrl(value.sourceUrl)
+  const source = cleanText(value.source, 120)
+  const summary = cleanText(value.summary, 240)
+  if (!sourceUrl || !source || !summary) return null
+  const validFrom = validDate(value.validFrom) ? value.validFrom : null
+  const validUntil = validDate(value.validUntil) ? value.validUntil : null
+  const nextStatus = value.status
+  return { status: nextStatus, validFrom, validUntil, summary, source, sourceUrl }
+}
+
+async function recheckActiveNews() {
+  const snapshot = await database().collection('newsItems').get()
+  const candidates = snapshot.docs
+    .filter((document) => isOpenForRecheck(document.data()))
+    .sort((left, right) => timestampMillis(left.data().lastCheckedAt) - timestampMillis(right.data().lastCheckedAt) || timestampMillis(left.data().createdAt) - timestampMillis(right.data().createdAt))
+    .slice(0, MAX_RECHECKS_PER_RUN)
+  if (!candidates.length) return { checked: 0, updated: 0 }
+
+  const apiKey = openAiApiKey.value()
+  if (!apiKey) throw new Error('OPENAI_API_KEY ist nicht verfügbar.')
+  const reviewInput = candidates.map((document) => {
+    const data = document.data()
+    return { id: document.id, title: data.title, summary: data.summary || data.aiSummary || '', category: data.category, status: data.status || 'active', validFrom: data.validFrom || '', validUntil: data.validUntil || '', source: data.source || '', sourceUrl: data.sourceUrl || '' }
+  })
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: 'gpt-5.4', input: reviewPrompt(reviewInput), reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'medium' }], tool_choice: 'required', text: { format: { type: 'json_schema', name: 'bpl_news_reviews', strict: true, schema: newsReviewSchema } }, include: ['web_search_call.action.sources'] }),
+  })
+  if (!response.ok) throw new Error(`News-Nachprüfung fehlgeschlagen (${response.status}): ${(await response.text()).slice(0, 500)}`)
+  const reviews = new Map(parseCandidates(await response.json()).map((review) => [review.id, review]))
+  let updated = 0
+  for (const document of candidates) {
+    const current = document.data()
+    const review = normalizeReview(reviews.get(document.id))
+    const update = { lastCheckedAt: FieldValue.serverTimestamp() }
+    if (review) {
+      update.status = review.status
+      if (review.validFrom) update.validFrom = review.validFrom
+      if (review.validUntil) update.validUntil = review.validUntil
+      if (review.status === 'openEnded') update.validUntil = null
+      update.updatedAt = FieldValue.serverTimestamp()
+      await document.ref.update(update)
+      await document.ref.collection('updates').doc().set({ changedAt: FieldValue.serverTimestamp(), summary: review.summary, source: review.source, sourceUrl: review.sourceUrl, status: review.status, validFrom: update.validFrom || current.validFrom || null, validUntil: update.validUntil === undefined ? current.validUntil || null : update.validUntil })
+      updated += 1
+    } else {
+      await document.ref.update(update)
+    }
+  }
+  return { checked: candidates.length, updated }
+}
+
 function normalizeCandidate(candidate) {
   const sourceUrl = cleanUrl(candidate?.sourceUrl)
   const title = cleanText(candidate?.title, 160)
@@ -152,13 +256,16 @@ function normalizeCandidate(candidate) {
   const category = CATEGORIES.has(candidate?.category) ? candidate.category : ''
   const priority = PRIORITIES.has(candidate?.priority) ? candidate.priority : 'information'
   const publishedAt = validDate(candidate?.publishedAt) ? candidate.publishedAt : dateToday()
+  const validFrom = validDate(candidate?.validFrom) ? candidate.validFrom : null
+  const validUntil = validDate(candidate?.validUntil) ? candidate.validUntil : null
+  const status = NEWS_STATUSES.has(candidate?.status) ? candidate.status : 'active'
   const relevance = Number.isInteger(candidate?.relevance) ? Math.max(1, Math.min(100, candidate.relevance)) : null
   const affectedCountries = normalizeSelections(candidate?.affectedCountries, COUNTRIES, 8)
   const topicTags = normalizeSelections(candidate?.topicTags, TAGS_BY_CATEGORY[category] || new Set(), 3)
   const affects = normalizeSelections(candidate?.affects, AFFECTS, 5)
 
   if (!sourceUrl || !title || !summary || !content || !category || !source || relevance === null || !affectedCountries.length || !topicTags.length || !affects.length) return null
-  return { title, summary, content, category, priority, source, sourceUrl, publishedAt, relevance, affectedCountries, topicTags, affects }
+  return { title, summary, content, category, priority, source, sourceUrl, publishedAt, validFrom, validUntil, status, relevance, affectedCountries, topicTags, affects }
 }
 
 function normalizeSelections(values, allowedValues, maximum) {
@@ -211,7 +318,8 @@ async function saveNewItems(candidates) {
       id: reference.id,
       ...item,
       sourceType: 'external',
-      status: 'active',
+      status: item.status,
+      lastCheckedAt: FieldValue.serverTimestamp(),
       aiSummary: item.summary,
       fetchedAt: FieldValue.serverTimestamp(),
       createdAt: FieldValue.serverTimestamp(),
@@ -227,8 +335,9 @@ async function executeNewsResearch() {
   const migrated = await migrateLegacyNewsCategories()
   const candidates = await researchWithOpenAi()
   const result = await saveNewItems(candidates)
-  logger.info('Automatische News-Recherche abgeschlossen.', { candidates: candidates.length, migrated, ...result })
-  return { candidates: candidates.length, migrated, ...result }
+  const recheck = await recheckActiveNews()
+  logger.info('Automatische News-Recherche abgeschlossen.', { candidates: candidates.length, migrated, ...result, ...recheck })
+  return { candidates: candidates.length, migrated, ...result, ...recheck }
 }
 
 function formatFailureTime() {

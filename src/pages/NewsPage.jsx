@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import NewsForm from '../components/news/NewsForm.jsx'
 import NewsList from '../components/news/NewsList.jsx'
 import NewsMultiSelect from '../components/news/NewsMultiSelect.jsx'
@@ -44,8 +45,10 @@ function matchesSelection(values, selected) {
 export default function NewsPage() {
   const { user } = useAuth()
   const { canEdit } = usePermissions()
+  const [searchParams] = useSearchParams()
   const [items, setItems] = useState([])
-  const [category, setCategory] = useState('internal')
+  const requestedCategory = searchParams.get('category')
+  const [category, setCategory] = useState(() => NEWS_CATEGORIES.some((item) => item.value === requestedCategory) ? requestedCategory : 'internal')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [period, setPeriod] = useState('all')
   const [search, setSearch] = useState('')
@@ -84,7 +87,7 @@ export default function NewsPage() {
     return () => { current = false }
   }, [user?.uid])
 
-  const categoryItems = useMemo(() => items.filter((item) => item.status === 'active' && normalizeNewsCategory(item.category) === category), [category, items])
+  const categoryItems = useMemo(() => items.filter((item) => item.status !== 'archived' && normalizeNewsCategory(item.category) === category), [category, items])
   const filterOptions = useMemo(() => {
     const countries = new Set(categoryItems.flatMap((item) => item.affectedCountries || []))
     const tags = new Set(categoryItems.flatMap((item) => item.topicTags || []))
@@ -98,7 +101,7 @@ export default function NewsPage() {
   const unreadCounts = useMemo(() => Object.fromEntries(NEWS_CATEGORIES.map((item) => [item.value, readItemsLoaded ? items.filter((news) => news.status === 'active' && normalizeNewsCategory(news.category) === item.value && !readItemIds.has(news.id)).length : 0])), [items, readItemIds, readItemsLoaded])
   const visibleItems = useMemo(() => {
     const searchTerm = search.trim().toLocaleLowerCase('de-DE')
-    return categoryItems.filter((item) => item.status === 'active'
+    return categoryItems.filter((item) => item.status !== 'archived'
       && (priorityFilter === 'all' || (priorityFilter === 'new' ? isNewsNew(item) : item.priority === 'important'))
       && isNewsInPeriod(item, period)
       && matchesSelection(item.affectedCountries || [], selectedCountries)
