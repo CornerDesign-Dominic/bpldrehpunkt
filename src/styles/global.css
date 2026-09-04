@@ -1013,6 +1013,20 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-card__footer .todo-card__status { margin-right: auto; }
 .todo-card--critical { border: 2px solid var(--todo-due-overdue); border-left-width: 5px; }.todo-card--urgent { border: 2px solid var(--todo-due-today); border-left-width: 5px; }.todo-card--warning { border: 2px solid var(--todo-due-soon); border-left-width: 5px; }.todo-card--critical .todo-card__due { color: var(--todo-due-overdue); }.todo-card--urgent .todo-card__due { color: var(--todo-due-today); }.todo-card--warning .todo-card__due { color: var(--todo-due-soon); }.todo-card--critical .todo-card__due, .todo-card--urgent .todo-card__due, .todo-card--warning .todo-card__due { font-weight: 800; }.todo-card__footer .todo-card__status { display: inline-flex; align-items: center; gap: 5px; min-height: 27px; padding: 0 8px; border: 1px solid currentColor; border-radius: 99px; font-weight: 700; }.todo-card__footer .todo-status__icon { display: inline-grid; width: 12px; place-items: center; font-size: 11px; line-height: 1; }.todo-card__open { display: inline-flex; align-items: center; gap: 3px; min-height: 29px; padding: 0 9px !important; border-color: var(--button-background) !important; color: var(--button-text) !important; background: var(--button-background) !important; }.todo-card__open:hover { color: var(--button-text) !important; background: var(--button-hover-background) !important; }
 
+/* To-do form: compact sections make creating a task easier to scan. */
+.todo-form { gap: 14px; }
+.todo-form-modal { width: min(100%, 760px); max-height: calc(100vh - 40px); overflow: auto; }
+.todo-form__section { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
+.todo-form__section h3 { margin: 0; color: var(--text-primary); font-size: 12px; font-weight: 700; }
+.todo-form__section-grid { display: grid; gap: 10px 12px; }
+.todo-form__section-grid--content { grid-template-columns: minmax(0, 1fr); }
+.todo-form__section-grid--schedule { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.todo-form__section-grid--assignment { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.todo-form__section-grid--links { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.todo-form__wide, .todo-form__section .todo-form__people { grid-column: 1 / -1; }
+.todo-form__selection-hint { align-self: end; margin: 0; padding: 8px 9px; border-left: 2px solid var(--border-strong); color: var(--text-secondary); background: var(--surface-secondary); font-size: 12px; line-height: 1.4; }
+.todo-form .form-actions { padding-top: 2px; border-top: 0; }
+
 @media (max-width: 720px) {
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
   .sidebar { padding-inline: 10px; }
@@ -1036,6 +1050,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .form-field--company { grid-column: auto; }
   .todo-form__grid { grid-template-columns: 1fr; }
   .todo-form__title, .todo-form__note { grid-column: auto; }
+  .todo-form__section-grid--schedule, .todo-form__section-grid--assignment, .todo-form__section-grid--links { grid-template-columns: 1fr; }
+  .todo-form__wide, .todo-form__section .todo-form__people { grid-column: auto; }
   .todo-detail-header { flex-direction: column; }
   .todo-detail-actions { justify-content: flex-start; }
   .todo-detail-list { grid-template-columns: 1fr; }
