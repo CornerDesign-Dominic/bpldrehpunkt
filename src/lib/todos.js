@@ -77,6 +77,7 @@ async function queryTodos(...constraints) { return (await getDocs(query(todosRef
 export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
+export function todoStatus(todo) { return !todo.assignedUserId && todo.status !== 'withdrawn' ? 'open' : TODO_STATUS[todo.status] ? todo.status : 'open' }
 
 export function todoDuePresentation(todo, now = new Date()) {
   if (!activeTodo(todo)) return { kind: 'none', label: todo.dueDate ? 'Keine aktive Frist' : 'Keine Fälligkeit', days: null }
@@ -199,9 +200,9 @@ export async function assignTodoToCurrentUser(todoId, actor) {
     const snapshot = await transaction.get(todoRef)
     if (!snapshot.exists()) throw new Error('To-do nicht gefunden.')
     const todo = snapshot.data()
-    if (todo.status !== 'open' || todo.assignedUserId) throw new Error('Dieses To-do wurde inzwischen bereits angenommen.')
+    if (todo.assignedUserId || todo.status === 'withdrawn') throw new Error('Dieses To-do wurde inzwischen bereits angenommen.')
     if (!isAudienceMember(todo, actor)) throw new Error('Dieses To-do ist nicht für Sie freigegeben.')
-    transaction.update(todoRef, { assignedUserId: actor.user.uid, assignedUserName: actorName(actor), assignedAt: serverTimestamp(), status: 'in_progress', updatedAt: serverTimestamp() })
+    transaction.update(todoRef, { assignedUserId: actor.user.uid, assignedUserName: actorName(actor), assignedAt: serverTimestamp(), status: 'in_progress', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
     transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe angenommen.`, actor))
   })
 }

@@ -229,13 +229,13 @@ service cloud.firestore {
         && (isCreatedOpenTodo() || isCreatedOwnTodo()) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
     }
     function isTakeover() {
-      return resource.data.status == 'open' && resource.data.assignedUserId == null && isTodoAudienceMember(resource.data)
+      return resource.data.assignedUserId == null && resource.data.status != 'withdrawn' && isTodoAudienceMember(resource.data)
         && request.resource.data.status == 'in_progress' && request.resource.data.assignedUserId == request.auth.uid
         && request.resource.data.assignedUserName == profileName(ownProfile()) && request.resource.data.assignedAt == request.time
         && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
         && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
     }
     function isRelease() {
       return resource.data.status == 'in_progress' && resource.data.assignedUserId == request.auth.uid
