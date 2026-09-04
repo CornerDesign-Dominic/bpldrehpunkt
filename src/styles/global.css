@@ -1070,10 +1070,11 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-view-switcher { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
 .todo-view-switcher__button { display: grid; width: 28px; height: 26px; padding: 0; place-items: center; border: 0; border-radius: 3px; color: var(--text-secondary); background: transparent; cursor: pointer; }
 .todo-view-switcher__button:hover, .todo-view-switcher__button--active { color: var(--button-text); background: var(--button-background); }
-.todos-table-frame { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+.todos-table-frame { overflow-x: auto; border: 1px solid var(--table-border); border-radius: 7px; background: var(--table-background); }
 .todos-table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 12px; }
-.todos-table th { padding: 0; color: var(--text-muted); background: var(--surface-secondary); font-size: 10px; text-align: left; text-transform: uppercase; }
-.todos-table th { color: var(--text-secondary); background: var(--table-header-background); box-shadow: inset 0 -1px 0 var(--border-strong); }
+.todos-table th { padding: 0; color: var(--text-muted); background: var(--surface-secondary); font-size: 11px; text-align: left; text-transform: uppercase; }
+.todos-table th { color: var(--text-secondary); background: var(--table-header-background); box-shadow: none; }
+.todos-table th:not(:last-child) { border-right: 1px solid var(--table-border); }
 .todos-table td { padding: 9px 10px; border-top: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; white-space: nowrap; }
 .todos-table__title { max-width: 280px; overflow: hidden; font-weight: 700; text-overflow: ellipsis; }
 .todos-table__due { font-weight: 700; }.todos-table__due--critical { color: var(--todo-due-overdue); }.todos-table__due--urgent { color: var(--todo-due-today); }.todos-table__due--warning { color: var(--todo-due-soon); }
