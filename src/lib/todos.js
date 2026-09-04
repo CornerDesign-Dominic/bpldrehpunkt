@@ -230,17 +230,32 @@ export async function completeTodoForCurrentUser(todoId, actor) {
   })
 }
 
-function changedFieldLabels(todo, fields) {
-  const labels = []
-  if (todo.title !== fields.title) labels.push('den Titel')
-  if (todo.description !== fields.description) labels.push('die Beschreibung')
-  if (todo.priority !== fields.priority) labels.push('die Wichtigkeit')
-  if ((todo.dueDate || null) !== fields.dueDate) labels.push('die Fälligkeit')
-  if ((todo.reminderDate || null) !== fields.reminderDate) labels.push('die Erinnerung')
-  if ((todo.customerId || null) !== fields.customerId) labels.push('den Kunden')
-  if ((todo.carrierId || null) !== fields.carrierId) labels.push('den Unternehmer')
-  if ((todo.reference || null) !== fields.reference) labels.push('die Referenz')
-  return labels
+function formatHistoryDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '')
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : 'nicht festgelegt'
+}
+
+function formatHistoryValue(value, fallback = 'nicht festgelegt') {
+  const formatted = trim(value) || fallback
+  return `„${formatted}“`
+}
+
+function changedFieldMessages(todo, fields, resetAssignment) {
+  const messages = []
+  const changed = (label, previous, next, previousFallback, nextFallback) => messages.push(`hat ${label} von ${formatHistoryValue(previous, previousFallback)} zu ${formatHistoryValue(next, nextFallback)} geändert.`)
+  if (todo.title !== fields.title) changed('den Titel', todo.title, fields.title)
+  // Beschreibungstexte bleiben bewusst ohne alten und neuen Inhalt in der Historie.
+  if (todo.description !== fields.description) messages.push('hat die Beschreibung geändert.')
+  if (todo.priority !== fields.priority) changed('die Wichtigkeit', TODO_PRIORITY[todoPriority(todo)], TODO_PRIORITY[priorityValue(fields.priority)])
+  if ((todo.dueDate || null) !== fields.dueDate) changed('die Fälligkeit', formatHistoryDate(todo.dueDate), formatHistoryDate(fields.dueDate))
+  if ((todo.reminderDate || null) !== fields.reminderDate) changed('die Erinnerung', formatHistoryDate(todo.reminderDate), formatHistoryDate(fields.reminderDate))
+  if ((todo.customerId || null) !== fields.customerId) changed('den Kunden', todo.customerName, fields.customerName, 'kein Kunde', 'kein Kunde')
+  if ((todo.carrierId || null) !== fields.carrierId) changed('den Unternehmer', todo.carrierName, fields.carrierName, 'kein Unternehmer', 'kein Unternehmer')
+  if ((todo.reference || null) !== fields.reference) changed('die Referenz', todo.reference, fields.reference, 'keine Referenz', 'keine Referenz')
+  if (todo.audienceLabel !== fields.audienceLabel) changed('die Zuständigkeit', todo.audienceLabel, fields.audienceLabel)
+  if (resetAssignment && todo.assignedUserName) changed('den Bearbeiter', todo.assignedUserName, null, 'nicht übernommen', 'nicht übernommen')
+  else if (resetAssignment && todo.audienceLabel === fields.audienceLabel) messages.push('hat die Aufgabe zur erneuten Übernahme freigegeben.')
+  return messages
 }
 
 export async function updateTodoByCreator(todo, values, usersById, resetAssignment, actor) {
@@ -248,7 +263,7 @@ export async function updateTodoByCreator(todo, values, usersById, resetAssignme
   if (resetAssignment) Object.assign(fields, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open' })
   const batch = writeBatch(db)
   batch.update(doc(db, TODOS_COLLECTION, todo.id), fields)
-  const messages = resetAssignment ? ['hat die Aufgabe neu zugewiesen.'] : changedFieldLabels(todo, fields).map((label) => `hat ${label} geändert.`)
+  const messages = changedFieldMessages(todo, fields, resetAssignment)
   ;(messages.length ? messages : ['hat die Aufgabe aktualisiert.']).forEach((message) => batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} ${message}`, actor)))
   await batch.commit()
 }
