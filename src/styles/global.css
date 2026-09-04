@@ -1057,6 +1057,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-updates:not(.todo-history) .todo-updates__heading h3::after { content: 'Updates zur To-Do'; font-size: 14px; }
 .todo-toolbar__views { display: flex; align-items: center; gap: 10px; }
 .todo-toolbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.todo-toolbar { margin-bottom: 14px; }
+.app-content > .todos-page { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .todo-toolbar > .todo-view-switcher { justify-self: start; }
 .todo-toolbar > .todo-tabs { justify-self: center; }
 .todo-toolbar > .button { justify-self: end; }
