@@ -35,6 +35,16 @@
 .partner-header__rating strong[data-status='good'] { color: var(--status-success-text); }
 .partner-header__rating strong[data-status='watch'] { color: var(--status-warning-text); }
 .partner-header__rating strong[data-status='critical'] { color: var(--status-danger-text); }
+.partner-header__rating strong[data-status='green'], .partner-header__tile-value[data-status='green'], .pallet-account-overview-card strong[data-status='green'] { color: var(--status-success-text); }
+.partner-header__rating strong[data-status='yellow'], .partner-header__tile-value[data-status='yellow'], .pallet-account-overview-card strong[data-status='yellow'] { color: var(--status-warning-text); }
+.partner-header__rating strong[data-status='red'], .partner-header__tile-value[data-status='red'], .pallet-account-overview-card strong[data-status='red'] { color: var(--status-danger-text); }
+.partner-header__rating strong[data-status='neutral'], .partner-header__tile-value[data-status='neutral'], .pallet-account-overview-card strong[data-status='neutral'] { color: var(--text-muted); }
+.partner-evaluation-label { display: inline-flex; width: fit-content; margin-top: 4px; color: var(--text-muted); font-size: 11px; font-weight: 650; line-height: 1.2; }
+.partner-evaluation-label[data-status='green'], .partner-evaluation-value[data-status='green'] { color: var(--status-success-text); }
+.partner-evaluation-label[data-status='yellow'], .partner-evaluation-value[data-status='yellow'] { color: var(--status-warning-text); }
+.partner-evaluation-label[data-status='red'], .partner-evaluation-value[data-status='red'] { color: var(--status-danger-text); }
+.partner-evaluation-label[data-status='neutral'], .partner-evaluation-value[data-status='neutral'] { color: var(--text-muted); }
+.partner-evaluation-value { font-weight: 700; }
 .masterdata-content-card { padding: 12px 13px; border: 1px solid var(--workspace-border); border-radius: 7px; background: var(--workspace-background); }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
 .masterdata-half-grid__column { display: grid; align-content: start; gap: 12px; min-width: 0; }

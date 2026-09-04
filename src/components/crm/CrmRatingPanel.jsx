@@ -11,12 +11,15 @@ import {
   listCrmRatings,
 } from '../../lib/crmRatings.js'
 import { getHistoryActor } from '../../lib/partnerHistory.js'
+import { getPartnerEvaluationStatus } from '../../lib/partnerEvaluation.js'
+import { usePartnerEvaluationSettings } from '../../partner-evaluation/usePartnerEvaluationSettings.js'
 
 const roleLabels = { customer: 'Kundenbewertung', carrier: 'Unternehmerbewertung' }
 const initialDrafts = (roles) => Object.fromEntries(roles.map((role) => [role, createEmptyRating(role)]))
 
 export default function CrmRatingPanel({ partner, partnerId, onSaved, canEdit }) {
   const authState = useAuth()
+  const { settings } = usePartnerEvaluationSettings()
   const roles = useMemo(() => getRatingRoles(partner), [partner])
   const [ratings, setRatings] = useState(() => Object.fromEntries(roles.map((role) => [role, []])))
   const [drafts, setDrafts] = useState(() => initialDrafts(roles))
@@ -79,7 +82,7 @@ export default function CrmRatingPanel({ partner, partnerId, onSaved, canEdit })
         const average = calculateOverallScore(role, draft.scores)
         const isOpen = openRole === role
         return <section className="crm-rating-role" key={role}>
-          <div className="crm-rating-role__heading"><div><h4>{roleLabels[role]}</h4><span>{loading ? 'Wird geladen …' : `${currentRating ? `${formatRatingScore(currentRating.overallScore)} / 5` : 'Nicht bewertet'} · ${ratings[role]?.length ?? 0} Bewertungen`}</span></div>{canEdit && <button className="button button--secondary" type="button" onClick={() => isOpen ? setOpenRole('') : setOpenRole(role)}>{isOpen ? 'Abbrechen' : `${roleLabels[role]} hinzufügen`}</button>}</div>
+          <div className="crm-rating-role__heading"><div><h4>{roleLabels[role]}</h4><span>{loading ? 'Wird geladen …' : <><span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', currentRating?.overallScore, settings)}>{currentRating ? `${formatRatingScore(currentRating.overallScore)} / 5` : 'Noch nicht bewertet'}</span> · {ratings[role]?.length ?? 0} Bewertungen</>}</span></div>{canEdit && <button className="button button--secondary" type="button" onClick={() => isOpen ? setOpenRole('') : setOpenRole(role)}>{isOpen ? 'Abbrechen' : `${roleLabels[role]} hinzufügen`}</button>}</div>
           {isOpen && <div className="crm-rating-form">
             <label className="form-field"><span>Datum</span><input type="date" value={draft.date} onChange={(event) => updateDraft(role, 'date', event.target.value)} required /></label>
             <div className="crm-rating-form__scores">{criteria.map(({ key, label }) => <label key={key}><span>{label}</span><select value={draft.scores[key]} onChange={(event) => updateScore(role, key, event.target.value)}><option value="">—</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>)}</div>

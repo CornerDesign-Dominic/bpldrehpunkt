@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
 import { formatRatingScore, getRatingRoles, listCurrentCrmRatings } from '../lib/crmRatings.js'
+import { getPartnerEvaluationStatus } from '../lib/partnerEvaluation.js'
+import { usePartnerEvaluationSettings } from '../partner-evaluation/usePartnerEvaluationSettings.js'
+import '../styles/businessPartnerExtensions.css'
 
 const filters = [
   { value: 'all', label: 'Alle' },
@@ -20,6 +23,7 @@ function matchesFilter(partner, filter) {
 }
 
 export default function CrmPage() {
+  const { settings } = usePartnerEvaluationSettings()
   const [partners, setPartners] = useState([])
   const [ratings, setRatings] = useState({})
   const [search, setSearch] = useState('')
@@ -42,11 +46,11 @@ export default function CrmPage() {
 
   function ratingLabel(partner) {
     const current = ratings[partner.id]
-    if (!current) return 'Nicht bewertet'
+    if (!current) return <span className="partner-evaluation-value" data-status="neutral">Noch nicht bewertet</span>
     const roles = getRatingRoles(partner)
-    if (roles.length === 1) return current[roles[0]] ? `${formatRatingScore(current[roles[0]].overallScore)} / 5` : 'Nicht bewertet'
-    if (!current.customer && !current.carrier) return 'Nicht bewertet'
-    return `K: ${current.customer ? formatRatingScore(current.customer.overallScore) : '—'} · U: ${current.carrier ? formatRatingScore(current.carrier.overallScore) : '—'}`
+    if (roles.length === 1) return current[roles[0]] ? <span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', current[roles[0]].overallScore, settings)}>{formatRatingScore(current[roles[0]].overallScore)} / 5</span> : <span className="partner-evaluation-value" data-status="neutral">Noch nicht bewertet</span>
+    if (!current.customer && !current.carrier) return <span className="partner-evaluation-value" data-status="neutral">Noch nicht bewertet</span>
+    return <span className="crm-rating-summary">K: <span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', current.customer?.overallScore, settings)}>{current.customer ? formatRatingScore(current.customer.overallScore) : '—'}</span> · U: <span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', current.carrier?.overallScore, settings)}>{current.carrier ? formatRatingScore(current.carrier.overallScore) : '—'}</span></span>
   }
 
   return (

@@ -21,9 +21,10 @@ import AdminPage from './pages/AdminPage.jsx'
 import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
+import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 
 function ProtectedAppLayout() {
-  return <ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>
+  return <ProtectedRoute><PartnerEvaluationSettingsProvider><AppShell><Outlet /></AppShell></PartnerEvaluationSettingsProvider></ProtectedRoute>
 }
 
 export default function App() {

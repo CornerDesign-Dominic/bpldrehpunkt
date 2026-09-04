@@ -92,9 +92,36 @@ export const updateManagedUser = onCall({ region: 'europe-west3' }, async (reque
 
 async function assertSuperadmin(request) {
   const actor = await assertManager(request)
-  if (actor.role !== 'superadmin') throw new HttpsError('permission-denied', 'Keine Berechtigung zur Abteilungsverwaltung.')
+  if (actor.role !== 'superadmin') throw new HttpsError('permission-denied', 'Diese Aktion ist nur für Superadmins erlaubt.')
   return actor
 }
+
+function requiredEvaluationNumber(value, label) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new HttpsError('invalid-argument', `${label} muss eine gültige Zahl sein.`)
+  return value
+}
+
+function partnerEvaluationSettings(value) {
+  const pallets = value?.pallets ?? {}
+  const creditLimit = value?.creditLimit ?? {}
+  const ranking = value?.ranking ?? {}
+  const settings = {
+    pallets: { greenMax: requiredEvaluationNumber(pallets.greenMax, 'Paletten: Grün bis'), redMin: requiredEvaluationNumber(pallets.redMin, 'Paletten: Ab Rot') },
+    creditLimit: { redMax: requiredEvaluationNumber(creditLimit.redMax, 'Kreditlimit: Rot bis'), yellowMax: requiredEvaluationNumber(creditLimit.yellowMax, 'Kreditlimit: Gelb bis') },
+    ranking: { redMax: requiredEvaluationNumber(ranking.redMax, 'Ranking: Rot bis'), greenMin: requiredEvaluationNumber(ranking.greenMin, 'Ranking: Ab Grün') },
+  }
+  if (settings.pallets.greenMax < 0 || settings.pallets.redMin <= settings.pallets.greenMax) throw new HttpsError('invalid-argument', 'Die Paletten-Grenzen sind nicht eindeutig.')
+  if (settings.creditLimit.redMax < 0 || settings.creditLimit.yellowMax <= settings.creditLimit.redMax) throw new HttpsError('invalid-argument', 'Die Kreditlimit-Grenzen sind nicht eindeutig.')
+  if (settings.ranking.redMax < 0 || settings.ranking.redMax > 5 || settings.ranking.greenMin < 0 || settings.ranking.greenMin > 5 || settings.ranking.greenMin <= settings.ranking.redMax) throw new HttpsError('invalid-argument', 'Die Ranking-Grenzen müssen eindeutig zwischen 0 und 5 liegen.')
+  return settings
+}
+
+export const updatePartnerEvaluationSettings = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertSuperadmin(request)
+  const settings = partnerEvaluationSettings(request.data?.settings)
+  await db.doc('appSettings/partnerEvaluation').set({ ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid }, { merge: true })
+  return { settings }
+})
 
 export const migrateLegacyDepartments = onCall({ region: 'europe-west3' }, async (request) => {
   await assertSuperadmin(request)
