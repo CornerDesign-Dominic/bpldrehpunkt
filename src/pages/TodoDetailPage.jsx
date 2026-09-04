@@ -17,6 +17,7 @@ import {
   isAudienceMember,
   isSelfTodo,
   listTodoUpdates,
+  reactivateTodoForCurrentUser,
   releaseTodoFromCurrentUser,
   TODO_STATUS,
   TODO_PRIORITY,
@@ -55,10 +56,12 @@ function TodoActions({ actor, editable, onAction, onQuickEdit, todo }) {
   const isAssignee = todo.assignedUserId === actor.user.uid
   const isPersonalOwnTodo = isSelfTodo(todo, actor.user.uid)
   const canTake = editable && todo.status === 'open' && !todo.assignedUserId && isAudienceMember(todo, actor)
+  const canReactivate = editable && todo.status === 'completed' && isAssignee
   if (!editable) return null
   return <div className="todo-detail-actions">
     {canTake && <button className="button" type="button" onClick={() => onAction('assign', todo)}>Aufgabe annehmen</button>}
     {isAssignee && todo.status === 'in_progress' && <>{!isPersonalOwnTodo && <button className="button button--secondary" type="button" onClick={() => onAction('release', todo)}>Freigeben</button>}<button className="button" type="button" onClick={() => onAction('complete', todo)}>Erledigen</button></>}
+    {canReactivate && <button className="button" type="button" onClick={() => onAction('reactivate', todo)}>Reaktivieren</button>}
     {canManage && ['open', 'in_progress'].includes(todo.status) && <><button className="button button--secondary" type="button" onClick={() => onQuickEdit('responsibility')}>Neu zuweisen</button><button className="button button--danger" type="button" onClick={() => onAction('withdraw', todo)}>Zurückziehen</button></>}
   </div>
 }
@@ -119,6 +122,10 @@ export default function TodoDetailPage() {
 
   async function handleAction(action, todo) {
     setError('')
+    if (action === 'complete') {
+      setConfirmation({ type: 'complete', todo, title: 'To-do als erledigt ablegen?', message: 'Die Aufgabe wird als erledigt markiert und kann anschließend nicht mehr bearbeitet werden.' })
+      return
+    }
     if (action === 'withdraw' && todo.assignedUserId) {
       setConfirmation({ type: 'withdraw', todo, title: 'To-do zurückziehen?', message: 'Die laufende Bearbeitung wird beendet. Das To-do bleibt zur Nachvollziehbarkeit gespeichert.' })
       return
@@ -126,10 +133,10 @@ export default function TodoDetailPage() {
     try {
       if (action === 'assign') await assignTodoToCurrentUser(todo.id, actor)
       if (action === 'release') await releaseTodoFromCurrentUser(todo.id, actor)
-      if (action === 'complete') await completeTodoForCurrentUser(todo.id, actor)
+      if (action === 'reactivate') await reactivateTodoForCurrentUser(todo.id, actor)
       if (action === 'withdraw') await withdrawTodo(todo.id, actor)
       await loadTodo()
-      setToast({ assign: 'Aufgabe angenommen.', release: 'Bearbeitung freigegeben.', complete: 'To-do erledigt.', withdraw: 'To-do zurückgezogen.' }[action])
+      setToast({ assign: 'Aufgabe angenommen.', release: 'Bearbeitung freigegeben.', reactivate: 'To-do reaktiviert.', complete: 'To-do erledigt.', withdraw: 'To-do zurückgezogen.' }[action])
     } catch (actionError) {
       setError(actionError.message || 'Die Änderung konnte nicht gespeichert werden.')
     }
@@ -138,6 +145,11 @@ export default function TodoDetailPage() {
   async function confirmAction() {
     try {
       if (confirmation.type === 'quick-save') await persistQuickEdit(confirmation.values, true)
+      if (confirmation.type === 'complete') {
+        await completeTodoForCurrentUser(confirmation.todo.id, actor)
+        await loadTodo()
+        setToast('To-do erledigt.')
+      }
       if (confirmation.type === 'withdraw') {
         await withdrawTodo(confirmation.todo.id, actor)
         await loadTodo()
@@ -167,18 +179,19 @@ export default function TodoDetailPage() {
   }
 
   if (!result) return <p className="page-state">Aufgabe wird geladen …</p>
-  if (result.error) return <section className="todo-detail-empty"><h2>{result.error}</h2><Link className="button button--secondary" to="/todos">Zurück zu To-dos</Link></section>
+  if (result.error) return <section className="todo-detail-empty"><h2>{result.error}</h2><Link className="button button--secondary" to="/todos">Zurück</Link></section>
 
   const { todo } = result
   const caseUpdates = updates.filter((update) => update.type === 'note')
-  const history = updates.filter((update) => update.type === 'system')
+  const history = updates
   const canManageSections = editable && (profile?.role === 'superadmin' || todo.creatorUserId === user.uid) && ['open', 'in_progress'].includes(todo.status)
   return <div className="todo-detail-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} confirmLabel="Bestätigen" variant={confirmation?.type === 'withdraw' ? 'danger' : 'primary'} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
-    <header className="todo-detail-header"><div><Link className="todo-detail-header__back" to="/todos">← Zurück zu To-dos</Link><div className="todo-detail-header__title"><h2>{todo.title}</h2><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div></div><TodoActions actor={actor} editable={editable} onAction={handleAction} onQuickEdit={setQuickEditing} todo={todo} /></header>
+    <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} cancelLabel={confirmation?.type === 'complete' ? 'Nein' : 'Abbrechen'} confirmLabel={confirmation?.type === 'complete' ? 'Ja, erledigen' : 'Bestätigen'} variant={confirmation?.type === 'withdraw' ? 'danger' : 'primary'} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
+    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/todos">Zurück</Link><TodoActions actor={actor} editable={editable} onAction={handleAction} onQuickEdit={setQuickEditing} todo={todo} /></div>
+    <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{todo.title}</h2><span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div></header>
     {error && <p className="form-error">{error}</p>}
     {quickEditing && <TodoQuickEditModal key={quickEditing} currentUserId={user.uid} partners={partners} section={quickEditing} todo={todo} users={activeUsers} onCancel={() => setQuickEditing(null)} onSubmit={saveQuickEdit} />}
-    <div className="todo-detail-layout"><main className="todo-detail-main"><section className="todo-detail-content"><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('content') : null}>Beschreibung</DetailSectionHeading><p className="todo-detail-description">{todo.description || 'Keine Beschreibung hinterlegt.'}</p></section><section className="todo-updates" aria-labelledby="todo-updates-title"><div className="todo-updates__heading"><h3 id="todo-updates-title">Updates zum Fall</h3><span>{caseUpdates.length}</span></div>{canView('todos') && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Fall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Fall hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : caseUpdates.length ? <ol className="todo-updates__list">{caseUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Updates zum Fall.</p>}</section><section className="todo-updates todo-history" aria-labelledby="todo-history-title"><div className="todo-updates__heading"><h3 id="todo-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section></main><aside className="todo-detail-sidebar"><section><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('schedule') : null}>Priorität &amp; Termine</DetailSectionHeading><span className={`todo-priority todo-priority--${todoPriority(todo)}`}>{TODO_PRIORITY[todoPriority(todo)]}</span><dl><Detail label="Fällig am"><span className={dueClass(todo)}>{formatDate(todo.dueDate)}</span></Detail><Detail label="Erinnerung am">{formatDate(todo.reminderDate)}</Detail></dl></section><section><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('responsibility') : null}>Zuständigkeit</DetailSectionHeading><dl><Detail label="Zielgruppe">{todo.audienceLabel}</Detail><Detail label="Aktueller Bearbeiter">{todo.assignedUserName || 'Noch nicht übernommen'}</Detail></dl></section><section><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="Kunde">{todo.customerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${todo.customerId}`}>{todo.customerName || 'Kunde öffnen'}</Link> : todo.customerName}</Detail><Detail label="Unternehmer">{todo.carrierId && canViewMasterData ? <Link to={`/kunden-unternehmer/${todo.carrierId}`}>{todo.carrierName || 'Unternehmer öffnen'}</Link> : todo.carrierName}</Detail><Detail label="Referenz">{todo.reference}</Detail></dl></section><section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Erstellt von">{todo.creatorName}</Detail><Detail label="Erstellt am">{formatTimestamp(todo.createdAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(todo.updatedAt)}</Detail><Detail label="Übernommen am">{formatTimestamp(todo.assignedAt)}</Detail>{todo.completedAt && <><Detail label="Erledigt am">{formatTimestamp(todo.completedAt)}</Detail><Detail label="Erledigt von">{todo.completedByName}</Detail></>}{todo.withdrawnAt && <><Detail label="Zurückgezogen am">{formatTimestamp(todo.withdrawnAt)}</Detail><Detail label="Zurückgezogen von">{todo.withdrawnByUserId}</Detail></>}</dl></section></aside></div>
+    <div className="todo-detail-layout"><main className="todo-detail-main"><section className="todo-detail-content"><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('content') : null}>Beschreibung</DetailSectionHeading><p className="todo-detail-description">{todo.description || 'Keine Beschreibung hinterlegt.'}</p></section><section className="todo-updates" aria-labelledby="todo-updates-title"><div className="todo-updates__heading"><h3 id="todo-updates-title">Updates zum Fall</h3><span>{caseUpdates.length}</span></div>{canView('todos') && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Fall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Fall hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : caseUpdates.length ? <ol className="todo-updates__list">{caseUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Updates zum Fall.</p>}</section><section className="todo-updates todo-history" aria-labelledby="todo-history-title"><div className="todo-updates__heading"><h3 id="todo-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className={`todo-updates__item todo-updates__item--${update.type}`}><div><strong>{update.createdByName}</strong><span>{update.type === 'note' ? 'Update' : 'System'} · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section></main><aside className="todo-detail-sidebar"><section><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('schedule') : null}>Priorität &amp; Termine</DetailSectionHeading><span className={`todo-priority todo-priority--${todoPriority(todo)}`}>{TODO_PRIORITY[todoPriority(todo)]}</span><dl><Detail label="Fällig am"><span className={dueClass(todo)}>{formatDate(todo.dueDate)}</span></Detail><Detail label="Erinnerung am">{formatDate(todo.reminderDate)}</Detail></dl></section><section><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('responsibility') : null}>Zuständigkeit</DetailSectionHeading><dl><Detail label="Zielgruppe">{todo.audienceLabel}</Detail><Detail label="Aktueller Bearbeiter">{todo.assignedUserName || 'Noch nicht übernommen'}</Detail></dl></section><section><DetailSectionHeading onEdit={canManageSections ? () => setQuickEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="Kunde">{todo.customerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${todo.customerId}`}>{todo.customerName || 'Kunde öffnen'}</Link> : todo.customerName}</Detail><Detail label="Unternehmer">{todo.carrierId && canViewMasterData ? <Link to={`/kunden-unternehmer/${todo.carrierId}`}>{todo.carrierName || 'Unternehmer öffnen'}</Link> : todo.carrierName}</Detail><Detail label="Referenz">{todo.reference}</Detail></dl></section><section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Erstellt von">{todo.creatorName}</Detail><Detail label="Erstellt am">{formatTimestamp(todo.createdAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(todo.updatedAt)}</Detail><Detail label="Übernommen am">{formatTimestamp(todo.assignedAt)}</Detail>{todo.completedAt && <><Detail label="Erledigt am">{formatTimestamp(todo.completedAt)}</Detail><Detail label="Erledigt von">{todo.completedByName}</Detail></>}{todo.withdrawnAt && <><Detail label="Zurückgezogen am">{formatTimestamp(todo.withdrawnAt)}</Detail><Detail label="Zurückgezogen von">{todo.withdrawnByUserId}</Detail></>}</dl></section></aside></div>
   </div>
 }

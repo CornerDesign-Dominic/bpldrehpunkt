@@ -230,6 +230,18 @@ export async function completeTodoForCurrentUser(todoId, actor) {
   })
 }
 
+export async function reactivateTodoForCurrentUser(todoId, actor) {
+  const todoRef = doc(db, TODOS_COLLECTION, todoId)
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(todoRef)
+    if (!snapshot.exists()) throw new Error('To-do nicht gefunden.')
+    const todo = snapshot.data()
+    if (todo.status !== 'completed' || todo.assignedUserId !== actor.user.uid) throw new Error('Nur der bisherige Bearbeiter kann die Aufgabe reaktivieren.')
+    transaction.update(todoRef, { status: 'in_progress', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
+    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe reaktiviert.`, actor))
+  })
+}
+
 function formatHistoryDate(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '')
   return match ? `${match[3]}.${match[2]}.${match[1]}` : 'nicht festgelegt'

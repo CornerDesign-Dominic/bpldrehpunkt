@@ -205,6 +205,14 @@ service cloud.firestore {
         && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
     }
+    function isReactivation() {
+      return resource.data.status == 'completed' && resource.data.assignedUserId == request.auth.uid
+        && resource.data.completedByUserId == request.auth.uid
+        && request.resource.data.status == 'in_progress'
+        && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
+    }
     function isCreatorContentEdit() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
@@ -240,7 +248,7 @@ service cloud.firestore {
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if edit('todos') && isCreatedTodo();
-      allow update: if (edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
+      allow update: if (edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
         || (view('todos') && todoKeysAreValid(request.resource.data) && isNoteTimestampTouch());
       allow delete: if false;
 

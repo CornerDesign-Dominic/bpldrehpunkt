@@ -1037,6 +1037,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-form .form-actions { padding-top: 2px; border-top: 0; }
 .todo-updates__form > textarea { flex: 1; }
 .todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.todo-detail-navigation { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.todo-detail-header__title { margin-top: 0; }
 .todo-detail-section-edit { display: inline-grid; width: 27px; height: 27px; flex: 0 0 auto; padding: 0; place-items: center; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; }
 .todo-detail-section-edit:hover { color: var(--text-primary); background: var(--content-background); }
 .todo-quick-edit-modal { width: min(100%, 540px); max-height: calc(100vh - 40px); overflow: auto; padding: 18px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--content-background); box-shadow: 0 18px 42px var(--shadow); }
