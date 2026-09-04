@@ -183,7 +183,7 @@ export default function TodoDetailPage() {
 
   const { todo } = result
   const caseUpdates = updates.filter((update) => update.type === 'note')
-  const history = updates
+  const history = updates.filter((update) => update.type === 'system')
   const canManageSections = editable && (profile?.role === 'superadmin' || todo.creatorUserId === user.uid) && ['open', 'in_progress'].includes(todo.status)
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
