@@ -51,14 +51,16 @@
 .admin-calendar-permissions__list select { height: 27px; padding: 0 6px; border: 1px solid var(--input-border); border-radius: 3px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 11px; }
 .admin-calendar-permissions__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }.admin-calendar-permissions__heading p { margin: 4px 0 0; color: var(--text-muted); font-size: 11px; }.admin-calendar-permissions__heading .button { height: 28px; padding: 0 8px; font-size: 11px; white-space: nowrap; }
 .admin-calendar-permission-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(285px, 1.3fr); align-items: center; gap: 12px; min-height: 43px; padding: 5px 8px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; }.admin-calendar-permission-row:first-child { border-top: 0; }.admin-calendar-permission-row--all { color: var(--text-primary); background: var(--surface-secondary); }.admin-calendar-permission-row--all strong { font-size: 12px; }
-.admin-employees table { min-width: 870px; table-layout: fixed; }
+.admin-employees table { min-width: 980px; table-layout: fixed; }
 .admin-employees th, .admin-employees td { height: 40px; padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-employees th:nth-child(1) { width: 20%; }
-.admin-employees th:nth-child(2) { width: 25%; }
-.admin-employees th:nth-child(3) { width: 17%; }
-.admin-employees th:nth-child(4) { width: 13%; }
-.admin-employees th:nth-child(5) { width: 15%; }
-.admin-employees th:nth-child(6) { width: 10%; }
+.admin-employees th:nth-child(2) { width: 11%; }
+.admin-employees th:nth-child(3) { width: 16%; }
+.admin-employees th:nth-child(4) { width: 22%; }
+.admin-employees th:nth-child(5) { width: 13%; }
+.admin-employees th:nth-child(6) { width: 11%; }
+.admin-employees th:nth-child(7) { width: 7%; }
+.admin-employees__status { color: var(--success, #26734d); font-size: 11px; font-weight: 700; }.admin-employees__status--inactive { color: var(--text-muted); }
 .admin-employees__action { text-align: right; }
 .admin-employees__action button { display: inline-grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; }.admin-employees__action button:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--surface-secondary); }.admin-employees__action button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 .admin-placeholder { padding: 15px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
