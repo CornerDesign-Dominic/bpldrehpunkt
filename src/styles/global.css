@@ -1035,6 +1035,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-form__person-option span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .todo-form__people small { display: block; margin-top: 6px; }
 .todo-form .form-actions { padding-top: 2px; border-top: 0; }
+.todo-updates__form > textarea { flex: 1; }
 
 @media (max-width: 720px) {
   .app-shell, .app-shell.sidebar-collapsed { grid-template-columns: 64px minmax(0, 1fr); }
