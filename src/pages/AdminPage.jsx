@@ -3,6 +3,7 @@ import { httpsCallable } from 'firebase/functions'
 import AdminEmployeesTable from '../components/admin/AdminEmployeesTable.jsx'
 import DepartmentManagementPanel from '../components/admin/DepartmentManagementPanel.jsx'
 import CalendarManagementPanel from '../components/admin/CalendarManagementPanel.jsx'
+import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import UserManagementForm from '../components/admin/UserManagementForm.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -35,6 +36,7 @@ export default function AdminPage() {
   const [calendarSaving, setCalendarSaving] = useState(false)
   const [testingNotification, setTestingNotification] = useState(false)
   const [researching, setResearching] = useState(false)
+  const [researchConfirmationOpen, setResearchConfirmationOpen] = useState(false)
   const [toast, setToast] = useState('')
 
   async function reload() {
@@ -116,13 +118,15 @@ export default function AdminPage() {
   async function runNewsResearch() {
     setResearching(true)
     try {
-      const result = await httpsCallable(functions, 'runAutomatedNewsResearch')()
+      const result = await httpsCallable(functions, 'runAutomatedNewsResearch', { timeout: 550000 })()
       const created = result.data?.created || 0
       setToast(created ? `Recherche abgeschlossen: ${created} neue Meldung${created === 1 ? '' : 'en'}.` : 'Recherche abgeschlossen: keine neuen relevanten Meldungen.')
-    } catch {
-      setToast('Die automatische Recherche konnte nicht gestartet werden.')
+    } catch (researchError) {
+      const message = researchError?.message?.replace(/^.*?:\s*/, '') || 'Unbekannter Fehler'
+      setToast(`Die News-Recherche konnte nicht abgeschlossen werden: ${message}`)
     } finally {
       setResearching(false)
+      setResearchConfirmationOpen(false)
     }
   }
 
@@ -160,5 +164,5 @@ export default function AdminPage() {
 
   const orderedDepartments = useMemo(() => [...departments].sort((left, right) => String(left.name).localeCompare(String(right.name), 'de')), [departments])
 
-  return <div className="admin-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section><section className="admin-panel admin-manual-triggers"><div className="admin-panel__heading"><div><h2>Manuell auslösen</h2></div></div><div className="admin-manual-triggers__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Power Automate testen'}</button>{profile?.role === 'superadmin' && <button className="button" type="button" onClick={runNewsResearch} disabled={researching}>{researching ? 'Recherche läuft …' : 'News-Recherche starten'}</button>}</div></section>{canManagePermissions && <><DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} /><CalendarManagementPanel calendars={calendars} users={users} permissionsByCalendar={calendarPermissions} error={calendarError} saving={calendarSaving} onCreate={(values) => saveCalendar(() => createCalendar(values), 'Kalender angelegt.')} onUpdate={(id, values) => saveCalendar(() => updateCalendar(id, values), values.active === false ? 'Kalender archiviert.' : values.active === true ? 'Kalender reaktiviert.' : 'Kalender aktualisiert.')} onSetPermission={(calendarId, userId, level) => saveCalendar(() => setCalendarPermission(calendarId, userId, level), 'Kalenderberechtigung aktualisiert.')} /></>}</>}</div>
+  return <div className="admin-page"><ConfirmDialog open={researchConfirmationOpen} title="News-Recherche starten?" message="Die Recherche führt eine kostenpflichtige KI- und Websuche aus. Möchten Sie sie jetzt wirklich starten?" confirmLabel="Recherche starten" submittingLabel="Recherche läuft …" isSubmitting={researching} onCancel={() => setResearchConfirmationOpen(false)} onConfirm={runNewsResearch} />{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section><section className="admin-panel admin-manual-triggers"><div className="admin-panel__heading"><div><h2>Manuell auslösen</h2></div></div><div className="admin-manual-triggers__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Power Automate testen'}</button>{profile?.role === 'superadmin' && <button className="button" type="button" onClick={() => setResearchConfirmationOpen(true)} disabled={researching}>{researching ? 'Recherche läuft …' : 'News-Recherche starten'}</button>}</div></section>{canManagePermissions && <><DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} /><CalendarManagementPanel calendars={calendars} users={users} permissionsByCalendar={calendarPermissions} error={calendarError} saving={calendarSaving} onCreate={(values) => saveCalendar(() => createCalendar(values), 'Kalender angelegt.')} onUpdate={(id, values) => saveCalendar(() => updateCalendar(id, values), values.active === false ? 'Kalender archiviert.' : values.active === true ? 'Kalender reaktiviert.' : 'Kalender aktualisiert.')} onSetPermission={(calendarId, userId, level) => saveCalendar(() => setCalendarPermission(calendarId, userId, level), 'Kalenderberechtigung aktualisiert.')} /></>}</>}</div>
 }
