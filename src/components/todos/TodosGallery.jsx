@@ -1,4 +1,5 @@
 import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority } from '../../lib/todos.js'
+import { ChevronIcon } from '../icons.jsx'
 
 function formatTimestamp(value) {
   const date = value?.toDate?.()
@@ -8,6 +9,11 @@ function formatTimestamp(value) {
 function PriorityChip({ priority }) {
   const symbol = { high: '!', medium: '•', low: '↓' }[priority]
   return <span className={`todo-priority todo-priority--${priority}`}><span className="todo-priority__icon" aria-hidden="true">{symbol}</span><span>{TODO_PRIORITY[priority]}</span></span>
+}
+
+function StatusChip({ status }) {
+  const symbol = { open: '○', in_progress: '●', completed: '✓', withdrawn: '–' }[status]
+  return <span className={`todo-status todo-card__status todo-status--${status}`}><span className="todo-status__icon" aria-hidden="true">{symbol}</span><span>{TODO_STATUS[status] || '—'}</span></span>
 }
 
 export default function TodosGallery({ formatDate, getDueClass, loading, onOpen, todos }) {
@@ -24,7 +30,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
         : due.kind === 'none' && due.days !== null
           ? `Fällig in ${due.days} ${due.days === 1 ? 'Tag' : 'Tagen'} – ${formatDate(todo.dueDate)}`
           : `${due.label} – ${formatDate(todo.dueDate)}`
-      const dueAppearance = due.kind === 'soon' ? (due.days === 1 ? 'tomorrow' : due.days === 2 ? 'soon' : 'none') : due.kind
+      const dueAppearance = due.days === null ? 'none' : due.days <= 0 ? 'critical' : due.days <= 2 ? 'urgent' : due.days <= 5 ? 'warning' : 'none'
       const priority = todoPriority(todo)
       return <article className={`todo-card todo-card--${dueAppearance}`} key={todo.id}>
       <div className="todo-card__content">
@@ -37,7 +43,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
           <div className="todo-card__updated"><dt>Zuletzt aktualisiert</dt><dd>{formatTimestamp(todo.updatedAt)}</dd></div>
         </dl>
       </div>
-      <div className="todo-card__footer"><span className={`todo-status todo-card__status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span><button className="todo-card__open" type="button" onClick={() => onOpen(todo)}>Öffnen</button></div>
+      <div className="todo-card__footer"><StatusChip status={todo.status} /><button className="todo-card__open" type="button" onClick={() => onOpen(todo)}>Öffnen <ChevronIcon size={14} /></button></div>
     </article>
     })}
   </div>
