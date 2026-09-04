@@ -197,6 +197,7 @@ export default function NewsPage() {
   }
 
   async function archiveItem(item) {
+    if (!window.confirm('Diese Meldung wirklich archivieren? Sie wird danach nicht mehr in der News-Liste angezeigt.')) return
     try {
       await archiveNewsItem(item)
       await reloadItems()
@@ -207,10 +208,11 @@ export default function NewsPage() {
   }
 
   async function hideItem(item) {
+    if (!window.confirm('Diese Meldung wirklich archivieren? Sie wird danach nicht mehr in der News-Liste angezeigt.')) return
     try {
       await hideExternalNewsItem(item)
       await reloadItems()
-      setToast('Externe Meldung ausgeblendet.')
+      setToast('Externe Meldung archiviert.')
     } catch {
       setError('Die Meldung konnte nicht ausgeblendet werden.')
     }
