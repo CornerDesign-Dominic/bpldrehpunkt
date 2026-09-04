@@ -1,4 +1,4 @@
-import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority } from '../../lib/todos.js'
+import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority, todoStatus } from '../../lib/todos.js'
 import { ChevronIcon } from '../icons.jsx'
 
 function formatTimestamp(value) {
@@ -43,7 +43,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
           <div className="todo-card__updated"><dt>Zuletzt aktualisiert</dt><dd>{formatTimestamp(todo.updatedAt)}</dd></div>
         </dl>
       </div>
-      <div className="todo-card__footer"><StatusChip status={todo.status} /><button className="todo-card__open" type="button" onClick={() => onOpen(todo)}>Öffnen <ChevronIcon size={14} /></button></div>
+      <div className="todo-card__footer"><StatusChip status={todoStatus(todo)} /><button className="todo-card__open" type="button" onClick={() => onOpen(todo)}>Öffnen <ChevronIcon size={14} /></button></div>
     </article>
     })}
   </div>

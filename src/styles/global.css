@@ -1055,6 +1055,18 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-updates__heading > span { display: none; }
 .todo-updates:not(.todo-history) .todo-updates__heading h3 { font-size: 0; }
 .todo-updates:not(.todo-history) .todo-updates__heading h3::after { content: 'Updates zur To-Do'; font-size: 14px; }
+.todo-toolbar__views { display: flex; align-items: center; gap: 10px; }
+.todo-view-switcher { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
+.todo-view-switcher__button { display: grid; width: 28px; height: 26px; padding: 0; place-items: center; border: 0; border-radius: 3px; color: var(--text-secondary); background: transparent; cursor: pointer; }
+.todo-view-switcher__button:hover, .todo-view-switcher__button--active { color: var(--button-text); background: var(--button-background); }
+.todos-table-frame { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; }
+.todos-table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 12px; }
+.todos-table th { padding: 9px 10px; color: var(--text-muted); background: var(--surface-secondary); font-size: 10px; text-align: left; text-transform: uppercase; }
+.todos-table td { padding: 9px 10px; border-top: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; white-space: nowrap; }
+.todos-table__title { max-width: 280px; overflow: hidden; font-weight: 700; text-overflow: ellipsis; }
+.todos-table__due { font-weight: 700; }.todos-table__due--critical { color: var(--todo-due-overdue); }.todos-table__due--urgent { color: var(--todo-due-today); }.todos-table__due--warning { color: var(--todo-due-soon); }
+.todos-table__row--critical td:first-child { border-left: 5px solid var(--todo-due-overdue); }.todos-table__row--urgent td:first-child { border-left: 5px solid var(--todo-due-today); }.todos-table__row--warning td:first-child { border-left: 5px solid var(--todo-due-soon); }
+.todos-table__open { display: inline-flex; align-items: center; gap: 3px; padding: 5px 7px; border: 0; border-radius: 4px; color: var(--button-text); background: var(--button-background); cursor: pointer; font: inherit; font-weight: 700; }
 .todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .todo-detail-navigation { display: flex; width: 100%; max-width: 960px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 auto 14px; }
 .todo-detail-header__title { margin-top: 0; }
@@ -1223,3 +1235,16 @@ tbody tr:hover td { background: var(--table-hover-background); }
 :root[data-theme='dark'] .news-priority--notice { color: #b6ddf5; background: #294c62; border-color: #568eae; }
 :root[data-theme='dark'] .news-priority--important { color: #f4d58e; background: #59451f; border-color: #c99539; }
 :root[data-theme='dark'] .news-priority__icon { color: #263644; background: #f0c15c; }
+
+/* Reading state is personal and intentionally independent from news priority. */
+.news-entry:not(.news-entry--unread) { background: var(--section-background); }
+.news-entry--unread { border-color: var(--section-border); background: color-mix(in srgb, var(--content-background) 84%, var(--surface-active)); box-shadow: 0 3px 8px var(--workspace-shadow); }
+.news-entry--unread:hover { background: color-mix(in srgb, var(--content-background) 76%, var(--surface-active)); }
+.news-entry--unread.news-entry--priority-information, .news-entry--unread.news-entry--priority-notice, .news-entry--unread.news-entry--priority-important { border-color: var(--section-border); }
+.news-entry__date-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.news-entry__unread-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 99px; background: var(--button-background); box-shadow: 0 0 0 2px color-mix(in srgb, var(--button-background) 18%, transparent); }
+.news-entry__heading h2 { color: var(--text-primary); font-weight: 650; }
+.news-entry--unread .news-entry__heading h2 { font-weight: 800; }
+:root[data-theme='dark'] .news-entry--unread { border-color: var(--section-border); background: color-mix(in srgb, var(--surface-active) 78%, var(--section-background)); box-shadow: 0 3px 9px var(--workspace-shadow); }
+:root[data-theme='dark'] .news-entry--unread:hover { background: color-mix(in srgb, var(--surface-active) 88%, var(--section-background)); }
+:root[data-theme='dark'] .news-entry--unread.news-entry--priority-information, :root[data-theme='dark'] .news-entry--unread.news-entry--priority-notice, :root[data-theme='dark'] .news-entry--unread.news-entry--priority-important { border-color: var(--section-border); }
