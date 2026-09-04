@@ -1045,7 +1045,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-updates:not(.todo-history) .todo-updates__form:has(textarea:placeholder-shown) > .button { display: none; }
 .todo-updates__heading > span { display: none; }
 .todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.todo-detail-navigation { display: flex; width: 100%; max-width: 960px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 auto; }
+.todo-detail-navigation { display: flex; width: 100%; max-width: 960px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 auto 14px; }
 .todo-detail-header__title { margin-top: 0; }
 .todo-detail-section-edit { display: inline-grid; width: 27px; height: 27px; flex: 0 0 auto; padding: 0; place-items: center; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; }
 .todo-detail-section-edit:hover { color: var(--text-primary); background: var(--content-background); }
