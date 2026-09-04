@@ -30,6 +30,7 @@ export default function NewsForm({ item, onCancel, onSubmit }) {
       <label className="form-field"><span>Priorität</span><select value={form.priority} onChange={(event) => update('priority', event.target.value)}>{NEWS_PRIORITIES.map((priority) => <option key={priority.value} value={priority.value}>{priority.label}</option>)}</select></label>
       <label className="form-field"><span>Kategorie</span><select value={form.internalCategory || 'general'} onChange={(event) => update('internalCategory', event.target.value)}>{INTERNAL_NEWS_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label>
       <label className="form-field"><span>Gültig bis</span><input type="date" value={form.validUntil || ''} onChange={(event) => update('validUntil', event.target.value)} /></label>
+      <label className="news-form__reactions"><input type="checkbox" checked={form.reactionsAllowed !== false} onChange={(event) => update('reactionsAllowed', event.target.checked)} />Reaktionen erlauben</label>
       <label className="form-field news-form__wide"><span>Kurztext *</span><textarea rows="2" value={form.summary} onChange={(event) => update('summary', event.target.value)} /></label>
       <label className="form-field news-form__wide"><span>Längerer Text (optional)</span><textarea rows="4" value={form.content} onChange={(event) => update('content', event.target.value)} /></label>
     </div>

@@ -25,6 +25,7 @@ const TAGS_BY_CATEGORY = {
 const MAX_ITEMS_PER_RUN = 7
 const MAX_RECHECKS_PER_RUN = 12
 const NEWS_STATUSES = new Set(['active', 'resolved', 'openEnded'])
+const NEWS_REACTIONS = new Set(['helpful', 'notHelpful'])
 
 function cleanText(value, maxLength) {
   if (typeof value !== 'string') return ''
@@ -148,6 +149,22 @@ const newsReviewSchema = {
       },
     },
   },
+}
+
+function reactionsAllowed(item) {
+  return item?.sourceType === 'external' || item?.reactionsAllowed !== false
+}
+
+function reactionCounts(item) {
+  const counts = item?.reactionCounts || {}
+  return {
+    helpful: Number.isInteger(counts.helpful) && counts.helpful > 0 ? counts.helpful : 0,
+    notHelpful: Number.isInteger(counts.notHelpful) && counts.notHelpful > 0 ? counts.notHelpful : 0,
+  }
+}
+
+function canViewNews(profile) {
+  return profile?.active !== false && (profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.news))
 }
 
 async function researchWithOpenAi() {
@@ -318,6 +335,7 @@ async function saveNewItems(candidates) {
       id: reference.id,
       ...item,
       sourceType: 'external',
+      reactionsAllowed: true,
       status: item.status,
       lastCheckedAt: FieldValue.serverTimestamp(),
       aiSummary: item.summary,
@@ -402,4 +420,40 @@ export const runAutomatedNewsResearch = onCall({
   const profile = (await database().doc(`users/${request.auth.uid}`).get()).data()
   if (profile?.role !== 'superadmin') throw new HttpsError('permission-denied', 'Nur Superadmins dürfen die Recherche manuell starten.')
   return executeNewsResearch()
+})
+
+export const setNewsReaction = onCall({ region: 'europe-west3' }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
+  const itemId = request.data?.itemId
+  const requestedReaction = request.data?.reaction
+  if (typeof itemId !== 'string' || !itemId || itemId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige News-ID.')
+  if (requestedReaction !== null && !NEWS_REACTIONS.has(requestedReaction)) throw new HttpsError('invalid-argument', 'Ungültige Reaktion.')
+
+  const profile = (await database().doc(`users/${request.auth.uid}`).get()).data()
+  if (!canViewNews(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für News-Reaktionen.')
+
+  const itemRef = database().doc(`newsItems/${itemId}`)
+  const stateRef = database().doc(`newsItemReadStates/${request.auth.uid}/items/${itemId}`)
+  let result
+  await database().runTransaction(async (transaction) => {
+    const itemSnapshot = await transaction.get(itemRef)
+    const stateSnapshot = await transaction.get(stateRef)
+    if (!itemSnapshot.exists || itemSnapshot.data().status === 'archived') throw new HttpsError('not-found', 'Diese News ist nicht verfügbar.')
+    if (!reactionsAllowed(itemSnapshot.data())) throw new HttpsError('failed-precondition', 'Für diese News sind keine Reaktionen erlaubt.')
+
+    const previousReaction = NEWS_REACTIONS.has(stateSnapshot.data()?.reaction) ? stateSnapshot.data().reaction : null
+    if (previousReaction === requestedReaction) {
+      result = { reaction: previousReaction, counts: reactionCounts(itemSnapshot.data()) }
+      return
+    }
+
+    const counts = reactionCounts(itemSnapshot.data())
+    if (previousReaction) counts[previousReaction] = Math.max(0, counts[previousReaction] - 1)
+    if (requestedReaction) counts[requestedReaction] += 1
+    transaction.update(itemRef, { reactionCounts: counts })
+    if (requestedReaction) transaction.set(stateRef, { itemId, reaction: requestedReaction, reactionUpdatedAt: FieldValue.serverTimestamp() }, { merge: true })
+    else if (stateSnapshot.exists) transaction.set(stateRef, { reaction: FieldValue.delete(), reactionUpdatedAt: FieldValue.delete() }, { merge: true })
+    result = { reaction: requestedReaction, counts }
+  })
+  return result
 })

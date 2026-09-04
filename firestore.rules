@@ -129,14 +129,19 @@ service cloud.firestore {
         function validNewsItemPersonalState() {
           return exists(/databases/$(database)/documents/newsItems/$(itemId))
             && request.resource.data.keys().hasAll(['itemId'])
-            && request.resource.data.keys().hasOnly(['itemId', 'readAt', 'later', 'favorite'])
+            && request.resource.data.keys().hasOnly(['itemId', 'readAt', 'later', 'favorite', 'reaction', 'reactionUpdatedAt'])
             && request.resource.data.itemId == itemId
             && (!request.resource.data.keys().hasAny(['readAt']) || request.resource.data.readAt is timestamp)
             && (!request.resource.data.keys().hasAny(['later']) || request.resource.data.later is bool)
             && (!request.resource.data.keys().hasAny(['favorite']) || request.resource.data.favorite is bool);
         }
         allow read: if view('news') && userId == request.auth.uid;
-        allow create, update: if view('news') && userId == request.auth.uid && validNewsItemPersonalState();
+        // Reactions are only written by the callable function. Client-side
+        // personal-state updates may preserve them but cannot add or alter them.
+        allow create: if view('news') && userId == request.auth.uid && validNewsItemPersonalState()
+          && !request.resource.data.keys().hasAny(['reaction', 'reactionUpdatedAt']);
+        allow update: if view('news') && userId == request.auth.uid && validNewsItemPersonalState()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['reaction', 'reactionUpdatedAt']);
         allow delete: if false;
       }
     }

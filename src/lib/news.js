@@ -6,10 +6,13 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 import { db } from './firebase.js'
+import { functions } from './firebase.js'
 
 export const NEWS_ITEMS_COLLECTION = 'newsItems'
 const NEWS_ITEM_READ_STATES_COLLECTION = 'newsItemReadStates'
+const NEWS_REACTIONS = new Set(['helpful', 'notHelpful'])
 
 export const NEWS_CATEGORIES = [
   { value: 'internal', label: 'Interne News', description: 'Unternehmen & Team' },
@@ -130,6 +133,7 @@ function payload(values) {
     validFrom: values.validFrom || null,
     validUntil: values.validUntil || null,
     status: values.status || 'active',
+    ...(sourceType === 'internal' ? { reactionsAllowed: values.reactionsAllowed !== false } : {}),
     // External importers can fill these fields later without a model migration.
     fetchedAt: values.fetchedAt || null,
     aiSummary: trim(values.aiSummary),
@@ -146,7 +150,7 @@ function normalizeSelections(values, allowedValues, maximum) {
 export function createEmptyInternalNewsItem() {
   return {
     title: '', summary: '', content: '', category: 'internal', priority: 'information', sourceType: 'internal',
-    internalCategory: 'general', source: '', sourceUrl: '', publishedAt: todayValue(), validFrom: '', validUntil: '', status: 'active', fetchedAt: null, aiSummary: '', relevance: null,
+    internalCategory: 'general', source: '', sourceUrl: '', publishedAt: todayValue(), validFrom: '', validUntil: '', status: 'active', reactionsAllowed: true, fetchedAt: null, aiSummary: '', relevance: null,
   }
 }
 
@@ -202,6 +206,18 @@ export function formatNewsDate(value) {
   return date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat('de-DE').format(date) : '—'
 }
 
+export function allowsNewsReactions(item) {
+  return item?.sourceType === 'external' || item?.reactionsAllowed !== false
+}
+
+export function getNewsReactionCounts(item) {
+  const counts = item?.reactionCounts || {}
+  return {
+    helpful: Number.isInteger(counts.helpful) && counts.helpful > 0 ? counts.helpful : 0,
+    notHelpful: Number.isInteger(counts.notHelpful) && counts.notHelpful > 0 ? counts.notHelpful : 0,
+  }
+}
+
 export function isNewsCurrent(item, today = new Date()) {
   if ((item.status || 'active') === 'resolved' || item.status === 'archived') return false
   const validUntil = asDate(item.validUntil)
@@ -237,15 +253,16 @@ export async function listNewsUpdates(itemId) {
 }
 
 export async function listNewsItemPersonalStates(uid) {
-  if (!uid) return { readItemIds: [], laterItemIds: [], favoriteItemIds: [] }
+  if (!uid) return { readItemIds: [], laterItemIds: [], favoriteItemIds: [], reactionsByItem: {} }
   const snapshot = await getDocs(collection(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items'))
   return snapshot.docs.reduce((states, item) => {
     const state = item.data()
     if (state.readAt) states.readItemIds.push(item.id)
     if (state.later === true) states.laterItemIds.push(item.id)
     if (state.favorite === true) states.favoriteItemIds.push(item.id)
+    if (NEWS_REACTIONS.has(state.reaction)) states.reactionsByItem[item.id] = state.reaction
     return states
-  }, { readItemIds: [], laterItemIds: [], favoriteItemIds: [] })
+  }, { readItemIds: [], laterItemIds: [], favoriteItemIds: [], reactionsByItem: {} })
 }
 
 export async function markNewsItemSeen(uid, itemId) {
@@ -256,6 +273,11 @@ export async function markNewsItemSeen(uid, itemId) {
 export async function setNewsItemMarker(uid, itemId, marker, enabled) {
   if (!uid || !itemId || !['later', 'favorite'].includes(marker)) return
   await setDoc(doc(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items', itemId), { itemId, [marker]: enabled === true }, { merge: true })
+}
+
+export async function setNewsItemReaction(itemId, reaction) {
+  const result = await httpsCallable(functions, 'setNewsReaction')({ itemId, reaction })
+  return result.data
 }
 
 export async function createNewsItem(values) {

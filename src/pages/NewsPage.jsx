@@ -21,6 +21,7 @@ import {
   markNewsItemSeen,
   NEWS_CATEGORIES,
   normalizeNewsCategory,
+  setNewsItemReaction,
   setNewsItemMarker,
   updateNewsItem,
 } from '../lib/news.js'
@@ -58,6 +59,8 @@ export default function NewsPage() {
   const [readItemIds, setReadItemIds] = useState(new Set())
   const [laterItemIds, setLaterItemIds] = useState(new Set())
   const [favoriteItemIds, setFavoriteItemIds] = useState(new Set())
+  const [reactionsByItem, setReactionsByItem] = useState({})
+  const [reactionUpdatingIds, setReactionUpdatingIds] = useState(new Set())
   const [readItemsLoaded, setReadItemsLoaded] = useState(false)
   const [showLater, setShowLater] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
@@ -81,8 +84,8 @@ export default function NewsPage() {
     let current = true
     if (!user?.uid) return () => { current = false }
     listNewsItemPersonalStates(user.uid)
-      .then((states) => { if (current) { setReadItemIds(new Set(states.readItemIds)); setLaterItemIds(new Set(states.laterItemIds)); setFavoriteItemIds(new Set(states.favoriteItemIds)) } })
-      .catch(() => { if (current) { setReadItemIds(new Set()); setLaterItemIds(new Set()); setFavoriteItemIds(new Set()) } })
+      .then((states) => { if (current) { setReadItemIds(new Set(states.readItemIds)); setLaterItemIds(new Set(states.laterItemIds)); setFavoriteItemIds(new Set(states.favoriteItemIds)); setReactionsByItem(states.reactionsByItem) } })
+      .catch(() => { if (current) { setReadItemIds(new Set()); setLaterItemIds(new Set()); setFavoriteItemIds(new Set()); setReactionsByItem({}) } })
       .finally(() => { if (current) setReadItemsLoaded(true) })
     return () => { current = false }
   }, [user?.uid])
@@ -160,6 +163,26 @@ export default function NewsPage() {
     }
   }
 
+  async function toggleItemReaction(item, reaction) {
+    if (reactionUpdatingIds.has(item.id)) return
+    const nextReaction = reactionsByItem[item.id] === reaction ? null : reaction
+    setReactionUpdatingIds((itemIds) => new Set([...itemIds, item.id]))
+    try {
+      const result = await setNewsItemReaction(item.id, nextReaction)
+      setReactionsByItem((reactions) => {
+        const next = { ...reactions }
+        if (result.reaction) next[item.id] = result.reaction
+        else delete next[item.id]
+        return next
+      })
+      setItems((newsItems) => newsItems.map((newsItem) => newsItem.id === item.id ? { ...newsItem, reactionCounts: result.counts } : newsItem))
+    } catch {
+      setError('Die Reaktion konnte nicht gespeichert werden.')
+    } finally {
+      setReactionUpdatingIds((itemIds) => new Set([...itemIds].filter((id) => id !== item.id)))
+    }
+  }
+
   async function saveItem(values) {
     try {
       if (selectedItem) await updateNewsItem(selectedItem.id, values)
@@ -202,6 +225,6 @@ export default function NewsPage() {
     </section>
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}
     {error && <p className="form-error">{error}</p>}
-    <NewsList items={visibleItems} loading={loading} readItemIds={readItemIds} laterItemIds={laterItemIds} favoriteItemIds={favoriteItemIds} onMarkRead={markItemRead} onToggleLater={(itemId) => toggleItemMarker(itemId, 'later')} onToggleFavorite={(itemId) => toggleItemMarker(itemId, 'favorite')} onEdit={setEditingItem} onArchive={archiveItem} onHide={hideItem} canEdit={canEdit('news')} />
+    <NewsList items={visibleItems} loading={loading} readItemIds={readItemIds} laterItemIds={laterItemIds} favoriteItemIds={favoriteItemIds} reactionsByItem={reactionsByItem} reactionUpdatingIds={reactionUpdatingIds} onMarkRead={markItemRead} onToggleLater={(itemId) => toggleItemMarker(itemId, 'later')} onToggleFavorite={(itemId) => toggleItemMarker(itemId, 'favorite')} onToggleReaction={toggleItemReaction} onEdit={setEditingItem} onArchive={archiveItem} onHide={hideItem} canEdit={canEdit('news')} />
   </div>
 }

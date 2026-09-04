@@ -284,4 +284,4 @@ export const processVacationRequest = onCall({ region: 'europe-west3' }, async (
   return { requestId, status: decision }
 })
 
-export { runAutomatedNewsResearch, scheduledNewsResearch } from './news.js'
+export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
