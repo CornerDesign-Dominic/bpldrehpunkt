@@ -6,6 +6,7 @@ import { logger } from 'firebase-functions'
 
 function database() { return getFirestore() }
 const openAiApiKey = defineSecret('OPENAI_API_KEY')
+const powerAutomateNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
 
 const CATEGORIES = new Set(['traffic_infrastructure', 'law_regulations', 'logistics_market'])
 const LEGACY_CATEGORY_MAPPINGS = {
@@ -14,7 +15,14 @@ const LEGACY_CATEGORY_MAPPINGS = {
   logistics: 'logistics_market',
 }
 const PRIORITIES = new Set(['information', 'notice', 'important'])
-const MAX_ITEMS_PER_RUN = 6
+const COUNTRIES = new Set(['DE', 'NL', 'BE', 'LU', 'FR', 'PL', 'AT', 'CH', 'CZ', 'IT', 'ES', 'DK', 'UK', 'EU'])
+const AFFECTS = new Set(['dispatch', 'accounting', 'personnel', 'management', 'it'])
+const TAGS_BY_CATEGORY = {
+  traffic_infrastructure: new Set(['construction', 'road_closure', 'driving_ban', 'toll', 'border_disruption', 'strike', 'port_ferry', 'rail_terminal', 'weather']),
+  law_regulations: new Set(['transport_law', 'accounting_taxes', 'personnel_social', 'customs_foreign_trade', 'environment', 'eu_law', 'case_law']),
+  logistics_market: new Set(['market_prices', 'capacity', 'partners_insolvencies', 'industry_development', 'operational_disruption']),
+}
+const MAX_ITEMS_PER_RUN = 7
 
 function cleanText(value, maxLength) {
   if (typeof value !== 'string') return ''
@@ -65,12 +73,15 @@ function researchPrompt() {
   return [
     'Du bist der externe News-Redakteur der Brennpunkt Logistik GmbH in Deutschland.',
     `Heute ist ${today}. Recherchiere mit der Websuche ausschließlich Meldungen, die für eine mittelständische deutsche Spedition ohne eigenen Fuhrpark konkret relevant sind.`,
+    'Kernländer sind DE, NL, BE, LU, FR, PL, AT und CH. Berücksichtige CZ, IT, ES, DK, UK sowie EU-weite Regelungen nur bei konkreter Relevanz für diese Kernländer oder grenzüberschreitende Transporte.',
     'Prüfe besonders: Maut, Fahrverbote, große Verkehrs- und Infrastrukturbeeinträchtigungen sowie relevante Entwicklungen bei Straße, Autobahn, Bahn, Häfen, Fähren, Terminals und Grenzen, wenn sie Straßenverkehr, Kapazitäten, Laufzeiten oder Transportkosten beeinflussen können; außerdem EU-/nationale Transport- und Arbeitsrechtsregeln, Zoll, Gefahrgut, Branchenentwicklungen sowie bedeutende Cyber- oder IT-Warnungen für Logistikunternehmen.',
     'Nimm nur belegte Meldungen der letzten sieben Tage oder verbindliche, bereits veröffentlichte Ankündigungen mit einem klaren künftigen Stichtag auf.',
     'Ignoriere allgemeine Marktkommentare, kleine lokale Störungen, PR-Meldungen ohne konkrete Auswirkung und bereits länger bekannte Inhalte.',
-    'Arbeite nur mit verlässlichen Primärquellen oder anerkannten Fachquellen. Jede Meldung braucht eine direkte Quell-URL und darf ohne Quelle nicht ausgegeben werden.',
+    'Arbeite ausschließlich mit verlässlichen Primärquellen, Behörden, Infrastrukturbetreibern, anerkannten Verbänden oder ergänzend seriöser Fachpresse. Nutze keine Blogs, Social Media, PR-Meldungen oder allgemeinen Marktkommentare. Jede Meldung braucht eine direkte Quell-URL und darf ohne Quelle nicht ausgegeben werden.',
     'Ordne exakt einer Kategorie zu: traffic_infrastructure (Verkehr & Infrastruktur: Straße, Autobahn, Maut, Fahrverbote sowie relevante Bahn-, Hafen-, Fähr-, Terminal- und Grenzthemen), law_regulations (Recht & Vorgaben: Gesetze, Zoll, Compliance) oder logistics_market (Logistik & Markt: Branche, operative Logistik, Markt sowie IT-/Sicherheitsthemen).',
-    'Bewerte priority als information, notice oder important. important nur bei unmittelbarem Handlungsbedarf, Frist oder deutlicher Kosten-/Betriebswirkung.',
+    'Bewerte priority als information, notice oder important. important ausschließlich bei Frist oder Pflicht, zentraler Verkehrsbeeinträchtigung, deutlicher Kostenwirkung oder unmittelbarem Handlungsbedarf.',
+    'Gib für jede Meldung betroffene Länder als 1–8 ISO-Kürzel aus: DE, NL, BE, LU, FR, PL, AT, CH, CZ, IT, ES, DK, UK oder EU für EU-weite Regelungen. Gib außerdem 1–3 kategoriepassende Themen-Tags und mindestens einen Bereich unter betrifft aus.',
+    'Erlaubte Themen-Tags: traffic_infrastructure = construction, road_closure, driving_ban, toll, border_disruption, strike, port_ferry, rail_terminal, weather; law_regulations = transport_law, accounting_taxes, personnel_social, customs_foreign_trade, environment, eu_law, case_law; logistics_market = market_prices, capacity, partners_insolvencies, industry_development, operational_disruption. Erlaubte betrifft-Werte: dispatch, accounting, personnel, management, it.',
     'Formuliere auf Deutsch, nüchtern und ohne Spekulation. summary: höchstens 420 Zeichen. content: höchstens 900 Zeichen und konkret mit „Bedeutung für BPL“ sowie, falls sinnvoll, „Nächster Schritt“.',
     'Wenn keine wirklich relevante neue Meldung vorliegt, gib ein leeres items-Array zurück.',
   ].join('\n')
@@ -87,7 +98,7 @@ const newsSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['title', 'summary', 'content', 'category', 'priority', 'source', 'sourceUrl', 'publishedAt', 'relevance'],
+        required: ['title', 'summary', 'content', 'category', 'priority', 'source', 'sourceUrl', 'publishedAt', 'relevance', 'affectedCountries', 'topicTags', 'affects'],
         properties: {
           title: { type: 'string' },
           summary: { type: 'string' },
@@ -98,6 +109,9 @@ const newsSchema = {
           sourceUrl: { type: 'string' },
           publishedAt: { type: 'string' },
           relevance: { type: 'integer', minimum: 1, maximum: 100 },
+          affectedCountries: { type: 'array', minItems: 1, maxItems: 8, uniqueItems: true, items: { type: 'string', enum: [...COUNTRIES] } },
+          topicTags: { type: 'array', minItems: 1, maxItems: 3, uniqueItems: true, items: { type: 'string', enum: Object.values(TAGS_BY_CATEGORY).flatMap((tags) => [...tags]) } },
+          affects: { type: 'array', minItems: 1, maxItems: 5, uniqueItems: true, items: { type: 'string', enum: [...AFFECTS] } },
         },
       },
     },
@@ -139,9 +153,17 @@ function normalizeCandidate(candidate) {
   const priority = PRIORITIES.has(candidate?.priority) ? candidate.priority : 'information'
   const publishedAt = validDate(candidate?.publishedAt) ? candidate.publishedAt : dateToday()
   const relevance = Number.isInteger(candidate?.relevance) ? Math.max(1, Math.min(100, candidate.relevance)) : null
+  const affectedCountries = normalizeSelections(candidate?.affectedCountries, COUNTRIES, 8)
+  const topicTags = normalizeSelections(candidate?.topicTags, TAGS_BY_CATEGORY[category] || new Set(), 3)
+  const affects = normalizeSelections(candidate?.affects, AFFECTS, 5)
 
-  if (!sourceUrl || !title || !summary || !content || !category || !source || relevance === null) return null
-  return { title, summary, content, category, priority, source, sourceUrl, publishedAt, relevance }
+  if (!sourceUrl || !title || !summary || !content || !category || !source || relevance === null || !affectedCountries.length || !topicTags.length || !affects.length) return null
+  return { title, summary, content, category, priority, source, sourceUrl, publishedAt, relevance, affectedCountries, topicTags, affects }
+}
+
+function normalizeSelections(values, allowedValues, maximum) {
+  if (!Array.isArray(values)) return []
+  return [...new Set(values.filter((value) => typeof value === 'string' && allowedValues.has(value)))].slice(0, maximum)
 }
 
 async function migrateLegacyNewsCategories() {
@@ -209,15 +231,57 @@ async function executeNewsResearch() {
   return { candidates: candidates.length, migrated, ...result }
 }
 
+function formatFailureTime() {
+  return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' }).format(new Date())
+}
+
+async function notifySuperadminsAboutResearchFailure(error) {
+  const notificationUrl = powerAutomateNotificationUrl.value()
+  if (!notificationUrl) {
+    logger.error('Keine E-Mail-Benachrichtigung zur News-Recherche möglich: POWER_AUTOMATE_NOTIFICATION_URL fehlt.')
+    return
+  }
+
+  const recipients = [...new Set((await database().collection('users').where('role', '==', 'superadmin').get()).docs
+    .map((document) => document.data())
+    .filter((profile) => profile.active !== false)
+    .map((profile) => typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '')
+    .filter((email) => /^\S+@\S+\.\S+$/.test(email)))]
+  if (!recipients.length) {
+    logger.error('Keine aktiven Superadmins mit gültiger E-Mail-Adresse für die News-Recherche-Benachrichtigung gefunden.')
+    return
+  }
+
+  const reason = cleanText(error instanceof Error ? error.message : String(error), 900) || 'Unbekannter Fehler'
+  const subject = 'Drehpunkt: Automatische News-Recherche fehlgeschlagen'
+  const message = `Zeitpunkt: ${formatFailureTime()} Uhr\n\nFehlerursache: ${reason}\n\nBitte die News-Recherche und die Konfiguration prüfen.`
+  const results = await Promise.allSettled(recipients.map(async (to) => {
+    const response = await fetch(notificationUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, message, type: 'news_research_failure' }),
+    })
+    if (!response.ok) throw new Error(`Benachrichtigungsdienst antwortete mit ${response.status}.`)
+  }))
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed) logger.error('Nicht alle Superadmins konnten über die fehlgeschlagene News-Recherche benachrichtigt werden.', { recipients: recipients.length, failed })
+}
+
 export const scheduledNewsResearch = onSchedule({
   schedule: '0 7 * * *',
   timeZone: 'Europe/Berlin',
   region: 'europe-west3',
   memory: '512MiB',
   timeoutSeconds: 540,
-  secrets: [openAiApiKey],
+  secrets: [openAiApiKey, powerAutomateNotificationUrl],
 }, async () => {
-  await executeNewsResearch()
+  try {
+    await executeNewsResearch()
+  } catch (error) {
+    logger.error('Automatische News-Recherche fehlgeschlagen.', error)
+    await notifySuperadminsAboutResearchFailure(error)
+    throw error
+  }
 })
 
 export const runAutomatedNewsResearch = onCall({

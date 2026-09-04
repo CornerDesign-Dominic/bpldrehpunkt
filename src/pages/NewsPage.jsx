@@ -6,6 +6,7 @@ import { usePermissions } from '../auth/usePermissions.js'
 import {
   archiveNewsItem,
   createNewsItem,
+  hideExternalNewsItem,
   isNewsInPeriod,
   isNewsNew,
   LEGACY_NEWS_CATEGORIES,
@@ -85,6 +86,16 @@ export default function NewsPage() {
     }
   }
 
+  async function hideItem(item) {
+    try {
+      await hideExternalNewsItem(item)
+      await reloadItems()
+      setToast('Externe Meldung ausgeblendet.')
+    } catch {
+      setError('Die Meldung konnte nicht ausgeblendet werden.')
+    }
+  }
+
   return <div className="news-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <div className="news-tabs" role="tablist" aria-label="News-Kategorien">{visibleCategories.map((item) => <button key={item.value} type="button" role="tab" aria-selected={category === item.value} className={category === item.value ? 'news-tabs__tab news-tabs__tab--active' : 'news-tabs__tab'} onClick={() => selectCategory(item.value)}>{item.label}</button>)}</div>
@@ -92,6 +103,6 @@ export default function NewsPage() {
     {category !== 'internal' && <div className="news-external-hint"><span>{category === 'other' ? 'Dies ist ein sichtbarer Altbestand. Neue automatisch recherchierte Meldungen werden hier nicht mehr abgelegt.' : 'Die automatische Recherche läuft täglich um 07:00 Uhr. Neue, relevante Meldungen werden mit Quelle und KI-Zusammenfassung in dieser Kategorie gespeichert.'}</span></div>}
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}
     {error && <p className="form-error">{error}</p>}
-    <NewsList items={visibleItems} loading={loading} onEdit={setEditingItem} onArchive={archiveItem} canEdit={canEdit('news')} />
+    <NewsList items={visibleItems} loading={loading} onEdit={setEditingItem} onArchive={archiveItem} onHide={hideItem} canEdit={canEdit('news')} />
   </div>
 }

@@ -62,6 +62,16 @@ service firebase.storage {
 
 Die Storage-Regeln werden getrennt über `firebase deploy --only storage` ausgerollt.
 
+## News-Recherche
+
+Die geplante News-Recherche nutzt weiterhin `OPENAI_API_KEY`. Damit Superadmins bei einem Fehlschlag per E-Mail informiert werden, muss zusätzlich derselbe Power-Automate-Webhook wie für `/api/notifications` als Firebase-Secret gesetzt werden:
+
+```powershell
+firebase functions:secrets:set POWER_AUTOMATE_NOTIFICATION_URL
+```
+
+Anschließend die Functions deployen. Empfänger werden bei jedem Fehler dynamisch aus aktiven Profilen mit der Rolle `superadmin` und gültiger E-Mail-Adresse ermittelt.
+
 ## To-dos
 
 To-dos liegen unter `todos/{todoId}`. Sie verwenden `creatorUserId`/`creatorName`, `audienceType` (`all`, `department`, `person`), `audienceId`, `audienceLabel`, die unabhängigen Bearbeiterfelder `assignedUserId`/`assignedUserName`/`assignedAt` sowie den Status `open`, `in_progress`, `completed` oder `withdrawn`.

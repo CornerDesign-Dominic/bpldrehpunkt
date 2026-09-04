@@ -44,6 +44,46 @@ export const NEWS_PRIORITIES = [
   { value: 'important', label: 'Wichtig' },
 ]
 
+export const EXTERNAL_NEWS_COUNTRIES = ['DE', 'NL', 'BE', 'LU', 'FR', 'PL', 'AT', 'CH', 'CZ', 'IT', 'ES', 'DK', 'UK', 'EU']
+
+export const EXTERNAL_NEWS_TAGS = {
+  traffic_infrastructure: [
+    { value: 'construction', label: 'Baustelle' },
+    { value: 'road_closure', label: 'Vollsperrung' },
+    { value: 'driving_ban', label: 'Fahrverbot' },
+    { value: 'toll', label: 'Maut' },
+    { value: 'border_disruption', label: 'Grenzstörung' },
+    { value: 'strike', label: 'Streik' },
+    { value: 'port_ferry', label: 'Hafen/Fähre' },
+    { value: 'rail_terminal', label: 'Bahn/Terminal' },
+    { value: 'weather', label: 'Wetter' },
+  ],
+  law_regulations: [
+    { value: 'transport_law', label: 'Transportrecht' },
+    { value: 'accounting_taxes', label: 'Abrechnung & Steuern' },
+    { value: 'personnel_social', label: 'Personal & Sozial' },
+    { value: 'customs_foreign_trade', label: 'Zoll & Außenhandel' },
+    { value: 'environment', label: 'Umwelt' },
+    { value: 'eu_law', label: 'EU-Recht' },
+    { value: 'case_law', label: 'Rechtsprechung' },
+  ],
+  logistics_market: [
+    { value: 'market_prices', label: 'Markt & Preise' },
+    { value: 'capacity', label: 'Kapazität' },
+    { value: 'partners_insolvencies', label: 'Partner & Insolvenzen' },
+    { value: 'industry_development', label: 'Branchenentwicklung' },
+    { value: 'operational_disruption', label: 'operative Störung' },
+  ],
+}
+
+export const EXTERNAL_NEWS_AFFECTS = [
+  { value: 'dispatch', label: 'Disposition' },
+  { value: 'accounting', label: 'Buchhaltung' },
+  { value: 'personnel', label: 'Personal' },
+  { value: 'management', label: 'Geschäftsleitung' },
+  { value: 'it', label: 'IT' },
+]
+
 const newsItemsRef = collection(db, NEWS_ITEMS_COLLECTION)
 const trim = (value) => (value ?? '').trim()
 
@@ -62,15 +102,21 @@ function payload(values) {
   const internalCategory = INTERNAL_NEWS_CATEGORIES.some((item) => item.value === values.internalCategory)
     ? values.internalCategory
     : 'general'
+  const category = values.category || 'internal'
+  const externalTags = EXTERNAL_NEWS_TAGS[category] || []
+  const affectedCountries = normalizeSelections(values.affectedCountries, EXTERNAL_NEWS_COUNTRIES, 8)
+  const topicTags = normalizeSelections(values.topicTags, externalTags.map((tag) => tag.value), 3)
+  const affects = normalizeSelections(values.affects, EXTERNAL_NEWS_AFFECTS.map((area) => area.value), 5)
 
   return {
     title: trim(values.title),
     summary: trim(values.summary),
     content: trim(values.content),
-    category: values.category || 'internal',
+    category,
     priority: values.priority || 'information',
     sourceType,
     ...(sourceType === 'internal' ? { internalCategory } : {}),
+    ...(sourceType === 'external' ? { affectedCountries, topicTags, affects } : {}),
     source: trim(values.source),
     sourceUrl: trim(values.sourceUrl),
     publishedAt: values.publishedAt || null,
@@ -81,6 +127,12 @@ function payload(values) {
     aiSummary: trim(values.aiSummary),
     relevance: values.relevance ?? null,
   }
+}
+
+function normalizeSelections(values, allowedValues, maximum) {
+  if (!Array.isArray(values)) return []
+  const allowed = new Set(allowedValues)
+  return [...new Set(values.filter((value) => typeof value === 'string' && allowed.has(value)))].slice(0, maximum)
 }
 
 export function createEmptyInternalNewsItem() {
@@ -106,6 +158,14 @@ export function getInternalNewsCategory(category) {
 
 export function getNewsPriority(priority) {
   return NEWS_PRIORITIES.find((item) => item.value === priority)?.label || 'Information'
+}
+
+export function getExternalNewsTag(tag) {
+  return Object.values(EXTERNAL_NEWS_TAGS).flat().find((item) => item.value === tag)?.label || tag
+}
+
+export function getExternalNewsAffects(area) {
+  return EXTERNAL_NEWS_AFFECTS.find((item) => item.value === area)?.label || area
 }
 
 export function todayValue() {
@@ -151,4 +211,8 @@ export async function updateNewsItem(itemId, values) {
 
 export async function archiveNewsItem(item) {
   await updateDoc(doc(db, NEWS_ITEMS_COLLECTION, item.id), { status: 'archived', updatedAt: serverTimestamp() })
+}
+
+export async function hideExternalNewsItem(item) {
+  await updateDoc(doc(db, NEWS_ITEMS_COLLECTION, item.id), { status: 'archived', hiddenAt: serverTimestamp(), updatedAt: serverTimestamp() })
 }
