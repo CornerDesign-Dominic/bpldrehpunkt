@@ -12,11 +12,31 @@ export const NEWS_ITEMS_COLLECTION = 'newsItems'
 
 export const NEWS_CATEGORIES = [
   { value: 'internal', label: 'Interne News' },
-  { value: 'highway', label: 'Autobahn' },
-  { value: 'law', label: 'Gesetze' },
-  { value: 'logistics', label: 'Logistik' },
-  { value: 'other', label: 'Weitere' },
+  { value: 'traffic_infrastructure', label: 'Verkehr & Infrastruktur' },
+  { value: 'law_regulations', label: 'Recht & Vorgaben' },
+  { value: 'logistics_market', label: 'Logistik & Markt' },
 ]
+
+export const INTERNAL_NEWS_CATEGORIES = [
+  { value: 'general', label: 'Allgemein' },
+  { value: 'technical', label: 'Technisches' },
+  { value: 'events', label: 'Ereignisse' },
+  { value: 'organization_processes', label: 'Organisation & Prozesse' },
+  { value: 'people_team', label: 'Personal & Team' },
+  { value: 'security_privacy', label: 'Sicherheit & Datenschutz' },
+]
+
+// These values may still exist in Firestore until the server-side migration has run.
+// Keeping the mapping here prevents historical news from disappearing in the meantime.
+export const LEGACY_NEWS_CATEGORIES = [
+  { value: 'other', label: 'Weitere (Bestand)' },
+]
+
+const LEGACY_CATEGORY_MAPPINGS = {
+  highway: 'traffic_infrastructure',
+  law: 'law_regulations',
+  logistics: 'logistics_market',
+}
 
 export const NEWS_PRIORITIES = [
   { value: 'information', label: 'Information' },
@@ -38,13 +58,19 @@ function dateToMillis(value) {
 }
 
 function payload(values) {
+  const sourceType = values.sourceType || 'internal'
+  const internalCategory = INTERNAL_NEWS_CATEGORIES.some((item) => item.value === values.internalCategory)
+    ? values.internalCategory
+    : 'general'
+
   return {
     title: trim(values.title),
     summary: trim(values.summary),
     content: trim(values.content),
     category: values.category || 'internal',
     priority: values.priority || 'information',
-    sourceType: values.sourceType || 'internal',
+    sourceType,
+    ...(sourceType === 'internal' ? { internalCategory } : {}),
     source: trim(values.source),
     sourceUrl: trim(values.sourceUrl),
     publishedAt: values.publishedAt || null,
@@ -60,12 +86,22 @@ function payload(values) {
 export function createEmptyInternalNewsItem() {
   return {
     title: '', summary: '', content: '', category: 'internal', priority: 'information', sourceType: 'internal',
-    source: '', sourceUrl: '', publishedAt: todayValue(), validUntil: '', status: 'active', fetchedAt: null, aiSummary: '', relevance: null,
+    internalCategory: 'general', source: '', sourceUrl: '', publishedAt: todayValue(), validUntil: '', status: 'active', fetchedAt: null, aiSummary: '', relevance: null,
   }
 }
 
+export function normalizeNewsCategory(category) {
+  return LEGACY_CATEGORY_MAPPINGS[category] || category
+}
+
 export function getNewsCategory(category) {
-  return NEWS_CATEGORIES.find((item) => item.value === category)?.label || 'Weitere'
+  return NEWS_CATEGORIES.find((item) => item.value === normalizeNewsCategory(category))?.label
+    || LEGACY_NEWS_CATEGORIES.find((item) => item.value === category)?.label
+    || 'Weitere (Bestand)'
+}
+
+export function getInternalNewsCategory(category) {
+  return INTERNAL_NEWS_CATEGORIES.find((item) => item.value === category)?.label || 'Allgemein'
 }
 
 export function getNewsPriority(priority) {

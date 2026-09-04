@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { httpsCallable } from 'firebase/functions'
 import NewsForm from '../components/news/NewsForm.jsx'
 import NewsList from '../components/news/NewsList.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
-import { useAuth } from '../auth/useAuth.js'
-import { functions } from '../lib/firebase.js'
 import {
   archiveNewsItem,
   createNewsItem,
   isNewsInPeriod,
   isNewsNew,
+  LEGACY_NEWS_CATEGORIES,
   listNewsItems,
   NEWS_CATEGORIES,
+  normalizeNewsCategory,
   updateNewsItem,
 } from '../lib/news.js'
 
@@ -31,7 +30,6 @@ const periodFilters = [
 
 export default function NewsPage() {
   const { canEdit } = usePermissions()
-  const { profile } = useAuth()
   const [items, setItems] = useState([])
   const [category, setCategory] = useState('internal')
   const [priorityFilter, setPriorityFilter] = useState('all')
@@ -40,7 +38,6 @@ export default function NewsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
-  const [researching, setResearching] = useState(false)
 
   async function reloadItems() {
     const loadedItems = await listNewsItems()
@@ -53,7 +50,11 @@ export default function NewsPage() {
     return () => { current = false }
   }, [])
 
-  const visibleItems = useMemo(() => items.filter((item) => item.status === 'active' && item.category === category && (priorityFilter === 'all' || (priorityFilter === 'new' ? isNewsNew(item) : item.priority === 'important')) && isNewsInPeriod(item, period)), [category, items, period, priorityFilter])
+  const visibleCategories = useMemo(() => [
+    ...NEWS_CATEGORIES,
+    ...LEGACY_NEWS_CATEGORIES.filter((legacyCategory) => items.some((item) => item.status === 'active' && item.category === legacyCategory.value)),
+  ], [items])
+  const visibleItems = useMemo(() => items.filter((item) => item.status === 'active' && (category === 'other' ? item.category === 'other' : normalizeNewsCategory(item.category) === category) && (priorityFilter === 'all' || (priorityFilter === 'new' ? isNewsNew(item) : item.priority === 'important')) && isNewsInPeriod(item, period)), [category, items, period, priorityFilter])
   const selectedItem = editingItem && editingItem !== 'new' ? editingItem : null
 
   function selectCategory(nextCategory) {
@@ -74,19 +75,6 @@ export default function NewsPage() {
     }
   }
 
-  async function runResearch() {
-    setResearching(true)
-    setError('')
-    try {
-      const result = await httpsCallable(functions, 'runAutomatedNewsResearch')()
-      await reloadItems()
-      const created = result.data?.created || 0
-      setToast(created ? `Recherche abgeschlossen: ${created} neue Meldung${created === 1 ? '' : 'en'}.` : 'Recherche abgeschlossen: keine neuen relevanten Meldungen.')
-    } catch {
-      setError('Die automatische Recherche konnte nicht gestartet werden.')
-    } finally { setResearching(false) }
-  }
-
   async function archiveItem(item) {
     try {
       await archiveNewsItem(item)
@@ -99,9 +87,9 @@ export default function NewsPage() {
 
   return <div className="news-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="news-tabs" role="tablist" aria-label="News-Kategorien">{NEWS_CATEGORIES.map((item) => <button key={item.value} type="button" role="tab" aria-selected={category === item.value} className={category === item.value ? 'news-tabs__tab news-tabs__tab--active' : 'news-tabs__tab'} onClick={() => selectCategory(item.value)}>{item.label}</button>)}</div>
+    <div className="news-tabs" role="tablist" aria-label="News-Kategorien">{visibleCategories.map((item) => <button key={item.value} type="button" role="tab" aria-selected={category === item.value} className={category === item.value ? 'news-tabs__tab news-tabs__tab--active' : 'news-tabs__tab'} onClick={() => selectCategory(item.value)}>{item.label}</button>)}</div>
     <div className="news-toolbar"><div className="news-toolbar__filters"><div className="news-filter-group" aria-label="Priorität filtern">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}</div><label className="filter-field"><span className="sr-only">Zeitraum filtern</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label></div>{category === 'internal' && canEdit('news') && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}</div>
-    {category !== 'internal' && <div className="news-external-hint"><span>Die automatische Recherche läuft täglich um 07:00 Uhr. Neue, relevante Meldungen werden mit Quelle und KI-Zusammenfassung in dieser Kategorie gespeichert.</span>{profile?.role === 'superadmin' && <button className="button" type="button" onClick={runResearch} disabled={researching}>{researching ? 'Recherche läuft …' : 'Recherche jetzt starten'}</button>}</div>}
+    {category !== 'internal' && <div className="news-external-hint"><span>{category === 'other' ? 'Dies ist ein sichtbarer Altbestand. Neue automatisch recherchierte Meldungen werden hier nicht mehr abgelegt.' : 'Die automatische Recherche läuft täglich um 07:00 Uhr. Neue, relevante Meldungen werden mit Quelle und KI-Zusammenfassung in dieser Kategorie gespeichert.'}</span></div>}
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}
     {error && <p className="form-error">{error}</p>}
     <NewsList items={visibleItems} loading={loading} onEdit={setEditingItem} onArchive={archiveItem} canEdit={canEdit('news')} />

@@ -10,6 +10,8 @@
 .admin-panel__heading h2, .admin-placeholder h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .admin-panel__heading p, .admin-placeholder p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .admin-departments { padding-top: 16px; border-top: 1px solid var(--border); }
+.admin-manual-triggers { gap: 9px; padding-top: 16px; border-top: 1px solid var(--border); }
+.admin-manual-triggers__actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .admin-departments__create { display: flex; max-width: 460px; gap: 8px; }
 .admin-departments__create input, .admin-departments__row input { min-width: 0; height: 32px; padding: 0 9px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); background: var(--content-background); font: inherit; font-size: 12px; }
 .admin-departments__create input { flex: 1; }

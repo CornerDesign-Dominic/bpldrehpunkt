@@ -7,7 +7,12 @@ import { logger } from 'firebase-functions'
 function database() { return getFirestore() }
 const openAiApiKey = defineSecret('OPENAI_API_KEY')
 
-const CATEGORIES = new Set(['highway', 'law', 'logistics', 'other'])
+const CATEGORIES = new Set(['traffic_infrastructure', 'law_regulations', 'logistics_market'])
+const LEGACY_CATEGORY_MAPPINGS = {
+  highway: 'traffic_infrastructure',
+  law: 'law_regulations',
+  logistics: 'logistics_market',
+}
 const PRIORITIES = new Set(['information', 'notice', 'important'])
 const MAX_ITEMS_PER_RUN = 6
 
@@ -60,11 +65,11 @@ function researchPrompt() {
   return [
     'Du bist der externe News-Redakteur der Brennpunkt Logistik GmbH in Deutschland.',
     `Heute ist ${today}. Recherchiere mit der Websuche ausschließlich Meldungen, die für eine mittelständische deutsche Spedition ohne eigenen Fuhrpark konkret relevant sind.`,
-    'Prüfe besonders: Maut, Fahrverbote, große Autobahn- und Grenzbeeinträchtigungen, EU-/nationale Transport- und Arbeitsrechtsregeln, Zoll, Gefahrgut, Branchenentwicklungen sowie bedeutende Cyber- oder IT-Warnungen für Logistikunternehmen.',
+    'Prüfe besonders: Maut, Fahrverbote, große Verkehrs- und Infrastrukturbeeinträchtigungen sowie relevante Entwicklungen bei Straße, Autobahn, Bahn, Häfen, Fähren, Terminals und Grenzen, wenn sie Straßenverkehr, Kapazitäten, Laufzeiten oder Transportkosten beeinflussen können; außerdem EU-/nationale Transport- und Arbeitsrechtsregeln, Zoll, Gefahrgut, Branchenentwicklungen sowie bedeutende Cyber- oder IT-Warnungen für Logistikunternehmen.',
     'Nimm nur belegte Meldungen der letzten sieben Tage oder verbindliche, bereits veröffentlichte Ankündigungen mit einem klaren künftigen Stichtag auf.',
     'Ignoriere allgemeine Marktkommentare, kleine lokale Störungen, PR-Meldungen ohne konkrete Auswirkung und bereits länger bekannte Inhalte.',
     'Arbeite nur mit verlässlichen Primärquellen oder anerkannten Fachquellen. Jede Meldung braucht eine direkte Quell-URL und darf ohne Quelle nicht ausgegeben werden.',
-    'Ordne exakt einer Kategorie zu: highway (Autobahn, Verkehr, Maut, Fahrverbote), law (Gesetze, Zoll, Compliance), logistics (Branche, operative Logistik) oder other (IT/Sicherheit und sonstige relevante Themen).',
+    'Ordne exakt einer Kategorie zu: traffic_infrastructure (Verkehr & Infrastruktur: Straße, Autobahn, Maut, Fahrverbote sowie relevante Bahn-, Hafen-, Fähr-, Terminal- und Grenzthemen), law_regulations (Recht & Vorgaben: Gesetze, Zoll, Compliance) oder logistics_market (Logistik & Markt: Branche, operative Logistik, Markt sowie IT-/Sicherheitsthemen).',
     'Bewerte priority als information, notice oder important. important nur bei unmittelbarem Handlungsbedarf, Frist oder deutlicher Kosten-/Betriebswirkung.',
     'Formuliere auf Deutsch, nüchtern und ohne Spekulation. summary: höchstens 420 Zeichen. content: höchstens 900 Zeichen und konkret mit „Bedeutung für BPL“ sowie, falls sinnvoll, „Nächster Schritt“.',
     'Wenn keine wirklich relevante neue Meldung vorliegt, gib ein leeres items-Array zurück.',
@@ -87,7 +92,7 @@ const newsSchema = {
           title: { type: 'string' },
           summary: { type: 'string' },
           content: { type: 'string' },
-          category: { type: 'string', enum: ['highway', 'law', 'logistics', 'other'] },
+          category: { type: 'string', enum: ['traffic_infrastructure', 'law_regulations', 'logistics_market'] },
           priority: { type: 'string', enum: ['information', 'notice', 'important'] },
           source: { type: 'string' },
           sourceUrl: { type: 'string' },
@@ -130,13 +135,34 @@ function normalizeCandidate(candidate) {
   const summary = cleanText(candidate?.summary, 420)
   const content = cleanText(candidate?.content, 900)
   const source = cleanText(candidate?.source, 120) || (sourceUrl ? new URL(sourceUrl).hostname.replace(/^www\./, '') : '')
-  const category = CATEGORIES.has(candidate?.category) ? candidate.category : 'other'
+  const category = CATEGORIES.has(candidate?.category) ? candidate.category : ''
   const priority = PRIORITIES.has(candidate?.priority) ? candidate.priority : 'information'
   const publishedAt = validDate(candidate?.publishedAt) ? candidate.publishedAt : dateToday()
   const relevance = Number.isInteger(candidate?.relevance) ? Math.max(1, Math.min(100, candidate.relevance)) : null
 
-  if (!sourceUrl || !title || !summary || !content || !source || relevance === null) return null
+  if (!sourceUrl || !title || !summary || !content || !category || !source || relevance === null) return null
   return { title, summary, content, category, priority, source, sourceUrl, publishedAt, relevance }
+}
+
+async function migrateLegacyNewsCategories() {
+  let migrated = 0
+
+  for (const [legacyCategory, category] of Object.entries(LEGACY_CATEGORY_MAPPINGS)) {
+    const legacyItems = await database().collection('newsItems').where('category', '==', legacyCategory).get()
+    if (legacyItems.empty) continue
+
+    const documents = legacyItems.docs
+    for (let start = 0; start < documents.length; start += 500) {
+      const batch = database().batch()
+      for (const document of documents.slice(start, start + 500)) {
+        batch.update(document.ref, { category, updatedAt: FieldValue.serverTimestamp() })
+      }
+      await batch.commit()
+      migrated += Math.min(500, documents.length - start)
+    }
+  }
+
+  return migrated
 }
 
 async function saveNewItems(candidates) {
@@ -176,10 +202,11 @@ async function saveNewItems(candidates) {
 }
 
 async function executeNewsResearch() {
+  const migrated = await migrateLegacyNewsCategories()
   const candidates = await researchWithOpenAi()
   const result = await saveNewItems(candidates)
-  logger.info('Automatische News-Recherche abgeschlossen.', { candidates: candidates.length, ...result })
-  return { candidates: candidates.length, ...result }
+  logger.info('Automatische News-Recherche abgeschlossen.', { candidates: candidates.length, migrated, ...result })
+  return { candidates: candidates.length, migrated, ...result }
 }
 
 export const scheduledNewsResearch = onSchedule({
