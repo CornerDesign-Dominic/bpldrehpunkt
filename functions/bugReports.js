@@ -1,4 +1,5 @@
 import { getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
@@ -44,17 +45,23 @@ export const submitBugReport = onCall({ region: 'europe-west3', secrets: [powerA
   if (!notificationUrl) throw new HttpsError('failed-precondition', 'Benachrichtigungsdienst ist nicht konfiguriert.')
 
   const reporterEmail = cleanText(request.auth.token.email || reporter?.email, 320)
+  const reporterNameValue = reporterName(reporter, reporterEmail)
+  const reportedAt = reportTime()
   const subject = `Fehlermeldung – ${module}`
-  const message = `Meldender Nutzer: ${reporterName(reporter, reporterEmail)}${reporterEmail ? ` (${reporterEmail})` : ''}\nZeitpunkt: ${reportTime()} Uhr\nModul: ${module}\n\nBeschreibung:\n${description}`
+  const message = `Meldender Nutzer: ${reporterNameValue}${reporterEmail ? ` (${reporterEmail})` : ''}\nZeitpunkt: ${reportedAt} Uhr\nModul: ${module}\n\nBeschreibung:\n${description}`
   const results = await Promise.allSettled(recipients.map(async (to) => {
     const response = await fetch(notificationUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, message, type: 'bug_report' }),
+      body: JSON.stringify({ to, subject, message, type: 'bug_report', module, description, reporterName: reporterNameValue, reportedAt }),
     })
     if (!response.ok) throw new Error(`Benachrichtigungsdienst antwortete mit ${response.status}.`)
   }))
-  if (results.some((result) => result.status === 'rejected')) throw new HttpsError('unavailable', 'Die Meldung konnte nicht an alle Superadmins versendet werden.')
+  const failed = results.filter((result) => result.status === 'rejected').length
+  if (failed) {
+    logger.error('Der Versand einer Fehlermeldung über Power Automate ist fehlgeschlagen.', { recipients: recipients.length, failed })
+    throw new HttpsError('unavailable', 'Die Meldung konnte nicht an alle Superadmins versendet werden.')
+  }
 
   return { success: true }
 })

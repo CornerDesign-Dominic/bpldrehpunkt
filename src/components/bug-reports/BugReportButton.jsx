@@ -2,11 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { useAuth } from '../../auth/useAuth.js'
 import { functions } from '../../lib/firebase.js'
-import { BugIcon, CloseIcon } from '../icons.jsx'
+import { BugIcon } from '../icons.jsx'
 import Toast from '../ui/Toast.jsx'
 
 const modules = ['Dashboard', 'Urlaub', 'Kalender', 'Urlaubsmanagement', 'Team Brennpunkt', 'Kunden & Unternehmer', 'CRM', 'Palettenmanagement', 'News', 'Dokumente', 'To-dos', 'Mein Profil', 'Adminbereich', 'Sonstiges']
 const emptyForm = () => ({ module: '', description: '' })
+
+function submissionErrorMessage(error) {
+  switch (error?.code) {
+    case 'functions/unauthenticated': return 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'
+    case 'functions/permission-denied': return 'Dein Benutzerkonto ist nicht aktiv. Bitte wende dich an die Administration.'
+    case 'functions/invalid-argument': return 'Bitte prüfe Modul und Beschreibung.'
+    case 'functions/failed-precondition': return 'Der E-Mail-Empfängerkreis ist noch nicht vollständig eingerichtet.'
+    case 'functions/unavailable': return 'Die Meldung konnte gerade nicht versendet werden. Bitte versuche es später erneut.'
+    default: return 'Die Meldung konnte nicht versendet werden. Bitte versuche es später erneut.'
+  }
+}
 
 function BugReportModal({ onClose, onSuccess }) {
   const dialogRef = useRef(null)
@@ -58,7 +69,7 @@ function BugReportModal({ onClose, onSuccess }) {
       await httpsCallable(functions, 'submitBugReport')({ module, description })
       onSuccess()
     } catch (submitError) {
-      setError(submitError?.message?.replace(/^.*?:\s*/, '') || 'Die Meldung konnte nicht versendet werden.')
+      setError(submissionErrorMessage(submitError))
     } finally {
       setSubmitting(false)
     }
@@ -66,7 +77,7 @@ function BugReportModal({ onClose, onSuccess }) {
 
   return <div className="bug-report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !submitting) onClose() }}>
     <section ref={dialogRef} className="bug-report-modal" role="dialog" aria-modal="true" aria-labelledby="bug-report-title" tabIndex="-1">
-      <div className="bug-report-modal__heading"><div><h2 id="bug-report-title">Fehler melden</h2><p>Beschreibe kurz, was passiert ist.</p></div><button className="bug-report-modal__close" type="button" onClick={onClose} disabled={submitting} aria-label="Dialog schließen"><CloseIcon size={16} /></button></div>
+      <div className="bug-report-modal__heading"><div><h2 id="bug-report-title">Fehler melden</h2><p>Beschreibe kurz, was passiert ist.</p></div></div>
       <form onSubmit={submit} noValidate>
         <div className="bug-report-modal__fields">
           <label className="form-field"><span>Modul *</span><select ref={moduleRef} required value={form.module} onChange={(event) => setForm((current) => ({ ...current, module: event.target.value }))}><option value="">Bitte wählen</option>{modules.map((module) => <option key={module} value={module}>{module}</option>)}</select></label>
