@@ -7,7 +7,7 @@ export function DrehpunktLogoIcon({ size = 24 }) {
 }
 
 export function TruckFrontIcon({ size = 24 }) {
-  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M7 3.5h10l2 5.5v9.25H5V9l2-5.5Z" /><path d="M8.25 6.5h7.5l.9 3.5h-9.3l.9-3.5Z" /><path d="M5 13h14M8 14.5h8v2.25H8zM6.25 14.8h1.5m8.5 0h1.5M5 18.25h14" /><circle cx="8" cy="19" r="1.45" /><circle cx="16" cy="19" r="1.45" /></svg>
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0m8 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0m-6-1a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2zM4 2a1 1 0 0 0-1 1v3.9c0 .625.562 1.092 1.17.994C5.075 7.747 6.792 7.5 8 7.5s2.925.247 3.83.394A1.008 1.008 0 0 0 13 6.9V3a1 1 0 0 0-1-1zm0 1h8v3.9q0 .002 0 0l-.002.004-.005.002h-.004C11.088 6.761 9.299 6.5 8 6.5s-3.088.26-3.99.406h-.003l-.005-.002L4 6.9q0 .002 0 0z" /></svg>
 }
 
 export function ParagraphIcon({ size = 24 }) {
