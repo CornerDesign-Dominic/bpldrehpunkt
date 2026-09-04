@@ -4,7 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
 
-const db = getFirestore()
+function database() { return getFirestore() }
 const openAiApiKey = defineSecret('OPENAI_API_KEY')
 
 const CATEGORIES = new Set(['highway', 'law', 'logistics', 'other'])
@@ -152,13 +152,13 @@ async function saveNewItems(candidates) {
     }
     seenUrls.add(item.sourceUrl)
 
-    const existing = await db.collection('newsItems').where('sourceUrl', '==', item.sourceUrl).limit(1).get()
+    const existing = await database().collection('newsItems').where('sourceUrl', '==', item.sourceUrl).limit(1).get()
     if (!existing.empty) {
       skipped += 1
       continue
     }
 
-    const reference = db.collection('newsItems').doc()
+    const reference = database().collection('newsItems').doc()
     await reference.set({
       id: reference.id,
       ...item,
@@ -199,7 +199,7 @@ export const runAutomatedNewsResearch = onCall({
   secrets: [openAiApiKey],
 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
-  const profile = (await db.doc(`users/${request.auth.uid}`).get()).data()
+  const profile = (await database().doc(`users/${request.auth.uid}`).get()).data()
   if (profile?.role !== 'superadmin') throw new HttpsError('permission-denied', 'Nur Superadmins dürfen die Recherche manuell starten.')
   return executeNewsResearch()
 })
