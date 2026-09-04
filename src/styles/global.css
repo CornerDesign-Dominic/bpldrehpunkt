@@ -1193,6 +1193,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .news-toolbar__search { flex: 1 1 260px; max-width: 420px; }
 .news-toolbar__period { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; min-height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); background: var(--content-background); font-size: 11px; font-weight: 750; }
 .news-toolbar__period select { height: 28px; min-width: 78px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; outline: none; }
+:root[data-theme='dark'] .news-toolbar__period select { color-scheme: dark; }
+:root[data-theme='dark'] .news-toolbar__period select option { color: var(--text-primary); background: var(--input-background); }
 .news-toolbar__quick-row { padding: 1px 0; }.news-toolbar__quick-row > .news-filter-group__label { min-width: 78px; }
 .news-toolbar__quick-row .news-filter-group { flex-wrap: wrap; }
 .news-toolbar__advanced-row { padding-top: 10px; border-top: 1px solid var(--border); }
