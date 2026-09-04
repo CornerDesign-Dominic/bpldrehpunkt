@@ -15,9 +15,9 @@ import {
   hideExternalNewsItem,
   isNewsInPeriod,
   isNewsNew,
-  listNewsCategoryReadStates,
+  listNewsItemReadStates,
   listNewsItems,
-  markNewsCategorySeen,
+  markNewsItemSeen,
   NEWS_CATEGORIES,
   normalizeNewsCategory,
   updateNewsItem,
@@ -36,13 +36,6 @@ const periodFilters = [
   { value: 'all', label: 'Alle' },
 ]
 
-function timestampMillis(value) {
-  if (typeof value?.toMillis === 'function') return value.toMillis()
-  if (value instanceof Date) return value.getTime()
-  if (typeof value === 'string') return new Date(value).getTime() || 0
-  return 0
-}
-
 function matchesSelection(values, selected) {
   return selected.length === 0 || values.some((value) => selected.includes(value))
 }
@@ -58,8 +51,8 @@ export default function NewsPage() {
   const [selectedCountries, setSelectedCountries] = useState([])
   const [selectedTags, setSelectedTags] = useState([])
   const [selectedAffects, setSelectedAffects] = useState([])
-  const [categoryReadStates, setCategoryReadStates] = useState({})
-  const [readStatesLoaded, setReadStatesLoaded] = useState(false)
+  const [readItemIds, setReadItemIds] = useState(new Set())
+  const [readItemsLoaded, setReadItemsLoaded] = useState(false)
   const [editingItem, setEditingItem] = useState(undefined)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -79,21 +72,12 @@ export default function NewsPage() {
   useEffect(() => {
     let current = true
     if (!user?.uid) return () => { current = false }
-    listNewsCategoryReadStates(user.uid)
-      .then((readStates) => { if (current) setCategoryReadStates(readStates) })
-      .catch(() => { if (current) setCategoryReadStates({}) })
-      .finally(() => { if (current) setReadStatesLoaded(true) })
+    listNewsItemReadStates(user.uid)
+      .then((itemIds) => { if (current) setReadItemIds(new Set(itemIds)) })
+      .catch(() => { if (current) setReadItemIds(new Set()) })
+      .finally(() => { if (current) setReadItemsLoaded(true) })
     return () => { current = false }
   }, [user?.uid])
-
-  useEffect(() => {
-    if (!user?.uid || loading || error) return undefined
-    let current = true
-    markNewsCategorySeen(user.uid, category)
-      .then(() => { if (current) setCategoryReadStates((readStates) => ({ ...readStates, [category]: new Date() })) })
-      .catch(() => undefined)
-    return () => { current = false }
-  }, [category, error, loading, user?.uid])
 
   const categoryItems = useMemo(() => items.filter((item) => item.status === 'active' && normalizeNewsCategory(item.category) === category), [category, items])
   const filterOptions = useMemo(() => {
@@ -106,12 +90,7 @@ export default function NewsPage() {
       affects: EXTERNAL_NEWS_AFFECTS.filter((item) => affects.has(item.value)).map((item) => ({ value: item.value, label: getExternalNewsAffects(item.value) })),
     }
   }, [category, categoryItems])
-  const unreadCounts = useMemo(() => Object.fromEntries(NEWS_CATEGORIES.map((item) => {
-    if (!readStatesLoaded || item.value === category) return [item.value, 0]
-    const seenAt = timestampMillis(categoryReadStates[item.value])
-    const count = items.filter((news) => news.status === 'active' && normalizeNewsCategory(news.category) === item.value && (timestampMillis(news.fetchedAt || news.createdAt) || 1) > seenAt).length
-    return [item.value, count]
-  })), [category, categoryReadStates, items, readStatesLoaded])
+  const unreadCounts = useMemo(() => Object.fromEntries(NEWS_CATEGORIES.map((item) => [item.value, readItemsLoaded ? items.filter((news) => news.status === 'active' && normalizeNewsCategory(news.category) === item.value && !readItemIds.has(news.id)).length : 0])), [items, readItemIds, readItemsLoaded])
   const visibleItems = useMemo(() => {
     const searchTerm = search.trim().toLocaleLowerCase('de-DE')
     return categoryItems.filter((item) => item.status === 'active'
@@ -144,6 +123,16 @@ export default function NewsPage() {
     setSelectedCountries([])
     setSelectedTags([])
     setSelectedAffects([])
+  }
+
+  async function markItemRead(itemId) {
+    if (!user?.uid || readItemIds.has(itemId)) return
+    setReadItemIds((itemIds) => new Set([...itemIds, itemId]))
+    try {
+      await markNewsItemSeen(user.uid, itemId)
+    } catch {
+      setReadItemIds((itemIds) => new Set([...itemIds].filter((id) => id !== itemId)))
+    }
   }
 
   async function saveItem(values) {
@@ -188,6 +177,6 @@ export default function NewsPage() {
     </section>
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}
     {error && <p className="form-error">{error}</p>}
-    <NewsList items={visibleItems} loading={loading} onEdit={setEditingItem} onArchive={archiveItem} onHide={hideItem} canEdit={canEdit('news')} />
+    <NewsList items={visibleItems} loading={loading} readItemIds={readItemIds} onMarkRead={markItemRead} onEdit={setEditingItem} onArchive={archiveItem} onHide={hideItem} canEdit={canEdit('news')} />
   </div>
 }

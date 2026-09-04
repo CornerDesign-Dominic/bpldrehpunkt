@@ -114,6 +114,21 @@ service cloud.firestore {
         allow delete: if false;
       }
     }
+    match /newsItemReadStates/{userId} {
+      allow read, write: if false;
+      match /items/{itemId} {
+        function validNewsItemReadState() {
+          return exists(/databases/$(database)/documents/newsItems/$(itemId))
+            && request.resource.data.keys().hasAll(['itemId', 'readAt'])
+            && request.resource.data.keys().hasOnly(['itemId', 'readAt'])
+            && request.resource.data.itemId == itemId
+            && request.resource.data.readAt == request.time;
+        }
+        allow read: if view('news') && userId == request.auth.uid;
+        allow create, update: if view('news') && userId == request.auth.uid && validNewsItemReadState();
+        allow delete: if false;
+      }
+    }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])

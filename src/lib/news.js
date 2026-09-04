@@ -9,7 +9,7 @@ import {
 import { db } from './firebase.js'
 
 export const NEWS_ITEMS_COLLECTION = 'newsItems'
-const NEWS_CATEGORY_READ_STATES_COLLECTION = 'newsCategoryReadStates'
+const NEWS_ITEM_READ_STATES_COLLECTION = 'newsItemReadStates'
 
 export const NEWS_CATEGORIES = [
   { value: 'internal', label: 'Interne News', description: 'Unternehmen & Team' },
@@ -200,15 +200,15 @@ export async function listNewsItems() {
   return snapshot.docs.map(mapSnapshot).sort((left, right) => dateToMillis(right.publishedAt) - dateToMillis(left.publishedAt) || dateToMillis(right.updatedAt || right.createdAt) - dateToMillis(left.updatedAt || left.createdAt))
 }
 
-export async function listNewsCategoryReadStates(uid) {
-  if (!uid) return {}
-  const snapshot = await getDocs(collection(db, NEWS_CATEGORY_READ_STATES_COLLECTION, uid, 'categories'))
-  return Object.fromEntries(snapshot.docs.map((item) => [item.id, item.data().seenAt]))
+export async function listNewsItemReadStates(uid) {
+  if (!uid) return []
+  const snapshot = await getDocs(collection(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items'))
+  return snapshot.docs.map((item) => item.id)
 }
 
-export async function markNewsCategorySeen(uid, category) {
-  if (!uid || !NEWS_CATEGORIES.some((item) => item.value === category)) return
-  await setDoc(doc(db, NEWS_CATEGORY_READ_STATES_COLLECTION, uid, 'categories', category), { category, seenAt: serverTimestamp() })
+export async function markNewsItemSeen(uid, itemId) {
+  if (!uid || !itemId) return
+  await setDoc(doc(db, NEWS_ITEM_READ_STATES_COLLECTION, uid, 'items', itemId), { itemId, readAt: serverTimestamp() })
 }
 
 export async function createNewsItem(values) {
