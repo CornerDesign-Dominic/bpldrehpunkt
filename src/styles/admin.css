@@ -58,7 +58,7 @@
 .admin-employees th:nth-child(5) { width: 15%; }
 .admin-employees th:nth-child(6) { width: 10%; }
 .admin-employees__action { text-align: right; }
-.admin-employees__action button { padding: 0; border: 0; color: var(--text-muted); background: transparent; font: inherit; font-size: 11px; font-weight: 650; }
+.admin-employees__action button { display: inline-grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 1px solid var(--border); border-radius: 4px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; }.admin-employees__action button:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--surface-secondary); }.admin-employees__action button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
 .admin-placeholder { padding: 15px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .admin-placeholder ul { display: grid; gap: 5px; margin: 12px 0 0; padding-left: 17px; color: var(--text-secondary); font-size: 12px; }
 .admin-user-form { display: grid; gap: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
