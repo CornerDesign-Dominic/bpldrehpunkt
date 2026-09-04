@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import NewsForm from '../components/news/NewsForm.jsx'
 import NewsList from '../components/news/NewsList.jsx'
 import NewsMultiSelect from '../components/news/NewsMultiSelect.jsx'
-import { DrehpunktLogoIcon, ParagraphIcon, TrendUpIcon, TruckFrontIcon } from '../components/icons.jsx'
+import { DrehpunktLogoIcon, ParagraphIcon, TrendUpIcon, TruckTrailerIcon } from '../components/icons.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
@@ -42,7 +42,7 @@ const periodFilters = [
 
 const newsCategoryIcons = {
   internal: DrehpunktLogoIcon,
-  traffic_infrastructure: TruckFrontIcon,
+  traffic_infrastructure: TruckTrailerIcon,
   law_regulations: ParagraphIcon,
   logistics_market: TrendUpIcon,
 }

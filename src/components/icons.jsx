@@ -6,8 +6,8 @@ export function DrehpunktLogoIcon({ size = 24 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11.5" cy="13" r="3.1" /><path d="M18.2 12.6A7.3 7.3 0 1 1 10.9 5.3h3.7V2.7l5.7 4.5-5.7 4.5V8.4h-3.7" /></svg>
 }
 
-export function TruckFrontIcon({ size = 24 }) {
-  return <svg width={size} height={size} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 11a1 1 0 1 1-2 0 1 1 0 0 1 2 0m8 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0m-6-1a1 1 0 1 0 0 2h2a1 1 0 1 0 0-2zM4 2a1 1 0 0 0-1 1v3.9c0 .625.562 1.092 1.17.994C5.075 7.747 6.792 7.5 8 7.5s2.925.247 3.83.394A1.008 1.008 0 0 0 13 6.9V3a1 1 0 0 0-1-1zm0 1h8v3.9q0 .002 0 0l-.002.004-.005.002h-.004C11.088 6.761 9.299 6.5 8 6.5s-3.088.26-3.99.406h-.003l-.005-.002L4 6.9q0 .002 0 0z" /></svg>
+export function TruckTrailerIcon({ size = 24 }) {
+  return <FaTruck size={size} aria-hidden="true" focusable="false" />
 }
 
 export function ParagraphIcon({ size = 24 }) {
@@ -113,3 +113,5 @@ export function EyeIcon({ size = 17 }) {
 export function EyeOffIcon({ size = 17 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.5 3.1M6.5 6.5A17.2 17.2 0 0 0 2.5 12s3.5 6 9.5 6a10.7 10.7 0 0 0 3.2-.5" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
 }
+// Font Awesome Free (CC BY 4.0), provided through react-icons.
+import { FaTruck } from 'react-icons/fa6'
