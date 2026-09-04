@@ -1056,6 +1056,14 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-updates:not(.todo-history) .todo-updates__heading h3 { font-size: 0; }
 .todo-updates:not(.todo-history) .todo-updates__heading h3::after { content: 'Updates zur To-Do'; font-size: 14px; }
 .todo-toolbar__views { display: flex; align-items: center; gap: 10px; }
+.todo-toolbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.todo-toolbar > .todo-view-switcher { justify-self: start; }
+.todo-toolbar > .todo-tabs { justify-self: center; }
+.todo-toolbar > .button { justify-self: end; }
+.todo-tabs { gap: 0; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.todo-tabs__tab { min-width: 76px; height: 28px; border-radius: 4px; color: var(--text-secondary); }
+.todo-tabs__tab:hover { color: var(--text-primary); background: var(--content-background); }
+.todo-tabs__tab--active { color: var(--button-text); background: var(--button-background); }
 .todo-view-switcher { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
 .todo-view-switcher__button { display: grid; width: 28px; height: 26px; padding: 0; place-items: center; border: 0; border-radius: 3px; color: var(--text-secondary); background: transparent; cursor: pointer; }
 .todo-view-switcher__button:hover, .todo-view-switcher__button--active { color: var(--button-text); background: var(--button-background); }
@@ -1118,6 +1126,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .todo-form__wide, .todo-form__section .todo-form__people { grid-column: auto; }
   .todo-form__people-options { grid-template-columns: 1fr; }
   .todo-quick-editor__grid--three, .todo-quick-editor__people > div { grid-template-columns: 1fr; }
+  .todo-toolbar { grid-template-columns: auto 1fr; }.todo-toolbar > .todo-tabs { justify-self: end; }.todo-toolbar > .button { grid-column: 1 / -1; justify-self: end; }
   .todo-detail-header { flex-direction: column; }
   .todo-detail-actions { justify-content: flex-start; }
   .todo-detail-list { grid-template-columns: 1fr; }
