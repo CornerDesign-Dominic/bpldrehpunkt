@@ -9,7 +9,6 @@ import {
   hideExternalNewsItem,
   isNewsInPeriod,
   isNewsNew,
-  LEGACY_NEWS_CATEGORIES,
   listNewsItems,
   NEWS_CATEGORIES,
   normalizeNewsCategory,
@@ -35,6 +34,7 @@ export default function NewsPage() {
   const [category, setCategory] = useState('internal')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [period, setPeriod] = useState('all')
+  const [search, setSearch] = useState('')
   const [editingItem, setEditingItem] = useState(undefined)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -51,11 +51,14 @@ export default function NewsPage() {
     return () => { current = false }
   }, [])
 
-  const visibleCategories = useMemo(() => [
-    ...NEWS_CATEGORIES,
-    ...LEGACY_NEWS_CATEGORIES.filter((legacyCategory) => items.some((item) => item.status === 'active' && item.category === legacyCategory.value)),
-  ], [items])
-  const visibleItems = useMemo(() => items.filter((item) => item.status === 'active' && (category === 'other' ? item.category === 'other' : normalizeNewsCategory(item.category) === category) && (priorityFilter === 'all' || (priorityFilter === 'new' ? isNewsNew(item) : item.priority === 'important')) && isNewsInPeriod(item, period)), [category, items, period, priorityFilter])
+  const visibleItems = useMemo(() => {
+    const searchTerm = search.trim().toLocaleLowerCase('de-DE')
+    return items.filter((item) => item.status === 'active'
+      && normalizeNewsCategory(item.category) === category
+      && (priorityFilter === 'all' || (priorityFilter === 'new' ? isNewsNew(item) : item.priority === 'important'))
+      && isNewsInPeriod(item, period)
+      && (!searchTerm || [item.title, item.summary, item.content, item.source].some((value) => String(value || '').toLocaleLowerCase('de-DE').includes(searchTerm))))
+  }, [category, items, period, priorityFilter, search])
   const selectedItem = editingItem && editingItem !== 'new' ? editingItem : null
 
   function selectCategory(nextCategory) {
@@ -99,8 +102,8 @@ export default function NewsPage() {
   return <div className="news-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <section className="news-header-card">
-      <div className="news-tabs" role="tablist" aria-label="News-Kategorien">{visibleCategories.map((item) => <button key={item.value} type="button" role="tab" aria-selected={category === item.value} className={category === item.value ? 'news-tabs__tab news-tabs__tab--active' : 'news-tabs__tab'} onClick={() => selectCategory(item.value)}>{item.label}</button>)}</div>
-      <div className="news-toolbar"><div className="news-toolbar__filters"><div className="news-filter-group" aria-label="Priorität filtern">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}</div><label className="filter-field"><span className="sr-only">Zeitraum filtern</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label></div>{category === 'internal' && canEdit('news') && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}</div>
+      <div className="news-tabs" role="tablist" aria-label="News-Hauptkategorie">{NEWS_CATEGORIES.map((item) => <button key={item.value} type="button" role="tab" aria-selected={category === item.value} className={category === item.value ? 'news-tabs__tab news-tabs__tab--active' : 'news-tabs__tab'} onClick={() => selectCategory(item.value)}><span className="news-tabs__title">{item.label}</span><span className="news-tabs__description">{item.description}</span></button>)}</div>
+      <div className="news-toolbar"><div className="news-toolbar__filters"><div className="news-filter-group" aria-label="Priorität filtern">{priorityFilters.map((filter) => <button key={filter.value} className={priorityFilter === filter.value ? 'news-filter news-filter--active' : 'news-filter'} type="button" onClick={() => setPriorityFilter(filter.value)}>{filter.label}</button>)}</div><label className="filter-field"><span className="sr-only">Zeitraum filtern</span><select value={period} onChange={(event) => setPeriod(event.target.value)}>{periodFilters.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label><label className="search-field news-toolbar__search"><span className="sr-only">News durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="News durchsuchen" /></label></div>{category === 'internal' && canEdit('news') && <button className="button" type="button" onClick={() => setEditingItem('new')}>Meldung hinzufügen</button>}</div>
       {category !== 'internal' && <div className="news-external-hint"><span>{category === 'other' ? 'Dies ist ein sichtbarer Altbestand. Neue automatisch recherchierte Meldungen werden hier nicht mehr abgelegt.' : 'Die automatische Recherche läuft täglich um 07:00 Uhr. Neue, relevante Meldungen werden mit Quelle und KI-Zusammenfassung in dieser Kategorie gespeichert.'}</span></div>}
     </section>
     {editingItem && <NewsForm key={selectedItem?.id || 'new'} item={selectedItem} onCancel={() => setEditingItem(undefined)} onSubmit={saveItem} />}

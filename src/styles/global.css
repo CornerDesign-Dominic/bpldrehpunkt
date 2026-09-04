@@ -837,10 +837,12 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .todo-actions .todo-actions__withdraw { color: var(--legacy-8b5a5a); }
 .news-page { display: grid; gap: 14px; max-width: var(--list-content-max-width); margin: 0 auto; }
 .news-header-card { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--section-border); border-radius: 7px; background: var(--section-background); box-shadow: 0 1px 2px var(--workspace-shadow); }
-.news-tabs { display: flex; gap: 3px; }
-.news-tabs__tab { height: 30px; padding: 0 10px; border: 0; border-radius: 4px; color: var(--legacy-75808d); background: transparent; cursor: pointer; font-size: 12px; font-weight: 650; }
-.news-tabs__tab:hover { color: var(--legacy-43596f); background: var(--legacy-edf1f4); }.news-tabs__tab--active { color: var(--legacy-394f65); background: var(--legacy-e8eef4); }
-.news-toolbar, .news-toolbar__filters, .news-filter-group { display: flex; align-items: center; gap: 8px; }.news-toolbar { justify-content: space-between; }
+.news-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.news-tabs__tab { display: grid; min-width: 0; min-height: 48px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; font: inherit; text-align: left; transition: border-color 120ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease; }
+.news-tabs__title { overflow: hidden; color: inherit; font-size: 12px; font-weight: 750; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.news-tabs__description { overflow: hidden; margin-top: 3px; color: var(--text-muted); font-size: 10px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.news-tabs__tab:hover { border-color: var(--border-strong); color: var(--text-primary); background: var(--surface-secondary); }.news-tabs__tab:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }.news-tabs__tab--active { border-color: var(--button-background); color: var(--text-primary); background: var(--surface-active); box-shadow: inset 3px 0 0 var(--button-background); }.news-tabs__tab--active .news-tabs__description { color: var(--text-secondary); }
+.news-toolbar, .news-toolbar__filters, .news-filter-group { display: flex; align-items: center; gap: 8px; }.news-toolbar { justify-content: space-between; }.news-toolbar__search { width: 220px; }
 .news-filter-group { gap: 3px; }.news-filter { height: 28px; padding: 0 9px; border: 0; border-radius: 4px; color: var(--legacy-75808d); background: transparent; cursor: pointer; font-size: 12px; font-weight: 650; }.news-filter:hover { color: var(--legacy-43596f); background: var(--legacy-edf1f4); }.news-filter--active { color: var(--legacy-394f65); background: var(--legacy-e8eef4); }
 .news-external-hint { color: var(--legacy-7b8693); font-size: 11px; }
 .news-form { display: grid; gap: 10px; padding: 13px; border: 1px solid var(--legacy-dfe4e9); border-radius: 7px; background: var(--legacy-fbfcfd); }.news-form__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.news-form__heading h2 { margin: 0; color: var(--legacy-435061); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
@@ -1103,7 +1105,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .todo-detail-layout { grid-template-columns: 1fr; }
   .todo-updates__form { align-items: stretch; flex-direction: column; }
   .todo-updates__form .button { align-self: flex-start; }
-  .news-tabs { flex-wrap: wrap; }.news-toolbar { align-items: flex-start; flex-direction: column; }.news-form__grid { grid-template-columns: 1fr; }.news-form__title, .news-form__wide { grid-column: auto; }.news-entry { grid-template-columns: 1fr; gap: 4px; }.news-entry__heading { flex-direction: column; gap: 6px; }
+  .news-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }.news-toolbar { align-items: flex-start; flex-direction: column; }.news-form__grid { grid-template-columns: 1fr; }.news-form__title, .news-form__wide { grid-column: auto; }.news-entry { grid-template-columns: 1fr; gap: 4px; }.news-entry__heading { flex-direction: column; gap: 6px; }
   .document-form__grid { grid-template-columns: 1fr; }.document-form__title, .document-form__description { grid-column: auto; }
   .contacts-section__header { flex-direction: column; }
   .toast { top: 96px; right: 20px; left: 84px; }

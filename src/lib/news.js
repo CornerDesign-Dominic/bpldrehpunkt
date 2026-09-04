@@ -11,10 +11,10 @@ import { db } from './firebase.js'
 export const NEWS_ITEMS_COLLECTION = 'newsItems'
 
 export const NEWS_CATEGORIES = [
-  { value: 'internal', label: 'Interne News' },
-  { value: 'traffic_infrastructure', label: 'Verkehr & Infrastruktur' },
-  { value: 'law_regulations', label: 'Recht & Vorgaben' },
-  { value: 'logistics_market', label: 'Logistik & Markt' },
+  { value: 'internal', label: 'Interne News', description: 'Unternehmen & Team' },
+  { value: 'traffic_infrastructure', label: 'Verkehr & Infrastruktur', description: 'Routen & Einschränkungen' },
+  { value: 'law_regulations', label: 'Recht & Vorgaben', description: 'Pflichten & Fristen' },
+  { value: 'logistics_market', label: 'Logistik & Markt', description: 'Branche & Kapazitäten' },
 ]
 
 export const INTERNAL_NEWS_CATEGORIES = [
