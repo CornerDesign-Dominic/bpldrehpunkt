@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 
 export const CALENDARS_COLLECTION = 'calendars'
@@ -130,6 +130,19 @@ export async function setCalendarPermission(calendarId, userId, level) {
     level: permissionLevel,
     updatedAt: serverTimestamp(),
   })
+}
+
+export async function setCalendarPermissions(calendarId, permissionsByUser) {
+  const entries = Object.entries(permissionsByUser || {})
+    .filter(([userId]) => typeof userId === 'string' && userId)
+    .map(([userId, level]) => [userId, CALENDAR_LEVELS.includes(level) ? level : 'none'])
+  for (let start = 0; start < entries.length; start += 500) {
+    const batch = writeBatch(db)
+    entries.slice(start, start + 500).forEach(([userId, level]) => {
+      batch.set(doc(db, CALENDAR_PERMISSIONS_COLLECTION, calendarPermissionId(calendarId, userId)), { calendarId, userId, level, updatedAt: serverTimestamp() })
+    })
+    await batch.commit()
+  }
 }
 
 export async function listCalendarEvents(calendars) {
