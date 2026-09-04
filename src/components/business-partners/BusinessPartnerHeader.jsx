@@ -34,8 +34,8 @@ export default function BusinessPartnerHeader({ account, canViewCrm, canViewPall
       </PartnerHeaderTile>
 
       <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" title="Ranking" tone="ranking" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
-        <span className="partner-header__rating"><strong data-status={customerRating?.status}>{customerRating?.value ?? '—'}</strong><span>Kunde</span></span>
-        <span className="partner-header__rating"><strong data-status={carrierRating?.status}>{carrierRating?.value ?? '—'}</strong><span>Unternehmer</span></span>
+        <span className="partner-header__rating"><strong data-status={customerRating?.status}>{customerRating?.value ?? 'X / 5'}</strong><span className="partner-header__rating-label">KU</span></span>
+        <span className="partner-header__rating"><strong data-status={carrierRating?.status}>{carrierRating?.value ?? 'X / 5'}</strong><span className="partner-header__rating-label">UTN</span></span>
       </PartnerHeaderTile>
 
       <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" title="Kreditlimit" tone="credit-limit" to={canViewCrm ? `/crm/${partnerId}` : undefined}>

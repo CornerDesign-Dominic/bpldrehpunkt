@@ -31,6 +31,7 @@
 .partner-header__tile--link:hover .partner-header__tile-chevron, .partner-header__tile--link:focus-visible .partner-header__tile-chevron { color: var(--text-primary); transform: translateX(2px) scale(1.08); }
 .partner-header__rating { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.45; }
 .partner-header__rating strong { flex: 0 0 auto; color: var(--text-primary); font-size: 18px; font-weight: 750; line-height: 1.25; }
+.partner-header__rating-label { flex: 0 0 auto; color: var(--partner-kpi-accent); font-size: 18px; font-weight: 750; line-height: 1.25; text-align: right; }
 .partner-header__rating strong[data-status='good'] { color: var(--status-success-text); }
 .partner-header__rating strong[data-status='watch'] { color: var(--status-warning-text); }
 .partner-header__rating strong[data-status='critical'] { color: var(--status-danger-text); }
