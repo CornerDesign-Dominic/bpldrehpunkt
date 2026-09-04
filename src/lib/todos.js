@@ -14,7 +14,7 @@ import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 
 export const TODOS_COLLECTION = 'todos'
-export const TODO_STATUS = { open: 'Offen', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
+export const TODO_STATUS = { open: 'Keine Bearbeitung', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
 export const TODO_PRIORITY = { low: 'Gering', medium: 'Mittel', high: 'Hoch' }
 const todosRef = collection(db, TODOS_COLLECTION)
 const activePoolStatuses = ['open', 'in_progress', 'completed']

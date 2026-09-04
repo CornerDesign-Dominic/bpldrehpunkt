@@ -1044,6 +1044,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-updates:not(.todo-history) .todo-updates__form > .button::after { content: 'Hinzufügen'; font-size: 12px; }
 .todo-updates:not(.todo-history) .todo-updates__form:has(textarea:placeholder-shown) > .button { display: none; }
 .todo-updates__heading > span { display: none; }
+.todo-updates:not(.todo-history) .todo-updates__heading h3 { font-size: 0; }
+.todo-updates:not(.todo-history) .todo-updates__heading h3::after { content: 'Updates zur To-Do'; font-size: 14px; }
 .todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .todo-detail-navigation { display: flex; width: 100%; max-width: 960px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 auto 14px; }
 .todo-detail-header__title { margin-top: 0; }

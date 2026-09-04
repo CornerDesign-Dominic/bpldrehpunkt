@@ -13,7 +13,7 @@ function initialValues(todo, currentUserId) {
   }
 }
 
-const sectionTitles = { content: 'Inhalt bearbeiten', schedule: 'Priorität & Termine bearbeiten', responsibility: 'Zuständigkeit bearbeiten', links: 'Verknüpfungen bearbeiten' }
+const sectionTitles = { content: 'Inhalt bearbeiten', schedule: 'Priorität & Termine bearbeiten', responsibility: 'Zuständigkeit ändern', links: 'Verknüpfungen bearbeiten' }
 
 export default function TodoQuickEditModal({ currentUserId, onCancel, onSubmit, partners = [], section, todo, users = [] }) {
   const [form, setForm] = useState(() => initialValues(todo, currentUserId))

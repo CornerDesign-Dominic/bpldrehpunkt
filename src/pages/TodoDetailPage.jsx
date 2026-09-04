@@ -15,7 +15,6 @@ import {
   completeTodoForCurrentUser,
   getTodoById,
   isAudienceMember,
-  isSelfTodo,
   listTodoUpdates,
   reactivateTodoForCurrentUser,
   releaseTodoFromCurrentUser,
@@ -44,25 +43,23 @@ function dueClass(todo) {
 }
 
 function Detail({ label, children }) {
-  return <div><dt>{label}</dt><dd>{children || '—'}</dd></div>
+  const labels = { Zielgruppe: 'Zugewiesen an', 'Aktueller Bearbeiter': 'In Bearbeitung durch' }
+  return <div><dt>{labels[label] || label}</dt><dd>{children || '—'}</dd></div>
 }
 
 function DetailSectionHeading({ children, onEdit }) {
   return <div className="todo-detail-section-heading"><h3>{children}</h3>{onEdit && <button className="todo-detail-section-edit" type="button" onClick={onEdit} title={`${children} bearbeiten`} aria-label={`${children} bearbeiten`}><EditIcon size={14} /></button>}</div>
 }
 
-function TodoActions({ actor, editable, onAction, onQuickEdit, todo }) {
-  const canManage = actor.profile?.role === 'superadmin' || todo.creatorUserId === actor.user.uid
+function TodoActions({ actor, editable, onAction, todo }) {
   const isAssignee = todo.assignedUserId === actor.user.uid
-  const isPersonalOwnTodo = isSelfTodo(todo, actor.user.uid)
   const canTake = editable && todo.status === 'open' && !todo.assignedUserId && isAudienceMember(todo, actor)
   const canReactivate = editable && todo.status === 'completed' && isAssignee
   if (!editable) return null
   return <div className="todo-detail-actions">
     {canTake && <button className="button" type="button" onClick={() => onAction('assign', todo)}>Aufgabe annehmen</button>}
-    {isAssignee && todo.status === 'in_progress' && <>{!isPersonalOwnTodo && <button className="button button--secondary" type="button" onClick={() => onAction('release', todo)}>Freigeben</button>}<button className="button" type="button" onClick={() => onAction('complete', todo)}>Erledigen</button></>}
+    {isAssignee && todo.status === 'in_progress' && <button className="button" type="button" onClick={() => onAction('complete', todo)}>Erledigen</button>}
     {canReactivate && <button className="button" type="button" onClick={() => onAction('reactivate', todo)}>Reaktivieren</button>}
-    {canManage && ['open', 'in_progress'].includes(todo.status) && <><button className="button button--secondary" type="button" onClick={() => onQuickEdit('responsibility')}>Neu zuweisen</button><button className="button button--danger" type="button" onClick={() => onAction('withdraw', todo)}>Zurückziehen</button></>}
   </div>
 }
 
@@ -102,10 +99,10 @@ export default function TodoDetailPage() {
     return () => { current = false }
   }, [canViewMasterData, editable, todoId])
 
-  async function saveQuickEdit(values) {
+  async function saveQuickEdit(values, options = {}) {
     const todo = result.todo
     const audienceChanged = audienceHasChanged(todo, values, user.uid)
-    const resetAssignment = audienceChanged
+    const resetAssignment = audienceChanged || options.releaseAssignment
     if (todo.assignedUserId && resetAssignment) {
       setConfirmation({ type: 'quick-save', values, title: 'Übernahme zurücksetzen?', message: 'Das To-do wurde bereits übernommen. Durch diese Änderung wird die Bearbeitung beendet und das To-do wieder geöffnet.' })
       return
@@ -188,7 +185,7 @@ export default function TodoDetailPage() {
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} cancelLabel={confirmation?.type === 'complete' ? 'Nein' : 'Abbrechen'} confirmLabel={confirmation?.type === 'complete' ? 'Ja, erledigen' : 'Bestätigen'} variant={confirmation?.type === 'withdraw' ? 'danger' : 'primary'} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
-    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/todos">Zurück</Link><TodoActions actor={actor} editable={editable} onAction={handleAction} onQuickEdit={setQuickEditing} todo={todo} /></div>
+    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/todos">Zurück</Link><TodoActions actor={actor} editable={editable} onAction={handleAction} todo={todo} /></div>
     <div className="todo-detail-page">
     <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{todo.title}</h2>{canManageSections && <button className="todo-detail-section-edit" type="button" onClick={() => setQuickEditing('content')} title="Titel bearbeiten" aria-label="Titel bearbeiten"><EditIcon size={14} /></button>}<span className={`todo-status todo-status--${todo.status}`}>{TODO_STATUS[todo.status] || '—'}</span></div></header>
     {error && <p className="form-error">{error}</p>}
