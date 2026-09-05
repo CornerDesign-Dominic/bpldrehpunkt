@@ -6,7 +6,7 @@ import Toast from '../components/ui/Toast.jsx'
 import { EditIcon } from '../components/icons.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
-import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
+import { getUserDisplayName, listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import {
   assignTodoToCurrentUser,
@@ -95,7 +95,7 @@ export default function TodoDetailPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([getTodoById(todoId), listTodoUpdates(todoId), editable ? listUserProfiles() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    Promise.all([getTodoById(todoId), listTodoUpdates(todoId), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
       .then(([todo, todoUpdates, profiles, businessPartners]) => { if (current) { setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' }); setUpdates(todoUpdates); setUpdatesLoading(false); setUsers(profiles); setPartners(businessPartners) } })
       .catch((loadError) => { if (current) { setResult({ todo: null, error: loadError.code === 'permission-denied' ? 'Kein Zugriff auf diese Aufgabe.' : 'Aufgabe nicht gefunden.' }); setUpdatesLoading(false) } })
     return () => { current = false }

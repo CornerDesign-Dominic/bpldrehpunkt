@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CopyIcon } from '../components/icons.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import { getUserAvailabilityStatus, listUserProfiles } from '../lib/userProfiles.js'
+import { getUserAvailabilityStatus, listVisibleUserDirectory } from '../lib/userProfiles.js'
 import '../styles/team.css'
 
 function displayName(member) {
@@ -32,7 +32,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     let current = true
-    listUserProfiles()
+    listVisibleUserDirectory()
       .then((profiles) => { if (current) setMembers(profiles) })
       .catch(() => { if (current) setError('Das Teamverzeichnis konnte nicht geladen werden.') })
       .finally(() => { if (current) setLoading(false) })

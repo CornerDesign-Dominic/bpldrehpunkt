@@ -16,5 +16,5 @@ export function ThemeProvider({ children }) {
     window.localStorage.setItem('drehpunkt-theme', theme)
   }, [theme])
 
-  return <ThemeContext.Provider value={{ theme, toggleTheme: () => setTheme((value) => value === 'light' ? 'dark' : 'light') }}>{children}</ThemeContext.Provider>
+  return <ThemeContext.Provider value={{ theme, setTheme, toggleTheme: () => setTheme((value) => value === 'light' ? 'dark' : 'light') }}>{children}</ThemeContext.Provider>
 }

@@ -5,7 +5,7 @@ import VacationCalendar from '../components/vacation/VacationCalendar.jsx'
 import VacationCalendarLegend from '../components/vacation/VacationCalendarLegend.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
-import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
+import { getUserDisplayName, listVisibleUserDirectory } from '../lib/userProfiles.js'
 import {
   businessDays,
   createVacationCancellationRequest,
@@ -42,7 +42,7 @@ function previousYearCarryover(profile) {
 }
 
 async function loadVacationData(currentUser, currentProfile) {
-  const [profiles, requests, calendarItems, history] = await Promise.all([listUserProfiles(), listVacationRequests(currentUser.uid), listVacationCalendarItems(), listVacationHistory(currentUser.uid)])
+  const [profiles, requests, calendarItems, history] = await Promise.all([listVisibleUserDirectory(), listVacationRequests(currentUser.uid), listVacationCalendarItems(), listVacationHistory(currentUser.uid)])
   const ownProfile = { id: currentUser.uid, ...currentProfile, email: currentUser.email || currentProfile?.email }
   return { users: profiles.some((item) => item.id === currentUser.uid) ? profiles : [...profiles, ownProfile], requests, history, ...calendarItems }
 }

@@ -445,8 +445,9 @@ button, a { font: inherit; }
 .sidebar__profile-identity strong, .sidebar__profile-identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar__profile-identity strong { color: var(--sidebar-text-strong); font-size: 12px; font-weight: 700; }
 .sidebar__profile-identity small { color: var(--sidebar-text); font-size: 10px; }
-.sidebar__nav { display: grid; min-height: 0; flex: 1; align-content: start; gap: 16px; margin-top: 18px; overflow-y: auto; scrollbar-width: thin; }
+.sidebar__nav { display: grid; min-height: 0; flex: 1; align-content: start; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 2px solid var(--border-strong); overflow-y: auto; scrollbar-width: thin; }
 .sidebar__nav-group { display: grid; gap: 2px; }
+.sidebar__nav-group + .sidebar__nav-group { padding-top: 10px; border-top: 1px solid var(--border); }
 .sidebar__nav-group-label { display: block; padding: 0 6px 5px; overflow: hidden; color: var(--sidebar-text); font-size: 10px; font-weight: 750; letter-spacing: .05em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; opacity: .64; }
 .nav-item { display: flex; height: 36px; align-items: center; gap: 10px; padding: 0 6px; border-radius: 6px; color: var(--sidebar-text); text-decoration: none; white-space: nowrap; font-size: 13px; font-weight: 600; }
 .nav-item:hover { color: var(--sidebar-text-strong); background: var(--sidebar-hover); }
@@ -455,23 +456,17 @@ button, a { font: inherit; }
 .sidebar-collapsed .sidebar { padding-inline: 10px; }
 .sidebar-collapsed .sidebar__brand { justify-content: flex-start; padding: 0 6px; }
 .sidebar-collapsed .sidebar__profile { width: 100%; justify-content: flex-start; padding: 0 6px; }
-.sidebar-collapsed .sidebar__nav { width: 100%; gap: 11px; }
+.sidebar-collapsed .sidebar__nav { width: 100%; gap: 8px; }
 .sidebar-collapsed .sidebar__nav-group { gap: 3px; }
 .sidebar-collapsed .nav-item { justify-content: flex-start; padding: 0 6px; }
-.sidebar__footer { display: grid; width: 100%; justify-items: end; gap: 9px; margin-top: auto; padding: 0 2px 2px 6px; }
-.sidebar__signout { display: inline-flex; width: 100%; height: 34px; align-items: center; gap: 10px; padding: 0 6px; border: 0; border-radius: 6px; color: var(--sidebar-text); background: transparent; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; text-align: left; }
+.sidebar__footer { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding: 0 2px 2px 6px; }
+.sidebar__signout { display: inline-flex; height: 34px; align-items: center; gap: 10px; padding: 0 6px; border: 0; border-radius: 6px; color: var(--sidebar-text); background: transparent; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; text-align: left; }
 .sidebar__signout svg { width: 19px; height: 19px; flex: 0 0 19px; }
 .sidebar__signout:hover:not(:disabled) { color: var(--sidebar-text-strong); background: var(--sidebar-hover); }
 .sidebar__signout:disabled { cursor: wait; opacity: .7; }
-.sidebar__footer-controls { display: grid; justify-items: end; gap: 7px; }
-.sidebar__toggle, .sidebar__theme-toggle { display: inline-flex; height: 34px; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--sidebar-text-strong); background: var(--sidebar-hover); cursor: pointer; }
-.sidebar__toggle { width: 34px; }
-.sidebar__theme-toggle { width: 34px; min-width: 34px; padding: 0; color: var(--sidebar-text); }
-.sidebar__theme-toggle span { display: none; }
-.sidebar__toggle:hover, .sidebar__theme-toggle:hover { color: var(--sidebar-text-strong); background: var(--sidebar-active); }
-.sidebar-collapsed .sidebar__footer { justify-items: start; }
-.sidebar-collapsed .sidebar__footer-controls { justify-items: start; }
-.sidebar-collapsed .sidebar__theme-toggle { width: 34px; padding: 0; }
+.sidebar__toggle { display: inline-flex; width: 34px; height: 34px; align-items: center; justify-content: center; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--sidebar-text-strong); background: var(--sidebar-hover); cursor: pointer; }
+.sidebar__toggle:hover { color: var(--sidebar-text-strong); background: var(--sidebar-active); }
+.sidebar-collapsed .sidebar__footer { justify-content: flex-start; }
 .toggle-icon { display: grid; transform: rotate(180deg); }
 .toggle-icon--collapsed { transform: none; }
 .content-frame { min-width: 0; min-height: 0; height: 100%; display: grid; grid-template-rows: 86px minmax(0, 1fr); overflow: hidden; }

@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
 import { canManageUsers, canManageVacations, canView } from '../../lib/permissions.js'
-import { CalendarIcon, ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, SunIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
+import { CalendarIcon, ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 
 const navigationItems = [
@@ -30,7 +30,7 @@ const navigationGroups = [
   { key: 'administration', label: 'Verwaltung' },
 ]
 
-export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
+export default function Sidebar({ collapsed, onToggle }) {
   const navigate = useNavigate()
   const { profile, user } = useAuth()
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -77,12 +77,9 @@ export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
 
       <div className="sidebar__footer">
         {!collapsed && <button className="sidebar__signout" type="button" onClick={handleSignOut} disabled={isSigningOut}><SignOutIcon />{isSigningOut ? 'Wird abgemeldet …' : 'Abmelden'}</button>}
-        <div className="sidebar__footer-controls">
-          <button className="sidebar__theme-toggle" type="button" onClick={onThemeToggle} aria-label={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'} title={theme === 'light' ? 'Dunkles Design aktivieren' : 'Helles Design aktivieren'}>{theme === 'light' ? <MoonIcon /> : <SunIcon />}</button>
-          <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'} title={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>
-            <span className={collapsed ? 'toggle-icon toggle-icon--collapsed' : 'toggle-icon'}><ChevronIcon size={20} /></span>
-          </button>
-        </div>
+        <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'} title={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>
+          <span className={collapsed ? 'toggle-icon toggle-icon--collapsed' : 'toggle-icon'}><ChevronIcon size={20} /></span>
+        </button>
       </div>
     </aside>
   )

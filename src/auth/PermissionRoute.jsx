@@ -11,7 +11,7 @@ export default function PermissionRoute({ module, children, requireUserManagemen
   const { isLoading, profile } = useAuth()
   const location = useLocation()
   if (isLoading) return <AuthLoadingScreen />
-  const allowed = requireSuperadmin ? canManagePermissions(profile) && profile?.active !== false : requireUserManagement ? canManageUsers(profile) : requireVacationManagement ? canManageVacations(profile) : canView(profile, module)
+  const allowed = requireSuperadmin ? canManagePermissions(profile) && profile?.active === true : requireUserManagement ? canManageUsers(profile) : requireVacationManagement ? canManageVacations(profile) : canView(profile, module)
   if (allowed) return children
   // Keep a compact denial view for logged-in users; unauthenticated access still
   // goes through ProtectedRoute before this component.

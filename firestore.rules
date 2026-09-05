@@ -43,8 +43,11 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if active() && (userId == request.auth.uid || admin() || view('team'));
-      allow list: if admin() || view('team') || view('vacation') || edit('todos');
+      // A client may read its own complete profile only.  Team, vacation and
+      // to-do directories are supplied as deliberately reduced data by a
+      // callable function; they must never grant direct profile access.
+      allow get: if active() && (userId == request.auth.uid || admin());
+      allow list: if admin();
       // Accounts are only created by the Admin SDK callable function.
       allow create, delete: if false;
       allow update: if superadmin() || (admin() && resource.data.role == 'user'

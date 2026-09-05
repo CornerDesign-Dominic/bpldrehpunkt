@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
-import { db } from './firebase.js'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from './firebase.js'
 import { USER_ROLES, getSafeProfileDefaults } from './permissions.js'
 
 export const USER_PROFILES_COLLECTION = 'users'
@@ -24,6 +25,13 @@ export async function getUserProfile(uid) {
 export async function listUserProfiles() {
   const snapshot = await getDocs(collection(db, USER_PROFILES_COLLECTION))
   return snapshot.docs.map((item) => getSafeProfileDefaults({ id: item.id, ...item.data() }))
+}
+
+// This is intentionally not a Firestore profile query. The callable returns
+// only the fields required by the team, vacation and to-do directories.
+export async function listVisibleUserDirectory() {
+  const result = await httpsCallable(functions, 'listVisibleUserDirectory')()
+  return Array.isArray(result.data?.profiles) ? result.data.profiles : []
 }
 
 export function getUserDisplayName(profile, user) {

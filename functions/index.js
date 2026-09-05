@@ -56,6 +56,44 @@ async function assertManager(request) {
   return requireRole(await requireActiveProfile(request), ['admin', 'superadmin'], 'Keine Berechtigung zur Benutzerverwaltung.')
 }
 
+function userDirectoryAccess(profile) {
+  if (profile?.role === 'admin' || profile?.role === 'superadmin') return { allowed: true, includeContactDetails: true }
+  const permissions = profile?.permissions ?? {}
+  const includeContactDetails = ['view', 'edit'].includes(permissions.team)
+  return {
+    allowed: includeContactDetails || ['view', 'edit'].includes(permissions.vacation) || permissions.todos === 'edit',
+    includeContactDetails,
+  }
+}
+
+function userDirectoryEntry(snapshot, includeContactDetails) {
+  const profile = snapshot.data()
+  return {
+    id: snapshot.id,
+    firstName: typeof profile.firstName === 'string' ? profile.firstName : '',
+    lastName: typeof profile.lastName === 'string' ? profile.lastName : '',
+    jobTitle: typeof profile.jobTitle === 'string' ? profile.jobTitle : '',
+    department: typeof profile.department === 'string' ? profile.department : '',
+    departmentName: typeof profile.departmentName === 'string' ? profile.departmentName : '',
+    departmentId: typeof profile.departmentId === 'string' ? profile.departmentId : null,
+    ...(typeof profile.availabilityStatus === 'string' ? { availabilityStatus: profile.availabilityStatus } : {}),
+    ...(includeContactDetails ? {
+      email: typeof profile.email === 'string' ? profile.email : '',
+      phone: typeof profile.phone === 'string' ? profile.phone : '',
+    } : {}),
+  }
+}
+
+// The client must not list complete users documents. This intentionally
+// exposes a small directory only to modules that need employee selection.
+export const listVisibleUserDirectory = onCall({ region: 'europe-west3' }, async (request) => {
+  const actor = await requireActiveProfile(request)
+  const access = userDirectoryAccess(actor)
+  if (!access.allowed) throw new HttpsError('permission-denied', 'Keine Berechtigung für das Mitarbeiterverzeichnis.')
+  const users = await db.collection('users').where('active', '==', true).get()
+  return { profiles: users.docs.map((snapshot) => userDirectoryEntry(snapshot, access.includeContactDetails)) }
+})
+
 export const createManagedUser = onCall({ region: 'europe-west3' }, async (request) => {
   const actor = await assertManager(request)
   const data = request.data ?? {}

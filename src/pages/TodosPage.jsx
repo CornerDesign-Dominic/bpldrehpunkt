@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
-import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
+import { getUserDisplayName, listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import {
   audienceHasChanged,
@@ -62,7 +62,7 @@ export default function TodosPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([listTodosForActor(actor), editable ? listUserProfiles() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    Promise.all([listTodosForActor(actor), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
       .then(([entries, profiles, businessPartners]) => { if (current) { setTodos(entries); setUsers(profiles); setPartners(businessPartners) } })
       .catch(() => { if (current) setError('Die To-dos konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })

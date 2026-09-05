@@ -27,7 +27,10 @@ export function AuthProvider({ children }) {
         setAccessDenied(false)
         unsubscribeProfile = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
           const profile = snapshot.exists() ? getSafeProfileDefaults({ id: snapshot.id, ...snapshot.data() }) : null
-          const profileIsActive = Boolean(profile) && profile.active !== false
+          // A profile must be explicitly confirmed as active.  This mirrors
+          // the server-side access checks and avoids treating a missing
+          // `active` field as a usable account.
+          const profileIsActive = Boolean(profile) && profile.active === true
           if (!profileIsActive) {
             if (isMounted && currentVersion === stateVersion) {
               setAccessDenied(true)
@@ -58,7 +61,7 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => ({
     ...authState,
-    isProfileActive: Boolean(authState.profile) && authState.profile.active !== false,
+    isProfileActive: Boolean(authState.profile) && authState.profile.active === true,
     accessDenied,
   }), [accessDenied, authState])
 
