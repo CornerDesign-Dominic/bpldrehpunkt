@@ -12,14 +12,15 @@ Diese Leitlinie ist für jede Änderung am Drehpunkt-Projekt verbindlich. Sicher
 
 - Es gibt keine öffentliche Registrierung. Benutzerkonten werden ausschließlich über die freigegebene Administration angelegt.
 - Nur aktive Nutzer mit einem gültigen Benutzerprofil dürfen auf Anwendungsdaten zugreifen. Ein Firebase-Auth-Konto ohne `users/{uid}`-Profil ist niemals freigegeben.
-- Das Feld `active: false` sperrt den Zugang in Frontend, Firestore Rules, Callable Functions und der Identity-Platform-Sign-in-Blocking-Function. Bestehende Profile ohne Feld gelten nur während der dokumentierten Migration weiterhin als aktiv.
+- Ausschließlich `active: true` gibt Zugang in Frontend, Firestore Rules, Callable Functions und der Identity-Platform-Sign-in-Blocking-Function. `active: false`, ein fehlendes Feld oder ein fehlendes Profil sperren den Zugang.
 - Rollen und Berechtigungen sind bei jeder sicherheitsrelevanten Aktion serverseitig zu prüfen. Frontend-Prüfungen dienen nur der Bedienbarkeit und ersetzen keine Autorisierung.
 - Firestore und Storage bleiben standardmäßig gesperrt. Zugriff wird nur für den konkreten, notwendigen Anwendungsfall gezielt in Rules freigegeben.
+- Firebase App Check ergänzt Authentifizierung und Rules gegen fremde Clients und Missbrauch. Neue Durchsetzungen werden zuerst über Metriken beobachtet und erst nach erfolgreichem Test für Functions, Firestore und Storage aktiviert.
 
 ## Kontofreigabe und Migration
 
-- Vor dem Aktivieren der Identity-Platform-Blocking-Function müssen vorhandene `users/{uid}`-Profile überprüft werden. Nur bestätigte Mitarbeiterprofile ohne `active` erhalten kontrolliert `active: true`; deaktivierte oder nicht zuordenbare Profile bleiben unverändert beziehungsweise erhalten `active: false`.
-- Die Umstellung erfolgt über einen geprüften Admin-SDK- oder Firebase-Console-Vorgang, nie durch eine Client-Schreibregel. Erst nach der Prüfung wird die Blocking-Function zusammen mit den Functions deployt und in Identity Platform als „Before sign-in“ aktiviert.
+- Legacy-Profile ohne `active` werden ausschließlich über die Superadmin-Kontenprüfung kontrolliert auf `active: true` migriert. Bis zur Bestätigung bleiben sie gesperrt; deaktivierte oder nicht zuordenbare Profile erhalten keinen Zugang.
+- Die Migration erfolgt durch eine geprüfte Superadmin-Callable, nie durch eine Client-Schreibregel. Neue `beforeSignIn`-Deployments müssen anschließend darauf geprüft werden, dass Identity Platform auf die zugehörige Cloud-Run-Adresse der Function zeigt.
 - `beforeUserCreated` bleibt deaktiviert, damit die Reihenfolge beim Admin-Workflow (`Auth` anlegen, anschließend `users/{uid}` schreiben) nicht verändert wird.
 - Bestehende fachliche `users`-Listen für Team, Urlaub und To-dos bleiben lesend erforderlich. Sie ersetzen weder die Superadmin-Callable für die Kontenprüfung noch verleihen sie Schreibrechte für die Migration.
 

@@ -14,6 +14,6 @@ test('rejects a missing profile', () => {
   assert.equal(hasActiveProfile(null), false)
 })
 
-test('keeps legacy profiles without an active field usable during migration', () => {
-  assert.equal(hasActiveProfile({ role: 'user' }), true)
+test('rejects a legacy profile without an explicit active field', () => {
+  assert.equal(hasActiveProfile({ role: 'user' }), false)
 })

@@ -3,6 +3,7 @@ import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getFunctions } from 'firebase/functions'
+import { ReCaptchaEnterpriseProvider, initializeAppCheck } from 'firebase/app-check'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBYklJVALDla-I1xfJODOUkuw_oHpIOfDY',
@@ -16,6 +17,17 @@ const firebaseConfig = {
 
 // Reuses the initialized app during hot module reloads in local development.
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig)
+
+// App Check is intentionally optional until the Web app has been registered
+// in Firebase Console. Its site key is public; it is not a Firebase secret.
+// A missing key keeps the existing rollout in monitoring-safe mode.
+const appCheckSiteKey = import.meta.env.VITE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY
+export const appCheck = appCheckSiteKey
+  ? initializeAppCheck(firebaseApp, {
+      provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    })
+  : null
 
 export const auth = getAuth(firebaseApp)
 export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => undefined)

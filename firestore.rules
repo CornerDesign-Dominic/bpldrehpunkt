@@ -4,9 +4,8 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function ownProfile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
     function role() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? ownProfile().role : 'user'; }
-    // Profiles created before the active flag existed remain active unless they
-    // are explicitly marked as inactive.
-    function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (!ownProfile().keys().hasAll(['active']) || ownProfile().active != false); }
+    // A usable account always has an explicitly confirmed active profile.
+    function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && ownProfile().active == true; }
     // Role helpers include the active-profile gate so direct rule branches
     // cannot accidentally grant a disabled administrator elevated access.
     function superadmin() { return active() && role() == 'superadmin'; }
@@ -176,7 +175,7 @@ service cloud.firestore {
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
       return exists(/databases/$(database)/documents/users/$(userId))
-        && get(/databases/$(database)/documents/users/$(userId)).data.active != false;
+        && get(/databases/$(database)/documents/users/$(userId)).data.active == true;
     }
     function noAudienceIds(data) {
       return !data.keys().hasAny(['audienceIds']) || data.audienceIds == null;

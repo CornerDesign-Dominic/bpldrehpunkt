@@ -3,10 +3,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
 
 const accessDeniedMessage = 'Dieses Benutzerkonto ist nicht für den Zugriff freigegeben.'
 
-// Profiles created before `active` existed stay usable during the controlled
-// migration. Missing profiles are deliberately never treated as active.
+// A profile is usable only after its active status has explicitly been
+// confirmed. Missing profiles and legacy profiles without `active` are never
+// treated as active.
 export function hasActiveProfile(profile) {
-  return Boolean(profile) && profile.active !== false
+  return Boolean(profile) && profile.active === true
 }
 
 export async function requireActiveProfile(request) {
