@@ -19,17 +19,22 @@
 .partner-evaluation-settings__legend [data-status='yellow'] { color: var(--status-warning-text); background: var(--status-warning-background); }
 .partner-evaluation-settings__legend [data-status='red'] { color: var(--status-danger-text); background: var(--status-danger-background); }
 .partner-evaluation-settings__legend [data-status='neutral'] { color: var(--text-muted); background: var(--surface-secondary); }
-.partner-evaluation-settings__row { display: grid; grid-template-columns: minmax(190px, .8fr) minmax(420px, 1.5fr); align-items: start; gap: 14px; padding: 11px 0; border-top: 1px solid var(--border); }
+.partner-evaluation-settings__row { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); align-items: start; gap: 18px; padding: 11px 0; border-top: 1px solid var(--border); }
 .partner-evaluation-settings__row h3 { margin: 0; color: var(--text-primary); font-size: 13px; }
 .partner-evaluation-settings__row p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
 .partner-evaluation-settings__row .form-error { grid-column: 1 / -1; margin: -4px 0 0; }
-.partner-evaluation-settings__inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.partner-evaluation-settings__inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .partner-evaluation-settings__input { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; overflow: hidden; border: 1px solid var(--input-border); border-radius: 4px; background: var(--input-background); }
 .partner-evaluation-settings__input:focus-within { border-color: var(--button-background); box-shadow: 0 0 0 2px var(--focus-ring); }
 .partner-evaluation-settings__input input { width: 100%; height: 32px; min-width: 0; padding: 0 8px; border: 0; color: var(--text-primary); background: transparent; font: inherit; font-size: 12px; }
 .partner-evaluation-settings__input input:focus { outline: none; }
 .partner-evaluation-settings__input span { padding-right: 8px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
 .partner-evaluation-settings__actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+
+@media (max-width: 940px) and (min-width: 721px) {
+  .partner-evaluation-settings__row { grid-template-columns: 230px minmax(0, 1fr); gap: 14px; }
+  .partner-evaluation-settings__inputs { gap: 10px; }
+}
 .admin-departments__create { display: flex; max-width: 460px; gap: 8px; }
 .admin-departments__create input, .admin-departments__row input { min-width: 0; height: 32px; padding: 0 9px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-primary); background: var(--content-background); font: inherit; font-size: 12px; }
 .admin-departments__create input { flex: 1; }
