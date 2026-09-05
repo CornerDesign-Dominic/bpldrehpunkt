@@ -4,19 +4,27 @@ import { canManageUsers, canManageVacations, canView } from '../../lib/permissio
 import { CalendarIcon, ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SunIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 
 const navigationItems = [
-  { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
-  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation' },
-  { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar' },
-  { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true },
-  { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon, module: 'team' },
-  { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData' },
-  { label: 'CRM', to: '/crm', icon: CrmIcon, module: 'crm' },
-  { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets' },
-  { label: 'News', to: '/news', icon: NewsIcon, module: 'news' },
-  { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon, module: 'documents' },
-  { label: 'Vorlagen', to: '/vorlagen', icon: TemplatesIcon, module: 'templates' },
-  { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos' },
-  { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true },
+  { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, group: 'overview' },
+  { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar', group: 'overview' },
+  { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'overview' },
+  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation', group: 'people' },
+  { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true, group: 'people' },
+  { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon, module: 'team', group: 'people' },
+  { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'people' },
+  { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData', group: 'customers' },
+  { label: 'CRM', to: '/crm', icon: CrmIcon, module: 'crm', group: 'customers' },
+  { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets', group: 'customers' },
+  { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon, module: 'documents', group: 'documents' },
+  { label: 'Vorlagen', to: '/vorlagen', icon: TemplatesIcon, module: 'templates', group: 'documents' },
+  { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true, group: 'administration' },
+]
+
+const navigationGroups = [
+  { key: 'overview', label: 'Übersicht' },
+  { key: 'people', label: 'Personal & Team' },
+  { key: 'customers', label: 'Kunden & Disposition' },
+  { key: 'documents', label: 'Dokumente' },
+  { key: 'administration', label: 'Verwaltung' },
 ]
 
 export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
@@ -30,12 +38,17 @@ export default function Sidebar({ collapsed, onToggle, theme, onThemeToggle }) {
       </div>
 
       <nav className="sidebar__nav" aria-label="Hauptnavigation">
-        {visibleItems.map(({ label, to, icon: Icon }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`} title={collapsed ? label : undefined}>
-            <Icon />
-            {!collapsed && <span>{label}</span>}
-          </NavLink>
-        ))}
+        {navigationGroups.map((group) => {
+          const groupItems = visibleItems.filter((item) => item.group === group.key)
+          if (!groupItems.length) return null
+          return <div className="sidebar__nav-group" key={group.key}>
+            {!collapsed && <span className="sidebar__nav-group-label">{group.label}</span>}
+            {groupItems.map(({ label, to, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`} title={collapsed ? label : undefined}>
+              <Icon />
+              {!collapsed && <span>{label}</span>}
+            </NavLink>)}
+          </div>
+        })}
       </nav>
 
       <div className="sidebar__footer">
