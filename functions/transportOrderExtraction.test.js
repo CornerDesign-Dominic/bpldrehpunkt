@@ -30,5 +30,16 @@ test('extracts the carrier, single loading and unloading station from the second
   assert.equal(data.orderNumber, '260900168')
   assert.equal(data.carrier.company, 'Intermarc Srl')
   assert.deepEqual(data.loadingPlace, { company: 'A.S.T. Bochum GmbH', street: 'Kolkmannskamp 8', postalCode: '44879', city: 'Bochum', country: 'Deutschland', date: '2026-09-02' })
-  assert.deepEqual(data.unloadingPlace, { company: 'Laut Lieferschein', street: '', postalCode: '6425', city: 'Haiming', country: 'Österreich', date: '2026-09-03' })
+  assert.deepEqual(data.unloadingPlace, { company: '', street: '', postalCode: '', city: '', country: '', date: '2026-09-03' })
+})
+
+test('keeps delivery-note references out of station addresses', () => {
+  for (const reference of ['Lt. Lieferschein', 'Lt. LS', 'Laut Lieferschien', 'siehe Lieferschein']) {
+    const { data } = extractTransportOrderFromLines([
+      'Transportauftrag260900168',
+      `1. Ladestelle(n) ${reference}, D - 42369 Wuppertal`, 'Termin 02.09.2026 -> 07:00 - 15:00 Uhr',
+      '1. Entladestelle Empfänger GmbH, Hauptstraße 1, D - 50667 Köln', 'Termin 03.09.2026 -> 07:00 - 16:00 Uhr',
+    ])
+    assert.deepEqual(data.loadingPlace, { company: '', street: '', postalCode: '', city: '', country: '', date: '2026-09-02' })
+  }
 })

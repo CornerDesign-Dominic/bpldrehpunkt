@@ -4,7 +4,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { executeAiOperation } from './aiUsage.js'
-import { extractTransportOrderFromPdf } from './transportOrderExtraction.js'
+import { extractTransportOrderFromPdf, isDeliveryNoteReference } from './transportOrderExtraction.js'
 
 const openAiApiKey = defineSecret('OPENAI_API_KEY_HAFTBARHALTUNG')
 const feature = 'haftbarhaltung'
@@ -43,7 +43,7 @@ function liabilityPrompt({ rawAddressBlocks, incidentSummary }) {
   return [
     'Du bereitest ausschließlich eine Haftbarhaltung für einen BPL-Transportauftrag vor.',
     'Zerlege die drei übergebenen Adressblöcke in Firma/Name, Straße, PLZ, Ort und Land. Übernimm nur eindeutig im Block enthaltene Werte; bei Unsicherheit verwende einen leeren String. Ergänze oder erfinde keine Daten.',
-    'Formuliere aus der Nutzerschilderung zwei bis vier professionelle, sachliche Sätze. Übernimm ausschließlich genannte Tatsachen. Erfinde keine Schäden, Kosten, Beträge, Ursachen, Fristen oder rechtlichen Bewertungen. Bei leerer Nutzerschilderung ist incidentText leer.',
+    'Formuliere incidentText aus der Nutzerschilderung in höchstens ein bis zwei kurzen, professionellen und neutralen Sätzen. Erkenne die Art des Problems und formuliere sie bewusst allgemein und abstrahiert; erzähle den Ablauf nicht detailliert nach. Konkrete Stunden- oder Minutenangaben, Uhrzeiten, Geldbeträge, Schadenshöhen, Personen- oder Mitarbeiterzahlen, Lade- oder Entladestellen, Ortsnamen und sonstige Ablaufdetails dürfen niemals übernommen werden. Diese Angaben dienen nur zum Verständnis. Benenne Kosten nur allgemein, wenn sie aus der Schilderung hervorgehen. Erfinde keine Tatsachen, Schäden, Kosten, Ursachen, Fristen oder rechtlichen Bewertungen. Beispiele: „8 Stunden zu spät, es entstanden Wartekosten“ wird zu „Durch das verspätete Eintreffen des Fahrzeugs entstanden Kosten durch Wartezeiten.“; „Ware wurde beschädigt, Schaden ungefähr 8.000 Euro“ wird zu „Im Rahmen der Transportdurchführung kam es zu einer Beschädigung der Ware.“; „Fahrer erschien nicht, Ersatz-LKW für 1.200 Euro“ wird zu „Aufgrund der nicht erfolgten Fahrzeuggestellung war eine anderweitige Durchführung des Transports erforderlich, wodurch zusätzliche Kosten entstanden.“ Bei leerer Nutzerschilderung ist incidentText leer.',
     'Die Auswahl der ersten Ladestelle und letzten Entladestelle wurde bereits deterministisch vorgenommen. Ändere diese Zuordnung nicht.',
     `Adressblöcke: ${JSON.stringify(rawAddressBlocks)}`,
     `Nutzerschilderung: ${incidentSummary || ''}`,
@@ -92,11 +92,13 @@ export const analyzeLiabilityTransportOrder = onCall({ region: 'europe-west3', m
           throw error
         }
         const ai = await callOpenAi({ rawAddressBlocks: extraction.rawAddressBlocks, incidentSummary })
+        const loadingAddress = isDeliveryNoteReference(extraction.rawAddressBlocks.loadingPlace) ? extraction.data.loadingPlace : mergeAddress(extraction.data.loadingPlace, ai.result?.loadingPlace)
+        const unloadingAddress = isDeliveryNoteReference(extraction.rawAddressBlocks.unloadingPlace) ? extraction.data.unloadingPlace : mergeAddress(extraction.data.unloadingPlace, ai.result?.unloadingPlace)
         const data = {
           orderNumber: extraction.data.orderNumber,
           carrier: mergeAddress(extraction.data.carrier, ai.result?.carrier),
-          loadingPlace: { ...mergeAddress(extraction.data.loadingPlace, ai.result?.loadingPlace), date: extraction.data.loadingPlace.date },
-          unloadingPlace: { ...mergeAddress(extraction.data.unloadingPlace, ai.result?.unloadingPlace), date: extraction.data.unloadingPlace.date },
+          loadingPlace: { ...loadingAddress, date: extraction.data.loadingPlace.date },
+          unloadingPlace: { ...unloadingAddress, date: extraction.data.unloadingPlace.date },
           incidentText: cleanText(ai.result?.incidentText, 1800),
         }
         logger.info('Haftbarhaltung-Auswertung abgeschlossen.', { userId: request.auth.uid, fileSize: pdfBytes.byteLength, pageCount: extraction.pageCount, orderNumberFound: Boolean(data.orderNumber), carrierFound: Boolean(data.carrier.company), loadingFound: Boolean(data.loadingPlace.company), unloadingFound: Boolean(data.unloadingPlace.company) })

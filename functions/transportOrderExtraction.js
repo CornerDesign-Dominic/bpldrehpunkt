@@ -1,6 +1,7 @@
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const COUNTRY_NAMES = { D: 'Deutschland', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich', RO: 'Rumänien' }
+const DELIVERY_NOTE_REFERENCE = /\b(?:lt\.?\s*(?:ls\.?|liefers(?:chein|chien))|laut\s+liefers(?:chein|chien)|siehe(?:\s+(?:den|dem))?\s+(?:ls\.?|liefers(?:chein|chien)))\b/i
 
 function emptyAddress() { return { company: '', street: '', postalCode: '', city: '', country: '' } }
 
@@ -63,6 +64,10 @@ function parseAddress(lines) {
   return result
 }
 
+export function isDeliveryNoteReference(lines) {
+  return DELIVERY_NOTE_REFERENCE.test((Array.isArray(lines) ? lines : [lines]).map(cleanLine).join(' '))
+}
+
 function valueAfterLabel(line, label) { return cleanLine(line.slice(line.search(label)).replace(label, '')) }
 
 function extractOrderNumber(lines) {
@@ -103,7 +108,9 @@ function stationBlocks(lines, type) {
 }
 
 function addressAndDate(lines) {
-  return { ...parseAddress(lines.filter((line) => !/\bTermin\b/i.test(line))), date: parseDate(lines.find((line) => /\bTermin\b/i.test(line)) || '') }
+  const date = parseDate(lines.find((line) => /\bTermin\b/i.test(line)) || '')
+  if (isDeliveryNoteReference(lines)) return { ...emptyAddress(), date }
+  return { ...parseAddress(lines.filter((line) => !/\bTermin\b/i.test(line))), date }
 }
 
 export function extractTransportOrderFromLines(lines) {
