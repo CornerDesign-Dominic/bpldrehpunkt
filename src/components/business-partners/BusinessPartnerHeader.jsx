@@ -10,6 +10,10 @@ function formatCreditLimit(value) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
+function formatRankingValue(rating) {
+  return rating?.score === null || rating?.score === undefined ? '-' : rating.value
+}
+
 function PartnerHeaderTile({ ariaLabel, children, title, to, tone }) {
   const content = <><span className="partner-header__tile-heading"><span className="partner-header__tile-label">{title}</span>{to && <span className="partner-header__tile-chevron" aria-hidden="true"><ChevronIcon size={18} /></span>}</span>{children}</>
   return to
@@ -39,8 +43,8 @@ export default function BusinessPartnerHeader({ account, canViewCrm, canViewPall
       </PartnerHeaderTile>
 
       <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" title="Ranking" tone="ranking" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
-        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', customerRating?.score, settings)}>{customerRating?.value ?? 'Noch nicht bewertet'}</strong><span className="partner-header__rating-label">KU</span></span>
-        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', carrierRating?.score, settings)}>{carrierRating?.value ?? 'Noch nicht bewertet'}</strong><span className="partner-header__rating-label">UTN</span></span>
+        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', customerRating?.score, settings)}>{formatRankingValue(customerRating)}</strong><span className="partner-header__rating-label">KU</span></span>
+        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', carrierRating?.score, settings)}>{formatRankingValue(carrierRating)}</strong><span className="partner-header__rating-label">UTN</span></span>
       </PartnerHeaderTile>
 
       <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" title="Kreditlimit" tone="credit-limit" to={canViewCrm ? `/crm/${partnerId}` : undefined}>
