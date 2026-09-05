@@ -5,7 +5,8 @@ import LiabilityLetterPreview from '../components/templates/LiabilityLetterPrevi
 import LiabilityAiInputModal from '../components/templates/LiabilityAiInputModal.jsx'
 import LiabilityAiResultModal from '../components/templates/LiabilityAiResultModal.jsx'
 import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
-import { documentPdfFileName, downloadDocumentShellPdf } from '../lib/documentExport.js'
+import { documentPdfFileName } from '../lib/documentExport.js'
+import { downloadLiabilityLetterPdf } from '../lib/liabilityLetterPdf.js'
 import { analyzeLiabilityTransportOrderWithAi, liabilityAnalysisToDocumentData } from '../lib/liabilityAi.js'
 
 export default function LiabilityLetterPage() {
@@ -27,7 +28,7 @@ export default function LiabilityLetterPage() {
   async function createPdf() {
     setCreatingPdf(true)
     try {
-      await downloadDocumentShellPdf(documentPaperRef.current, documentPdfFileName('Haftbarhaltung_Transportauftrag', documentData.orderNumber))
+      await downloadLiabilityLetterPdf(documentData, documentPdfFileName('Haftbarhaltung_Transportauftrag', documentData.orderNumber))
     } finally {
       setCreatingPdf(false)
     }

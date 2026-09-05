@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { extractTransportOrderFromLines } from './transportOrderExtraction.js'
+import { extractTransportOrderFromLines, sanitizeTransportAddress } from './transportOrderExtraction.js'
 
 test('extracts the first loading and last unloading station from the multi-stop reference layout', () => {
   const { data } = extractTransportOrderFromLines([
@@ -42,4 +42,20 @@ test('keeps delivery-note references out of station addresses', () => {
     ])
     assert.deepEqual(data.loadingPlace, { company: '', street: '', postalCode: '', city: '', country: '', date: '2026-09-02' })
   }
+})
+
+test('removes dates from address fields without removing house numbers', () => {
+  assert.deepEqual(sanitizeTransportAddress({
+    company: 'Muster Transporte GmbH 04.05.2026',
+    street: 'Reinshagenstr. 1 04.05.2026',
+    postalCode: '42369',
+    city: 'Wuppertal 04.05.2026',
+    country: 'Deutschland',
+  }), {
+    company: 'Muster Transporte GmbH',
+    street: 'Reinshagenstr. 1',
+    postalCode: '42369',
+    city: 'Wuppertal',
+    country: 'Deutschland',
+  })
 })

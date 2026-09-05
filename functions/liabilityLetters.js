@@ -4,7 +4,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { executeAiOperation } from './aiUsage.js'
-import { extractTransportOrderFromPdf, isDeliveryNoteReference } from './transportOrderExtraction.js'
+import { extractTransportOrderFromPdf, isDeliveryNoteReference, sanitizeTransportAddress } from './transportOrderExtraction.js'
 
 const openAiApiKey = defineSecret('OPENAI_API_KEY_HAFTBARHALTUNG')
 const feature = 'haftbarhaltung'
@@ -33,11 +33,11 @@ function decodePdf(base64Pdf) {
 }
 
 function cleanAddress(value) {
-  return {
+  return sanitizeTransportAddress({
     company: cleanText(value?.company, 180), street: cleanText(value?.street, 180), postalCode: /^\d{4,6}$/.test(cleanText(value?.postalCode, 12)) ? cleanText(value.postalCode, 12) : '', city: cleanText(value?.city, 120), country: cleanText(value?.country, 80),
-  }
+  })
 }
-function mergeAddress(deterministic, aiAddress) { const ai = cleanAddress(aiAddress); return Object.fromEntries(Object.keys(ai).map((field) => [field, ai[field] || deterministic[field] || ''])) }
+function mergeAddress(deterministic, aiAddress) { const ai = cleanAddress(aiAddress); const fallback = cleanAddress(deterministic); return sanitizeTransportAddress(Object.fromEntries(Object.keys(ai).map((field) => [field, ai[field] || fallback[field] || '']))) }
 
 function liabilityPrompt({ rawAddressBlocks, incidentSummary }) {
   return [

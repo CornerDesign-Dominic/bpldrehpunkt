@@ -2,10 +2,15 @@ import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
 
 const COUNTRY_NAMES = { D: 'Deutschland', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich', RO: 'Rumänien' }
 const DELIVERY_NOTE_REFERENCE = /\b(?:lt\.?\s*(?:ls\.?|liefers(?:chein|chien))|laut\s+liefers(?:chein|chien)|siehe(?:\s+(?:den|dem))?\s+(?:ls\.?|liefers(?:chein|chien)))\b/i
+const DATE_IN_ADDRESS = /\b\d{1,2}\.\d{1,2}\.\d{4}\b/g
 
 function emptyAddress() { return { company: '', street: '', postalCode: '', city: '', country: '' } }
 
 function cleanLine(value) { return String(value || '').replace(/\s+/g, ' ').replace(/^[|·•\-–—\s]+|[|·•\-–—\s]+$/g, '').trim() }
+
+export function sanitizeTransportAddress(address) {
+  return Object.fromEntries(['company', 'street', 'postalCode', 'city', 'country'].map((field) => [field, cleanLine(address?.[field]).replace(DATE_IN_ADDRESS, '').replace(/\s+/g, ' ').trim()]))
+}
 
 function countryName(value) {
   const normalized = cleanLine(value).replace(/[.,;]+$/g, '')
@@ -49,7 +54,7 @@ function parseAddress(lines) {
     result.postalCode = location.postalCode
     result.city = location.city
     result.country = location.country
-    return result
+    return sanitizeTransportAddress(result)
   }
   const parts = values.flatMap((line) => line.split(',').map(cleanLine).filter(Boolean))
   const commaLocationIndex = parts.findIndex((part) => parsePostalLine(part))
@@ -61,7 +66,7 @@ function parseAddress(lines) {
     result.city = location.city
     result.country = location.country
   }
-  return result
+  return sanitizeTransportAddress(result)
 }
 
 export function isDeliveryNoteReference(lines) {
@@ -77,16 +82,16 @@ function extractOrderNumber(lines) {
   return ''
 }
 
-function carrierBlock(lines) {
+function carrierBlock(lines, leftColumnLines = lines) {
   const index = lines.findIndex((line) => /Transportauftrag\s*[:#-]?\s*\d{9}\b/i.test(line))
   if (index === -1) return []
   // In our layout the carrier company is one row above the right-aligned
   // order number; the contact shares the order-number row on the left.
-  const block = [lines[index - 1], cleanLine(lines[index].replace(/Transportauftrag\s*[:#-]?\s*\d{9}\b/i, ''))].map(cleanLine).filter(Boolean)
+  const block = [leftColumnLines[index - 1], leftColumnLines[index]].map(cleanLine).filter(Boolean)
   for (let currentIndex = index + 1; currentIndex < lines.length; currentIndex += 1) {
     const line = lines[currentIndex]
     if (/\b(?:telefon|tel\.?|e-?mail|wie vereinbart|lkw-art|kennzeichen|\d+\.\s*ladestelle)\b/i.test(line)) break
-    block.push(line)
+    if (leftColumnLines[currentIndex]) block.push(leftColumnLines[currentIndex])
   }
   return block
 }
@@ -113,8 +118,8 @@ function addressAndDate(lines) {
   return { ...parseAddress(lines.filter((line) => !/\bTermin\b/i.test(line))), date }
 }
 
-export function extractTransportOrderFromLines(lines) {
-  const carrierLines = carrierBlock(lines)
+export function extractTransportOrderFromLines(lines, { carrierLines: leftColumnLines = lines } = {}) {
+  const carrierLines = carrierBlock(lines, leftColumnLines)
   const loadingBlocks = stationBlocks(lines, 'loading')
   const unloadingBlocks = stationBlocks(lines, 'unloading')
   const loadingLines = loadingBlocks[0] || []
@@ -135,9 +140,12 @@ export async function extractTransportOrderFromPdf(pdfBytes) {
   try {
     const pdf = await loadingTask.promise
     const lines = []
+    const carrierLines = []
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber)
       const textContent = await page.getTextContent()
+      const orderNumberItem = textContent.items.find((item) => /Transportauftrag\s*[:#-]?\s*\d{9}\b/i.test(item.str || ''))
+      const rightColumnStart = orderNumberItem ? orderNumberItem.transform[4] : Number.POSITIVE_INFINITY
       const rows = []
       for (const item of textContent.items.filter((item) => item.str?.trim())) {
         let row = rows.find((candidate) => Math.abs(candidate.y - item.transform[5]) < 2)
@@ -147,9 +155,13 @@ export async function extractTransportOrderFromPdf(pdfBytes) {
         }
         row.items.push({ text: item.str, x: item.transform[4] })
       }
-      rows.sort((left, right) => right.y - left.y).forEach((row) => lines.push(cleanLine(row.items.sort((left, right) => left.x - right.x).map((item) => item.text).join(' '))))
+      rows.sort((left, right) => right.y - left.y).forEach((row) => {
+        const items = row.items.sort((left, right) => left.x - right.x)
+        lines.push(cleanLine(items.map((item) => item.text).join(' ')))
+        carrierLines.push(cleanLine(items.filter((item) => item.x < rightColumnStart).map((item) => item.text).join(' ')))
+      })
     }
-    const extraction = extractTransportOrderFromLines(lines.filter(Boolean))
+    const extraction = extractTransportOrderFromLines(lines, { carrierLines })
     return { ...extraction, pageCount: pdf.numPages }
   } finally {
     loadingTask.destroy()
