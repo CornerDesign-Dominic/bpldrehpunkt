@@ -142,17 +142,35 @@ async function loadTemplate(id) {
   const saved = await db.doc(`systemMailTemplates/${id}`).get()
   return templateData(id, saved.exists ? saved.data() : null)
 }
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+function textToHtml(message) {
+  const paragraphs = String(message ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split(/\n[\t ]*(?:\n[\t ]*)+/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+  return paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, '<br>')}</p>`).join('')
+}
 function renderTemplate(template, values) {
   const replace = (text) => text.replace(/{{\s*([^{}\s]+)\s*}}/g, (_, name) => template.allowedPlaceholders.includes(name) ? String(values[name] ?? '–') : '')
-  return { subject: replace(template.subject), message: replace(template.message) }
+  const subject = replace(template.subject)
+  const message = replace(template.message)
+  return { subject, message, messageHtml: textToHtml(message) }
 }
 
 async function sendWebhook(recipient, templateId, values) {
   const url = powerAutomateNotificationUrl.value()
   if (!url) throw new Error('notification-service-not-configured')
   const template = await loadTemplate(templateId)
-  const { subject, message } = renderTemplate(template, values)
-  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: recipient, subject, message, type: templateId }) })
+  const { subject, message, messageHtml } = renderTemplate(template, values)
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: recipient, subject, message, messageHtml, type: templateId }) })
   if (!response.ok) throw new Error(`notification-service-${response.status}`)
 }
 
