@@ -453,6 +453,11 @@ button, a { font: inherit; }
 .nav-item:hover { color: var(--sidebar-text-strong); background: var(--sidebar-hover); }
 .nav-item--active { color: var(--sidebar-text-strong); background: var(--sidebar-active); box-shadow: inset 2px 0 0 var(--border-strong); }
 .nav-item svg { width: 19px; height: 19px; flex: 0 0 19px; }
+.nav-item__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-item__badge { display: inline-grid; min-width: 18px; height: 18px; margin-left: auto; padding: 0 5px; place-items: center; border-radius: 99px; font-size: 10px; font-weight: 800; line-height: 1; }
+.nav-item__badge--attention { color: var(--status-warning-text); background: var(--status-warning-background); }
+.nav-item__badge--open { color: var(--button-text); background: var(--button-background); }
+.nav-item__badge--urgent { color: var(--status-danger-text); background: var(--status-danger-background); }
 .sidebar-collapsed .sidebar { padding-inline: 10px; }
 .sidebar-collapsed .sidebar__brand { justify-content: flex-start; padding: 0 6px; }
 .sidebar-collapsed .sidebar__profile { width: 100%; justify-content: flex-start; padding: 0 6px; }
