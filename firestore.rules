@@ -4,12 +4,14 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function ownProfile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
     function role() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) ? ownProfile().role : 'user'; }
-    function superadmin() { return role() == 'superadmin'; }
-    function admin() { return role() == 'admin' || superadmin(); }
-    function level(module) { return superadmin() ? 'edit' : ownProfile().permissions[module]; }
     // Profiles created before the active flag existed remain active unless they
     // are explicitly marked as inactive.
     function active() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (!ownProfile().keys().hasAll(['active']) || ownProfile().active != false); }
+    // Role helpers include the active-profile gate so direct rule branches
+    // cannot accidentally grant a disabled administrator elevated access.
+    function superadmin() { return active() && role() == 'superadmin'; }
+    function admin() { return active() && (role() == 'admin' || superadmin()); }
+    function level(module) { return superadmin() ? 'edit' : ownProfile().permissions[module]; }
     function view(module) { return active() && (superadmin() || level(module) in ['view', 'edit']); }
     function edit(module) { return active() && (superadmin() || level(module) == 'edit'); }
     function calendarDocument(calendarId) { return get(/databases/$(database)/documents/calendars/$(calendarId)).data; }
@@ -69,6 +71,11 @@ service cloud.firestore {
     // callable functions. This keeps delivery and recipient controls out of
     // direct client access.
     match /systemMailTemplates/{templateId} {
+      allow read, write: if false;
+    }
+
+    // Legacy-account migration is an Admin SDK-only audit trail.
+    match /legacyAccountMigrations/{id} {
       allow read, write: if false;
     }
 

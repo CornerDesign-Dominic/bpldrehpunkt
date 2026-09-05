@@ -4,6 +4,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore'
+import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -68,7 +69,7 @@ const templateDefinitions = {
   },
 }
 
-function isActive(profile) { return profile?.active !== false }
+function isActive(profile) { return hasActiveProfile(profile) }
 function displayName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || profile?.email || '–' }
 function cleanText(value, maxLength) { return typeof value === 'string' ? value.trim().slice(0, maxLength) : '' }
 function formatDate(value) {
@@ -240,20 +241,8 @@ export const notifyVacationRequestDecision = onDocumentUpdated({ region, documen
   await sendDecisionNotification(event.params.requestId, after)
 })
 
-async function assertActiveSuperadmin(request) {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
-  const profile = (await db.doc(`users/${request.auth.uid}`).get()).data()
-  if (!profile || !isActive(profile)) throw new HttpsError('permission-denied', 'Ein aktives Benutzerprofil ist erforderlich.')
-  if (profile.role !== 'superadmin') throw new HttpsError('permission-denied', 'Diese Aktion ist nur für Superadmins erlaubt.')
-  return profile
-}
-async function assertActiveAdmin(request) {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
-  const profile = (await db.doc(`users/${request.auth.uid}`).get()).data()
-  if (!profile || !isActive(profile)) throw new HttpsError('permission-denied', 'Ein aktives Benutzerprofil ist erforderlich.')
-  if (!['admin', 'superadmin'].includes(profile.role)) throw new HttpsError('permission-denied', 'Diese Aktion ist nur für Admins erlaubt.')
-  return profile
-}
+async function assertActiveSuperadmin(request) { return requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Aktion ist nur für Superadmins erlaubt.') }
+async function assertActiveAdmin(request) { return requireRole(await requireActiveProfile(request), ['admin', 'superadmin'], 'Diese Aktion ist nur für Admins erlaubt.') }
 
 export const listSystemMailTemplates = onCall({ region }, async (request) => {
   await assertActiveSuperadmin(request)

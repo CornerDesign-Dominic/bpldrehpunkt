@@ -3,6 +3,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
+import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
 
 function database() { return getFirestore() }
 const openAiApiKey = defineSecret('OPENAI_API_KEY')
@@ -162,7 +163,7 @@ function reactionCounts(item) {
 }
 
 function canViewNews(profile) {
-  return profile?.active !== false && (profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.news))
+  return hasActiveProfile(profile) && (profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.news))
 }
 
 async function researchWithOpenAi() {
@@ -422,20 +423,17 @@ export const runAutomatedNewsResearch = onCall({
   timeoutSeconds: 540,
   secrets: [openAiApiKey],
 }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
-  const profile = (await database().doc(`users/${request.auth.uid}`).get()).data()
-  if (profile?.role !== 'superadmin') throw new HttpsError('permission-denied', 'Nur Superadmins dürfen die Recherche manuell starten.')
+  requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen die Recherche manuell starten.')
   return executeNewsResearch()
 })
 
 export const setNewsReaction = onCall({ region: 'europe-west3' }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
+  const profile = await requireActiveProfile(request)
   const itemId = request.data?.itemId
   const requestedReaction = request.data?.reaction
   if (typeof itemId !== 'string' || !itemId || itemId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige News-ID.')
   if (requestedReaction !== null && !NEWS_REACTIONS.has(requestedReaction)) throw new HttpsError('invalid-argument', 'Ungültige Reaktion.')
 
-  const profile = (await database().doc(`users/${request.auth.uid}`).get()).data()
   if (!canViewNews(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für News-Reaktionen.')
 
   const itemRef = database().doc(`newsItems/${itemId}`)

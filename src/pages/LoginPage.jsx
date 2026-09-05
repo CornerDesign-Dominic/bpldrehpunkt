@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { requestPasswordReset, signInWithEmail } from '../auth/authService.js'
+import { useAuth } from '../auth/useAuth.js'
 
 const resetSuccessMessage = 'Wenn ein Benutzerkonto für diese E-Mail-Adresse besteht, wurde eine E-Mail zum Zurücksetzen des Passworts versendet.'
 
 function getLoginErrorMessage(error) {
+  if (error?.code === 'auth/permission-denied') return 'Dieses Benutzerkonto ist nicht für den Zugriff freigegeben.'
   if (error?.code === 'auth/too-many-requests') return 'Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.'
   if (error?.code === 'auth/network-request-failed') return 'Die Anmeldung konnte wegen eines Netzwerkfehlers nicht abgeschlossen werden.'
   return 'E-Mail oder Passwort sind nicht korrekt.'
@@ -12,6 +14,7 @@ function getLoginErrorMessage(error) {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { accessDenied } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState('login')
@@ -61,6 +64,7 @@ export default function LoginPage() {
     <section className="login-card" aria-labelledby="login-title">
       <div className="login-card__brand"><span>Drehpunkt</span><p>Eine Anwendung der Brennpunkt Logistik GmbH</p></div>
       <div className="login-card__heading"><h1 id="login-title">{isResetMode ? 'Passwort zurücksetzen' : 'Anmelden'}</h1>{isResetMode && <p>Geben Sie Ihre E-Mail-Adresse ein.</p>}</div>
+      {accessDenied && <p className="login-message login-message--error">Dieses Benutzerkonto ist nicht für den Zugriff freigegeben.</p>}
       <form className="login-form" onSubmit={isResetMode ? handlePasswordReset : handleLogin}>
         <label><span>E-Mail</span><input autoComplete="email" autoFocus type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
         {!isResetMode && <label><span>Passwort</span><input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>}

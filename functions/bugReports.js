@@ -2,6 +2,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { requireActiveProfile } from './access.js'
 
 const powerAutomateNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
 const emailPattern = /^\S+@\S+\.\S+$/
@@ -20,19 +21,14 @@ function reportTime() {
 }
 
 export const submitBugReport = onCall({ region: 'europe-west3', secrets: [powerAutomateNotificationUrl] }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
+  const reporter = await requireActiveProfile(request)
 
   const module = cleanText(request.data?.module, 100)
   const description = cleanText(request.data?.description, 4000)
   if (!reportModules.has(module) || !description) throw new HttpsError('invalid-argument', 'Modul und Beschreibung müssen gültig angegeben werden.')
 
   const database = getFirestore()
-  const [reporterSnapshot, superadminsSnapshot] = await Promise.all([
-    database.doc(`users/${request.auth.uid}`).get(),
-    database.collection('users').where('role', '==', 'superadmin').get(),
-  ])
-  const reporter = reporterSnapshot.exists ? reporterSnapshot.data() : null
-  if (reporter?.active === false) throw new HttpsError('permission-denied', 'Das Benutzerkonto ist nicht aktiv.')
+  const superadminsSnapshot = await database.collection('users').where('role', '==', 'superadmin').get()
 
   const recipients = [...new Set(superadminsSnapshot.docs
     .map((document) => document.data())

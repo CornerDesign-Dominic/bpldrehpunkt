@@ -11,9 +11,17 @@ Diese Leitlinie ist für jede Änderung am Drehpunkt-Projekt verbindlich. Sicher
 ## Zugriff und Berechtigungen
 
 - Es gibt keine öffentliche Registrierung. Benutzerkonten werden ausschließlich über die freigegebene Administration angelegt.
-- Nur aktive Nutzer mit einem gültigen Benutzerprofil dürfen auf Anwendungsdaten zugreifen.
+- Nur aktive Nutzer mit einem gültigen Benutzerprofil dürfen auf Anwendungsdaten zugreifen. Ein Firebase-Auth-Konto ohne `users/{uid}`-Profil ist niemals freigegeben.
+- Das Feld `active: false` sperrt den Zugang in Frontend, Firestore Rules, Callable Functions und der Identity-Platform-Sign-in-Blocking-Function. Bestehende Profile ohne Feld gelten nur während der dokumentierten Migration weiterhin als aktiv.
 - Rollen und Berechtigungen sind bei jeder sicherheitsrelevanten Aktion serverseitig zu prüfen. Frontend-Prüfungen dienen nur der Bedienbarkeit und ersetzen keine Autorisierung.
 - Firestore und Storage bleiben standardmäßig gesperrt. Zugriff wird nur für den konkreten, notwendigen Anwendungsfall gezielt in Rules freigegeben.
+
+## Kontofreigabe und Migration
+
+- Vor dem Aktivieren der Identity-Platform-Blocking-Function müssen vorhandene `users/{uid}`-Profile überprüft werden. Nur bestätigte Mitarbeiterprofile ohne `active` erhalten kontrolliert `active: true`; deaktivierte oder nicht zuordenbare Profile bleiben unverändert beziehungsweise erhalten `active: false`.
+- Die Umstellung erfolgt über einen geprüften Admin-SDK- oder Firebase-Console-Vorgang, nie durch eine Client-Schreibregel. Erst nach der Prüfung wird die Blocking-Function zusammen mit den Functions deployt und in Identity Platform als „Before sign-in“ aktiviert.
+- `beforeUserCreated` bleibt deaktiviert, damit die Reihenfolge beim Admin-Workflow (`Auth` anlegen, anschließend `users/{uid}` schreiben) nicht verändert wird.
+- Bestehende fachliche `users`-Listen für Team, Urlaub und To-dos bleiben lesend erforderlich. Sie ersetzen weder die Superadmin-Callable für die Kontenprüfung noch verleihen sie Schreibrechte für die Migration.
 
 ## Functions, Webhooks und Eingaben
 

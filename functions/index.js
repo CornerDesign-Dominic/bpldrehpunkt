@@ -95,6 +95,62 @@ async function assertSuperadmin(request) {
   return actor
 }
 
+function isLegacyProfile(profile) { return profile && !Object.hasOwn(profile, 'active') }
+function legacyProfileSummary(snapshot) {
+  const profile = snapshot.data()
+  return {
+    uid: snapshot.id,
+    name: [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || '—',
+    email: typeof profile.email === 'string' ? profile.email : '—',
+    role: typeof profile.role === 'string' ? profile.role : 'user',
+    department: profile.departmentName || profile.department || '—',
+  }
+}
+function profileDisplayName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || '—' }
+
+export const listLegacyAccountProfiles = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertSuperadmin(request)
+  const users = await db.collection('users').get()
+  return { profiles: users.docs.filter((snapshot) => isLegacyProfile(snapshot.data())).map(legacyProfileSummary) }
+})
+
+export const confirmLegacyAccountProfile = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertSuperadmin(request)
+  const uid = request.data?.uid
+  if (typeof uid !== 'string' || !uid || uid.includes('/')) throw new HttpsError('invalid-argument', 'Ungültiges Benutzerkonto.')
+
+  const profileRef = db.doc(`users/${uid}`)
+  const auditRef = db.doc(`legacyAccountMigrations/${uid}`)
+  await db.runTransaction(async (transaction) => {
+    const profileSnapshot = await transaction.get(profileRef)
+    if (!profileSnapshot.exists || !isLegacyProfile(profileSnapshot.data())) throw new HttpsError('failed-precondition', 'Dieses Benutzerkonto kann nicht bestätigt werden.')
+    transaction.update(profileRef, { active: true, activeConfirmedAt: FieldValue.serverTimestamp() })
+    transaction.set(auditRef, { uid, confirmedBy: request.auth.uid, confirmedAt: FieldValue.serverTimestamp() })
+  })
+  return { uid }
+})
+
+export const listLegacyAccountMigrationHistory = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertSuperadmin(request)
+  const migrations = await db.collection('legacyAccountMigrations').orderBy('confirmedAt', 'desc').limit(12).get()
+  const userIds = [...new Set(migrations.docs.flatMap((snapshot) => {
+    const data = snapshot.data()
+    return [data.uid, data.confirmedBy].filter((id) => typeof id === 'string' && id)
+  }))]
+  const profiles = new Map((await Promise.all(userIds.map(async (uid) => [uid, (await db.doc(`users/${uid}`).get()).data()]))).map(([uid, profile]) => [uid, profile]))
+  return {
+    entries: migrations.docs.map((snapshot) => {
+      const data = snapshot.data()
+      return {
+        uid: data.uid,
+        userName: profileDisplayName(profiles.get(data.uid)),
+        confirmedByName: profileDisplayName(profiles.get(data.confirmedBy)),
+        confirmedAt: data.confirmedAt || null,
+      }
+    }),
+  }
+})
+
 function requiredEvaluationNumber(value, label) {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new HttpsError('invalid-argument', `${label} muss eine gültige Zahl sein.`)
   return value

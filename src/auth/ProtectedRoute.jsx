@@ -3,7 +3,7 @@ import AuthLoadingScreen from './AuthLoadingScreen.jsx'
 import { useAuth } from './useAuth.js'
 
 export default function ProtectedRoute({ children }) {
-  const { isLoading, user, isProfileActive } = useAuth()
+  const { isLoading, user, profile, isProfileActive } = useAuth()
   if (isLoading) return <AuthLoadingScreen />
-  return user && isProfileActive ? children : <Navigate to="/login" replace />
+  return user && profile && isProfileActive ? children : <Navigate to="/login" replace />
 }
