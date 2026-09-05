@@ -72,6 +72,19 @@ firebase functions:secrets:set POWER_AUTOMATE_NOTIFICATION_URL
 
 Anschließend die Functions deployen. Empfänger werden bei jedem Fehler dynamisch aus aktiven Profilen mit der Rolle `superadmin` und gültiger E-Mail-Adresse ermittelt.
 
+## KI-Usage und Haftbarhaltung
+
+Jeder serverseitige KI-Aufruf wird zentral in `aiUsage` protokolliert. Die Collection ist für Frontend-Clients vollständig gesperrt; nur Cloud Functions schreiben die technischen Nutzungsdaten. Ein Eintrag enthält ausschließlich Feature, Zeitpunkt, Nutzer-ID, Modell, Token-Usage, geschätzte Kosten, Dauer, Ergebnisstatus und gegebenenfalls einen technischen Fehlertyp – niemals Transportauftrags- oder Sachverhaltsinhalte.
+
+Die Haftbarhaltung verwendet für die Formulierung des Sachverhalts ein eigenes Firebase-Secret. Vor dem Functions-Deployment muss es gesetzt werden:
+
+```powershell
+firebase functions:secrets:set OPENAI_API_KEY_HAFTBARHALTUNG
+firebase deploy --only functions:analyzeLiabilityTransportOrder,firestore:rules
+```
+
+Die Callable Function `analyzeLiabilityTransportOrder` erhält die Transportauftrags-PDF nur zur unmittelbaren Auswertung. Die PDF wird weder gespeichert noch in den Usage-Logs abgelegt. Modellpreise und die zentrale Kostenberechnung liegen in `functions/aiUsage.js`. Bei Preis- oder Modelländerungen wird ausschließlich die dortige Registry aktualisiert.
+
 ## To-dos
 
 To-dos liegen unter `todos/{todoId}`. Sie verwenden `creatorUserId`/`creatorName`, `audienceType` (`all`, `department`, `person`), `audienceId`, `audienceLabel`, die unabhängigen Bearbeiterfelder `assignedUserId`/`assignedUserName`/`assignedAt` sowie den Status `open`, `in_progress`, `completed` oder `withdrawn`.

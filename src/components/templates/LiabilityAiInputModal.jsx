@@ -37,13 +37,17 @@ export default function LiabilityAiInputModal({ isAnalyzing, onAnalyze, onClose 
     changeFile(event.dataTransfer.files?.[0])
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault()
     if (!file) {
       setFileError('Bitte fügen Sie einen Transportauftrag als PDF hinzu.')
       return
     }
-    onAnalyze({ file, incidentSummary })
+    try {
+      await onAnalyze({ file, incidentSummary })
+    } catch {
+      setFileError('Die Auswertung konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.')
+    }
   }
 
   const dropzoneClassName = fileError

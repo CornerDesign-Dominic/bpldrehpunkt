@@ -78,6 +78,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // KI-Usage wird ausschließlich durch Cloud Functions erfasst. Weder
+    // Nutzer noch Clients dürfen Nutzungs- oder Kostendaten manipulieren.
+    match /aiUsage/{id} {
+      allow read, write: if false;
+    }
+
     match /calendars/{calendarId} {
       allow get: if view('calendar') && canReadCalendar(calendarId);
       allow list: if view('calendar') && superadmin();

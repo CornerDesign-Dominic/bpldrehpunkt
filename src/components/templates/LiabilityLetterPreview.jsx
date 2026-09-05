@@ -19,8 +19,8 @@ export default function LiabilityLetterPreview({ documentData, paperRef }) {
   const { orderNumber, transportCompany, transportStreet, transportZip, transportCity, transportCountry, loadingCompany, loadingStreet, loadingZip, loadingCity, loadingCountry, loadingDate, unloadingCompany, unloadingStreet, unloadingZip, unloadingCity, unloadingCountry, unloadingDate, date, incidentText } = documentData
   const loadingAddress = formatAddressLine({ company: loadingCompany, street: loadingStreet, zip: loadingZip, city: loadingCity, country: loadingCountry })
   const unloadingAddress = formatAddressLine({ company: unloadingCompany, street: unloadingStreet, zip: unloadingZip, city: unloadingCity, country: unloadingCountry })
-  const loadingHeading = [formatDocumentDate(loadingDate), 'Ladestelle:'].filter(Boolean).join(' ')
-  const unloadingHeading = [formatDocumentDate(unloadingDate), 'Entladestelle:'].filter(Boolean).join(' ')
+  const loadingHeading = [formatDocumentDate(loadingDate), 'Erste Ladestelle:'].filter(Boolean).join(' ')
+  const unloadingHeading = [formatDocumentDate(unloadingDate), 'Letzte Entladestelle:'].filter(Boolean).join(' ')
   return <DocumentShell label="Dokumentvorschau Haftbarhaltung" paperRef={paperRef} recipient={<Address company={transportCompany} street={transportStreet} zip={transportZip} city={transportCity} country={transportCountry} />} recipientMeta={<time dateTime={date}>{formatDocumentDate(date)}</time>}>
     <main className="liability-document__content">
       <h2>{getLiabilitySubject(orderNumber)}</h2>

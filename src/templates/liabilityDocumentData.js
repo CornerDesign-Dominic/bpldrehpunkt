@@ -36,34 +36,6 @@ export function createLiabilityDocumentData() {
   }
 }
 
-// Temporary extraction data follows the exact same shape as documentData.
-// A future AI service can replace this factory without changing either form
-// or the live document preview.
-export function createMockLiabilityAiDraftData() {
-  return {
-    ...createLiabilityDocumentData(),
-    orderNumber: '260600789',
-    transportCompany: 'Muster Transporte GmbH',
-    transportStreet: 'Musterstraße 10',
-    transportZip: '45128',
-    transportCity: 'Essen',
-    transportCountry: 'Deutschland',
-    loadingCompany: 'Brennpunkt Logistik GmbH',
-    loadingStreet: 'Reinshagenstr. 1',
-    loadingZip: '42369',
-    loadingCity: 'Wuppertal',
-    loadingCountry: 'Deutschland',
-    loadingDate: '2026-08-25',
-    unloadingCompany: 'Beispiel Kunde GmbH',
-    unloadingStreet: 'Industriestraße 22',
-    unloadingZip: '50667',
-    unloadingCity: 'Köln',
-    unloadingCountry: 'Deutschland',
-    unloadingDate: '2026-08-27',
-    incidentText: 'Aufgrund der verspäteten Bereitstellung des Fahrzeugs kam es zu erheblichen Verzögerungen im Transportablauf. Hieraus entstanden zusätzliche Aufwendungen und mögliche Folgekosten.',
-  }
-}
-
 export function getLiabilitySubject(orderNumber) {
   return `Haftbarhaltung zum Transportauftrag${orderNumber ? ` ${orderNumber}` : ''}`
 }

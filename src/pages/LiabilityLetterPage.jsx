@@ -4,8 +4,9 @@ import LiabilityLetterForm from '../components/templates/LiabilityLetterForm.jsx
 import LiabilityLetterPreview from '../components/templates/LiabilityLetterPreview.jsx'
 import LiabilityAiInputModal from '../components/templates/LiabilityAiInputModal.jsx'
 import LiabilityAiResultModal from '../components/templates/LiabilityAiResultModal.jsx'
-import { createLiabilityDocumentData, createMockLiabilityAiDraftData } from '../templates/liabilityDocumentData.js'
+import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
 import { documentPdfFileName, downloadDocumentShellPdf } from '../lib/documentExport.js'
+import { analyzeLiabilityTransportOrderWithAi, liabilityAnalysisToDocumentData } from '../lib/liabilityAi.js'
 
 export default function LiabilityLetterPage() {
   const [documentData, setDocumentData] = useState(createLiabilityDocumentData)
@@ -32,12 +33,15 @@ export default function LiabilityLetterPage() {
     }
   }
 
-  async function analyzeWithMockData() {
+  async function analyzeTransportOrder({ file, incidentSummary }) {
     setIsAnalyzing(true)
-    await new Promise((resolve) => window.setTimeout(resolve, 700))
-    setAiDraftData(createMockLiabilityAiDraftData())
-    setAiStep('result')
-    setIsAnalyzing(false)
+    try {
+      const analysis = await analyzeLiabilityTransportOrderWithAi(file, incidentSummary)
+      setAiDraftData({ ...createLiabilityDocumentData(), ...liabilityAnalysisToDocumentData(analysis) })
+      setAiStep('result')
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
 
   function updateAiDraftData(field, value) {
@@ -56,7 +60,7 @@ export default function LiabilityLetterPage() {
 
   return <>
     <div className="liability-page__toolbar">
-      <Link className="button button--secondary liability-page__back" to="/vorlagen">← Zurück</Link>
+      <Link className="button button--secondary liability-page__back" to="/vorlagen">Zurück</Link>
       <button className="button button--ai" type="button" onClick={() => setAiStep('input')}>Mit KI vorausfüllen</button>
     </div>
     <div className="liability-page">
@@ -64,7 +68,7 @@ export default function LiabilityLetterPage() {
       <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} />
       <div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={printDocument}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => { void createPdf() }}>PDF erstellen</button></div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
-      {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={() => { void analyzeWithMockData() }} onClose={closeAiFlow} />}
+      {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={analyzeTransportOrder} onClose={closeAiFlow} />}
       {aiStep === 'result' && aiDraftData && <LiabilityAiResultModal aiDraftData={aiDraftData} onChange={updateAiDraftData} onClose={closeAiFlow} onAccept={acceptAiDraft} />}
     </div>
   </>
