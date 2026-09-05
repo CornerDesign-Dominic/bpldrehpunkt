@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { requireActiveProfile, requireRole } from './access.js'
@@ -241,7 +242,15 @@ export const recordVacationCreated = onDocumentCreated({ region: 'europe-west3',
 
 export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, async (request) => {
   const manager = await assertVacationManager(request)
-  const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot, historySnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get(), db.collection('vacationHistory').get()])
+  const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get()])
+  let historySnapshot = null
+  try {
+    historySnapshot = await db.collection('vacationHistory').get()
+  } catch (error) {
+    // History is supplementary. A temporary read failure must not prevent a
+    // manager from accessing existing vacation requests.
+    logger.error('Urlaubsmanagement: Verlauf konnte nicht geladen werden.', { code: error?.code || 'unknown' })
+  }
   const employees = new Map(employeeSnapshot.docs.map((item) => [item.id, item.data()]))
   const managedEmployees = employeeSnapshot.docs
     .filter((item) => canManageVacationDepartment(manager, item.data().departmentId || item.data().department || ''))
@@ -263,7 +272,7 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, as
     return { id: item.id, ...data, startDate, endDate, label: departmentName(data.label || data.name) || fallbackLabel }
   }).filter((item) => item.startDate && item.endDate)
   const managedUserIds = new Set(managedEmployees.map((employee) => employee.id))
-  const history = historySnapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => managedUserIds.has(item.userId))
+  const history = historySnapshot?.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => managedUserIds.has(item.userId)) || []
   return { requests, history, employees: managedEmployees, holidays: calendarItems(holidaySnapshot, 'Feiertag'), blocks: calendarItems(blockSnapshot, 'Urlaubssperre') }
 })
 

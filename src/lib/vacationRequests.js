@@ -31,6 +31,12 @@ const vacationBlocksRef = collection(db, VACATION_BLOCKS_COLLECTION)
 const vacationHistoryRef = collection(db, VACATION_HISTORY_COLLECTION)
 const trim = (value) => (value ?? '').trim()
 
+function logVacationReadFailure(scope, error) {
+  // Keep the technical reason in developer logs. The UI deliberately exposes
+  // only a neutral message and never includes Firestore paths or user data.
+  console.error(`Urlaub: Datenabruf für ${scope} fehlgeschlagen.`, error)
+}
+
 export function toDate(value) {
   if (!value) return null
   const date = new Date(`${value}T12:00:00`)
@@ -81,7 +87,14 @@ export function formatVacationPeriod(request) {
 export async function listVacationRequests(userId) {
   const approvedQuery = query(requestsRef, where('status', '==', 'approved'))
   const ownQuery = userId ? query(requestsRef, where('userId', '==', userId)) : requestsRef
-  const [approvedSnapshot, ownSnapshot] = await Promise.all([getDocs(approvedQuery), getDocs(ownQuery)])
+  let approvedSnapshot
+  let ownSnapshot
+  try {
+    [approvedSnapshot, ownSnapshot] = await Promise.all([getDocs(approvedQuery), getDocs(ownQuery)])
+  } catch (error) {
+    logVacationReadFailure('Urlaubsanträgen', error)
+    throw error
+  }
   return [...new Map([...approvedSnapshot.docs, ...ownSnapshot.docs].map((item) => [item.id, item])).values()]
     .map((item) => ({ id: item.id, ...item.data() }))
     .filter((item) => item.type === 'vacation' || !item.type)
@@ -90,8 +103,16 @@ export async function listVacationRequests(userId) {
 
 export async function listVacationHistory(userId) {
   if (!userId) return []
-  const snapshot = await getDocs(query(vacationHistoryRef, where('userId', '==', userId)))
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+  try {
+    const snapshot = await getDocs(query(vacationHistoryRef, where('userId', '==', userId)))
+    return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+  } catch (error) {
+    // History was added after existing vacation records. It is an optional
+    // enhancement, so a temporarily unavailable history rule or collection
+    // must never prevent legacy vacations from loading.
+    logVacationReadFailure('Urlaubsverlauf', error)
+    return []
+  }
 }
 
 export function getVacationType(type) {
