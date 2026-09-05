@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import LiabilityLetterForm from '../components/templates/LiabilityLetterForm.jsx'
 import LiabilityLetterPreview from '../components/templates/LiabilityLetterPreview.jsx'
 import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
+import { documentPdfFileName, downloadDocumentShellPdf } from '../lib/documentExport.js'
 
 export default function LiabilityLetterPage() {
   const [documentData, setDocumentData] = useState(createLiabilityDocumentData)
+  const [isCreatingPdf, setCreatingPdf] = useState(false)
+  const documentPaperRef = useRef(null)
 
   function updateDocumentData(field, value) {
     setDocumentData((current) => ({ ...current, [field]: value }))
@@ -15,17 +18,20 @@ export default function LiabilityLetterPage() {
     window.print()
   }
 
-  function createPdf() {
-    const previousTitle = window.document.title
-    const suffix = documentData.orderNumber ? ` ${documentData.orderNumber}` : ''
-    window.document.title = `Haftbarhaltung${suffix}`
-    window.print()
-    window.document.title = previousTitle
+  async function createPdf() {
+    setCreatingPdf(true)
+    try {
+      await downloadDocumentShellPdf(documentPaperRef.current, documentPdfFileName('Haftbarhaltung_Transportauftrag', documentData.orderNumber))
+    } finally {
+      setCreatingPdf(false)
+    }
   }
 
   return <div className="liability-page">
-    <div className="liability-page__header"><div><Link className="liability-page__back" to="/vorlagen">← Vorlagen</Link><h2>Haftbarhaltung</h2><p>Erstellen Sie ein Schreiben auf Basis des jeweiligen Transportauftrags.</p></div><div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={printDocument}>Drucken</button><button className="button" type="button" onClick={createPdf}>PDF erstellen</button></div></div>
+    <Link className="button button--secondary liability-page__back" to="/vorlagen">← Zurück</Link>
+    <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
     <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} />
-    <section className="template-preview-section" aria-labelledby="liability-preview-heading"><div className="template-section-heading"><div><h2 id="liability-preview-heading">Dokumentvorschau</h2><p>A4-Vorschau · Die Druckansicht entspricht diesem Schreiben.</p></div></div><LiabilityLetterPreview documentData={documentData} /></section>
+    <div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={printDocument}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => { void createPdf() }}>PDF erstellen</button></div>
+    <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
   </div>
 }

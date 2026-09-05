@@ -12,6 +12,8 @@
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "firebase": "^12.18.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "pdfjs-dist": "^5.6.205",
     "react": "latest",
     "react-dom": "latest",

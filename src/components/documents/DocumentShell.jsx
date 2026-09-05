@@ -1,8 +1,8 @@
 import letterheadImage from '../../assets/documents/bpl-letterhead.png'
 
-export default function DocumentShell({ children, label = 'Dokumentvorschau', recipient, recipientMeta }) {
+export default function DocumentShell({ children, label = 'Dokumentvorschau', paperRef, recipient, recipientMeta }) {
   return <article className="document-shell" aria-label={label}>
-    <div className="document-shell__paper">
+    <div ref={paperRef} className="document-shell__paper">
       <header className="document-shell__header"><img src={letterheadImage} alt="Brennpunkt Logistik GmbH" /></header>
       <div className="document-shell__content">
         {recipient && <div className="document-shell__recipient"><p className="document-shell__sender-line">Brennpunkt Logistik GmbH · Reinshagenstr. 1 · D-42369 Wuppertal</p><div className="document-shell__recipient-row"><div className="document-shell__recipient-address">{recipient}</div>{recipientMeta}</div></div>}
