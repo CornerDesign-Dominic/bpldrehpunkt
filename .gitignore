@@ -4,3 +4,4 @@ dist/
 .vite/
 .env
 .env.local
+firebase-debug.log
