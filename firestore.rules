@@ -65,6 +65,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Systemmail templates are exclusively exposed through superadmin-only
+    // callable functions. This keeps delivery and recipient controls out of
+    // direct client access.
+    match /systemMailTemplates/{templateId} {
+      allow read, write: if false;
+    }
+
     match /calendars/{calendarId} {
       allow get: if view('calendar') && canReadCalendar(calendarId);
       allow list: if view('calendar') && superadmin();
@@ -316,8 +323,8 @@ service cloud.firestore {
     }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'
-        && data.status in ['pending', 'change_requested', 'cancellation_requested']
-        && (data.status != 'cancellation_requested' || (data.originalRequestId is string
+        && ((data.status == 'pending' && !data.keys().hasAny(['originalRequestId', 'changeRequest', 'cancellationRequest', 'requestKind']))
+          || (data.status == 'cancellation_requested' && data.originalRequestId is string
           && exists(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId))
           && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.userId == request.auth.uid
           && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.status == 'approved'));

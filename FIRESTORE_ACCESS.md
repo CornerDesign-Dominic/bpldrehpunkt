@@ -64,7 +64,7 @@ Die Storage-Regeln werden getrennt über `firebase deploy --only storage` ausger
 
 ## News-Recherche
 
-Die geplante News-Recherche nutzt weiterhin `OPENAI_API_KEY`. Damit Superadmins bei einem Fehlschlag per E-Mail informiert werden, muss zusätzlich derselbe Power-Automate-Webhook wie für `/api/notifications` als Firebase-Secret gesetzt werden:
+Die geplante News-Recherche und die serverseitigen Systemmails nutzen weiterhin `OPENAI_API_KEY` beziehungsweise den folgenden Power-Automate-Webhook als Firebase-Secret:
 
 ```powershell
 firebase functions:secrets:set POWER_AUTOMATE_NOTIFICATION_URL

@@ -7,7 +7,6 @@ import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import { getUserDisplayName, listUserProfiles } from '../lib/userProfiles.js'
 import {
   businessDays,
-  createVacationChangeRequest,
   createVacationCancellationRequest,
   createVacationRequest,
   formatVacationPeriod,
@@ -21,7 +20,6 @@ import {
   todayValue,
   withdrawVacationRequest,
 } from '../lib/vacationRequests.js'
-import { notifyVacationSubmission } from '../lib/vacationNotifications.js'
 import '../styles/vacation.css'
 
 function displayName(profile) {
@@ -249,69 +247,21 @@ export default function VacationPage() {
     const isChange = modal?.type === 'change'
     const originalRequest = modal?.request
     const isPendingReplacement = isChange && originalRequest?.status === 'pending' && !originalRequest?.originalRequestId && !isCancellationRequest(originalRequest)
-    const requestId = isPendingReplacement
-      ? (await replacePendingVacationRequest(originalRequest.id, form)).requestId
-      : isChange
-        ? await createVacationChangeRequest(originalRequest, user.uid, form)
-        : await createVacationRequest(user.uid, form)
-    const applicant = {
-      ...users.find((item) => item.id === user.uid),
-      ...profile,
-      id: user.uid,
-      email: user.email || profile?.email || '',
-    }
-    const savedRequest = isChange && !isPendingReplacement
-      ? {
-          id: requestId,
-          ...form,
-          userId: user.uid,
-          status: 'change_requested',
-          originalRequestId: originalRequest.id,
-          changeRequest: {
-            originalStartDate: originalRequest.startDate,
-            originalEndDate: originalRequest.endDate,
-            originalDays: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
-          },
-        }
-      : { id: requestId, ...form, userId: user.uid, status: 'pending' }
-
+    if (isChange && !isPendingReplacement) throw new Error('Dieser Urlaub kann nicht überarbeitet werden.')
+    if (isPendingReplacement) await replacePendingVacationRequest(originalRequest.id, form)
+    else await createVacationRequest(user.uid, form)
     setModal(null)
-    const notificationSent = await notifyVacationSubmission({ applicant, request: savedRequest, users })
     await reload().catch(() => undefined)
-    const successMessage = isPendingReplacement ? 'Antrag überarbeitet.' : isChange ? 'Änderungsantrag gesendet.' : 'Urlaubsantrag gesendet.'
-    setToast(notificationSent ? successMessage : `${successMessage} Benachrichtigung konnte nicht vollständig gesendet werden.`)
+    const successMessage = isPendingReplacement ? 'Antrag überarbeitet.' : 'Urlaubsantrag gesendet.'
+    setToast(successMessage)
   }
 
   async function saveCancellation(form) {
     const originalRequest = modal.request
-    const requestId = await createVacationCancellationRequest(originalRequest, user.uid, form)
-    const applicant = {
-      ...users.find((item) => item.id === user.uid),
-      ...profile,
-      id: user.uid,
-      email: user.email || profile?.email || '',
-    }
-    const savedRequest = {
-      id: requestId,
-      userId: user.uid,
-      startDate: originalRequest.startDate,
-      endDate: originalRequest.endDate,
-      days: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
-      vacationType: originalRequest.vacationType,
-      requestComment: form.requestComment,
-      status: 'cancellation_requested',
-      requestKind: 'cancellation',
-      originalRequestId: originalRequest.id,
-      cancellationRequest: {
-        originalStartDate: originalRequest.startDate,
-        originalEndDate: originalRequest.endDate,
-        originalDays: originalRequest.days ?? businessDays(originalRequest.startDate, originalRequest.endDate),
-      },
-    }
+    await createVacationCancellationRequest(originalRequest, user.uid, form)
     setModal(null)
-    const notificationSent = await notifyVacationSubmission({ applicant, request: savedRequest, users })
     await reload().catch(() => undefined)
-    setToast(notificationSent ? 'Stornoantrag gesendet.' : 'Stornoantrag gesendet. Benachrichtigung konnte nicht vollständig gesendet werden.')
+    setToast('Stornoantrag gesendet.')
   }
 
   async function withdrawRequest(request) {
@@ -341,6 +291,6 @@ export default function VacationPage() {
     </aside>
     {(modal?.type === 'new' || modal?.type === 'change') && <RequestModal request={modal.type === 'change' ? modal.request : null} onClose={() => setModal(null)} onSubmit={saveRequest} />}
     {modal?.type === 'cancellation' && <CancellationModal request={modal.request} onClose={() => setModal(null)} onSubmit={saveCancellation} />}
-    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onWithdraw={editable && ['pending', 'change_requested', 'cancellation_requested'].includes(selectedRequest.status) ? () => withdrawRequest(selectedRequest) : null} onChange={editable && !isCancellationRequest(selectedBaseRequest) && !['rejected', 'cancelled', 'withdrawn', 'superseded'].includes(selectedBaseRequest.status) ? () => { setModal({ type: 'change', request: selectedBaseRequest }); setSelectedRequest(null) } : null} onCancel={editable && cancellableRequest ? () => { setModal({ type: 'cancellation', request: cancellableRequest }); setSelectedRequest(null) } : null} />}
+    {selectedRequest && <RequestDetail request={selectedRequest} onClose={() => setSelectedRequest(null)} onWithdraw={editable && ['pending', 'change_requested', 'cancellation_requested'].includes(selectedRequest.status) ? () => withdrawRequest(selectedRequest) : null} onChange={editable && selectedRequest.id === selectedBaseRequest.id && selectedBaseRequest.status === 'pending' ? () => { setModal({ type: 'change', request: selectedBaseRequest }); setSelectedRequest(null) } : null} onCancel={editable && cancellableRequest ? () => { setModal({ type: 'cancellation', request: cancellableRequest }); setSelectedRequest(null) } : null} />}
   </div>
 }

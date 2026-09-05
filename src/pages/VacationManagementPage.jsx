@@ -5,7 +5,6 @@ import Toast from '../components/ui/Toast.jsx'
 import { businessDays, formatVacationPeriod, getVacationType, todayValue } from '../lib/vacationRequests.js'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import { listManagedVacationData, processVacationRequest } from '../lib/vacationManagement.js'
-import { notifyVacationDecision } from '../lib/vacationNotifications.js'
 import '../styles/vacation.css'
 import '../styles/vacationManagement.css'
 
@@ -62,7 +61,9 @@ export default function VacationManagementPage() {
   const employees = useMemo(() => managedEmployees.filter((item) => department === 'all' || item.departmentId === department).sort((left, right) => left.name.localeCompare(right.name, 'de')), [department, managedEmployees])
   const years = useMemo(() => [...new Set([currentYear, year, ...requests.flatMap((item) => [item.startDate, item.changeRequest?.originalStartDate, item.cancellationRequest?.originalStartDate]).map((value) => Number(value?.slice(0, 4))).filter(Number.isFinite)])].sort((left, right) => right - left), [currentYear, requests, year])
   const filteredRequests = useMemo(() => requests.filter((item) => item.status !== 'superseded' && (department === 'all' || item.employeeDepartmentId === department) && (employee === 'all' || item.userId === employee)), [department, employee, requests])
-  const visibleRequests = useMemo(() => filteredRequests.filter((item) => Number(item.startDate?.slice(0, 4)) === year).filter((item) => status === 'all' || requestStatus(item) === status).sort((left, right) => (requestStatus(left) === 'pending' ? 0 : 1) - (requestStatus(right) === 'pending' ? 0 : 1) || (right.submittedAt || '').localeCompare(left.submittedAt || '')), [filteredRequests, status, year])
+  const latestCancellationsByOriginal = useMemo(() => filteredRequests.filter((item) => requestType(item) === 'cancellation' && item.originalRequestId).reduce((map, item) => { const current = map.get(item.originalRequestId); if (!current || (item.submittedAt || '').localeCompare(current.submittedAt || '') >= 0) map.set(item.originalRequestId, item); return map }, new Map()), [filteredRequests])
+  const currentListRequests = useMemo(() => filteredRequests.filter((item) => requestType(item) === 'cancellation' ? latestCancellationsByOriginal.get(item.originalRequestId)?.id === item.id : !latestCancellationsByOriginal.has(item.id)), [filteredRequests, latestCancellationsByOriginal])
+  const visibleRequests = useMemo(() => currentListRequests.filter((item) => Number(item.startDate?.slice(0, 4)) === year).filter((item) => status === 'all' || requestStatus(item) === status).sort((left, right) => (requestStatus(left) === 'pending' ? 0 : 1) - (requestStatus(right) === 'pending' ? 0 : 1) || (right.submittedAt || '').localeCompare(left.submittedAt || '')), [currentListRequests, status, year])
   const requestsById = useMemo(() => new Map(filteredRequests.map((item) => [item.id, item])), [filteredRequests])
   const relatedByOriginal = useMemo(() => filteredRequests.filter((item) => item.originalRequestId).reduce((map, item) => { const related = map.get(item.originalRequestId) || []; related.push(item); map.set(item.originalRequestId, related); return map }, new Map()), [filteredRequests])
 
@@ -114,7 +115,7 @@ export default function VacationManagementPage() {
   }, [filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
 
   function moveMonth(delta) { const next = new Date(year, month + delta, 1); setYear(next.getFullYear()); setMonth(next.getMonth()) }
-  async function process(request, decision, managerComment) { setProcessingId(request.id); try { await processVacationRequest(request.id, decision, managerComment); let notificationSent = false; try { notificationSent = await notifyVacationDecision({ request: { ...request, managerComment }, decision }) } catch { notificationSent = false } await reload(); setSelectedRequest(null); const actionLabel = requestTypes[requestType(request)] || 'Antrag'; const successMessage = decision === 'approved' ? `${actionLabel} genehmigt.` : `${actionLabel} abgelehnt.`; setToast(notificationSent ? successMessage : `${successMessage} Benachrichtigung konnte nicht gesendet werden.`) } catch { setToast('Der Urlaubsantrag konnte nicht bearbeitet werden.') } finally { setProcessingId('') } }
+  async function process(request, decision, managerComment) { setProcessingId(request.id); try { await processVacationRequest(request.id, decision, managerComment); await reload(); setSelectedRequest(null); const actionLabel = requestTypes[requestType(request)] || 'Antrag'; setToast(decision === 'approved' ? `${actionLabel} genehmigt.` : `${actionLabel} abgelehnt.`) } catch { setToast('Der Urlaubsantrag konnte nicht bearbeitet werden.') } finally { setProcessingId('') } }
   function requestProcess(request, decision, managerComment) { setConfirmation({ request, decision, managerComment }) }
 
   const selectedOriginal = selectedRequest?.originalRequestId ? requestsById.get(selectedRequest.originalRequestId) : null

@@ -16,11 +16,12 @@ import { createCalendar, listCalendarPermissions, listCalendars, setCalendarPerm
 import { functions } from '../lib/firebase.js'
 import '../styles/admin.css'
 import PartnerEvaluationSettingsPanel from '../components/admin/PartnerEvaluationSettingsPanel.jsx'
+import SystemMailPanel from '../components/admin/SystemMailPanel.jsx'
 
 const emptyUser = () => ({ firstName: '', lastName: '', email: '', departmentId: '', department: '', jobTitle: '', phone: '', personnelNumber: '', employmentStart: '', active: true, role: 'user', permissions: {}, vacationManager: false, vacationManagerAllDepartments: false, vacationManagerDepartments: [] })
 
 export default function AdminPage() {
-  const { user, profile } = useAuth()
+  const { profile } = useAuth()
   const { canManagePermissions } = usePermissions()
   const [users, setUsers] = useState([])
   const [departments, setDepartments] = useState([])
@@ -93,22 +94,10 @@ export default function AdminPage() {
   }
 
   async function testPowerAutomate() {
-    const testRecipient = typeof user?.email === 'string' && user.email.trim()
-      ? user.email.trim()
-      : (typeof profile?.email === 'string' ? profile.email.trim() : '')
-    if (!testRecipient) {
-      setToast('Die E-Mail-Adresse des angemeldeten Administrators ist nicht verfügbar.')
-      return
-    }
     setTestingNotification(true)
     try {
-      const response = await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: testRecipient, subject: 'Drehpunkt Testmail', message: 'Die generische Drehpunkt-Mail-Schnittstelle funktioniert.', type: 'system_test' }),
-      })
-      if (!response.ok) throw new Error('request-failed')
-      setToast('Power Automate wurde erfolgreich ausgelöst.')
+      await httpsCallable(functions, 'sendSystemTestMail')()
+      setToast('Testmail wurde an dein Benutzerprofil gesendet.')
     } catch {
       setToast('Power Automate konnte nicht ausgelöst werden.')
     } finally {
@@ -165,5 +154,5 @@ export default function AdminPage() {
 
   const orderedDepartments = useMemo(() => [...departments].sort((left, right) => String(left.name).localeCompare(String(right.name), 'de')), [departments])
 
-  return <div className="admin-page"><ConfirmDialog open={researchConfirmationOpen} title="News-Recherche starten?" message="Die Recherche führt eine kostenpflichtige KI- und Websuche aus. Möchten Sie sie jetzt wirklich starten?" confirmLabel="Recherche starten" submittingLabel="Recherche läuft …" isSubmitting={researching} onCancel={() => setResearchConfirmationOpen(false)} onConfirm={runNewsResearch} />{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section><section className="admin-panel admin-manual-triggers"><div className="admin-panel__heading"><div><h2>Manuell auslösen</h2></div></div><div className="admin-manual-triggers__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Power Automate testen'}</button>{profile?.role === 'superadmin' && <button className="button" type="button" onClick={() => setResearchConfirmationOpen(true)} disabled={researching}>{researching ? 'Recherche läuft …' : 'News-Recherche starten'}</button>}</div></section>{canManagePermissions && <><PartnerEvaluationSettingsPanel /><DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} /><CalendarManagementPanel calendars={calendars} users={users} permissionsByCalendar={calendarPermissions} error={calendarError} saving={calendarSaving} onCreate={(values) => saveCalendar(() => createCalendar(values), 'Kalender angelegt.')} onUpdate={(id, values) => saveCalendar(() => updateCalendar(id, values), values.active === false ? 'Kalender archiviert.' : values.active === true ? 'Kalender reaktiviert.' : 'Kalender aktualisiert.')} onSavePermissions={(calendarId, permissions) => saveCalendar(() => saveCalendarPermissions(calendarId, permissions), 'Kalenderberechtigungen aktualisiert.')} /></>}</>}</div>
+  return <div className="admin-page"><ConfirmDialog open={researchConfirmationOpen} title="News-Recherche starten?" message="Die Recherche führt eine kostenpflichtige KI- und Websuche aus. Möchten Sie sie jetzt wirklich starten?" confirmLabel="Recherche starten" submittingLabel="Recherche läuft …" isSubmitting={researching} onCancel={() => setResearchConfirmationOpen(false)} onConfirm={runNewsResearch} />{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section><section className="admin-panel admin-manual-triggers"><div className="admin-panel__heading"><div><h2>Manuell auslösen</h2></div></div><div className="admin-manual-triggers__actions"><button className="button button--secondary" type="button" onClick={testPowerAutomate} disabled={testingNotification}>{testingNotification ? 'Wird getestet …' : 'Testmail senden'}</button>{profile?.role === 'superadmin' && <button className="button" type="button" onClick={() => setResearchConfirmationOpen(true)} disabled={researching}>{researching ? 'Recherche läuft …' : 'News-Recherche starten'}</button>}</div></section>{profile?.role === 'superadmin' && profile?.active !== false && <SystemMailPanel />}{canManagePermissions && <><PartnerEvaluationSettingsPanel /><DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} /><CalendarManagementPanel calendars={calendars} users={users} permissionsByCalendar={calendarPermissions} error={calendarError} saving={calendarSaving} onCreate={(values) => saveCalendar(() => createCalendar(values), 'Kalender angelegt.')} onUpdate={(id, values) => saveCalendar(() => updateCalendar(id, values), values.active === false ? 'Kalender archiviert.' : values.active === true ? 'Kalender reaktiviert.' : 'Kalender aktualisiert.')} onSavePermissions={(calendarId, permissions) => saveCalendar(() => saveCalendarPermissions(calendarId, permissions), 'Kalenderberechtigungen aktualisiert.')} /></>}</>}</div>
 }

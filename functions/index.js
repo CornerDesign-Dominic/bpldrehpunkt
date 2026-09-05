@@ -1,9 +1,9 @@
-import { initializeApp } from 'firebase-admin/app'
+import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 
-initializeApp()
+if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
@@ -313,3 +313,10 @@ export const processVacationRequest = onCall({ region: 'europe-west3' }, async (
 
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
 export { submitBugReport } from './bugReports.js'
+export {
+  listSystemMailTemplates,
+  notifyVacationRequestCreated,
+  notifyVacationRequestDecision,
+  sendSystemTestMail,
+  updateSystemMailTemplate,
+} from './systemMails.js'

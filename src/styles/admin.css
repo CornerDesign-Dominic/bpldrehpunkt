@@ -119,6 +119,16 @@
 .admin-permission-control__option:hover { background: var(--surface-active); color: var(--text-primary); }
 .admin-permission-control__option--active { color: var(--text-primary); background: var(--surface-active); }
 .admin-user-form__actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; border-top: 1px solid var(--border); }
+.system-mail-panel { display: grid; gap: 12px; }
+.system-mail-list { display: grid; gap: 8px; }
+.system-mail-list__item { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--content-background); }
+.system-mail-list__item > div { min-width: 0; }
+.system-mail-list__item h3, .system-mail-editor h3 { margin: 0; color: var(--text-primary); font-size: 13px; }
+.system-mail-list__item p { margin: 7px 0; color: var(--text-secondary); font-size: 12px; }
+.system-mail-list__item pre { max-height: 150px; margin: 0 0 7px; overflow: auto; white-space: pre-wrap; color: var(--text-secondary); font: inherit; font-size: 12px; }
+.system-mail-list__item small, .system-mail-placeholders { color: var(--text-muted); font-size: 11px; }
+.system-mail-editor { display: grid; gap: 12px; max-width: 850px; }
+.system-mail-editor textarea { resize: vertical; }
 
 @media (max-width: 720px) {
   .admin-tabs { overflow-x: auto; }
