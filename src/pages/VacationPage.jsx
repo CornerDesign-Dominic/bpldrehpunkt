@@ -249,6 +249,12 @@ export default function VacationPage() {
     setMonth(next.getMonth())
   }
 
+  function showToday() {
+    const current = new Date()
+    setYear(current.getFullYear())
+    setMonth(current.getMonth())
+  }
+
   async function saveRequest(form) {
     const isChange = modal?.type === 'change'
     const originalRequest = modal?.request
@@ -289,7 +295,7 @@ export default function VacationPage() {
   return <div className="vacation-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <section className="vacation-calendar-card">
-      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Kalenderansicht</span><select value={calendarScope} onChange={(event) => setCalendarScope(event.target.value)}><option value="self">Mein Kalender</option>{ownDepartment && <option value="department">Meine Abteilung</option>}</select></label></div></div>
+      <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-today-button" type="button" onClick={showToday}>Heute</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Kalenderansicht</span><select value={calendarScope} onChange={(event) => setCalendarScope(event.target.value)}><option value="self">Mein Kalender</option>{ownDepartment && <option value="department">Meine Abteilung</option>}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
       {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar year={year} month={month} today={today} entries={calendarEntries} /><VacationCalendarLegend /></>}
     </section>
