@@ -19,13 +19,14 @@ export default function LiabilityLetterPreview({ documentData }) {
   const { orderNumber, transportCompany, transportStreet, transportZip, transportCity, transportCountry, loadingCompany, loadingStreet, loadingZip, loadingCity, loadingCountry, loadingDate, unloadingCompany, unloadingStreet, unloadingZip, unloadingCity, unloadingCountry, unloadingDate, date, incidentText } = documentData
   const loadingAddress = formatAddressLine({ company: loadingCompany, street: loadingStreet, zip: loadingZip, city: loadingCity, country: loadingCountry })
   const unloadingAddress = formatAddressLine({ company: unloadingCompany, street: unloadingStreet, zip: unloadingZip, city: unloadingCity, country: unloadingCountry })
-  return <DocumentShell label="Dokumentvorschau Haftbarhaltung">
-    <div className="liability-document__recipient-date"><address><Address company={transportCompany} street={transportStreet} zip={transportZip} city={transportCity} country={transportCountry} /></address><time dateTime={date}>{formatDocumentDate(date)}</time></div>
+  const loadingHeading = [formatDocumentDate(loadingDate), 'Ladestelle:'].filter(Boolean).join(' ')
+  const unloadingHeading = [formatDocumentDate(unloadingDate), 'Entladestelle:'].filter(Boolean).join(' ')
+  return <DocumentShell label="Dokumentvorschau Haftbarhaltung" recipient={<Address company={transportCompany} street={transportStreet} zip={transportZip} city={transportCity} country={transportCountry} />} recipientMeta={<time dateTime={date}>{formatDocumentDate(date)}</time>}>
     <main className="liability-document__content">
       <h2>{getLiabilitySubject(orderNumber)}</h2>
       <p>Sehr geehrte Damen und Herren,</p>
       <p>hiermit halten wir Sie für sämtliche entstandenen Schäden sowie daraus resultierende Kosten und Aufwendungen haftbar, die im Zusammenhang mit dem nachfolgend genannten Transportauftrag entstanden sind oder noch entstehen werden.</p>
-      <div className="liability-document__locations"><p><Value>{formatDocumentDate(loadingDate)}</Value> Ladestelle:<br /><Value>{loadingAddress}</Value></p><p><Value>{formatDocumentDate(unloadingDate)}</Value> Entladestelle:<br /><Value>{unloadingAddress}</Value></p></div>
+      <div className="liability-document__locations"><p>{loadingHeading}<br /><Value placeholder="">{loadingAddress}</Value></p><p>{unloadingHeading}<br /><Value placeholder="">{unloadingAddress}</Value></p></div>
       <p><Value placeholder="Der individuelle Sachverhalt wird hier eingefügt.">{incidentText}</Value></p>
       <p>Wir behalten uns vor, die uns entstandenen sowie noch entstehenden Schäden, Kosten und Aufwendungen geltend zu machen.</p>
       <p>Bitte informieren Sie vorsorglich Ihre Versicherung über den vorliegenden Sachverhalt.</p>
