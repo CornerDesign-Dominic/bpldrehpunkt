@@ -24,11 +24,11 @@ export default function LiabilityLetterPreview({ documentData }) {
     <main className="liability-document__content">
       <h2>{getLiabilitySubject(orderNumber)}</h2>
       <p>Sehr geehrte Damen und Herren,</p>
-      <p>hiermit halten wir Sie für sämtliche Schäden, Kosten und sonstigen Aufwendungen haftbar, die uns im Zusammenhang mit dem nachfolgend genannten Transportauftrag entstanden sind oder noch entstehen werden.</p>
+      <p>hiermit halten wir Sie für sämtliche entstandenen Schäden sowie daraus resultierende Kosten und Aufwendungen haftbar, die im Zusammenhang mit dem nachfolgend genannten Transportauftrag entstanden sind oder noch entstehen werden.</p>
       <div className="liability-document__locations"><p><Value>{formatDocumentDate(loadingDate)}</Value> Ladestelle:<br /><Value>{loadingAddress}</Value></p><p><Value>{formatDocumentDate(unloadingDate)}</Value> Entladestelle:<br /><Value>{unloadingAddress}</Value></p></div>
-      <p>Dem Schreiben liegt folgender Sachverhalt zugrunde:</p>
-      <p className="liability-document__incident"><Value placeholder="Der individuelle Sachverhalt wird hier eingefügt.">{incidentText}</Value></p>
-      <p>Wir behalten uns vor, die uns entstandenen und noch entstehenden Kosten geltend zu machen. Bitte nehmen Sie hierzu schriftlich Stellung.</p>
+      <p><Value placeholder="Der individuelle Sachverhalt wird hier eingefügt.">{incidentText}</Value></p>
+      <p>Wir behalten uns vor, die uns entstandenen sowie noch entstehenden Schäden, Kosten und Aufwendungen geltend zu machen.</p>
+      <p>Bitte informieren Sie vorsorglich Ihre Versicherung über den vorliegenden Sachverhalt.</p>
       <p>Mit freundlichen Grüßen</p>
       <p className="liability-document__signature">Brennpunkt Logistik GmbH</p>
     </main>
