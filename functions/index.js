@@ -345,6 +345,10 @@ export const withdrawVacationRequest = onCall({ region: 'europe-west3' }, async 
     if (!['pending', 'change_requested', 'cancellation_requested'].includes(data.status) && vacationRequestStatus(data) !== 'pending') throw new HttpsError('failed-precondition', 'Der Urlaubsantrag kann nicht zurückgezogen werden.')
     const kind = requestType(data)
     const rootId = vacationRootId(data, requestId)
+    if (kind === 'cancellation') {
+      const rootVacation = await transaction.get(db.collection('vacationRequests').doc(rootId))
+      if (!rootVacation.exists || (rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist nicht mehr genehmigt.')
+    }
     const update = kind === 'request'
       ? { status: 'withdrawn', mainStatus: 'withdrawn', withdrawnBy: request.auth.uid, withdrawnAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }
       : { status: 'withdrawn', requestStatus: 'withdrawn', withdrawnBy: request.auth.uid, withdrawnAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }

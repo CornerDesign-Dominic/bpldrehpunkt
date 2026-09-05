@@ -49,6 +49,18 @@ const templateDefinitions = {
     message: 'Ein Stornoantrag ist eingegangen.\n\nVon: {{employeeName}}\nAbteilung: {{department}}\nZeitraum: {{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}\nKommentar: {{comment}}\n\nBitte im Drehpunkt prüfen.',
     allowedPlaceholders: ['employeeName', 'department', 'period', 'days', 'vacationType', 'comment'],
   },
+  vacation_cancellation_withdrawn_confirmation: {
+    displayName: 'Stornoantrag – Rückzug',
+    subject: 'Urlaub [Storno zurückgezogen] - {{employeeName}}',
+    message: 'Dein Stornoantrag wurde zurückgezogen.\n\nDer genehmigte Urlaub bleibt unverändert bestehen.\n\nZeitraum: {{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}\n\nStatus Urlaub:\nGenehmigt',
+    allowedPlaceholders: ['employeeName', 'period', 'days', 'vacationType'],
+  },
+  vacation_cancellation_withdrawn_manager: {
+    displayName: 'Stornoantrag – Rückzug für Urlaubsmanagement',
+    subject: 'Urlaub [Storno zurückgezogen] - {{employeeName}}',
+    message: '{{employeeName}} hat den Stornoantrag zurückgezogen.\n\nDer genehmigte Urlaub bleibt unverändert bestehen.\n\nAbteilung: {{department}}\nZeitraum: {{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}',
+    allowedPlaceholders: ['employeeName', 'department', 'period', 'days', 'vacationType'],
+  },
   vacation_approved: {
     displayName: 'Urlaub – Genehmigung',
     subject: 'Urlaub [Genehmigt] - {{employeeName}}',
@@ -229,6 +241,22 @@ async function sendDecisionNotification(requestId, request) {
   if (!isActive(employee)) return
   await deliverVacationMail({ requestId, deliveryId: `vacation_${request.status}_${request.userId}`, recipientId: request.userId, recipient: employee.email, templateId: `vacation_${request.status}`, values: decisionValues(request, employee) })
 }
+async function sendCancellationWithdrawalNotifications(requestId, request) {
+  if (requestKind(request) !== 'cancellation' || request.requestStatus !== 'withdrawn') return
+  const employeeSnapshot = await db.doc(`users/${request.userId}`).get()
+  const employee = employeeSnapshot.exists ? employeeSnapshot.data() : null
+  if (!isActive(employee)) return
+  const values = requestValues(request, employee)
+  const departmentId = employee.departmentId || employee.department || ''
+  const departmentSnapshot = departmentId ? await db.doc(`departments/${departmentId}`).get() : null
+  const department = departmentSnapshot?.exists && departmentSnapshot.data().active !== false ? departmentSnapshot.data() : null
+  values.department = cleanText(department?.name, 160) || values.department
+  const managers = await activeManagers(departmentId)
+  await Promise.all([
+    deliverVacationMail({ requestId, deliveryId: `vacation_cancellation_withdrawn_confirmation_${request.userId}`, recipientId: request.userId, recipient: employee.email, templateId: 'vacation_cancellation_withdrawn_confirmation', values }),
+    ...managers.map((manager) => deliverVacationMail({ requestId, deliveryId: `vacation_cancellation_withdrawn_manager_${manager.id}`, recipientId: manager.id, recipient: manager.email, templateId: 'vacation_cancellation_withdrawn_manager', values })),
+  ])
+}
 
 export const notifyVacationRequestCreated = onDocumentCreated({ region, document: 'vacationRequests/{requestId}', secrets: [powerAutomateNotificationUrl], retry: true }, async (event) => {
   await sendSubmissionNotifications(event.params.requestId, event.data.data())
@@ -237,7 +265,8 @@ export const notifyVacationRequestCreated = onDocumentCreated({ region, document
 export const notifyVacationRequestDecision = onDocumentUpdated({ region, document: 'vacationRequests/{requestId}', secrets: [powerAutomateNotificationUrl], retry: true }, async (event) => {
   const before = event.data.before.data()
   const after = event.data.after.data()
-  if (before.status === after.status) return
+  if (before.status === after.status && before.requestStatus === after.requestStatus) return
+  await sendCancellationWithdrawalNotifications(event.params.requestId, after)
   await sendDecisionNotification(event.params.requestId, after)
 })
 
