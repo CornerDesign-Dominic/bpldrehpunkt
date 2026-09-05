@@ -4,9 +4,9 @@ const addressSections = [
   { title: 'Entladestelle', prefix: 'unloading', dateLabel: 'Entladedatum' },
 ]
 
-export default function LiabilityLetterForm({ documentData, onChange }) {
-  return <section className="template-form-section" aria-labelledby="liability-form-heading">
-    <div className="template-section-heading"><div><h2 id="liability-form-heading">Angaben zum Schreiben</h2><p>Änderungen erscheinen sofort in der Dokumentvorschau.</p></div></div>
+export default function LiabilityLetterForm({ documentData, onChange, headingId = 'liability-form-heading', title = 'Angaben zum Schreiben', description = 'Änderungen erscheinen sofort in der Dokumentvorschau.' }) {
+  return <section className="template-form-section" aria-labelledby={headingId}>
+    <div className="template-section-heading"><div><h2 id={headingId}>{title}</h2>{description && <p>{description}</p>}</div></div>
     <div className="template-form-grid">
       <label className="form-field template-order-field"><span>Auftragsnummer</span><input value={documentData.orderNumber} onChange={(event) => onChange('orderNumber', event.target.value)} /></label>
       <div className="template-address-grid">
