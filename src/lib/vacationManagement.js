@@ -6,7 +6,7 @@ export function listManagedVacationRequests() {
 }
 
 export function listManagedVacationData() {
-  return httpsCallable(functions, 'listManagedVacationRequests')().then((result) => ({ requests: result.data.requests || [], employees: result.data.employees || [], holidays: result.data.holidays || [], blocks: result.data.blocks || [] }))
+  return httpsCallable(functions, 'listManagedVacationRequests')().then((result) => ({ requests: result.data.requests || [], history: result.data.history || [], employees: result.data.employees || [], holidays: result.data.holidays || [], blocks: result.data.blocks || [] }))
 }
 
 export function processVacationRequest(requestId, decision, managerComment = '') {

@@ -6,6 +6,7 @@ import { functions } from './firebase.js'
 export const VACATION_REQUESTS_COLLECTION = 'vacationRequests'
 export const CALENDAR_HOLIDAYS_COLLECTION = 'calendarHolidays'
 export const VACATION_BLOCKS_COLLECTION = 'vacationBlocks'
+export const VACATION_HISTORY_COLLECTION = 'vacationHistory'
 
 export const VACATION_STATUSES = [
   { value: 'approved', label: 'Genehmigt' },
@@ -27,6 +28,7 @@ export const VACATION_TYPES = [
 const requestsRef = collection(db, VACATION_REQUESTS_COLLECTION)
 const holidaysRef = collection(db, CALENDAR_HOLIDAYS_COLLECTION)
 const vacationBlocksRef = collection(db, VACATION_BLOCKS_COLLECTION)
+const vacationHistoryRef = collection(db, VACATION_HISTORY_COLLECTION)
 const trim = (value) => (value ?? '').trim()
 
 export function toDate(value) {
@@ -86,6 +88,12 @@ export async function listVacationRequests(userId) {
     .sort((left, right) => (right.startDate || '').localeCompare(left.startDate || '') || (right.endDate || '').localeCompare(left.endDate || ''))
 }
 
+export async function listVacationHistory(userId) {
+  if (!userId) return []
+  const snapshot = await getDocs(query(vacationHistoryRef, where('userId', '==', userId)))
+  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+}
+
 export function getVacationType(type) {
   return VACATION_TYPES.find((item) => item.value === type) ?? VACATION_TYPES[0]
 }
@@ -132,7 +140,7 @@ export async function createVacationRequest(userId, values) {
   const requestRef = doc(requestsRef)
   await setDoc(requestRef, {
     id: requestRef.id,
-    ...requestPayload(userId, values),
+    ...requestPayload(userId, values, { mainStatus: 'pending' }),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -146,6 +154,8 @@ export async function createVacationChangeRequest(originalRequest, userId, value
     id: requestRef.id,
     ...requestPayload(userId, values, {
       status: 'change_requested',
+      requestStatus: 'pending',
+      vacationId: originalRequest.id,
       originalRequestId: originalRequest.id,
       changeRequest: {
         originalStartDate: originalRequest.startDate,
@@ -166,8 +176,10 @@ export async function createVacationCancellationRequest(originalRequest, userId,
     id: requestRef.id,
     ...requestPayload(userId, { startDate: originalRequest.startDate, endDate: originalRequest.endDate, requestComment: values.requestComment, vacationType: originalRequest.vacationType }, {
       status: 'cancellation_requested',
+      requestStatus: 'pending',
       requestKind: 'cancellation',
       originalRequestId: originalRequest.id,
+      vacationId: originalRequest.id,
       cancellationRequest: {
         originalStartDate: originalRequest.startDate,
         originalEndDate: originalRequest.endDate,

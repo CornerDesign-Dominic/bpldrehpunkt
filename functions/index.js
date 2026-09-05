@@ -2,6 +2,8 @@ import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { onDocumentCreated } from 'firebase-functions/v2/firestore'
+import { requireActiveProfile, requireRole } from './access.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -49,12 +51,8 @@ async function departmentFields(value, fallback = {}) {
   if (!department.exists || (department.data().active === false && department.id !== fallback.departmentId)) throw new HttpsError('invalid-argument', 'Die ausgewählte Abteilung ist nicht verfügbar.')
   return { departmentId: department.id, department: department.data().name, departmentName: department.data().name }
 }
-async function callerProfile(uid) { return (await db.doc(`users/${uid}`).get()).data() }
 async function assertManager(request) {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
-  const profile = await callerProfile(request.auth.uid)
-  if (!['admin', 'superadmin'].includes(profile?.role)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Benutzerverwaltung.')
-  return profile
+  return requireRole(await requireActiveProfile(request), ['admin', 'superadmin'], 'Keine Berechtigung zur Benutzerverwaltung.')
 }
 
 export const createManagedUser = onCall({ region: 'europe-west3' }, async (request) => {
@@ -197,8 +195,7 @@ function canManageVacationDepartment(profile, department) {
     || (profile?.vacationManager === true && (profile.vacationManagerAllDepartments === true || (Array.isArray(profile.vacationManagerDepartments) && profile.vacationManagerDepartments.includes(department))))
 }
 async function assertVacationManager(request) {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
-  const profile = await callerProfile(request.auth.uid)
+  const profile = await requireActiveProfile(request)
   if (!isVacationManager(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Urlaubsmanagement.')
   return profile
 }
@@ -218,10 +215,33 @@ function submittedAt(data) {
   const date = data.createdAt?.toDate?.()
   return date ? date.toISOString() : null
 }
+function vacationRootId(data, fallbackId) { return data?.vacationId || data?.originalRequestId || fallbackId }
+function vacationRequestStatus(data) {
+  if (['pending', 'approved', 'rejected', 'withdrawn'].includes(data?.requestStatus)) return data.requestStatus
+  if (data?.status === 'change_requested' || data?.status === 'cancellation_requested') return 'pending'
+  return ['pending', 'approved', 'rejected', 'withdrawn'].includes(data?.status) ? data.status : 'pending'
+}
+function historyEventType(data, status) {
+  const kind = requestType(data)
+  const label = kind === 'cancellation' ? 'cancellation' : kind === 'change' ? 'change' : 'vacation'
+  return `${label}_${status}`
+}
+function writeVacationHistory(transaction, { id, vacationId, userId, eventType, status, createdBy, comment = '', requestId = null, previousValues = null, nextValues = null }) {
+  const reference = db.collection('vacationHistory').doc(id)
+  transaction.set(reference, { id, vacationId, userId, eventType, status, createdAt: FieldValue.serverTimestamp(), createdBy, ...(comment ? { comment } : {}), ...(requestId ? { requestId } : {}), ...(previousValues ? { previousValues } : {}), ...(nextValues ? { nextValues } : {}) }, { merge: false })
+}
+
+export const recordVacationCreated = onDocumentCreated({ region: 'europe-west3', document: 'vacationRequests/{requestId}' }, async (event) => {
+  const data = event.data.data()
+  const requestId = event.params.requestId
+  const kind = requestType(data)
+  const status = kind === 'request' ? (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data.mainStatus || data.status) ? data.mainStatus || data.status : 'pending') : vacationRequestStatus(data)
+  await db.collection('vacationHistory').doc(`created-${requestId}`).set({ id: `created-${requestId}`, vacationId: vacationRootId(data, requestId), userId: data.userId, eventType: historyEventType(data, status), status, createdAt: FieldValue.serverTimestamp(), createdBy: data.userId, requestId })
+})
 
 export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, async (request) => {
   const manager = await assertVacationManager(request)
-  const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get()])
+  const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot, historySnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get(), db.collection('vacationHistory').get()])
   const employees = new Map(employeeSnapshot.docs.map((item) => [item.id, item.data()]))
   const managedEmployees = employeeSnapshot.docs
     .filter((item) => canManageVacationDepartment(manager, item.data().departmentId || item.data().department || ''))
@@ -242,11 +262,13 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, as
     const endDate = data.endDate || data.date || startDate
     return { id: item.id, ...data, startDate, endDate, label: departmentName(data.label || data.name) || fallbackLabel }
   }).filter((item) => item.startDate && item.endDate)
-  return { requests, employees: managedEmployees, holidays: calendarItems(holidaySnapshot, 'Feiertag'), blocks: calendarItems(blockSnapshot, 'Urlaubssperre') }
+  const managedUserIds = new Set(managedEmployees.map((employee) => employee.id))
+  const history = historySnapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => managedUserIds.has(item.userId))
+  return { requests, history, employees: managedEmployees, holidays: calendarItems(holidaySnapshot, 'Feiertag'), blocks: calendarItems(blockSnapshot, 'Urlaubssperre') }
 })
 
 export const withdrawVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
+  await requireActiveProfile(request)
   const requestId = request.data?.requestId
   if (typeof requestId !== 'string' || !requestId) throw new HttpsError('invalid-argument', 'Ungültiger Urlaubsantrag.')
 
@@ -255,14 +277,20 @@ export const withdrawVacationRequest = onCall({ region: 'europe-west3' }, async 
     const vacationRequest = await transaction.get(requestRef)
     const data = vacationRequest.data()
     if (!vacationRequest.exists || data?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Keine Berechtigung für diesen Urlaubsantrag.')
-    if (!['pending', 'change_requested', 'cancellation_requested'].includes(data.status)) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag kann nicht zurückgezogen werden.')
-    transaction.update(requestRef, { status: 'withdrawn', withdrawnBy: request.auth.uid, withdrawnAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+    if (!['pending', 'change_requested', 'cancellation_requested'].includes(data.status) && vacationRequestStatus(data) !== 'pending') throw new HttpsError('failed-precondition', 'Der Urlaubsantrag kann nicht zurückgezogen werden.')
+    const kind = requestType(data)
+    const rootId = vacationRootId(data, requestId)
+    const update = kind === 'request'
+      ? { status: 'withdrawn', mainStatus: 'withdrawn', withdrawnBy: request.auth.uid, withdrawnAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }
+      : { status: 'withdrawn', requestStatus: 'withdrawn', withdrawnBy: request.auth.uid, withdrawnAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }
+    transaction.update(requestRef, update)
+    writeVacationHistory(transaction, { id: `withdrawn-${requestId}`, vacationId: rootId, userId: data.userId, eventType: historyEventType(data, 'withdrawn'), status: 'withdrawn', createdBy: request.auth.uid, requestId })
   })
   return { requestId, status: 'withdrawn' }
 })
 
 export const replacePendingVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.')
+  await requireActiveProfile(request)
   const { requestId, values } = request.data ?? {}
   if (typeof requestId !== 'string' || !requestId || !values || typeof values !== 'object') throw new HttpsError('invalid-argument', 'Ungültige Urlaubsanfrage.')
   const startDate = typeof values.startDate === 'string' ? values.startDate : ''
@@ -280,7 +308,8 @@ export const replacePendingVacationRequest = onCall({ region: 'europe-west3' }, 
     if (!previousRequest.exists || previousData?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Keine Berechtigung für diesen Urlaubsantrag.')
     if (previousData.status !== 'pending' || previousData.originalRequestId || previousData.requestKind === 'cancellation' || previousData.cancellationRequest) throw new HttpsError('failed-precondition', 'Nur ein ausstehender Urlaubsantrag kann überarbeitet werden.')
     transaction.update(previousRequestRef, { status: 'superseded', supersededBy: replacementRequestRef.id, supersededAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
-    transaction.set(replacementRequestRef, { id: replacementRequestRef.id, userId: request.auth.uid, startDate, endDate, days, vacationType, status: 'pending', type: 'vacation', note: '', requestComment, replacesRequestId: requestId, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+    writeVacationHistory(transaction, { id: `replaced-${requestId}`, vacationId: requestId, userId: request.auth.uid, eventType: 'vacation_replaced', status: 'withdrawn', createdBy: request.auth.uid, requestId, previousValues: { startDate: previousData.startDate, endDate: previousData.endDate, days: previousData.days, vacationType: previousData.vacationType }, nextValues: { startDate, endDate, days, vacationType } })
+    transaction.set(replacementRequestRef, { id: replacementRequestRef.id, userId: request.auth.uid, startDate, endDate, days, vacationType, status: 'pending', mainStatus: 'pending', type: 'vacation', note: '', requestComment, replacesRequestId: requestId, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   })
   return { requestId: replacementRequestRef.id, status: 'pending' }
 })
@@ -291,28 +320,42 @@ export const processVacationRequest = onCall({ region: 'europe-west3' }, async (
   if (typeof requestId !== 'string' || !['approved', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
   if (managerComment !== undefined && typeof managerComment !== 'string') throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
   const { requestRef, vacationRequest } = await managedVacationRequest(manager, requestId)
-  if (!['pending', 'change_requested', 'cancellation_requested'].includes(vacationRequest.data().status)) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
+  if (requestType(vacationRequest.data()) === 'request' ? vacationRequest.data().status !== 'pending' : vacationRequestStatus(vacationRequest.data()) !== 'pending') throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
   await db.runTransaction(async (transaction) => {
     const currentRequest = await transaction.get(requestRef)
     const requestData = currentRequest.data()
-    if (!currentRequest.exists || !['pending', 'change_requested', 'cancellation_requested'].includes(requestData?.status)) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
-    const processed = { status: decision, managerComment: (managerComment || '').trim(), processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
+    const kind = requestType(requestData)
+    const pending = kind === 'request' ? requestData?.status === 'pending' : vacationRequestStatus(requestData) === 'pending'
+    if (!currentRequest.exists || !pending) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
+    const comment = (managerComment || '').trim()
+    const processed = kind === 'request'
+      ? { status: decision, mainStatus: decision, managerComment: comment, processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
+      : { status: decision, requestStatus: decision, managerComment: comment, processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
+    const rootId = vacationRootId(requestData, requestId)
 
-    if (decision === 'approved' && (requestData.requestKind === 'cancellation' || requestData.cancellationRequest)) {
-      if (typeof requestData.originalRequestId !== 'string' || !requestData.originalRequestId) throw new HttpsError('failed-precondition', 'Der zu stornierende Urlaub ist ungültig.')
-      const cancelledVacationRef = db.collection('vacationRequests').doc(requestData.originalRequestId)
-      const cancelledVacation = await transaction.get(cancelledVacationRef)
-      if (!cancelledVacation.exists || cancelledVacation.data().userId !== requestData.userId || cancelledVacation.data().status !== 'approved') throw new HttpsError('failed-precondition', 'Der zu stornierende Urlaub ist nicht mehr genehmigt.')
-      transaction.update(cancelledVacationRef, { status: 'cancelled', cancelledBy: request.auth.uid, cancelledAt: FieldValue.serverTimestamp(), cancellationRequestId: requestId, updatedAt: FieldValue.serverTimestamp() })
+    if (kind !== 'request' && typeof rootId !== 'string') throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist ungültig.')
+    const rootRef = kind === 'request' ? requestRef : db.collection('vacationRequests').doc(rootId)
+    const rootVacation = kind === 'request' ? currentRequest : await transaction.get(rootRef)
+    if (!rootVacation.exists || rootVacation.data().userId !== requestData.userId) throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist nicht verfügbar.')
+
+    if (decision === 'approved' && kind === 'cancellation') {
+      if ((rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zu stornierende Urlaub ist nicht mehr genehmigt.')
+      transaction.update(rootRef, { status: 'cancelled', mainStatus: 'cancelled', cancelledBy: request.auth.uid, cancelledAt: FieldValue.serverTimestamp(), cancellationRequestId: requestId, updatedAt: FieldValue.serverTimestamp() })
+    }
+    if (decision === 'approved' && kind === 'change') {
+      if ((rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zu ändernde Urlaub ist nicht mehr genehmigt.')
+      transaction.update(rootRef, { startDate: requestData.startDate, endDate: requestData.endDate, days: requestData.days, vacationType: requestData.vacationType, status: 'approved', mainStatus: 'approved', updatedAt: FieldValue.serverTimestamp() })
     }
 
     transaction.update(requestRef, processed)
+    writeVacationHistory(transaction, { id: `decision-${requestId}`, vacationId: rootId, userId: requestData.userId, eventType: historyEventType(requestData, decision), status: decision, createdBy: request.auth.uid, comment, requestId, ...(kind === 'change' && decision === 'approved' ? { previousValues: { startDate: rootVacation.data().startDate, endDate: rootVacation.data().endDate, days: rootVacation.data().days, vacationType: rootVacation.data().vacationType }, nextValues: { startDate: requestData.startDate, endDate: requestData.endDate, days: requestData.days, vacationType: requestData.vacationType } } : {}) })
   })
   return { requestId, status: decision }
 })
 
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
 export { submitBugReport } from './bugReports.js'
+export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export {
   listSystemMailTemplates,
   notifyVacationRequestCreated,

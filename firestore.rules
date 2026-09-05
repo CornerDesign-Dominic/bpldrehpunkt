@@ -42,7 +42,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if signedIn() && (userId == request.auth.uid || admin() || view('team'));
+      allow get: if active() && (userId == request.auth.uid || admin() || view('team'));
       allow list: if admin() || view('team') || view('vacation') || edit('todos');
       // Accounts are only created by the Admin SDK callable function.
       allow create, delete: if false;
@@ -53,7 +53,7 @@ service cloud.firestore {
     }
 
     match /departments/{departmentId} {
-      allow read: if signedIn();
+      allow read: if active();
       // Central department maintenance runs through superadmin-only callable functions.
       allow write: if false;
     }
@@ -61,7 +61,7 @@ service cloud.firestore {
     match /appSettings/partnerEvaluation {
       // Evaluation colors are part of the signed-in client presentation, but
       // settings may only be changed by the Admin SDK callable function.
-      allow read: if signedIn();
+      allow read: if active();
       allow write: if false;
     }
 
@@ -134,8 +134,8 @@ service cloud.firestore {
             && request.resource.data.category == categoryId
             && request.resource.data.seenAt == request.time;
         }
-        allow read: if signedIn() && userId == request.auth.uid;
-        allow create, update: if signedIn() && userId == request.auth.uid && validNewsCategoryReadState();
+        allow read: if active() && userId == request.auth.uid;
+        allow create, update: if active() && userId == request.auth.uid && validNewsCategoryReadState();
         allow delete: if false;
       }
     }
@@ -335,6 +335,10 @@ service cloud.firestore {
       // Approval, rejection and all other changes are handled by the callable
       // function, which validates the manager's department server-side.
       allow update, delete: if false;
+    }
+    match /vacationHistory/{id} {
+      allow read: if view('vacation') && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false;
     }
     match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
