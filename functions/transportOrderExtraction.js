@@ -1,5 +1,3 @@
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs'
-
 const COUNTRY_NAMES = { D: 'Deutschland', DE: 'Deutschland', AT: 'Österreich', FR: 'Frankreich', RO: 'Rumänien' }
 const DELIVERY_NOTE_REFERENCE = /\b(?:lt\.?\s*(?:ls\.?|liefers(?:chein|chien))|laut\s+liefers(?:chein|chien)|siehe(?:\s+(?:den|dem))?\s+(?:ls\.?|liefers(?:chein|chien)))\b/i
 const DATE_IN_ADDRESS = /\b\d{1,2}\.\d{1,2}\.\d{4}\b/g
@@ -136,6 +134,9 @@ export function extractTransportOrderFromLines(lines, { carrierLines: leftColumn
 }
 
 export async function extractTransportOrderFromPdf(pdfBytes) {
+  // pdfjs is comparatively expensive to initialize. Loading it only for an
+  // actual analysis keeps Firebase's deployment-time function discovery fast.
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
   const loadingTask = getDocument({ data: pdfBytes, disableWorker: true, verbosity: 0 })
   try {
     const pdf = await loadingTask.promise
