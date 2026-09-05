@@ -97,15 +97,14 @@ const newsSchema = {
   properties: {
     items: {
       type: 'array',
-      maxItems: MAX_ITEMS_PER_RUN,
       items: {
         type: 'object',
         additionalProperties: false,
         required: ['title', 'summary', 'content', 'category', 'priority', 'source', 'sourceUrl', 'publishedAt', 'validFrom', 'validUntil', 'status', 'relevance', 'affectedCountries', 'topicTags', 'affects'],
         properties: {
-          title: { type: 'string', maxLength: 110 },
-          summary: { type: 'string', maxLength: 260 },
-          content: { type: 'string', maxLength: 900 },
+          title: { type: 'string' },
+          summary: { type: 'string' },
+          content: { type: 'string' },
           category: { type: 'string', enum: ['traffic_infrastructure', 'law_regulations', 'logistics_market'] },
           priority: { type: 'string', enum: ['information', 'notice', 'important'] },
           source: { type: 'string' },
@@ -114,10 +113,10 @@ const newsSchema = {
           validFrom: { type: 'string' },
           validUntil: { type: 'string' },
           status: { type: 'string', enum: ['active', 'resolved', 'openEnded'] },
-          relevance: { type: 'integer', minimum: 1, maximum: 100 },
-          affectedCountries: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: [...COUNTRIES] } },
-          topicTags: { type: 'array', minItems: 1, maxItems: 3, uniqueItems: true, items: { type: 'string', enum: Object.values(TAGS_BY_CATEGORY).flatMap((tags) => [...tags]) } },
-          affects: { type: 'array', maxItems: 5, uniqueItems: true, items: { type: 'string', enum: [...AFFECTS] } },
+          relevance: { type: 'integer' },
+          affectedCountries: { type: 'array', items: { type: 'string', enum: [...COUNTRIES] } },
+          topicTags: { type: 'array', items: { type: 'string', enum: Object.values(TAGS_BY_CATEGORY).flatMap((tags) => [...tags]) } },
+          affects: { type: 'array', items: { type: 'string', enum: [...AFFECTS] } },
         },
       },
     },
@@ -131,7 +130,6 @@ const newsReviewSchema = {
   properties: {
     items: {
       type: 'array',
-      maxItems: MAX_RECHECKS_PER_RUN,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -142,7 +140,7 @@ const newsReviewSchema = {
           status: { type: 'string', enum: ['active', 'resolved', 'openEnded', 'unchanged'] },
           validFrom: { type: 'string' },
           validUntil: { type: 'string' },
-          summary: { type: 'string', maxLength: 220 },
+          summary: { type: 'string' },
           source: { type: 'string' },
           sourceUrl: { type: 'string' },
         },
@@ -287,7 +285,15 @@ function normalizeCandidate(candidate) {
 
 function normalizeSelections(values, allowedValues, maximum) {
   if (!Array.isArray(values)) return []
-  return [...new Set(values.filter((value) => typeof value === 'string' && allowedValues.has(value)))].slice(0, maximum)
+  const selections = []
+  const seen = new Set()
+  for (const value of values) {
+    if (typeof value !== 'string' || !allowedValues.has(value) || seen.has(value)) continue
+    seen.add(value)
+    selections.push(value)
+    if (selections.length === maximum) break
+  }
+  return selections
 }
 
 async function migrateLegacyNewsCategories() {
