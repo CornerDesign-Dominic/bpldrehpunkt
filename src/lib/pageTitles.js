@@ -8,6 +8,7 @@ const pageTitles = [
   { path: '/dokumente', title: 'Dokumente' },
   { path: '/todos', title: 'To-dos' },
   { path: '/profil', title: 'Mein Profil' },
+  { path: '/admin/systemmails', title: 'Systemmails' },
   { path: '/admin', title: 'Adminbereich' },
   { path: '/urlaub', title: 'Urlaubsübersicht' },
   { path: '/kalender', title: 'Kalender' },

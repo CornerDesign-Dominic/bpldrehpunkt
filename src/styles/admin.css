@@ -12,6 +12,9 @@
 .admin-departments { padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-manual-triggers { gap: 9px; padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-manual-triggers__actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-system-mails-card { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.system-mails-page { gap: 16px; }
+.system-mails-page__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .partner-evaluation-settings { padding-top: 16px; border-top: 1px solid var(--border); }
 .partner-evaluation-settings__legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .partner-evaluation-settings__legend span { padding: 4px 7px; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 650; }
