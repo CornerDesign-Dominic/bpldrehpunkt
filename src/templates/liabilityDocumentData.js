@@ -9,21 +9,35 @@ function currentDate() {
 // be added to the `attachments` branch without changing letter field names.
 export function createLiabilityDocumentData() {
   return {
-    recipientCompany: '',
-    recipientStreet: '',
-    recipientZip: '',
-    recipientCity: '',
     orderNumber: '',
-    loadingPlace: '',
-    unloadingPlace: '',
+    transportCompany: '',
+    transportStreet: '',
+    transportZip: '',
+    transportCity: '',
+    transportCountry: '',
+    loadingCompany: '',
+    loadingStreet: '',
+    loadingZip: '',
+    loadingCity: '',
+    loadingCountry: '',
+    loadingDate: '',
+    unloadingCompany: '',
+    unloadingStreet: '',
+    unloadingZip: '',
+    unloadingCity: '',
+    unloadingCountry: '',
+    unloadingDate: '',
     date: currentDate(),
-    subject: 'Haftbarhaltung',
     incidentText: '',
     attachments: {
       signature: null,
       stamp: null,
     },
   }
+}
+
+export function getLiabilitySubject(orderNumber) {
+  return `Haftbarhaltung zum Transportauftrag${orderNumber ? ` ${orderNumber}` : ''}`
 }
 
 export function formatDocumentDate(value) {
