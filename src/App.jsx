@@ -22,6 +22,8 @@ import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
 import SystemMailsPage from './pages/SystemMailsPage.jsx'
+import TemplatesOverviewPage from './pages/TemplatesOverviewPage.jsx'
+import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 
 function ProtectedAppLayout() {
@@ -45,6 +47,8 @@ export default function App() {
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
+        <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
+        <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />

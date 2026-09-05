@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import { canManageUsers, canManageVacations, canView } from '../../lib/permissions.js'
-import { CalendarIcon, ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SunIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
+import { CalendarIcon, ChevronIcon, CrmIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, MoonIcon, NewsIcon, PalletsIcon, ShieldIcon, SunIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon },
@@ -14,6 +14,7 @@ const navigationItems = [
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets' },
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news' },
   { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon, module: 'documents' },
+  { label: 'Vorlagen', to: '/vorlagen', icon: TemplatesIcon, module: 'templates' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos' },
   { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true },
 ]

@@ -7,7 +7,7 @@ if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'todos']
+const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos']
 const normalFields = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 
 function permissions(value) { return Object.fromEntries(modules.map((module) => [module, levels.has(value?.[module]) ? value[module] : 'none'])) }

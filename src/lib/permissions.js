@@ -11,6 +11,7 @@ export const MODULES = {
   pallets: { label: 'Palettenmanagement' },
   news: { label: 'News' },
   documents: { label: 'Dokumente' },
+  templates: { label: 'Vorlagen' },
   todos: { label: 'To-dos' },
 }
 

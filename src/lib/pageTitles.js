@@ -6,6 +6,7 @@ const pageTitles = [
   { path: '/paletten', title: 'Palettenmanagement' },
   { path: '/news', title: 'News' },
   { path: '/dokumente', title: 'Dokumente' },
+  { path: '/vorlagen', title: 'Vorlagen' },
   { path: '/todos', title: 'To-dos' },
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin/systemmails', title: 'Systemmails' },
