@@ -55,14 +55,17 @@ export default function LiabilityLetterPage() {
   }
 
   return <>
-    <Link className="button button--secondary liability-page__back" to="/vorlagen">← Zurück</Link>
+    <div className="liability-page__toolbar">
+      <Link className="button button--secondary liability-page__back" to="/vorlagen">← Zurück</Link>
+      <button className="button button--ai" type="button" onClick={() => setAiStep('input')}>Mit KI vorausfüllen</button>
+    </div>
     <div className="liability-page">
-    <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
-    <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} />
-    <div className="liability-page__actions"><button className="button button--ai" type="button" onClick={() => setAiStep('input')}>Mit KI vorausfüllen</button><button className="button button--secondary" type="button" onClick={printDocument}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => { void createPdf() }}>PDF erstellen</button></div>
-    <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
-    {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={() => { void analyzeWithMockData() }} onClose={closeAiFlow} />}
-    {aiStep === 'result' && aiDraftData && <LiabilityAiResultModal aiDraftData={aiDraftData} onChange={updateAiDraftData} onClose={closeAiFlow} onAccept={acceptAiDraft} />}
+      <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
+      <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} />
+      <div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={printDocument}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => { void createPdf() }}>PDF erstellen</button></div>
+      <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
+      {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={() => { void analyzeWithMockData() }} onClose={closeAiFlow} />}
+      {aiStep === 'result' && aiDraftData && <LiabilityAiResultModal aiDraftData={aiDraftData} onChange={updateAiDraftData} onClose={closeAiFlow} onAccept={acceptAiDraft} />}
     </div>
   </>
 }
