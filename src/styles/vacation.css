@@ -35,7 +35,8 @@
 .vacation-legend__item { display: inline-flex; align-items: center; gap: 5px; }
 .vacation-legend__item::before { width: 8px; height: 8px; border-radius: 2px; content: ''; }
 .vacation-sidebar { display: grid; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; }
-.vacation-request-actions { display: flex; justify-content: flex-end; }
+.vacation-request-actions { display: flex; }
+.vacation-request-actions .button { width: 100%; }
 .vacation-summary-card, .vacation-list-card { padding: 13px; }
 .vacation-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
 .vacation-card-heading h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
