@@ -21,6 +21,20 @@ test('an active user may read only their own profile; administration uses a call
   assert.match(functionsIndex, /export const listManagedUsers = onCall/)
 })
 
+test('the admin employee list remains an active-admin callable and is independent of personnel rights', () => {
+  const adminList = functionsIndex.match(/export const listManagedUsers = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  const managerAssertion = functionsIndex.match(/async function assertManager\(request\) \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(adminList, /await assertManager\(request\)/)
+  assert.doesNotMatch(adminList, /assertPersonnelAccess|permissions\.personnel/)
+  assert.match(managerAssertion, /requireActiveProfile\(request\)/)
+  assert.match(managerAssertion, /\['admin', 'superadmin'\]/)
+})
+
+test('the separate legacy-account review remains a superadmin callable', () => {
+  const legacyReview = functionsIndex.match(/export const listLegacyAccountProfiles = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(legacyReview, /await assertSuperadmin\(request\)/)
+})
+
 test('team, vacation, and to-do permissions do not grant direct profile reads', () => {
   const usersRule = rules.match(/match \/users\/\{userId\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
   assert.doesNotMatch(usersRule, /view\('team'\)|view\('vacation'\)|edit\('todos'\)/)
