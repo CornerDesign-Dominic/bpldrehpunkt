@@ -4,11 +4,11 @@ const addressSections = [
   { title: 'Entladestelle', prefix: 'unloading', dateLabel: 'Entladedatum' },
 ]
 
-export default function LiabilityLetterForm({ documentData, onChange, aiReviewFields = new Set(), headingId = 'liability-form-heading', title = 'Angaben zum Schreiben', description = 'Änderungen erscheinen sofort in der Dokumentvorschau.' }) {
+export default function LiabilityLetterForm({ documentData, onChange, aiReviewFields = new Set(), onNew, headingId = 'liability-form-heading', title = 'Angaben zum Schreiben', description = 'Änderungen erscheinen sofort in der Dokumentvorschau.' }) {
   const needsAiReview = (field) => aiReviewFields.has(field) && !String(documentData[field] ?? '').trim()
 
   return <section className="template-form-section" aria-labelledby={headingId}>
-    <div className="template-section-heading"><div><h2 id={headingId}>{title}</h2>{description && <p>{description}</p>}</div></div>
+    <div className="template-section-heading"><div><h2 id={headingId}>{title}</h2>{description && <p>{description}</p>}</div>{onNew && <button className="button button--secondary" type="button" onClick={onNew}>Neu</button>}</div>
     <div className="template-form-grid">
       <label className="form-field template-order-field"><span>Auftragsnummer</span><input value={documentData.orderNumber} onChange={(event) => onChange('orderNumber', event.target.value)} aria-invalid={needsAiReview('orderNumber')} /></label>
       <div className="template-address-grid">

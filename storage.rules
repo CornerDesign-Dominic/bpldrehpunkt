@@ -13,11 +13,32 @@ service firebase.storage {
         && fileName.matches('.*\\.pdf')
         && request.resource.size <= 20 * 1024 * 1024;
     }
+    // Signatures deliberately have no administrative access path. The UID in
+    // the object path must always be the UID from the authenticated token.
+    function ownsSignature(uid) {
+      return request.auth != null
+        && request.auth.uid == uid
+        && hasProfile()
+        && profileIsActive();
+    }
+    function isJpegSignature() {
+      return request.resource.contentType == 'image/jpeg'
+        && request.resource.size > 0
+        && request.resource.size <= 2 * 1024 * 1024;
+    }
 
     match /internalDocuments/{documentId}/{fileName} {
       allow read: if canReadDocuments();
       allow create, update: if canEditDocuments() && isPdfUpload(fileName);
       allow delete: if canEditDocuments();
+    }
+
+    // A single, fixed object name prevents user-controlled paths and listing.
+    // No other match grants access below user-signatures.
+    match /user-signatures/{uid}/signature.jpg {
+      allow read: if ownsSignature(uid);
+      allow create, update: if ownsSignature(uid) && isJpegSignature();
+      allow delete: if ownsSignature(uid);
     }
   }
 }

@@ -20,8 +20,30 @@
 .profile-theme-switch input:checked + i { background: var(--button-background); }
 .profile-theme-switch input:checked + i::after { transform: translateX(16px); }
 .profile-theme-switch:has(input:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.signature-section { display: grid; gap: 11px; }
+.signature-section__heading h2 { margin-bottom: 3px; }
+.signature-section__heading p { max-width: 680px; margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.signature-dropzone { display: grid; min-height: 112px; place-content: center; gap: 5px; padding: 18px; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; text-align: center; transition: border-color .16s ease, background .16s ease; }
+.signature-dropzone:hover, .signature-dropzone--active { border-color: var(--button-background); background: var(--surface-active); }
+.signature-dropzone--busy { cursor: wait; opacity: .72; }
+.signature-dropzone strong { color: var(--text-primary); font-size: 13px; }
+.signature-dropzone span { color: var(--text-muted); font-size: 11px; }
+.signature-dropzone:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.signature-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.signature-select-button { justify-self: start; }
+.signature-preview { display: flex; align-items: end; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.signature-preview > div:first-child { display: grid; gap: 7px; }
+.signature-preview span { color: var(--text-muted); font-size: 11px; font-weight: 650; }
+.signature-preview img { display: block; width: min(100%, 300px); max-height: 130px; object-fit: contain; object-position: left center; border: 1px solid var(--border); border-radius: 4px; background: #fff; }
+.signature-preview__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.signature-delete-button { height: 34px; padding: 0 13px; border: 1px solid var(--status-danger-text); border-radius: 5px; color: var(--status-danger-text); background: transparent; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.signature-delete-button:hover:not(:disabled) { background: var(--status-danger-background); }
+.signature-delete-button:disabled { cursor: not-allowed; opacity: .65; }
+.signature-section__error { margin: 0; }
 @media (max-width: 720px) {
   .profile-readonly-grid { grid-template-columns: 1fr; }
   .profile-theme-section { align-items: stretch; flex-direction: column; }
   .profile-theme-switch { min-width: 0; }
+  .signature-preview { align-items: stretch; flex-direction: column; }
+  .signature-preview__actions { justify-content: flex-start; }
 }
