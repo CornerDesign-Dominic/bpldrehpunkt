@@ -10,7 +10,7 @@ import { documentPdfFileName } from '../lib/documentExport.js'
 import { downloadLiabilityLetterPdf } from '../lib/liabilityLetterPdf.js'
 import { analyzeLiabilityTransportOrderWithAi, liabilityAnalysisToDocumentData } from '../lib/liabilityAi.js'
 
-const aiReviewFields = [
+const liabilityFormFields = [
   'orderNumber',
   'transportCompany', 'transportStreet', 'transportZip', 'transportCity', 'transportCountry',
   'loadingCompany', 'loadingStreet', 'loadingZip', 'loadingCity', 'loadingCountry', 'loadingDate',
@@ -19,7 +19,7 @@ const aiReviewFields = [
 ]
 
 function emptyAiReviewFields(data) {
-  return new Set(aiReviewFields.filter((field) => !String(data?.[field] ?? '').trim()))
+  return new Set(liabilityFormFields.filter((field) => !String(data?.[field] ?? '').trim()))
 }
 
 export default function LiabilityLetterPage() {
@@ -27,7 +27,7 @@ export default function LiabilityLetterPage() {
   const [isCreatingPdf, setCreatingPdf] = useState(false)
   const [aiStep, setAiStep] = useState(null)
   const [aiDraftData, setAiDraftData] = useState(null)
-  const [aiReviewFields, setAiReviewFields] = useState(() => new Set())
+  const [fieldsNeedingReview, setFieldsNeedingReview] = useState(() => new Set())
   const [pdfConfirmationAction, setPdfConfirmationAction] = useState(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const documentPaperRef = useRef(null)
@@ -42,7 +42,7 @@ export default function LiabilityLetterPage() {
 
   function requestPdfAction(action) {
     const emptyFields = emptyAiReviewFields(documentData)
-    setAiReviewFields(emptyFields)
+    setFieldsNeedingReview(emptyFields)
     if (emptyFields.size) {
       setPdfConfirmationAction(action)
       return
@@ -88,8 +88,9 @@ export default function LiabilityLetterPage() {
   }
 
   function acceptAiDraft() {
-    setDocumentData(aiDraftData)
-    setAiReviewFields(emptyAiReviewFields(aiDraftData))
+    const nextDocumentData = { ...createLiabilityDocumentData(), ...aiDraftData }
+    setDocumentData(nextDocumentData)
+    setFieldsNeedingReview(emptyAiReviewFields(nextDocumentData))
     closeAiFlow()
   }
 
@@ -101,7 +102,7 @@ export default function LiabilityLetterPage() {
     </div>
     <div className="liability-page">
       <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
-      <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={aiReviewFields} />
+      <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} />
       <div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={() => requestPdfAction('print')}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => requestPdfAction('create')}>PDF erstellen</button></div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
       {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={analyzeTransportOrder} onClose={closeAiFlow} />}
