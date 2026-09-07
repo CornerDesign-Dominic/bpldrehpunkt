@@ -244,8 +244,7 @@ export default function NewsPage() {
 
   return <div className="news-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <section className="news-category-navigation" aria-labelledby="news-category-navigation-title">
-      <h2 id="news-category-navigation-title" className="news-category-navigation__title">News-Bereich</h2>
+    <section className="news-category-navigation" aria-label="News-Hauptkategorien">
       <div className="news-tabs" role="tablist" aria-label="News-Hauptkategorie">{NEWS_CATEGORIES.map((item) => {
         const CategoryIcon = newsCategoryIcons[item.value]
         const isActive = category === item.value

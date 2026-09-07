@@ -43,6 +43,16 @@ Abteilungen liegen zentral unter `departments/{id}` mit `id`, `name`, `normalize
 
 Feiertage werden unter `calendarHolidays` vorbereitet (`date` oder `startDate`/`endDate`, `label`). Spätere Verwaltungsfunktionen können Urlaubssperren unter `vacationBlocks` anlegen (`startDate`, `endDate`, `label`, optional `note`, `createdAt`, `updatedAt`). Beide Collections werden nur gelesen und im Kalender dezent als eigene Eintragstypen dargestellt.
 
+## Personalverwaltung
+
+Die gemeinsamen Beschäftigungs-Stammdaten verbleiben ausschließlich unter `users/{uid}`: `firstName`, `lastName`, `jobTitle`, `departmentId`/`departmentName`/`department`, `phone`, `personnelNumber` und `employmentStart`. Die Personalverwaltung bearbeitet diese Felder über dieselbe zentrale Quelle wie der Adminbereich; es gibt keine zweite Kopie und keine Synchronisation.
+
+Die zusätzlichen personenbezogenen Angaben liegen getrennt unter `employeeHrProfiles/{uid}`: `birthDate`, `streetAddress`, `postalCode`, `city`, `country`, `taxClass` und `childrenCount`. Firestore-Regeln verweigern für diese Collection ausnahmslos jeden direkten Client-Zugriff. Die drei Callable Functions `listPersonnelEmployees`, `getPersonnelEmployee` und `updatePersonnelEmployee` prüfen vor jeder Aktion ein aktives Profil sowie das Modulrecht `personnel` (`view`/`edit`); ausschließlich aktive Superadmins erhalten den bestehenden Override. Allgemeine Adminrechte sind dafür nicht ausreichend.
+
+`updatePersonnelEmployee` schreibt zentrale Stammdaten und den HR-Datensatz in einer Firestore-Transaktion. `listManagedUsers` liefert dem Adminbereich nur die dafür nötige, explizite Projektion zentraler Konto- und Beschäftigungsfelder; direkte Listen- oder Fremdlesezugriffe auf `users` sind gesperrt. Für historische `birthDate`-Felder im zentralen Profil steht die explizite, superadmin-geschützte Einmalmigration `migrateLegacyBirthDatesToPersonnel` bereit; sie übernimmt den Wert, falls im HR-Datensatz noch keiner gepflegt wurde, und entfernt anschließend die alte Kopie.
+
+Die HR-Urlaubsansicht leitet Zeitraum, Tage, Art und Status ausschließlich aus den bestehenden Hauptanträgen in `vacationRequests` ab. Sie verwaltet nur `hrVacationMeta/{vacationId}` mit `payrollProcessed`, `hrNote`, `updatedAt` und `updatedBy` (zusätzlich `createdAt` bei der ersten Pflege). Diese Collection ist für alle Firestore-Clients vollständig gesperrt. Die Callable Functions `listPersonnelVacations` und `updatePersonnelVacationMeta` erzwingen erneut das aktive Personalmodulrecht; letztere akzeptiert nur die zwei HR-Metafelder und schreibt niemals in `vacationRequests`.
+
 Für den produktiven Einsatz müssen Firestore-Regeln Schreibzugriffe auf den eigenen Benutzer beschränken. Die Kalenderansicht benötigt Leserechte für genehmigte Anträge aller Mitarbeitenden sowie für die eigenen Anträge. Diese fachliche Sichtbarkeit muss durch geeignete Regeln oder eine serverseitige Abfrage abgesichert werden; eine reine UI-Filterung ist keine Berechtigungskontrolle.
 
 ## Firebase Storage

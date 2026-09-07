@@ -13,6 +13,7 @@ const navigationItems = [
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'overview', badge: 'news' },
   { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation', group: 'people' },
   { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true, group: 'people', badge: 'vacationManagement' },
+  { label: 'Personal', to: '/personal', icon: UsersIcon, module: 'personnel', group: 'people' },
   { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon, module: 'team', group: 'people' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'people', badge: 'todos' },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData', group: 'customers' },

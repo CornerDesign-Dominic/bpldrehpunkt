@@ -13,11 +13,12 @@ test('active superadmins retain elevated rights while disabled superadmins do no
   assert.match(rules, /function admin\(\) \{ return active\(\) && \(role\(\) == 'admin' \|\| superadmin\(\)\); \}/)
 })
 
-test('an active normal user may read only their own complete profile', () => {
-  assert.match(rules, /allow get: if active\(\) && \(userId == request\.auth\.uid \|\| admin\(\)\);/)
-  assert.match(rules, /allow list: if admin\(\);/)
+test('an active user may read only their own profile; administration uses a callable projection', () => {
+  assert.match(rules, /allow get: if active\(\) && userId == request\.auth\.uid;/)
+  assert.match(rules, /allow list: if false;/)
   assert.match(rules, /allow create, delete: if false;/)
-  assert.match(rules, /allow update: if superadmin\(\) \|\| \(admin\(\) && resource\.data\.role == 'user'/)
+  assert.match(rules, /allow update: if false;/)
+  assert.match(functionsIndex, /export const listManagedUsers = onCall/)
 })
 
 test('team, vacation, and to-do permissions do not grant direct profile reads', () => {
@@ -39,4 +40,45 @@ test('the reduced employee directory requires an active profile and excludes sec
   assert.match(directoryCallable, /userDirectoryAccess\(actor\)/)
   const directoryEntry = functionsIndex.match(/function userDirectoryEntry\(snapshot, includeContactDetails\) \{([\s\S]*?)\n\}/)?.[1] || ''
   assert.doesNotMatch(directoryEntry, /\b(role|permissions|active|birthDate|personnelNumber|employmentStart)\b/)
+})
+
+test('personnel data is callable-only and requires its own module permission', () => {
+  assert.match(rules, /match \/employeeHrProfiles\/\{userId\} \{\s*allow read, write: if false;/)
+  assert.match(functionsIndex, /function hasPersonnelPermission\(profile, minimum = 'view'\)/)
+  assert.match(functionsIndex, /profile\?\.permissions\?\.personnel/)
+  const personnelAccess = functionsIndex.match(/function hasPersonnelPermission\(profile, minimum = 'view'\) \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.doesNotMatch(personnelAccess, /role === 'admin'/)
+  assert.match(functionsIndex, /export const listPersonnelEmployees = onCall[\s\S]*?assertPersonnelAccess\(request\)/)
+  assert.match(functionsIndex, /export const getPersonnelEmployee = onCall[\s\S]*?assertPersonnelAccess\(request\)/)
+  assert.match(functionsIndex, /export const updatePersonnelEmployee = onCall[\s\S]*?assertPersonnelAccess\(request, 'edit'\)/)
+})
+
+test('personnel writes keep shared fields central and HR-only fields separate', () => {
+  assert.match(functionsIndex, /const hrProfileFields = \['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount'\]/)
+  assert.match(functionsIndex, /const sharedHrProfileFields = \['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart'\]/)
+  assert.match(functionsIndex, /transaction\.update\(userRef, centralUpdate\)/)
+  assert.match(functionsIndex, /transaction\.set\(hrRef, \{/)
+  assert.doesNotMatch(functionsIndex.match(/const normalFields = \[[^\]]*\]/)?.[0] || '', /birthDate/)
+})
+
+test('vacation HR metadata is inaccessible to direct Firestore clients', () => {
+  assert.match(rules, /match \/hrVacationMeta\/\{vacationId\} \{\s*allow read, write: if false;/)
+})
+
+test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
+  const vacationList = functionsIndex.match(/export const listPersonnelVacations = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(vacationList, /assertPersonnelAccess\(request\)/)
+  assert.match(vacationMetaUpdate, /assertPersonnelAccess\(request, 'edit'\)/)
+  assert.match(functionsIndex, /if \(profile\?\.role === 'superadmin'\) return true/)
+  assert.match(rules, /function superadmin\(\) \{ return active\(\) && role\(\) == 'superadmin'; \}/)
+  assert.doesNotMatch(functionsIndex.match(/function hasPersonnelPermission\(profile, minimum = 'view'\) \{([\s\S]*?)\n\}/)?.[1] || '', /role === 'admin'/)
+})
+
+test('HR vacation metadata cannot alter the underlying vacation workflow', () => {
+  const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(vacationMetaUpdate, /transaction\.set\(metaRef/)
+  assert.doesNotMatch(vacationMetaUpdate, /transaction\.(update|set)\(vacationRef/)
+  const vacationRules = rules.match(/match \/vacationRequests\/\{id\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  assert.match(vacationRules, /allow update, delete: if false;/)
 })

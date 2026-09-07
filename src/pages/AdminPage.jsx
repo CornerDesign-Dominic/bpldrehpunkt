@@ -12,7 +12,7 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { getSafeProfileDefaults } from '../lib/permissions.js'
 import { createDepartment, listDepartments, updateDepartment } from '../lib/departments.js'
 import { createManagedUser, updateManagedUser } from '../lib/userManagement.js'
-import { listUserProfiles } from '../lib/userProfiles.js'
+import { listManagedUserProfiles } from '../lib/userProfiles.js'
 import { createCalendar, listCalendarPermissions, listCalendars, setCalendarPermissions as saveCalendarPermissions, updateCalendar } from '../lib/calendars.js'
 import { functions } from '../lib/firebase.js'
 import '../styles/admin.css'
@@ -44,7 +44,7 @@ export default function AdminPage() {
   async function reload() {
     setLoading(true)
     setError('')
-    try { setUsers(await listUserProfiles()) } catch { setError('Mitarbeiterdaten konnten nicht geladen werden.') } finally { setLoading(false) }
+    try { setUsers(await listManagedUserProfiles()) } catch { setError('Mitarbeiterdaten konnten nicht geladen werden.') } finally { setLoading(false) }
     try { setDepartments(await listDepartments()); setDepartmentError('') } catch { setDepartments([]); setDepartmentError('Zentrale Abteilungen konnten nicht geladen werden.') }
     if (canManagePermissions) {
       try {
@@ -59,7 +59,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     let active = true
-    listUserProfiles()
+    listManagedUserProfiles()
       .then((profiles) => { if (active) setUsers(profiles) })
       .catch(() => { if (active) setError('Mitarbeiterdaten konnten nicht geladen werden.') })
       .finally(() => { if (active) setLoading(false) })

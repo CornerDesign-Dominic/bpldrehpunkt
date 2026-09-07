@@ -13,6 +13,7 @@ export const MODULES = {
   documents: { label: 'Dokumente' },
   templates: { label: 'Vorlagen' },
   todos: { label: 'To-dos' },
+  personnel: { label: 'Personal' },
 }
 
 export const USER_ROLES = ['user', 'admin', 'superadmin']
@@ -45,16 +46,21 @@ export const canManagePermissions = (profile) => normalizeRole(profile?.role) ==
 export const canManageVacations = (profile) => normalizeRole(profile?.role) === 'superadmin' || profile?.vacationManager === true
 
 export function getSafeProfileDefaults(profile) {
-  const vacationManager = profile?.vacationManager === true
-  const vacationManagerAllDepartments = vacationManager && profile?.vacationManagerAllDepartments === true
-  const vacationManagerDepartments = vacationManager && !vacationManagerAllDepartments && Array.isArray(profile?.vacationManagerDepartments)
-    ? [...new Set(profile.vacationManagerDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
+  // Birth dates are HR-only data. Older profiles may still contain the
+  // historical field until the server-side migration is run; never expose it
+  // through the client-side profile state.
+  const safeInput = { ...(profile || {}) }
+  delete safeInput.birthDate
+  const vacationManager = safeInput.vacationManager === true
+  const vacationManagerAllDepartments = vacationManager && safeInput.vacationManagerAllDepartments === true
+  const vacationManagerDepartments = vacationManager && !vacationManagerAllDepartments && Array.isArray(safeInput.vacationManagerDepartments)
+    ? [...new Set(safeInput.vacationManagerDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
     : []
-  const departmentId = typeof profile?.departmentId === 'string' ? profile.departmentId.trim() : ''
-  const departmentName = typeof profile?.departmentName === 'string' && profile.departmentName.trim()
-    ? profile.departmentName.trim()
-    : (typeof profile?.department === 'string' ? profile.department.trim() : '')
-  const safeProfile = { ...profile, departmentName, department: departmentName, role: normalizeRole(profile?.role), permissions: normalizePermissions(profile?.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
+  const departmentId = typeof safeInput.departmentId === 'string' ? safeInput.departmentId.trim() : ''
+  const departmentName = typeof safeInput.departmentName === 'string' && safeInput.departmentName.trim()
+    ? safeInput.departmentName.trim()
+    : (typeof safeInput.department === 'string' ? safeInput.department.trim() : '')
+  const safeProfile = { ...safeInput, departmentName, department: departmentName, role: normalizeRole(safeInput.role), permissions: normalizePermissions(safeInput.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
   if (departmentId) safeProfile.departmentId = departmentId
   else delete safeProfile.departmentId
   return safeProfile

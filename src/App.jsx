@@ -24,6 +24,9 @@ import CalendarPage from './pages/CalendarPage.jsx'
 import SystemMailsPage from './pages/SystemMailsPage.jsx'
 import TemplatesOverviewPage from './pages/TemplatesOverviewPage.jsx'
 import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
+import PersonnelPage from './pages/PersonnelPage.jsx'
+import PersonnelDetailPage from './pages/PersonnelDetailPage.jsx'
+import PersonnelVacationPage from './pages/PersonnelVacationPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 
 function ProtectedAppLayout() {
@@ -37,6 +40,9 @@ export default function App() {
       <Route element={<ProtectedAppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
+        <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
+        <Route path="/personal/urlaub" element={<PermissionRoute module="personnel"><PersonnelVacationPage /></PermissionRoute>} />
+        <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />

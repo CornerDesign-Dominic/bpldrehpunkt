@@ -46,14 +46,19 @@ service cloud.firestore {
       // A client may read its own complete profile only.  Team, vacation and
       // to-do directories are supplied as deliberately reduced data by a
       // callable function; they must never grant direct profile access.
-      allow get: if active() && (userId == request.auth.uid || admin());
-      allow list: if admin();
+      // Complete profiles can contain account-security data. Administration
+      // receives its deliberately reduced view through listManagedUsers.
+      allow get: if active() && userId == request.auth.uid;
+      allow list: if false;
       // Accounts are only created by the Admin SDK callable function.
       allow create, delete: if false;
-      allow update: if superadmin() || (admin() && resource.data.role == 'user'
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.permissions == resource.data.permissions
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'department', 'active', 'employmentStart', 'personnelNumber', 'updatedAt']));
+      allow update: if false;
+    }
+
+    // Personal data is intentionally callable-only. This blocks all direct
+    // reads, writes and manipulated client requests, including for admins.
+    match /employeeHrProfiles/{userId} {
+      allow read, write: if false;
     }
 
     match /departments/{departmentId} {
@@ -350,6 +355,11 @@ service cloud.firestore {
       // Approval, rejection and all other changes are handled by the callable
       // function, which validates the manager's department server-side.
       allow update, delete: if false;
+    }
+    // Payroll processing and internal HR notes are strictly separate from
+    // vacation workflow documents and are exposed only through HR callables.
+    match /hrVacationMeta/{vacationId} {
+      allow read, write: if false;
     }
     match /vacationHistory/{id} {
       allow read: if view('vacation') && resource.data.userId == request.auth.uid;

@@ -1,12 +1,12 @@
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore'
+import { doc, getDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { USER_ROLES, getSafeProfileDefaults } from './permissions.js'
 
 export const USER_PROFILES_COLLECTION = 'users'
 export { USER_ROLES }
-export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'role', 'permissions', 'vacationManager', 'vacationManagerAllDepartments', 'vacationManagerDepartments', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
-export const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'active', 'employmentStart', 'personnelNumber']
+export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'role', 'permissions', 'vacationManager', 'vacationManagerAllDepartments', 'vacationManagerDepartments', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
+export const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'active', 'employmentStart', 'personnelNumber']
 export const USER_AVAILABILITY_STATUSES = [
   { value: 'working', label: 'Arbeitend' },
   { value: 'vacation', label: 'Urlaub' },
@@ -22,9 +22,9 @@ export async function getUserProfile(uid) {
   return snapshot.exists() ? getSafeProfileDefaults({ id: snapshot.id, ...snapshot.data() }) : null
 }
 
-export async function listUserProfiles() {
-  const snapshot = await getDocs(collection(db, USER_PROFILES_COLLECTION))
-  return snapshot.docs.map((item) => getSafeProfileDefaults({ id: item.id, ...item.data() }))
+export async function listManagedUserProfiles() {
+  const result = await httpsCallable(functions, 'listManagedUsers')()
+  return Array.isArray(result.data?.profiles) ? result.data.profiles.map(getSafeProfileDefaults) : []
 }
 
 // This is intentionally not a Firestore profile query. The callable returns

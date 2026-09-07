@@ -10,11 +10,14 @@ if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos']
-const normalFields = ['firstName', 'lastName', 'birthDate', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
+const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'personnel']
+const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
+const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount']
+const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
 
 function permissions(value) { return Object.fromEntries(modules.map((module) => [module, levels.has(value?.[module]) ? value[module] : 'none'])) }
 function profileFields(value) { return Object.fromEntries(normalFields.filter((key) => value[key] !== undefined).map((key) => [key, value[key]])) }
+function sharedProfileFields(value) { return Object.fromEntries(sharedHrProfileFields.filter((key) => value[key] !== undefined).map((key) => [key, value[key]])) }
 function passwordIsValid(value) { return typeof value === 'string' && value.length >= 6 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) }
 const passwordRequirementMessage = 'Das Passwort muss mindestens 6 Zeichen sowie einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.'
 async function vacationManagerFields(value, fallback = {}) {
@@ -56,6 +59,73 @@ async function assertManager(request) {
   return requireRole(await requireActiveProfile(request), ['admin', 'superadmin'], 'Keine Berechtigung zur Benutzerverwaltung.')
 }
 
+function hasPersonnelPermission(profile, minimum = 'view') {
+  if (profile?.role === 'superadmin') return true
+  const values = { none: 0, view: 1, edit: 2 }
+  return values[profile?.permissions?.personnel] >= values[minimum]
+}
+
+async function assertPersonnelAccess(request, minimum = 'view') {
+  const profile = await requireActiveProfile(request)
+  if (!hasPersonnelPermission(profile, minimum)) throw new HttpsError('permission-denied', 'Keine Berechtigung für die Personalverwaltung.')
+  return profile
+}
+
+function optionalText(value, field, limit) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new HttpsError('invalid-argument', `Ungültiger Wert für ${field}.`)
+  const clean = value.trim()
+  if (clean.length > limit) throw new HttpsError('invalid-argument', `${field} ist zu lang.`)
+  return clean
+}
+
+function optionalDate(value, field) {
+  const clean = optionalText(value, field, 10)
+  if (!clean) return ''
+  const date = new Date(`${clean}T12:00:00Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(clean) || Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== clean) throw new HttpsError('invalid-argument', `${field} ist kein gültiges Datum.`)
+  return clean
+}
+
+function validatedHrFields(value = {}) {
+  const childrenCount = value.childrenCount === '' || value.childrenCount === null || value.childrenCount === undefined ? null : Number(value.childrenCount)
+  if (childrenCount !== null && (!Number.isInteger(childrenCount) || childrenCount < 0 || childrenCount > 50)) throw new HttpsError('invalid-argument', 'Anzahl Kinder muss eine ganze Zahl zwischen 0 und 50 sein.')
+  const taxClass = optionalText(value.taxClass, 'Steuerklasse', 1)
+  if (taxClass && !['1', '2', '3', '4', '5', '6'].includes(taxClass)) throw new HttpsError('invalid-argument', 'Steuerklasse ist ungültig.')
+  return {
+    birthDate: optionalDate(value.birthDate, 'Geburtsdatum'),
+    streetAddress: optionalText(value.streetAddress, 'Straße / Hausnummer', 180),
+    postalCode: optionalText(value.postalCode, 'PLZ', 20),
+    city: optionalText(value.city, 'Ort', 120),
+    country: optionalText(value.country, 'Land', 120),
+    taxClass,
+    childrenCount,
+  }
+}
+
+function managedUserEntry(snapshot) {
+  const profile = snapshot.data()
+  return {
+    id: snapshot.id,
+    firstName: typeof profile.firstName === 'string' ? profile.firstName : '',
+    lastName: typeof profile.lastName === 'string' ? profile.lastName : '',
+    email: typeof profile.email === 'string' ? profile.email : '',
+    phone: typeof profile.phone === 'string' ? profile.phone : '',
+    jobTitle: typeof profile.jobTitle === 'string' ? profile.jobTitle : '',
+    departmentId: typeof profile.departmentId === 'string' ? profile.departmentId : '',
+    department: typeof profile.department === 'string' ? profile.department : '',
+    departmentName: typeof profile.departmentName === 'string' ? profile.departmentName : '',
+    personnelNumber: typeof profile.personnelNumber === 'string' ? profile.personnelNumber : '',
+    employmentStart: typeof profile.employmentStart === 'string' ? profile.employmentStart : '',
+    active: profile.active === true,
+    role: roles.has(profile.role) ? profile.role : 'user',
+    permissions: permissions(profile.permissions),
+    vacationManager: profile.vacationManager === true,
+    vacationManagerAllDepartments: profile.vacationManagerAllDepartments === true,
+    vacationManagerDepartments: Array.isArray(profile.vacationManagerDepartments) ? profile.vacationManagerDepartments : [],
+  }
+}
+
 function userDirectoryAccess(profile) {
   if (profile?.role === 'admin' || profile?.role === 'superadmin') return { allowed: true, includeContactDetails: true }
   const permissions = profile?.permissions ?? {}
@@ -94,6 +164,101 @@ export const listVisibleUserDirectory = onCall({ region: 'europe-west3' }, async
   return { profiles: users.docs.map((snapshot) => userDirectoryEntry(snapshot, access.includeContactDetails)) }
 })
 
+// The administration needs central account and employment fields, but never
+// HR-only data. Returning this explicit projection also permits us to deny
+// direct client reads of arbitrary user documents.
+export const listManagedUsers = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertManager(request)
+  const users = await db.collection('users').get()
+  return { profiles: users.docs.map(managedUserEntry) }
+})
+
+function personnelListEntry(snapshot) {
+  const profile = snapshot.data()
+  return {
+    id: snapshot.id,
+    firstName: typeof profile.firstName === 'string' ? profile.firstName : '',
+    lastName: typeof profile.lastName === 'string' ? profile.lastName : '',
+    jobTitle: typeof profile.jobTitle === 'string' ? profile.jobTitle : '',
+    department: typeof profile.departmentName === 'string' ? profile.departmentName : (typeof profile.department === 'string' ? profile.department : ''),
+    personnelNumber: typeof profile.personnelNumber === 'string' ? profile.personnelNumber : '',
+    employmentStart: typeof profile.employmentStart === 'string' ? profile.employmentStart : '',
+  }
+}
+
+function personnelDetailEntry(userSnapshot, hrSnapshot) {
+  const profile = userSnapshot.data()
+  const hr = hrSnapshot.exists ? hrSnapshot.data() : {}
+  return {
+    ...personnelListEntry(userSnapshot),
+    phone: typeof profile.phone === 'string' ? profile.phone : '',
+    departmentId: typeof profile.departmentId === 'string' ? profile.departmentId : '',
+    ...Object.fromEntries(hrProfileFields.map((field) => [field, hr[field] ?? (field === 'childrenCount' ? null : '')])),
+  }
+}
+
+export const listPersonnelEmployees = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertPersonnelAccess(request)
+  const users = await db.collection('users').get()
+  return { employees: users.docs.map(personnelListEntry) }
+})
+
+export const getPersonnelEmployee = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertPersonnelAccess(request)
+  const userId = request.data?.userId
+  if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
+  const [user, hr] = await Promise.all([db.doc(`users/${userId}`).get(), db.doc(`employeeHrProfiles/${userId}`).get()])
+  if (!user.exists) throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.')
+  return { employee: personnelDetailEntry(user, hr) }
+})
+
+// Central employment data and HR-only data are written in one transaction.
+// There is one source of truth for shared fields: users/{uid}.
+export const updatePersonnelEmployee = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertPersonnelAccess(request, 'edit')
+  const { userId, ...data } = request.data ?? {}
+  if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
+  const userRef = db.doc(`users/${userId}`)
+  const hrRef = db.doc(`employeeHrProfiles/${userId}`)
+  const user = await userRef.get()
+  if (!user.exists) throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.')
+  const centralUpdate = { ...sharedProfileFields(data), ...(await departmentFields(data, user.data())), updatedAt: FieldValue.serverTimestamp() }
+  const hrUpdate = validatedHrFields(data)
+  await db.runTransaction(async (transaction) => {
+    const hr = await transaction.get(hrRef)
+    transaction.update(userRef, centralUpdate)
+    transaction.set(hrRef, {
+      ...hrUpdate,
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(hr.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+    }, { merge: true })
+  })
+  return { userId }
+})
+
+// One-time, intentionally explicit migration for the pre-HR birthDate field.
+// It preserves an already-maintained HR value and removes the legacy copy.
+export const migrateLegacyBirthDatesToPersonnel = onCall({ region: 'europe-west3' }, async (request) => {
+  await requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Aktion ist nur für Superadmins erlaubt.')
+  const users = await db.collection('users').get()
+  let migrated = 0
+  for (const user of users.docs) {
+    const legacyBirthDate = user.data().birthDate
+    if (typeof legacyBirthDate !== 'string' || !legacyBirthDate) continue
+    const hrRef = db.doc(`employeeHrProfiles/${user.id}`)
+    await db.runTransaction(async (transaction) => {
+      const hr = await transaction.get(hrRef)
+      const currentHr = hr.exists ? hr.data() : {}
+      transaction.update(user.ref, { birthDate: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })
+      if (!currentHr.birthDate) {
+        transaction.set(hrRef, { birthDate: optionalDate(legacyBirthDate, 'Geburtsdatum'), updatedAt: FieldValue.serverTimestamp(), ...(hr.exists ? {} : { createdAt: FieldValue.serverTimestamp() }) }, { merge: true })
+      }
+    })
+    migrated += 1
+  }
+  return { migrated }
+})
+
 export const createManagedUser = onCall({ region: 'europe-west3' }, async (request) => {
   const actor = await assertManager(request)
   const data = request.data ?? {}
@@ -104,7 +269,10 @@ export const createManagedUser = onCall({ region: 'europe-west3' }, async (reque
   const selectedVacationManagerFields = await vacationManagerFields(actor.role === 'superadmin' ? data : {})
   const user = await getAuth().createUser({ email: data.email, password: data.password, disabled: data.active === false })
   await getAuth().setCustomUserClaims(user.uid, { role })
-  await db.doc(`users/${user.uid}`).set({ ...profileFields(data), ...selectedDepartment, email: data.email, active: data.active !== false, role, permissions: actor.role === 'superadmin' ? permissions(data.permissions) : permissions(), ...selectedVacationManagerFields, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  const batch = db.batch()
+  batch.set(db.doc(`users/${user.uid}`), { ...profileFields(data), ...selectedDepartment, email: data.email, active: data.active !== false, role, permissions: actor.role === 'superadmin' ? permissions(data.permissions) : permissions(), ...selectedVacationManagerFields, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  batch.set(db.doc(`employeeHrProfiles/${user.uid}`), { ...validatedHrFields(), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  await batch.commit()
   return { uid: user.uid }
 })
 
@@ -332,6 +500,77 @@ export const recordVacationCreated = onDocumentCreated({ region: 'europe-west3',
   const kind = requestType(data)
   const status = kind === 'request' ? (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data.mainStatus || data.status) ? data.mainStatus || data.status : 'pending') : vacationRequestStatus(data)
   await db.collection('vacationHistory').doc(`created-${requestId}`).set({ id: `created-${requestId}`, vacationId: vacationRootId(data, requestId), userId: data.userId, eventType: historyEventType(data, status), status, createdAt: FieldValue.serverTimestamp(), createdBy: data.userId, requestId })
+})
+
+function personnelVacationStatus(data) {
+  return ['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data?.mainStatus)
+    ? data.mainStatus
+    : (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data?.status) ? data.status : 'pending')
+}
+
+function personnelVacationEntry(snapshot, employee, meta) {
+  const vacation = snapshot.data()
+  return {
+    vacationId: snapshot.id,
+    userId: vacation.userId,
+    employeeName: [employee?.firstName, employee?.lastName].filter(Boolean).join(' ').trim() || employee?.email || '—',
+    department: employee?.departmentName || employee?.department || '—',
+    departmentId: employee?.departmentId || '',
+    startDate: typeof vacation.startDate === 'string' ? vacation.startDate : '',
+    endDate: typeof vacation.endDate === 'string' ? vacation.endDate : '',
+    days: Number.isFinite(vacation.days) ? vacation.days : 0,
+    vacationType: ['normal', 'overtime', 'special'].includes(vacation.vacationType) ? vacation.vacationType : 'normal',
+    status: personnelVacationStatus(vacation),
+    payrollProcessed: meta?.payrollProcessed === true,
+    hrNote: typeof meta?.hrNote === 'string' ? meta.hrNote : '',
+  }
+}
+
+// This is an HR-specific read model. It only joins the existing vacation
+// source with private HR metadata; it does not persist vacation data again.
+export const listPersonnelVacations = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertPersonnelAccess(request)
+  const userId = request.data?.userId
+  if (userId !== undefined && (typeof userId !== 'string' || !userId || userId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
+  const [vacations, employees, metadata] = await Promise.all([
+    db.collection('vacationRequests').get(),
+    db.collection('users').get(),
+    db.collection('hrVacationMeta').get(),
+  ])
+  const employeeById = new Map(employees.docs.map((item) => [item.id, item.data()]))
+  const metaByVacationId = new Map(metadata.docs.map((item) => [item.id, item.data()]))
+  return {
+    vacations: vacations.docs
+      .filter((item) => {
+        const data = item.data()
+        return (data.type === 'vacation' || !data.type) && requestType(data) === 'request' && (!userId || data.userId === userId)
+      })
+      .map((item) => personnelVacationEntry(item, employeeById.get(item.data().userId), metaByVacationId.get(item.id))),
+  }
+})
+
+// Deliberately writes only the separate HR metadata document. Vacation
+// requests, their status and their workflow are never changed here.
+export const updatePersonnelVacationMeta = onCall({ region: 'europe-west3' }, async (request) => {
+  await assertPersonnelAccess(request, 'edit')
+  const { vacationId, payrollProcessed, hrNote } = request.data ?? {}
+  if (typeof vacationId !== 'string' || !vacationId || vacationId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Urlaubs-ID.')
+  if (typeof payrollProcessed !== 'boolean') throw new HttpsError('invalid-argument', 'Lohnbuchhaltungsstatus ist ungültig.')
+  const note = optionalText(hrNote, 'HR-Bemerkung', 3000)
+  const vacationRef = db.doc(`vacationRequests/${vacationId}`)
+  const metaRef = db.doc(`hrVacationMeta/${vacationId}`)
+  await db.runTransaction(async (transaction) => {
+    const [vacation, currentMeta] = await Promise.all([transaction.get(vacationRef), transaction.get(metaRef)])
+    if (!vacation.exists || requestType(vacation.data()) !== 'request') throw new HttpsError('not-found', 'Urlaub nicht gefunden.')
+    transaction.set(metaRef, {
+      payrollProcessed,
+      hrNote: note,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: request.auth.uid,
+      ...(currentMeta.exists ? {} : { createdAt: FieldValue.serverTimestamp() }),
+    }, { merge: true })
+  })
+  return { vacationId }
 })
 
 export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, async (request) => {

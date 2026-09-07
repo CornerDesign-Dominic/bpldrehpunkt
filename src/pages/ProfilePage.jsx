@@ -120,7 +120,6 @@ export default function ProfilePage() {
   const personalFields = [
     ['Vorname', profile?.firstName || '—'],
     ['Nachname', profile?.lastName || '—'],
-    ['Geburtsdatum', formatDate(profile?.birthDate)],
     ['Telefon / Durchwahl', profile?.phone || '—'],
     ['E-Mail / Login', user.email || profile?.email || '—'],
   ]
