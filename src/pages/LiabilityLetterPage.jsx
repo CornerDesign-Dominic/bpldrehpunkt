@@ -4,16 +4,31 @@ import LiabilityLetterForm from '../components/templates/LiabilityLetterForm.jsx
 import LiabilityLetterPreview from '../components/templates/LiabilityLetterPreview.jsx'
 import LiabilityAiInputModal from '../components/templates/LiabilityAiInputModal.jsx'
 import LiabilityAiResultModal from '../components/templates/LiabilityAiResultModal.jsx'
+import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
 import { documentPdfFileName } from '../lib/documentExport.js'
 import { downloadLiabilityLetterPdf } from '../lib/liabilityLetterPdf.js'
 import { analyzeLiabilityTransportOrderWithAi, liabilityAnalysisToDocumentData } from '../lib/liabilityAi.js'
+
+const aiReviewFields = [
+  'orderNumber',
+  'transportCompany', 'transportStreet', 'transportZip', 'transportCity', 'transportCountry',
+  'loadingCompany', 'loadingStreet', 'loadingZip', 'loadingCity', 'loadingCountry', 'loadingDate',
+  'unloadingCompany', 'unloadingStreet', 'unloadingZip', 'unloadingCity', 'unloadingCountry', 'unloadingDate',
+  'incidentText',
+]
+
+function emptyAiReviewFields(data) {
+  return new Set(aiReviewFields.filter((field) => !String(data?.[field] ?? '').trim()))
+}
 
 export default function LiabilityLetterPage() {
   const [documentData, setDocumentData] = useState(createLiabilityDocumentData)
   const [isCreatingPdf, setCreatingPdf] = useState(false)
   const [aiStep, setAiStep] = useState(null)
   const [aiDraftData, setAiDraftData] = useState(null)
+  const [aiReviewFields, setAiReviewFields] = useState(() => new Set())
+  const [pdfConfirmationAction, setPdfConfirmationAction] = useState(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const documentPaperRef = useRef(null)
 
@@ -23,6 +38,24 @@ export default function LiabilityLetterPage() {
 
   function printDocument() {
     window.print()
+  }
+
+  function requestPdfAction(action) {
+    const emptyFields = emptyAiReviewFields(documentData)
+    setAiReviewFields(emptyFields)
+    if (emptyFields.size) {
+      setPdfConfirmationAction(action)
+      return
+    }
+    if (action === 'print') printDocument()
+    else void createPdf()
+  }
+
+  function confirmPdfAction() {
+    const action = pdfConfirmationAction
+    setPdfConfirmationAction(null)
+    if (action === 'print') printDocument()
+    if (action === 'create') void createPdf()
   }
 
   async function createPdf() {
@@ -56,18 +89,20 @@ export default function LiabilityLetterPage() {
 
   function acceptAiDraft() {
     setDocumentData(aiDraftData)
+    setAiReviewFields(emptyAiReviewFields(aiDraftData))
     closeAiFlow()
   }
 
   return <>
+    <ConfirmDialog open={Boolean(pdfConfirmationAction)} title="Unvollständige Angaben" message="Nicht alle Felder sind ausgefüllt. Möchtest du die PDF trotzdem erzeugen?" confirmLabel="Trotzdem erzeugen" onCancel={() => setPdfConfirmationAction(null)} onConfirm={confirmPdfAction} />
     <div className="liability-page__toolbar">
       <Link className="button button--secondary liability-page__back" to="/vorlagen">Zurück</Link>
       <button className="button button--ai" type="button" onClick={() => setAiStep('input')}>Mit KI vorausfüllen</button>
     </div>
     <div className="liability-page">
       <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
-      <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} />
-      <div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={printDocument}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => { void createPdf() }}>PDF erstellen</button></div>
+      <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={aiReviewFields} />
+      <div className="liability-page__actions"><button className="button button--secondary" type="button" onClick={() => requestPdfAction('print')}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf} aria-busy={isCreatingPdf} onClick={() => requestPdfAction('create')}>PDF erstellen</button></div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
       {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={analyzeTransportOrder} onClose={closeAiFlow} />}
       {aiStep === 'result' && aiDraftData && <LiabilityAiResultModal aiDraftData={aiDraftData} onChange={updateAiDraftData} onClose={closeAiFlow} onAccept={acceptAiDraft} />}
