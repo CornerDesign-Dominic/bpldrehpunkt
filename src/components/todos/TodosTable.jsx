@@ -5,7 +5,7 @@ import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority, todoStat
 const STATUS_ORDER = { open: 0, in_progress: 1, completed: 2, withdrawn: 3 }
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 }
 
-function PriorityChip({ priority }) { const symbol = priority === 'high' ? '!' : priority === 'medium' ? '↑' : null; return <span className={`todo-priority-text todo-priority-text--${priority}`}><span className="todo-priority-text__symbol" aria-hidden="true">{symbol || <TodoPriorityIcon priority="low" />}</span><span>{TODO_PRIORITY[priority]}</span></span> }
+function PriorityChip({ priority }) { const symbol = priority === 'high' ? '!' : null; return <span className={`todo-priority-text todo-priority-text--${priority}`}><span className="todo-priority-text__symbol" aria-hidden="true">{symbol || <TodoPriorityIcon priority={priority} />}</span><span>{TODO_PRIORITY[priority]}</span></span> }
 function StatusChip({ status }) { return <span className={`todo-status todo-status--${status}`}>{TODO_STATUS[status] || '—'}</span> }
 function responsibilityLabel(todo) {
   if (todo.audienceType === 'person') return todo.audienceId === todo.creatorUserId ? 'Persönlich' : todo.audienceLabel || 'Person'
