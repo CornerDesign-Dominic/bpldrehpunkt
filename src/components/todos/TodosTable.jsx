@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
+import { TodoPriorityIcon } from '../icons.jsx'
 import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority, todoStatus } from '../../lib/todos.js'
 
 const STATUS_ORDER = { open: 0, in_progress: 1, completed: 2, withdrawn: 3 }
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 }
 
-function PriorityChip({ priority }) { const symbol = { high: '!', medium: '•', low: '↓' }[priority]; return <span className={`todo-priority todo-priority--${priority}`}><span className="todo-priority__icon">{symbol}</span>{TODO_PRIORITY[priority]}</span> }
+function PriorityChip({ priority }) { return <span className={`todo-priority todo-priority--${priority}`}><span className="todo-priority__icon"><TodoPriorityIcon priority={priority} /></span>{TODO_PRIORITY[priority]}</span> }
 function StatusChip({ status }) { return <span className={`todo-status todo-status--${status}`}>{TODO_STATUS[status] || '—'}</span> }
 function responsibilityLabel(todo) {
   if (todo.audienceType === 'person') return todo.audienceId === todo.creatorUserId ? 'Persönlich' : todo.audienceLabel || 'Person'

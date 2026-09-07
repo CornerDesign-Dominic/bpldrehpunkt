@@ -1139,6 +1139,12 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todos-table__row--critical td:first-child { border-left: 5px solid var(--todo-due-overdue); }.todos-table__row--urgent td:first-child { border-left: 5px solid var(--todo-due-today); }.todos-table__row--warning td:first-child { border-left: 5px solid var(--todo-due-soon); }
 .todos-table__actions { text-align: right; }
 .todos-table__open { display: inline-flex; align-items: center; gap: 3px; padding: 5px 7px; border: 0; border-radius: 4px; color: var(--button-text); background: var(--button-background); cursor: pointer; font: inherit; font-weight: 700; }
+.todo-priority { gap: 4px; min-height: auto; padding: 0; border-radius: 0; background: transparent; }
+.todo-priority__icon { display: inline-grid; width: 16px; height: 16px; flex: 0 0 16px; place-items: center; border-radius: 0; color: currentColor; background: transparent; }
+.todo-priority__icon svg { display: block; }
+.todo-priority--high { color: var(--status-danger-text); background: transparent; box-shadow: none; }
+.todo-priority--medium { color: var(--status-warning-text); background: transparent; }
+.todo-priority--low { color: var(--text-muted); background: transparent; }
 .todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .todo-detail-navigation { display: flex; width: 100%; max-width: 960px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 auto 14px; }
 .todo-detail-header__title { margin-top: 0; }

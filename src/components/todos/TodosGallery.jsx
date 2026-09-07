@@ -1,5 +1,5 @@
 import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority, todoStatus } from '../../lib/todos.js'
-import { ChevronIcon } from '../icons.jsx'
+import { ChevronIcon, TodoPriorityIcon } from '../icons.jsx'
 
 function formatTimestamp(value) {
   const date = value?.toDate?.()
@@ -7,8 +7,7 @@ function formatTimestamp(value) {
 }
 
 function PriorityChip({ priority }) {
-  const symbol = { high: '!', medium: '•', low: '↓' }[priority]
-  return <span className={`todo-priority todo-priority--${priority}`}><span className="todo-priority__icon" aria-hidden="true">{symbol}</span><span>{TODO_PRIORITY[priority]}</span></span>
+  return <span className={`todo-priority todo-priority--${priority}`}><span className="todo-priority__icon"><TodoPriorityIcon priority={priority} /></span><span>{TODO_PRIORITY[priority]}</span></span>
 }
 
 function StatusChip({ status }) {
