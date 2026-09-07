@@ -1146,6 +1146,13 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-priority--medium { color: var(--status-warning-text); background: transparent; }
 .todo-priority--low { color: var(--text-muted); background: transparent; }
 .todo-priority--high .todo-priority__icon, .todo-priority--medium .todo-priority__icon, .todo-priority--low .todo-priority__icon { background: transparent; }
+.todo-priority-text { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: none; border-radius: 0; color: var(--text-secondary); background: transparent; box-shadow: none; font-size: 11px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.todo-priority-text__symbol { display: inline-grid; width: 16px; height: 16px; flex: 0 0 16px; padding: 0; place-items: center; border: none; border-radius: 0; color: currentColor; background: transparent; box-shadow: none; }
+.todo-priority-text__symbol svg { display: block; }
+.todo-priority-text--high { color: var(--status-danger-text); }
+.todo-priority-text--medium { color: var(--status-warning-text); }
+.todo-priority-text--low { color: var(--text-muted); }
+.todo-priority-text--high .todo-priority-text__symbol, .todo-priority-text--medium .todo-priority-text__symbol { font-size: 15px; font-weight: 800; }
 .todo-detail-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .todo-detail-navigation { display: flex; width: 100%; max-width: 960px; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin: 0 auto 14px; }
 .todo-detail-header__title { margin-top: 0; }

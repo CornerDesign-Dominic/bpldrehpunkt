@@ -8,7 +8,7 @@ function formatTimestamp(value) {
 
 function PriorityChip({ priority }) {
   const symbol = priority === 'high' ? '!' : priority === 'medium' ? '•' : null
-  return <span className={`todo-priority todo-priority--${priority}`}><span className="todo-priority__icon" aria-hidden="true">{symbol || <TodoPriorityIcon priority="low" />}</span><span>{TODO_PRIORITY[priority]}</span></span>
+  return <span className={`todo-priority-text todo-priority-text--${priority}`}><span className="todo-priority-text__symbol" aria-hidden="true">{symbol || <TodoPriorityIcon priority="low" />}</span><span>{TODO_PRIORITY[priority]}</span></span>
 }
 
 function StatusChip({ status }) {
