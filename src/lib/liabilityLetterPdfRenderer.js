@@ -1,6 +1,6 @@
 import { BPL_FOOTER_COLUMNS, BPL_SENDER_LINE } from '../templates/bplDocumentDetails.js'
 import { formatDocumentDate, getLiabilitySubject } from '../templates/liabilityDocumentData.js'
-import { formatLiabilityAddressLine, liabilityRecipientLines, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
+import { formatLiabilityAddressLine, liabilityRecipientLines, liabilitySignature, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
 
 const PAGE = { left: 19, right: 191, footerLeft: 16, footerRight: 194 }
 const LETTERHEAD = { top: 8, width: 172, height: 33.75 }
@@ -47,6 +47,27 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
     pages[pageIndex].push({ text, x, y: textY, bold, fontSize, align })
   }
 
+  function signatureImageDimensions(imageData) {
+    let width = 46
+    let height = 16
+    try {
+      const image = layoutPdf.getImageProperties(imageData)
+      const scale = Math.min(width / image.width, 14 / image.height)
+      width = image.width * scale
+      height = image.height * scale
+    } catch {
+      // The browser has already displayed the authenticated JPEG preview.
+      // Keep a conservative fallback size if a PDF reader cannot inspect it.
+    }
+    return { width, height }
+  }
+
+  function addSignatureImage(imageData, { width, height } = signatureImageDimensions(imageData)) {
+    if (y + height > CONTENT_BOTTOM) newPage()
+    pages[pageIndex].push({ type: 'image', imageData, x: PAGE.left, y, width, height })
+    y += height
+  }
+
   function writeParagraph(text, { bold = false, fontSize = BODY_FONT_SIZE, lineHeight = BODY_LINE_HEIGHT, spacingAfter = 0 } = {}) {
     layoutPdf.setFont('helvetica', bold ? 'bold' : 'normal')
     layoutPdf.setFontSize(fontSize)
@@ -82,7 +103,15 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
   writeParagraph(LIABILITY_LETTER_TEXT.reservation, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.insuranceNotice, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.closing, { spacingAfter: 12 })
-  writeParagraph(LIABILITY_LETTER_TEXT.company, { bold: true })
+  const personalSignature = liabilitySignature(documentData)
+  if (personalSignature) {
+    const signatureDimensions = signatureImageDimensions(personalSignature.imageData)
+    if (y + BODY_LINE_HEIGHT + 2.5 + signatureDimensions.height > CONTENT_BOTTOM) newPage()
+    writeParagraph(personalSignature.signerName, { bold: true, spacingAfter: 2.5 })
+    addSignatureImage(personalSignature.imageData, signatureDimensions)
+  } else {
+    writeParagraph(LIABILITY_LETTER_TEXT.company, { bold: true })
+  }
 
   for (let index = 1; index < pages.length; index += 1) pdf.addPage('a4', 'portrait')
   for (let index = pages.length - 1; index >= 0; index -= 1) {
@@ -90,6 +119,10 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
     pdf.setPage(index + 1)
     writeLetterhead(pdf, headerImage)
     page.forEach((entry) => {
+      if (entry.type === 'image') {
+        pdf.addImage(entry.imageData, 'JPEG', entry.x, entry.y, entry.width, entry.height)
+        return
+      }
       pdf.setFont('helvetica', entry.bold ? 'bold' : 'normal')
       pdf.setFontSize(entry.fontSize)
       pdf.text(entry.text, entry.x, entry.y, entry.align ? { align: entry.align } : undefined)

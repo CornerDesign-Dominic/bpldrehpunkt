@@ -16,3 +16,8 @@ export function liabilityRecipientLines({ transportCompany, transportStreet, tra
   const place = [transportZip, transportCity].filter(Boolean).join(' ').trim()
   return [transportCompany, transportStreet, place, transportCountry].filter(Boolean)
 }
+
+export function liabilitySignature(documentData) {
+  const signature = documentData?.attachments?.signature
+  return signature?.signerName && signature?.imageData ? signature : null
+}

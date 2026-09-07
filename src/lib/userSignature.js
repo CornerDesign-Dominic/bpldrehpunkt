@@ -27,6 +27,15 @@ export async function loadCurrentUserSignature() {
   return getBlob(currentUserSignatureRef())
 }
 
+export function signatureBlobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Die Unterschrift konnte nicht verarbeitet werden.'))
+    reader.onload = () => resolve(reader.result)
+    reader.readAsDataURL(blob)
+  })
+}
+
 export async function uploadCurrentUserSignature(file) {
   const validationError = validateSignatureFile(file)
   if (validationError) {
