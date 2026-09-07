@@ -2,6 +2,17 @@ node_modules/
 node_modules.install-incomplete/
 dist/
 .vite/
+# Local environment and credentials (keep the documented template versioned).
 .env
-.env.local
-firebase-debug.log
+.env.*
+!.env.example
+*.pem
+*.key
+*service-account*.json
+
+# Firebase and other local diagnostic output can contain short-lived deployment
+# credentials (for example Cloud Functions source tokens).
+firebase-debug*.log
+firestore-debug*.log
+ui-debug*.log
+*.log
