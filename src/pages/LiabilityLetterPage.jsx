@@ -44,6 +44,7 @@ export default function LiabilityLetterPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [usePersonalSignature, setUsePersonalSignature] = useState(false)
   const [signatureLoading, setSignatureLoading] = useState(false)
+  const [signatureMissing, setSignatureMissing] = useState(false)
   const [signatureNoticeVisible, setSignatureNoticeVisible] = useState(false)
   const documentPaperRef = useRef(null)
   const signaturePreviewUrlRef = useRef('')
@@ -76,9 +77,13 @@ export default function LiabilityLetterPage() {
       const imageUrl = URL.createObjectURL(blob)
       signaturePreviewUrlRef.current = imageUrl
       setDocumentData((current) => ({ ...current, attachments: { ...current.attachments, signature: { signerName: signatureName(profile), imageUrl, imageData } } }))
+      setSignatureMissing(false)
       return true
     } catch {
-      if (requestId === signatureLoadRequestRef.current) setDocumentData((current) => ({ ...current, attachments: { ...current.attachments, signature: null } }))
+      if (requestId === signatureLoadRequestRef.current) {
+        setDocumentData((current) => ({ ...current, attachments: { ...current.attachments, signature: null } }))
+        setSignatureMissing(true)
+      }
       return false
     } finally {
       if (requestId === signatureLoadRequestRef.current) setSignatureLoading(false)
@@ -88,16 +93,22 @@ export default function LiabilityLetterPage() {
   async function togglePersonalSignature(checked) {
     setUsePersonalSignature(checked)
     setSignatureNoticeVisible(false)
+    setSignatureMissing(false)
     if (!checked) {
       clearPersonalSignature()
       return
     }
-    await loadPersonalSignature()
+    const loaded = await loadPersonalSignature()
+    if (!loaded) setSignatureNoticeVisible(true)
   }
 
   async function ensurePersonalSignature() {
     if (!usePersonalSignature) return true
     if (documentData.attachments?.signature?.imageData) return true
+    if (signatureMissing) {
+      setSignatureNoticeVisible(true)
+      return false
+    }
     const loaded = await loadPersonalSignature()
     if (!loaded) setSignatureNoticeVisible(true)
     return loaded
@@ -139,6 +150,7 @@ export default function LiabilityLetterPage() {
     setAiStep(null)
     setAiDraftData(null)
     setUsePersonalSignature(false)
+    setSignatureMissing(false)
     setSignatureNoticeVisible(false)
   }
 
@@ -202,7 +214,7 @@ export default function LiabilityLetterPage() {
       <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
       <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={requestNewDocument} />
       <div className="liability-page__document-actions"><label className="liability-signature-option"><input type="checkbox" checked={usePersonalSignature} onChange={(event) => { void togglePersonalSignature(event.target.checked) }} disabled={signatureLoading} /><span>Persönliche Unterschrift verwenden</span>{signatureLoading && <small>Unterschrift wird geladen …</small>}</label><div className="liability-page__actions"><button className="button button--secondary" type="button" disabled={signatureLoading} onClick={() => { void requestPdfAction('print') }}>PDF drucken</button><button className="button" type="button" disabled={isCreatingPdf || signatureLoading} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}>PDF erstellen</button></div></div>
-      {signatureNoticeVisible && <p className="liability-signature-notice">Du hast noch keine persönliche Unterschrift hinterlegt. Bitte hinterlege deine Unterschrift zuerst unter <Link to="/profil">Mein Profil</Link>.</p>}
+      {signatureNoticeVisible && <div className="liability-signature-notice" role="status"><p>Du hast noch keine persönliche Unterschrift hinterlegt. Bitte hinterlege deine Unterschrift zuerst unter „Mein Profil“.</p><Link className="button button--secondary" to="/profil">Zu Mein Profil</Link></div>}
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />
       {aiStep === 'input' && <LiabilityAiInputModal isAnalyzing={isAnalyzing} onAnalyze={analyzeTransportOrder} onClose={closeAiFlow} />}
       {aiStep === 'result' && aiDraftData && <LiabilityAiResultModal aiDraftData={aiDraftData} onChange={updateAiDraftData} onClose={closeAiFlow} onAccept={acceptAiDraft} />}
