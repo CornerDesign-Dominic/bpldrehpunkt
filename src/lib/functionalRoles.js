@@ -4,6 +4,21 @@ import { db, functions } from './firebase.js'
 
 export const FUNCTIONAL_ROLES_COLLECTION = 'functionalRoles'
 
+async function callFunctionalRoleFunction(name, data) {
+  try {
+    const result = await httpsCallable(functions, name)(data)
+    return result.data
+  } catch (error) {
+    // A missing or temporarily unavailable callable endpoint is surfaced by
+    // the Firebase SDK as the unhelpful "internal" error, often after the
+    // browser has reported its missing CORS response headers.
+    if (error?.code === 'functions/internal') {
+      throw new Error('Der Fachrollen-Service ist derzeit nicht erreichbar. Bitte laden Sie die Seite neu. Besteht der Fehler weiter, wenden Sie sich an die Administration.', { cause: error })
+    }
+    throw error
+  }
+}
+
 export async function listFunctionalRoles() {
   const snapshot = await getDocs(collection(db, FUNCTIONAL_ROLES_COLLECTION))
   return snapshot.docs
@@ -15,9 +30,9 @@ export async function listFunctionalRoles() {
 }
 
 export function createFunctionalRole(name) {
-  return httpsCallable(functions, 'createFunctionalRole')({ name }).then((result) => result.data)
+  return callFunctionalRoleFunction('createFunctionalRole', { name })
 }
 
 export function updateFunctionalRole(id, values) {
-  return httpsCallable(functions, 'updateFunctionalRole')({ id, ...values }).then((result) => result.data)
+  return callFunctionalRoleFunction('updateFunctionalRole', { id, ...values })
 }
