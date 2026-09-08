@@ -85,7 +85,15 @@ export default function KnowledgeProcessPage({ isNew = false }) {
       const start = current.nodes.find((node) => node.type === 'start')
       const reachable = new Set(start ? [start.id] : [])
       const queue = start ? [start.id] : []
-      while (queue.length) for (const edge of edges.filter((item) => item.sourceId === queue.shift())) if (!reachable.has(edge.targetId)) { reachable.add(edge.targetId); queue.push(edge.targetId) }
+      while (queue.length) {
+        const currentId = queue.shift()
+        for (const edge of edges.filter((item) => item.sourceId === currentId)) {
+          if (!reachable.has(edge.targetId)) {
+            reachable.add(edge.targetId)
+            queue.push(edge.targetId)
+          }
+        }
+      }
       return {
         ...current,
         nodes: current.nodes.filter((node) => reachable.has(node.id)).map((node) => node.id === nodeId ? { ...node, outputs: node.outputs.filter((output) => output.id !== outputId) } : node),
@@ -129,7 +137,15 @@ export default function KnowledgeProcessPage({ isNew = false }) {
       const start = current.nodes.find((entry) => entry.type === 'start')
       const reachable = new Set(start ? [start.id] : [])
       const queue = start ? [start.id] : []
-      while (queue.length) for (const edge of edges.filter((item) => item.sourceId === queue.shift())) if (!reachable.has(edge.targetId)) { reachable.add(edge.targetId); queue.push(edge.targetId) }
+      while (queue.length) {
+        const currentId = queue.shift()
+        for (const edge of edges.filter((item) => item.sourceId === currentId)) {
+          if (!reachable.has(edge.targetId)) {
+            reachable.add(edge.targetId)
+            queue.push(edge.targetId)
+          }
+        }
+      }
       return { ...current, nodes: current.nodes.filter((entry) => reachable.has(entry.id)), edges: edges.filter((edge) => reachable.has(edge.sourceId) && reachable.has(edge.targetId)) }
     })
     setConfirmation(null)
