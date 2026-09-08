@@ -4,7 +4,7 @@ import { findNode, outgoingEdges } from '../../lib/knowledgeProcesses.js'
 
 const typeLabels = { start: 'Start', action: 'Handlung', decision: 'Frage', checklist: 'Checkliste', end: 'Ende' }
 
-function NodeCard({ node, editable, onAdd, onEdit, onDelete, process, visited }) {
+function NodeCard({ node, editable, onAdd, onDelete, onEdit, onInsert, process, visited }) {
   const [checklistOpen, setChecklistOpen] = useState(false)
   const branches = node.type === 'end' ? [] : node.type === 'decision'
     ? (node.outputs || []).map((output) => ({ key: output.id, label: output.label, edge: outgoingEdges(process, node.id).find((edge) => edge.sourceOutputId === output.id) }))
@@ -26,14 +26,14 @@ function NodeCard({ node, editable, onAdd, onEdit, onDelete, process, visited })
       return <div className="process-flow__branch" key={branch.key}>
         {node.type === 'decision' && <span className="process-flow__branch-label">{branch.label || 'Unbenannt'}</span>}
         <span className="process-flow__line" aria-hidden="true" />
-        {target ? <NodeCard node={target} editable={editable} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} process={process} visited={nextVisited} /> : editable && node.type !== 'end' ? <button type="button" className="process-flow__add" onClick={() => onAdd(node, branch.key)}>Nächsten Schritt hinzufügen</button> : <span className="process-flow__open-end">Noch nicht ergänzt</span>}
+        {target ? <>{editable && <button type="button" className="process-flow__insert" onClick={() => onInsert(branch.edge)}>＋ Schritt dazwischen einfügen</button>}<NodeCard node={target} editable={editable} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} onInsert={onInsert} process={process} visited={nextVisited} /></> : editable && node.type !== 'end' ? <button type="button" className="process-flow__add" onClick={() => onAdd(node, branch.key)}>Nächsten Schritt hinzufügen</button> : <span className="process-flow__open-end">Noch nicht ergänzt</span>}
       </div>
     })}</div>}
   </div>
 }
 
-export default function ProcessFlow({ editable = false, onAdd, onDelete, onEdit, process }) {
+export default function ProcessFlow({ editable = false, onAdd, onDelete, onEdit, onInsert, process }) {
   const start = (process.nodes || []).find((node) => node.type === 'start')
   if (!start) return <p className="form-error">Der Startblock fehlt.</p>
-  return <section className="process-flow" aria-label="Prozessablauf"><NodeCard node={start} editable={editable} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} process={process} visited={new Set()} /></section>
+  return <section className="process-flow" aria-label="Prozessablauf"><NodeCard node={start} editable={editable} onAdd={onAdd} onEdit={onEdit} onDelete={onDelete} onInsert={onInsert} process={process} visited={new Set()} /></section>
 }
