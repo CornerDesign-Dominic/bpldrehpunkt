@@ -22,12 +22,15 @@ import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
 import SystemMailsPage from './pages/SystemMailsPage.jsx'
+import AiPromptsPage from './pages/AiPromptsPage.jsx'
 import TemplatesOverviewPage from './pages/TemplatesOverviewPage.jsx'
 import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
 import BusinessDocumentPage from './pages/BusinessDocumentPage.jsx'
 import PersonnelPage from './pages/PersonnelPage.jsx'
 import PersonnelDetailPage from './pages/PersonnelDetailPage.jsx'
 import PersonnelVacationPage from './pages/PersonnelVacationPage.jsx'
+import KnowledgeProcessesPage from './pages/KnowledgeProcessesPage.jsx'
+import KnowledgeProcessPage from './pages/KnowledgeProcessPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 
 function ProtectedAppLayout() {
@@ -57,11 +60,15 @@ export default function App() {
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
+        <Route path="/wissen-prozesse" element={<PermissionRoute module="knowledgeProcesses"><KnowledgeProcessesPage /></PermissionRoute>} />
+        <Route path="/wissen-prozesse/neu" element={<PermissionRoute module="knowledgeProcesses"><KnowledgeProcessPage isNew /></PermissionRoute>} />
+        <Route path="/wissen-prozesse/:processId" element={<PermissionRoute module="knowledgeProcesses"><KnowledgeProcessPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />
+        <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
         <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />

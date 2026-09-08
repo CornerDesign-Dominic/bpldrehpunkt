@@ -74,10 +74,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Process content is written through the callable function, where the
+    // complete graph is validated before publication. Readers with view
+    // access can only query active processes; editors may also work with
+    // drafts and archived entries.
+    match /knowledgeProcesses/{processId} {
+      allow read: if edit('knowledgeProcesses') || (view('knowledgeProcesses') && resource.data.status == 'active');
+      allow create, update, delete: if false;
+    }
+
     // Systemmail templates are exclusively exposed through superadmin-only
     // callable functions. This keeps delivery and recipient controls out of
     // direct client access.
     match /systemMailTemplates/{templateId} {
+      allow read, write: if false;
+    }
+
+    // KI-Prompts are callable-only. Published content is never supplied by a
+    // browser request and cannot be modified by direct Firestore access.
+    match /aiPromptConfigs/{featureId} {
       allow read, write: if false;
     }
 

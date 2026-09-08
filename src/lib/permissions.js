@@ -14,6 +14,7 @@ export const MODULES = {
   templates: { label: 'Vorlagen' },
   todos: { label: 'To-dos' },
   personnel: { label: 'Personal' },
+  knowledgeProcesses: { label: 'Wissen & Prozesse' },
 }
 
 export const USER_ROLES = ['user', 'admin', 'superadmin']

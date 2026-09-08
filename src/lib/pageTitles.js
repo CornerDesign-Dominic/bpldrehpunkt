@@ -8,6 +8,7 @@ const pageTitles = [
   { path: '/news', title: 'News' },
   { path: '/dokumente', title: 'Dokumente' },
   { path: '/vorlagen', title: 'Vorlagen' },
+  { path: '/wissen-prozesse', title: 'Wissen & Prozesse' },
   { path: '/todos', title: 'To-dos' },
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin/systemmails', title: 'Systemmails' },

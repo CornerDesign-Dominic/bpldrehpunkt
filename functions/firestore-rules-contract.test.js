@@ -99,6 +99,14 @@ test('vacation HR metadata is inaccessible to direct Firestore clients', () => {
   assert.match(rules, /match \/hrVacationMeta\/\{vacationId\} \{\s*allow read, write: if false;/)
 })
 
+test('knowledge processes expose drafts and archives only to editors', () => {
+  const processRules = rules.match(/match \/knowledgeProcesses\/\{processId\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  assert.match(processRules, /allow read: if edit\('knowledgeProcesses'\) \|\| \(view\('knowledgeProcesses'\) && resource\.data\.status == 'active'\);/)
+  assert.match(processRules, /allow create, update, delete: if false;/)
+  assert.match(functionsIndex, /export const saveKnowledgeProcess = onCall/)
+  assert.match(functionsIndex, /validateActiveKnowledgeProcess\(process\)/)
+})
+
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
   const vacationList = functionsIndex.match(/export const listPersonnelVacations = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''
