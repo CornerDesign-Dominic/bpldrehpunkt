@@ -1,14 +1,10 @@
-import { TODO_PRIORITY, TODO_STATUS, todoDuePresentation, todoPriority, todoStatus } from '../../lib/todos.js'
-import { ChevronIcon, TodoPriorityIcon } from '../icons.jsx'
+import { TODO_STATUS, todoDuePresentation, todoPriority, todoStatus } from '../../lib/todos.js'
+import { ChevronIcon } from '../icons.jsx'
+import { TodoPriority } from './TodoPriority.jsx'
 
 function formatTimestamp(value) {
   const date = value?.toDate?.()
   return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—'
-}
-
-function PriorityChip({ priority }) {
-  const symbol = priority === 'high' ? '!' : null
-  return <span className={`todo-priority-text todo-priority-text--${priority}`}><span className="todo-priority-text__symbol" aria-hidden="true">{symbol || <TodoPriorityIcon priority={priority} />}</span><span>{TODO_PRIORITY[priority]}</span></span>
 }
 
 function StatusChip({ status }) {
@@ -34,7 +30,7 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
       const priority = todoPriority(todo)
       return <article className={`todo-card todo-card--${dueAppearance}`} key={todo.id}>
       <div className="todo-card__content">
-        <div className="todo-card__meta"><h2 className="todo-card__title" title={todo.title}>{todo.title}</h2><PriorityChip priority={priority} /></div>
+        <div className="todo-card__meta"><h2 className="todo-card__title" title={todo.title}>{todo.title}</h2><TodoPriority priority={priority} /></div>
         <p className={`todo-card__due ${getDueClass(todo)}`}>{dueLabel}</p>
         <dl className="todo-card__details">
           <div><dt>Erstellt von</dt><dd>{todo.creatorName || '—'}</dd></div>

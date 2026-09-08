@@ -24,6 +24,7 @@ import CalendarPage from './pages/CalendarPage.jsx'
 import SystemMailsPage from './pages/SystemMailsPage.jsx'
 import TemplatesOverviewPage from './pages/TemplatesOverviewPage.jsx'
 import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
+import BusinessDocumentPage from './pages/BusinessDocumentPage.jsx'
 import PersonnelPage from './pages/PersonnelPage.jsx'
 import PersonnelDetailPage from './pages/PersonnelDetailPage.jsx'
 import PersonnelVacationPage from './pages/PersonnelVacationPage.jsx'
@@ -55,6 +56,7 @@ export default function App() {
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
+        <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />

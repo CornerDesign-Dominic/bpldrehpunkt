@@ -6,6 +6,7 @@ const rules = await readFile(new URL('../firestore.rules', import.meta.url), 'ut
 const app = await readFile(new URL('../src/App.jsx', import.meta.url), 'utf8')
 const authProvider = await readFile(new URL('../src/auth/AuthProvider.jsx', import.meta.url), 'utf8')
 const profilePage = await readFile(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8')
+const personnelPage = await readFile(new URL('../src/pages/PersonnelPage.jsx', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
 
 test('active superadmins retain elevated rights while disabled superadmins do not', () => {
@@ -75,6 +76,25 @@ test('personnel writes keep shared fields central and HR-only fields separate', 
   assert.doesNotMatch(functionsIndex.match(/const normalFields = \[[^\]]*\]/)?.[0] || '', /birthDate/)
 })
 
+test('personnel edit updates only the explicitly whitelisted existing employee fields', () => {
+  const employeeUpdate = functionsIndex.match(/export const updatePersonnelEmployee = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(employeeUpdate, /await assertPersonnelAccess\(request, 'edit'\)/)
+  assert.match(employeeUpdate, /sharedProfileFields\(data\)/)
+  assert.match(employeeUpdate, /departmentFields\(data, user\.data\(\)\)/)
+  assert.match(employeeUpdate, /validatedHrFields\(data\)/)
+  assert.doesNotMatch(employeeUpdate, /data\.(role|active|permissions|uid|email)/)
+  assert.doesNotMatch(functionsIndex.match(/const sharedHrProfileFields = \[[^\]]*\]/)?.[0] || '', /role|active|permissions|uid|email/)
+  assert.match(functionsIndex, /const sharedHrProfileFields = \['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart'\]/)
+})
+
+test('personnel edit never grants user creation and the personnel UI has no creation path', () => {
+  const userCreation = functionsIndex.match(/export const createManagedUser = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(userCreation, /await assertManager\(request\)/)
+  assert.doesNotMatch(userCreation, /assertPersonnelAccess|permissions\.personnel/)
+  assert.doesNotMatch(app, /path="\/personal[^\n]*createManagedUser/)
+  assert.doesNotMatch(personnelPage, /createManagedUser|Mitarbeiter anlegen/)
+})
+
 test('vacation HR metadata is inaccessible to direct Firestore clients', () => {
   assert.match(rules, /match \/hrVacationMeta\/\{vacationId\} \{\s*allow read, write: if false;/)
 })
@@ -87,6 +107,16 @@ test('personnel vacation access follows view/edit and active-superadmin boundari
   assert.match(functionsIndex, /if \(profile\?\.role === 'superadmin'\) return true/)
   assert.match(rules, /function superadmin\(\) \{ return active\(\) && role\(\) == 'superadmin'; \}/)
   assert.doesNotMatch(functionsIndex.match(/function hasPersonnelPermission\(profile, minimum = 'view'\) \{([\s\S]*?)\n\}/)?.[1] || '', /role === 'admin'/)
+})
+
+test('payroll status and HR notes remain fully editable for personnel edit', () => {
+  const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(vacationMetaUpdate, /typeof payrollProcessed !== 'boolean'/)
+  assert.match(vacationMetaUpdate, /transaction\.set\(metaRef, \{[\s\S]*?payrollProcessed,/)
+  assert.match(vacationMetaUpdate, /const note = optionalText\(hrNote, 'HR-Bemerkung', 3000\)/)
+  assert.doesNotMatch(vacationMetaUpdate, /payrollProcessed === true|payrollProcessed == true/)
+  assert.match(functionsIndex, /if \(value === undefined \|\| value === null\) return ''/)
+  assert.match(functionsIndex, /hrNote: note,/)
 })
 
 test('HR vacation metadata cannot alter the underlying vacation workflow', () => {
