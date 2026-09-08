@@ -151,6 +151,15 @@ test('knowledge-process AI uses the published central prompt without weakening i
   assert.match(knowledgeProcessAi, /kann weder Berechtigungen, Datenvalidierung, zulässige Blocktypen, das strukturierte Ausgabeformat noch die Regel zur ausschließlichen Erstellung als Entwurf außer Kraft setzen/)
 })
 
+test('knowledge-process AI retries an invalid model structure once and keeps structure errors distinct from provider failures', () => {
+  assert.match(knowledgeProcessAi, /const retryResponse = await requestOpenAi\(input, true\)/)
+  assert.match(knowledgeProcessAi, /validationReason = `retry_after_\$\{firstError\.validationReason \|\| 'invalid'\}:\$\{retryError\.validationReason \|\| 'invalid'\}`/)
+  assert.match(knowledgeProcessAi, /new HttpsError\('internal', 'Der KI-Entwurf konnte nicht verarbeitet werden\. Bitte versuchen Sie es erneut\.'/)
+  assert.match(knowledgeProcessAi, /new HttpsError\('unavailable', 'Der KI-Prozessentwurf konnte aktuell nicht erstellt werden\. Bitte versuchen Sie es später erneut\.'/)
+  assert.match(knowledgeProcessAi, /logger\.warn\('KI-Prozessentwurf fehlgeschlagen\.', \{ errorCode: error\?\.errorType \|\| 'internal_error', validationReason: error\?\.validationReason \|\| '', requestId: error\?\.requestId \|\| '' \}\)/)
+  assert.doesNotMatch(knowledgeProcessAi, /logger\.warn\('KI-Prozessentwurf fehlgeschlagen\.', \{[^}]*userId/)
+})
+
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
   const vacationList = functionsIndex.match(/export const listPersonnelVacations = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''
