@@ -10,7 +10,7 @@ if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'personnel', 'knowledgeProcesses']
+const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'personnel', 'knowledgeProcesses']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -131,7 +131,7 @@ function userDirectoryAccess(profile) {
   const permissions = profile?.permissions ?? {}
   const includeContactDetails = ['view', 'edit'].includes(permissions.team)
   return {
-    allowed: includeContactDetails || ['view', 'edit'].includes(permissions.vacation) || permissions.todos === 'edit',
+    allowed: includeContactDetails || ['view', 'edit'].includes(permissions.vacation) || permissions.todos === 'edit' || permissions.damages === 'edit',
     includeContactDetails,
   }
 }

@@ -13,6 +13,7 @@ export const MODULES = {
   documents: { label: 'Dokumente' },
   templates: { label: 'Vorlagen' },
   todos: { label: 'To-dos' },
+  damages: { label: 'Schäden' },
   personnel: { label: 'Personal' },
   knowledgeProcesses: { label: 'Wissen & Prozesse' },
 }

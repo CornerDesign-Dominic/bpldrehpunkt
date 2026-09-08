@@ -10,6 +10,7 @@ const pageTitles = [
   { path: '/vorlagen', title: 'Vorlagen' },
   { path: '/wissen-prozesse', title: 'Wissen & Prozesse' },
   { path: '/todos', title: 'To-dos' },
+  { path: '/schaeden', title: 'Schäden' },
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin/systemmails', title: 'Systemmails' },
   { path: '/admin', title: 'Adminbereich' },

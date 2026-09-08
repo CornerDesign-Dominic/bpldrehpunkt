@@ -205,6 +205,59 @@ service cloud.firestore {
       }
     }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
+    function damageCaseKeysAreValid(data) {
+      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+    }
+    function validDamageText(value, limit) { return value == null || (value is string && value.size() <= limit); }
+    function validDamageResponsible(data) {
+      return (data.responsibleUserId == null && data.responsibleUserName == null)
+        || (data.responsibleUserId is string && data.responsibleUserName is string && activeProfile(data.responsibleUserId)
+          && data.responsibleUserName == profileName(get(/databases/$(database)/documents/users/$(data.responsibleUserId)).data));
+    }
+    function validDamageCaseContent(data) {
+      return data.caseNumber is string && data.caseNumber.matches('^S-[0-9]{4}-[0-9]{4}$')
+        && data.caseYear is string && data.caseYear.matches('^[0-9]{4}$')
+        && data.caseSequence is int && data.caseSequence >= 1 && data.caseSequence <= 9999
+        && data.status in ['new', 'documents_missing', 'insurance_reported', 'in_settlement', 'acknowledged', 'partially_settled', 'rejected', 'settled', 'economically_closed']
+        && data.damageDate is string && data.damageDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+        && validDamageText(data.description, 4000) && data.damageType is string && data.damageType.size() > 0 && data.damageType.size() <= 120
+        && validDamageText(data.transportReference, 240) && validDamageText(data.claimant, 240) && validDamageText(data.contractor, 240)
+        && validDamageResponsible(data) && (data.dueDate == null || (data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && (data.damageAmount == null || (data.damageAmount is number && data.damageAmount >= 0)) && data.openBplRisk == null;
+    }
+    function damageCounterAfter(year) { return getAfter(/databases/$(database)/documents/damageCaseCounters/$(year)).data; }
+    function isCreatedDamageCase() {
+      return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
+        && request.resource.data.caseSequence == damageCounterAfter(request.resource.data.caseYear).nextNumber
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+    }
+    function isUpdatedDamageCase() {
+      return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
+        && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.caseYear == resource.data.caseYear
+        && request.resource.data.caseSequence == resource.data.caseSequence && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'updatedAt', 'updatedBy', 'updatedByName']);
+    }
+    match /damageCaseCounters/{year} {
+      allow get: if edit('damages');
+      allow list, delete: if false;
+      allow create: if edit('damages') && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
+        && request.resource.data.year == year && request.resource.data.nextNumber == 1 && request.resource.data.updatedAt == request.time;
+      allow update: if edit('damages') && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
+        && request.resource.data.year == year && request.resource.data.nextNumber is int && request.resource.data.nextNumber == resource.data.nextNumber + 1 && request.resource.data.updatedAt == request.time;
+    }
+    match /damageCases/{id} {
+      allow read: if view('damages');
+      allow create: if edit('damages') && isCreatedDamageCase();
+      allow update: if edit('damages') && isUpdatedDamageCase();
+      allow delete: if false;
+    }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
