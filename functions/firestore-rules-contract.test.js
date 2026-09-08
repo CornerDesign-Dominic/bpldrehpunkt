@@ -8,6 +8,7 @@ const authProvider = await readFile(new URL('../src/auth/AuthProvider.jsx', impo
 const profilePage = await readFile(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8')
 const personnelPage = await readFile(new URL('../src/pages/PersonnelPage.jsx', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
+const knowledgeProcessAi = await readFile(new URL('./knowledgeProcessAi.js', import.meta.url), 'utf8')
 
 test('active superadmins retain elevated rights while disabled superadmins do not', () => {
   assert.match(rules, /function superadmin\(\) \{ return active\(\) && role\(\) == 'superadmin'; \}/)
@@ -132,6 +133,15 @@ test('active process validation permits shared targets but rejects cycles and du
   assert.match(processValidation, /nodeEdges\.filter\(\(edge\) => edge\.sourceOutputId === output\.id\)\.length !== 1/)
   assert.match(processValidation, /if \(visiting\.has\(nodeId\)\) throw new HttpsError\('failed-precondition', 'Zirkuläre Prozesswege/)
   assert.doesNotMatch(processValidation, /incoming/)
+})
+
+test('AI process drafts require process-edit access, validate input, and are returned before draft storage', () => {
+  assert.match(functionsIndex, /export \{ generateKnowledgeProcessDraft \} from '\.\/knowledgeProcessAi\.js'/)
+  assert.match(knowledgeProcessAi, /await assertProcessEditor\(request\)/)
+  assert.match(knowledgeProcessAi, /description\.length < 10/)
+  assert.match(knowledgeProcessAi, /status: 'draft'/)
+  assert.match(knowledgeProcessAi, /secrets: \[openAiApiKey\]/)
+  assert.doesNotMatch(knowledgeProcessAi, /knowledgeProcesses'\)\.doc|collection\('knowledgeProcesses'\)/)
 })
 
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {

@@ -69,6 +69,11 @@ export async function saveKnowledgeProcess(id, process, status) {
   return result.data
 }
 
+export async function generateKnowledgeProcessDraft(values) {
+  const result = await httpsCallable(functions, 'generateKnowledgeProcessDraft')(values)
+  return result.data?.process
+}
+
 export function outgoingEdges(process, nodeId) {
   return (process.edges || []).filter((edge) => edge.sourceId === nodeId)
 }

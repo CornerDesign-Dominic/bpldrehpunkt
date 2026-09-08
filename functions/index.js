@@ -895,6 +895,7 @@ export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from
 export { submitBugReport } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
+export { generateKnowledgeProcessDraft } from './knowledgeProcessAi.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export {
   listSystemMailTemplates,
