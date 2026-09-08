@@ -5,7 +5,7 @@ import { requireActiveProfile } from './access.js'
 import { executeAiOperation } from './aiUsage.js'
 import { getPublishedAiPromptInstructions } from './aiPrompts.js'
 
-const openAiApiKey = defineSecret('OPENAI_API_KEY')
+const processDraftOpenAiApiKey = defineSecret('DREHPUNKT_PROZESS_VORSCHLAG_KEY')
 const region = 'europe-west3'
 const model = 'gpt-5.4'
 const feature = 'knowledge_process_draft'
@@ -154,8 +154,8 @@ function combinedUsage(...usages) {
 }
 
 async function requestOpenAi(input, retrying = false) {
-  const apiKey = openAiApiKey.value()
-  if (!apiKey) throw new Error('OpenAI-Key ist nicht konfiguriert.')
+  const apiKey = processDraftOpenAiApiKey.value()
+  if (!apiKey) throw new HttpsError('failed-precondition', 'Die KI-Prozessvorlage ist noch nicht eingerichtet: Das Secret DREHPUNKT_PROZESS_VORSCHLAG_KEY fehlt.')
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, input: [templatePrompt(input), retrying ? 'Die vorherige Antwort war strukturell ungültig. Erzeuge jetzt einen besonders kompakten Entwurf mit action → decision → end oder action → end. Prüfe vor der Ausgabe alle Pflichtfelder, leeren Arrays, startTarget und Kanten nochmals exakt gegen das Schema.' : ''].filter(Boolean).join('\n\n'), reasoning: { effort: 'low' }, text: { format: { type: 'json_schema', name: 'knowledge_process_draft', strict: true, schema: processSchema } } }),
@@ -206,7 +206,7 @@ async function generateWithOpenAi(input) {
   }
 }
 
-export const generateKnowledgeProcessDraft = onCall({ region, timeoutSeconds: 90, secrets: [openAiApiKey] }, async (request) => {
+export const generateKnowledgeProcessDraft = onCall({ region, timeoutSeconds: 90, secrets: [processDraftOpenAiApiKey] }, async (request) => {
   await assertProcessEditor(request)
   const description = cleanText(request.data?.description, 3000)
   const title = cleanText(request.data?.title, 160)

@@ -141,7 +141,10 @@ test('AI process drafts require process-edit access, validate input, and are ret
   assert.match(knowledgeProcessAi, /await assertProcessEditor\(request\)/)
   assert.match(knowledgeProcessAi, /description\.length < 10/)
   assert.match(knowledgeProcessAi, /status: 'draft'/)
-  assert.match(knowledgeProcessAi, /secrets: \[openAiApiKey\]/)
+  assert.match(knowledgeProcessAi, /defineSecret\('DREHPUNKT_PROZESS_VORSCHLAG_KEY'\)/)
+  assert.match(knowledgeProcessAi, /secrets: \[processDraftOpenAiApiKey\]/)
+  assert.match(knowledgeProcessAi, /DREHPUNKT_PROZESS_VORSCHLAG_KEY fehlt/)
+  assert.doesNotMatch(knowledgeProcessAi, /defineSecret\('OPENAI_API_KEY'\)/)
   assert.doesNotMatch(knowledgeProcessAi, /knowledgeProcesses'\)\.doc|collection\('knowledgeProcesses'\)/)
 })
 
