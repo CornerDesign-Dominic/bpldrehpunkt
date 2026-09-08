@@ -127,6 +127,13 @@ test('active process questions validate variable answer paths', () => {
   assert.match(processValidation, /edge\.sourceOutputId === output\.id/)
 })
 
+test('active process validation permits shared targets but rejects cycles and duplicate answer connections', () => {
+  const processValidation = functionsIndex.match(/function validateActiveKnowledgeProcess\(process\) \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(processValidation, /nodeEdges\.filter\(\(edge\) => edge\.sourceOutputId === output\.id\)\.length !== 1/)
+  assert.match(processValidation, /if \(visiting\.has\(nodeId\)\) throw new HttpsError\('failed-precondition', 'Zirkuläre Prozesswege/)
+  assert.doesNotMatch(processValidation, /incoming/)
+})
+
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
   const vacationList = functionsIndex.match(/export const listPersonnelVacations = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''
