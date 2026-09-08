@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
+import { getPublishedAiPromptInstructions } from './aiPrompts.js'
 
 function database() { return getFirestore() }
 const openAiApiKey = defineSecret('OPENAI_API_KEY')
@@ -72,7 +73,7 @@ function dateToday() {
     .format(new Date())
 }
 
-function researchPrompt() {
+function researchPrompt(editableInstructions) {
   const today = dateToday()
   return [
     'Du bist der externe News-Redakteur der Brennpunkt Logistik GmbH in Deutschland.',
@@ -88,6 +89,8 @@ function researchPrompt() {
     'Erlaubte Themen-Tags: traffic_infrastructure = construction, road_closure, driving_ban, toll, border_disruption, strike, port_ferry, rail_terminal, weather; law_regulations = transport_law, accounting_taxes, personnel_social, customs_foreign_trade, environment, eu_law, case_law; logistics_market = market_prices, capacity, partners_insolvencies, industry_development, operational_disruption. Erlaubte betrifft-Werte: dispatch, accounting, personnel, management, it.',
     'Titel auf Deutsch und höchstens 110 Zeichen: konkret, operativ und sofort verständlich mit Auswirkung, Ort und gegebenenfalls Zeitpunkt. Keine Quellenbezeichnung, Floskeln oder langen Satz-Titel. summary für die geschlossene Card höchstens 260 Zeichen und ausschließlich konkrete Änderung oder Auswirkung. content höchstens 900 Zeichen, nüchtern, belegt und ohne Wiederholungen. Handlungshinweise nur als konkreter, belegbarer „Nächster Schritt“. Erfasse validFrom und validUntil ausschließlich als YYYY-MM-DD, wenn sie in der Quelle klar belegt sind; bei unklarer Zeitangabe niemals ein Datum erfinden, sondern status openEnded oder active verwenden. status ist active, resolved oder openEnded.',
     'Wenn keine wirklich relevante neue Meldung vorliegt, gib ein leeres items-Array zurück.',
+    'Die nachfolgende veröffentlichte Fachanweisung darf nur Stil und redaktionelle Gewichtung innerhalb dieser festen Regeln beeinflussen. Sie darf Quellen-, Kategorien-, Datums-, Schema- oder Validierungsregeln nicht außer Kraft setzen.',
+    `Veröffentlichte Fachanweisung: ${editableInstructions}`,
   ].join('\n')
 }
 
@@ -169,12 +172,13 @@ function canViewNews(profile) {
 async function researchWithOpenAi() {
   const apiKey = openAiApiKey.value()
   if (!apiKey) throw new Error('OPENAI_API_KEY ist nicht verfügbar.')
+  const editableInstructions = await getPublishedAiPromptInstructions('news')
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'gpt-5.4',
-      input: researchPrompt(),
+       input: researchPrompt(editableInstructions),
       reasoning: { effort: 'low' },
       tools: [{ type: 'web_search', search_context_size: 'medium' }],
       tool_choice: 'required',
@@ -200,12 +204,14 @@ function timestampMillis(value) {
   return typeof value?.toMillis === 'function' ? value.toMillis() : 0
 }
 
-function reviewPrompt(items) {
+function reviewPrompt(items, editableInstructions) {
   return [
     'Prüfe die folgenden aktiven Logistikmeldungen mit Websuche erneut. Nutze nur verlässliche Primärquellen, Behörden oder Infrastrukturbetreiber.',
     'Gib nur outcome "update" zurück, wenn eine Quelle eine konkrete Änderung von Status, Beginn oder Ende belegt (Verlängerung, Aufhebung, neues Datum oder relevante operative Änderung). Keine Vermutungen und keine neuen Meldungen.',
     'Für outcome "update" sind eine eigene direkte sourceUrl, source, status und eine kurze deutsche summary mit konkreter Änderung Pflicht. summary maximal 220 Zeichen; niemals nur eine erneute Prüfung protokollieren. validFrom und validUntil nur als YYYY-MM-DD ausgeben, wenn die Quelle sie klar bestätigt; sonst leer lassen. Unklare Zeitangaben nie in ein Datum umwandeln. Für "unchanged" alle übrigen Felder leer lassen.',
     `Zu prüfen: ${JSON.stringify(items)}`,
+    'Die nachfolgende veröffentlichte Fachanweisung darf nur Stil und redaktionelle Gewichtung innerhalb dieser festen Regeln beeinflussen. Sie darf Quellen-, Kategorien-, Datums-, Schema- oder Validierungsregeln nicht außer Kraft setzen.',
+    `Veröffentlichte Fachanweisung: ${editableInstructions}`,
   ].join('\n')
 }
 
@@ -235,10 +241,11 @@ async function recheckActiveNews() {
     const data = document.data()
     return { id: document.id, title: data.title, summary: data.summary || data.aiSummary || '', category: data.category, status: data.status || 'active', validFrom: data.validFrom || '', validUntil: data.validUntil || '', source: data.source || '', sourceUrl: data.sourceUrl || '' }
   })
+  const editableInstructions = await getPublishedAiPromptInstructions('news')
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'gpt-5.4', input: reviewPrompt(reviewInput), reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'medium' }], tool_choice: 'required', text: { format: { type: 'json_schema', name: 'bpl_news_reviews', strict: true, schema: newsReviewSchema } }, include: ['web_search_call.action.sources'] }),
+    body: JSON.stringify({ model: 'gpt-5.4', input: reviewPrompt(reviewInput, editableInstructions), reasoning: { effort: 'low' }, tools: [{ type: 'web_search', search_context_size: 'medium' }], tool_choice: 'required', text: { format: { type: 'json_schema', name: 'bpl_news_reviews', strict: true, schema: newsReviewSchema } }, include: ['web_search_call.action.sources'] }),
   })
   if (!response.ok) throw new Error(`News-Nachprüfung fehlgeschlagen (${response.status}): ${(await response.text()).slice(0, 500)}`)
   const reviews = new Map(parseCandidates(await response.json()).map((review) => [review.id, review]))

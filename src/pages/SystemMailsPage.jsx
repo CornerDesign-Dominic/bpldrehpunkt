@@ -24,7 +24,7 @@ export default function SystemMailsPage() {
 
   return <div className="admin-page system-mails-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="system-mails-page__toolbar"><Link className="button button--secondary" to="/admin">Zum Adminbereich</Link><button className="button button--secondary" type="button" onClick={sendTestMail} disabled={sending}>{sending ? 'Wird gesendet …' : 'Testmail senden'}</button></div>
+    <div className="system-mails-page__toolbar"><Link className="button button--secondary" to="/admin">Zum Adminbereich</Link><Link className="button button--secondary" to="/admin/ki-prompts">KI-Prompts</Link><button className="button button--secondary" type="button" onClick={sendTestMail} disabled={sending}>{sending ? 'Wird gesendet …' : 'Testmail senden'}</button></div>
     <SystemMailPanel />
   </div>
 }

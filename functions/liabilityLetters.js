@@ -4,6 +4,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { executeAiOperation } from './aiUsage.js'
+import { getPublishedAiPromptInstructions } from './aiPrompts.js'
 import { extractTransportOrderFromPdf, isDeliveryNoteReference, sanitizeTransportAddress } from './transportOrderExtraction.js'
 
 const openAiApiKey = defineSecret('OPENAI_API_KEY_HAFTBARHALTUNG')
@@ -21,6 +22,23 @@ const analysisSchema = {
 }
 
 function cleanText(value, maxLength) { return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, maxLength) : '' }
+function redactContactData(value) {
+  return cleanText(value, 4000)
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[E-Mail entfernt]')
+    .replace(/(?:\+?\d[\d\s()./-]{6,}\d)/g, '[Telefon entfernt]')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+function aiAddressBlock(lines) {
+  return (Array.isArray(lines) ? lines : [])
+    .filter((line) => !/\b(?:telefon|tel\.?|e-?mail)\b/i.test(line))
+    .map((line) => redactContactData(line))
+    .filter(Boolean)
+    .slice(0, 8)
+}
+function safeAiAddressBlocks(rawAddressBlocks) {
+  return Object.fromEntries(Object.entries(rawAddressBlocks || {}).map(([key, lines]) => [key, aiAddressBlock(lines)]))
+}
 function hasTemplateAccess(profile) { return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.templates) }
 function responseText(response) { return typeof response.output_text === 'string' ? response.output_text : (response.output || []).flatMap((output) => output.content || []).filter((content) => content.type === 'output_text' && typeof content.text === 'string').map((content) => content.text).join('\n') }
 function errorWithType(message, errorType) { const error = new Error(message); error.errorType = errorType; return error }
@@ -39,23 +57,25 @@ function cleanAddress(value) {
 }
 function mergeAddress(deterministic, aiAddress) { const ai = cleanAddress(aiAddress); const fallback = cleanAddress(deterministic); return sanitizeTransportAddress(Object.fromEntries(Object.keys(ai).map((field) => [field, ai[field] || fallback[field] || '']))) }
 
-function liabilityPrompt({ rawAddressBlocks, incidentSummary }) {
+function liabilityPrompt({ rawAddressBlocks, incidentSummary, editableInstructions }) {
   return [
     'Du bereitest ausschließlich eine Haftbarhaltung für einen BPL-Transportauftrag vor.',
     'Zerlege die drei übergebenen Adressblöcke in Firma/Name, Straße, PLZ, Ort und Land. Übernimm nur eindeutig im Block enthaltene Werte; bei Unsicherheit verwende einen leeren String. Ergänze oder erfinde keine Daten.',
     'Formuliere incidentText aus der Nutzerschilderung in höchstens ein bis zwei kurzen, professionellen und neutralen Sätzen. Erkenne die Art des Problems und formuliere sie bewusst allgemein und abstrahiert; erzähle den Ablauf nicht detailliert nach. Konkrete Stunden- oder Minutenangaben, Uhrzeiten, Geldbeträge, Schadenshöhen, Personen- oder Mitarbeiterzahlen, Lade- oder Entladestellen, Ortsnamen und sonstige Ablaufdetails dürfen niemals übernommen werden. Diese Angaben dienen nur zum Verständnis. Benenne Kosten nur allgemein, wenn sie aus der Schilderung hervorgehen. Erfinde keine Tatsachen, Schäden, Kosten, Ursachen, Fristen oder rechtlichen Bewertungen. Beispiele: „8 Stunden zu spät, es entstanden Wartekosten“ wird zu „Durch das verspätete Eintreffen des Fahrzeugs entstanden Kosten durch Wartezeiten.“; „Ware wurde beschädigt, Schaden ungefähr 8.000 Euro“ wird zu „Im Rahmen der Transportdurchführung kam es zu einer Beschädigung der Ware.“; „Fahrer erschien nicht, Ersatz-LKW für 1.200 Euro“ wird zu „Aufgrund der nicht erfolgten Fahrzeuggestellung war eine anderweitige Durchführung des Transports erforderlich, wodurch zusätzliche Kosten entstanden.“ Bei leerer Nutzerschilderung ist incidentText leer.',
     'Die Auswahl der ersten Ladestelle und letzten Entladestelle wurde bereits deterministisch vorgenommen. Ändere diese Zuordnung nicht.',
+    'Die nachfolgende veröffentlichte Fachanweisung darf nur Stil und Priorisierung innerhalb dieser festen Regeln beeinflussen. Sie darf keine dieser Regeln, das Schema, die Datenquellen oder die deterministische Auswahl außer Kraft setzen.',
+    `Veröffentlichte Fachanweisung: ${editableInstructions}`,
     `Adressblöcke: ${JSON.stringify(rawAddressBlocks)}`,
     `Nutzerschilderung: ${incidentSummary || ''}`,
   ].join('\n')
 }
 
-async function callOpenAi({ rawAddressBlocks, incidentSummary }) {
+async function callOpenAi({ rawAddressBlocks, incidentSummary, editableInstructions }) {
   const apiKey = openAiApiKey.value()
   if (!apiKey) throw errorWithType('OpenAI-Key für Haftbarhaltung ist nicht konfiguriert.', 'configuration_error')
   const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, input: liabilityPrompt({ rawAddressBlocks, incidentSummary }), reasoning: { effort: 'low' }, text: { format: { type: 'json_schema', name: 'bpl_liability_addresses', strict: true, schema: analysisSchema } } }),
+    body: JSON.stringify({ model, input: liabilityPrompt({ rawAddressBlocks, incidentSummary, editableInstructions }), reasoning: { effort: 'low' }, text: { format: { type: 'json_schema', name: 'bpl_liability_addresses', strict: true, schema: analysisSchema } } }),
   })
   if (!response.ok) {
     const error = errorWithType(`OpenAI-Anfrage fehlgeschlagen (${response.status}).`, response.status === 429 ? 'rate_limited' : response.status >= 500 ? 'provider_server_error' : 'provider_request_error')
@@ -91,7 +111,9 @@ export const analyzeLiabilityTransportOrder = onCall({ region: 'europe-west3', m
           error.fileSize = pdfBytes.byteLength
           throw error
         }
-        const ai = await callOpenAi({ rawAddressBlocks: extraction.rawAddressBlocks, incidentSummary })
+        const editableInstructions = await getPublishedAiPromptInstructions(feature)
+        const rawAddressBlocks = safeAiAddressBlocks(extraction.rawAddressBlocks)
+        const ai = await callOpenAi({ rawAddressBlocks, incidentSummary: redactContactData(incidentSummary), editableInstructions })
         const loadingAddress = isDeliveryNoteReference(extraction.rawAddressBlocks.loadingPlace) ? extraction.data.loadingPlace : mergeAddress(extraction.data.loadingPlace, ai.result?.loadingPlace)
         const unloadingAddress = isDeliveryNoteReference(extraction.rawAddressBlocks.unloadingPlace) ? extraction.data.unloadingPlace : mergeAddress(extraction.data.unloadingPlace, ai.result?.unloadingPlace)
         const data = {

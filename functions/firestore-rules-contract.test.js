@@ -99,6 +99,11 @@ test('vacation HR metadata is inaccessible to direct Firestore clients', () => {
   assert.match(rules, /match \/hrVacationMeta\/\{vacationId\} \{\s*allow read, write: if false;/)
 })
 
+test('AI prompt configurations are callable-only and have dedicated server-side administration', () => {
+  assert.match(rules, /match \/aiPromptConfigs\/\{featureId\} \{\s*allow read, write: if false;/)
+  assert.match(functionsIndex, /listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft/)
+})
+
 test('knowledge processes expose drafts and archives only to editors', () => {
   const processRules = rules.match(/match \/knowledgeProcesses\/\{processId\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
   assert.match(processRules, /allow read: if edit\('knowledgeProcesses'\) \|\| \(view\('knowledgeProcesses'\) && resource\.data\.status == 'active'\);/)
