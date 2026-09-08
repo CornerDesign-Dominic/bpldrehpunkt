@@ -17,6 +17,11 @@ const definitions = {
     description: 'Ergänzende redaktionelle Vorgaben für die KI-gestützte News-Recherche. Quellen-, Kategorien- und Validierungsregeln bleiben geschützt.',
     defaultInstructions: 'Formuliere News verständlich, konkret und operativ relevant für ein Logistikunternehmen.',
   },
+  knowledgeProcesses: {
+    displayName: 'Wissen & Prozesse',
+    description: 'Ergänzende Fachanweisung für KI-gestützte Prozessentwürfe. Berechtigungen, Datenvalidierung, Blocktypen, Output-Schema und die ausschließliche Erstellung als Entwurf bleiben geschützt.',
+    defaultInstructions: 'Formuliere Prozessschritte klar, konkret und praxistauglich. Bevorzuge nachvollziehbare Handlungen, eindeutige Antwortwege und kurze Checklisten, wenn sie einen konkreten Mehrwert bieten.',
+  },
 }
 
 function cleanInstructions(value) {

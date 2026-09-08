@@ -9,6 +9,7 @@ const profilePage = await readFile(new URL('../src/pages/ProfilePage.jsx', impor
 const personnelPage = await readFile(new URL('../src/pages/PersonnelPage.jsx', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
 const knowledgeProcessAi = await readFile(new URL('./knowledgeProcessAi.js', import.meta.url), 'utf8')
+const aiPrompts = await readFile(new URL('./aiPrompts.js', import.meta.url), 'utf8')
 
 test('active superadmins retain elevated rights while disabled superadmins do not', () => {
   assert.match(rules, /function superadmin\(\) \{ return active\(\) && role\(\) == 'superadmin'; \}/)
@@ -142,6 +143,12 @@ test('AI process drafts require process-edit access, validate input, and are ret
   assert.match(knowledgeProcessAi, /status: 'draft'/)
   assert.match(knowledgeProcessAi, /secrets: \[openAiApiKey\]/)
   assert.doesNotMatch(knowledgeProcessAi, /knowledgeProcesses'\)\.doc|collection\('knowledgeProcesses'\)/)
+})
+
+test('knowledge-process AI uses the published central prompt without weakening its protected core', () => {
+  assert.match(aiPrompts, /knowledgeProcesses: \{\s*displayName: 'Wissen & Prozesse'/)
+  assert.match(knowledgeProcessAi, /getPublishedAiPromptInstructions\('knowledgeProcesses'\)/)
+  assert.match(knowledgeProcessAi, /kann weder Berechtigungen, Datenvalidierung, zulässige Blocktypen, das strukturierte Ausgabeformat noch die Regel zur ausschließlichen Erstellung als Entwurf außer Kraft setzen/)
 })
 
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
