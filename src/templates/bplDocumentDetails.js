@@ -1,4 +1,5 @@
 export const BPL_SENDER_LINE = 'Brennpunkt Logistik GmbH · Reinshagenstr. 1 · D-42369 Wuppertal'
+export const BPL_COMPANY_NAME = 'Brennpunkt Logistik GmbH'
 
 export const BPL_FOOTER_COLUMNS = [
   [

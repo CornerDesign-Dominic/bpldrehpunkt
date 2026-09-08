@@ -14,6 +14,10 @@ export function createBusinessDocumentData() {
     subject: '',
     content: '',
     date: currentDate(),
+    attachments: {
+      signature: null,
+      stamp: null,
+    },
   }
 }
 

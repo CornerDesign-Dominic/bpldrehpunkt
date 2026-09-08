@@ -1,6 +1,7 @@
 import { BPL_FOOTER_COLUMNS, BPL_SENDER_LINE } from '../templates/bplDocumentDetails.js'
 import { formatDocumentDate, getLiabilitySubject } from '../templates/liabilityDocumentData.js'
-import { formatLiabilityAddressLine, liabilityRecipientLines, liabilitySignature, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
+import { formatLiabilityAddressLine, liabilityRecipientLines, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
+import { documentSignature } from '../templates/documentSignature.js'
 
 const PAGE = { left: 19, right: 191, footerLeft: 16, footerRight: 194 }
 const LETTERHEAD = { top: 8, width: 172, height: 33.75 }
@@ -103,7 +104,7 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
   writeParagraph(LIABILITY_LETTER_TEXT.reservation, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.insuranceNotice, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.closing, { spacingAfter: 12 })
-  const personalSignature = liabilitySignature(documentData)
+  const personalSignature = documentSignature(documentData)
   if (personalSignature) {
     const signatureDimensions = signatureImageDimensions(personalSignature.imageData)
     if (y + BODY_LINE_HEIGHT + 2.5 + signatureDimensions.height > CONTENT_BOTTOM) newPage()
