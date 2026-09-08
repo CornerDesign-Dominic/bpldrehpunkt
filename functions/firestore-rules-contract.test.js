@@ -152,6 +152,9 @@ test('knowledge-process AI uses the published central prompt without weakening i
   assert.match(aiPrompts, /knowledgeProcesses: \{\s*displayName: 'Wissen & Prozesse'/)
   assert.match(knowledgeProcessAi, /getPublishedAiPromptInstructions\('knowledgeProcesses'\)/)
   assert.match(knowledgeProcessAi, /kann weder Berechtigungen, Datenvalidierung, zulässige Blocktypen, das strukturierte Ausgabeformat noch die Regel zur ausschließlichen Erstellung als Entwurf außer Kraft setzen/)
+  assert.match(knowledgeProcessAi, /Schritttitel im Aktivstil mit höchstens fünf Wörtern/)
+  assert.match(knowledgeProcessAi, /Beschreibung enthält höchstens einen kurzen Satz/)
+  assert.match(knowledgeProcessAi, /keinen doppelten Schritt und kein doppeltes Ende/)
 })
 
 test('knowledge-process AI retries an invalid model structure once and keeps structure errors distinct from provider failures', () => {
