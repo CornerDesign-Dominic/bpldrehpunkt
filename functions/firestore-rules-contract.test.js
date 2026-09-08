@@ -112,6 +112,14 @@ test('knowledge processes expose drafts and archives only to editors', () => {
   assert.match(functionsIndex, /validateActiveKnowledgeProcess\(process\)/)
 })
 
+test('functional roles are readable for process responsibilities and callable-only for maintenance', () => {
+  const functionalRoleRules = rules.match(/match \/functionalRoles\/\{functionalRoleId\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  assert.match(functionalRoleRules, /allow read: if superadmin\(\) \|\| view\('knowledgeProcesses'\);/)
+  assert.match(functionalRoleRules, /allow write: if false;/)
+  assert.match(functionsIndex, /export const createFunctionalRole = onCall/)
+  assert.match(functionsIndex, /export const updateFunctionalRole = onCall/)
+})
+
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
   const vacationList = functionsIndex.match(/export const listPersonnelVacations = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''

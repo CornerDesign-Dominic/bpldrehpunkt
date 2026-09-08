@@ -11,12 +11,14 @@ function NodeCard({ node, editable, onAdd, onEdit, onDelete, process, visited })
     : [{ key: '', label: '', edge: outgoingEdges(process, node.id)[0] }]
   const hasLoop = visited.has(node.id)
   const nextVisited = new Set(visited).add(node.id)
+  const responsibility = [node.departmentName, node.functionalRoleName].filter(Boolean).join(' · ')
 
   return <div className="process-flow__node-wrap">
     <article className={`process-node process-node--${node.type}`}>
       <div className="process-node__topline"><span>{typeLabels[node.type]}</span>{editable && <div className="process-node__actions"><button type="button" onClick={() => onEdit(node)} aria-label={`${node.title} bearbeiten`}><EditIcon /></button>{node.type !== 'start' && <button type="button" onClick={() => onDelete(node)} aria-label={`${node.title} löschen`}><TrashIcon /></button>}</div>}</div>
       <h3>{node.title}</h3>
       {node.description && <p>{node.description}</p>}
+      {responsibility && <p className="process-node__responsibility"><strong>Verantwortlich:</strong> {responsibility}</p>}
       {node.type === 'checklist' && (node.checklistItems || []).filter(Boolean).length > 0 && <div className="process-node__checklist"><button type="button" onClick={() => setChecklistOpen(!checklistOpen)} aria-expanded={checklistOpen}>Checkliste <ChevronDownIcon /></button>{checklistOpen && <ul>{node.checklistItems.filter(Boolean).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>}</div>}
     </article>
     {hasLoop ? <p className="process-flow__invalid">Zirkuläre Verbindung</p> : <div className={node.type === 'decision' ? 'process-flow__branches process-flow__branches--decision' : 'process-flow__branches'}>{branches.map((branch) => {

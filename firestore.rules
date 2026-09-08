@@ -67,6 +67,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Fachrollen are centrally maintained by superadmin-only callable
+    // functions. Process users can read them to render responsibilities,
+    // including a role that was deactivated after a process was saved.
+    match /functionalRoles/{functionalRoleId} {
+      allow read: if superadmin() || view('knowledgeProcesses');
+      allow write: if false;
+    }
+
     match /appSettings/partnerEvaluation {
       // Evaluation colors are part of the signed-in client presentation, but
       // settings may only be changed by the Admin SDK callable function.
