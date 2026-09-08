@@ -88,7 +88,12 @@ export function processValidationErrors(process) {
   for (const node of process.nodes || []) {
     const edges = outgoing.get(node.id) || []
     if (!node.title?.trim()) errors.push(`Der Block „${node.type}“ benötigt einen Titel.`)
-    if (node.type === 'decision' && (node.outputs || []).some((output) => !output.label?.trim() || edges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) errors.push(`Jeder Antwortweg der Frage „${node.title || 'Frage'}“ benötigt einen nächsten Schritt.`)
+    if (node.type === 'decision') {
+      const labels = (node.outputs || []).map((output) => output.label?.trim().toLocaleLowerCase('de-DE') || '')
+      if ((node.outputs || []).length < 2) errors.push(`Die Frage „${node.title || 'Frage'}“ benötigt mindestens zwei Antwortwege.`)
+      if (labels.some((label, index) => !label || labels.indexOf(label) !== index)) errors.push(`Die Antwortwege der Frage „${node.title || 'Frage'}“ benötigen eindeutige Bezeichnungen.`)
+      if ((node.outputs || []).some((output) => edges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) errors.push(`Jeder Antwortweg der Frage „${node.title || 'Frage'}“ benötigt einen nächsten Schritt.`)
+    }
     if (!['decision', 'end'].includes(node.type) && edges.length !== 1) errors.push(`„${node.title || 'Schritt'}“ benötigt genau einen nächsten Schritt.`)
     if (node.type === 'end' && edges.length) errors.push(`Der Endblock „${node.title || 'Ende'}“ darf keinen Folgeschritt haben.`)
   }

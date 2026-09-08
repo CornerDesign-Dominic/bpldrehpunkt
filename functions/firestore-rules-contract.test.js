@@ -120,6 +120,13 @@ test('functional roles are readable for process responsibilities and callable-on
   assert.match(functionsIndex, /export const updateFunctionalRole = onCall/)
 })
 
+test('active process questions validate variable answer paths', () => {
+  const processValidation = functionsIndex.match(/function validateActiveKnowledgeProcess\(process\) \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(processValidation, /node\.outputs\.length < 2/)
+  assert.match(processValidation, /Antwortwege einer Frage benötigen eindeutige Bezeichnungen/)
+  assert.match(processValidation, /edge\.sourceOutputId === output\.id/)
+})
+
 test('personnel vacation access follows view/edit and active-superadmin boundaries', () => {
   const vacationList = functionsIndex.match(/export const listPersonnelVacations = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   const vacationMetaUpdate = functionsIndex.match(/export const updatePersonnelVacationMeta = onCall([\s\S]*?\n\}\))/)?.[1] || ''

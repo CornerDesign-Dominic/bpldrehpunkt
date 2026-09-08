@@ -372,12 +372,12 @@ async function sanitizeKnowledgeProcess(process, existing) {
       clean.checklistItems = node.checklistItems.map((item) => processText(item, 'Checklistenpunkt', 300)).filter(Boolean)
     }
     if (node.type === 'decision') {
-      if (!Array.isArray(node.outputs) || node.outputs.length < 2 || node.outputs.length > 6) throw new HttpsError('invalid-argument', 'Eine Entscheidung benötigt mindestens zwei Ausgänge.')
+      if (!Array.isArray(node.outputs)) throw new HttpsError('invalid-argument', 'Die Antwortwege der Frage sind ungültig.')
       const outputIds = new Set()
       clean.outputs = node.outputs.map((output) => {
-        if (!output || typeof output !== 'object' || typeof output.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(output.id) || outputIds.has(output.id)) throw new HttpsError('invalid-argument', 'Ein Entscheidungsweg ist ungültig.')
+        if (!output || typeof output !== 'object' || typeof output.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(output.id) || outputIds.has(output.id)) throw new HttpsError('invalid-argument', 'Ein Antwortweg ist ungültig.')
         outputIds.add(output.id)
-        return { id: output.id, label: processText(output.label, 'Bezeichnung des Entscheidungswegs', 80) }
+        return { id: output.id, label: processText(output.label, 'Bezeichnung des Antwortwegs', 80) }
       })
     }
     if (['action', 'checklist'].includes(node.type)) {
@@ -395,8 +395,8 @@ async function sanitizeKnowledgeProcess(process, existing) {
     const source = nodes.find((node) => node.id === edge.sourceId)
     const sourceOutputId = typeof edge.sourceOutputId === 'string' ? edge.sourceOutputId : ''
     if (source.type === 'decision') {
-      if (!source.outputs.some((output) => output.id === sourceOutputId)) throw new HttpsError('invalid-argument', 'Der Entscheidungsweg einer Verbindung ist ungültig.')
-    } else if (sourceOutputId) throw new HttpsError('invalid-argument', 'Nur Entscheidungen dürfen benannte Ausgänge haben.')
+      if (!source.outputs.some((output) => output.id === sourceOutputId)) throw new HttpsError('invalid-argument', 'Der Antwortweg einer Verbindung ist ungültig.')
+    } else if (sourceOutputId) throw new HttpsError('invalid-argument', 'Nur Fragen dürfen benannte Antwortwege haben.')
     return { id: edge.id, sourceId: edge.sourceId, targetId: edge.targetId, sourceOutputId }
   })
   return { title, category, shortDescription, nodes: await applyProcessResponsibilities(nodes, existing), edges }
@@ -414,8 +414,10 @@ function validateActiveKnowledgeProcess(process) {
     if (!node.title) throw new HttpsError('failed-precondition', 'Jeder Prozessblock benötigt einen Titel.')
     if (node.type === 'end' && nodeEdges.length) throw new HttpsError('failed-precondition', 'Endblöcke dürfen keinen nachfolgenden Schritt haben.')
     if (node.type === 'decision') {
-      if (node.outputs.some((output) => !output.label)) throw new HttpsError('failed-precondition', 'Jeder Entscheidungsweg benötigt eine Bezeichnung.')
-      if (node.outputs.some((output) => nodeEdges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) throw new HttpsError('failed-precondition', 'Jeder Entscheidungsweg benötigt genau einen nächsten Schritt.')
+      if (node.outputs.length < 2) throw new HttpsError('failed-precondition', 'Eine Frage benötigt mindestens zwei Antwortwege.')
+      const labels = new Set()
+      if (node.outputs.some((output) => !output.label || labels.has(output.label.toLocaleLowerCase('de-DE')) || !labels.add(output.label.toLocaleLowerCase('de-DE')))) throw new HttpsError('failed-precondition', 'Antwortwege einer Frage benötigen eindeutige Bezeichnungen.')
+      if (node.outputs.some((output) => nodeEdges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) throw new HttpsError('failed-precondition', 'Jeder Antwortweg benötigt genau einen nächsten Schritt.')
     } else if (node.type !== 'end' && nodeEdges.length !== 1) throw new HttpsError('failed-precondition', 'Jeder Schritt benötigt genau eine Verbindung.')
   }
   const visited = new Set()

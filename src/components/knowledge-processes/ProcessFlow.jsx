@@ -21,7 +21,7 @@ function NodeCard({ node, editable, onAdd, onDelete, onEdit, onInsert, process, 
       {responsibility && <p className="process-node__responsibility"><strong>Verantwortlich:</strong> {responsibility}</p>}
       {node.type === 'checklist' && (node.checklistItems || []).filter(Boolean).length > 0 && <div className="process-node__checklist"><button type="button" onClick={() => setChecklistOpen(!checklistOpen)} aria-expanded={checklistOpen}>Checkliste <ChevronDownIcon /></button>{checklistOpen && <ul>{node.checklistItems.filter(Boolean).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>}</div>}
     </article>
-    {hasLoop ? <p className="process-flow__invalid">Zirkuläre Verbindung</p> : <div className={node.type === 'decision' ? 'process-flow__branches process-flow__branches--decision' : 'process-flow__branches'}>{branches.map((branch) => {
+    {hasLoop ? <p className="process-flow__invalid">Zirkuläre Verbindung</p> : <div className={node.type === 'decision' ? `process-flow__branches process-flow__branches--decision${branches.length > 2 ? ' process-flow__branches--multiple' : ''}` : 'process-flow__branches'}>{branches.map((branch) => {
       const target = branch.edge ? findNode(process, branch.edge.targetId) : null
       return <div className="process-flow__branch" key={branch.key}>
         {node.type === 'decision' && <span className="process-flow__branch-label">{branch.label || 'Unbenannt'}</span>}
