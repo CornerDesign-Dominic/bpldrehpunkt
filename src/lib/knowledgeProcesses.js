@@ -19,7 +19,7 @@ export const KNOWLEDGE_PROCESS_STATUSES = [
 
 export const KNOWLEDGE_PROCESS_NODE_TYPES = [
   { value: 'action', label: 'Handlung' },
-  { value: 'decision', label: 'Entscheidung' },
+  { value: 'decision', label: 'Frage' },
   { value: 'checklist', label: 'Checkliste' },
   { value: 'end', label: 'Ende' },
 ]
@@ -36,7 +36,7 @@ export function createEmptyKnowledgeProcess() {
 
 export function createKnowledgeProcessNode(type) {
   const id = `node_${uid()}`
-  if (type === 'decision') return { id, type, title: 'Entscheidung', description: '', outputs: [{ id: 'yes', label: 'Ja' }, { id: 'no', label: 'Nein' }] }
+  if (type === 'decision') return { id, type, title: 'Frage', description: '', outputs: [{ id: 'yes', label: 'Ja' }, { id: 'no', label: 'Nein' }] }
   if (type === 'checklist') return { id, type, title: 'Checkliste', description: '', checklistItems: [''] }
   return { id, type, title: type === 'end' ? 'Ende' : 'Neuer Schritt', description: '' }
 }
@@ -88,7 +88,7 @@ export function processValidationErrors(process) {
   for (const node of process.nodes || []) {
     const edges = outgoing.get(node.id) || []
     if (!node.title?.trim()) errors.push(`Der Block „${node.type}“ benötigt einen Titel.`)
-    if (node.type === 'decision' && (node.outputs || []).some((output) => !output.label?.trim() || edges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) errors.push(`Jeder Entscheidungsweg von „${node.title || 'Entscheidung'}“ benötigt einen nächsten Schritt.`)
+    if (node.type === 'decision' && (node.outputs || []).some((output) => !output.label?.trim() || edges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) errors.push(`Jeder Antwortweg der Frage „${node.title || 'Frage'}“ benötigt einen nächsten Schritt.`)
     if (!['decision', 'end'].includes(node.type) && edges.length !== 1) errors.push(`„${node.title || 'Schritt'}“ benötigt genau einen nächsten Schritt.`)
     if (node.type === 'end' && edges.length) errors.push(`Der Endblock „${node.title || 'Ende'}“ darf keinen Folgeschritt haben.`)
   }

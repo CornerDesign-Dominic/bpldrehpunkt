@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ChevronDownIcon, EditIcon, TrashIcon } from '../icons.jsx'
 import { findNode, outgoingEdges } from '../../lib/knowledgeProcesses.js'
 
-const typeLabels = { start: 'Start', action: 'Handlung', decision: 'Entscheidung', checklist: 'Checkliste', end: 'Ende' }
+const typeLabels = { start: 'Start', action: 'Handlung', decision: 'Frage', checklist: 'Checkliste', end: 'Ende' }
 
 function NodeCard({ node, editable, onAdd, onEdit, onDelete, process, visited }) {
   const [checklistOpen, setChecklistOpen] = useState(false)
