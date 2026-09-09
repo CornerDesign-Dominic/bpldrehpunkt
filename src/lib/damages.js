@@ -7,7 +7,7 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  updateDoc,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
@@ -24,16 +24,33 @@ export const DAMAGE_CASE_STATUSES = [
   { value: 'settled', label: 'Reguliert' },
   { value: 'economically_closed', label: 'Wirtschaftlich erledigt' },
 ]
+export const DAMAGE_LEGAL_BASES = [
+  { value: 'cmr', label: 'CMR' },
+  { value: 'national', label: 'National' },
+  { value: 'goodwill', label: 'Kulanz' },
+  { value: 'other', label: 'Sonstiges' },
+]
+export const DAMAGE_INSURANCE_RELEVANCE = [
+  { value: 'yes', label: 'Ja' },
+  { value: 'no', label: 'Nein' },
+  { value: 'pending', label: 'Noch offen' },
+]
+export const DAMAGE_CONTRACTOR_LIABILITY = [
+  { value: 'open', label: 'Offen' },
+  { value: 'acknowledged', label: 'Anerkannt' },
+  { value: 'rejected', label: 'Abgelehnt' },
+  { value: 'partially_acknowledged', label: 'Teilweise anerkannt' },
+]
 
 const damageCasesRef = collection(db, DAMAGE_CASES_COLLECTION)
 const statusByValue = new Map(DAMAGE_CASE_STATUSES.map((status) => [status.value, status.label]))
 
 const trim = (value) => typeof value === 'string' ? value.trim() : ''
 const optionalText = (value) => trim(value) || null
-const optionalAmount = (value) => {
+const optionalAmount = (value, label = 'Die Schadenhöhe') => {
   if (value === '' || value === null || value === undefined) return null
   const amount = Number(value)
-  if (!Number.isFinite(amount) || amount < 0) throw new Error('Die Schadenhöhe muss eine positive Zahl sein.')
+  if (!Number.isFinite(amount) || amount < 0) throw new Error(`${label} muss eine positive Zahl sein.`)
   return amount
 }
 
@@ -41,10 +58,15 @@ function mapSnapshot(snapshot) {
   return { id: snapshot.id, ...snapshot.data() }
 }
 
+function optionalSelection(value, options) {
+  return options.some((option) => option.value === value) ? value : null
+}
+
 function payload(values, responsibleUsersById) {
   const responsibleUserId = optionalText(values.responsibleUserId)
   const responsibleUser = responsibleUserId ? responsibleUsersById.get(responsibleUserId) : null
-  if (responsibleUserId && !responsibleUser) throw new Error('Die verantwortliche Person ist nicht verfügbar.')
+  const responsibleUserName = responsibleUserId ? (responsibleUser ? getUserDisplayName(responsibleUser, responsibleUser) : optionalText(values.responsibleUserName)) : null
+  if (responsibleUserId && !responsibleUserName) throw new Error('Die verantwortliche Person ist nicht verfügbar.')
   const status = DAMAGE_CASE_STATUSES.some((item) => item.value === values.status) ? values.status : 'new'
   const title = trim(values.title)
   const damageDate = trim(values.damageDate)
@@ -60,16 +82,28 @@ function payload(values, responsibleUsersById) {
     claimant: optionalText(values.claimant),
     contractor: optionalText(values.contractor),
     responsibleUserId,
-    responsibleUserName: responsibleUser ? getUserDisplayName(responsibleUser, responsibleUser) : null,
+    responsibleUserName,
     dueDate: optionalText(values.dueDate),
     damageAmount: optionalAmount(values.damageAmount),
+    damageLocation: optionalText(values.damageLocation),
+    legalBasis: optionalSelection(values.legalBasis, DAMAGE_LEGAL_BASES),
+    cargoWeightKg: optionalAmount(values.cargoWeightKg, 'Das Gewicht der Ware'),
+    liabilityLimit: optionalAmount(values.liabilityLimit, 'Die Bemessungsgrenze'),
+    insuranceRelevance: optionalSelection(values.insuranceRelevance, DAMAGE_INSURANCE_RELEVANCE),
+    bplInsurance: optionalText(values.bplInsurance),
+    bplInsuranceCaseNumber: optionalText(values.bplInsuranceCaseNumber),
+    contractorInsurance: optionalText(values.contractorInsurance),
+    contractorInsuranceCaseNumber: optionalText(values.contractorInsuranceCaseNumber),
+    contractorLiability: optionalSelection(values.contractorLiability, DAMAGE_CONTRACTOR_LIABILITY),
+    liabilityNote: optionalText(values.liabilityNote),
   }
 }
 
 export function createEmptyDamageCase() {
   return {
     damageDate: new Date().toISOString().slice(0, 10),
-    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', contractor: '', responsibleUserId: '', dueDate: '', damageAmount: '',
+    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', contractor: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
+    damageLocation: '', legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsurance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', contractorLiability: '', liabilityNote: '',
   }
 }
 
@@ -133,15 +167,50 @@ export async function createDamageCase(values, actor, responsibleUsersById) {
       updatedBy: actor.user.uid,
       updatedByName: getUserDisplayName(actor.profile, actor.user),
     })
+    transaction.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', 'Fall angelegt', actor))
   })
   return caseRef.id
 }
 
 export async function updateDamageCase(damageCase, values, actor, responsibleUsersById) {
-  await updateDoc(doc(db, DAMAGE_CASES_COLLECTION, damageCase.id), {
-    ...payload(values, responsibleUsersById),
-    updatedAt: serverTimestamp(),
-    updatedBy: actor.user.uid,
-    updatedByName: getUserDisplayName(actor.profile, actor.user),
-  })
+  await updateDamageCaseFields(damageCase, values, actor, responsibleUsersById)
+}
+
+function damageUpdatePayload(type, text, actor) {
+  return { type, text, createdByUserId: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), createdAt: serverTimestamp() }
+}
+
+function changeMessages(previous, next) {
+  const messages = []
+  if (previous.status !== next.status) messages.push(`Status geändert: ${damageCaseStatusLabel(previous.status)} → ${damageCaseStatusLabel(next.status)}`)
+  if ((previous.dueDate || null) !== (next.dueDate || null)) messages.push(next.dueDate ? `Frist geändert auf ${new Intl.DateTimeFormat('de-DE').format(new Date(`${next.dueDate}T12:00:00`))}` : 'Frist entfernt')
+  return messages
+}
+
+function updateMetadata(actor) {
+  return { updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: getUserDisplayName(actor.profile, actor.user) }
+}
+
+export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById) {
+  const next = payload({ ...damageCase, ...changes }, responsibleUsersById)
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, { ...next, ...updateMetadata(actor) })
+  changeMessages(damageCase, next).forEach((text) => batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', text, actor)))
+  await batch.commit()
+}
+
+export async function listDamageCaseUpdates(damageCaseId) {
+  return (await getDocs(query(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+}
+
+export async function addDamageCaseUpdate(damageCase, text, actor, responsibleUsersById) {
+  const cleanText = trim(text)
+  if (!cleanText) throw new Error('Bitte einen Update-Text eingeben.')
+  if (cleanText.length > 1000) throw new Error('Das Update ist zu lang.')
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, { ...payload(damageCase, responsibleUsersById), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('note', cleanText, actor))
+  await batch.commit()
 }
