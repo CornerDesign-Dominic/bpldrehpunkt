@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import DamageCaseForm from '../components/damages/DamageCaseForm.jsx'
 import DamageCasesTable from '../components/damages/DamageCasesTable.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import { ChevronDownIcon } from '../components/icons.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { usePageHeader } from '../lib/pageHeader.js'
@@ -51,6 +52,8 @@ export default function DamagesPage() {
   }, [cases, criticalOnly, documentsMissingOnly, search, status])
   const currentCases = useMemo(() => sortDamageCases(filteredCases.filter((damageCase) => !isClosedDamageCase(damageCase))), [filteredCases])
   const closedCases = useMemo(() => sortDamageCases(filteredCases.filter(isClosedDamageCase)), [filteredCases])
+  const hasActiveFilter = Boolean(search.trim() || status || criticalOnly || documentsMissingOnly)
+  const showClosedCases = closedOpen || (hasActiveFilter && currentCases.length === 0 && closedCases.length > 0)
 
   async function save(values) {
     const id = await createDamageCase(values, { user, profile }, usersById)
@@ -63,7 +66,7 @@ export default function DamagesPage() {
     <section className="damage-intro"><div><h2>Schäden</h2><p>Schaden- und Versicherungsfälle im Überblick</p></div>{editable && <button className="button" type="button" onClick={() => setShowForm(true)}>Neuen Fall anlegen</button>}</section>
     <section className="damage-filters" aria-label="Schäden filtern"><label className="search-field"><span className="sr-only">Schäden durchsuchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Fallnummer, Referenz, Kunde oder Unternehmer" /></label><label className="filter-field"><span className="sr-only">Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Alle Status</option>{DAMAGE_CASE_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className={`damage-filter-toggle${criticalOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={criticalOnly} onChange={(event) => setCriticalOnly(event.target.checked)} />Frist kritisch</label><label className={`damage-filter-toggle${documentsMissingOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={documentsMissingOnly} onChange={(event) => setDocumentsMissingOnly(event.target.checked)} />Unterlagen fehlen</label></section>
     {error && <p className="form-error">{error}</p>}
-    {loading ? <p className="page-state">Schäden werden geladen …</p> : <div className="damage-sections"><section className="damage-section"><div className="damage-section__heading"><div><h2>Aktuelle Fälle</h2><p>Fälle, die noch nicht wirtschaftlich erledigt sind.</p></div><span>{currentCases.length}</span></div><DamageCasesTable cases={currentCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} /></section><section className={`damage-section damage-section--closed${closedOpen ? ' damage-section--open' : ''}`}><button className="damage-section__toggle" type="button" aria-expanded={closedOpen} onClick={() => setClosedOpen((value) => !value)}><span><strong>Abgeschlossene Fälle</strong><small>Wirtschaftlich erledigte Fälle bleiben jederzeit auffindbar.</small></span><span>{closedCases.length} <b aria-hidden="true">⌄</b></span></button>{closedOpen && <DamageCasesTable cases={closedCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} />}</section></div>}
+    {loading ? <p className="page-state">Schäden werden geladen …</p> : <div className="todo-sections"><section className="todo-section"><div className="todo-section__heading"><h2>Aktuelle Fälle</h2><span>{currentCases.length}</span></div><DamageCasesTable cases={currentCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} /></section><section className={`todo-section damage-section--closed${showClosedCases ? ' damage-section--open' : ''}`}><button className="todo-section__heading damage-section__toggle" type="button" aria-expanded={showClosedCases} onClick={() => setClosedOpen((value) => !value)}><h2>Abgeschlossene Fälle</h2><span>{closedCases.length}<ChevronDownIcon /></span></button>{showClosedCases && <DamageCasesTable cases={closedCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} />}</section></div>}
     {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Schaden anlegen"><DamageCaseForm users={users} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
   </div>
 }
