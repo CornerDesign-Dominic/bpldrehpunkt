@@ -13,7 +13,7 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import { createInternalDocument, deleteInternalDocument, getDocumentErrorMessage, listDamageCaseDocuments, updateInternalDocument } from '../lib/documents.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { addDamageCaseUpdate, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseMovements, listDamageCaseUpdates, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
+import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseMovements, listDamageCaseUpdates, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -143,17 +143,30 @@ export default function DamageDetailPage() {
     } catch (noteError) { setError(noteError.message || 'Das Update konnte nicht gespeichert werden.') } finally { setNoteSaving(false) }
   }
 
+  async function addDocumentSystemEntry(text) {
+    try {
+      await addDamageCaseSystemUpdate(damageCase, text, { user, profile })
+    } catch (historyError) {
+      console.error('Schäden: Systemeintrag für Dokument konnte nicht gespeichert werden.', historyError)
+    }
+  }
+
   async function saveDocument(values, file) {
     if (!canEditDocuments) return
     setError('')
     setDocumentSaving(true)
     try {
       const selectedDocument = editingDocument === 'new' ? null : editingDocument
-      if (selectedDocument) await updateInternalDocument(selectedDocument, { ...values, damageCaseId: damageCase.id, damageCaseNumber: damageCase.caseNumber })
-      else {
+      const documentTitle = (values.title || selectedDocument?.title || file?.name || 'Unbenanntes Dokument').trim()
+      const actorName = uploaderName(profile, user) || 'Ein Nutzer'
+      if (selectedDocument) {
+        await updateInternalDocument(selectedDocument, { ...values, damageCaseId: damageCase.id, damageCaseNumber: damageCase.caseNumber })
+        await addDocumentSystemEntry(`${actorName} hat die Dokumentdetails von „${documentTitle}“ bearbeitet.`)
+      } else {
         let pageCount = null
         try { pageCount = await getPdfPageCount(file) } catch (pageCountError) { console.warn('Schäden: Seitenzahl des Dokuments konnte nicht ermittelt werden.', pageCountError) }
         await createInternalDocument({ ...values, damageCaseId: damageCase.id, damageCaseNumber: damageCase.caseNumber, pageCount }, file, { id: user?.uid, name: uploaderName(profile, user) })
+        await addDocumentSystemEntry(`${actorName} hat das Dokument „${documentTitle}“ hochgeladen.`)
       }
       await load()
       setEditingDocument(null)
@@ -170,6 +183,9 @@ export default function DamageDetailPage() {
     setDocumentSaving(true)
     try {
       await deleteInternalDocument(documentItem)
+      const actorName = uploaderName(profile, user) || 'Ein Nutzer'
+      const documentTitle = (documentItem.title || documentItem.fileName || 'Unbenanntes Dokument').trim()
+      await addDocumentSystemEntry(`${actorName} hat das Dokument „${documentTitle}“ gelöscht.`)
       await load()
       setDocumentConfirmation(null)
       setToast('Dokument dauerhaft gelöscht.')

@@ -200,6 +200,16 @@ function damageUpdatePayload(type, text, actor) {
   return { type, text, createdByUserId: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), createdAt: serverTimestamp() }
 }
 
+export async function addDamageCaseSystemUpdate(damageCase, text, actor) {
+  const cleanText = trim(text)
+  if (!cleanText) throw new Error('Bitte einen Systemeintrag angeben.')
+  if (cleanText.length > 1000) throw new Error('Der Systemeintrag ist zu lang.')
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', cleanText, actor))
+  await batch.commit()
+}
+
 function changeMessages(previous, next) {
   const messages = []
   if (previous.status !== next.status) messages.push(`Status geändert: ${damageCaseStatusLabel(previous.status)} → ${damageCaseStatusLabel(next.status)}`)
