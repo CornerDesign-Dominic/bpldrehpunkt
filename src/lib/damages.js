@@ -96,7 +96,6 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
     responsibleUserName,
     dueDate: optionalText(values.dueDate),
     damageAmount: optionalAmount(values.damageAmount),
-    damageLocation: optionalText(values.damageLocation),
     legalBasis: optionalSelection(values.legalBasis, DAMAGE_LEGAL_BASES),
     cargoWeightKg: optionalAmount(values.cargoWeightKg, 'Das Gewicht der Ware'),
     liabilityLimit: optionalAmount(values.liabilityLimit, 'Die Bemessungsgrenze'),
@@ -107,15 +106,14 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
     customerInsurance: optionalText(values.customerInsurance),
     customerInsuranceNumber: optionalText(values.customerInsuranceNumber),
     contractorLiability: optionalSelection(values.contractorLiability, DAMAGE_CONTRACTOR_LIABILITY),
-    liabilityNote: optionalText(values.liabilityNote),
   }
 }
 
 export function createEmptyDamageCase() {
   return {
     damageDate: new Date().toISOString().slice(0, 10),
-    title: '', description: '', damageType: '', status: 'new', transportReference: '', damageLocation: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
-    legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', customerInsurance: '', customerInsuranceNumber: '', contractorLiability: '', liabilityNote: '',
+    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
+    legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', customerInsurance: '', customerInsuranceNumber: '', contractorLiability: '',
   }
 }
 
