@@ -29,17 +29,17 @@ function dueClass(damageCase) {
 }
 
 function sectionMessages(section, previous, changes) {
-  if (section === 'schedule') {
+  if (section === 'general') {
     const messages = []
     if (changes.status) messages.push(`Status von ${damageCaseStatusLabel(previous.status)} zu ${damageCaseStatusLabel(changes.status)} geändert`)
     if (Object.hasOwn(changes, 'dueDate')) messages.push(changes.dueDate ? `Frist geändert auf ${formatDate(changes.dueDate)}` : 'Frist entfernt')
-    if (Object.keys(changes).some((field) => !['status', 'dueDate'].includes(field))) messages.push('Status & Fristen aktualisiert')
+    if (Object.keys(changes).some((field) => !['status', 'dueDate'].includes(field))) messages.push('Allgemeine Falldaten aktualisiert')
     return messages
   }
   return {
     title: 'Falltitel aktualisiert',
     description: 'Schadenbeschreibung aktualisiert',
-    responsibility: 'Zuständigkeit aktualisiert',
+    general: 'Allgemeine Falldaten aktualisiert',
     links: 'Verknüpfungen aktualisiert',
     claimant: 'Kunde & Anspruch aktualisiert',
     contractor: 'Unternehmer & Versicherung aktualisiert',
@@ -123,8 +123,7 @@ export default function DamageDetailPage() {
           <section className="todo-updates todo-history" aria-labelledby="damage-history-title"><div className="todo-updates__heading"><h3 id="damage-history-title">Historie</h3><span>{updates.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : updates.length ? <ol className="todo-updates__list">{updates.map((update) => <li key={update.id} className={`todo-updates__item todo-updates__item--${update.type}`}><div><strong>{update.createdByName}</strong><span>{update.type === 'note' ? 'Update' : 'System'} · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>
         <aside className="todo-detail-sidebar">
-          <section><DetailSectionHeading onEdit={editable ? () => setEditing('schedule') : null}>Status &amp; Fristen</DetailSectionHeading><dl><Detail label="Status"><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></Detail><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Nächste Frist"><span className={dueClass(damageCase)}>{dueValue}</span></Detail><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail></dl></section>
-          <section><DetailSectionHeading onEdit={editable ? () => setEditing('responsibility') : null}>Zuständigkeit</DetailSectionHeading><dl><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></dl></section>
+          <section><DetailSectionHeading onEdit={editable ? () => setEditing('general') : null}>Allgemein</DetailSectionHeading><dl><Detail label="Status"><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></Detail><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Nächste Frist"><span className={dueClass(damageCase)}>{dueValue}</span></Detail><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></dl></section>
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="Auftrag-/Tourreferenz">{damageCase.transportReference}</Detail><Detail label="Schadensort">{damageCase.damageLocation}</Detail></dl></section>
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('claimant') : null}>Kunde &amp; Anspruch</DetailSectionHeading><dl><Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.claimantPartnerId}`}>{damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail><Detail label="Versicherung Kunde">{damageCase.customerInsurance}</Detail><Detail label="Versicherungsnummer / Vorgangsnummer Kunde">{damageCase.customerInsuranceNumber}</Detail></dl></section>
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('contractor') : null}>Unternehmer &amp; Versicherung</DetailSectionHeading><dl><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.contractorPartnerId}`}>{damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Versicherer UTN">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail></dl></section>
