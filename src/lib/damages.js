@@ -100,10 +100,11 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
     cargoWeightKg: optionalAmount(values.cargoWeightKg, 'Das Gewicht der Ware'),
     liabilityLimit: optionalAmount(values.liabilityLimit, 'Die Bemessungsgrenze'),
     insuranceRelevance: optionalSelection(values.insuranceRelevance, DAMAGE_INSURANCE_RELEVANCE),
-    bplInsurance: optionalText(values.bplInsurance),
     bplInsuranceCaseNumber: optionalText(values.bplInsuranceCaseNumber),
     contractorInsurance: optionalText(values.contractorInsurance),
     contractorInsuranceCaseNumber: optionalText(values.contractorInsuranceCaseNumber),
+    customerInsurance: optionalText(values.customerInsurance),
+    customerInsuranceNumber: optionalText(values.customerInsuranceNumber),
     contractorLiability: optionalSelection(values.contractorLiability, DAMAGE_CONTRACTOR_LIABILITY),
     liabilityNote: optionalText(values.liabilityNote),
   }
@@ -113,7 +114,7 @@ export function createEmptyDamageCase() {
   return {
     damageDate: new Date().toISOString().slice(0, 10),
     title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
-    legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsurance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', contractorLiability: '', liabilityNote: '',
+    legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', customerInsurance: '', customerInsuranceNumber: '', contractorLiability: '', liabilityNote: '',
   }
 }
 

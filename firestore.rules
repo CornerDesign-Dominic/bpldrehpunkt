@@ -206,8 +206,8 @@ service cloud.firestore {
     }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function damageCaseKeysAreValid(data) {
-      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsurance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsurance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'customerInsurance', 'customerInsuranceNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validDamageText(value, limit) { return value == null || (value is string && value.size() <= limit); }
     function validDamageType(data) {
@@ -248,8 +248,10 @@ service cloud.firestore {
         && (data.cargoWeightKg == null || (data.cargoWeightKg is number && data.cargoWeightKg >= 0))
         && (data.liabilityLimit == null || (data.liabilityLimit is number && data.liabilityLimit >= 0))
         && (data.insuranceRelevance == null || data.insuranceRelevance in ['yes', 'no', 'pending'])
-        && validDamageText(data.bplInsurance, 240) && validDamageText(data.bplInsuranceCaseNumber, 240)
+        && validDamageText(data.bplInsuranceCaseNumber, 240)
         && validDamageText(data.contractorInsurance, 240) && validDamageText(data.contractorInsuranceCaseNumber, 240)
+        && (!data.keys().hasAny(['customerInsurance']) || validDamageText(data.customerInsurance, 240))
+        && (!data.keys().hasAny(['customerInsuranceNumber']) || validDamageText(data.customerInsuranceNumber, 240))
         && (data.contractorLiability == null || data.contractorLiability in ['open', 'acknowledged', 'rejected', 'partially_acknowledged'])
         && validDamageText(data.liabilityNote, 4000) && data.openBplRisk == null;
     }
@@ -268,7 +270,7 @@ service cloud.firestore {
         && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsurance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'updatedAt', 'updatedBy', 'updatedByName']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'customerInsurance', 'customerInsuranceNumber', 'contractorLiability', 'liabilityNote', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     match /damageCaseCounters/{year} {
       allow get: if edit('damages');
