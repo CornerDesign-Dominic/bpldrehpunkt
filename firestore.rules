@@ -206,7 +206,7 @@ service cloud.firestore {
     }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function damageCaseKeysAreValid(data) {
-      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
         && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'damageLocation', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'customerInsurance', 'customerInsuranceNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validDamageText(value, limit) { return value == null || (value is string && value.size() <= limit); }
@@ -245,15 +245,16 @@ service cloud.firestore {
         && validDamageClaimant(data) && validDamageContractor(data)
         && validDamageResponsible(data) && (data.dueDate == null || (data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (data.damageAmount == null || (data.damageAmount is number && data.damageAmount >= 0))
-        && (data.legalBasis == null || data.legalBasis in ['cmr', 'national', 'goodwill', 'other'])
-        && (data.cargoWeightKg == null || (data.cargoWeightKg is number && data.cargoWeightKg >= 0))
-        && (data.liabilityLimit == null || (data.liabilityLimit is number && data.liabilityLimit >= 0))
-        && (data.insuranceRelevance == null || data.insuranceRelevance in ['yes', 'no', 'pending'])
-        && validDamageText(data.bplInsuranceCaseNumber, 240)
-        && validDamageText(data.contractorInsurance, 240) && validDamageText(data.contractorInsuranceCaseNumber, 240)
+        && (!data.keys().hasAny(['legalBasis']) || data.legalBasis == null || data.legalBasis in ['cmr', 'national', 'goodwill', 'other'])
+        && (!data.keys().hasAny(['cargoWeightKg']) || data.cargoWeightKg == null || (data.cargoWeightKg is number && data.cargoWeightKg >= 0))
+        && (!data.keys().hasAny(['liabilityLimit']) || data.liabilityLimit == null || (data.liabilityLimit is number && data.liabilityLimit >= 0))
+        && (!data.keys().hasAny(['insuranceRelevance']) || data.insuranceRelevance == null || data.insuranceRelevance in ['yes', 'no', 'pending'])
+        && (!data.keys().hasAny(['bplInsuranceCaseNumber']) || validDamageText(data.bplInsuranceCaseNumber, 240))
+        && (!data.keys().hasAny(['contractorInsurance']) || validDamageText(data.contractorInsurance, 240))
+        && (!data.keys().hasAny(['contractorInsuranceCaseNumber']) || validDamageText(data.contractorInsuranceCaseNumber, 240))
         && (!data.keys().hasAny(['customerInsurance']) || validDamageText(data.customerInsurance, 240))
         && (!data.keys().hasAny(['customerInsuranceNumber']) || validDamageText(data.customerInsuranceNumber, 240))
-        && (data.contractorLiability == null || data.contractorLiability in ['open', 'acknowledged', 'rejected', 'partially_acknowledged'])
+        && (!data.keys().hasAny(['contractorLiability']) || data.contractorLiability == null || data.contractorLiability in ['open', 'acknowledged', 'rejected', 'partially_acknowledged'])
         && (!data.keys().hasAny(['liabilityNote']) || validDamageText(data.liabilityNote, 4000)) && data.openBplRisk == null;
     }
     function damageCounterAfter(year) { return getAfter(/databases/$(database)/documents/damageCaseCounters/$(year)).data; }
