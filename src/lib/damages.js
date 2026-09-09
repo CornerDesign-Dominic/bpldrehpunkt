@@ -50,6 +50,18 @@ export const DAMAGE_CONTRACTOR_LIABILITY = [
   { value: 'rejected', label: 'Abgelehnt' },
   { value: 'partially_acknowledged', label: 'Teilweise anerkannt' },
 ]
+export const DAMAGE_MOVEMENT_DIRECTIONS = [
+  { value: 'income', label: 'Eingang' },
+  { value: 'expense', label: 'Ausgang' },
+]
+export const DAMAGE_MOVEMENT_STATUSES = [
+  { value: 'expected', label: 'Erwartet' },
+  { value: 'requested', label: 'Angefordert' },
+  { value: 'promised', label: 'Zugesagt' },
+  { value: 'received', label: 'Eingegangen' },
+  { value: 'paid', label: 'Bezahlt' },
+  { value: 'written_off', label: 'Abgeschrieben' },
+]
 
 const damageCasesRef = collection(db, DAMAGE_CASES_COLLECTION)
 const statusByValue = new Map(DAMAGE_CASE_STATUSES.map((status) => [status.value, status.label]))
@@ -199,6 +211,63 @@ function changeMessages(previous, next) {
 
 function updateMetadata(actor) {
   return { updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: getUserDisplayName(actor.profile, actor.user) }
+}
+
+function damageMovementPayload(values) {
+  const movementDate = trim(values.movementDate)
+  const direction = DAMAGE_MOVEMENT_DIRECTIONS.some((option) => option.value === values.direction) ? values.direction : ''
+  const status = DAMAGE_MOVEMENT_STATUSES.some((option) => option.value === values.status) ? values.status : ''
+  const amount = optionalAmount(values.amount, 'Der Betrag')
+  const participant = trim(values.participant)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(movementDate) || !direction || amount === null || !participant || !status) throw new Error('Bitte alle Pflichtfelder der Betragsbewegung erfassen.')
+  return { movementDate, direction, amount, description: optionalText(values.description), participant, status }
+}
+
+function damageMovementLabel(movement) {
+  const direction = DAMAGE_MOVEMENT_DIRECTIONS.find((option) => option.value === movement.direction)?.label || 'Betragsbewegung'
+  const amount = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(movement.amount || 0)
+  return `${direction} · ${amount}`
+}
+
+export function createEmptyDamageMovement() {
+  return { movementDate: new Date().toISOString().slice(0, 10), direction: 'income', amount: '', description: '', participant: '', status: 'expected' }
+}
+
+export async function listDamageCaseMovements(damageCaseId) {
+  const snapshots = await getDocs(query(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'movements'), orderBy('movementDate', 'desc')))
+  return snapshots.docs.map(mapSnapshot).sort((left, right) => right.movementDate.localeCompare(left.movementDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
+}
+
+export async function createDamageCaseMovement(damageCase, values, actor) {
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const movement = damageMovementPayload(values)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.set(doc(collection(caseRef, 'movements')), { ...movement, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Betragsbewegung hinzugefügt: ${damageMovementLabel(movement)}`, actor))
+  await batch.commit()
+}
+
+export async function updateDamageCaseMovement(damageCase, movement, values, actor) {
+  const next = damageMovementPayload(values)
+  const changed = Object.entries(next).some(([field, value]) => value !== (movement[field] ?? null))
+  if (!changed) return false
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.update(doc(caseRef, 'movements', movement.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Betragsbewegung aktualisiert: ${damageMovementLabel(next)}`, actor))
+  await batch.commit()
+  return true
+}
+
+export async function deleteDamageCaseMovement(damageCase, movement, actor) {
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.delete(doc(caseRef, 'movements', movement.id))
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Betragsbewegung gelöscht: ${damageMovementLabel(movement)}`, actor))
+  await batch.commit()
 }
 
 export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById, systemMessages = null) {
