@@ -24,6 +24,15 @@ export const DAMAGE_CASE_STATUSES = [
   { value: 'settled', label: 'Reguliert' },
   { value: 'economically_closed', label: 'Wirtschaftlich erledigt' },
 ]
+export const DAMAGE_CASE_TYPES = [
+  { value: 'Bruchschaden', label: 'Bruchschaden' },
+  { value: 'Verlustschaden', label: 'Verlustschaden' },
+  { value: 'Verspätungsschaden', label: 'Verspätungsschaden' },
+  { value: 'Temperaturschaden', label: 'Temperaturschaden' },
+  { value: 'Nässe / Wasserschaden', label: 'Nässe / Wasserschaden' },
+  { value: 'Diebstahl / Raub', label: 'Diebstahl / Raub' },
+  { value: 'Sonstiger', label: 'Sonstiger' },
+]
 export const DAMAGE_LEGAL_BASES = [
   { value: 'cmr', label: 'CMR' },
   { value: 'national', label: 'National' },
@@ -62,7 +71,7 @@ function optionalSelection(value, options) {
   return options.some((option) => option.value === value) ? value : null
 }
 
-function payload(values, responsibleUsersById) {
+function payload(values, responsibleUsersById, requireDamageType = false) {
   const responsibleUserId = optionalText(values.responsibleUserId)
   const responsibleUser = responsibleUserId ? responsibleUsersById.get(responsibleUserId) : null
   const responsibleUserName = responsibleUserId ? (responsibleUser ? getUserDisplayName(responsibleUser, responsibleUser) : optionalText(values.responsibleUserName)) : null
@@ -71,13 +80,13 @@ function payload(values, responsibleUsersById) {
   const title = trim(values.title)
   const damageDate = trim(values.damageDate)
   const damageType = trim(values.damageType)
-  if (!title || !damageDate || !damageType) throw new Error('Bitte Schadendatum, Kurzbezeichnung und Schadenart erfassen.')
+  if (!title || !damageDate || (requireDamageType && !damageType)) throw new Error('Bitte Schadendatum, Kurzbezeichnung und Schadenart erfassen.')
   return {
     status,
     damageDate,
     title,
     description: optionalText(values.description),
-    damageType,
+    damageType: damageType || null,
     transportReference: optionalText(values.transportReference),
     claimant: optionalText(values.claimant),
     claimantPartnerId: optionalText(values.claimantPartnerId),
@@ -156,7 +165,7 @@ export async function createDamageCase(values, actor, responsibleUsersById) {
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
     transaction.set(counterRef, { year, nextNumber: sequence, updatedAt: serverTimestamp() })
     transaction.set(caseRef, {
-      ...payload(values, responsibleUsersById),
+      ...payload(values, responsibleUsersById, true),
       caseNumber: `S-${year}-${String(sequence).padStart(4, '0')}`,
       caseYear: year,
       caseSequence: sequence,

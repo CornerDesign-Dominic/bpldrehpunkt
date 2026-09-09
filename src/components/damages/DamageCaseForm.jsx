@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { createEmptyDamageCase, DAMAGE_CASE_STATUSES } from '../../lib/damages.js'
+import { createEmptyDamageCase, DAMAGE_CASE_STATUSES, DAMAGE_CASE_TYPES } from '../../lib/damages.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 
 function initialValues(damageCase) {
@@ -38,7 +38,7 @@ export default function DamageCaseForm({ damageCase, onCancel, onSubmit, users =
     <div className="damage-form__heading"><h2>{damageCase ? 'Fall bearbeiten' : 'Neuen Fall anlegen'}</h2>{damageCase?.caseNumber && <span>{damageCase.caseNumber}</span>}</div>
     <section className="damage-form__section"><h3>Falldaten</h3><div className="damage-form__grid damage-form__grid--core">
       <label className="form-field"><span>Schadendatum *</span><input type="date" value={form.damageDate} onChange={(event) => update('damageDate', event.target.value)} /></label>
-      <label className="form-field"><span>Schadenart *</span><input value={form.damageType} maxLength="120" onChange={(event) => update('damageType', event.target.value)} placeholder="z. B. Transportschaden" /></label>
+      <label className="form-field"><span>Schadenart *</span><select value={form.damageType} onChange={(event) => update('damageType', event.target.value)}><option value="">Bitte wählen</option>{DAMAGE_CASE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
       <label className="form-field"><span>Status *</span><select value={form.status} onChange={(event) => update('status', event.target.value)}>{DAMAGE_CASE_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
       <label className="form-field damage-form__wide"><span>Kurzbezeichnung / Beschreibung *</span><textarea rows="3" value={form.title} maxLength="500" onChange={(event) => update('title', event.target.value)} /></label>
     </div></section>

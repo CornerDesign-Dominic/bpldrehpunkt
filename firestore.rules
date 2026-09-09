@@ -206,10 +206,13 @@ service cloud.firestore {
     }
     match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
     function damageCaseKeysAreValid(data) {
-      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsurance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+      return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsurance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
         && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsurance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validDamageText(value, limit) { return value == null || (value is string && value.size() <= limit); }
+    function validDamageType(data) {
+      return !data.keys().hasAny(['damageType']) || data.damageType == null || (data.damageType is string && data.damageType.size() > 0 && data.damageType.size() <= 120);
+    }
     function validDamageResponsible(data) {
       return (data.responsibleUserId == null && data.responsibleUserName == null)
         || (data.responsibleUserId is string && data.responsibleUserName is string && activeProfile(data.responsibleUserId)
@@ -236,7 +239,7 @@ service cloud.firestore {
         && data.status in ['new', 'documents_missing', 'insurance_reported', 'in_settlement', 'acknowledged', 'partially_settled', 'rejected', 'settled', 'economically_closed']
         && data.damageDate is string && data.damageDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && data.title is string && data.title.size() > 0 && data.title.size() <= 500
-        && validDamageText(data.description, 4000) && data.damageType is string && data.damageType.size() > 0 && data.damageType.size() <= 120
+        && validDamageText(data.description, 4000) && validDamageType(data)
         && validDamageText(data.transportReference, 240) && validDamageText(data.claimant, 240) && validDamageText(data.contractor, 240)
         && validDamageClaimant(data) && validDamageContractor(data)
         && validDamageResponsible(data) && (data.dueDate == null || (data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
