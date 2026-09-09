@@ -14,6 +14,9 @@ export const MODULES = {
   templates: { label: 'Vorlagen' },
   todos: { label: 'To-dos' },
   damages: { label: 'Schäden' },
+  insolvencies: { label: 'Insolvenzen' },
+  legalDisputes: { label: 'Gericht / Streit' },
+  inkasso: { label: 'Inkasso' },
   personnel: { label: 'Personal' },
   knowledgeProcesses: { label: 'Wissen & Prozesse' },
 }

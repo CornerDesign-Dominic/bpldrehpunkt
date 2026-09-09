@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
 import { canManageUsers, canManageVacations, canView } from '../../lib/permissions.js'
-import { CalendarIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, KnowledgeProcessesIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
+import { CalendarIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, KnowledgeProcessesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { SIDEBAR_BADGE_DEFINITIONS } from '../../lib/sidebarBadges.js'
 
@@ -17,6 +17,9 @@ const navigationItems = [
   { label: 'Team Brennpunkt', to: '/team', icon: UsersIcon, module: 'team', group: 'people' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'people', badge: 'todos' },
   { label: 'Schäden', to: '/schaeden', icon: DamageIcon, module: 'damages', group: 'customers' },
+  { label: 'Insolvenzen', to: '/insolvenzen', icon: InsolvenciesIcon, module: 'insolvencies', group: 'customers' },
+  { label: 'Gericht / Streit', to: '/legal-disputes', icon: LegalDisputesIcon, module: 'legalDisputes', group: 'customers' },
+  { label: 'Inkasso', to: '/inkasso', icon: InkassoIcon, module: 'inkasso', group: 'customers' },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData', group: 'customers' },
   { label: 'CRM', to: '/crm', icon: CrmIcon, module: 'crm', group: 'customers' },
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets', group: 'customers' },

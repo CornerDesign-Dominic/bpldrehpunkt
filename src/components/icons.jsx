@@ -136,4 +136,16 @@ export function EyeOffIcon({ size = 17 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.5 3.1M6.5 6.5A17.2 17.2 0 0 0 2.5 12s3.5 6 9.5 6a10.7 10.7 0 0 0 3.2-.5" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
 }
 // Font Awesome Free (CC BY 4.0), provided through react-icons.
-import { FaTruck } from 'react-icons/fa6'
+import { FaFileInvoiceDollar, FaGavel, FaScaleBalanced, FaTruck } from 'react-icons/fa6'
+
+export function InsolvenciesIcon({ size = 20 }) {
+  return <FaScaleBalanced size={size} aria-hidden="true" focusable="false" />
+}
+
+export function LegalDisputesIcon({ size = 20 }) {
+  return <FaGavel size={size} aria-hidden="true" focusable="false" />
+}
+
+export function InkassoIcon({ size = 20 }) {
+  return <FaFileInvoiceDollar size={size} aria-hidden="true" focusable="false" />
+}
