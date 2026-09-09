@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import DamageCaseEditModal from '../components/damages/DamageCaseEditModal.jsx'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
 import DamageFinancialOverview from '../components/damages/DamageFinancialOverview.jsx'
-import DamageMovementModal from '../components/damages/DamageMovementModal.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import { ChevronDownIcon, EditIcon } from '../components/icons.jsx'
@@ -103,9 +102,6 @@ export default function DamageDetailPage() {
   const [detailsDocument, setDetailsDocument] = useState(null)
   const [documentConfirmation, setDocumentConfirmation] = useState(null)
   const [documentSaving, setDocumentSaving] = useState(false)
-  const [editingMovement, setEditingMovement] = useState(null)
-  const [movementConfirmation, setMovementConfirmation] = useState(null)
-  const [movementSaving, setMovementSaving] = useState(false)
   const [note, setNote] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
   const [error, setError] = useState('')
@@ -183,36 +179,31 @@ export default function DamageDetailPage() {
     } finally { setDocumentSaving(false) }
   }
 
-  async function saveMovement(values) {
+  async function saveMovement(existingMovement, values) {
     if (!editable) return
     setError('')
-    setMovementSaving(true)
     try {
-      const existingMovement = editingMovement === 'new' ? null : editingMovement
       if (existingMovement) await updateDamageCaseMovement(damageCase, existingMovement, values, { user, profile })
       else await createDamageCaseMovement(damageCase, values, { user, profile })
       await load()
-      setEditingMovement(null)
       setToast(existingMovement ? 'Betragsbewegung aktualisiert.' : 'Betragsbewegung hinzugefügt.')
     } catch (saveError) {
       setError(saveError.message || 'Die Betragsbewegung konnte nicht gespeichert werden.')
       throw saveError
-    } finally { setMovementSaving(false) }
+    }
   }
 
   async function deleteMovement(movement) {
     if (!editable) return
     setError('')
-    setMovementSaving(true)
     try {
       await deleteDamageCaseMovement(damageCase, movement, { user, profile })
       await load()
-      setMovementConfirmation(null)
       setToast('Betragsbewegung gelöscht.')
     } catch (deleteError) {
       setError(deleteError.message || 'Die Betragsbewegung konnte nicht gelöscht werden.')
       throw deleteError
-    } finally { setMovementSaving(false) }
+    }
   }
 
   if (loading) return <p className="page-state">Fall wird geladen …</p>
@@ -228,9 +219,7 @@ export default function DamageDetailPage() {
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
-    <ConfirmDialog open={Boolean(movementConfirmation)} title="Betragsbewegung löschen?" message="Diese Betragsbewegung wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={movementSaving} onCancel={() => setMovementConfirmation(null)} onConfirm={() => deleteMovement(movementConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
-    {editingMovement && <DamageMovementModal key={editingMovement === 'new' ? 'new' : editingMovement.id} movement={editingMovement === 'new' ? null : editingMovement} onCancel={() => setEditingMovement(null)} onSubmit={saveMovement} />}
     {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
     <div className="todo-detail-navigation"><Link className="button button--secondary" to="/schaeden">← Zur Schäden-Übersicht</Link></div>
     <div className="todo-detail-page damage-detail-page">
@@ -240,7 +229,7 @@ export default function DamageDetailPage() {
         <main className="todo-detail-main">
           <section className="todo-detail-content"><DetailSectionHeading onEdit={editable ? () => setEditing('description') : null}>Schadenbeschreibung</DetailSectionHeading><p className="todo-detail-description">{damageCase.description || 'Keine Schadenbeschreibung hinterlegt.'}</p></section>
           {canViewDocuments && <DamageDocumentsCard canEdit={canEditDocuments} documents={documents} loading={documentsLoading} onDelete={(documentItem) => setDocumentConfirmation(documentItem)} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />}
-          <DamageFinancialOverview canEdit={editable} loading={movementsLoading} movements={movements} onAdd={() => setEditingMovement('new')} onDelete={setMovementConfirmation} onEdit={setEditingMovement} />
+          <DamageFinancialOverview canEdit={editable} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="damage-update-title"><div className="todo-updates__heading"><h3 id="damage-update-title">Update zum Schaden</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Schaden" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Schaden hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="damage-history-title"><div className="todo-updates__heading"><h3 id="damage-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>
