@@ -80,7 +80,9 @@ function payload(values, responsibleUsersById) {
     damageType,
     transportReference: optionalText(values.transportReference),
     claimant: optionalText(values.claimant),
+    claimantPartnerId: optionalText(values.claimantPartnerId),
     contractor: optionalText(values.contractor),
+    contractorPartnerId: optionalText(values.contractorPartnerId),
     responsibleUserId,
     responsibleUserName,
     dueDate: optionalText(values.dueDate),
@@ -101,7 +103,7 @@ function payload(values, responsibleUsersById) {
 export function createEmptyDamageCase() {
   return {
     damageDate: new Date().toISOString().slice(0, 10),
-    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', contractor: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
+    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
     legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsurance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', contractorLiability: '', liabilityNote: '',
   }
 }

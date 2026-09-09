@@ -5,6 +5,7 @@ import { EditIcon } from '../components/icons.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
+import { listBusinessPartners } from '../lib/businessPartners.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { addDamageCaseUpdate, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, getDamageCase, listDamageCaseUpdates, updateDamageCaseFields } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
@@ -47,11 +48,13 @@ function sectionMessages(section, previous, changes) {
 export default function DamageDetailPage() {
   const { damageCaseId } = useParams()
   const { user, profile } = useAuth()
-  const { canEdit } = usePermissions()
+  const { canEdit, canView } = usePermissions()
   const { setTitle } = usePageHeader()
   const editable = canEdit('damages')
+  const canViewMasterData = canView('masterData')
   const [damageCase, setDamageCase] = useState(null)
   const [users, setUsers] = useState([])
+  const [partners, setPartners] = useState([])
   const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
   const [updatesLoading, setUpdatesLoading] = useState(true)
@@ -62,18 +65,18 @@ export default function DamageDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, history, directory] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
-    setDamageCase(entry); setUpdates(history); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false)
+    const [entry, history, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    setDamageCase(entry); setUpdates(history); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
-      .then(([entry, history, directory]) => { if (current) { setDamageCase(entry); setUpdates(history); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false) } })
+    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      .then(([entry, history, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false) } })
       .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
-  }, [damageCaseId, editable, setTitle])
+  }, [canViewMasterData, damageCaseId, editable, setTitle])
 
   const usersById = useMemo(() => new Map(users.map((entry) => [entry.id, entry])), [users])
 
@@ -106,7 +109,7 @@ export default function DamageDetailPage() {
   const title = `${damageCase.caseNumber} – ${damageCase.title || 'Ohne Kurzbezeichnung'}`
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
+    {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
     <div className="todo-detail-navigation"><Link className="button button--secondary" to="/schaeden">← Zur Schäden-Übersicht</Link></div>
     <div className="todo-detail-page damage-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('title')} title="Falltitel bearbeiten" aria-label="Falltitel bearbeiten"><EditIcon size={14} /></button>}</div><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></header>
@@ -120,7 +123,7 @@ export default function DamageDetailPage() {
         <aside className="todo-detail-sidebar">
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('schedule') : null}>Status &amp; Fristen</DetailSectionHeading><dl><Detail label="Status"><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></Detail><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Nächste Frist"><span className={dueClass(damageCase)}>{dueValue}</span></Detail><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail></dl></section>
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('responsibility') : null}>Zuständigkeit</DetailSectionHeading><dl><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></dl></section>
-          <section><DetailSectionHeading onEdit={editable ? () => setEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="Kunde / Anspruchsteller">{damageCase.claimant}</Detail><Detail label="Unternehmer">{damageCase.contractor}</Detail><Detail label="Auftrag-/Tourreferenz">{damageCase.transportReference}</Detail></dl></section>
+          <section><DetailSectionHeading onEdit={editable ? () => setEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.claimantPartnerId}`}>{damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.contractorPartnerId}`}>{damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Auftrag-/Tourreferenz">{damageCase.transportReference}</Detail></dl></section>
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('liability') : null}>Haftung &amp; Versicherung</DetailSectionHeading><dl><Detail label="Rechtsgrundlage">{labelFor(DAMAGE_LEGAL_BASES, damageCase.legalBasis)}</Detail><Detail label="Gewicht der Ware">{formatNumber(damageCase.cargoWeightKg, ' kg')}</Detail><Detail label="Bemessungs-/Haftungsgrenze">{formatCurrency(damageCase.liabilityLimit)}</Detail><Detail label="Versicherungsrelevanz">{labelFor(DAMAGE_INSURANCE_RELEVANCE, damageCase.insuranceRelevance)}</Detail><Detail label="Versicherung BPL">{damageCase.bplInsurance}</Detail><Detail label="Vorgangsnummer BPL">{damageCase.bplInsuranceCaseNumber}</Detail><Detail label="Versicherung Unternehmer">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail><Detail label="Bemerkung">{damageCase.liabilityNote}</Detail></dl></section>
           <section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Erstellt von">{damageCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(damageCase.createdAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(damageCase.updatedAt)}</Detail></dl></section>
         </aside>
