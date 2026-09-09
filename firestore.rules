@@ -304,12 +304,11 @@ service cloud.firestore {
 
       match /movements/{movementId} {
         function validDamageMovement(data) {
-          return data.keys().hasAll(['movementDate', 'direction', 'amount', 'description', 'participant', 'status', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['movementDate', 'direction', 'amount', 'description', 'participant', 'status', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.movementDate is string && data.movementDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-            && data.direction in ['income', 'expense'] && data.amount is number && data.amount >= 0
-            && validDamageText(data.description, 1000) && data.participant is string && data.participant.size() > 0 && data.participant.size() <= 240
-            && data.status in ['expected', 'requested', 'promised', 'received', 'paid', 'written_off']
+          return data.keys().hasAll(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName', 'movementDate', 'direction', 'description', 'participant', 'status'])
+            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.transactionType in ['received', 'paid', 'expected_receivable', 'expected_payable']
+            && data.counterpartyType in ['customer', 'contractor'] && data.amount is number && data.amount >= 0
             && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
         function movementParentWasUpdated() {
@@ -318,11 +317,11 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/damageCases/$(id)).data.updatedBy == request.auth.uid;
         }
         allow read: if view('damages');
-        allow create: if edit('damages') && validDamageMovement(request.resource.data) && movementParentWasUpdated()
+        allow create: if edit('damages') && validDamageMovement(request.resource.data) && !request.resource.data.keys().hasAny(['movementDate', 'direction', 'description', 'participant', 'status']) && movementParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
-        allow update: if edit('damages') && validDamageMovement(request.resource.data) && movementParentWasUpdated()
+        allow update: if edit('damages') && validDamageMovement(request.resource.data) && !request.resource.data.diff(resource.data).addedKeys().hasAny(['movementDate', 'direction', 'description', 'participant', 'status']) && movementParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow delete: if edit('damages') && movementParentWasUpdated();

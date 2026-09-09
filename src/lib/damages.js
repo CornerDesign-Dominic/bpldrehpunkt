@@ -50,17 +50,15 @@ export const DAMAGE_CONTRACTOR_LIABILITY = [
   { value: 'rejected', label: 'Abgelehnt' },
   { value: 'partially_acknowledged', label: 'Teilweise anerkannt' },
 ]
-export const DAMAGE_MOVEMENT_DIRECTIONS = [
-  { value: 'income', label: 'Eingang' },
-  { value: 'expense', label: 'Ausgang' },
+export const DAMAGE_MOVEMENT_TRANSACTION_TYPES = [
+  { value: 'received', label: 'BPL hat erhalten von' },
+  { value: 'paid', label: 'BPL hat bezahlt an' },
+  { value: 'expected_receivable', label: 'BPL erwartet von' },
+  { value: 'expected_payable', label: 'BPL wird bezahlen an' },
 ]
-export const DAMAGE_MOVEMENT_STATUSES = [
-  { value: 'expected', label: 'Erwartet' },
-  { value: 'requested', label: 'Angefordert' },
-  { value: 'promised', label: 'Zugesagt' },
-  { value: 'received', label: 'Eingegangen' },
-  { value: 'paid', label: 'Bezahlt' },
-  { value: 'written_off', label: 'Abgeschrieben' },
+export const DAMAGE_MOVEMENT_COUNTERPARTIES = [
+  { value: 'customer', label: 'Kunde' },
+  { value: 'contractor', label: 'Unternehmer' },
 ]
 
 const damageCasesRef = collection(db, DAMAGE_CASES_COLLECTION)
@@ -214,28 +212,43 @@ function updateMetadata(actor) {
 }
 
 function damageMovementPayload(values) {
-  const movementDate = trim(values.movementDate)
-  const direction = DAMAGE_MOVEMENT_DIRECTIONS.some((option) => option.value === values.direction) ? values.direction : ''
-  const status = DAMAGE_MOVEMENT_STATUSES.some((option) => option.value === values.status) ? values.status : ''
+  const date = trim(values.date)
+  const transactionType = DAMAGE_MOVEMENT_TRANSACTION_TYPES.some((option) => option.value === values.transactionType) ? values.transactionType : ''
+  const counterpartyType = DAMAGE_MOVEMENT_COUNTERPARTIES.some((option) => option.value === values.counterpartyType) ? values.counterpartyType : ''
   const amount = optionalAmount(values.amount, 'Der Betrag')
-  const participant = trim(values.participant)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(movementDate) || !direction || amount === null || !participant || !status) throw new Error('Bitte alle Pflichtfelder der Betragsbewegung erfassen.')
-  return { movementDate, direction, amount, description: optionalText(values.description), participant, status }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !transactionType || amount === null || !counterpartyType) throw new Error('Bitte alle Pflichtfelder der Betragsbewegung erfassen.')
+  return { date, transactionType, counterpartyType, amount }
 }
 
 function damageMovementLabel(movement) {
-  const direction = DAMAGE_MOVEMENT_DIRECTIONS.find((option) => option.value === movement.direction)?.label || 'Betragsbewegung'
+  const transactionType = DAMAGE_MOVEMENT_TRANSACTION_TYPES.find((option) => option.value === movement.transactionType)?.label || 'Betragsbewegung'
+  const counterpartyType = DAMAGE_MOVEMENT_COUNTERPARTIES.find((option) => option.value === movement.counterpartyType)?.label || 'Gegenpartei'
   const amount = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(movement.amount || 0)
-  return `${direction} · ${amount}`
+  return `${transactionType} ${counterpartyType} · ${amount}`
 }
 
 export function createEmptyDamageMovement() {
-  return { movementDate: new Date().toISOString().slice(0, 10), direction: 'income', amount: '', description: '', participant: '', status: 'expected' }
+  return { date: new Date().toISOString().slice(0, 10), transactionType: 'received', counterpartyType: 'customer', amount: '' }
+}
+
+function legacyMovementTransactionType(movement) {
+  if (movement.direction === 'income' && movement.status === 'received') return 'received'
+  if (movement.direction === 'expense' && movement.status === 'paid') return 'paid'
+  return movement.direction === 'expense' ? 'expected_payable' : 'expected_receivable'
+}
+
+function normalizeDamageMovement(movement) {
+  return {
+    ...movement,
+    date: movement.date || movement.movementDate || '',
+    transactionType: DAMAGE_MOVEMENT_TRANSACTION_TYPES.some((option) => option.value === movement.transactionType) ? movement.transactionType : legacyMovementTransactionType(movement),
+    counterpartyType: DAMAGE_MOVEMENT_COUNTERPARTIES.some((option) => option.value === movement.counterpartyType) ? movement.counterpartyType : movement.participant === 'Unternehmer' ? 'contractor' : 'customer',
+  }
 }
 
 export async function listDamageCaseMovements(damageCaseId) {
-  const snapshots = await getDocs(query(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'movements'), orderBy('movementDate', 'desc')))
-  return snapshots.docs.map(mapSnapshot).sort((left, right) => right.movementDate.localeCompare(left.movementDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
+  const snapshots = await getDocs(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'movements'))
+  return snapshots.docs.map(mapSnapshot).map(normalizeDamageMovement).sort((left, right) => right.date.localeCompare(left.date) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
 }
 
 export async function createDamageCaseMovement(damageCase, values, actor) {

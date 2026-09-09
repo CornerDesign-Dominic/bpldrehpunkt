@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createEmptyDamageMovement, DAMAGE_MOVEMENT_DIRECTIONS, DAMAGE_MOVEMENT_STATUSES } from '../../lib/damages.js'
+import { createEmptyDamageMovement, DAMAGE_MOVEMENT_COUNTERPARTIES, DAMAGE_MOVEMENT_TRANSACTION_TYPES } from '../../lib/damages.js'
 
 function Field({ children, label }) {
   return <label className="form-field"><span>{label}</span>{children}</label>
@@ -31,12 +31,10 @@ export default function DamageMovementModal({ movement, onCancel, onSubmit }) {
       <form className="todo-quick-editor" onSubmit={save} noValidate>
         <div className="todo-quick-editor__heading"><h2 id="damage-movement-modal-title">{isNew ? 'Betragsbewegung hinzufügen' : 'Betragsbewegung bearbeiten'}</h2></div>
         <div className="todo-quick-editor__grid todo-quick-editor__grid--three">
-          <Field label="Datum *"><input autoFocus type="date" value={form.movementDate} required onChange={(event) => update('movementDate', event.target.value)} /></Field>
-          <Field label="Richtung *"><select value={form.direction} required onChange={(event) => update('direction', event.target.value)}>{DAMAGE_MOVEMENT_DIRECTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+          <Field label="Datum *"><input autoFocus type="date" value={form.date} required onChange={(event) => update('date', event.target.value)} /></Field>
+          <Field label="Vorgang *"><select value={form.transactionType} required onChange={(event) => update('transactionType', event.target.value)}>{DAMAGE_MOVEMENT_TRANSACTION_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+          <Field label="Gegenpartei *"><select value={form.counterpartyType} required onChange={(event) => update('counterpartyType', event.target.value)}>{DAMAGE_MOVEMENT_COUNTERPARTIES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
           <Field label="Betrag *"><input type="number" min="0" step="0.01" value={form.amount} required onChange={(event) => update('amount', event.target.value)} /></Field>
-          <Field label="Beteiligter *"><input value={form.participant} maxLength="240" required onChange={(event) => update('participant', event.target.value)} /></Field>
-          <Field label="Status *"><select value={form.status} required onChange={(event) => update('status', event.target.value)}>{DAMAGE_MOVEMENT_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-          <Field label="Zweck / Beschreibung"><textarea rows="4" value={form.description} maxLength="1000" onChange={(event) => update('description', event.target.value)} /></Field>
         </div>
         {error && <p className="form-error">{error}</p>}
         <div className="todo-quick-editor__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={onCancel}>Abbrechen</button><button className="button" type="submit" disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div>
