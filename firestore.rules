@@ -308,7 +308,7 @@ service cloud.firestore {
             && data.keys().hasOnly(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName', 'movementDate', 'direction', 'description', 'participant', 'status'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             && data.transactionType in ['received', 'paid', 'expected_receivable', 'expected_payable']
-            && data.counterpartyType in ['customer', 'contractor'] && data.amount is number && data.amount >= 0
+            && data.counterpartyType in ['customer', 'contractor', 'insurance'] && data.amount is number && data.amount >= 0
             && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
         function movementParentWasUpdated() {

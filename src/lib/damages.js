@@ -59,6 +59,7 @@ export const DAMAGE_MOVEMENT_TRANSACTION_TYPES = [
 export const DAMAGE_MOVEMENT_COUNTERPARTIES = [
   { value: 'customer', label: 'Kunde' },
   { value: 'contractor', label: 'Unternehmer' },
+  { value: 'insurance', label: 'Versicherung' },
 ]
 
 const damageCasesRef = collection(db, DAMAGE_CASES_COLLECTION)
