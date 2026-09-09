@@ -5,7 +5,7 @@ import { getInternalDocumentBlob } from '../../lib/documents.js'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
 
-function DownloadIcon() {
+export function DownloadIcon() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
 }
 
@@ -13,7 +13,7 @@ function MoreIcon() {
   return <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
 }
 
-function DocumentPreview({ documentItem, onOpen }) {
+export function DocumentPreview({ documentItem, onOpen, className = 'document-card__preview' }) {
   const [url, setUrl] = useState('')
 
   useEffect(() => {
@@ -49,13 +49,13 @@ function DocumentPreview({ documentItem, onOpen }) {
     return () => { current = false; loadingTask?.destroy(); if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [documentItem])
 
-  return <button className="document-card__preview" type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
+  return <button className={className} type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
     {url ? <img src={url} alt="" /> : <span className="document-card__preview-fallback">PDF</span>}
     <span className="document-card__preview-overlay">Vorschau öffnen</span>
   </button>
 }
 
-function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit }) {
+export function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit }) {
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
   const closeTimerRef = useRef(null)

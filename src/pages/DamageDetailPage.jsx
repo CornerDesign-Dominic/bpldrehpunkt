@@ -1,20 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DamageCaseEditModal from '../components/damages/DamageCaseEditModal.jsx'
+import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
+import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
+import DocumentForm from '../components/documents/DocumentForm.jsx'
 import { ChevronDownIcon, EditIcon } from '../components/icons.jsx'
+import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
+import { createInternalDocument, deleteInternalDocument, getDocumentErrorMessage, listDamageCaseDocuments, updateInternalDocument } from '../lib/documents.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { addDamageCaseUpdate, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, getDamageCase, listDamageCaseUpdates, updateDamageCaseFields } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+
+GlobalWorkerOptions.workerSrc = pdfWorker
 
 function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
 function formatCurrency(value) { return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) }
 function formatNumber(value, suffix = '') { return value === null || value === undefined ? '—' : `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(value)}${suffix}` }
 function labelFor(options, value) { return options.find((option) => option.value === value)?.label || '—' }
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
+function uploaderName(profile, user) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || user?.email || '' }
+
+async function getPdfPageCount(file) {
+  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+  try {
+    const pdf = await loadingTask.promise
+    const pageCount = pdf.numPages
+    await pdf.destroy()
+    return pageCount
+  } finally { loadingTask.destroy() }
+}
 
 function Detail({ label, children }) { return <div><dt>{label}</dt><dd>{children || '—'}</dd></div> }
 
@@ -64,31 +84,39 @@ export default function DamageDetailPage() {
   const { setTitle } = usePageHeader()
   const editable = canEdit('damages')
   const canViewMasterData = canView('masterData')
+  const canViewDocuments = canView('documents')
+  const canEditDocuments = editable && canEdit('documents')
   const [damageCase, setDamageCase] = useState(null)
   const [users, setUsers] = useState([])
   const [partners, setPartners] = useState([])
   const [updates, setUpdates] = useState([])
+  const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [updatesLoading, setUpdatesLoading] = useState(true)
+  const [documentsLoading, setDocumentsLoading] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [editingDocument, setEditingDocument] = useState(null)
+  const [detailsDocument, setDetailsDocument] = useState(null)
+  const [documentConfirmation, setDocumentConfirmation] = useState(null)
+  const [documentSaving, setDocumentSaving] = useState(false)
   const [note, setNote] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, history, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
-    setDamageCase(entry); setUpdates(history); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false)
+    const [entry, history, damageDocuments, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), canViewDocuments ? listDamageCaseDocuments(damageCaseId) : Promise.resolve([]), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
-      .then(([entry, history, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false) } })
+    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), canViewDocuments ? listDamageCaseDocuments(damageCaseId) : Promise.resolve([]), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      .then(([entry, history, damageDocuments, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false) } })
+      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
-  }, [canViewMasterData, damageCaseId, editable, setTitle])
+  }, [canViewDocuments, canViewMasterData, damageCaseId, editable, setTitle])
 
   const usersById = useMemo(() => new Map(users.map((entry) => [entry.id, entry])), [users])
 
@@ -112,6 +140,42 @@ export default function DamageDetailPage() {
     } catch (noteError) { setError(noteError.message || 'Das Update konnte nicht gespeichert werden.') } finally { setNoteSaving(false) }
   }
 
+  async function saveDocument(values, file) {
+    if (!canEditDocuments) return
+    setError('')
+    setDocumentSaving(true)
+    try {
+      const selectedDocument = editingDocument === 'new' ? null : editingDocument
+      if (selectedDocument) await updateInternalDocument(selectedDocument, { ...values, damageCaseId: damageCase.id, damageCaseNumber: damageCase.caseNumber })
+      else {
+        let pageCount = null
+        try { pageCount = await getPdfPageCount(file) } catch (pageCountError) { console.warn('Schäden: Seitenzahl des Dokuments konnte nicht ermittelt werden.', pageCountError) }
+        await createInternalDocument({ ...values, damageCaseId: damageCase.id, damageCaseNumber: damageCase.caseNumber, pageCount }, file, { id: user?.uid, name: uploaderName(profile, user) })
+      }
+      await load()
+      setEditingDocument(null)
+      setToast(selectedDocument ? 'Dokument aktualisiert.' : 'Dokument hochgeladen.')
+    } catch (saveError) {
+      setError(getDocumentErrorMessage(saveError))
+      throw saveError
+    } finally { setDocumentSaving(false) }
+  }
+
+  async function deleteDocument(documentItem) {
+    if (!canEditDocuments) return
+    setError('')
+    setDocumentSaving(true)
+    try {
+      await deleteInternalDocument(documentItem)
+      await load()
+      setDocumentConfirmation(null)
+      setToast('Dokument dauerhaft gelöscht.')
+    } catch (deleteError) {
+      setError(getDocumentErrorMessage(deleteError))
+      throw deleteError
+    } finally { setDocumentSaving(false) }
+  }
+
   if (loading) return <p className="page-state">Fall wird geladen …</p>
   if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><Link className="button button--secondary" to="/schaeden">Zurück</Link></section>
   if (!damageCase) return null
@@ -123,6 +187,9 @@ export default function DamageDetailPage() {
   const history = updates.filter((update) => update.type === 'system')
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
+    {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
+    <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
+    {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
     {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
     <div className="todo-detail-navigation"><Link className="button button--secondary" to="/schaeden">← Zur Schäden-Übersicht</Link></div>
     <div className="todo-detail-page damage-detail-page">
@@ -131,6 +198,7 @@ export default function DamageDetailPage() {
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><DetailSectionHeading onEdit={editable ? () => setEditing('description') : null}>Schadenbeschreibung</DetailSectionHeading><p className="todo-detail-description">{damageCase.description || 'Keine Schadenbeschreibung hinterlegt.'}</p></section>
+          {canViewDocuments && <DamageDocumentsCard canEdit={canEditDocuments} documents={documents} loading={documentsLoading} onDelete={(documentItem) => setDocumentConfirmation(documentItem)} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />}
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="damage-update-title"><div className="todo-updates__heading"><h3 id="damage-update-title">Update zum Schaden</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Schaden" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Schaden hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="damage-history-title"><div className="todo-updates__heading"><h3 id="damage-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>
