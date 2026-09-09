@@ -191,13 +191,17 @@ function updateMetadata(actor) {
   return { updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: getUserDisplayName(actor.profile, actor.user) }
 }
 
-export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById) {
+export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById, systemMessages = null) {
   const next = payload({ ...damageCase, ...changes }, responsibleUsersById)
+  const changedFields = Object.fromEntries(Object.entries(next).filter(([key, value]) => value !== (damageCase[key] ?? null)))
+  if (!Object.keys(changedFields).length) return false
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
   const batch = writeBatch(db)
-  batch.update(caseRef, { ...next, ...updateMetadata(actor) })
-  changeMessages(damageCase, next).forEach((text) => batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', text, actor)))
+  batch.update(caseRef, { ...changedFields, ...updateMetadata(actor) })
+  const messages = systemMessages === null ? changeMessages(damageCase, next) : (Array.isArray(systemMessages) ? systemMessages : [systemMessages])
+  messages.filter(Boolean).forEach((text) => batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', text, actor)))
   await batch.commit()
+  return true
 }
 
 export async function listDamageCaseUpdates(damageCaseId) {
