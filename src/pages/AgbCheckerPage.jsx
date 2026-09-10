@@ -40,7 +40,6 @@ export default function AgbCheckerPage() {
   const unclearCount = analysis?.results?.filter((item) => item.status === 'unclear').length || 0
 
   return <div className="agb-checker-page">
-    <header className="agb-checker-page__intro"><div className="agb-checker-page__icon"><DocumentSearchIcon size={23} /></div><div><h2>AGB-Prüfer</h2><p>Kundenauftrag hochladen und relevante Abrechnungs- und Vertragsangaben automatisch prüfen.</p></div></header>
     <section className={`agb-upload${analysis ? ' agb-upload--compact' : ''}`} aria-label="Kundenauftrag hochladen">
       {!file ? <label className={`agb-dropzone${isDragging ? ' agb-dropzone--dragging' : ''}`} onDragOver={(event) => { event.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); selectFile(event.dataTransfer.files?.[0]) }}>
         <DocumentSearchIcon size={35} /><strong>Kundenauftrag hier ablegen</strong><span>PDF auswählen oder per Drag & Drop hochladen</span><small>Maximal 20 MB</small><input ref={inputRef} type="file" accept="application/pdf,.pdf" onChange={(event) => selectFile(event.target.files?.[0])} />
