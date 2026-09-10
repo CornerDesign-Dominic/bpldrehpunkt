@@ -36,6 +36,7 @@ import KnowledgeProcessPage from './pages/KnowledgeProcessPage.jsx'
 import InsolvenciesPage from './pages/InsolvenciesPage.jsx'
 import LegalDisputesPage from './pages/LegalDisputesPage.jsx'
 import InkassoPage from './pages/InkassoPage.jsx'
+import AgbCheckerPage from './pages/AgbCheckerPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 
 function ProtectedAppLayout() {
@@ -75,6 +76,7 @@ export default function App() {
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
         <Route path="/legal-disputes" element={<PermissionRoute module="legalDisputes"><LegalDisputesPage /></PermissionRoute>} />
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />
+        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />

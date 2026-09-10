@@ -19,6 +19,7 @@ export const MODULES = {
   inkasso: { label: 'Inkasso' },
   personnel: { label: 'Personal' },
   knowledgeProcesses: { label: 'Wissen & Prozesse' },
+  agbChecker: { label: 'AGB-Prüfer' },
 }
 
 export const USER_ROLES = ['user', 'admin', 'superadmin']

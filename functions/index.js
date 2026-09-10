@@ -10,7 +10,7 @@ if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'knowledgeProcesses']
+const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'knowledgeProcesses', 'agbChecker']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -894,6 +894,7 @@ export const processVacationRequest = onCall({ region: 'europe-west3' }, async (
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
 export { submitBugReport } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
+export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
 export { generateKnowledgeProcessDraft } from './knowledgeProcessAi.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'

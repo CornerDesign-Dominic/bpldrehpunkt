@@ -115,6 +115,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // AGB-Prüfer usage is written exclusively by Cloud Functions. There is
+    // deliberately no client or general-admin read path; future reporting is
+    // restricted to a superadmin-only callable function.
+    match /agbCheckerUsage/{id} {
+      allow read, write: if false;
+    }
+
     match /calendars/{calendarId} {
       allow get: if view('calendar') && canReadCalendar(calendarId);
       allow list: if view('calendar') && superadmin();

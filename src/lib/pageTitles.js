@@ -14,6 +14,7 @@ const pageTitles = [
   { path: '/insolvenzen', title: 'Insolvenzen' },
   { path: '/legal-disputes', title: 'Gericht / Streit' },
   { path: '/inkasso', title: 'Inkasso' },
+  { path: '/agb-pruefer', title: 'AGB-Prüfer' },
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin/systemmails', title: 'Systemmails' },
   { path: '/admin', title: 'Adminbereich' },
