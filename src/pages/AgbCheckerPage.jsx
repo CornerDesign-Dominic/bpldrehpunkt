@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { analyzeCustomerOrderTerms } from '../lib/agbChecker.js'
-import { ChevronDownIcon, CloseIcon, DocumentSearchIcon } from '../components/icons.jsx'
+import { CloseIcon, DocumentSearchIcon } from '../components/icons.jsx'
 import '../styles/agbChecker.css'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
@@ -16,8 +16,8 @@ function errorMessage(error) { return error?.message?.replace(/^.*?:\s*/, '') ||
 function SourceDisclosure({ sourceText }) {
   const [isExpanded, setExpanded] = useState(false)
   return <div className={`agb-source${isExpanded ? ' agb-source--expanded' : ''}`}>
-    <button className="agb-source__toggle" type="button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => !current)}><span>Quelle</span><ChevronDownIcon size={15} /></button>
-    <div className="agb-source__content"><blockquote><span>Quelle</span>{sourceText}</blockquote></div>
+    <button className="agb-source__toggle" type="button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => !current)}>Quelle</button>
+    <div className="agb-source__content"><blockquote>{sourceText}</blockquote></div>
   </div>
 }
 
