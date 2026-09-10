@@ -29,11 +29,11 @@ function barsForWeek(entries, week, weekIndex) {
   })
 }
 
-export default function VacationCalendar({ entries = [], month, today, year }) {
+export default function VacationCalendar({ entries = [], focusedDate = '', highlightedEntryId = '', month, today, year }) {
   const weeks = weekDays(vacationMonthDays(year, month))
   return <div className="vacation-calendar" aria-label={`Urlaubskalender ${VACATION_MONTHS[month]} ${year}`}><div className="vacation-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div><div className="vacation-calendar__weeks">{weeks.map((week, weekIndex) => <div className="vacation-calendar-week" key={`week-${weekIndex}`}><div className="vacation-calendar-week__days">{week.map((date, index) => {
     if (!date) return <div key={`empty-${weekIndex}-${index}`} className="vacation-day vacation-day--empty" />
     const value = dateValue(date)
-    return <div key={value} className={`vacation-day ${value === today ? 'vacation-day--today' : ''}`}><time dateTime={value}>{date.getDate()}</time></div>
-  })}</div><div className="vacation-calendar-week__bars">{barsForWeek(entries, week, weekIndex).map((entry) => <span key={`${entry.id}-${weekIndex}`} className={`vacation-calendar-bar vacation-calendar-bar--${entry.kind || 'pending'} ${entry.modifier ? `vacation-calendar-bar--${entry.modifier}` : ''} ${entry.own ? 'vacation-calendar-bar--own' : ''}`} style={{ gridColumn: `${entry.startColumn} / ${entry.endColumn + 1}`, gridRow: entry.lane + 1 }} title={entry.title || entry.label}>{entry.showLabel ? entry.label : ''}</span>)}</div></div>)}</div></div>
+    return <div key={value} className={`vacation-day ${value === today ? 'vacation-day--today' : ''} ${value === focusedDate ? 'vacation-day--focused' : ''}`}><time dateTime={value}>{date.getDate()}</time></div>
+  })}</div><div className="vacation-calendar-week__bars">{barsForWeek(entries, week, weekIndex).map((entry) => <span key={`${entry.id}-${weekIndex}`} className={`vacation-calendar-bar vacation-calendar-bar--${entry.kind || 'pending'} ${entry.modifier ? `vacation-calendar-bar--${entry.modifier}` : ''} ${entry.own ? 'vacation-calendar-bar--own' : ''} ${entry.id === highlightedEntryId ? 'vacation-calendar-bar--highlighted' : ''}`} style={{ gridColumn: `${entry.startColumn} / ${entry.endColumn + 1}`, gridRow: entry.lane + 1 }} title={entry.title || entry.label}>{entry.showLabel ? entry.label : ''}</span>)}</div></div>)}</div></div>
 }

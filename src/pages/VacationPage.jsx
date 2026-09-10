@@ -168,6 +168,7 @@ export default function VacationPage() {
   const [selectedRequest, setSelectedRequest] = useState(null)
   const [listYear, setListYear] = useState(currentYear)
   const [listStatus, setListStatus] = useState('all')
+  const [calendarHighlight, setCalendarHighlight] = useState(null)
   const [toast, setToast] = useState('')
 
   async function reload() {
@@ -194,6 +195,12 @@ export default function VacationPage() {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [profile, user])
+
+  useEffect(() => {
+    if (!calendarHighlight) return undefined
+    const timeout = window.setTimeout(() => setCalendarHighlight(null), 1800)
+    return () => window.clearTimeout(timeout)
+  }, [calendarHighlight])
 
   const usersById = useMemo(() => new Map(users.map((item) => [item.id, item])), [users])
   const ownDepartment = departmentKey(usersById.get(user.uid) || profile)
@@ -256,6 +263,16 @@ export default function VacationPage() {
     setMonth(current.getMonth())
   }
 
+  function showVacationInCalendar(request) {
+    const start = new Date(`${request.startDate}T12:00:00`)
+    if (Number.isNaN(start.getTime())) return
+    setYear(start.getFullYear())
+    setMonth(start.getMonth())
+    const approvedChange = request.activeRequest && getVacationRequestKind(request.activeRequest) === 'change' && getVacationRequestStatus(request.activeRequest) === 'approved'
+    const entryId = approvedChange ? `change-${request.activeRequest.id}` : `vacation-${request.id}`
+    setCalendarHighlight((current) => ({ entryId, focusedDate: request.startDate, token: (current?.token || 0) + 1 }))
+  }
+
   async function saveRequest(form) {
     const isChange = modal?.type === 'change'
     const originalRequest = modal?.request
@@ -298,12 +315,12 @@ export default function VacationPage() {
     <section className="vacation-calendar-card">
       <div className="vacation-toolbar"><div className="vacation-toolbar__period"><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label><label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button className="vacation-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button><button className="vacation-today-button" type="button" onClick={showToday}>Heute</button><button className="vacation-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button></div><div className="vacation-toolbar__filters"><label className="filter-field"><span className="sr-only">Kalenderansicht</span><select value={calendarScope} onChange={(event) => setCalendarScope(event.target.value)}><option value="self">Mein Kalender</option>{ownDepartment && <option value="department">Meine Abteilung</option>}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
-      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar year={year} month={month} today={today} entries={calendarEntries} /><VacationCalendarLegend /></>}
+      {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar key={calendarHighlight?.token || 'calendar'} year={year} month={month} today={today} entries={calendarEntries} focusedDate={calendarHighlight?.focusedDate} highlightedEntryId={calendarHighlight?.entryId} /><VacationCalendarLegend /></>}
     </section>
     <aside className="vacation-sidebar">
       <section className="vacation-summary-card"><div className="vacation-card-heading"><div><h2>Mein Urlaub</h2><p>{year}</p></div></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>
       {editable && <div className="vacation-request-actions"><button className="button" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button></div>}
-      <section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2><div className="vacation-list-filters"><label className="filter-field vacation-list-year"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field vacation-list-status"><span className="sr-only">Status filtern</span><select value={listStatus} onChange={(event) => setListStatus(event.target.value)}><option value="all">Alle Status</option><option value="approved">Genehmigt</option><option value="pending">Ausstehend</option><option value="rejected">Abgelehnt</option><option value="cancelled">Storniert</option><option value="withdrawn">Zurückgezogen</option></select></label></div></div></div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <button className="vacation-request" key={request.id} type="button" onClick={() => setSelectedRequest(request)}><span className="vacation-request__top"><span className="vacation-request__period">{formatVacationPeriod(request)}</span><StatusBadge status={displayRequestStatus(request)} /></span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage · {getVacationType(request.vacationType).label}</span>{request.activeRequest && getVacationRequestStatus(request.activeRequest) === 'pending' && <span className="vacation-request__substatus"><StatusBadge status="pending" label={`${getVacationRequestKind(request.activeRequest) === 'cancellation' ? 'Stornoantrag' : 'Änderungsantrag'} · ${requestStatusLabel(getVacationRequestStatus(request.activeRequest))}`} /></span>}</button>) : <p className="vacation-state">Keine Urlaubsanträge für diese Auswahl.</p>}</div></section>
+      <section className="vacation-list-card"><div className="vacation-card-heading"><div><h2>Meine Urlaube</h2><div className="vacation-list-filters"><label className="filter-field vacation-list-year"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field vacation-list-status"><span className="sr-only">Status filtern</span><select value={listStatus} onChange={(event) => setListStatus(event.target.value)}><option value="all">Alle Status</option><option value="approved">Genehmigt</option><option value="pending">Ausstehend</option><option value="rejected">Abgelehnt</option><option value="cancelled">Storniert</option><option value="withdrawn">Zurückgezogen</option></select></label></div></div></div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <article className="vacation-request" key={request.id} role="button" tabIndex="0" onClick={() => showVacationInCalendar(request)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); showVacationInCalendar(request) } }}><span className="vacation-request__top"><span className="vacation-request__period">{formatVacationPeriod(request)}</span><StatusBadge status={displayRequestStatus(request)} /></span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage · {getVacationType(request.vacationType).label}</span>{request.activeRequest && getVacationRequestStatus(request.activeRequest) === 'pending' && <span className="vacation-request__substatus"><StatusBadge status="pending" label={`${getVacationRequestKind(request.activeRequest) === 'cancellation' ? 'Stornoantrag' : 'Änderungsantrag'} · ${requestStatusLabel(getVacationRequestStatus(request.activeRequest))}`} /></span>}<a className="vacation-request__details" href={`#urlaub-${request.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedRequest(request) }} onKeyDown={(event) => event.stopPropagation()}>Details</a></article>) : <p className="vacation-state">Keine Urlaubsanträge für diese Auswahl.</p>}</div></section>
     </aside>
     {(modal?.type === 'new' || modal?.type === 'change') && <RequestModal request={modal.type === 'change' ? modal.request : null} onClose={() => setModal(null)} onSubmit={saveRequest} />}
     {modal?.type === 'cancellation' && <CancellationModal request={modal.request} onClose={() => setModal(null)} onSubmit={saveCancellation} />}
