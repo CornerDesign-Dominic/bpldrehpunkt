@@ -1,0 +1,30 @@
+export const agbCheckerTestData = {
+  results: [
+    { field: 'Firmenname / Adresse', status: 'found', value: 'Testkunde GmbH, Musterstraße 12, 10115 Berlin', sourceText: 'Testkunde GmbH, Musterstraße 12, 10115 Berlin', confidence: 'high' },
+    { field: 'USt-IdNr.', status: 'found', value: 'DE123456789', sourceText: 'USt-IdNr.: DE123456789', confidence: 'medium' },
+    { field: 'Gutschriftsverfahren', status: 'not_found', value: '', sourceText: '', confidence: 'high' },
+    { field: 'Zahlungsziel', status: 'found', value: '30 Tage nach Rechnungseingang', sourceText: 'Zahlbar innerhalb von 30 Tagen nach Rechnungseingang.', confidence: 'high' },
+    { field: 'Rechnungs-E-Mail-Adresse', status: 'found', value: 'invoice@testkunde.de', sourceText: 'Rechnungen sind an invoice@testkunde.de zu senden.', confidence: 'high' },
+    { field: 'Originalrechnung / Originalbelege per Post', status: 'found', value: 'Nicht erforderlich', sourceText: 'Originalrechnungen und Originalbelege per Post sind nicht erforderlich.', confidence: 'high' },
+    { field: 'Besondere Abrechnungsanforderungen', status: 'found', value: 'Rechnung und Belege zusätzlich im Kundenportal hochladen', sourceText: 'Rechnung und Belege müssen zusätzlich im Kundenportal hochgeladen werden.', confidence: 'medium' },
+    { field: 'Preis / Vergütung / Belastung für Europaletten', status: 'found', value: '25,00 EUR/Stück', sourceText: 'Europaletten werden mit 25,00 EUR je Stück berechnet.', confidence: 'high' },
+    { field: 'Preis / Vergütung / Belastung für Düsseldorfer Paletten', status: 'not_found', value: '', sourceText: '', confidence: 'high' },
+    { field: 'Preis / Vergütung / Belastung für Gitterboxen', status: 'found', value: '120,00 EUR/Stück', sourceText: 'Gitterboxen werden mit 120,00 EUR je Stück berechnet.', confidence: 'high' },
+    { field: 'Vertragsstrafen', status: 'found', value: '15,00 EUR bei fehlender Statusmeldung', sourceText: 'Bei fehlender Statusmeldung wird eine Vertragsstrafe von 15,00 EUR fällig.', confidence: 'high' },
+    { field: 'Abzüge', status: 'found', value: '30,00 EUR bei verspäteter Einreichung des Ablieferbelegs', sourceText: 'Bei verspäteter Einreichung des Ablieferbelegs werden 30,00 EUR abgezogen.', confidence: 'high' },
+    { field: 'Gebühren', status: 'not_found', value: '', sourceText: '', confidence: 'high' },
+    { field: 'Standgeldvergütung / Standgeldregelung', status: 'found', value: '45,00 EUR/Stunde nach 3 Stunden kostenfreier Wartezeit', sourceText: 'Standgeld: 45,00 EUR pro Stunde nach 3 Stunden kostenfreier Wartezeit.', confidence: 'medium' },
+    { field: 'Subunternehmerverbot', status: 'found', value: 'Ja', sourceText: 'Der Einsatz von Subunternehmern ist untersagt.', confidence: 'high' },
+    { field: 'Umladeverbot', status: 'unclear', value: 'Regelung möglicherweise mehrdeutig', sourceText: 'Eine Umladung bedarf der vorherigen Abstimmung mit dem Auftraggeber.', confidence: 'medium' },
+  ],
+  contactsStatus: 'found',
+  contacts: [
+    { name: 'Max Mustermann', department: 'Buchhaltung', email: 'invoice@testkunde.de', status: 'found', sourceText: 'Max Mustermann, Buchhaltung, invoice@testkunde.de', confidence: 'high' },
+    { name: 'Erika Musterfrau', department: 'Disposition', email: 'disposition@testkunde.de', status: 'found', sourceText: 'Erika Musterfrau, Disposition, disposition@testkunde.de', confidence: 'high' },
+  ],
+  findings: [
+    'Vertragsstrafe von 15,00 EUR bei fehlender Statusmeldung.',
+    '30,00 EUR Abzug bei verspäteter Einreichung des Ablieferbelegs.',
+    'Subunternehmer sind verboten.',
+  ],
+}

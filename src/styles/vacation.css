@@ -43,6 +43,7 @@
 .vacation-summary-card, .vacation-list-card { padding: 13px; }
 .vacation-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
 .vacation-card-heading h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
+.vacation-summary-heading > span { color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .vacation-card-heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 11px; }
 .vacation-card-heading .button { height: 30px; padding-inline: 10px; font-size: 12px; }
 .vacation-list-card .vacation-card-heading > div { display: grid; gap: 6px; }.vacation-list-filters { display: flex; gap: 6px; }.vacation-list-filters .filter-field { min-width: 0; flex: 1; }.vacation-list-filters select { width: 100%; }.vacation-list-year { max-width: 96px; }.vacation-list-status { min-width: 122px; }

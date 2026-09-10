@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
+import { useAuth } from '../auth/useAuth.js'
 import { analyzeCustomerOrderTerms } from '../lib/agbChecker.js'
+import { agbCheckerTestData } from '../lib/agbCheckerTestData.js'
 import { CloseIcon, DocumentSearchIcon } from '../components/icons.jsx'
 import '../styles/agbChecker.css'
 
@@ -27,9 +29,11 @@ function ResultStatus({ status, confidence }) {
 }
 
 export default function AgbCheckerPage() {
+  const { profile } = useAuth()
   const inputRef = useRef(null)
   const [file, setFile] = useState(null)
   const [analysis, setAnalysis] = useState(null)
+  const [isTestMode, setTestMode] = useState(false)
   const [isDragging, setDragging] = useState(false)
   const [isAnalyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
@@ -39,15 +43,21 @@ export default function AgbCheckerPage() {
     if (!nextFile) return
     if (!(nextFile.type === 'application/pdf' || nextFile.name.toLowerCase().endsWith('.pdf'))) { setError('Bitte wähle eine PDF-Datei aus.'); return }
     if (nextFile.size > MAX_FILE_SIZE) { setError('Die PDF darf maximal 20 MB groß sein.'); return }
-    setFile(nextFile); setAnalysis(null)
+    setFile(nextFile); setAnalysis(null); setTestMode(false)
   }
 
-  function removeFile() { setFile(null); setAnalysis(null); setError(''); if (inputRef.current) inputRef.current.value = '' }
+  function removeFile() { setFile(null); setAnalysis(null); setTestMode(false); setError(''); if (inputRef.current) inputRef.current.value = '' }
   async function startAnalysis() {
     if (!file || isAnalyzing) return
-    setError(''); setAnalyzing(true)
+    setError(''); setTestMode(false); setAnalyzing(true)
     try { setAnalysis(await analyzeCustomerOrderTerms(file)) } catch (nextError) { setError(errorMessage(nextError)) } finally { setAnalyzing(false) }
   }
+  function loadTestData() {
+    if (profile?.role !== 'superadmin') return
+    setError(''); setFile(null); setAnalysis(agbCheckerTestData); setTestMode(true)
+    if (inputRef.current) inputRef.current.value = ''
+  }
+  function clearTestData() { setAnalysis(null); setTestMode(false) }
 
   const foundCount = analysis?.results?.filter((item) => item.status === 'found').length || 0
   const unclearCount = analysis?.results?.filter((item) => item.status === 'unclear').length || 0
@@ -57,6 +67,7 @@ export default function AgbCheckerPage() {
       {!file ? <label className={`agb-dropzone${isDragging ? ' agb-dropzone--dragging' : ''}`} onDragOver={(event) => { event.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={(event) => { event.preventDefault(); setDragging(false); selectFile(event.dataTransfer.files?.[0]) }}>
         <DocumentSearchIcon size={35} /><strong>Kundenauftrag hier ablegen</strong><span>PDF auswählen oder per Drag & Drop hochladen</span><small>Maximal 20 MB</small><input ref={inputRef} type="file" accept="application/pdf,.pdf" onChange={(event) => selectFile(event.target.files?.[0])} />
       </label> : <div className="agb-file"><div className="agb-file__icon"><DocumentSearchIcon size={20} /></div><div><strong>{file.name}</strong><span>{formatSize(file.size)}</span></div><div className="agb-file__actions"><button className="button" type="button" onClick={() => { void startAnalysis() }} disabled={isAnalyzing}>{isAnalyzing ? 'Kundenauftrag wird geprüft …' : analysis ? 'Erneut prüfen' : 'Prüfung starten'}</button><button className="agb-file__remove" type="button" onClick={removeFile} disabled={isAnalyzing} aria-label="Datei entfernen" title="Datei entfernen"><CloseIcon size={17} /></button></div></div>}
+      {profile?.role === 'superadmin' && <div className="agb-test-actions">{isTestMode && <span className="agb-test-mode">Testdaten</span>}<button className="button button--secondary" type="button" onClick={loadTestData} disabled={isAnalyzing}>Testdaten laden</button>{isTestMode && <button className="agb-test-clear" type="button" onClick={clearTestData}>Testdaten leeren</button>}</div>}
       {error && <p className="form-error">{error}</p>}
     </section>
     {isAnalyzing && <section className="agb-loading" aria-live="polite"><span className="agb-loading__spinner" aria-hidden="true" />Kundenauftrag wird geprüft …</section>}
