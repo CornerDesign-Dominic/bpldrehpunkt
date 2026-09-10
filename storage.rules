@@ -8,6 +8,8 @@ service firebase.storage {
     function profileIsActive() { return profile().active == true; }
     function canReadDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.documents in ['view', 'edit']); }
     function canEditDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.documents == 'edit'); }
+    function canReadDamageDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.damages in ['view', 'edit']); }
+    function canEditDamageDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.damages == 'edit'); }
     function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
         && fileName.matches('.*\\.pdf')
@@ -31,6 +33,13 @@ service firebase.storage {
       allow read: if canReadDocuments();
       allow create, update: if canEditDocuments() && isPdfUpload(fileName);
       allow delete: if canEditDocuments();
+    }
+
+    match /damage-cases/{caseId}/documents/{fileName} {
+      allow read: if canReadDamageDocuments();
+      allow create: if canEditDamageDocuments() && isPdfUpload(fileName) && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$');
+      allow update: if false;
+      allow delete: if canEditDamageDocuments();
     }
 
     // A single, fixed object name prevents user-controlled paths and listing.

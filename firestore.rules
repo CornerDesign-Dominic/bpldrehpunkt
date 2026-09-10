@@ -211,7 +211,14 @@ service cloud.firestore {
         allow delete: if false;
       }
     }
-    match /internalDocuments/{id} { allow read: if view('documents'); allow create, update, delete: if edit('documents'); }
+    function isGeneralInternalDocument(data) {
+      return data.documentScope == 'general' && !data.keys().hasAny(['damageCaseId', 'damageCaseNumber']);
+    }
+    match /internalDocuments/{id} {
+      allow read: if view('documents') && resource.data.documentScope == 'general';
+      allow create, update: if edit('documents') && isGeneralInternalDocument(request.resource.data);
+      allow delete: if edit('documents');
+    }
     function damageCaseKeysAreValid(data) {
       return data.keys().hasAll(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'transportReference', 'claimant', 'contractor', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
         && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'damageLocation', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'dueDate', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'customerInsurance', 'customerInsuranceNumber', 'contractorLiability', 'liabilityNote', 'openBplRisk', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
@@ -332,6 +339,31 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow delete: if edit('damages') && movementParentWasUpdated();
+      }
+
+      match /documents/{documentId} {
+        function validDamageDocument(data) {
+          return data.keys().hasAll(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'title', 'description', 'expirationDate', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.id == documentId && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+            && data.description is string && data.description.size() <= 4000
+            && (!data.keys().hasAny(['expirationDate']) || data.expirationDate == null || data.expirationDate is string)
+            && (data.pageCount == null || (data.pageCount is int && data.pageCount > 0 && data.pageCount <= 10000))
+            && data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 240
+            && data.storagePath == 'damage-cases/' + id + '/documents/' + documentId + '.pdf'
+            && data.contentType == 'application/pdf' && data.fileSize is number && data.fileSize > 0 && data.fileSize <= 20 * 1024 * 1024
+            && data.uploadedByUserId is string && data.uploadedByName is string;
+        }
+        allow read: if view('damages');
+        allow create: if edit('damages') && validDamageDocument(request.resource.data)
+          && getAfter(/databases/$(database)/documents/damageCases/$(id)).data.caseNumber is string
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == request.auth.uid && request.resource.data.uploadedByName == profileName(ownProfile());
+        allow update: if edit('damages') && validDamageDocument(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId && request.resource.data.uploadedByName == resource.data.uploadedByName
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'updatedAt']);
+        allow delete: if edit('damages');
       }
     }
     function todoKeysAreValid(data) {

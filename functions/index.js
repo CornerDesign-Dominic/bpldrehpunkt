@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { getStorage } from 'firebase-admin/storage'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
@@ -293,6 +294,77 @@ export const updateManagedUser = onCall({ region: 'europe-west3' }, async (reque
   await getAuth().updateUser(uid, { email: data.email ?? old.email, disabled: data.active === false, ...(data.password ? { password: data.password } : {}) })
   if (actor.role === 'superadmin') await getAuth().setCustomUserClaims(uid, { role })
   return { uid }
+})
+
+// Moves legacy damage attachments out of the general document collection. The
+// Admin SDK move operation keeps exactly one copy of each PDF at every
+// completed step; a retry safely resumes after an interrupted migration.
+export const migrateLegacyDamageDocuments = onCall({ region: 'europe-west3' }, async (request) => {
+  await requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Migration ist nur für Superadmins erlaubt.')
+  const legacyDocuments = await db.collection('internalDocuments').get()
+  const bucket = getStorage().bucket()
+  const result = { migrated: 0, generalUpdated: 0, skipped: 0, errors: [] }
+
+  for (const legacy of legacyDocuments.docs) {
+    const data = legacy.data()
+    const caseId = typeof data.damageCaseId === 'string' ? data.damageCaseId.trim() : ''
+    if (!caseId) {
+      try {
+        if (data.documentScope !== 'general' || data.damageCaseId !== undefined || data.damageCaseNumber !== undefined) {
+          await legacy.ref.update({ documentScope: 'general', damageCaseId: FieldValue.delete(), damageCaseNumber: FieldValue.delete() })
+          result.generalUpdated += 1
+        }
+      } catch (error) {
+        logger.error('Allgemeines Dokument konnte nicht für die Bereichstrennung aktualisiert werden.', { documentId: legacy.id, error: error instanceof Error ? error.message : String(error) })
+        result.skipped += 1
+        result.errors.push({ id: legacy.id, reason: error instanceof Error ? error.message : 'unbekannter Fehler' })
+      }
+      continue
+    }
+    const sourcePath = typeof data.storagePath === 'string' ? data.storagePath : ''
+    if (!sourcePath.startsWith(`internalDocuments/${legacy.id}/`)) {
+      result.skipped += 1
+      result.errors.push({ id: legacy.id, reason: 'ungültiger Speicherpfad' })
+      continue
+    }
+
+    const caseRef = db.doc(`damageCases/${caseId}`)
+    const targetRef = caseRef.collection('documents').doc(legacy.id)
+    const targetPath = `damage-cases/${caseId}/documents/${legacy.id}.pdf`
+    const sourceFile = bucket.file(sourcePath)
+    const targetFile = bucket.file(targetPath)
+    try {
+      const [damageCase, targetDocument, sourceExists, targetExists] = await Promise.all([caseRef.get(), targetRef.get(), sourceFile.exists(), targetFile.exists()])
+      if (!damageCase.exists) throw new Error('Schadenakte nicht gefunden')
+      if (targetDocument.exists && targetDocument.data().storagePath !== targetPath) throw new Error('Zieldokument-Konflikt')
+      if (!targetDocument.exists) {
+        if (sourceExists[0]) await sourceFile.move(targetPath)
+        else if (!targetExists[0]) throw new Error('Quelldatei nicht gefunden')
+        await targetRef.set({
+          id: legacy.id,
+          title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : data.fileName || 'Ohne Titel',
+          description: typeof data.description === 'string' ? data.description : '',
+          expirationDate: data.expirationDate || null,
+          pageCount: Number.isInteger(data.pageCount) && data.pageCount > 0 ? data.pageCount : null,
+          fileName: typeof data.fileName === 'string' && data.fileName ? data.fileName : `${legacy.id}.pdf`,
+          storagePath: targetPath,
+          contentType: 'application/pdf',
+          fileSize: Number.isFinite(data.fileSize) && data.fileSize > 0 ? data.fileSize : 1,
+          uploadedByUserId: typeof data.uploadedByUserId === 'string' ? data.uploadedByUserId : 'migration',
+          uploadedByName: typeof data.uploadedByName === 'string' ? data.uploadedByName : 'Migration',
+          createdAt: data.createdAt || FieldValue.serverTimestamp(),
+          updatedAt: data.updatedAt || FieldValue.serverTimestamp(),
+        })
+      }
+      await legacy.ref.delete()
+      result.migrated += 1
+    } catch (error) {
+      logger.error('Schadenunterlage konnte nicht migriert werden.', { documentId: legacy.id, caseId, error: error instanceof Error ? error.message : String(error) })
+      result.skipped += 1
+      result.errors.push({ id: legacy.id, reason: error instanceof Error ? error.message : 'unbekannter Fehler' })
+    }
+  }
+  return result
 })
 
 const knowledgeProcessCategories = new Set(['damages', 'transport_dispatch', 'customers_carriers', 'accounting_billing', 'personnel_administration', 'general'])

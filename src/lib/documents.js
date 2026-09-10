@@ -48,14 +48,12 @@ function timestampValue(value) {
 }
 
 function metadataPayload(values, { includePageCount = false } = {}) {
-  const damageCaseId = trim(values.damageCaseId)
-  const damageCaseNumber = trim(values.damageCaseNumber)
   return {
+    documentScope: 'general',
     title: trim(values.title),
     description: trim(values.description),
     expirationDate: values.expirationDate || null,
     ...(includePageCount ? { pageCount: Number.isInteger(values.pageCount) && values.pageCount > 0 ? values.pageCount : null } : {}),
-    ...(damageCaseId ? { damageCaseId, damageCaseNumber: damageCaseNumber || null } : {}),
   }
 }
 
@@ -105,12 +103,7 @@ export function getDocumentErrorMessage(error) {
 }
 
 export async function listInternalDocuments() {
-  const snapshot = await getDocs(documentsRef)
-  return snapshot.docs.map(mapSnapshot).sort((left, right) => timestampValue(right.updatedAt || right.createdAt) - timestampValue(left.updatedAt || left.createdAt))
-}
-
-export async function listDamageCaseDocuments(damageCaseId) {
-  const snapshot = await getDocs(query(documentsRef, where('damageCaseId', '==', damageCaseId)))
+  const snapshot = await getDocs(query(documentsRef, where('documentScope', '==', 'general')))
   return snapshot.docs.map(mapSnapshot).sort((left, right) => timestampValue(right.updatedAt || right.createdAt) - timestampValue(left.updatedAt || left.createdAt))
 }
 

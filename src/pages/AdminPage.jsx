@@ -92,6 +92,18 @@ export default function AdminPage() {
     return () => { active = false }
   }, [canManagePermissions])
 
+  useEffect(() => {
+    if (profile?.role !== 'superadmin' || profile?.active !== true) return undefined
+    let active = true
+    httpsCallable(functions, 'migrateLegacyDamageDocuments')()
+      .then((result) => {
+        const migrated = result.data?.migrated || 0
+        if (active && migrated) setToast(`${migrated} Schadenunterlage${migrated === 1 ? '' : 'n'} in die jeweilige Fallakte übernommen.`)
+      })
+      .catch((migrationError) => console.error('Administration: Schadenunterlagen konnten nicht migriert werden.', migrationError))
+    return () => { active = false }
+  }, [profile?.active, profile?.role])
+
   async function save(event) {
     event.preventDefault()
     setSaving(true); setError('')

@@ -13,7 +13,7 @@ function MoreIcon() {
   return <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
 }
 
-export function DocumentPreview({ documentItem, onOpen, className = 'document-card__preview' }) {
+export function DocumentPreview({ documentItem, getDocumentBlob = getInternalDocumentBlob, onOpen, className = 'document-card__preview' }) {
   const [url, setUrl] = useState('')
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export function DocumentPreview({ documentItem, onOpen, className = 'document-ca
     let loadingTask
     async function renderPreview() {
       try {
-        const blob = await getInternalDocumentBlob(documentItem)
+        const blob = await getDocumentBlob(documentItem)
         loadingTask = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) })
         const pdf = await loadingTask.promise
         const page = await pdf.getPage(1)
@@ -47,7 +47,7 @@ export function DocumentPreview({ documentItem, onOpen, className = 'document-ca
     }
     renderPreview()
     return () => { current = false; loadingTask?.destroy(); if (objectUrl) URL.revokeObjectURL(objectUrl) }
-  }, [documentItem])
+  }, [documentItem, getDocumentBlob])
 
   return <button className={className} type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
     {url ? <img src={url} alt="" /> : <span className="document-card__preview-fallback">PDF</span>}
