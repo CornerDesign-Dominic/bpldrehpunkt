@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { analyzeCustomerOrderTerms } from '../lib/agbChecker.js'
-import { CloseIcon, DocumentSearchIcon } from '../components/icons.jsx'
+import { ChevronDownIcon, CloseIcon, DocumentSearchIcon } from '../components/icons.jsx'
 import '../styles/agbChecker.css'
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024
@@ -12,6 +12,14 @@ const confidenceLabel = { high: 'Eindeutig', medium: 'Mit Einschränkung', low: 
 
 function formatSize(size) { return `${(size / (1024 * 1024)).toLocaleString('de-DE', { maximumFractionDigits: 1 })} MB` }
 function errorMessage(error) { return error?.message?.replace(/^.*?:\s*/, '') || 'Die Prüfung konnte nicht gestartet werden. Bitte versuche es erneut.' }
+
+function SourceDisclosure({ sourceText }) {
+  const [isExpanded, setExpanded] = useState(false)
+  return <div className={`agb-source${isExpanded ? ' agb-source--expanded' : ''}`}>
+    <button className="agb-source__toggle" type="button" aria-expanded={isExpanded} onClick={() => setExpanded((current) => !current)}><span>Quelle</span><ChevronDownIcon size={15} /></button>
+    <div className="agb-source__content"><blockquote><span>Quelle</span>{sourceText}</blockquote></div>
+  </div>
+}
 
 export default function AgbCheckerPage() {
   const inputRef = useRef(null)
@@ -50,9 +58,9 @@ export default function AgbCheckerPage() {
     {analysis && !isAnalyzing && <div className="agb-results">
       <section className="agb-summary" aria-label="Zusammenfassung"><span><strong>{foundCount}</strong> Angaben gefunden</span><span><strong>{analysis.findings.length}</strong> Auffälligkeiten</span><span><strong>{unclearCount}</strong> Angaben unklar</span></section>
       {analysis.findings.length > 0 && <section className="agb-findings"><h3>Auffälligkeiten</h3><ul>{analysis.findings.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></section>}
-      {sections.map(([category, title]) => <section className="agb-result-section" key={category}><h3>{title}</h3>{analysis.results.filter((item) => item.category === category).map((item) => <article className="agb-result-row" key={item.field}><div className="agb-result-row__main"><h4>{item.field}</h4><p>{item.status === 'not_found' ? 'Nicht gefunden' : item.value || 'Keine eindeutige Angabe'}</p>{item.sourceText && <blockquote><span>Quelle</span>{item.sourceText}</blockquote>}</div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${item.status}`}>{statusLabel[item.status]}</span><small>{confidenceLabel[item.confidence]}</small></div></article>)}</section>)}
-      <section className="agb-result-section"><h3>Ansprechpartner</h3>{analysis.contacts?.length ? analysis.contacts.map((contact, index) => <article className="agb-result-row" key={`${contact.name}-${contact.email}-${index}`}><div className="agb-result-row__main"><h4>{contact.name || contact.email}</h4>{contact.name && contact.email && <p>{contact.email}</p>}{contact.department && <p>{contact.department}</p>}{contact.sourceText && <blockquote><span>Quelle</span>{contact.sourceText}</blockquote>}</div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${contact.status}`}>{statusLabel[contact.status]}</span><small>{confidenceLabel[contact.confidence]}</small></div></article>) : <article className="agb-result-row agb-result-row--not-found"><div className="agb-result-row__main"><p>{analysis.contactsStatus === 'unclear' ? 'Ansprechpartner unklar' : 'Nicht gefunden'}</p></div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${analysis.contactsStatus || 'not_found'}`}>{statusLabel[analysis.contactsStatus] || 'Nicht gefunden'}</span></div></article>}</section>
-      <section className="agb-result-section"><h3>Verbote</h3>{analysis.results.filter((item) => item.category === 'prohibitions').map((item) => <article className="agb-result-row" key={item.field}><div className="agb-result-row__main"><h4>{item.field}</h4><p>{item.status === 'not_found' ? 'Nicht gefunden' : item.value || 'Keine eindeutige Angabe'}</p>{item.sourceText && <blockquote><span>Quelle</span>{item.sourceText}</blockquote>}</div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${item.status}`}>{statusLabel[item.status]}</span><small>{confidenceLabel[item.confidence]}</small></div></article>)}</section>
+      {sections.map(([category, title]) => <section className="agb-result-section" key={category}><h3>{title}</h3>{analysis.results.filter((item) => item.category === category).map((item) => <article className="agb-result-row" key={item.field}><div className="agb-result-row__main"><h4>{item.field}</h4><p>{item.status === 'not_found' ? 'Nicht gefunden' : item.value || 'Keine eindeutige Angabe'}</p>{item.sourceText && <SourceDisclosure sourceText={item.sourceText} />}</div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${item.status}`}>{statusLabel[item.status]}</span><small>{confidenceLabel[item.confidence]}</small></div></article>)}</section>)}
+      <section className="agb-result-section"><h3>Ansprechpartner</h3>{analysis.contacts?.length ? analysis.contacts.map((contact, index) => <article className="agb-result-row" key={`${contact.name}-${contact.email}-${index}`}><div className="agb-result-row__main"><h4>{contact.name || contact.email}</h4>{contact.name && contact.email && <p>{contact.email}</p>}{contact.department && <p>{contact.department}</p>}{contact.sourceText && <SourceDisclosure sourceText={contact.sourceText} />}</div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${contact.status}`}>{statusLabel[contact.status]}</span><small>{confidenceLabel[contact.confidence]}</small></div></article>) : <article className="agb-result-row agb-result-row--not-found"><div className="agb-result-row__main"><p>{analysis.contactsStatus === 'unclear' ? 'Ansprechpartner unklar' : 'Nicht gefunden'}</p></div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${analysis.contactsStatus || 'not_found'}`}>{statusLabel[analysis.contactsStatus] || 'Nicht gefunden'}</span></div></article>}</section>
+      <section className="agb-result-section"><h3>Verbote</h3>{analysis.results.filter((item) => item.category === 'prohibitions').map((item) => <article className="agb-result-row" key={item.field}><div className="agb-result-row__main"><h4>{item.field}</h4><p>{item.status === 'not_found' ? 'Nicht gefunden' : item.value || 'Keine eindeutige Angabe'}</p>{item.sourceText && <SourceDisclosure sourceText={item.sourceText} />}</div><div className="agb-result-row__meta"><span className={`agb-status agb-status--${item.status}`}>{statusLabel[item.status]}</span><small>{confidenceLabel[item.confidence]}</small></div></article>)}</section>
     </div>}
   </div>
 }
