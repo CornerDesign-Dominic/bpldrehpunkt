@@ -167,8 +167,14 @@ async function logUsage({ userId, analyzedFileName, usage, success, errorType, p
 }
 
 export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
-  const profile = await requireActiveProfile(request)
-  if (!hasAgbCheckerAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den AGB-Prüfer.')
+  try {
+    const profile = await requireActiveProfile(request)
+    if (!hasAgbCheckerAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den AGB-Prüfer.')
+  } catch (error) {
+    if (error instanceof HttpsError || ['unauthenticated', 'permission-denied'].includes(error?.code)) throw error
+    logger.error('AGB-Prüfer-Zugriffsprüfung fehlgeschlagen.', { errorType: error?.errorType || 'profile_access_failed' })
+    throw new HttpsError('unavailable', 'Der AGB-Prüfer ist aktuell nicht erreichbar. Bitte versuche es später erneut.')
+  }
   const startedAt = Date.now()
   const analyzedFileName = fileName(request.data?.fileName)
   let usage; let pageCount; let requestId
