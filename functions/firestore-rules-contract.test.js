@@ -122,6 +122,27 @@ test('functional roles are readable for process responsibilities and callable-on
   assert.match(functionsIndex, /export const updateFunctionalRole = onCall/)
 })
 
+test('insolvency partner selection is an App Check protected, editor-only minimal projection', () => {
+  const selector = functionsIndex.match(/export const listInsolvencyPartners = onCall[\s\S]*?return \{ partners:/)?.[0] || ''
+  assert.match(selector, /enforceAppCheck: true/)
+  assert.match(selector, /assertInsolvencyAccess\(request, 'edit'\)/)
+  assert.match(functionsIndex, /return \{ partners: partners\.docs\.map\(insolvencyPartnerEntry\) \}/)
+  const entry = functionsIndex.match(/function insolvencyPartnerEntry\(snapshot\) \{([\s\S]*?)\n\}/)?.[1] || ''
+  assert.match(entry, /companyName/)
+  assert.match(entry, /debtorNumber/)
+  assert.match(entry, /creditorNumber/)
+  assert.doesNotMatch(entry, /contacts|portals|email|phone/)
+})
+
+test('insolvency creation binds the selected partner and permits only the atomic status transition', () => {
+  const insolvencyRules = rules.match(/function insolvencyText[\s\S]*?match \/insolvencies\/\{partnerId\} \{([\s\S]*?)\n {4}\}/)?.[0] || ''
+  assert.match(insolvencyRules, /data\.partnerId == partnerId/)
+  assert.match(insolvencyRules, /getAfter\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(partnerId\)\)\.data\.status == 'insolvency'/)
+  assert.match(insolvencyRules, /affectedKeys\(\)\.hasOnly\(\['status', 'updatedAt'\]\)/)
+  assert.match(insolvencyRules, /existsAfter\(\/databases\/\$\(database\)\/documents\/insolvencies\/\$\(partnerId\)\)/)
+  assert.match(insolvencyRules, /allow delete: if false;/)
+})
+
 test('active process questions validate variable answer paths', () => {
   const processValidation = functionsIndex.match(/function validateActiveKnowledgeProcess\(process\) \{([\s\S]*?)\n\}/)?.[1] || ''
   assert.match(processValidation, /node\.outputs\.length < 2/)

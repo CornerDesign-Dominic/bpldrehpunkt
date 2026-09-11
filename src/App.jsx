@@ -34,6 +34,7 @@ import PersonnelVacationPage from './pages/PersonnelVacationPage.jsx'
 import KnowledgeProcessesPage from './pages/KnowledgeProcessesPage.jsx'
 import KnowledgeProcessPage from './pages/KnowledgeProcessPage.jsx'
 import InsolvenciesPage from './pages/InsolvenciesPage.jsx'
+import InsolvencyDetailPage from './pages/InsolvencyDetailPage.jsx'
 import LegalDisputesPage from './pages/LegalDisputesPage.jsx'
 import LegalDisputeDetailPage from './pages/LegalDisputeDetailPage.jsx'
 import InkassoPage from './pages/InkassoPage.jsx'
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
+        <Route path="/insolvenzen/:partnerId" element={<PermissionRoute module="insolvencies"><InsolvencyDetailPage /></PermissionRoute>} />
         <Route path="/legal-disputes" element={<PermissionRoute module="legalDisputes"><LegalDisputesPage /></PermissionRoute>} />
         <Route path="/legal-disputes/:legalDisputeId" element={<PermissionRoute module="legalDisputes"><LegalDisputeDetailPage /></PermissionRoute>} />
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />

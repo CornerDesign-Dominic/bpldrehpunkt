@@ -156,10 +156,48 @@ service cloud.firestore {
     match /businessPartners/{partnerId} {
       allow read: if view('masterData') || view('crm') || view('pallets');
       allow create, delete: if edit('masterData');
-      allow update: if edit('masterData') || (edit('crm') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'potential', 'updatedAt']));
+      allow update: if edit('masterData') || (edit('crm') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId);
       match /history/{entryId} { allow read: if view('masterData') || view('crm'); allow create: if edit('masterData') || edit('crm'); allow update, delete: if false; }
       match /activities/{entryId} { allow read: if view('crm'); allow create, update: if edit('crm'); allow delete: if false; }
       match /ratings/{ratingId} { allow read: if view('crm'); allow create: if edit('crm'); allow update, delete: if false; }
+    }
+
+    function insolvencyText(value, limit) { return value == null || (value is string && value.size() <= limit); }
+    function insolvencyDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
+    function insolvencyKeysAreValid(data) {
+      return data.keys().hasAll(['partnerId', 'partnerName', 'insolvencyDate', 'courtReference', 'courtVenue', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['partnerId', 'partnerName', 'insolvencyDate', 'courtReference', 'courtVenue', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+    }
+    function validInsolvency(data, partnerId) {
+      return data.partnerId == partnerId && data.partnerName is string && data.partnerName.size() > 0 && data.partnerName.size() <= 500
+        && insolvencyDate(data.insolvencyDate) && insolvencyText(data.courtReference, 240) && insolvencyText(data.courtVenue, 240);
+    }
+    function createdInsolvency(partnerId) {
+      return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId)
+        && exists(/databases/$(database)/documents/businessPartners/$(partnerId))
+        && request.resource.data.partnerName == get(/databases/$(database)/documents/businessPartners/$(partnerId)).data.companyName
+        && getAfter(/databases/$(database)/documents/businessPartners/$(partnerId)).data.status == 'insolvency'
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
+    }
+    function updatedInsolvency(partnerId) {
+      return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId)
+        && request.resource.data.partnerId == resource.data.partnerId && request.resource.data.partnerName == resource.data.partnerName
+        && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+    }
+    function insolvencyStatusUpdate(partnerId) {
+      return edit('insolvencies') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status == 'insolvency' && request.resource.data.updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/insolvencies/$(partnerId))
+        && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId;
+    }
+    match /insolvencies/{partnerId} {
+      allow read: if view('insolvencies');
+      allow create: if edit('insolvencies') && createdInsolvency(partnerId);
+      allow update: if edit('insolvencies') && updatedInsolvency(partnerId);
+      allow delete: if false;
     }
 
     match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }

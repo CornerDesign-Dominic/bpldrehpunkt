@@ -72,6 +72,36 @@ async function assertPersonnelAccess(request, minimum = 'view') {
   return profile
 }
 
+function hasInsolvencyPermission(profile, minimum = 'view') {
+  if (profile?.role === 'superadmin') return true
+  const values = { none: 0, view: 1, edit: 2 }
+  return values[profile?.permissions?.insolvencies] >= values[minimum]
+}
+
+async function assertInsolvencyAccess(request, minimum = 'view') {
+  const profile = await requireActiveProfile(request)
+  if (!hasInsolvencyPermission(profile, minimum)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Insolvenzen.')
+  return profile
+}
+
+function insolvencyPartnerEntry(snapshot) {
+  const partner = snapshot.data()
+  return {
+    id: snapshot.id,
+    companyName: typeof partner.companyName === 'string' ? partner.companyName : '',
+    debtorNumber: typeof partner.debtorNumber === 'string' ? partner.debtorNumber : '',
+    creditorNumber: typeof partner.creditorNumber === 'string' ? partner.creditorNumber : '',
+  }
+}
+
+// The insolvency module needs a deliberate, minimal partner directory for the
+// required company selection. It does not grant general master-data reads.
+export const listInsolvencyPartners = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await assertInsolvencyAccess(request, 'edit')
+  const partners = await db.collection('businessPartners').orderBy('companyName').get()
+  return { partners: partners.docs.map(insolvencyPartnerEntry) }
+})
+
 function optionalText(value, field, limit) {
   if (value === undefined || value === null) return ''
   if (typeof value !== 'string') throw new HttpsError('invalid-argument', `Ungültiger Wert für ${field}.`)
