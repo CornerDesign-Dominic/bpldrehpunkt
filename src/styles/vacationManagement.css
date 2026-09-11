@@ -1,5 +1,7 @@
 .vacation-management-page { display: grid; height: 100%; max-width: var(--list-content-max-width); margin: 0 auto; }
 .vacation-management-heading { display: none; }
+.vacation-management-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
+.vacation-management-filters select { height: 30px; min-width: 120px; padding: 0 7px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }.vacation-management-filters .vacation-nav-button, .vacation-management-filters .vacation-today-button { position: static; transform: none; }
 .vacation-management-layout { display: grid; min-height: 0; gap: 14px; }
 .vacation-management-calendar { min-height: 610px; }
 .vacation-management-list { display: flex; min-height: 0; flex-direction: column; padding: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
@@ -14,4 +16,4 @@
 .vacation-management-request small { color: var(--text-muted); font-size: 10px; }
 .vacation-management-status { display: inline-flex; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 700; }.vacation-management-status--pending { color: var(--status-warning-text); background: var(--status-warning-background); }.vacation-management-status--approved { color: var(--status-success-text); background: var(--status-success-background); }.vacation-management-status--rejected, .vacation-management-status--cancelled, .vacation-management-status--withdrawn { color: var(--status-danger-text); background: var(--status-danger-background); }
 @media (max-width: 1020px) { .vacation-management-page { height: auto; }.vacation-management-layout { grid-template-columns: 1fr; }.vacation-management-calendar { min-height: 630px; }.vacation-management-list { min-height: 340px; }.vacation-management-request-list { max-height: 420px; } }
-@media (max-width: 720px) { .vacation-management-list__heading { align-items: flex-start; flex-direction: column; }.vacation-management-list__heading select { width: 100%; }.vacation-management-calendar { min-height: 0; } }
+@media (max-width: 720px) { .vacation-management-filters label { flex: 1 1 140px; }.vacation-management-filters select { width: 100%; }.vacation-management-calendar { min-height: 0; } }
