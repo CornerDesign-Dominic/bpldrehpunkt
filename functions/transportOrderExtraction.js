@@ -137,7 +137,7 @@ export async function extractTransportOrderFromPdf(pdfBytes) {
   // pdfjs is comparatively expensive to initialize. Loading it only for an
   // actual analysis keeps Firebase's deployment-time function discovery fast.
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const loadingTask = getDocument({ data: pdfBytes, disableWorker: true, verbosity: 0 })
+  const loadingTask = getDocument({ data: pdfBytes, disableWorker: true, enableScripting: false, verbosity: 0 })
   try {
     const pdf = await loadingTask.promise
     const lines = []

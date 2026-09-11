@@ -68,7 +68,7 @@ function fileName(value) {
 
 async function extractPdfText(pdfBytes) {
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const loadingTask = getDocument({ data: pdfBytes, disableWorker: true, verbosity: 0 })
+  const loadingTask = getDocument({ data: pdfBytes, disableWorker: true, enableScripting: false, verbosity: 0 })
   try {
     const pdf = await loadingTask.promise
     let text = ''

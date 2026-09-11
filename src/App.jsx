@@ -35,7 +35,9 @@ import KnowledgeProcessesPage from './pages/KnowledgeProcessesPage.jsx'
 import KnowledgeProcessPage from './pages/KnowledgeProcessPage.jsx'
 import InsolvenciesPage from './pages/InsolvenciesPage.jsx'
 import LegalDisputesPage from './pages/LegalDisputesPage.jsx'
+import LegalDisputeDetailPage from './pages/LegalDisputeDetailPage.jsx'
 import InkassoPage from './pages/InkassoPage.jsx'
+import InkassoCaseDetailPage from './pages/InkassoCaseDetailPage.jsx'
 import AgbCheckerPage from './pages/AgbCheckerPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 
@@ -75,7 +77,9 @@ export default function App() {
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
         <Route path="/legal-disputes" element={<PermissionRoute module="legalDisputes"><LegalDisputesPage /></PermissionRoute>} />
+        <Route path="/legal-disputes/:legalDisputeId" element={<PermissionRoute module="legalDisputes"><LegalDisputeDetailPage /></PermissionRoute>} />
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />
+        <Route path="/inkasso/:caseId" element={<PermissionRoute module="inkasso"><InkassoCaseDetailPage /></PermissionRoute>} />
         <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />

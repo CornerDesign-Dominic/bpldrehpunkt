@@ -20,7 +20,7 @@ import {
 GlobalWorkerOptions.workerSrc = pdfWorker
 
 async function getPdfPageCount(file) {
-  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()), enableScripting: false })
   try {
     const pdf = await loadingTask.promise
     const pageCount = pdf.numPages

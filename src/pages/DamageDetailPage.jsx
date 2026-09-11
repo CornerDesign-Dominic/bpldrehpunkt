@@ -29,7 +29,7 @@ function formatTimestamp(value) { const date = value?.toDate?.(); return date ? 
 function uploaderName(profile, user) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || user?.email || '' }
 
 async function getPdfPageCount(file) {
-  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) })
+  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()), enableScripting: false })
   try {
     const pdf = await loadingTask.promise
     const pageCount = pdf.numPages

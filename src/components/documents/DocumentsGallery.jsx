@@ -23,7 +23,7 @@ export function DocumentPreview({ documentItem, getDocumentBlob = getInternalDoc
     async function renderPreview() {
       try {
         const blob = await getDocumentBlob(documentItem)
-        loadingTask = getDocument({ data: new Uint8Array(await blob.arrayBuffer()) })
+        loadingTask = getDocument({ data: new Uint8Array(await blob.arrayBuffer()), enableScripting: false })
         const pdf = await loadingTask.promise
         const page = await pdf.getPage(1)
         const baseViewport = page.getViewport({ scale: 1 })

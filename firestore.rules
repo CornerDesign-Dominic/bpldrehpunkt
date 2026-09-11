@@ -366,6 +366,175 @@ service cloud.firestore {
         allow delete: if edit('damages');
       }
     }
+    function legalDisputeText(value, limit) { return value == null || (value is string && value.size() <= limit); }
+    function legalDisputeAmount(value) { return value == null || (value is number && value >= 0); }
+    function legalDisputeDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
+    function legalDisputeKeysAreValid(data) {
+      return data.keys().hasAll(['caseNumber', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['caseNumber', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+    }
+    function validLegalDispute(data) {
+      return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
+        && data.status in ['open', 'completed'] && data.isClosed == (data.status == 'completed')
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 500 && legalDisputeText(data.description, 4000)
+        && legalDisputeText(data.caseType, 120) && legalDisputeText(data.participant, 240) && legalDisputeText(data.counterparty, 240) && legalDisputeText(data.opposingCounsel, 240)
+        && legalDisputeText(data.responsibleUserId, 240) && legalDisputeText(data.responsibleUserName, 240)
+        && legalDisputeText(data.lawFirm, 240) && legalDisputeText(data.ownCounsel, 240) && legalDisputeText(data.lawyerReference, 240) && legalDisputeText(data.lawyerPhone, 80) && legalDisputeText(data.lawyerEmail, 320)
+        && legalDisputeText(data.court, 240) && legalDisputeText(data.courtReference, 240) && legalDisputeText(data.judgeOrChamber, 240)
+        && legalDisputeDate(data.nextDeadline) && legalDisputeText(data.nextDeadlineLabel, 240) && legalDisputeDate(data.nextHearing) && legalDisputeText(data.nextHearingTime, 40)
+        && legalDisputeText(data.procedureType, 120) && legalDisputeText(data.proceedingStage, 120) && legalDisputeText(data.instance, 120) && legalDisputeDate(data.startedAt)
+        && (data.completedAt == null || data.completedAt is timestamp)
+        && legalDisputeAmount(data.originalClaim) && legalDisputeAmount(data.counterClaim) && legalDisputeAmount(data.amountInDispute) && legalDisputeAmount(data.paidAmount) && legalDisputeAmount(data.openAmount) && legalDisputeAmount(data.legalFees) && legalDisputeAmount(data.courtCosts) && legalDisputeAmount(data.otherCosts);
+    }
+    function createdLegalDispute() {
+      return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data)
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
+    }
+    function updatedLegalDispute() {
+      return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data)
+        && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+    }
+    match /legalDisputes/{id} {
+      allow read: if view('legalDisputes');
+      allow create: if edit('legalDisputes') && createdLegalDispute();
+      allow update: if edit('legalDisputes') && updatedLegalDispute();
+      allow delete: if false;
+
+      match /updates/{updateId} {
+        function validLegalDisputeUpdate(data) {
+          return data.keys().hasAll(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
+            && data.keys().hasOnly(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
+            && data.text is string && data.text.size() > 0 && data.text.size() <= 1000 && data.type in ['note', 'system']
+            && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
+        }
+        allow read: if view('legalDisputes');
+        allow create: if edit('legalDisputes') && validLegalDisputeUpdate(request.resource.data)
+          && getAfter(/databases/$(database)/documents/legalDisputes/$(id)).data.caseNumber is string;
+        allow update, delete: if false;
+      }
+
+      match /documents/{documentId} {
+        function validLegalDisputeDocument(data) {
+          return data.keys().hasAll(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.id == documentId && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+            && data.description is string && data.description.size() <= 4000 && (data.pageCount == null || (data.pageCount is int && data.pageCount > 0 && data.pageCount <= 10000))
+            && data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 240
+            && data.storagePath == 'legal-disputes/' + id + '/documents/' + documentId + '.pdf' && data.contentType == 'application/pdf'
+            && data.fileSize is number && data.fileSize > 0 && data.fileSize <= 20 * 1024 * 1024 && data.uploadedByUserId is string && data.uploadedByName is string;
+        }
+        allow read: if view('legalDisputes');
+        allow create: if edit('legalDisputes') && validLegalDisputeDocument(request.resource.data)
+          && getAfter(/databases/$(database)/documents/legalDisputes/$(id)).data.caseNumber is string
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == request.auth.uid && request.resource.data.uploadedByName == profileName(ownProfile());
+        allow update: if edit('legalDisputes') && validLegalDisputeDocument(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId && request.resource.data.uploadedByName == resource.data.uploadedByName
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'updatedAt']);
+        allow delete: if edit('legalDisputes');
+      }
+    }
+    function inkassoText(value, limit) { return value == null || (value is string && value.size() <= limit); }
+    function inkassoDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
+    function inkassoAmount(value) { return value is number && value >= 0; }
+    function inkassoCaseKeysAreValid(data) {
+      return data.keys().hasAll(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+    }
+    function validInkassoCase(data) {
+      return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
+        && inkassoText(data.title, 500) && inkassoText(data.description, 4000)
+        && data.status in ['open', 'in_progress', 'completed'] && data.isClosed == (data.status == 'completed')
+        && inkassoText(data.debtorName, 240) && inkassoText(data.debtorNumber, 120) && inkassoText(data.debtorContactName, 240) && inkassoText(data.debtorAddress, 1000) && inkassoText(data.debtorEmail, 320) && inkassoText(data.debtorPhone, 80)
+        && inkassoText(data.responsibleUserId, 240) && inkassoText(data.responsibleUserName, 240)
+        && inkassoText(data.invoiceNumbers, 1000) && inkassoDate(data.invoiceDate) && inkassoDate(data.originalDueDate) && inkassoDate(data.lastReminderDate)
+        && inkassoText(data.lawFirm, 240) && inkassoText(data.lawyerReference, 240) && inkassoText(data.lawFirmContactName, 240) && inkassoText(data.lawFirmEmail, 320) && inkassoText(data.lawFirmPhone, 80) && inkassoDate(data.lawyerHandoverDate)
+        && inkassoText(data.court, 240) && inkassoText(data.courtReference, 240) && inkassoDate(data.paymentOrderDate) && inkassoDate(data.enforcementOrderDate)
+        && data.titleAvailable is bool && (data.completedAt == null || data.completedAt is timestamp);
+    }
+    function createdInkassoCase() {
+      return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
+    }
+    function updatedInkassoCase() {
+      return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
+        && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+    }
+    match /inkassoCases/{id} {
+      allow read: if view('inkasso');
+      allow create: if edit('inkasso') && createdInkassoCase();
+      allow update: if edit('inkasso') && updatedInkassoCase();
+      allow delete: if false;
+
+      match /updates/{updateId} {
+        function validInkassoCaseUpdate(data) {
+          return data.keys().hasAll(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
+            && data.keys().hasOnly(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
+            && data.text is string && data.text.size() > 0 && data.text.size() <= 1000 && data.type in ['note', 'system']
+            && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
+        }
+        allow read: if view('inkasso');
+        allow create: if edit('inkasso') && validInkassoCaseUpdate(request.resource.data)
+          && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string;
+        allow update, delete: if false;
+      }
+
+      match /movements/{movementId} {
+        function validInkassoMovement(data) {
+          return data.keys().hasAll(['date', 'type', 'amount', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'type', 'amount', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.type in ['main_claim', 'payment', 'dunning_costs', 'interest', 'legal_fees', 'court_costs', 'collection_costs', 'other_costs']
+            && inkassoAmount(data.amount) && inkassoText(data.description, 500)
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        }
+        function movementParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedBy == request.auth.uid;
+        }
+        allow read: if view('inkasso');
+        allow create: if edit('inkasso') && validInkassoMovement(request.resource.data) && movementParentWasUpdated()
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('inkasso') && validInkassoMovement(request.resource.data) && movementParentWasUpdated()
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow delete: if edit('inkasso') && movementParentWasUpdated();
+      }
+
+      match /documents/{documentId} {
+        function validInkassoDocument(data) {
+          return data.keys().hasAll(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.id == documentId && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+            && data.description is string && data.description.size() <= 4000 && (data.pageCount == null || (data.pageCount is int && data.pageCount > 0 && data.pageCount <= 10000))
+            && data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 240
+            && data.storagePath == 'inkasso-cases/' + id + '/documents/' + documentId + '.pdf' && data.contentType == 'application/pdf'
+            && data.fileSize is number && data.fileSize > 0 && data.fileSize <= 20 * 1024 * 1024 && data.uploadedByUserId is string && data.uploadedByName is string;
+        }
+        allow read: if view('inkasso');
+        allow create: if edit('inkasso') && validInkassoDocument(request.resource.data)
+          && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == request.auth.uid && request.resource.data.uploadedByName == profileName(ownProfile());
+        allow update: if edit('inkasso') && validInkassoDocument(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId && request.resource.data.uploadedByName == resource.data.uploadedByName
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'updatedAt']);
+        allow delete: if edit('inkasso');
+      }
+    }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);

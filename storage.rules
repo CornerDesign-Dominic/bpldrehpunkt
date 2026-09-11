@@ -10,6 +10,10 @@ service firebase.storage {
     function canEditDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.documents == 'edit'); }
     function canReadDamageDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.damages in ['view', 'edit']); }
     function canEditDamageDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.damages == 'edit'); }
+    function canReadLegalDisputeDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.legalDisputes in ['view', 'edit']); }
+    function canEditLegalDisputeDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.legalDisputes == 'edit'); }
+    function canReadInkassoDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.inkasso in ['view', 'edit']); }
+    function canEditInkassoDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.inkasso == 'edit'); }
     function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
         && fileName.matches('.*\\.pdf')
@@ -40,6 +44,20 @@ service firebase.storage {
       allow create: if canEditDamageDocuments() && isPdfUpload(fileName) && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$');
       allow update: if false;
       allow delete: if canEditDamageDocuments();
+    }
+
+    match /legal-disputes/{caseId}/documents/{fileName} {
+      allow read: if canReadLegalDisputeDocuments();
+      allow create: if canEditLegalDisputeDocuments() && isPdfUpload(fileName) && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$');
+      allow update: if false;
+      allow delete: if canEditLegalDisputeDocuments();
+    }
+
+    match /inkasso-cases/{caseId}/documents/{fileName} {
+      allow read: if canReadInkassoDocuments();
+      allow create: if canEditInkassoDocuments() && isPdfUpload(fileName) && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$');
+      allow update: if false;
+      allow delete: if canEditInkassoDocuments();
     }
 
     // A single, fixed object name prevents user-controlled paths and listing.
