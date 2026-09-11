@@ -77,14 +77,6 @@ function updatePayload(type, text, actor) {
   return { type, text, createdByUserId: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), createdAt: serverTimestamp() }
 }
 
-function systemMessages(previous, next) {
-  const messages = []
-  if (previous.status !== next.status) messages.push(`Status geändert: ${inkassoCaseStatusLabel(previous.status)} → ${inkassoCaseStatusLabel(next.status)}`)
-  if (previous.description !== next.description) messages.push('Beschreibung aktualisiert')
-  if (Object.entries(next).some(([field, value]) => !['description', 'status', 'isClosed'].includes(field) && value !== (previous[field] ?? null))) messages.push('Fallinformationen aktualisiert')
-  return messages
-}
-
 export function inkassoCaseStatusLabel(status) {
   return INKASSO_CASE_STATUSES.find((item) => item.value === status)?.label || '—'
 }
@@ -116,13 +108,16 @@ export async function updateInkassoCaseFields(inkassoCase, values, actor, respon
   const statusCompleted = next.status === 'completed'
   const completedAt = statusCompleted && !inkassoCase.isClosed ? serverTimestamp() : !statusCompleted && inkassoCase.isClosed ? null : inkassoCase.completedAt || null
   batch.update(caseRef, { ...changedFields, completedAt, ...updateMetadata(actor) })
-  systemMessages(inkassoCase, next).forEach((text) => batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', text, actor)))
   await batch.commit()
   return true
 }
 
 export async function listInkassoCaseUpdates(caseId) {
   return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+}
+
+export async function listInkassoCaseHistory(caseId) {
+  return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'history'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
 }
 
 export async function addInkassoCaseUpdate(inkassoCase, text, actor) {
@@ -136,23 +131,12 @@ export async function addInkassoCaseUpdate(inkassoCase, text, actor) {
   await batch.commit()
 }
 
-export async function addInkassoCaseSystemUpdate(inkassoCase, text, actor) {
-  const cleanText = trim(text)
-  if (!cleanText) throw new Error('Bitte einen Systemeintrag angeben.')
-  await writeBatch(db).set(doc(collection(db, INKASSO_CASES_COLLECTION, inkassoCase.id, 'updates')), updatePayload('system', cleanText, actor)).commit()
-}
-
 function movementPayload(values) {
   const date = optionalDate(values.date)
   const type = INKASSO_MOVEMENT_TYPES.some((item) => item.value === values.type) ? values.type : ''
   const amount = optionalAmount(values.amount)
   if (!date || !type || amount === null) throw new Error('Bitte Datum, Art und Betrag erfassen.')
   return { date, type, amount, description: optionalText(values.description) }
-}
-
-function movementLabel(movement) {
-  const label = INKASSO_MOVEMENT_TYPES.find((item) => item.value === movement.type)?.label || 'Betragsbewegung'
-  return `${label} · ${new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(movement.amount)}`
 }
 
 export async function listInkassoCaseMovements(caseId) {
@@ -166,7 +150,6 @@ export async function createInkassoCaseMovement(inkassoCase, values, actor) {
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'movements')), { ...movement, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
-  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Betragsbewegung hinzugefügt: ${movementLabel(movement)}`, actor))
   await batch.commit()
 }
 
@@ -177,7 +160,6 @@ export async function updateInkassoCaseMovement(inkassoCase, movement, values, a
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.update(doc(caseRef, 'movements', movement.id), { ...next, ...updateMetadata(actor) })
-  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Betragsbewegung aktualisiert: ${movementLabel(next)}`, actor))
   await batch.commit()
   return true
 }
@@ -187,6 +169,5 @@ export async function deleteInkassoCaseMovement(inkassoCase, movement, actor) {
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'movements', movement.id))
-  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Betragsbewegung gelöscht: ${movementLabel(movement)}`, actor))
   await batch.commit()
 }

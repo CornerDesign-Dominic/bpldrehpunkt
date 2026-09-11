@@ -12,7 +12,7 @@ import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createInkassoCaseDocument, deleteInkassoCaseDocument, getInkassoCaseDocumentBlob, listInkassoCaseDocuments, updateInkassoCaseDocument } from '../lib/inkassoDocuments.js'
-import { addInkassoCaseSystemUpdate, addInkassoCaseUpdate, createInkassoCaseMovement, deleteInkassoCaseMovement, getInkassoCase, inkassoCaseStatusLabel, listInkassoCaseMovements, listInkassoCaseUpdates, updateInkassoCaseFields, updateInkassoCaseMovement } from '../lib/inkasso.js'
+import { addInkassoCaseUpdate, createInkassoCaseMovement, deleteInkassoCaseMovement, getInkassoCase, inkassoCaseStatusLabel, listInkassoCaseHistory, listInkassoCaseMovements, listInkassoCaseUpdates, updateInkassoCaseFields, updateInkassoCaseMovement } from '../lib/inkasso.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName, listVisibleUserDirectory } from '../lib/userProfiles.js'
 
@@ -35,6 +35,7 @@ export default function InkassoCaseDetailPage() {
   const [inkassoCase, setInkassoCase] = useState(null)
   const [users, setUsers] = useState([])
   const [updates, setUpdates] = useState([])
+  const [historyEntries, setHistoryEntries] = useState([])
   const [documents, setDocuments] = useState([])
   const [movements, setMovements] = useState([])
   const [loading, setLoading] = useState(true)
@@ -52,14 +53,14 @@ export default function InkassoCaseDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, caseUpdates, caseDocuments, caseMovements, directory] = await Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseMovements(caseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
-    setInkassoCase(entry); setUpdates(caseUpdates); setDocuments(caseDocuments); setMovements(caseMovements); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false)
+    const [entry, caseUpdates, caseHistory, caseDocuments, caseMovements, directory] = await Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseMovements(caseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
+    setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setMovements(caseMovements); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseMovements(caseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
-      .then(([entry, caseUpdates, caseDocuments, caseMovements, directory]) => { if (current) { setInkassoCase(entry); setUpdates(caseUpdates); setDocuments(caseDocuments); setMovements(caseMovements); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false) } })
+    Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseMovements(caseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
+      .then(([entry, caseUpdates, caseHistory, caseDocuments, caseMovements, directory]) => { if (current) { setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setMovements(caseMovements); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false) } })
       .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Inkassofall.' : 'Der Inkassofall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
@@ -81,16 +82,16 @@ export default function InkassoCaseDetailPage() {
     setDocumentSaving(true); setError('')
     try {
       const existing = editingDocument === 'new' ? null : editingDocument
-      const title = (values.title || existing?.title || file?.name || 'Unbenanntes Dokument').trim()
-      const actorName = getUserDisplayName(profile, user) || 'Ein Nutzer'
-      if (existing) { await updateInkassoCaseDocument(inkassoCase.id, existing, values); await addInkassoCaseSystemUpdate(inkassoCase, `${actorName} hat die Dokumentdetails von „${title}“ bearbeitet.`, { user, profile }) } else { await createInkassoCaseDocument(inkassoCase.id, values, file, { id: user?.uid, name: actorName }); await addInkassoCaseSystemUpdate(inkassoCase, `${actorName} hat das Dokument „${title}“ hochgeladen.`, { user, profile }) }
+      const actorName = getUserDisplayName(profile, user)
+      if (existing) await updateInkassoCaseDocument(inkassoCase.id, existing, values)
+      else await createInkassoCaseDocument(inkassoCase.id, values, file, { id: user?.uid, name: actorName })
       await load(); setEditingDocument(null); setToast(existing ? 'Dokument aktualisiert.' : 'Dokument hochgeladen.')
     } catch (saveError) { setError(getDocumentErrorMessage(saveError)); throw saveError } finally { setDocumentSaving(false) }
   }
 
   async function deleteDocument(documentItem) {
     setDocumentSaving(true); setError('')
-    try { await deleteInkassoCaseDocument(inkassoCase.id, documentItem); await addInkassoCaseSystemUpdate(inkassoCase, `${getUserDisplayName(profile, user) || 'Ein Nutzer'} hat das Dokument „${documentItem.title || documentItem.fileName || 'Unbenanntes Dokument'}“ gelöscht.`, { user, profile }); await load(); setDocumentConfirmation(null); setToast('Dokument dauerhaft gelöscht.') } catch (deleteError) { setError(getDocumentErrorMessage(deleteError)); throw deleteError } finally { setDocumentSaving(false) }
+    try { await deleteInkassoCaseDocument(inkassoCase.id, documentItem); await load(); setDocumentConfirmation(null); setToast('Dokument dauerhaft gelöscht.') } catch (deleteError) { setError(getDocumentErrorMessage(deleteError)); throw deleteError } finally { setDocumentSaving(false) }
   }
 
   async function saveMovement(existingMovement, values) {
@@ -108,7 +109,7 @@ export default function InkassoCaseDetailPage() {
   if (!inkassoCase) return null
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
-  const history = updates.filter((update) => update.type === 'system')
+  const history = [...updates.filter((update) => update.type === 'system'), ...historyEntries].sort((left, right) => (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
   const title = `${inkassoCase.caseNumber || 'Inkassofall'} – ${inkassoCase.title || inkassoCase.debtorName || 'Ohne Bezeichnung'}`
   const allInformationValues = [inkassoCase.caseNumber, inkassoCase.status, inkassoCase.responsibleUserName, inkassoCase.createdAt, inkassoCase.completedAt, inkassoCase.debtorName, inkassoCase.debtorNumber, inkassoCase.debtorContactName, inkassoCase.debtorAddress, inkassoCase.debtorEmail, inkassoCase.debtorPhone, inkassoCase.invoiceNumbers, inkassoCase.invoiceDate, inkassoCase.originalDueDate, inkassoCase.lastReminderDate, inkassoCase.lawFirm, inkassoCase.lawyerReference, inkassoCase.lawFirmContactName, inkassoCase.lawFirmEmail, inkassoCase.lawFirmPhone, inkassoCase.lawyerHandoverDate, inkassoCase.court, inkassoCase.courtReference, inkassoCase.paymentOrderDate, inkassoCase.enforcementOrderDate, inkassoCase.titleAvailable]
 

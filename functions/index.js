@@ -157,7 +157,7 @@ function userDirectoryEntry(snapshot, includeContactDetails) {
 
 // The client must not list complete users documents. This intentionally
 // exposes a small directory only to modules that need employee selection.
-export const listVisibleUserDirectory = onCall({ region: 'europe-west3' }, async (request) => {
+export const listVisibleUserDirectory = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const actor = await requireActiveProfile(request)
   const access = userDirectoryAccess(actor)
   if (!access.allowed) throw new HttpsError('permission-denied', 'Keine Berechtigung für das Mitarbeiterverzeichnis.')
@@ -168,7 +168,7 @@ export const listVisibleUserDirectory = onCall({ region: 'europe-west3' }, async
 // The administration needs central account and employment fields, but never
 // HR-only data. Returning this explicit projection also permits us to deny
 // direct client reads of arbitrary user documents.
-export const listManagedUsers = onCall({ region: 'europe-west3' }, async (request) => {
+export const listManagedUsers = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertManager(request)
   const users = await db.collection('users').get()
   return { profiles: users.docs.map(managedUserEntry) }
@@ -198,13 +198,13 @@ function personnelDetailEntry(userSnapshot, hrSnapshot) {
   }
 }
 
-export const listPersonnelEmployees = onCall({ region: 'europe-west3' }, async (request) => {
+export const listPersonnelEmployees = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertPersonnelAccess(request)
   const users = await db.collection('users').get()
   return { employees: users.docs.map(personnelListEntry) }
 })
 
-export const getPersonnelEmployee = onCall({ region: 'europe-west3' }, async (request) => {
+export const getPersonnelEmployee = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertPersonnelAccess(request)
   const userId = request.data?.userId
   if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
@@ -215,7 +215,7 @@ export const getPersonnelEmployee = onCall({ region: 'europe-west3' }, async (re
 
 // Central employment data and HR-only data are written in one transaction.
 // There is one source of truth for shared fields: users/{uid}.
-export const updatePersonnelEmployee = onCall({ region: 'europe-west3' }, async (request) => {
+export const updatePersonnelEmployee = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertPersonnelAccess(request, 'edit')
   const { userId, ...data } = request.data ?? {}
   if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
@@ -239,7 +239,7 @@ export const updatePersonnelEmployee = onCall({ region: 'europe-west3' }, async 
 
 // One-time, intentionally explicit migration for the pre-HR birthDate field.
 // It preserves an already-maintained HR value and removes the legacy copy.
-export const migrateLegacyBirthDatesToPersonnel = onCall({ region: 'europe-west3' }, async (request) => {
+export const migrateLegacyBirthDatesToPersonnel = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Aktion ist nur für Superadmins erlaubt.')
   const users = await db.collection('users').get()
   let migrated = 0
@@ -260,7 +260,7 @@ export const migrateLegacyBirthDatesToPersonnel = onCall({ region: 'europe-west3
   return { migrated }
 })
 
-export const createManagedUser = onCall({ region: 'europe-west3' }, async (request) => {
+export const createManagedUser = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const actor = await assertManager(request)
   const data = request.data ?? {}
   if (!data.email || !data.password || !data.firstName || !data.lastName) throw new HttpsError('invalid-argument', 'Name, E-Mail und Initialpasswort sind erforderlich.')
@@ -277,7 +277,7 @@ export const createManagedUser = onCall({ region: 'europe-west3' }, async (reque
   return { uid: user.uid }
 })
 
-export const updateManagedUser = onCall({ region: 'europe-west3' }, async (request) => {
+export const updateManagedUser = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const actor = await assertManager(request)
   const { uid, ...data } = request.data ?? {}
   if (!uid) throw new HttpsError('invalid-argument', 'Benutzer-ID fehlt.')
@@ -299,7 +299,7 @@ export const updateManagedUser = onCall({ region: 'europe-west3' }, async (reque
 // Moves legacy damage attachments out of the general document collection. The
 // Admin SDK move operation keeps exactly one copy of each PDF at every
 // completed step; a retry safely resumes after an interrupted migration.
-export const migrateLegacyDamageDocuments = onCall({ region: 'europe-west3' }, async (request) => {
+export const migrateLegacyDamageDocuments = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Migration ist nur für Superadmins erlaubt.')
   const legacyDocuments = await db.collection('internalDocuments').get()
   const bucket = getStorage().bucket()
@@ -508,7 +508,7 @@ function validateActiveKnowledgeProcess(process) {
   if ([...visited].some((id) => nodesById.get(id).type !== 'end' && outgoing.get(id).length === 0)) throw new HttpsError('failed-precondition', 'Jeder erreichbare Weg muss in einem Endblock enden.')
 }
 
-export const saveKnowledgeProcess = onCall({ region: 'europe-west3' }, async (request) => {
+export const saveKnowledgeProcess = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const actor = await assertKnowledgeProcessesAccess(request, 'edit')
   const data = request.data ?? {}
   const status = knowledgeProcessStatuses.has(data.status) ? data.status : 'draft'
@@ -544,13 +544,13 @@ function legacyProfileSummary(snapshot) {
 }
 function profileDisplayName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || '—' }
 
-export const listLegacyAccountProfiles = onCall({ region: 'europe-west3' }, async (request) => {
+export const listLegacyAccountProfiles = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const users = await db.collection('users').get()
   return { profiles: users.docs.filter((snapshot) => isLegacyProfile(snapshot.data())).map(legacyProfileSummary) }
 })
 
-export const confirmLegacyAccountProfile = onCall({ region: 'europe-west3' }, async (request) => {
+export const confirmLegacyAccountProfile = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const uid = request.data?.uid
   if (typeof uid !== 'string' || !uid || uid.includes('/')) throw new HttpsError('invalid-argument', 'Ungültiges Benutzerkonto.')
@@ -566,7 +566,7 @@ export const confirmLegacyAccountProfile = onCall({ region: 'europe-west3' }, as
   return { uid }
 })
 
-export const listLegacyAccountMigrationHistory = onCall({ region: 'europe-west3' }, async (request) => {
+export const listLegacyAccountMigrationHistory = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const migrations = await db.collection('legacyAccountMigrations').orderBy('confirmedAt', 'desc').limit(12).get()
   const userIds = [...new Set(migrations.docs.flatMap((snapshot) => {
@@ -607,14 +607,14 @@ function partnerEvaluationSettings(value) {
   return settings
 }
 
-export const updatePartnerEvaluationSettings = onCall({ region: 'europe-west3' }, async (request) => {
+export const updatePartnerEvaluationSettings = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const settings = partnerEvaluationSettings(request.data?.settings)
   await db.doc('appSettings/partnerEvaluation').set({ ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid }, { merge: true })
   return { settings }
 })
 
-export const migrateLegacyDepartments = onCall({ region: 'europe-west3' }, async (request) => {
+export const migrateLegacyDepartments = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const users = await db.collection('users').get()
   let migratedUsers = 0
@@ -646,7 +646,7 @@ export const migrateLegacyDepartments = onCall({ region: 'europe-west3' }, async
   return { migratedUsers }
 })
 
-export const createDepartment = onCall({ region: 'europe-west3' }, async (request) => {
+export const createDepartment = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const name = departmentName(request.data?.name)
   if (!name) throw new HttpsError('invalid-argument', 'Der Abteilungsname ist erforderlich.')
@@ -657,7 +657,7 @@ export const createDepartment = onCall({ region: 'europe-west3' }, async (reques
   return { id: reference.id }
 })
 
-export const updateDepartment = onCall({ region: 'europe-west3' }, async (request) => {
+export const updateDepartment = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const { id, name, active } = request.data ?? {}
   if (typeof id !== 'string' || id.includes('/')) throw new HttpsError('invalid-argument', 'Abteilungs-ID fehlt.')
@@ -682,7 +682,7 @@ export const updateDepartment = onCall({ region: 'europe-west3' }, async (reques
   return { id }
 })
 
-export const createFunctionalRole = onCall({ region: 'europe-west3' }, async (request) => {
+export const createFunctionalRole = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const name = departmentName(request.data?.name)
   if (!name) throw new HttpsError('invalid-argument', 'Der Name der Fachrolle ist erforderlich.')
@@ -694,7 +694,7 @@ export const createFunctionalRole = onCall({ region: 'europe-west3' }, async (re
   return { id: reference.id }
 })
 
-export const updateFunctionalRole = onCall({ region: 'europe-west3' }, async (request) => {
+export const updateFunctionalRole = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const { id, name, active } = request.data ?? {}
   if (typeof id !== 'string' || id.includes('/')) throw new HttpsError('invalid-argument', 'Fachrollen-ID fehlt.')
@@ -792,7 +792,7 @@ function personnelVacationEntry(snapshot, employee, meta) {
 
 // This is an HR-specific read model. It only joins the existing vacation
 // source with private HR metadata; it does not persist vacation data again.
-export const listPersonnelVacations = onCall({ region: 'europe-west3' }, async (request) => {
+export const listPersonnelVacations = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertPersonnelAccess(request)
   const userId = request.data?.userId
   if (userId !== undefined && (typeof userId !== 'string' || !userId || userId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
@@ -815,7 +815,7 @@ export const listPersonnelVacations = onCall({ region: 'europe-west3' }, async (
 
 // Deliberately writes only the separate HR metadata document. Vacation
 // requests, their status and their workflow are never changed here.
-export const updatePersonnelVacationMeta = onCall({ region: 'europe-west3' }, async (request) => {
+export const updatePersonnelVacationMeta = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertPersonnelAccess(request, 'edit')
   const { vacationId, payrollProcessed, hrNote } = request.data ?? {}
   if (typeof vacationId !== 'string' || !vacationId || vacationId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Urlaubs-ID.')
@@ -837,7 +837,7 @@ export const updatePersonnelVacationMeta = onCall({ region: 'europe-west3' }, as
   return { vacationId }
 })
 
-export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, async (request) => {
+export const listManagedVacationRequests = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const manager = await assertVacationManager(request)
   const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get()])
   let historySnapshot = null
@@ -873,7 +873,7 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3' }, as
   return { requests, history, employees: managedEmployees, holidays: calendarItems(holidaySnapshot, 'Feiertag'), blocks: calendarItems(blockSnapshot, 'Urlaubssperre') }
 })
 
-export const withdrawVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
+export const withdrawVacationRequest = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await requireActiveProfile(request)
   const requestId = request.data?.requestId
   if (typeof requestId !== 'string' || !requestId) throw new HttpsError('invalid-argument', 'Ungültiger Urlaubsantrag.')
@@ -899,7 +899,7 @@ export const withdrawVacationRequest = onCall({ region: 'europe-west3' }, async 
   return { requestId, status: 'withdrawn' }
 })
 
-export const replacePendingVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
+export const replacePendingVacationRequest = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await requireActiveProfile(request)
   const { requestId, values } = request.data ?? {}
   if (typeof requestId !== 'string' || !requestId || !values || typeof values !== 'object') throw new HttpsError('invalid-argument', 'Ungültige Urlaubsanfrage.')
@@ -924,7 +924,7 @@ export const replacePendingVacationRequest = onCall({ region: 'europe-west3' }, 
   return { requestId: replacementRequestRef.id, status: 'pending' }
 })
 
-export const processVacationRequest = onCall({ region: 'europe-west3' }, async (request) => {
+export const processVacationRequest = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const manager = await assertVacationManager(request)
   const { requestId, decision, managerComment } = request.data ?? {}
   if (typeof requestId !== 'string' || !['approved', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
@@ -970,6 +970,16 @@ export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
 export { generateKnowledgeProcessDraft } from './knowledgeProcessAi.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
+export {
+  recordInkassoCaseCreated,
+  recordInkassoCaseUpdated,
+  recordInkassoDocumentCreated,
+  recordInkassoDocumentDeleted,
+  recordInkassoDocumentUpdated,
+  recordInkassoMovementCreated,
+  recordInkassoMovementDeleted,
+  recordInkassoMovementUpdated,
+} from './inkassoHistory.js'
 export {
   listSystemMailTemplates,
   notifyVacationRequestCreated,

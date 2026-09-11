@@ -479,13 +479,20 @@ service cloud.firestore {
         function validInkassoCaseUpdate(data) {
           return data.keys().hasAll(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
             && data.keys().hasOnly(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
-            && data.text is string && data.text.size() > 0 && data.text.size() <= 1000 && data.type in ['note', 'system']
+            && data.text is string && data.text.size() > 0 && data.text.size() <= 1000 && data.type == 'note'
             && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
         }
         allow read: if view('inkasso');
         allow create: if edit('inkasso') && validInkassoCaseUpdate(request.resource.data)
           && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string;
         allow update, delete: if false;
+      }
+
+      // Trusted history is written exclusively by Firestore-triggered Cloud
+      // Functions with the Admin SDK. Browser clients can only read it.
+      match /history/{historyId} {
+        allow read: if view('inkasso');
+        allow write: if false;
       }
 
       match /movements/{movementId} {
