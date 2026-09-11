@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CopyIcon } from '../components/icons.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import { getUserAvailabilityStatus, listVisibleUserDirectory } from '../lib/userProfiles.js'
+import { listVisibleUserDirectory } from '../lib/userProfiles.js'
+import { listApprovedVacationRequests, requestOverlaps, todayValue } from '../lib/vacationRequests.js'
+import { getMainVacationStatus } from '../lib/vacationStatus.js'
 import '../styles/team.css'
 
 function displayName(member) {
@@ -13,17 +15,13 @@ function memberFunction(member) {
   return member.jobTitle || member.function || member.position || '—'
 }
 
-function isOnVacation(member) {
-  return getUserAvailabilityStatus(member)?.value === 'vacation'
-}
-
-function TeamCard({ member, onCopyEmail }) {
-  const onVacation = isOnVacation(member)
-  return <article className="team-card"><div className="team-card__heading"><h2>{displayName(member)}</h2><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{onVacation ? 'Im Urlaub' : 'Aktiv'}</span></div><div className="team-card__details"><div className="team-card__phone">{member.phone ? <a href={`tel:${member.phone}`} aria-label={`Telefonnummer von ${displayName(member)}`}>{member.phone}</a> : '—'}</div><div className="team-card__email">{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={`E-Mail-Adresse von ${displayName(member)} kopieren`} title="E-Mail-Adresse kopieren"><CopyIcon /></button></span> : '—'}</div></div></article>
+function TeamCard({ member, onCopyEmail, onVacation }) {
+  return <article className="team-card"><div className="team-card__heading"><h2>{displayName(member)}</h2><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{onVacation ? 'Urlaub' : 'Aktiv'}</span></div><div className="team-card__details"><div className="team-card__phone">{member.phone ? <a href={`tel:${member.phone}`} aria-label={`Telefonnummer von ${displayName(member)}`}>{member.phone}</a> : '—'}</div><div className="team-card__email">{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={`E-Mail-Adresse von ${displayName(member)} kopieren`} title="E-Mail-Adresse kopieren"><CopyIcon /></button></span> : '—'}</div></div></article>
 }
 
 export default function TeamPage() {
   const [members, setMembers] = useState([])
+  const [vacationUserIds, setVacationUserIds] = useState(() => new Set())
   const [search, setSearch] = useState('')
   const [department, setDepartment] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -32,8 +30,13 @@ export default function TeamPage() {
 
   useEffect(() => {
     let current = true
-    listVisibleUserDirectory()
-      .then((profiles) => { if (current) setMembers(profiles) })
+    Promise.all([listVisibleUserDirectory(), listApprovedVacationRequests()])
+      .then(([profiles, vacations]) => {
+        if (!current) return
+        setMembers(profiles)
+        const today = todayValue()
+        setVacationUserIds(new Set(vacations.filter((vacation) => getMainVacationStatus(vacation) === 'approved' && requestOverlaps(vacation, today, today)).map((vacation) => vacation.userId)))
+      })
       .catch(() => { if (current) setError('Das Teamverzeichnis konnte nicht geladen werden.') })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
@@ -78,5 +81,5 @@ export default function TeamPage() {
     }
   }
 
-  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (departmentGroups.length ? <div className="team-departments">{departmentGroups.map(([name, groupMembers]) => <section className="team-department" key={name}><h2>{name}</h2><div className="team-grid">{groupMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} />)}</div></section>)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
+  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (departmentGroups.length ? <div className="team-departments">{departmentGroups.map(([name, groupMembers]) => <section className="team-department" key={name}><h2>{name}</h2><div className="team-grid">{groupMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} onVacation={vacationUserIds.has(member.id)} />)}</div></section>)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
 }

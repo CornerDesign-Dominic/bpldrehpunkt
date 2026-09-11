@@ -101,6 +101,16 @@ export async function listVacationRequests(userId) {
     .sort((left, right) => (right.startDate || '').localeCompare(left.startDate || '') || (right.endDate || '').localeCompare(left.endDate || ''))
 }
 
+export async function listApprovedVacationRequests() {
+  try {
+    const snapshot = await getDocs(query(requestsRef, where('status', '==', 'approved')))
+    return snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => item.type === 'vacation' || !item.type)
+  } catch (error) {
+    logVacationReadFailure('genehmigten Urlaubsanträgen', error)
+    throw error
+  }
+}
+
 export async function listVacationHistory(userId) {
   if (!userId) return []
   try {
