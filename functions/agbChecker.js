@@ -168,7 +168,7 @@ async function logUsage({ userId, analyzedFileName, usage, success, errorType, p
   })
 }
 
-export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
+export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', enforceAppCheck: true, memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
   try {
     const profile = await requireActiveProfile(request)
     if (!hasAgbCheckerAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den AGB-Prüfer.')

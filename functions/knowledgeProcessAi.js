@@ -208,7 +208,7 @@ async function generateWithOpenAi(input) {
   }
 }
 
-export const generateKnowledgeProcessDraft = onCall({ region, timeoutSeconds: 90, secrets: [processDraftOpenAiApiKey] }, async (request) => {
+export const generateKnowledgeProcessDraft = onCall({ region, enforceAppCheck: true, timeoutSeconds: 90, secrets: [processDraftOpenAiApiKey] }, async (request) => {
   await assertProcessEditor(request)
   const description = cleanText(request.data?.description, 3000)
   const title = cleanText(request.data?.title, 160)

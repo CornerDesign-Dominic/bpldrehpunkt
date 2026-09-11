@@ -273,13 +273,13 @@ export const notifyVacationRequestDecision = onDocumentUpdated({ region, documen
 async function assertActiveSuperadmin(request) { return requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Aktion ist nur für Superadmins erlaubt.') }
 async function assertActiveAdmin(request) { return requireRole(await requireActiveProfile(request), ['admin', 'superadmin'], 'Diese Aktion ist nur für Admins erlaubt.') }
 
-export const listSystemMailTemplates = onCall({ region }, async (request) => {
+export const listSystemMailTemplates = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
   const snapshots = await Promise.all(Object.keys(templateDefinitions).map((id) => db.doc(`systemMailTemplates/${id}`).get()))
   return { templates: snapshots.map((snapshot) => templateData(snapshot.id, snapshot.exists ? snapshot.data() : null)) }
 })
 
-export const updateSystemMailTemplate = onCall({ region }, async (request) => {
+export const updateSystemMailTemplate = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
   const { id, subject, message } = request.data || {}
   if (typeof id !== 'string' || !Object.hasOwn(templateDefinitions, id)) throw new HttpsError('invalid-argument', 'Unbekannte Systemmail-Vorlage.')
@@ -289,7 +289,7 @@ export const updateSystemMailTemplate = onCall({ region }, async (request) => {
   return { template: templateData(id, { subject, message, updatedBy: request.auth.uid }) }
 })
 
-export const sendSystemTestMail = onCall({ region, secrets: [powerAutomateNotificationUrl] }, async (request) => {
+export const sendSystemTestMail = onCall({ region, enforceAppCheck: true, secrets: [powerAutomateNotificationUrl] }, async (request) => {
   const profile = await assertActiveAdmin(request)
   const authUser = await getAuth().getUser(request.auth.uid)
   const recipient = emailPattern.test(profile.email || '') ? profile.email.trim() : authUser.email

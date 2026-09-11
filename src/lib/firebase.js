@@ -22,6 +22,14 @@ export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseC
 // in Firebase Console. Its site key is public; it is not a Firebase secret.
 // A missing key keeps the existing rollout in monitoring-safe mode.
 const appCheckSiteKey = import.meta.env.VITE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY
+
+// localhost and Vite development builds cannot receive a production reCAPTCHA
+// Enterprise attestation. Firebase will log a per-browser debug token, which
+// must be allowlisted manually in App Check before enforcement is enabled.
+// This branch is removed from production builds, so no debug token can be
+// emitted or used there.
+if (import.meta.env.DEV) globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = true
+
 export const appCheck = appCheckSiteKey
   ? initializeAppCheck(firebaseApp, {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),

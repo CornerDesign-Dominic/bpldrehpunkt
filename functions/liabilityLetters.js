@@ -94,7 +94,7 @@ async function callOpenAi({ rawAddressBlocks, incidentSummary, editableInstructi
   }
 }
 
-export const analyzeLiabilityTransportOrder = onCall({ region: 'europe-west3', memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
+export const analyzeLiabilityTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
   const profile = await requireActiveProfile(request)
   if (!hasTemplateAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Vorlagen.')
   const pdfBytes = decodePdf(request.data?.pdfBase64)

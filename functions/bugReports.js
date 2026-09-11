@@ -20,7 +20,7 @@ function reportTime() {
   return new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' }).format(new Date())
 }
 
-export const submitBugReport = onCall({ region: 'europe-west3', secrets: [powerAutomateNotificationUrl] }, async (request) => {
+export const submitBugReport = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [powerAutomateNotificationUrl] }, async (request) => {
   const reporter = await requireActiveProfile(request)
 
   const module = cleanText(request.data?.module, 100)

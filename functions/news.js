@@ -427,6 +427,7 @@ export const scheduledNewsResearch = onSchedule({
 
 export const runAutomatedNewsResearch = onCall({
   region: 'europe-west3',
+  enforceAppCheck: true,
   timeoutSeconds: 540,
   secrets: [openAiApiKey],
 }, async (request) => {
@@ -434,7 +435,7 @@ export const runAutomatedNewsResearch = onCall({
   return executeNewsResearch()
 })
 
-export const setNewsReaction = onCall({ region: 'europe-west3' }, async (request) => {
+export const setNewsReaction = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const profile = await requireActiveProfile(request)
   const itemId = request.data?.itemId
   const requestedReaction = request.data?.reaction
