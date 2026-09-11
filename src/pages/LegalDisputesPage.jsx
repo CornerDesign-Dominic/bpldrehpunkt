@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import LegalDisputeCaseForm from '../components/legal-disputes/LegalDisputeCaseForm.jsx'
 import LegalDisputeCasesTable from '../components/legal-disputes/LegalDisputeCasesTable.jsx'
+import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { listLegalDisputes } from '../lib/legalDisputes.js'
+import { createLegalDispute, listLegalDisputes } from '../lib/legalDisputes.js'
 
 export default function LegalDisputesPage() {
+  const { user, profile } = useAuth()
   const { canEdit } = usePermissions()
   const { setTitle } = usePageHeader()
   const navigate = useNavigate()
@@ -13,6 +16,7 @@ export default function LegalDisputesPage() {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showForm, setShowForm] = useState(false)
 
   const currentCases = cases.filter((legalDispute) => !legalDispute.isClosed)
   const closedCases = cases.filter((legalDispute) => legalDispute.isClosed)
@@ -31,8 +35,14 @@ export default function LegalDisputesPage() {
     return () => { current = false }
   }, [])
 
+  async function save(values) {
+    const id = await createLegalDispute(values, { user, profile })
+    setShowForm(false)
+    navigate(`/legal-disputes/${id}`)
+  }
+
   return <div className="damages-page legal-disputes-page">
-    {editable && <div className="damage-actions"><button className="button" type="button" disabled title="Die Fallanlage wird vorbereitet.">Neuer Fall</button></div>}
+    {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}>Neuer Fall</button></div>}
     {error && <p className="form-error">{error}</p>}
     {loading ? <p className="page-state">Fälle werden geladen …</p> : <div className="todo-sections">
       <section className="todo-section" aria-labelledby="current-legal-disputes-heading">
@@ -44,5 +54,6 @@ export default function LegalDisputesPage() {
         <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
     </div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
   </div>
 }

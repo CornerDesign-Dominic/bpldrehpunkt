@@ -16,6 +16,75 @@ export function legalDisputeStatusLabel(status) {
   return status === 'completed' ? 'Abgeschlossen' : 'Offen'
 }
 
+export function createEmptyLegalDispute() {
+  return {
+    title: '',
+    caseType: '',
+    participant: '',
+    counterparty: '',
+    nextDeadline: '',
+  }
+}
+
+export async function createLegalDispute(values, actor) {
+  const title = trim(values.title)
+  if (!title) throw new Error('Bitte einen Betreff für den Fall eingeben.')
+
+  const caseRef = doc(collection(db, LEGAL_DISPUTES_COLLECTION))
+  const actorName = getUserDisplayName(actor.profile, actor.user)
+  const caseNumber = `G-${new Date().getFullYear()}-${caseRef.id.slice(0, 8).toUpperCase()}`
+  const optionalText = (value) => trim(value) || null
+  const optionalDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(trim(value)) ? trim(value) : null
+  const batch = writeBatch(db)
+  batch.set(caseRef, {
+    caseNumber,
+    status: 'open',
+    isClosed: false,
+    title,
+    description: null,
+    caseType: optionalText(values.caseType),
+    participant: optionalText(values.participant),
+    counterparty: optionalText(values.counterparty),
+    opposingCounsel: null,
+    responsibleUserId: null,
+    responsibleUserName: null,
+    lawFirm: null,
+    ownCounsel: null,
+    lawyerReference: null,
+    lawyerPhone: null,
+    lawyerEmail: null,
+    court: null,
+    courtReference: null,
+    judgeOrChamber: null,
+    nextDeadline: optionalDate(values.nextDeadline),
+    nextDeadlineLabel: null,
+    nextHearing: null,
+    nextHearingTime: null,
+    procedureType: null,
+    proceedingStage: null,
+    instance: null,
+    startedAt: new Date().toISOString().slice(0, 10),
+    completedAt: null,
+    originalClaim: null,
+    counterClaim: null,
+    amountInDispute: null,
+    paidAmount: null,
+    openAmount: null,
+    legalFees: null,
+    courtCosts: null,
+    otherCosts: null,
+    createdAt: serverTimestamp(),
+    createdBy: actor.user.uid,
+    createdByName: actorName,
+    updatedAt: serverTimestamp(),
+    updatedBy: actor.user.uid,
+    updatedByName: actorName,
+  })
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
+  await batch.commit()
+  return caseRef.id
+}
+
 export async function getLegalDispute(legalDisputeId) {
   const snapshot = await getDoc(doc(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null
