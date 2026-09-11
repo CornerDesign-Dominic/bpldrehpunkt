@@ -74,6 +74,14 @@ export function createEmptyBusinessPartner() {
   }
 }
 
+export function normalizePartnerPortal(portal = {}) {
+  const { password: legacyAccessNumber, ...normalizedPortal } = portal
+  return {
+    ...normalizedPortal,
+    accessNumber: portal.accessNumber ?? legacyAccessNumber ?? '',
+  }
+}
+
 function createPayload(values) {
   return {
     companyName: trimValue(values.companyName),
@@ -93,7 +101,10 @@ function createPayload(values) {
     address: Object.fromEntries(Object.entries(values.address).map(([key, value]) => [key, trimValue(value)])),
     contact: Object.fromEntries(Object.entries(values.contact).map(([key, value]) => [key, trimValue(value)])),
     contacts: (values.contacts ?? []).map((contact) => ({ id: contact.id, name: trimValue(contact.name), department: contact.department, departmentOther: trimValue(contact.departmentOther), phone: trimValue(contact.phone), mobile: trimValue(contact.mobile), email: trimValue(contact.email) })),
-    portals: (values.portals ?? []).map((portal) => ({ id: portal.id, name: trimValue(portal.name), url: trimValue(portal.url), username: trimValue(portal.username), password: trimValue(portal.password), purpose: trimValue(portal.purpose) })),
+    portals: (values.portals ?? []).map((portal) => {
+      const normalizedPortal = normalizePartnerPortal(portal)
+      return { id: normalizedPortal.id, name: trimValue(normalizedPortal.name), url: trimValue(normalizedPortal.url), username: trimValue(normalizedPortal.username), accessNumber: trimValue(normalizedPortal.accessNumber), purpose: trimValue(normalizedPortal.purpose) }
+    }),
     companyData: Object.fromEntries(Object.entries(values.companyData).map(([key, value]) => [key, trimValue(value)])),
   }
 }

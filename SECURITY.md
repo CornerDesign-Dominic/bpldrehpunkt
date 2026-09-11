@@ -6,7 +6,7 @@ Diese Leitlinie ist für jede Änderung am Drehpunkt-Projekt verbindlich. Sicher
 
 - Secrets, Passwörter, API-Keys, Service-Account-Dateien und Webhook-URLs dürfen weder in Git noch im Frontend oder in Firestore gespeichert werden.
 - Secrets werden ausschließlich über den vorgesehenen Secret-Manager und serverseitige Functions verwendet.
-- Externe Portalzugänge dürfen nie im Klartext gespeichert oder angezeigt werden. Sie sind nur über einen dafür vorgesehenen, sicheren Mechanismus zu verwalten.
+- Portal-Zugangsnummern sind vom jeweiligen Auftraggeber vergebene Nummern zur Einrichtung des Portalzugangs oder zum Hochladen von Ablieferbelegen; sie sind keine persönlichen Benutzerpasswörter. Ihre Verarbeitung bleibt auf die bestehenden Zugriffsrechte für Geschäftspartnerdaten beschränkt.
 
 ## Zugriff und Berechtigungen
 
