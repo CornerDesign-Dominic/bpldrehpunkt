@@ -265,7 +265,7 @@ function changedFieldMessages(todo, fields, resetAssignment) {
   if ((todo.reminderDate || null) !== fields.reminderDate) changed('die Erinnerung', formatHistoryDate(todo.reminderDate), formatHistoryDate(fields.reminderDate))
   if ((todo.customerId || null) !== fields.customerId) changed('den Kunden', todo.customerName, fields.customerName, 'kein Kunde', 'kein Kunde')
   if ((todo.carrierId || null) !== fields.carrierId) changed('den Unternehmer', todo.carrierName, fields.carrierName, 'kein Unternehmer', 'kein Unternehmer')
-  if ((todo.reference || null) !== fields.reference) changed('die Referenz', todo.reference, fields.reference, 'keine Referenz', 'keine Referenz')
+  if ((todo.reference || null) !== fields.reference) changed('die TA-Nummer', todo.reference, fields.reference, 'keine TA-Nummer', 'keine TA-Nummer')
   if ((todo.damageCaseId || null) !== fields.damageCaseId) messages.push(fields.damageCaseId ? 'hat den Schadenfall verknüpft.' : 'hat die Schadenfall-Verknüpfung entfernt.')
   if (todo.audienceLabel !== fields.audienceLabel) changed('die Zuständigkeit', todo.audienceLabel, fields.audienceLabel)
   if (resetAssignment && todo.assignedUserName) changed('den Bearbeiter', todo.assignedUserName, null, 'nicht übernommen', 'nicht übernommen')

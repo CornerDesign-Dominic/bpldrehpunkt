@@ -14,6 +14,9 @@ service firebase.storage {
     function canEditLegalDisputeDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.legalDisputes == 'edit'); }
     function canReadInkassoDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.inkasso in ['view', 'edit']); }
     function canEditInkassoDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.inkasso == 'edit'); }
+    function canReadInsolvencyDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.insolvencies in ['view', 'edit']); }
+    function canEditInsolvencyDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.insolvencies == 'edit'); }
+    function insolvencyExists(partnerId) { return firestore.exists(/databases/(default)/documents/insolvencies/$(partnerId)); }
     function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
         && fileName.matches('.*\\.pdf')
@@ -58,6 +61,13 @@ service firebase.storage {
       allow create: if canEditInkassoDocuments() && isPdfUpload(fileName) && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$');
       allow update: if false;
       allow delete: if canEditInkassoDocuments();
+    }
+
+    match /insolvencies/{partnerId}/documents/{fileName} {
+      allow read: if canReadInsolvencyDocuments();
+      allow create: if canEditInsolvencyDocuments() && insolvencyExists(partnerId) && isPdfUpload(fileName) && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$');
+      allow update: if false;
+      allow delete: if canEditInsolvencyDocuments();
     }
 
     // A single, fixed object name prevents user-controlled paths and listing.

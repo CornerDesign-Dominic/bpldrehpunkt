@@ -165,12 +165,12 @@ service cloud.firestore {
     function insolvencyText(value, limit) { return value == null || (value is string && value.size() <= limit); }
     function insolvencyDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
     function insolvencyKeysAreValid(data) {
-      return data.keys().hasAll(['partnerId', 'partnerName', 'insolvencyDate', 'courtReference', 'courtVenue', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['partnerId', 'partnerName', 'insolvencyDate', 'courtReference', 'courtVenue', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+      return data.keys().hasAll(['partnerId', 'partnerName', 'insolvencyDate', 'courtReference', 'courtVenue', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['partnerId', 'partnerName', 'insolvencyDate', 'courtReference', 'courtVenue', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validInsolvency(data, partnerId) {
       return data.partnerId == partnerId && data.partnerName is string && data.partnerName.size() > 0 && data.partnerName.size() <= 500
-        && insolvencyDate(data.insolvencyDate) && insolvencyText(data.courtReference, 240) && insolvencyText(data.courtVenue, 240);
+        && insolvencyDate(data.insolvencyDate) && insolvencyText(data.courtReference, 240) && insolvencyText(data.courtVenue, 240) && insolvencyText(data.description, 4000);
     }
     function createdInsolvency(partnerId) {
       return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId)
@@ -198,6 +198,53 @@ service cloud.firestore {
       allow create: if edit('insolvencies') && createdInsolvency(partnerId);
       allow update: if edit('insolvencies') && updatedInsolvency(partnerId);
       allow delete: if false;
+
+      match /movements/{movementId} {
+        function validInsolvencyMovement(data) {
+          return data.keys().hasAll(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.transactionType in ['received', 'paid', 'expected_receivable', 'expected_payable']
+            && data.counterpartyType in ['customer', 'contractor', 'insurance'] && data.amount is number && data.amount >= 0
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        }
+        function insolvencyParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId
+            && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedBy == request.auth.uid;
+        }
+        allow read: if view('insolvencies');
+        allow create: if edit('insolvencies') && validInsolvencyMovement(request.resource.data) && insolvencyParentWasUpdated()
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('insolvencies') && validInsolvencyMovement(request.resource.data) && insolvencyParentWasUpdated()
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow delete: if edit('insolvencies') && insolvencyParentWasUpdated();
+      }
+
+      match /documents/{documentId} {
+        function validInsolvencyDocument(data) {
+          return data.keys().hasAll(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.keys().hasOnly(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
+            && data.id == documentId && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+            && data.description is string && data.description.size() <= 4000 && (data.pageCount == null || (data.pageCount is int && data.pageCount > 0 && data.pageCount <= 10000))
+            && data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 240
+            && data.storagePath == 'insolvencies/' + partnerId + '/documents/' + documentId + '.pdf' && data.contentType == 'application/pdf'
+            && data.fileSize is number && data.fileSize > 0 && data.fileSize <= 20 * 1024 * 1024 && data.uploadedByUserId is string && data.uploadedByName is string;
+        }
+        allow read: if view('insolvencies');
+        allow create: if edit('insolvencies') && validInsolvencyDocument(request.resource.data)
+          && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == request.auth.uid && request.resource.data.uploadedByName == profileName(ownProfile());
+        allow update: if edit('insolvencies') && validInsolvencyDocument(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+          && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId && request.resource.data.uploadedByName == resource.data.uploadedByName
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'updatedAt']);
+        allow delete: if edit('insolvencies');
+      }
     }
 
     match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }

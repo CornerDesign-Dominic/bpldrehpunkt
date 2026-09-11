@@ -143,6 +143,16 @@ test('insolvency creation binds the selected partner and permits only the atomic
   assert.match(insolvencyRules, /allow delete: if false;/)
 })
 
+test('insolvency detail content is scoped to insolvency view and edit rights', () => {
+  const insolvencyRules = rules.match(/match \/insolvencies\/\{partnerId\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  assert.match(insolvencyRules, /description/)
+  assert.match(insolvencyRules, /match \/movements\/\{movementId\}/)
+  assert.match(insolvencyRules, /allow read: if view\('insolvencies'\);/)
+  assert.match(insolvencyRules, /allow create: if edit\('insolvencies'\).*validInsolvencyMovement/)
+  assert.match(insolvencyRules, /match \/documents\/\{documentId\}/)
+  assert.match(insolvencyRules, /storagePath == 'insolvencies\/' \+ partnerId \+ '\/documents\/' \+ documentId \+ '\.pdf'/)
+})
+
 test('active process questions validate variable answer paths', () => {
   const processValidation = functionsIndex.match(/function validateActiveKnowledgeProcess\(process\) \{([\s\S]*?)\n\}/)?.[1] || ''
   assert.match(processValidation, /node\.outputs\.length < 2/)
