@@ -21,7 +21,14 @@ export default function InsolvencyCaseForm({ onCancel, onSubmit, partners, loadi
     }
     setSubmitting(true)
     setError('')
-    try { await onSubmit(form, partner) } catch (submissionError) { setError(submissionError.message || 'Der Insolvenzfall konnte nicht angelegt werden.') } finally { setSubmitting(false) }
+    try {
+      await onSubmit(form, partner)
+    } catch (submissionError) {
+      const code = submissionError?.code
+      setError(['permission-denied', 'firestore/permission-denied'].includes(code)
+        ? 'Die Insolvenz konnte nicht angelegt werden. Bitte prüfe deine Berechtigung oder wende dich an die Administration.'
+        : submissionError.message || 'Der Insolvenzfall konnte nicht angelegt werden.')
+    } finally { setSubmitting(false) }
   }
 
   return <form className="damage-form insolvency-case-form" onSubmit={submit} noValidate>

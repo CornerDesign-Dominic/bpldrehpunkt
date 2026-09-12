@@ -138,7 +138,9 @@ test('insolvency creation binds the selected partner and permits only the atomic
   const insolvencyRules = rules.match(/function insolvencyText[\s\S]*?match \/insolvencies\/\{partnerId\} \{([\s\S]*?)\n {4}\}/)?.[0] || ''
   assert.match(insolvencyRules, /data\.partnerId == partnerId/)
   assert.match(insolvencyRules, /getAfter\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(partnerId\)\)\.data\.status == 'insolvency'/)
-  assert.match(insolvencyRules, /affectedKeys\(\)\.hasOnly\(\['status', 'updatedAt'\]\)/)
+  assert.match(insolvencyRules, /affectedKeys\(\)\.hasOnly\(\['status', 'updatedAt', 'updatedBy', 'updatedByName'\]\)/)
+  assert.match(insolvencyRules, /request\.resource\.data\.updatedBy == request\.auth\.uid/)
+  assert.match(insolvencyRules, /request\.resource\.data\.updatedByName == profileName\(ownProfile\(\)\)/)
   assert.match(insolvencyRules, /existsAfter\(\/databases\/\$\(database\)\/documents\/insolvencies\/\$\(partnerId\)\)/)
   assert.match(insolvencyRules, /allow delete: if false;/)
 })

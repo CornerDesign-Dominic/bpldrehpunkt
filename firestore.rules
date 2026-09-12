@@ -188,8 +188,9 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
     }
     function insolvencyStatusUpdate(partnerId) {
-      return edit('insolvencies') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+      return edit('insolvencies') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy', 'updatedByName'])
         && request.resource.data.status == 'insolvency' && request.resource.data.updatedAt == request.time
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
         && existsAfter(/databases/$(database)/documents/insolvencies/$(partnerId))
         && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId;
     }
