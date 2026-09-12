@@ -8,6 +8,7 @@ import { businessDays, formatVacationPeriod, getVacationType, todayValue } from 
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import { listManagedVacationData, processVacationRequest } from '../lib/vacationManagement.js'
 import { getMainVacationStatus, getVacationRequestKind, getVacationRequestStatus } from '../lib/vacationStatus.js'
+import { formatVacationHistoryDate, vacationHistoryActor, vacationHistoryLabel } from '../lib/vacationHistory.js'
 import '../styles/vacation.css'
 import '../styles/vacationManagement.css'
 
@@ -16,10 +17,9 @@ const statusLabels = { pending: 'Ausstehend', approved: 'Genehmigt', rejected: '
 
 function requestType(request) { const kind = getVacationRequestKind(request); return kind === 'vacation' ? 'request' : kind }
 function requestStatus(request) { return requestType(request) === 'request' ? getMainVacationStatus(request) : getVacationRequestStatus(request) }
-function submittedAt(request) { const date = request.submittedAt ? new Date(request.submittedAt) : null; return !date || Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(date) }
 function requestDays(request) { return request.days ?? businessDays(request.startDate, request.endDate) }
 
-function RequestDetailModal({ request, actionRequest, history, onClose, onProcess }) {
+function RequestDetailModal({ request, actionRequest, history, people, onClose, onProcess }) {
   const action = actionRequest || request
   const type = requestType(action)
   const status = requestStatus(request)
@@ -29,7 +29,7 @@ function RequestDetailModal({ request, actionRequest, history, onClose, onProces
   const savedManagerComment = action.managerComment || 'Kein Kommentar'
   const entries = history.filter((item) => item.vacationId === request.id).sort((left, right) => (left.createdAt?.toMillis?.() || 0) - (right.createdAt?.toMillis?.() || 0))
 
-  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-management-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-management-detail-title">Urlaub</h2><p>{request.employeeName} · {request.employeeDepartment || 'Keine Abteilung'}</p></div></div><dl className="vacation-detail-list"><div><dt>Mitarbeiter</dt><dd>{request.employeeName}</dd></div><div><dt>Abteilung</dt><dd>{request.employeeDepartment || 'Keine Abteilung'}</dd></div><div><dt>Hauptstatus</dt><dd><span className={`vacation-management-status vacation-management-status--${status}`}>{statusLabels[status]}</span></dd></div><div><dt>Urlaubsart</dt><dd>{getVacationType(request.vacationType).label}</dd></div><div className="vacation-detail-list__wide"><dt>Zeitraum</dt><dd>{formatVacationPeriod(request)}</dd></div><div><dt>Urlaubstage</dt><dd>{requestDays(request)}</dd></div>{actionRequest && <><div><dt>Offener Vorgang</dt><dd>{requestTypes[type]} · {statusLabels[actionStatus]}</dd></div><div className="vacation-detail-list__wide"><dt>Gewünschter Zeitraum</dt><dd>{formatVacationPeriod(action)}</dd></div></>}<div className="vacation-detail-list__wide"><dt>Kommentar des Mitarbeiters</dt><dd>{requestComment}</dd></div>{actionStatus !== 'pending' && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd>{savedManagerComment}</dd></div>}{actionStatus === 'pending' && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd><label className="form-field vacation-manager-comment"><span>Kommentar zur Entscheidung (optional)</span><textarea rows="3" value={managerComment} onChange={(event) => setManagerComment(event.target.value)} /></label></dd></div>}</dl><section className="vacation-history"><h3>Verlauf</h3>{entries.length ? entries.map((item) => <div className="vacation-history__entry" key={item.id}><strong>{item.eventType.replaceAll('_', ' ')}</strong><span>{submittedAt({ submittedAt: item.createdAt?.toDate?.()?.toISOString?.() })}</span>{item.comment && <small>{item.comment}</small>}</div>) : <p>Für diesen Urlaub liegen noch keine Verlaufsdaten vor.</p>}</section><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button>{actionStatus === 'pending' && <><button className="button button--secondary" type="button" onClick={() => onProcess(action, 'rejected', managerComment)}>Ablehnen</button><button className="button" type="button" onClick={() => onProcess(action, 'approved', managerComment)}>Genehmigen</button></>}</div></section></div>
+  return <div className="vacation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="vacation-modal vacation-modal--detail" role="dialog" aria-modal="true" aria-labelledby="vacation-management-detail-title"><div className="vacation-modal__heading"><div><h2 id="vacation-management-detail-title">Urlaub</h2><p>{formatVacationPeriod(request)}</p></div><span className={`vacation-management-status vacation-management-status--${status}`}>{statusLabels[status]}</span></div><dl className="vacation-detail-list vacation-detail-list--compact"><div><dt>Mitarbeiter</dt><dd>{request.employeeName}</dd></div><div><dt>Abteilung</dt><dd>{request.employeeDepartment || 'Keine Abteilung'}</dd></div><div><dt>Urlaubsart</dt><dd>{getVacationType(request.vacationType).label}</dd></div><div><dt>Urlaubstage</dt><dd>{requestDays(request)}</dd></div><div className="vacation-detail-list__wide"><dt>Zeitraum</dt><dd>{formatVacationPeriod(request)}</dd></div>{actionRequest && <><div><dt>Offener Vorgang</dt><dd>{requestTypes[type]} · {statusLabels[actionStatus]}</dd></div><div><dt>Gewünschter Zeitraum</dt><dd>{formatVacationPeriod(action)}</dd></div></>}<div className="vacation-detail-list__wide"><dt>Kommentar des Mitarbeiters</dt><dd>{requestComment}</dd></div>{actionStatus !== 'pending' && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd>{savedManagerComment}</dd></div>}{actionStatus === 'pending' && <div className="vacation-detail-list__wide"><dt>Kommentar des Genehmigers</dt><dd><label className="form-field vacation-manager-comment"><span>Kommentar zur Entscheidung (optional)</span><textarea rows="3" value={managerComment} onChange={(event) => setManagerComment(event.target.value)} /></label></dd></div>}</dl><section className="vacation-history"><h3>Verlauf</h3>{entries.length ? entries.map((item) => { const actor = vacationHistoryActor(item, people); return <div className="vacation-history__entry" key={item.id}><strong>{vacationHistoryLabel(item.eventType)}</strong><span>{formatVacationHistoryDate(item.createdAt)}{actor ? ` · ${actor}` : ''}</span>{item.comment && <small>{item.comment}</small>}</div> }) : <p>Für diesen Urlaub liegen noch keine Verlaufsdaten vor.</p>}</section><div className="vacation-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button>{actionStatus === 'pending' && <><button className="button button--secondary" type="button" onClick={() => onProcess(action, 'rejected', managerComment)}>Ablehnen</button><button className="button" type="button" onClick={() => onProcess(action, 'approved', managerComment)}>Genehmigen</button></>}</div></section></div>
 }
 
 export default function VacationManagementPage() {
@@ -43,7 +43,7 @@ export default function VacationManagementPage() {
   const [year, setYear] = useState(currentYear)
   const [month, setMonth] = useState(currentDate.getMonth())
   const [status, setStatus] = useState('all')
-  const [sort, setSort] = useState('start_asc')
+  const [sort, setSort] = useState('newest')
   const [department, setDepartment] = useState('all')
   const [employee, setEmployee] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -92,7 +92,7 @@ export default function VacationManagementPage() {
   ], [filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
 
   function moveMonth(delta) { const next = new Date(year, month + delta, 1); setYear(next.getFullYear()); setMonth(next.getMonth()) }
-  function showToday() { const current = new Date(); setYear(current.getFullYear()); setMonth(current.getMonth()) }
+  function showToday() { const current = new Date(); setYear(current.getFullYear()); setMonth(current.getMonth()); setDepartment('all'); setEmployee('all'); setStatus('all'); setSort('newest') }
   function showRequestInCalendar(request) {
     const activeRequest = request.activeRequest && requestStatus(request.activeRequest) === 'pending' ? request.activeRequest : null
     const target = activeRequest?.startDate ? activeRequest : request
