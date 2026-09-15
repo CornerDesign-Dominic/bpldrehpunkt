@@ -39,7 +39,9 @@ export function DocumentPreview({ documentItem, getDocumentBlob = getInternalDoc
         objectUrl = URL.createObjectURL(previewBlob)
         if (current) setUrl(objectUrl)
         else URL.revokeObjectURL(objectUrl)
-        await pdf.destroy()
+        // PDF.js 6 exposes cleanup() on the document proxy; older versions
+        // exposed destroy().  Cleanup must never undo a rendered preview.
+        try { await pdf.cleanup?.() } catch (cleanupError) { console.warn('Dokumente: PDF-Vorschau konnte nicht bereinigt werden.', cleanupError) }
       } catch (error) {
         console.error('Dokumente: PDF-Vorschau konnte nicht geladen werden.', error)
         if (current) setUrl('')
