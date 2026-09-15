@@ -209,10 +209,11 @@ export default function VacationPage() {
     const isOwn = request.userId === user.uid
     const owner = usersById.get(request.userId)
     return !request.originalRequestId
-      && !['cancelled', 'withdrawn', 'superseded'].includes(request.status)
+      && request.status !== 'superseded'
+      && (listStatus === 'all' || getMainVacationStatus(request) === listStatus)
       && requestOverlaps(request, `${year}-${String(month + 1).padStart(2, '0')}-01`, `${year}-${String(month + 1).padStart(2, '0')}-31`)
       && (isOwn || (calendarScope === 'department' && ownDepartment && departmentKey(owner) === ownDepartment && request.status === 'approved'))
-  }), [calendarScope, month, ownDepartment, requests, user.uid, usersById, year])
+  }), [calendarScope, listStatus, month, ownDepartment, requests, user.uid, usersById, year])
   const ownRequests = useMemo(() => requests.filter((request) => request.userId === user.uid), [requests, user.uid])
   const ownRelatedByOriginal = useMemo(() => ownRequests.filter((request) => request.originalRequestId).reduce((map, request) => { const related = map.get(request.originalRequestId) || []; related.push(request); map.set(request.originalRequestId, related); return map }, new Map()), [ownRequests])
   const ownList = useMemo(() => ownRequests.filter((request) => getVacationRequestKind(request) === 'vacation' && request.status !== 'superseded' && requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`) && (listStatus === 'all' || getMainVacationStatus(request) === listStatus)).map((request) => ({ ...request, activeRequest: latestVacationRequest(ownRelatedByOriginal.get(request.id) || []) })).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listStatus, listYear, ownRelatedByOriginal, ownRequests])
@@ -236,10 +237,8 @@ export default function VacationPage() {
       const related = ownRelatedByOriginal.get(item.id) || []
       const latestChange = latestRequest(related.filter((request) => request.status === 'change_requested' || request.changeRequest))
       const pendingCancellation = latestRequest(related.filter((request) => request.status === 'cancellation_requested'))
-      const approvedCancellation = related.some((request) => isCancellationRequest(request) && request.status === 'approved')
       const own = item.userId === user.uid
 
-      if (item.status === 'cancelled' || approvedCancellation) return []
       if (latestChange?.status === 'cancelled') return []
       if (latestChange?.status === 'approved') return [{ id: `change-${latestChange.id}`, startDate: latestChange.startDate, endDate: latestChange.endDate, label: ownerName.split(' ')[0], kind: 'approved', own, title: `${ownerName} · Änderung genehmigt` }]
       if (latestChange?.status === 'change_requested') return [
