@@ -36,23 +36,24 @@
 .vacation-legend { display: flex; flex-wrap: wrap; gap: 8px 13px; padding-top: 10px; color: var(--text-muted); font-size: 10px; font-weight: 650; }
 .vacation-legend__item { display: inline-flex; align-items: center; gap: 5px; }
 .vacation-legend__item::before { width: 8px; height: 8px; border-radius: 2px; content: ''; }
-.vacation-sidebar { display: grid; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; }
-.vacation-request-actions { display: flex; }
-.vacation-request-actions .button { width: 100%; }
+.vacation-sidebar { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; }
+.vacation-request-actions { display: flex; min-width: 0; }
+.vacation-request-actions .button { width: 100%; min-height: 30px; }
 .vacation-summary-card, .vacation-list-card { padding: 13px; }
 .vacation-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
 .vacation-card-heading h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .vacation-summary-heading > span { color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .vacation-card-heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 11px; }
 .vacation-card-heading .button { height: 30px; padding-inline: 10px; font-size: 12px; }
-.vacation-list-heading { justify-content: flex-start; }.vacation-list-filters { display: flex; gap: 14px; }.vacation-list-filters .filter-field { min-width: 0; flex: 1; }.vacation-list-filters select { width: 100%; }.vacation-list-year { max-width: 96px; }.vacation-list-status { min-width: 122px; }
+.vacation-list-heading { align-items: center; justify-content: flex-start; }.vacation-list-filters { display: grid; width: 100%; grid-template-columns: minmax(5.5rem, .75fr) minmax(8.25rem, 1fr); gap: 10px; }.vacation-list-filters .filter-field { min-width: 0; }.vacation-list-filters select { width: 100%; height: 30px; }.vacation-list-year, .vacation-list-status { min-width: 0; max-width: none; }
 .vacation-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin: 11px 0 0; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
 .vacation-summary div { min-width: 0; padding: 8px 9px; background: var(--surface-secondary); }
 .vacation-summary div:nth-child(odd) { border-right: 1px solid var(--border); }.vacation-summary div:nth-child(-n + 4) { border-bottom: 1px solid var(--border); }
 .vacation-summary dt { overflow: hidden; color: var(--text-muted); font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .vacation-summary dd { margin: 3px 0 0; color: var(--text-primary); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .vacation-summary__available { background: var(--quick-info-background) !important; }.vacation-summary__available dd { color: var(--button-background); }
-.vacation-list-card { display: flex; min-height: 0; flex-direction: column; }
+.vacation-list-card { display: flex; min-width: 0; min-height: 0; flex-direction: column; container-type: inline-size; }
+@container (max-width: 280px) { .vacation-list-filters { grid-template-columns: minmax(0, 1fr); } }
 .vacation-request-list { min-height: 0; overflow-y: auto; }
 .vacation-request { display: grid; width: 100%; gap: 5px; margin-bottom: 7px; padding: 8px 9px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; font: inherit; text-align: left; }
 .vacation-request:hover { border-color: var(--border-strong); background: var(--surface-active); }.vacation-request:last-child { margin-bottom: 0; }
