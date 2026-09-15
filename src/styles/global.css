@@ -1166,7 +1166,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .damage-deadlines__add { min-height: 29px; padding: 0 9px; font-size: 11px; }
 .damage-deadlines__table-frame { overflow-x: hidden; }
 .damage-deadlines__table { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; }
-.damage-deadlines__table th { height: 37px; padding: 0 10px; }
+.damage-deadlines__table thead th { height: 37px; padding-inline: 10px !important; text-align: left; }
 .damage-deadlines__table th:nth-child(1) { width: 185px; }
 .damage-deadlines__table th:nth-child(2) { width: 94px; }
 .damage-deadlines__table td:nth-child(1), .damage-deadlines__table td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
