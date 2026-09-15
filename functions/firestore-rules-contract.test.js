@@ -7,6 +7,7 @@ const app = await readFile(new URL('../src/App.jsx', import.meta.url), 'utf8')
 const authProvider = await readFile(new URL('../src/auth/AuthProvider.jsx', import.meta.url), 'utf8')
 const profilePage = await readFile(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8')
 const personnelPage = await readFile(new URL('../src/pages/PersonnelPage.jsx', import.meta.url), 'utf8')
+const personnelDetailPage = await readFile(new URL('../src/pages/PersonnelDetailPage.jsx', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
 const knowledgeProcessAi = await readFile(new URL('./knowledgeProcessAi.js', import.meta.url), 'utf8')
 const aiPrompts = await readFile(new URL('./aiPrompts.js', import.meta.url), 'utf8')
@@ -71,7 +72,7 @@ test('personnel data is callable-only and requires its own module permission', (
 })
 
 test('personnel writes keep shared fields central and HR-only fields separate', () => {
-  assert.match(functionsIndex, /const hrProfileFields = \['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount'\]/)
+  assert.match(functionsIndex, /const hrProfileFields = \['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance'\]/)
   assert.match(functionsIndex, /const sharedHrProfileFields = \['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart'\]/)
   assert.match(functionsIndex, /transaction\.update\(userRef, centralUpdate\)/)
   assert.match(functionsIndex, /transaction\.set\(hrRef, \{/)
@@ -99,6 +100,24 @@ test('personnel edit never grants user creation and the personnel UI has no crea
 
 test('vacation HR metadata is inaccessible to direct Firestore clients', () => {
   assert.match(rules, /match \/hrVacationMeta\/\{vacationId\} \{\s*allow read, write: if false;/)
+})
+
+test('employment and vacation baseline data stay HR-only while central employment fields remain shared', () => {
+  assert.match(functionsIndex, /employmentEnd: optionalDate\(value\.employmentEnd, 'Austrittsdatum'\)/)
+  assert.match(functionsIndex, /annualVacationEntitlement: optionalNumber\(value\.annualVacationEntitlement, 'Urlaubsanspruch pro Jahr', 0, 366\)/)
+  assert.match(functionsIndex, /vacationTrackingStartYear: optionalInteger\(value\.vacationTrackingStartYear, 'Beginn der Urlaubserfassung', 1900, 2100\)/)
+  assert.match(functionsIndex, /vacationTrackingOpeningBalance: optionalNumber\(value\.vacationTrackingOpeningBalance, 'Urlaubsstand zu Beginn', -366, 366\)/)
+  assert.match(personnelDetailPage, /DetailSection title="Arbeitsverhältnis & Urlaub"/)
+  assert.match(personnelDetailPage, /\['personnelNumber', 'Personalnummer', 'text'\], \['employmentStart', 'Eintrittsdatum', 'date'\]/)
+  assert.doesNotMatch(functionsIndex.match(/const normalFields = \[[^\]]*\]/)?.[0] || '', /employmentEnd|annualVacationEntitlement|vacationTrackingStartYear|vacationTrackingOpeningBalance/)
+})
+
+test('personnel details require an explicit edit action before HR fields or vacation metadata can be changed', () => {
+  assert.match(personnelDetailPage, /const \[editing, setEditing\] = useState\(false\)/)
+  assert.match(personnelDetailPage, /Bearbeiten<\/button>/)
+  assert.match(personnelDetailPage, /canModify && editing \? <form/)
+  assert.match(personnelDetailPage, /editable=\{canModify && editing\}/)
+  assert.match(personnelDetailPage, /function cancelEditing\(\) \{[\s\S]*?setEditing\(false\)/)
 })
 
 test('AI prompt configurations are callable-only and have dedicated server-side administration', () => {

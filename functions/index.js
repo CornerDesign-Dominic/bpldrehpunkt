@@ -13,7 +13,7 @@ const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
 const modules = ['vacation', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'knowledgeProcesses', 'agbChecker']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
-const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount']
+const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
 
 function permissions(value) { return Object.fromEntries(modules.map((module) => [module, levels.has(value?.[module]) ? value[module] : 'none'])) }
@@ -118,6 +118,20 @@ function optionalDate(value, field) {
   return clean
 }
 
+function optionalInteger(value, field, minimum, maximum) {
+  if (value === '' || value === null || value === undefined) return null
+  const number = Number(value)
+  if (!Number.isInteger(number) || number < minimum || number > maximum) throw new HttpsError('invalid-argument', `${field} muss eine ganze Zahl zwischen ${minimum} und ${maximum} sein.`)
+  return number
+}
+
+function optionalNumber(value, field, minimum, maximum) {
+  if (value === '' || value === null || value === undefined) return null
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < minimum || number > maximum) throw new HttpsError('invalid-argument', `${field} muss zwischen ${minimum} und ${maximum} liegen.`)
+  return number
+}
+
 function validatedHrFields(value = {}) {
   const childrenCount = value.childrenCount === '' || value.childrenCount === null || value.childrenCount === undefined ? null : Number(value.childrenCount)
   if (childrenCount !== null && (!Number.isInteger(childrenCount) || childrenCount < 0 || childrenCount > 50)) throw new HttpsError('invalid-argument', 'Anzahl Kinder muss eine ganze Zahl zwischen 0 und 50 sein.')
@@ -131,6 +145,10 @@ function validatedHrFields(value = {}) {
     country: optionalText(value.country, 'Land', 120),
     taxClass,
     childrenCount,
+    employmentEnd: optionalDate(value.employmentEnd, 'Austrittsdatum'),
+    annualVacationEntitlement: optionalNumber(value.annualVacationEntitlement, 'Urlaubsanspruch pro Jahr', 0, 366),
+    vacationTrackingStartYear: optionalInteger(value.vacationTrackingStartYear, 'Beginn der Urlaubserfassung', 1900, 2100),
+    vacationTrackingOpeningBalance: optionalNumber(value.vacationTrackingOpeningBalance, 'Urlaubsstand zu Beginn', -366, 366),
   }
 }
 
@@ -224,7 +242,7 @@ function personnelDetailEntry(userSnapshot, hrSnapshot) {
     ...personnelListEntry(userSnapshot),
     phone: typeof profile.phone === 'string' ? profile.phone : '',
     departmentId: typeof profile.departmentId === 'string' ? profile.departmentId : '',
-    ...Object.fromEntries(hrProfileFields.map((field) => [field, hr[field] ?? (field === 'childrenCount' ? null : '')])),
+    ...Object.fromEntries(hrProfileFields.map((field) => [field, hr[field] ?? (['childrenCount', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance'].includes(field) ? null : '')])),
   }
 }
 

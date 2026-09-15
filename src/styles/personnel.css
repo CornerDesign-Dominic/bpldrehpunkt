@@ -6,7 +6,7 @@
 .personnel-table table { min-width: 860px; table-layout: fixed; }
 .personnel-table th, .personnel-table td { height: 40px; padding: 7px 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .personnel-table th:nth-child(1) { width: 25%; }.personnel-table th:nth-child(2) { width: 17%; }.personnel-table th:nth-child(3) { width: 20%; }.personnel-table th:nth-child(4) { width: 23%; }.personnel-table th:nth-child(5) { width: 15%; }
-.personnel-table__employee { color: var(--text-primary); font-weight: 700; text-decoration: none; }.personnel-table__employee:hover { color: var(--button-background); text-decoration: underline; }.personnel-table__employee:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+.personnel-table__row--link { cursor: pointer; }.personnel-table__row--link:hover { background: var(--surface-active); }.personnel-table__row--link:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
 .personnel-detail-page { max-width: 1040px; }
 .personnel-detail__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.personnel-detail__heading h1 { margin: 0; color: var(--text-primary); font-size: var(--font-size-record-title); }.personnel-detail__heading p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }.personnel-detail__heading .button { flex: 0 0 auto; }
 .personnel-detail__form { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
