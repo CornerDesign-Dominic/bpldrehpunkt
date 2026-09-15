@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
-import { canManageUsers, canManageVacations, canView } from '../../lib/permissions.js'
+import { canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../../lib/permissions.js'
 import { CalendarIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, KnowledgeProcessesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { SIDEBAR_BADGE_DEFINITIONS } from '../../lib/sidebarBadges.js'
@@ -43,7 +43,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   const { profile, user } = useAuth()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [badgeCounts, setBadgeCounts] = useState({})
-  const visibleItems = navigationItems.filter((item) => item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : !item.module || canView(profile, item.module))
+  const visibleItems = navigationItems.filter((item) => item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module))
   const visibleBadgeKeys = [...new Set(visibleItems.map((item) => item.badge).filter(Boolean))].sort().join(',')
   const profileName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || profile?.name || getUserDisplayName(profile, user)
   const profileEmail = user?.email || profile?.email || ''

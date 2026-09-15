@@ -13,6 +13,12 @@ service cloud.firestore {
     function level(module) { return superadmin() ? 'edit' : ownProfile().permissions[module]; }
     function view(module) { return active() && (superadmin() || level(module) in ['view', 'edit']); }
     function edit(module) { return active() && (superadmin() || level(module) == 'edit'); }
+    // These identifiers are virtual system calendars. Their entries always
+    // remain in the protected source case files and can never be created or
+    // administered as ordinary calendar documents.
+    function systemCalendarId(calendarId) {
+      return calendarId in ['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso'];
+    }
     function calendarDocument(calendarId) { return get(/databases/$(database)/documents/calendars/$(calendarId)).data; }
     function calendarPermissionLevel(calendarId) {
       return exists(/databases/$(database)/documents/calendarPermissions/$(calendarId + '_' + request.auth.uid))
@@ -123,34 +129,34 @@ service cloud.firestore {
     }
 
     match /calendars/{calendarId} {
-      allow get: if view('calendar') && canReadCalendar(calendarId);
+      allow get: if !systemCalendarId(calendarId) && view('calendar') && canReadCalendar(calendarId);
       allow list: if view('calendar') && superadmin();
       // Personal calendars are provisioned on first use. Shared calendars and
       // their lifecycle are deliberately restricted to superadmins.
-      allow create: if superadmin() || (view('calendar') && validPersonalCalendar(calendarId, request.resource.data));
-      allow update: if superadmin() || (view('calendar') && resource.data.kind == 'personal' && resource.data.ownerUserId == request.auth.uid
+      allow create: if !systemCalendarId(calendarId) && (superadmin() || (view('calendar') && validPersonalCalendar(calendarId, request.resource.data)));
+      allow update: if !systemCalendarId(calendarId) && (superadmin() || (view('calendar') && resource.data.kind == 'personal' && resource.data.ownerUserId == request.auth.uid
         && request.resource.data.color == '#c99a3d' && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['color', 'updatedAt']));
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['color', 'updatedAt'])));
       allow delete: if false;
 
       match /events/{eventId} {
-        allow read: if view('calendar') && canReadCalendar(calendarId);
-        allow create: if view('calendar') && canEditCalendar(calendarId) && validCalendarEvent(request.resource.data)
+        allow read: if !systemCalendarId(calendarId) && view('calendar') && canReadCalendar(calendarId);
+        allow create: if !systemCalendarId(calendarId) && view('calendar') && canEditCalendar(calendarId) && validCalendarEvent(request.resource.data)
           && request.resource.data.createdByUserId == request.auth.uid && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
-        allow update: if view('calendar') && canEditCalendar(calendarId) && validCalendarEvent(request.resource.data)
+        allow update: if !systemCalendarId(calendarId) && view('calendar') && canEditCalendar(calendarId) && validCalendarEvent(request.resource.data)
           && request.resource.data.createdByUserId == resource.data.createdByUserId && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time;
-        allow delete: if view('calendar') && canEditCalendar(calendarId);
+        allow delete: if !systemCalendarId(calendarId) && view('calendar') && canEditCalendar(calendarId);
       }
     }
 
     match /calendarPermissions/{permissionId} {
       allow read: if view('calendar') && (superadmin() || resource.data.userId == request.auth.uid);
-      allow create, update: if superadmin()
+      allow create, update: if superadmin() && !systemCalendarId(request.resource.data.calendarId)
         && request.resource.data.keys().hasAll(['calendarId', 'userId', 'level', 'updatedAt'])
         && request.resource.data.keys().hasOnly(['calendarId', 'userId', 'level', 'updatedAt'])
         && request.resource.data.calendarId is string && request.resource.data.userId is string
         && request.resource.data.level in ['none', 'view', 'edit'] && request.resource.data.updatedAt == request.time;
-      allow delete: if superadmin();
+      allow delete: if superadmin() && !systemCalendarId(resource.data.calendarId);
     }
 
     match /businessPartners/{partnerId} {

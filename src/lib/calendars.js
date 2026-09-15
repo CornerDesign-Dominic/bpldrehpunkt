@@ -6,6 +6,7 @@ export const CALENDAR_PERMISSIONS_COLLECTION = 'calendarPermissions'
 export const CALENDAR_LEVELS = ['none', 'view', 'edit']
 export const DEFAULT_CALENDAR_COLOR = '#55758d'
 export const PERSONAL_CALENDAR_COLOR = '#c99a3d'
+export const SYSTEM_CALENDAR_IDS = ['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso']
 
 export function personalCalendarId(userId) {
   return `personal-${userId}`
@@ -74,7 +75,10 @@ export async function ensurePersonalCalendar(userId) {
 
 export async function listCalendars() {
   const snapshot = await getDocs(collection(db, CALENDARS_COLLECTION))
-  return snapshot.docs.map((item) => normalizeCalendar(item.id, item.data())).sort((left, right) => left.name.localeCompare(right.name, 'de'))
+  return snapshot.docs
+    .filter((item) => !SYSTEM_CALENDAR_IDS.includes(item.id))
+    .map((item) => normalizeCalendar(item.id, item.data()))
+    .sort((left, right) => left.name.localeCompare(right.name, 'de'))
 }
 
 function calendarSortOrder(left, right, userId) {
