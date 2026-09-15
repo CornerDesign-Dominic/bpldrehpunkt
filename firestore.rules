@@ -427,6 +427,31 @@ service cloud.firestore {
         allow delete: if edit('damages') && movementParentWasUpdated();
       }
 
+      match /deadlines/{deadlineId} {
+        function validDamageDeadline(data) {
+          return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.reminderEnabled is bool && (data.note == null || (data.note is string && data.note.size() <= 4000))
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        }
+        function deadlineParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/damageCases/$(id)).data.caseNumber is string
+            && getAfter(/databases/$(database)/documents/damageCases/$(id)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/damageCases/$(id)).data.updatedBy == request.auth.uid;
+        }
+        allow read: if view('damages');
+        allow create: if edit('damages') && validDamageDeadline(request.resource.data) && deadlineParentWasUpdated()
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('damages') && validDamageDeadline(request.resource.data) && deadlineParentWasUpdated()
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+        allow delete: if false;
+      }
+
       match /documents/{documentId} {
         function validDamageDocument(data) {
           return data.keys().hasAll(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])

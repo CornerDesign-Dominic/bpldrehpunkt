@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DamageCaseEditModal from '../components/damages/DamageCaseEditModal.jsx'
+import DamageDeadlinesCard from '../components/damages/DamageDeadlinesCard.jsx'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
 import DamageFinancialOverview from '../components/damages/DamageFinancialOverview.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
@@ -14,7 +15,7 @@ import { listBusinessPartners } from '../lib/businessPartners.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createDamageCaseDocument, deleteDamageCaseDocument, listDamageCaseDocuments, updateDamageCaseDocument } from '../lib/damageDocuments.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseMovements, listDamageCaseUpdates, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
+import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseDeadline, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseDeadlines, listDamageCaseMovements, listDamageCaseUpdates, updateDamageCaseDeadline, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -93,10 +94,12 @@ export default function DamageDetailPage() {
   const [updates, setUpdates] = useState([])
   const [documents, setDocuments] = useState([])
   const [movements, setMovements] = useState([])
+  const [deadlines, setDeadlines] = useState([])
   const [loading, setLoading] = useState(true)
   const [updatesLoading, setUpdatesLoading] = useState(true)
   const [documentsLoading, setDocumentsLoading] = useState(false)
   const [movementsLoading, setMovementsLoading] = useState(true)
+  const [deadlinesLoading, setDeadlinesLoading] = useState(true)
   const [editing, setEditing] = useState(null)
   const [editingDocument, setEditingDocument] = useState(null)
   const [detailsDocument, setDetailsDocument] = useState(null)
@@ -108,15 +111,15 @@ export default function DamageDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, history, damageDocuments, damageMovements, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
-    setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false)
+    const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setDeadlines(damageDeadlines); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
-      .then(([entry, history, damageDocuments, damageMovements, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false) } })
+    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      .then(([entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setDeadlines(damageDeadlines); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false) } })
+      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
   }, [canViewMasterData, damageCaseId, editable, setTitle])
@@ -222,6 +225,20 @@ export default function DamageDetailPage() {
     }
   }
 
+  async function saveDeadline(existingDeadline, values) {
+    if (!editable) return
+    setError('')
+    try {
+      if (existingDeadline) await updateDamageCaseDeadline(damageCase, existingDeadline, values, { user, profile })
+      else await createDamageCaseDeadline(damageCase, values, { user, profile })
+      await load()
+      setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
+    } catch (saveError) {
+      setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.')
+      throw saveError
+    }
+  }
+
   if (loading) return <p className="page-state">Fall wird geladen …</p>
   if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><Link className="button button--secondary" to="/schaeden">Zurück</Link></section>
   if (!damageCase) return null
@@ -246,6 +263,7 @@ export default function DamageDetailPage() {
           <section className="todo-detail-content"><DetailSectionHeading onEdit={editable ? () => setEditing('description') : null}>Schadenbeschreibung</DetailSectionHeading><p className="todo-detail-description">{damageCase.description || 'Keine Schadenbeschreibung hinterlegt.'}</p></section>
           <DamageDocumentsCard canEdit={canEditDocuments} documents={documents} loading={documentsLoading} onDelete={(documentItem) => setDocumentConfirmation(documentItem)} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <DamageFinancialOverview canEdit={editable} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
+          <DamageDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onSave={saveDeadline} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="damage-update-title"><div className="todo-updates__heading"><h3 id="damage-update-title">Update zum Schaden</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Schaden" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Schaden hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="damage-history-title"><div className="todo-updates__heading"><h3 id="damage-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>

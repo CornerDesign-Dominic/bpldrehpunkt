@@ -1160,6 +1160,35 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .damage-case-edit-modal--general .form-actions { margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--border); }
 .damage-case-edit-modal__liability { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .damage-case-edit-modal__liability .form-field:last-child { grid-column: 1 / -1; }
+.damage-deadlines { display: grid; gap: 11px; }
+.damage-deadlines__add { min-height: 29px; padding: 0 9px; font-size: 11px; }
+.damage-deadlines__table { min-width: 0; table-layout: fixed; }
+.damage-deadlines__table th:nth-child(1) { width: 162px; }
+.damage-deadlines__table th:nth-child(2) { width: 94px; }
+.damage-deadlines__row { cursor: pointer; }
+.damage-deadlines__row:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
+.damage-deadlines__date { color: var(--text-primary); font-weight: 700; }
+.damage-deadlines__date--overdue { color: var(--status-danger-text); font-weight: 800; }
+.damage-deadlines__date--today { color: var(--status-danger-text); font-weight: 800; }
+.damage-deadlines__date--soon { color: var(--status-warning-text); font-weight: 800; }
+.damage-deadlines__reminder { display: inline-flex; min-height: 22px; align-items: center; padding: 0 7px; border: 1px solid transparent; border-radius: 4px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 11px; font-weight: 700; }
+.damage-deadlines__reminder--on { color: var(--button-background); border-color: color-mix(in srgb, var(--button-background) 38%, transparent); background: var(--surface-active); }
+.damage-deadlines__note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.damage-deadline-modal { width: min(100%, 560px); }
+.damage-deadline-modal__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.damage-deadline-modal__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.damage-deadline-modal__note { grid-column: 1 / -1; }
+.damage-deadline-modal__details { display: grid; gap: 16px; }
+.damage-deadline-modal__details section { display: grid; gap: 10px; }
+.damage-deadline-modal__details section + section { padding-top: 15px; border-top: 1px solid var(--border); }
+.damage-deadline-modal__details h3 { margin: 0; color: var(--text-primary); font-size: 13px; }
+.damage-deadline-modal__details dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; margin: 0; }
+.damage-deadline-modal__details dl > div { min-width: 0; }
+.damage-deadline-modal__details dt { color: var(--text-muted); font-size: 11px; font-weight: 650; }
+.damage-deadline-modal__details dd { margin: 4px 0 0; overflow-wrap: anywhere; color: var(--text-primary); font-size: 13px; line-height: 1.45; }
+.damage-deadline-modal__details section:first-child dl > div:last-child { grid-column: 1 / -1; }
+.damage-deadline-modal__note-value { white-space: pre-wrap; }
+.damage-deadline-modal .form-actions { margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--border); }
 @media (max-width: 720px) { .damage-intro { align-items: start; flex-direction: column; }.damage-filters { align-items: stretch; }.damage-filters .search-field { flex-basis: 100%; }.damage-form__grid--core, .damage-form__grid--context, .damage-inline-grid { grid-template-columns: 1fr; }.damage-inline-field--wide { grid-column: auto; } }
 .todo-updates:not(.todo-history) .todo-updates__heading h3 { font-size: 0; }
 .todo-updates:not(.todo-history) .todo-updates__heading h3::after { content: 'Updates zur To-Do'; font-size: 14px; }
@@ -1261,6 +1290,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .todo-form__people-options { grid-template-columns: 1fr; }
   .todo-quick-editor__grid--three, .todo-quick-editor__people > div, .damage-case-edit-modal__general, .damage-case-edit-modal__liability { grid-template-columns: 1fr; }
   .damage-case-edit-modal__general .form-field:last-child { grid-column: auto; }
+  .damage-deadline-modal__fields, .damage-deadline-modal__details dl { grid-template-columns: 1fr; }
+  .damage-deadline-modal__note, .damage-deadline-modal__details section:first-child dl > div:last-child { grid-column: auto; }
   .todo-toolbar { grid-template-columns: auto 1fr; }.todo-toolbar > .todo-tabs { justify-self: end; }.todo-toolbar > .button { grid-column: 1 / -1; justify-self: end; }
   .todo-detail-header { flex-direction: column; }
   .todo-detail-actions { justify-content: flex-start; }

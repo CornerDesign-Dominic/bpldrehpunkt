@@ -238,6 +238,61 @@ function damageMovementLabel(movement) {
   return `${transactionType} ${counterpartyType} · ${amount}`
 }
 
+function damageDeadlinePayload(values) {
+  const date = trim(values.date)
+  const note = optionalText(values.note)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
+  if (note && note.length > 4000) throw new Error('Die Bemerkung ist zu lang.')
+  return { date, reminderEnabled: values.reminderEnabled === true, note }
+}
+
+function damageDeadlineLabel(date) {
+  return new Intl.DateTimeFormat('de-DE').format(new Date(`${date}T12:00:00`))
+}
+
+export function createEmptyDamageDeadline() {
+  return { date: new Date().toISOString().slice(0, 10), reminderEnabled: false, note: '' }
+}
+
+export function damageDeadlinePresentation(deadline, now = new Date()) {
+  if (!deadline?.date) return { kind: 'none', label: 'Ohne Datum', days: null }
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const due = new Date(`${deadline.date}T12:00:00`)
+  const days = Math.round((due - today) / 86400000)
+  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
+  if (days === 0) return { kind: 'today', label: 'Heute', days }
+  if (days <= 7) return { kind: 'soon', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  return { kind: 'none', label: 'Später', days }
+}
+
+export async function listDamageCaseDeadlines(damageCaseId) {
+  const snapshots = await getDocs(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'deadlines'))
+  return snapshots.docs.map(mapSnapshot).sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
+}
+
+export async function createDamageCaseDeadline(damageCase, values, actor) {
+  const deadline = damageDeadlinePayload(values)
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin für ${damageDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
+  await batch.commit()
+}
+
+export async function updateDamageCaseDeadline(damageCase, deadline, values, actor) {
+  const next = damageDeadlinePayload(values)
+  const changed = Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))
+  if (!changed) return false
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin vom ${damageDeadlineLabel(next.date)} geändert.`, actor))
+  await batch.commit()
+  return true
+}
+
 export function createEmptyDamageMovement() {
   return { date: new Date().toISOString().slice(0, 10), transactionType: 'received', counterpartyType: 'customer', amount: '' }
 }
