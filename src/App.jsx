@@ -23,6 +23,7 @@ import AdminPage from './pages/AdminPage.jsx'
 import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
+import HolidayCalendarPage from './pages/HolidayCalendarPage.jsx'
 import SystemMailsPage from './pages/SystemMailsPage.jsx'
 import AiPromptsPage from './pages/AiPromptsPage.jsx'
 import TemplatesOverviewPage from './pages/TemplatesOverviewPage.jsx'
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
+        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
         <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

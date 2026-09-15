@@ -20,6 +20,7 @@ const pageTitles = [
   { path: '/admin', title: 'Adminbereich' },
   { path: '/urlaub', title: 'Urlaubsübersicht' },
   { path: '/kalender', title: 'Kalender' },
+  { path: '/feiertagskalender', title: 'Feiertagskalender' },
   { path: '/urlaubsmanagement', title: 'Urlaubsmanagement' },
 ]
 
