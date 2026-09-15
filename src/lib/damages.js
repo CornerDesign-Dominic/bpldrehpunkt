@@ -105,7 +105,6 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
     contractorPartnerId: optionalText(values.contractorPartnerId),
     responsibleUserId,
     responsibleUserName,
-    dueDate: optionalText(values.dueDate),
     damageAmount: optionalAmount(values.damageAmount),
     legalBasis: optionalSelection(values.legalBasis, DAMAGE_LEGAL_BASES),
     cargoWeightKg: optionalAmount(values.cargoWeightKg, 'Das Gewicht der Ware'),
@@ -123,7 +122,7 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
 export function createEmptyDamageCase() {
   return {
     damageDate: new Date().toISOString().slice(0, 10),
-    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', dueDate: '', damageAmount: '',
+    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', damageAmount: '',
     legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', customerInsurance: '', customerInsuranceNumber: '', contractorLiability: '',
   }
 }
@@ -136,21 +135,10 @@ export function isClosedDamageCase(damageCase) {
   return damageCase.status === 'economically_closed' || damageCase.status === 'completed'
 }
 
-export function damageDuePresentation(damageCase, now = new Date()) {
-  if (!damageCase.dueDate || isClosedDamageCase(damageCase)) return { kind: 'none', label: 'Keine Frist', days: null }
-  const today = new Date(now); today.setHours(0, 0, 0, 0)
-  const due = new Date(`${damageCase.dueDate}T12:00:00`)
-  const days = Math.round((due - today) / 86400000)
-  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
-  if (days === 0) return { kind: 'today', label: 'Heute', days }
-  if (days <= 7) return { kind: 'soon', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
-  return { kind: 'none', label: 'Später', days }
-}
-
 export function sortDamageCases(cases) {
-  const urgency = { overdue: 0, today: 1, soon: 2, none: 3 }
+  const urgency = { overdue: 0, today: 1, urgent: 2, warning: 3, none: 4 }
   return [...cases].sort((left, right) => {
-    const dueDifference = urgency[damageDuePresentation(left).kind] - urgency[damageDuePresentation(right).kind]
+    const dueDifference = urgency[damageDeadlinePresentation(left.nextDeadline).kind] - urgency[damageDeadlinePresentation(right.nextDeadline).kind]
     if (dueDifference) return dueDifference
     return (right.updatedAt?.seconds || 0) - (left.updatedAt?.seconds || 0)
   })
@@ -158,7 +146,8 @@ export function sortDamageCases(cases) {
 
 export async function listDamageCases() {
   const snapshots = await getDocs(query(damageCasesRef, orderBy('createdAt', 'desc')))
-  return snapshots.docs.map(mapSnapshot)
+  const damageCases = snapshots.docs.map(mapSnapshot)
+  return Promise.all(damageCases.map(async (damageCase) => ({ ...damageCase, nextDeadline: nextDamageDeadline(await listDamageCaseDeadlines(damageCase.id)) })))
 }
 
 export async function getDamageCase(damageCaseId) {
@@ -214,7 +203,6 @@ export async function addDamageCaseSystemUpdate(damageCase, text, actor) {
 function changeMessages(previous, next) {
   const messages = []
   if (previous.status !== next.status) messages.push(`Status geändert: ${damageCaseStatusLabel(previous.status)} → ${damageCaseStatusLabel(next.status)}`)
-  if ((previous.dueDate || null) !== (next.dueDate || null)) messages.push(next.dueDate ? `Frist geändert auf ${new Intl.DateTimeFormat('de-DE').format(new Date(`${next.dueDate}T12:00:00`))}` : 'Frist entfernt')
   return messages
 }
 
@@ -255,14 +243,23 @@ export function createEmptyDamageDeadline() {
 }
 
 export function damageDeadlinePresentation(deadline, now = new Date()) {
-  if (!deadline?.date) return { kind: 'none', label: 'Ohne Datum', days: null }
+  if (!deadline?.date) return { kind: 'none', label: 'Keine Frist', days: null }
   const today = new Date(now); today.setHours(0, 0, 0, 0)
   const due = new Date(`${deadline.date}T12:00:00`)
   const days = Math.round((due - today) / 86400000)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
   if (days === 0) return { kind: 'today', label: 'Heute', days }
-  if (days <= 7) return { kind: 'soon', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  if (days <= 2) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  if (days <= 5) return { kind: 'warning', label: `In ${days} Tagen`, days }
   return { kind: 'none', label: 'Später', days }
+}
+
+export function nextDamageDeadline(deadlines, now = new Date()) {
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const datedDeadlines = (deadlines || []).filter((deadline) => /^\d{4}-\d{2}-\d{2}$/.test(deadline?.date || ''))
+  const overdue = datedDeadlines.filter((deadline) => new Date(`${deadline.date}T12:00:00`) < today).sort((left, right) => left.date.localeCompare(right.date))
+  if (overdue.length) return overdue[0]
+  return datedDeadlines.filter((deadline) => new Date(`${deadline.date}T12:00:00`) >= today).sort((left, right) => left.date.localeCompare(right.date))[0] || null
 }
 
 export async function listDamageCaseDeadlines(damageCaseId) {

@@ -13,7 +13,7 @@ function formatTimestamp(value) {
 
 function deadlineClass(deadline) {
   const kind = damageDeadlinePresentation(deadline).kind
-  return kind === 'overdue' ? 'damage-deadlines__date damage-deadlines__date--overdue' : kind === 'today' ? 'damage-deadlines__date damage-deadlines__date--today' : kind === 'soon' ? 'damage-deadlines__date damage-deadlines__date--soon' : 'damage-deadlines__date'
+  return kind === 'overdue' ? 'damage-deadlines__date damage-deadlines__date--overdue' : kind === 'today' ? 'damage-deadlines__date damage-deadlines__date--today' : kind === 'urgent' ? 'damage-deadlines__date damage-deadlines__date--urgent' : kind === 'warning' ? 'damage-deadlines__date damage-deadlines__date--warning' : 'damage-deadlines__date'
 }
 
 function DeadlineModal({ canEdit, deadline, mode, onClose, onSave }) {

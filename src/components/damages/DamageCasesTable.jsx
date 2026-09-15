@@ -1,4 +1,4 @@
-import { damageCaseStatusLabel, damageDuePresentation } from '../../lib/damages.js'
+import { damageCaseStatusLabel, damageDeadlinePresentation } from '../../lib/damages.js'
 
 function formatCurrency(value) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value)
@@ -8,9 +8,9 @@ function formatDate(value) {
   return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—'
 }
 
-function dueDatePresentation(damageCase) {
-  const due = damageDuePresentation(damageCase)
-  return { appearance: due.days === null ? 'none' : due.days <= 0 ? 'critical' : due.days <= 2 ? 'urgent' : due.days <= 5 ? 'warning' : 'none', value: damageCase.dueDate ? `${due.label} · ${formatDate(damageCase.dueDate)}` : 'Keine Frist' }
+function nextDeadlinePresentation(damageCase) {
+  const due = damageDeadlinePresentation(damageCase.nextDeadline)
+  return { appearance: due.kind === 'overdue' || due.kind === 'today' ? 'critical' : due.kind === 'urgent' ? 'urgent' : due.kind === 'warning' ? 'warning' : 'none', value: damageCase.nextDeadline ? `${due.label} · ${formatDate(damageCase.nextDeadline.date)}` : '—' }
 }
 
 function TableHeader({ children }) {
@@ -20,7 +20,7 @@ function TableHeader({ children }) {
 export default function DamageCasesTable({ cases, onOpen }) {
   if (!cases.length) return <p className="todos-gallery__state">Keine Fälle vorhanden.</p>
   return <div className="todos-table-frame"><table className="todos-table damage-cases-table"><thead><tr><TableHeader>Fallnummer</TableHeader><TableHeader>Status</TableHeader><TableHeader>TA-Nummer</TableHeader><TableHeader>Kunde</TableHeader><TableHeader>Unternehmer</TableHeader><TableHeader>Schadenhöhe</TableHeader><TableHeader>Nächste Frist</TableHeader><TableHeader>Verantwortlich</TableHeader></tr></thead><tbody>{cases.map((damageCase) => {
-    const due = dueDatePresentation(damageCase)
+    const due = nextDeadlinePresentation(damageCase)
     return <tr className={`damage-cases-table__row todos-table__row--${due.appearance}`} key={damageCase.id} tabIndex="0" role="link" aria-label={`Fall ${damageCase.caseNumber} öffnen`} onClick={() => onOpen(damageCase)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(damageCase) } }}>
       <td className="todos-table__title damage-cases-table__case-number">{damageCase.caseNumber}</td>
       <td><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></td>

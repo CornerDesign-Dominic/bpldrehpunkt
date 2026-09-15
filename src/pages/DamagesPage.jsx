@@ -7,7 +7,7 @@ import { ChevronDownIcon } from '../components/icons.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { createDamageCase, DAMAGE_CASE_STATUSES, damageDuePresentation, isClosedDamageCase, listDamageCases, sortDamageCases } from '../lib/damages.js'
+import { createDamageCase, DAMAGE_CASE_STATUSES, damageDeadlinePresentation, isClosedDamageCase, listDamageCases, sortDamageCases } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
 
 export default function DamagesPage() {
@@ -43,10 +43,10 @@ export default function DamagesPage() {
     const needle = search.trim().toLocaleLowerCase('de-DE')
     return cases.filter((damageCase) => {
       const haystack = [damageCase.caseNumber, damageCase.transportReference, damageCase.claimant, damageCase.contractor].filter(Boolean).join(' ').toLocaleLowerCase('de-DE')
-      const due = damageDuePresentation(damageCase)
+      const due = damageDeadlinePresentation(damageCase.nextDeadline)
       return (!needle || haystack.includes(needle))
         && (!status || damageCase.status === status)
-        && (!criticalOnly || ['overdue', 'today', 'soon'].includes(due.kind))
+        && (!criticalOnly || ['overdue', 'today', 'urgent', 'warning'].includes(due.kind))
         && (!documentsMissingOnly || damageCase.status === 'documents_missing')
     })
   }, [cases, criticalOnly, documentsMissingOnly, search, status])

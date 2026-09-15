@@ -15,7 +15,7 @@ const sectionTitles = {
 const sectionFields = {
   title: ['title', 'description'],
   description: ['description'],
-  general: ['status', 'damageType', 'damageDate', 'dueDate', 'damageAmount', 'bplInsuranceCaseNumber', 'responsibleUserId'],
+  general: ['status', 'damageType', 'damageDate', 'damageAmount', 'bplInsuranceCaseNumber', 'responsibleUserId'],
   links: ['transportReference'],
   claimant: ['claimant', 'claimantPartnerId', 'customerInsurance', 'customerInsuranceNumber'],
   contractor: ['contractor', 'contractorPartnerId', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'contractorLiability'],
@@ -73,7 +73,6 @@ export default function DamageCaseEditModal({ damageCase, onCancel, onSubmit, pa
           <Field label="Status"><select value={form.status} onChange={(event) => update('status', event.target.value)}>{DAMAGE_CASE_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
           <Field label="Schadenart"><select value={form.damageType} onChange={(event) => update('damageType', event.target.value)}><option value="">Bitte wählen</option>{DAMAGE_CASE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></Field>
           <Field label="Schadendatum *"><input type="date" value={form.damageDate} required onChange={(event) => update('damageDate', event.target.value)} /></Field>
-          <Field label="Nächste Frist"><input type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} /></Field>
           <Field label="Schadenhöhe"><input type="number" min="0" step="0.01" value={form.damageAmount} onChange={(event) => update('damageAmount', event.target.value)} /></Field>
           <Field label="Aktennummer BPL-Versicherung"><input value={form.bplInsuranceCaseNumber} maxLength="240" onChange={(event) => update('bplInsuranceCaseNumber', event.target.value)} /></Field>
           <Field label="Verantwortliche Person"><select value={form.responsibleUserId} onChange={(event) => update('responsibleUserId', event.target.value)}><option value="">Nicht zugeordnet</option>{responsibleUsers.map((entry) => <option key={entry.id} value={entry.id}>{getUserDisplayName(entry, entry)}</option>)}</select></Field>

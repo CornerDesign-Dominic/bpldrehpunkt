@@ -15,7 +15,7 @@ import { listBusinessPartners } from '../lib/businessPartners.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createDamageCaseDocument, deleteDamageCaseDocument, listDamageCaseDocuments, updateDamageCaseDocument } from '../lib/damageDocuments.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseDeadline, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDuePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseDeadlines, listDamageCaseMovements, listDamageCaseUpdates, updateDamageCaseDeadline, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
+import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseDeadline, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDeadlinePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseDeadlines, listDamageCaseMovements, listDamageCaseUpdates, nextDamageDeadline, updateDamageCaseDeadline, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -55,18 +55,18 @@ function CollapsibleDetailCard({ title, onEdit, primaryDetails, secondaryDetails
   return <section className="damage-detail-card"><DetailSectionHeading onEdit={onEdit}>{title}</DetailSectionHeading><dl>{primaryDetails}</dl><button className={`damage-detail-card__toggle${expanded ? ' is-expanded' : ''}`} type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{label}<ChevronDownIcon size={14} /></button>{expanded && <dl className="damage-detail-card__additional">{secondaryDetails}</dl>}</section>
 }
 
-function dueClass(damageCase) {
-  const due = damageDuePresentation(damageCase)
+function dueClass(deadline) {
+  const due = damageDeadlinePresentation(deadline)
   if (due.kind === 'overdue' || due.kind === 'today') return 'due-date due-date--overdue'
-  return due.kind === 'soon' ? 'due-date due-date--soon' : 'due-date'
+  if (due.kind === 'urgent') return 'due-date due-date--urgent'
+  return due.kind === 'warning' ? 'due-date due-date--warning' : 'due-date'
 }
 
 function sectionMessages(section, previous, changes) {
   if (section === 'general') {
     const messages = []
     if (changes.status) messages.push(`Status von ${damageCaseStatusLabel(previous.status)} zu ${damageCaseStatusLabel(changes.status)} geändert`)
-    if (Object.hasOwn(changes, 'dueDate')) messages.push(changes.dueDate ? `Frist geändert auf ${formatDate(changes.dueDate)}` : 'Frist entfernt')
-    if (Object.keys(changes).some((field) => !['status', 'dueDate'].includes(field))) messages.push('Allgemeine Falldaten aktualisiert')
+    if (Object.keys(changes).some((field) => field !== 'status')) messages.push('Allgemeine Falldaten aktualisiert')
     return messages
   }
   return {
@@ -243,8 +243,9 @@ export default function DamageDetailPage() {
   if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><Link className="button button--secondary" to="/schaeden">Zurück</Link></section>
   if (!damageCase) return null
 
-  const due = damageDuePresentation(damageCase)
-  const dueValue = damageCase.dueDate ? `${formatDate(damageCase.dueDate)} · ${due.label}` : '—'
+  const nextDeadline = nextDamageDeadline(deadlines)
+  const due = damageDeadlinePresentation(nextDeadline)
+  const dueValue = nextDeadline ? `${due.label} · ${formatDate(nextDeadline.date)}` : '—'
   const title = `${damageCase.caseNumber} – ${damageCase.title || 'Ohne Kurzbezeichnung'}`
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = updates.filter((update) => update.type === 'system')
@@ -268,7 +269,7 @@ export default function DamageDetailPage() {
           <section className="todo-updates todo-history" aria-labelledby="damage-history-title"><div className="todo-updates__heading"><h3 id="damage-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>
         <aside className="todo-detail-sidebar">
-          <CollapsibleDetailCard title="Allgemein" onEdit={editable ? () => setEditing('general') : null} primaryDetails={<><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail><Detail label="Nächste Frist"><span className={dueClass(damageCase)}>{dueValue}</span></Detail><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></>} secondaryDetails={<><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Aktennummer BPL-Versicherung">{damageCase.bplInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.damageType, damageCase.damageDate, damageCase.bplInsuranceCaseNumber]} />
+          <CollapsibleDetailCard title="Allgemein" onEdit={editable ? () => setEditing('general') : null} primaryDetails={<><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail><Detail label="Nächste Frist"><span className={dueClass(nextDeadline)}>{dueValue}</span></Detail><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></>} secondaryDetails={<><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Aktennummer BPL-Versicherung">{damageCase.bplInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.damageType, damageCase.damageDate, damageCase.bplInsuranceCaseNumber]} />
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="TA-Nummer">{damageCase.transportReference}</Detail></dl></section>
           <CollapsibleDetailCard title="Kunde & Anspruch" onEdit={editable ? () => setEditing('claimant') : null} primaryDetails={<Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.claimantPartnerId}`}>{damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail>} secondaryDetails={<><Detail label="Versicherung Kunde">{damageCase.customerInsurance}</Detail><Detail label="Vorgangsnummer Kunde">{damageCase.customerInsuranceNumber}</Detail></>} secondaryValues={[damageCase.customerInsurance, damageCase.customerInsuranceNumber]} />
           <CollapsibleDetailCard title="Unternehmer & Versicherung" onEdit={editable ? () => setEditing('contractor') : null} primaryDetails={<><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.contractorPartnerId}`}>{damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail></>} secondaryDetails={<><Detail label="Versicherer UTN">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.contractorInsurance, damageCase.contractorInsuranceCaseNumber]} />
