@@ -7,7 +7,15 @@ function dateValue(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-export default function HolidayMonthCalendar({ holidays, month, today, year }) {
+function holidayDetail(holiday) {
+  const locations = holiday.countries.map((country) => {
+    const states = getHolidayStateNames(country.stateCodes)
+    return states.length ? `${country.name} (${states.join(', ')})` : country.name
+  })
+  return `${holiday.name} · Gilt in: ${locations.join(', ')}`
+}
+
+export default function HolidayMonthCalendar({ holidays, month, onHolidayClick, today, year }) {
   const holidaysByDate = holidays.reduce((items, holiday) => {
     items[holiday.date] = [...(items[holiday.date] || []), holiday]
     return items
@@ -23,9 +31,8 @@ export default function HolidayMonthCalendar({ holidays, month, today, year }) {
         return <div className={`holiday-day${value === today ? ' holiday-day--today' : ''}`} key={value}>
           <time dateTime={value}>{date.getDate()}</time>
           <div className="holiday-day__entries">{(holidaysByDate[value] || []).map((holiday) => {
-            const states = holiday.scope === 'regional' ? getHolidayStateNames(holiday.stateCodes) : []
-            const detail = states.length ? `${holiday.name} · Gilt in: ${states.join(', ')}` : holiday.name
-            return <span className={`holiday-entry holiday-entry--${holiday.scope}`} key={`${holiday.date}-${holiday.name}`} title={detail} aria-label={detail}>{holiday.name}</span>
+            const detail = holidayDetail(holiday)
+            return <button className={`holiday-entry holiday-entry--${holiday.scope}`} type="button" key={holiday.id} title={detail} aria-label={`${detail}. Details öffnen`} onClick={() => onHolidayClick(holiday)}>{holiday.name}</button>
           })}</div>
         </div>
       })}

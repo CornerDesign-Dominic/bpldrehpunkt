@@ -109,6 +109,9 @@ test('employment and vacation baseline data stay HR-only while central employmen
   assert.match(functionsIndex, /vacationTrackingOpeningBalance: optionalNumber\(value\.vacationTrackingOpeningBalance, 'Urlaubsstand zu Beginn', -366, 366\)/)
   assert.match(personnelDetailPage, /DetailSection title="Arbeitsverhältnis & Urlaub"/)
   assert.match(personnelDetailPage, /\['personnelNumber', 'Personalnummer', 'text'\], \['employmentStart', 'Eintrittsdatum', 'date'\]/)
+  assert.match(personnelDetailPage, /\['vacationTrackingStartYear', 'Startjahr Urlaubserfassung', 'select'\]/)
+  assert.match(personnelDetailPage, /\['vacationTrackingOpeningBalance', 'Anzahl Urlaubstage im Startjahr', 'number'\]/)
+  assert.match(personnelDetailPage, /vacationTrackingYears\.map\(\(year\) => <option/)
   assert.doesNotMatch(functionsIndex.match(/const normalFields = \[[^\]]*\]/)?.[0] || '', /employmentEnd|annualVacationEntitlement|vacationTrackingStartYear|vacationTrackingOpeningBalance/)
 })
 

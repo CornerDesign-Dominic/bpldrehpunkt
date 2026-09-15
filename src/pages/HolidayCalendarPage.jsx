@@ -1,12 +1,18 @@
 import { useMemo, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
-import { EUROPEAN_COUNTRIES, GERMAN_STATES, HOLIDAY_YEARS, getVisibleHolidays } from '../lib/holidayCalendar.js'
+import { EUROPEAN_COUNTRIES, GERMAN_STATES, HOLIDAY_YEARS, getHolidayStateNames, getVisibleHolidays } from '../lib/holidayCalendar.js'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import '../styles/holidayCalendar.css'
 
 function localTodayValue() {
   const today = new Date()
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+const holidayDateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
+
+function HolidayDetailModal({ holiday, onClose }) {
+  return <div className="holiday-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="holiday-modal" role="dialog" aria-modal="true" aria-labelledby="holiday-modal-title"><div className="holiday-modal__heading"><div><h2 id="holiday-modal-title">{holiday.name}</h2><p>{holidayDateFormatter.format(new Date(`${holiday.date}T12:00:00`))}</p></div><button type="button" className="holiday-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></div><div className="holiday-modal__content"><h3>Gültig in</h3><ul>{holiday.countries.map((country) => { const states = getHolidayStateNames(country.stateCodes); return <li key={country.countryCode}><strong>{country.name}</strong>{states.length > 0 && <small>{states.join(', ')}</small>}</li> })}</ul></div><div className="holiday-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></section></div>
 }
 
 export default function HolidayCalendarPage() {
@@ -16,6 +22,7 @@ export default function HolidayCalendarPage() {
   const [germanyEnabled, setGermanyEnabled] = useState(true)
   const [selectedStates, setSelectedStates] = useState(() => GERMAN_STATES.map((state) => state.code))
   const [expandedCountries, setExpandedCountries] = useState(() => new Set(['DE']))
+  const [selectedHoliday, setSelectedHoliday] = useState(null)
   const holidays = useMemo(() => getVisibleHolidays(year, germanyEnabled, selectedStates), [germanyEnabled, selectedStates, year])
   const today = localTodayValue()
 
@@ -62,13 +69,13 @@ export default function HolidayCalendarPage() {
           <button className="holiday-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button>
         </div>
       </div>
-      <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} />
+      <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} onHolidayClick={setSelectedHoliday} />
       <div className="holiday-legend" aria-label="Legende"><span className="holiday-legend__item holiday-legend__item--national">Bundesweit</span><span className="holiday-legend__item holiday-legend__item--regional">Bundeslandweit</span></div>
     </section>
 
     <aside className="holiday-countries-card">
       <div className="holiday-countries-card__heading"><h2>Länder</h2><p>Feiertagsauswahl</p></div>
-      <div className="holiday-country-list">{EUROPEAN_COUNTRIES.map((country) => {
+      <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={germanyEnabled} onChange={(event) => toggleGermany(event.target.checked)} /><span>Alle Länder</span></label>{EUROPEAN_COUNTRIES.map((country) => {
         const isExpanded = expandedCountries.has(country.code)
         return <div className={`holiday-country${country.available ? '' : ' holiday-country--unavailable'}`} key={country.code}>
           <div className="holiday-country__row">
@@ -80,5 +87,6 @@ export default function HolidayCalendarPage() {
         </div>
       })}</div>
     </aside>
+    {selectedHoliday && <HolidayDetailModal holiday={selectedHoliday} onClose={() => setSelectedHoliday(null)} />}
   </div>
 }

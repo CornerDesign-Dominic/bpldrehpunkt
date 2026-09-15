@@ -55,6 +55,7 @@ export const GERMAN_HOLIDAY_SOURCE = Object.freeze([
   ['2027-12-25', '1. Weihnachtstag', 'national'],
   ['2027-12-26', '2. Weihnachtstag', 'national'],
 ].map(([date, name, scope, stateCodes = []]) => Object.freeze({
+  holidayKey: name,
   countryCode: 'DE',
   year: Number(date.slice(0, 4)),
   date,
@@ -69,9 +70,12 @@ const europeanCountryNames = [
   ['AL', 'Albanien'], ['AD', 'Andorra'], ['AM', 'Armenien'], ['AT', 'Österreich'], ['AZ', 'Aserbaidschan'], ['BE', 'Belgien'], ['BA', 'Bosnien und Herzegowina'], ['BG', 'Bulgarien'], ['DK', 'Dänemark'], ['DE', 'Deutschland'], ['EE', 'Estland'], ['FI', 'Finnland'], ['FR', 'Frankreich'], ['GE', 'Georgien'], ['GR', 'Griechenland'], ['IE', 'Irland'], ['IS', 'Island'], ['IT', 'Italien'], ['XK', 'Kosovo'], ['HR', 'Kroatien'], ['LV', 'Lettland'], ['LI', 'Liechtenstein'], ['LT', 'Litauen'], ['LU', 'Luxemburg'], ['MT', 'Malta'], ['MD', 'Moldau'], ['MC', 'Monaco'], ['ME', 'Montenegro'], ['NL', 'Niederlande'], ['MK', 'Nordmazedonien'], ['NO', 'Norwegen'], ['PL', 'Polen'], ['PT', 'Portugal'], ['RO', 'Rumänien'], ['RU', 'Russland'], ['SM', 'San Marino'], ['SE', 'Schweden'], ['CH', 'Schweiz'], ['RS', 'Serbien'], ['SK', 'Slowakei'], ['SI', 'Slowenien'], ['ES', 'Spanien'], ['CZ', 'Tschechien'], ['TR', 'Türkei'], ['UA', 'Ukraine'], ['HU', 'Ungarn'], ['VA', 'Vatikanstadt'], ['GB', 'Vereinigtes Königreich'], ['BY', 'Weißrussland'], ['CY', 'Zypern'],
 ]
 
-export const EUROPEAN_COUNTRIES = Object.freeze(europeanCountryNames
-  .map(([code, name]) => Object.freeze({ code, name, available: code === 'DE', regions: code === 'DE' ? GERMAN_STATES : [] }))
-  .sort((left, right) => left.name.localeCompare(right.name, 'de')))
+const countriesByCode = Object.fromEntries(europeanCountryNames.map(([code, name]) => [code, Object.freeze({ code, name, available: code === 'DE', regions: code === 'DE' ? GERMAN_STATES : [] })]))
+
+export const EUROPEAN_COUNTRIES = Object.freeze([
+  countriesByCode.DE,
+  ...Object.values(countriesByCode).filter((country) => country.code !== 'DE').sort((left, right) => left.name.localeCompare(right.name, 'de')),
+])
 
 export function getHolidayStateNames(stateCodes) {
   return stateCodes.map((code) => stateNames[code]).filter(Boolean)
@@ -80,6 +84,19 @@ export function getHolidayStateNames(stateCodes) {
 export function getVisibleHolidays(year, germanyEnabled, selectedStateCodes) {
   if (!germanyEnabled) return []
   const selectedStates = new Set(selectedStateCodes)
-  return GERMAN_HOLIDAY_SOURCE.filter((holiday) => holiday.year === year
+  const visibleRecords = GERMAN_HOLIDAY_SOURCE.filter((holiday) => holiday.year === year
     && (holiday.scope === 'national' || holiday.stateCodes.some((stateCode) => selectedStates.has(stateCode))))
+
+  // A shared holiday is one calendar item, even when future country sources
+  // contribute multiple records for the same date and holiday key.
+  return [...visibleRecords.reduce((items, holiday) => {
+    const id = `${holiday.date}-${holiday.holidayKey || holiday.name}`
+    const current = items.get(id) || { id, date: holiday.date, name: holiday.name, scope: holiday.scope, countries: [] }
+    const country = current.countries.find((item) => item.countryCode === holiday.countryCode)
+    if (country) country.stateCodes = [...new Set([...country.stateCodes, ...holiday.stateCodes])]
+    else current.countries.push({ countryCode: holiday.countryCode, name: countriesByCode[holiday.countryCode]?.name || holiday.countryCode, stateCodes: [...holiday.stateCodes] })
+    if (holiday.scope === 'regional') current.scope = 'regional'
+    items.set(id, current)
+    return items
+  }, new Map()).values()].sort((left, right) => left.date.localeCompare(right.date) || left.name.localeCompare(right.name, 'de'))
 }
