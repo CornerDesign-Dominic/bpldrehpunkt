@@ -234,28 +234,74 @@ service cloud.firestore {
       allow delete: if false;
 
       match /movements/{movementId} {
-        function validInsolvencyMovement(data) {
-          return data.keys().hasAll(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'transactionType', 'counterpartyType', 'amount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-            && data.transactionType in ['received', 'paid', 'expected_receivable', 'expected_payable']
-            && data.counterpartyType in ['customer', 'contractor', 'insurance'] && data.amount is number && data.amount >= 0
+        // Legacy general movements are intentionally retired. Insolvency
+        // finance is now represented only by claims and quota payments.
+        allow read, write: if false;
+      }
+
+      match /updates/{updateId} {
+        function validInsolvencyUpdate(data) {
+          return data.keys().hasAll(['type', 'text', 'createdByUserId', 'createdByName', 'createdAt'])
+            && data.keys().hasOnly(['type', 'text', 'createdByUserId', 'createdByName', 'createdAt'])
+            && data.type == 'system' && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
+            && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
+        }
+        allow read: if view('insolvencies');
+        allow create: if edit('insolvencies') && validInsolvencyUpdate(request.resource.data)
+          && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId
+          && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedAt == request.time
+          && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedBy == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      match /claims/{claimId} {
+        function validInsolvencyClaim(data) {
+          return data.keys().hasAll(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount', 'filedInInsolvencyTable', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount', 'filedInInsolvencyTable', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 240
+            && data.netAmount is number && data.netAmount >= 0 && data.vatAmount is number && data.vatAmount >= 0
+            && data.grossAmount is number && data.grossAmount == data.netAmount + data.vatAmount && data.filedInInsolvencyTable is bool
             && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
-        function insolvencyParentWasUpdated() {
+        function claimParentWasUpdated() {
           return getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId
             && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedAt == request.time
             && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedBy == request.auth.uid;
         }
         allow read: if view('insolvencies');
-        allow create: if edit('insolvencies') && validInsolvencyMovement(request.resource.data) && insolvencyParentWasUpdated()
+        allow create: if edit('insolvencies') && validInsolvencyClaim(request.resource.data) && claimParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
-        allow update: if edit('insolvencies') && validInsolvencyMovement(request.resource.data) && insolvencyParentWasUpdated()
+        allow update: if edit('insolvencies') && validInsolvencyClaim(request.resource.data) && claimParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
-        allow delete: if edit('insolvencies') && insolvencyParentWasUpdated();
+        allow delete: if edit('insolvencies') && claimParentWasUpdated();
+      }
+
+      match /quotaPayments/{paymentId} {
+        function validInsolvencyQuotaPayment(data) {
+          return data.keys().hasAll(['paymentDate', 'netAmount', 'vatAmount', 'grossAmount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['paymentDate', 'netAmount', 'vatAmount', 'grossAmount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.paymentDate is string && data.paymentDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.netAmount is number && data.netAmount >= 0 && data.vatAmount is number && data.vatAmount >= 0
+            && data.grossAmount is number && data.grossAmount == data.netAmount + data.vatAmount
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        }
+        function quotaPaymentParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId
+            && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.updatedBy == request.auth.uid;
+        }
+        allow read: if view('insolvencies');
+        allow create: if edit('insolvencies') && validInsolvencyQuotaPayment(request.resource.data) && quotaPaymentParentWasUpdated()
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('insolvencies') && validInsolvencyQuotaPayment(request.resource.data) && quotaPaymentParentWasUpdated()
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow delete: if edit('insolvencies') && quotaPaymentParentWasUpdated();
       }
 
       match /documents/{documentId} {

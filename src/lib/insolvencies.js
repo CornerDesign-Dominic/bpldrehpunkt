@@ -4,8 +4,6 @@ import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 
 export const INSOLVENCIES_COLLECTION = 'insolvencies'
-const INSOLVENCY_MOVEMENT_TRANSACTION_TYPES = ['received', 'paid', 'expected_receivable', 'expected_payable']
-const INSOLVENCY_MOVEMENT_COUNTERPARTY_TYPES = ['customer', 'contractor', 'insurance']
 
 const trim = (value) => typeof value === 'string' ? value.trim() : ''
 const optionalText = (value) => trim(value) || null
@@ -21,13 +19,35 @@ function insolvencyMetadata(insolvency, actor) {
   return { description: insolvency.description ?? null, ...updateMetadata(actor) }
 }
 
-function movementPayload(values) {
-  const date = trim(values.date)
-  const transactionType = INSOLVENCY_MOVEMENT_TRANSACTION_TYPES.includes(values.transactionType) ? values.transactionType : ''
-  const counterpartyType = INSOLVENCY_MOVEMENT_COUNTERPARTY_TYPES.includes(values.counterpartyType) ? values.counterpartyType : ''
-  const amount = Number(values.amount)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !transactionType || !counterpartyType || values.amount === '' || values.amount === null || values.amount === undefined || !Number.isFinite(amount) || amount < 0) throw new Error('Bitte alle Pflichtfelder der Betragsbewegung erfassen.')
-  return { date, transactionType, counterpartyType, amount }
+function amount(value, label) {
+  const parsed = Number(value)
+  if (value === '' || value === null || value === undefined || !Number.isFinite(parsed) || parsed < 0) throw new Error(`${label} muss als positiver Betrag oder 0,00 € erfasst werden.`)
+  return parsed
+}
+
+function updatePayload(text, actor) {
+  return { type: 'system', text, createdByUserId: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), createdAt: serverTimestamp() }
+}
+
+function claimPayload(values) {
+  const invoiceNumber = trim(values.invoiceNumber)
+  const netAmount = amount(values.netAmount, 'Netto')
+  const vatAmount = amount(values.vatAmount, 'USt.')
+  if (!invoiceNumber) throw new Error('Bitte eine Rechnungsnummer erfassen.')
+  if (invoiceNumber.length > 240) throw new Error('Die Rechnungsnummer ist zu lang.')
+  return { invoiceNumber, netAmount, vatAmount, grossAmount: netAmount + vatAmount, filedInInsolvencyTable: values.filedInInsolvencyTable === true }
+}
+
+function quotaPaymentPayload(values) {
+  const paymentDate = trim(values.paymentDate)
+  const netAmount = amount(values.netAmount, 'Netto')
+  const vatAmount = amount(values.vatAmount, 'USt.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) throw new Error('Bitte ein gültiges Datum erfassen.')
+  return { paymentDate, netAmount, vatAmount, grossAmount: netAmount + vatAmount }
+}
+
+function formatDate(value) {
+  return new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`))
 }
 
 export function createEmptyInsolvency() {
@@ -92,34 +112,91 @@ export async function updateInsolvencyDescription(insolvency, value, actor) {
   return true
 }
 
-export async function listInsolvencyMovements(partnerId) {
-  return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'movements'))).docs.map(mapSnapshot).sort((left, right) => right.date.localeCompare(left.date) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
+export function createEmptyInsolvencyClaim() {
+  return { invoiceNumber: '', netAmount: '', vatAmount: '', filedInInsolvencyTable: false }
 }
 
-export async function createInsolvencyMovement(insolvency, values, actor) {
+export function createEmptyInsolvencyQuotaPayment() {
+  return { paymentDate: new Date().toISOString().slice(0, 10), netAmount: '', vatAmount: '' }
+}
+
+export async function listInsolvencyClaims(partnerId) {
+  return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'claims'))).docs
+    .map(mapSnapshot)
+    .sort((left, right) => left.invoiceNumber.localeCompare(right.invoiceNumber, 'de') || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
+}
+
+export async function listInsolvencyQuotaPayments(partnerId) {
+  return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'quotaPayments'))).docs
+    .map(mapSnapshot)
+    .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
+}
+
+export async function listInsolvencyUpdates(partnerId) {
+  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+}
+
+export async function createInsolvencyClaim(insolvency, values, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
-  const movement = movementPayload(values)
+  const claim = claimPayload(values)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
-  batch.set(doc(collection(insolvencyRef, 'movements')), { ...movement, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'claims')), { ...claim, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Rechnung ${claim.invoiceNumber} hinzugefügt.`, actor))
   await batch.commit()
 }
 
-export async function updateInsolvencyMovement(insolvency, movement, values, actor) {
-  const next = movementPayload(values)
-  if (!Object.entries(next).some(([field, value]) => value !== (movement[field] ?? null))) return false
+export async function updateInsolvencyClaim(insolvency, claim, values, actor) {
+  const next = claimPayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== claim[field])) return false
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const message = claim.filedInInsolvencyTable !== next.filedInInsolvencyTable
+    ? `Rechnung ${next.invoiceNumber} ${next.filedInInsolvencyTable ? 'zur Insolvenztabelle angemeldet' : 'von der Insolvenztabelle abgemeldet'}.`
+    : `Rechnung ${next.invoiceNumber} bearbeitet.`
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
-  batch.update(doc(insolvencyRef, 'movements', movement.id), { ...next, ...updateMetadata(actor) })
+  batch.update(doc(insolvencyRef, 'claims', claim.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(message, actor))
   await batch.commit()
   return true
 }
 
-export async function deleteInsolvencyMovement(insolvency, movement, actor) {
+export async function deleteInsolvencyClaim(insolvency, claim, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
-  batch.delete(doc(insolvencyRef, 'movements', movement.id))
+  batch.delete(doc(insolvencyRef, 'claims', claim.id))
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Rechnung ${claim.invoiceNumber} gelöscht.`, actor))
+  await batch.commit()
+}
+
+export async function createInsolvencyQuotaPayment(insolvency, values, actor) {
+  const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const payment = quotaPaymentPayload(values)
+  const batch = writeBatch(db)
+  batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
+  batch.set(doc(collection(insolvencyRef, 'quotaPayments')), { ...payment, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(payment.paymentDate)} hinzugefügt.`, actor))
+  await batch.commit()
+}
+
+export async function updateInsolvencyQuotaPayment(insolvency, payment, values, actor) {
+  const next = quotaPaymentPayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== payment[field])) return false
+  const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const batch = writeBatch(db)
+  batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
+  batch.update(doc(insolvencyRef, 'quotaPayments', payment.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(next.paymentDate)} bearbeitet.`, actor))
+  await batch.commit()
+  return true
+}
+
+export async function deleteInsolvencyQuotaPayment(insolvency, payment, actor) {
+  const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const batch = writeBatch(db)
+  batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
+  batch.delete(doc(insolvencyRef, 'quotaPayments', payment.id))
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(payment.paymentDate)} gelöscht.`, actor))
   await batch.commit()
 }

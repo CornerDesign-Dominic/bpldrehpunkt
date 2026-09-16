@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
-import DamageFinancialOverview from '../components/damages/DamageFinancialOverview.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import InsolvencyEditModal from '../components/insolvencies/InsolvencyEditModal.jsx'
+import InsolvencyClaimsOverview from '../components/insolvencies/InsolvencyClaimsOverview.jsx'
 import { EditIcon } from '../components/icons.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -12,7 +12,7 @@ import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createInsolvencyDocument, deleteInsolvencyDocument, getInsolvencyDocumentBlob, listInsolvencyDocuments, updateInsolvencyDocument } from '../lib/insolvencyDocuments.js'
-import { createInsolvencyMovement, deleteInsolvencyMovement, getInsolvency, listInsolvencyMovements, updateInsolvency, updateInsolvencyDescription, updateInsolvencyMovement } from '../lib/insolvencies.js'
+import { createInsolvencyClaim, createInsolvencyQuotaPayment, deleteInsolvencyClaim, deleteInsolvencyQuotaPayment, getInsolvency, listInsolvencyClaims, listInsolvencyQuotaPayments, listInsolvencyUpdates, updateInsolvency, updateInsolvencyClaim, updateInsolvencyDescription, updateInsolvencyQuotaPayment } from '../lib/insolvencies.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 
 function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
@@ -27,10 +27,13 @@ export default function InsolvencyDetailPage() {
   const canViewMasterData = canView('masterData')
   const [insolvency, setInsolvency] = useState(null)
   const [documents, setDocuments] = useState([])
-  const [movements, setMovements] = useState([])
+  const [claims, setClaims] = useState([])
+  const [quotaPayments, setQuotaPayments] = useState([])
+  const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [documentsLoading, setDocumentsLoading] = useState(true)
-  const [movementsLoading, setMovementsLoading] = useState(true)
+  const [financialLoading, setFinancialLoading] = useState(true)
+  const [historyLoading, setHistoryLoading] = useState(true)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState(null)
   const [editingDocument, setEditingDocument] = useState(null)
@@ -40,23 +43,26 @@ export default function InsolvencyDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, entries, financialMovements] = await Promise.all([getInsolvency(partnerId), listInsolvencyDocuments(partnerId), listInsolvencyMovements(partnerId)])
+    const [entry, entries, insolvencyClaims, insolvencyQuotaPayments, insolvencyHistory] = await Promise.all([getInsolvency(partnerId), listInsolvencyDocuments(partnerId), listInsolvencyClaims(partnerId), listInsolvencyQuotaPayments(partnerId), listInsolvencyUpdates(partnerId)])
     if (!entry) throw new Error('Der Insolvenzfall wurde nicht gefunden.')
     setInsolvency(entry)
     setDocuments(entries)
-    setMovements(financialMovements)
+    setClaims(insolvencyClaims)
+    setQuotaPayments(insolvencyQuotaPayments)
+    setHistory(insolvencyHistory)
     setDocumentsLoading(false)
-    setMovementsLoading(false)
+    setFinancialLoading(false)
+    setHistoryLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getInsolvency(partnerId), listInsolvencyDocuments(partnerId), listInsolvencyMovements(partnerId)])
-      .then(([entry, entries, financialMovements]) => {
+    Promise.all([getInsolvency(partnerId), listInsolvencyDocuments(partnerId), listInsolvencyClaims(partnerId), listInsolvencyQuotaPayments(partnerId), listInsolvencyUpdates(partnerId)])
+      .then(([entry, entries, insolvencyClaims, insolvencyQuotaPayments, insolvencyHistory]) => {
         if (!entry) throw new Error('Der Insolvenzfall wurde nicht gefunden.')
-        if (current) { setInsolvency(entry); setDocuments(entries); setMovements(financialMovements); setDocumentsLoading(false); setMovementsLoading(false) }
+        if (current) { setInsolvency(entry); setDocuments(entries); setClaims(insolvencyClaims); setQuotaPayments(insolvencyQuotaPayments); setHistory(insolvencyHistory); setDocumentsLoading(false); setFinancialLoading(false); setHistoryLoading(false) }
       })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Insolvenzfall.' : loadError.message || 'Der Insolvenzfall konnte nicht geladen werden.'); setDocumentsLoading(false); setMovementsLoading(false) } })
+      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Insolvenzfall.' : loadError.message || 'Der Insolvenzfall konnte nicht geladen werden.'); setDocumentsLoading(false); setFinancialLoading(false); setHistoryLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [partnerId])
@@ -96,23 +102,42 @@ export default function InsolvencyDetailPage() {
     } catch (deleteError) { setError(getDocumentErrorMessage(deleteError)); throw deleteError } finally { setDocumentSaving(false) }
   }
 
-  async function saveMovement(existingMovement, values) {
+  async function saveClaim(existingClaim, values) {
     setError('')
     try {
-      if (existingMovement) await updateInsolvencyMovement(insolvency, existingMovement, values, { user, profile })
-      else await createInsolvencyMovement(insolvency, values, { user, profile })
+      if (existingClaim) await updateInsolvencyClaim(insolvency, existingClaim, values, { user, profile })
+      else await createInsolvencyClaim(insolvency, values, { user, profile })
       await load()
-      setToast(existingMovement ? 'Betragsbewegung aktualisiert.' : 'Betragsbewegung hinzugefügt.')
-    } catch (saveError) { setError(saveError.message || 'Die Betragsbewegung konnte nicht gespeichert werden.'); throw saveError }
+      setToast(existingClaim ? 'Rechnung aktualisiert.' : 'Rechnung hinzugefügt.')
+    } catch (saveError) { setError(saveError.message || 'Die Rechnung konnte nicht gespeichert werden.'); throw saveError }
   }
 
-  async function deleteMovement(movement) {
+  async function deleteClaim(claim) {
     setError('')
     try {
-      await deleteInsolvencyMovement(insolvency, movement, { user, profile })
+      await deleteInsolvencyClaim(insolvency, claim, { user, profile })
       await load()
-      setToast('Betragsbewegung gelöscht.')
-    } catch (deleteError) { setError(deleteError.message || 'Die Betragsbewegung konnte nicht gelöscht werden.'); throw deleteError }
+      setToast('Rechnung gelöscht.')
+    } catch (deleteError) { setError(deleteError.message || 'Die Rechnung konnte nicht gelöscht werden.'); throw deleteError }
+  }
+
+  async function saveQuotaPayment(existingPayment, values) {
+    setError('')
+    try {
+      if (existingPayment) await updateInsolvencyQuotaPayment(insolvency, existingPayment, values, { user, profile })
+      else await createInsolvencyQuotaPayment(insolvency, values, { user, profile })
+      await load()
+      setToast(existingPayment ? 'Quotenzahlung aktualisiert.' : 'Quotenzahlung hinzugefügt.')
+    } catch (saveError) { setError(saveError.message || 'Die Quotenzahlung konnte nicht gespeichert werden.'); throw saveError }
+  }
+
+  async function deleteQuotaPayment(payment) {
+    setError('')
+    try {
+      await deleteInsolvencyQuotaPayment(insolvency, payment, { user, profile })
+      await load()
+      setToast('Quotenzahlung gelöscht.')
+    } catch (deleteError) { setError(deleteError.message || 'Die Quotenzahlung konnte nicht gelöscht werden.'); throw deleteError }
   }
 
   if (loading) return <p className="page-state">Insolvenzfall wird geladen …</p>
@@ -133,7 +158,8 @@ export default function InsolvencyDetailPage() {
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3>Beschreibung</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} aria-label="Beschreibung bearbeiten" title="Beschreibung bearbeiten"><EditIcon size={14} /></button>}</div><p className="todo-detail-description">{insolvency.description || 'Keine Beschreibung hinterlegt.'}</p></section>
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getInsolvencyDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
-          <DamageFinancialOverview canEdit={editable} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
+          <InsolvencyClaimsOverview canEdit={editable} claims={claims} quotaPayments={quotaPayments} loading={financialLoading} onDeleteClaim={deleteClaim} onDeleteQuotaPayment={deleteQuotaPayment} onSaveClaim={saveClaim} onSaveQuotaPayment={saveQuotaPayment} />
+          <section className="todo-updates todo-history" aria-labelledby="insolvency-history-title"><div className="todo-updates__heading"><h3 id="insolvency-history-title">Historie</h3><span>{history.length}</span></div>{historyLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((entry) => <li key={entry.id} className="todo-updates__item todo-updates__item--system"><div><strong>{entry.createdByName}</strong><span>System · {formatTimestamp(entry.createdAt)}</span></div><p>{entry.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>
         <aside className="todo-detail-sidebar"><section><div className="todo-detail-section-heading"><h3>Insolvenz</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('general')} aria-label="Insolvenz bearbeiten" title="Insolvenz bearbeiten"><EditIcon size={14} /></button>}</div><dl><Detail label="Betroffenes Unternehmen">{canViewMasterData ? <Link to={`/kunden-unternehmer/${insolvency.partnerId}`}>{insolvency.partnerName}</Link> : insolvency.partnerName}</Detail><Detail label="Insolvenzdatum">{formatDate(insolvency.insolvencyDate)}</Detail><Detail label="Aktenzeichen">{insolvency.courtReference}</Detail><Detail label="Gerichtsstand">{insolvency.courtVenue}</Detail><Detail label="Angelegt am">{formatTimestamp(insolvency.createdAt)}</Detail><Detail label="Zuletzt geändert">{formatTimestamp(insolvency.updatedAt)}</Detail></dl></section></aside>
       </div>
