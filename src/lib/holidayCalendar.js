@@ -18,6 +18,33 @@ export const GERMAN_STATES = Object.freeze([
 ])
 
 const stateNames = Object.fromEntries(GERMAN_STATES.map((state) => [state.code, state.name]))
+// Existing historic records are deliberately not rewritten by the importer.
+// This keeps those records readable with the same German labels until they
+// have a server-provided displayName of their own.
+const LEGACY_GERMAN_HOLIDAY_NAMES = Object.freeze({
+  "New Year's Day": 'Neujahr',
+  Epiphany: 'Heilige Drei Könige',
+  'Good Friday': 'Karfreitag',
+  'Easter Sunday': 'Ostersonntag',
+  'Easter Monday': 'Ostermontag',
+  'Labour Day': 'Tag der Arbeit',
+  'Ascension Day': 'Christi Himmelfahrt',
+  Pentecost: 'Pfingstsonntag',
+  'Whit Monday': 'Pfingstmontag',
+  'Corpus Christi': 'Fronleichnam',
+  'Assumption Day': 'Mariä Himmelfahrt',
+  'German Unity Day': 'Tag der Deutschen Einheit',
+  'Reformation Day': 'Reformationstag',
+  "All Saints' Day": 'Allerheiligen',
+  'Day of Repentance and Prayer': 'Buß- und Bettag',
+  'Repentance and Prayer Day': 'Buß- und Bettag',
+  "International Women's Day": 'Internationaler Frauentag',
+  "World Children's Day": 'Weltkindertag',
+  'Christmas Day': '1. Weihnachtstag',
+  'Second Day of Christmas': '2. Weihnachtstag',
+  "St. Stephen's Day": '2. Weihnachtstag',
+  '75th anniversary of the uprising of June 17, 1953': '75. Jahrestag des Volksaufstands vom 17. Juni 1953',
+})
 
 export function holidayYears(referenceDate = new Date()) {
   return Array.from({ length: 5 }, (_, index) => referenceDate.getFullYear() + index)
@@ -47,6 +74,12 @@ function colorPriority(value) {
   return ({ regional: 1, 'foreign-national': 2, 'germany-national': 3 })[value] || 0
 }
 
+function holidayDisplayName(holiday, sourceName) {
+  if (holiday.displayName) return holiday.displayName
+  if (holiday.countryCode === 'DE') return LEGACY_GERMAN_HOLIDAY_NAMES[sourceName] || sourceName
+  return sourceName
+}
+
 export function getVisibleHolidays(records, year, germanyEnabled, selectedStateCodes, selectedCountryCodes = ['DE']) {
   if (!Array.isArray(records)) return []
   const selectedStates = new Set(selectedStateCodes)
@@ -62,7 +95,7 @@ export function getVisibleHolidays(records, year, germanyEnabled, selectedStateC
   // contribute multiple records for the same date and holiday key.
   return [...visibleRecords.reduce((items, holiday) => {
     const sourceName = holiday.sourceName || holiday.name || ''
-    const displayName = holiday.displayName || sourceName
+    const displayName = holidayDisplayName(holiday, sourceName)
     const id = `${holiday.date}-${sourceName}`
     const nextColor = colorVariant(holiday)
     const current = items.get(id) || { id, date: holiday.date, name: displayName, colorVariant: nextColor, countries: [] }
