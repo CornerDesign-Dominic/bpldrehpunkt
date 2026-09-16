@@ -88,6 +88,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The client only reads the server-maintained public holiday projection.
+    // Nager.Date access and every write remain exclusively in Cloud Functions.
+    match /publicHolidays/{holidayId} {
+      allow read: if view('feiertagskalender');
+      allow write: if false;
+    }
+
+    match /holidaySyncStatus/{countryCode} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Process content is written through the callable function, where the
     // complete graph is validated before publication. Readers with view
     // access can only query active processes; editors may also work with

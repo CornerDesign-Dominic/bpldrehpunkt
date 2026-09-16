@@ -16,12 +16,14 @@ import { createFunctionalRole, listFunctionalRoles, updateFunctionalRole } from 
 import { createManagedUser, updateManagedUser } from '../lib/userManagement.js'
 import { listManagedUserProfiles } from '../lib/userProfiles.js'
 import { createCalendar, listCalendarPermissions, listCalendars, setCalendarPermissions as saveCalendarPermissions, updateCalendar } from '../lib/calendars.js'
+import { getHolidaySyncStatus } from '../lib/holidayData.js'
 import { functions } from '../lib/firebase.js'
 import '../styles/admin.css'
 import PartnerEvaluationSettingsPanel from '../components/admin/PartnerEvaluationSettingsPanel.jsx'
 import LegacyAccountReviewPanel from '../components/admin/LegacyAccountReviewPanel.jsx'
 
 const emptyUser = () => ({ firstName: '', lastName: '', email: '', departmentId: '', department: '', jobTitle: '', phone: '', personnelNumber: '', employmentStart: '', active: true, role: 'user', permissions: {}, vacationManager: false, vacationManagerAllDepartments: false, vacationManagerDepartments: [] })
+const syncDateFormatter = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
 
 export default function AdminPage() {
   const { profile } = useAuth()
@@ -44,6 +46,8 @@ export default function AdminPage() {
   const [calendarSaving, setCalendarSaving] = useState(false)
   const [researching, setResearching] = useState(false)
   const [researchConfirmationOpen, setResearchConfirmationOpen] = useState(false)
+  const [holidaySyncStatus, setHolidaySyncStatus] = useState(null)
+  const [holidaySyncing, setHolidaySyncing] = useState(false)
   const [toast, setToast] = useState('')
 
   async function reload() {
@@ -93,6 +97,13 @@ export default function AdminPage() {
   }, [canManagePermissions])
 
   useEffect(() => {
+    if (!['admin', 'superadmin'].includes(profile?.role) || profile?.active !== true) return undefined
+    let active = true
+    getHolidaySyncStatus('DE').then((status) => { if (active) setHolidaySyncStatus(status) }).catch(() => { if (active) setHolidaySyncStatus(null) })
+    return () => { active = false }
+  }, [profile?.active, profile?.role])
+
+  useEffect(() => {
     if (profile?.role !== 'superadmin' || profile?.active !== true) return undefined
     let active = true
     httpsCallable(functions, 'migrateLegacyDamageDocuments')()
@@ -128,6 +139,22 @@ export default function AdminPage() {
     } finally {
       setResearching(false)
       setResearchConfirmationOpen(false)
+    }
+  }
+
+  async function refreshHolidays() {
+    setHolidaySyncing(true)
+    try {
+      const result = await httpsCallable(functions, 'refreshHolidayData', { timeout: 180000 })()
+      const status = await getHolidaySyncStatus('DE')
+      setHolidaySyncStatus(status)
+      const updated = result.data?.updatedEntryCount || 0
+      setToast(updated ? `Feiertage aktualisiert: ${updated} Eintrag${updated === 1 ? '' : 'e'} geändert.` : 'Feiertage geprüft: keine Änderungen erforderlich.')
+    } catch (holidayError) {
+      const message = holidayError?.message?.replace(/^.*?:\s*/, '') || 'Unbekannter Fehler'
+      setToast(`Feiertage konnten nicht aktualisiert werden: ${message}`)
+    } finally {
+      setHolidaySyncing(false)
     }
   }
 
@@ -180,6 +207,8 @@ export default function AdminPage() {
   const orderedDepartments = useMemo(() => [...departments].sort((left, right) => String(left.name).localeCompare(String(right.name), 'de')), [departments])
   const orderedFunctionalRoles = useMemo(() => [...functionalRoles].sort((left, right) => String(left.name).localeCompare(String(right.name), 'de')), [functionalRoles])
   const isActiveSuperadmin = profile?.role === 'superadmin' && profile?.active === true
+  const isActiveAdmin = ['admin', 'superadmin'].includes(profile?.role) && profile?.active === true
+  const holidaySyncDate = holidaySyncStatus?.lastSyncedAt?.toDate?.()
 
-  return <div className="admin-page"><ConfirmDialog open={researchConfirmationOpen} title="News-Recherche starten?" message="Die Recherche führt eine kostenpflichtige KI- und Websuche aus. Möchten Sie sie jetzt wirklich starten?" confirmLabel="Recherche starten" submittingLabel="Recherche läuft …" isSubmitting={researching} onCancel={() => setResearchConfirmationOpen(false)} onConfirm={runNewsResearch} />{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>{isActiveSuperadmin && <><LegacyAccountReviewPanel /><section className="admin-panel admin-manual-triggers"><div className="admin-panel__heading"><div><h2>Manuell auslösen</h2></div></div><div className="admin-manual-triggers__actions"><button className="button" type="button" onClick={() => setResearchConfirmationOpen(true)} disabled={researching}>{researching ? 'Recherche läuft …' : 'News-Recherche starten'}</button></div></section><section className="admin-panel admin-system-mails-card"><div className="admin-panel__heading"><div><h2>Systemmails</h2><p>Vorlagen und Testversand für automatische Systemmails verwalten.</p></div><div className="admin-panel__actions"><Link className="button button--secondary" to="/admin/systemmails">Systemmails verwalten</Link></div></div></section><section className="admin-panel admin-system-mails-card"><div className="admin-panel__heading"><div><h2>KI-Prompts</h2><p>Ergänzende Fachanweisungen für KI-Funktionen verwalten.</p></div><div className="admin-panel__actions"><Link className="button button--secondary" to="/admin/ki-prompts">KI-Prompts verwalten</Link></div></div></section></>}{canManagePermissions && <><PartnerEvaluationSettingsPanel /><DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} /><FunctionalRoleManagementPanel functionalRoles={orderedFunctionalRoles} error={functionalRoleError} saving={functionalRoleSaving} onCreate={(name) => saveFunctionalRole(() => createFunctionalRole(name))} onUpdate={(id, values) => saveFunctionalRole(() => updateFunctionalRole(id, values))} /><CalendarManagementPanel calendars={calendars} users={users} permissionsByCalendar={calendarPermissions} error={calendarError} saving={calendarSaving} onCreate={(values) => saveCalendar(() => createCalendar(values), 'Kalender angelegt.')} onUpdate={(id, values) => saveCalendar(() => updateCalendar(id, values), values.active === false ? 'Kalender archiviert.' : values.active === true ? 'Kalender reaktiviert.' : 'Kalender aktualisiert.')} onSavePermissions={(calendarId, permissions) => saveCalendar(() => saveCalendarPermissions(calendarId, permissions), 'Kalenderberechtigungen aktualisiert.')} /></>}</>}</div>
+  return <div className="admin-page"><ConfirmDialog open={researchConfirmationOpen} title="News-Recherche starten?" message="Die Recherche führt eine kostenpflichtige KI- und Websuche aus. Möchten Sie sie jetzt wirklich starten?" confirmLabel="Recherche starten" submittingLabel="Recherche läuft …" isSubmitting={researching} onCancel={() => setResearchConfirmationOpen(false)} onConfirm={runNewsResearch} />{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{editing ? <UserManagementForm value={editing} isNew={isNew} canManagePermissions={canManagePermissions} departments={orderedDepartments} saving={saving} onChange={setEditing} onCancel={() => setEditing(null)} onSubmit={save} /> : <><section className="admin-panel"><div className="admin-panel__heading"><div><h2>Mitarbeiter</h2><p>Benutzerkonten und Stammdaten.</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={() => { setEditing(emptyUser()); setNew(true) }}>Mitarbeiter anlegen</button></div></div>{error && <p className="form-error">{error}</p>}<AdminEmployeesTable users={users} loading={loading} error={error} onManage={(user) => { setEditing(getSafeProfileDefaults(user)); setNew(false) }} /></section>{isActiveAdmin && <section className="admin-panel admin-holiday-sync"><div className="admin-panel__heading"><div><h2>Feiertagskalender</h2><p>{holidaySyncDate ? `Zuletzt aktualisiert: ${syncDateFormatter.format(holidaySyncDate)} · ${holidaySyncStatus.source || 'Nager.Date'} · ${holidaySyncStatus.updatedEntryCount || 0} geänderte Einträge.` : 'Deutschland wird monatlich über Nager.Date gepflegt.'}</p></div><div className="admin-panel__actions"><button className="button" type="button" onClick={refreshHolidays} disabled={holidaySyncing}>{holidaySyncing ? 'Feiertage werden aktualisiert …' : 'Feiertage jetzt aktualisieren'}</button></div></div></section>}{isActiveSuperadmin && <><LegacyAccountReviewPanel /><section className="admin-panel admin-manual-triggers"><div className="admin-panel__heading"><div><h2>Manuell auslösen</h2></div></div><div className="admin-manual-triggers__actions"><button className="button" type="button" onClick={() => setResearchConfirmationOpen(true)} disabled={researching}>{researching ? 'Recherche läuft …' : 'News-Recherche starten'}</button></div></section><section className="admin-panel admin-system-mails-card"><div className="admin-panel__heading"><div><h2>Systemmails</h2><p>Vorlagen und Testversand für automatische Systemmails verwalten.</p></div><div className="admin-panel__actions"><Link className="button button--secondary" to="/admin/systemmails">Systemmails verwalten</Link></div></div></section><section className="admin-panel admin-system-mails-card"><div className="admin-panel__heading"><div><h2>KI-Prompts</h2><p>Ergänzende Fachanweisungen für KI-Funktionen verwalten.</p></div><div className="admin-panel__actions"><Link className="button button--secondary" to="/admin/ki-prompts">KI-Prompts verwalten</Link></div></div></section></>}{canManagePermissions && <><PartnerEvaluationSettingsPanel /><DepartmentManagementPanel departments={orderedDepartments} error={departmentError} saving={departmentSaving} onCreate={(name) => saveDepartment(() => createDepartment(name))} onUpdate={(id, values) => saveDepartment(() => updateDepartment(id, values))} /><FunctionalRoleManagementPanel functionalRoles={orderedFunctionalRoles} error={functionalRoleError} saving={functionalRoleSaving} onCreate={(name) => saveFunctionalRole(() => createFunctionalRole(name))} onUpdate={(id, values) => saveFunctionalRole(() => updateFunctionalRole(id, values))} /><CalendarManagementPanel calendars={calendars} users={users} permissionsByCalendar={calendarPermissions} error={calendarError} saving={calendarSaving} onCreate={(values) => saveCalendar(() => createCalendar(values), 'Kalender angelegt.')} onUpdate={(id, values) => saveCalendar(() => updateCalendar(id, values), values.active === false ? 'Kalender archiviert.' : values.active === true ? 'Kalender reaktiviert.' : 'Kalender aktualisiert.')} onSavePermissions={(calendarId, permissions) => saveCalendar(() => saveCalendarPermissions(calendarId, permissions), 'Kalenderberechtigungen aktualisiert.')} /></>}</>}</div>
 }

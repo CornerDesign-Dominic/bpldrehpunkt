@@ -32,7 +32,7 @@ export default function HolidayMonthCalendar({ holidays, month, onHolidayClick, 
           <time dateTime={value}>{date.getDate()}</time>
           <div className="holiday-day__entries">{(holidaysByDate[value] || []).map((holiday) => {
             const detail = holidayDetail(holiday)
-            return <button className={`holiday-entry holiday-entry--${holiday.scope}`} type="button" key={holiday.id} title={detail} aria-label={`${detail}. Details öffnen`} onClick={() => onHolidayClick(holiday)}>{holiday.name}</button>
+            return <button className={`holiday-entry holiday-entry--${holiday.colorVariant}`} type="button" key={holiday.id} title={detail} aria-label={`${detail}. Details öffnen`} onClick={() => onHolidayClick(holiday)}>{holiday.name}</button>
           })}</div>
         </div>
       })}

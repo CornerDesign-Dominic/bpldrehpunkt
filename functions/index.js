@@ -1015,6 +1015,7 @@ export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from
 export { submitBugReport } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
 export { analyzeCustomerOrderTerms } from './agbChecker.js'
+export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
 export { generateKnowledgeProcessDraft } from './knowledgeProcessAi.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'

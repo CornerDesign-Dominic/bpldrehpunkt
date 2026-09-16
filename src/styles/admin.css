@@ -11,6 +11,7 @@
 .admin-panel__heading p, .admin-placeholder p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }
 .admin-departments { padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-manual-triggers { gap: 9px; padding-top: 16px; border-top: 1px solid var(--border); }
+.admin-holiday-sync { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
 .admin-manual-triggers__actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .admin-system-mails-card { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
 .legacy-account-review { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }

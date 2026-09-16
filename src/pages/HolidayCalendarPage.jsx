@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
-import { EUROPEAN_COUNTRIES, GERMAN_STATES, HOLIDAY_YEARS, getHolidayStateNames, getVisibleHolidays } from '../lib/holidayCalendar.js'
+import { EUROPEAN_COUNTRIES, GERMAN_STATES, getHolidayStateNames, getVisibleHolidays, holidayYears } from '../lib/holidayCalendar.js'
+import { listPublicHolidays } from '../lib/holidayData.js'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import '../styles/holidayCalendar.css'
 
@@ -17,25 +18,36 @@ function HolidayDetailModal({ holiday, onClose }) {
 
 export default function HolidayCalendarPage() {
   const now = new Date()
-  const [year, setYear] = useState(() => HOLIDAY_YEARS.includes(now.getFullYear()) ? now.getFullYear() : HOLIDAY_YEARS[0])
+  const years = useMemo(() => holidayYears(), [])
+  const [year, setYear] = useState(() => now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [germanyEnabled, setGermanyEnabled] = useState(true)
   const [selectedStates, setSelectedStates] = useState(() => GERMAN_STATES.map((state) => state.code))
   const [expandedCountries, setExpandedCountries] = useState(() => new Set(['DE']))
   const [selectedHoliday, setSelectedHoliday] = useState(null)
-  const holidays = useMemo(() => getVisibleHolidays(year, germanyEnabled, selectedStates), [germanyEnabled, selectedStates, year])
+  const [holidayRecords, setHolidayRecords] = useState([])
+  const [holidayLoadError, setHolidayLoadError] = useState('')
+  const holidays = useMemo(() => getVisibleHolidays(holidayRecords, year, germanyEnabled, selectedStates), [germanyEnabled, holidayRecords, selectedStates, year])
   const today = localTodayValue()
+
+  useEffect(() => {
+    let active = true
+    listPublicHolidays('DE')
+      .then((records) => { if (active) { setHolidayRecords(records); setHolidayLoadError('') } })
+      .catch(() => { if (active) setHolidayLoadError('Feiertage konnten nicht geladen werden.') })
+    return () => { active = false }
+  }, [])
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)
-    if (!HOLIDAY_YEARS.includes(next.getFullYear())) return
+    if (!years.includes(next.getFullYear())) return
     setYear(next.getFullYear())
     setMonth(next.getMonth())
   }
 
   function showToday() {
     const current = new Date()
-    if (!HOLIDAY_YEARS.includes(current.getFullYear())) return
+    if (!years.includes(current.getFullYear())) return
     setYear(current.getFullYear())
     setMonth(current.getMonth())
   }
@@ -63,14 +75,14 @@ export default function HolidayCalendarPage() {
       <div className="holiday-toolbar">
         <div className="holiday-toolbar__period">
           <label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
-          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{HOLIDAY_YEARS.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
           <button className="holiday-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button>
           <button className="holiday-today-button" type="button" onClick={showToday}>Heute</button>
           <button className="holiday-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button>
         </div>
       </div>
+      {holidayLoadError && <p className="holiday-calendar-state">{holidayLoadError}</p>}
       <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} onHolidayClick={setSelectedHoliday} />
-      <div className="holiday-legend" aria-label="Legende"><span className="holiday-legend__item holiday-legend__item--national">Bundesweit</span><span className="holiday-legend__item holiday-legend__item--regional">Bundeslandweit</span></div>
     </section>
 
     <aside className="holiday-countries-card">
