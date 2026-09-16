@@ -16,6 +16,10 @@ function deadlineClass(deadline) {
   return kind === 'overdue' ? 'damage-deadlines__date damage-deadlines__date--overdue' : kind === 'today' ? 'damage-deadlines__date damage-deadlines__date--today' : kind === 'urgent' ? 'damage-deadlines__date damage-deadlines__date--urgent' : kind === 'warning' ? 'damage-deadlines__date damage-deadlines__date--warning' : 'damage-deadlines__date'
 }
 
+function deadlineDisplay(deadline) {
+  return `${damageDeadlinePresentation(deadline).label} · ${formatDate(deadline.date)}`
+}
+
 function DeadlineModal({ canEdit, deadline, mode, onClose, onSave }) {
   const [editing, setEditing] = useState(mode === 'new')
   const [values, setValues] = useState(() => ({
@@ -93,7 +97,7 @@ export default function DamageDeadlinesCard({ canEdit, deadlines, loading, onSav
     {modal && <DeadlineModal canEdit={canEdit} deadline={modal.deadline} mode={modal.mode === 'new' ? 'new' : 'details'} onClose={() => setModal(null)} onSave={onSave} />}
     <div className="todo-detail-section-heading"><h3 id="damage-deadlines-title">Termine &amp; Fristen</h3>{canEdit && <button className="button damage-deadlines__add" type="button" onClick={() => setModal({ mode: 'new', deadline: null })}>Termin hinzufügen</button>}</div>
     <div className="todos-table-frame damage-deadlines__table-frame"><table className="todos-table damage-deadlines__table"><thead><tr><th>Datum</th><th>Erinnerung</th><th>Bemerkung</th></tr></thead><tbody>
-      {loading ? <tr><td className="table-state" colSpan="3">Termine werden geladen …</td></tr> : !deadlines.length ? <tr><td className="table-state" colSpan="3">Noch keine Termine oder Fristen hinterlegt.</td></tr> : deadlines.map((deadline) => <tr key={deadline.id} className="damage-deadlines__row" tabIndex="0" role="button" onClick={() => openDetails(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={`Termin vom ${formatDate(deadline.date)} öffnen`}><td><span className={deadlineClass(deadline)}>{formatDate(deadline.date)} · {damageDeadlinePresentation(deadline).label}</span></td><td><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{deadline.reminderEnabled ? 'An' : 'Aus'}</span></td><td className="damage-deadlines__note" title={deadline.note || ''}>{deadline.note || '—'}</td></tr>)}
+      {loading ? <tr><td className="table-state" colSpan="3">Termine werden geladen …</td></tr> : !deadlines.length ? <tr><td className="table-state" colSpan="3">Noch keine Termine oder Fristen hinterlegt.</td></tr> : deadlines.map((deadline) => <tr key={deadline.id} className="damage-deadlines__row" tabIndex="0" role="button" onClick={() => openDetails(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={`Termin vom ${formatDate(deadline.date)} öffnen`}><td><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></td><td><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{deadline.reminderEnabled ? 'An' : 'Aus'}</span></td><td className="damage-deadlines__note" title={deadline.note || ''}>{deadline.note || '—'}</td></tr>)}
     </tbody></table></div>
   </section>
 }

@@ -1165,11 +1165,11 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .damage-deadlines { display: grid; gap: 11px; }
 .damage-deadlines__add { min-height: 29px; padding: 0 9px; font-size: 11px; }
 .damage-deadlines__table-frame { overflow-x: hidden; }
-.damage-deadlines__table { width: 100%; min-width: 0; max-width: 100%; table-layout: fixed; }
+.damage-deadlines__table { width: 100%; min-width: 0 !important; max-width: 100%; table-layout: fixed; }
 .damage-deadlines__table thead th { height: 37px; padding-inline: 10px !important; text-align: left; }
 .damage-deadlines__table th:nth-child(1) { width: 185px; }
 .damage-deadlines__table th:nth-child(2) { width: 94px; }
-.damage-deadlines__table td:nth-child(1), .damage-deadlines__table td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.damage-deadlines__table td:nth-child(1), .damage-deadlines__table td:nth-child(2), .damage-deadlines__table td:nth-child(3) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .damage-deadlines__row { cursor: pointer; }
 .damage-deadlines__row:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
 .damage-deadlines__date { color: var(--text-primary); font-weight: 700; }
