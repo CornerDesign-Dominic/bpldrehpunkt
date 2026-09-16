@@ -1,5 +1,5 @@
 import { listDamageCaseDeadlines, listDamageCases } from './damages.js'
-import { listInsolvencies } from './insolvencies.js'
+import { listInsolvencies, listInsolvencyDeadlines } from './insolvencies.js'
 import { listLegalDisputes } from './legalDisputes.js'
 import { listInkassoCases } from './inkasso.js'
 import { canView } from './permissions.js'
@@ -60,7 +60,11 @@ async function damageEvents(calendar) {
 
 async function insolvencyEvents(calendar) {
   const insolvencies = await listInsolvencies()
-  return insolvencies
+  const deadlineLists = await Promise.all(insolvencies.map(async (insolvency) => ({
+    insolvency,
+    deadlines: await listInsolvencyDeadlines(insolvency.id),
+  })))
+  const insolvencyDateEvents = insolvencies
     .filter((insolvency) => validDate(insolvency.insolvencyDate))
     .map((insolvency) => systemEvent(
       calendar,
@@ -70,6 +74,17 @@ async function insolvencyEvents(calendar) {
       `/insolvenzen/${insolvency.id}`,
       text(insolvency.courtReference),
     ))
+  const deadlineEvents = deadlineLists.flatMap(({ insolvency, deadlines }) => deadlines
+    .filter((deadline) => validDate(deadline.date))
+    .map((deadline) => systemEvent(
+      calendar,
+      `insolvency:${insolvency.id}:deadline:${deadline.id}`,
+      `${text(insolvency.partnerName) || 'Insolvenzfall'} · ${text(deadline.note) || 'Termin / Frist'}`,
+      deadline.date,
+      `/insolvenzen/${insolvency.id}`,
+      text(insolvency.courtReference),
+    )))
+  return [...insolvencyDateEvents, ...deadlineEvents]
 }
 
 async function legalDisputeEvents(calendar) {

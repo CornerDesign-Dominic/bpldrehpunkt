@@ -35,7 +35,8 @@ export default function InsolvencyCaseForm({ onCancel, onSubmit, partners, loadi
     <div className="damage-form__heading"><h2>Insolvenz hinzufügen</h2></div>
     <section className="damage-form__section"><h3>Grunddaten</h3><div className="damage-form__grid damage-form__grid--context">
       <label className="form-field damage-form__wide"><span>Betroffenes Unternehmen *</span><select autoFocus value={form.partnerId} onChange={(event) => update('partnerId', event.target.value)} disabled={loadingPartners || Boolean(partnerError)}><option value="">{loadingPartners ? 'Unternehmen werden geladen …' : 'Bitte auswählen'}</option>{partners.map((partner) => <option key={partner.id} value={partner.id}>{partnerLabel(partner)}</option>)}</select></label>
-      <label className="form-field"><span>Insolvenzdatum</span><input type="date" value={form.insolvencyDate} onChange={(event) => update('insolvencyDate', event.target.value)} /></label>
+      <label className="form-field"><span>Insolvenzeröffnung</span><input type="date" value={form.insolvencyDate} onChange={(event) => update('insolvencyDate', event.target.value)} /></label>
+      <label className="form-field"><span>Bekannt geworden am</span><input type="date" value={form.knownDate} onChange={(event) => update('knownDate', event.target.value)} /></label>
       <label className="form-field"><span>Aktenzeichen</span><input value={form.courtReference} maxLength="240" onChange={(event) => update('courtReference', event.target.value)} /></label>
       <label className="form-field"><span>Gerichtsstand</span><input value={form.courtVenue} maxLength="240" onChange={(event) => update('courtVenue', event.target.value)} /></label>
     </div></section>

@@ -16,7 +16,7 @@ function updateMetadata(actor) {
 }
 
 function insolvencyMetadata(insolvency, actor) {
-  return { description: insolvency.description ?? null, ...updateMetadata(actor) }
+  return { description: insolvency.description ?? null, knownDate: insolvency.knownDate ?? null, ...updateMetadata(actor) }
 }
 
 function amount(value, label) {
@@ -50,8 +50,20 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`))
 }
 
+function insolvencyDeadlinePayload(values) {
+  const date = trim(values.date)
+  const note = optionalText(values.note)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
+  if (note && note.length > 4000) throw new Error('Die Bemerkung darf maximal 4.000 Zeichen enthalten.')
+  return { date, reminderEnabled: values.reminderEnabled === true, note }
+}
+
+function insolvencyDeadlineLabel(value) {
+  return formatDate(value)
+}
+
 export function createEmptyInsolvency() {
-  return { partnerId: '', insolvencyDate: '', courtReference: '', courtVenue: '' }
+  return { partnerId: '', insolvencyDate: '', knownDate: '', courtReference: '', courtVenue: '' }
 }
 
 export async function listInsolvencies() {
@@ -79,6 +91,7 @@ export async function createInsolvency(values, partner, actor) {
     partnerId: partner.id,
     partnerName: trim(partner.companyName),
     insolvencyDate: optionalDate(values.insolvencyDate),
+    knownDate: optionalDate(values.knownDate),
     courtReference: optionalText(values.courtReference),
     courtVenue: optionalText(values.courtVenue),
     description: null,
@@ -95,6 +108,7 @@ export async function createInsolvency(values, partner, actor) {
 export async function updateInsolvency(insolvency, values, actor) {
   const next = {
     insolvencyDate: optionalDate(values.insolvencyDate),
+    knownDate: optionalDate(values.knownDate),
     courtReference: optionalText(values.courtReference),
     courtVenue: optionalText(values.courtVenue),
     description: optionalText(insolvency.description),
@@ -108,7 +122,7 @@ export async function updateInsolvencyDescription(insolvency, value, actor) {
   const description = optionalText(value)
   if (description && description.length > 4000) throw new Error('Die Beschreibung darf maximal 4.000 Zeichen enthalten.')
   if (description === (insolvency.description ?? null)) return false
-  await writeBatch(db).update(doc(db, INSOLVENCIES_COLLECTION, insolvency.id), { description, ...updateMetadata(actor) }).commit()
+  await writeBatch(db).update(doc(db, INSOLVENCIES_COLLECTION, insolvency.id), { description, knownDate: insolvency.knownDate ?? null, ...updateMetadata(actor) }).commit()
   return true
 }
 
@@ -118,6 +132,22 @@ export function createEmptyInsolvencyClaim() {
 
 export function createEmptyInsolvencyQuotaPayment() {
   return { paymentDate: new Date().toISOString().slice(0, 10), netAmount: '', vatAmount: '' }
+}
+
+export function createEmptyInsolvencyDeadline() {
+  return { date: new Date().toISOString().slice(0, 10), reminderEnabled: false, note: '' }
+}
+
+export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
+  if (!deadline?.date) return { kind: 'none', label: 'Keine Frist' }
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const date = new Date(`${deadline.date}T12:00:00`)
+  const days = Math.round((date - today) / 86400000)
+  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig` }
+  if (days === 0) return { kind: 'today', label: 'heute' }
+  if (days <= 2) return { kind: 'urgent', label: `in ${days} ${days === 1 ? 'Tag' : 'Tagen'}` }
+  if (days <= 5) return { kind: 'warning', label: `in ${days} Tagen` }
+  return { kind: 'none', label: `in ${days} Tagen` }
 }
 
 export async function listInsolvencyClaims(partnerId) {
@@ -130,6 +160,12 @@ export async function listInsolvencyQuotaPayments(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'quotaPayments'))).docs
     .map(mapSnapshot)
     .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
+}
+
+export async function listInsolvencyDeadlines(partnerId) {
+  return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'deadlines'))).docs
+    .map(mapSnapshot)
+    .sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyUpdates(partnerId) {
@@ -199,4 +235,27 @@ export async function deleteInsolvencyQuotaPayment(insolvency, payment, actor) {
   batch.delete(doc(insolvencyRef, 'quotaPayments', payment.id))
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(payment.paymentDate)} gelöscht.`, actor))
   await batch.commit()
+}
+
+export async function createInsolvencyDeadline(insolvency, values, actor) {
+  const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const deadline = insolvencyDeadlinePayload(values)
+  const actorName = getUserDisplayName(actor.profile, actor.user)
+  const batch = writeBatch(db)
+  batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
+  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin für ${insolvencyDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
+  await batch.commit()
+}
+
+export async function updateInsolvencyDeadline(insolvency, deadline, values, actor) {
+  const next = insolvencyDeadlinePayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))) return false
+  const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const batch = writeBatch(db)
+  batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
+  batch.update(doc(insolvencyRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(next.date)} geändert.`, actor))
+  await batch.commit()
+  return true
 }
