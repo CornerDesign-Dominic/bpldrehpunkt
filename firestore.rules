@@ -88,10 +88,20 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The company holiday region is a global display setting. Every active
+    // work-calendar user may read it; updates are exclusively validated by a
+    // callable Cloud Function for admins and superadmins.
+    match /appSettings/holidayCalendar {
+      allow read: if active();
+      allow write: if false;
+    }
+
     // The client only reads the server-maintained public holiday projection.
     // Nager.Date access and every write remain exclusively in Cloud Functions.
     match /publicHolidays/{holidayId} {
-      allow read: if view('feiertagskalender');
+      // Work calendars use the server-maintained German holiday projection
+      // independently of the standalone Feiertagskalender module right.
+      allow read: if active();
       allow write: if false;
     }
 

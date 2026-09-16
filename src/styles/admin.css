@@ -12,6 +12,10 @@
 .admin-departments { padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-manual-triggers { gap: 9px; padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-holiday-sync { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.company-holiday-settings { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.company-holiday-settings__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 12px; }
+.company-holiday-settings__actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+.company-holiday-settings__success { margin: 10px 0 0; color: var(--status-success-text); font-size: 12px; }
 .admin-holiday-sync-log { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
 .admin-holiday-sync-log__entries { display: grid; border-top: 1px solid var(--border); }
 .admin-holiday-sync-log__entry { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(260px, 1.2fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; }
@@ -203,6 +207,7 @@
   .admin-holiday-sync-log__entry { grid-template-columns: 1fr; }
   .admin-holiday-sync-log__details { grid-template-columns: auto auto; }
   .admin-holiday-sync-log__translation, .admin-holiday-sync-log__error { grid-column: 1 / -1; }
+  .company-holiday-settings__fields { grid-template-columns: 1fr; }
   .admin-departments__create { max-width: none; }
   .admin-departments__row { grid-template-columns: 1fr auto; }
   .admin-departments__actions { grid-column: 1 / -1; justify-content: flex-start; }

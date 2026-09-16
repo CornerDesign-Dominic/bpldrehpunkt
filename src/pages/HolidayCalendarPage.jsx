@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
-import { EUROPEAN_COUNTRIES, GERMAN_STATES, getHolidayStateNames, getVisibleHolidays, holidayYears } from '../lib/holidayCalendar.js'
+import { EUROPEAN_COUNTRIES, GERMAN_STATES, SYNCHRONIZED_HOLIDAY_COUNTRY_CODES, getHolidayStateNames, getVisibleHolidays, holidayYears } from '../lib/holidayCalendar.js'
 import { listPublicHolidays } from '../lib/holidayData.js'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import '../styles/holidayCalendar.css'
@@ -13,7 +13,7 @@ function localTodayValue() {
 const holidayDateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
 
 function HolidayDetailModal({ holiday, onClose }) {
-  return <div className="holiday-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="holiday-modal" role="dialog" aria-modal="true" aria-labelledby="holiday-modal-title"><div className="holiday-modal__heading"><div><h2 id="holiday-modal-title">{holiday.name}</h2><p>{holidayDateFormatter.format(new Date(`${holiday.date}T12:00:00`))}</p></div><button type="button" className="holiday-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></div><div className="holiday-modal__content"><h3>Gültig in</h3><ul>{holiday.countries.map((country) => { const states = getHolidayStateNames(country.stateCodes); return <li key={country.countryCode}><strong>{country.name}</strong>{states.length > 0 && <small>{states.join(', ')}</small>}</li> })}</ul></div><div className="holiday-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></section></div>
+  return <div className="holiday-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="holiday-modal" role="dialog" aria-modal="true" aria-labelledby="holiday-modal-title"><div className="holiday-modal__heading"><div><h2 id="holiday-modal-title">{holiday.name}</h2><p>{holidayDateFormatter.format(new Date(`${holiday.date}T12:00:00`))}</p><small>Quelle: {holiday.sourceName || holiday.name}</small></div><button type="button" className="holiday-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></div><div className="holiday-modal__content"><h3>Gültig in</h3><ul>{holiday.countries.map((country) => { const states = getHolidayStateNames(country.stateCodes); return <li key={country.countryCode}><strong>{country.name}</strong>{states.length > 0 && <small>{states.join(', ')}</small>}</li> })}</ul></div><div className="holiday-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></section></div>
 }
 
 export default function HolidayCalendarPage() {
@@ -23,20 +23,22 @@ export default function HolidayCalendarPage() {
   const [month, setMonth] = useState(now.getMonth())
   const [germanyEnabled, setGermanyEnabled] = useState(true)
   const [selectedStates, setSelectedStates] = useState(() => GERMAN_STATES.map((state) => state.code))
+  const [selectedCountryCodes, setSelectedCountryCodes] = useState(['DE'])
   const [expandedCountries, setExpandedCountries] = useState(() => new Set(['DE']))
   const [selectedHoliday, setSelectedHoliday] = useState(null)
   const [holidayRecords, setHolidayRecords] = useState([])
   const [holidayLoadError, setHolidayLoadError] = useState('')
-  const holidays = useMemo(() => getVisibleHolidays(holidayRecords, year, germanyEnabled, selectedStates), [germanyEnabled, holidayRecords, selectedStates, year])
+  const holidays = useMemo(() => getVisibleHolidays(holidayRecords, year, germanyEnabled, selectedStates, selectedCountryCodes), [germanyEnabled, holidayRecords, selectedCountryCodes, selectedStates, year])
+  const allCountriesSelected = SYNCHRONIZED_HOLIDAY_COUNTRY_CODES.every((countryCode) => selectedCountryCodes.includes(countryCode))
   const today = localTodayValue()
 
   useEffect(() => {
     let active = true
-    listPublicHolidays('DE')
-      .then((records) => { if (active) { setHolidayRecords(records); setHolidayLoadError('') } })
+    Promise.all(selectedCountryCodes.map((countryCode) => listPublicHolidays(countryCode)))
+      .then((results) => { if (active) { setHolidayRecords(results.flat()); setHolidayLoadError('') } })
       .catch(() => { if (active) setHolidayLoadError('Feiertage konnten nicht geladen werden.') })
     return () => { active = false }
-  }, [])
+  }, [selectedCountryCodes])
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)
@@ -53,6 +55,18 @@ export default function HolidayCalendarPage() {
   }
 
   function toggleGermany(checked) {
+    setGermanyEnabled(checked)
+    setSelectedStates(checked ? GERMAN_STATES.map((state) => state.code) : [])
+    setSelectedCountryCodes((current) => checked ? [...new Set([...current, 'DE'])] : current.filter((countryCode) => countryCode !== 'DE'))
+  }
+
+  function toggleCountry(countryCode, checked) {
+    if (countryCode === 'DE') { toggleGermany(checked); return }
+    setSelectedCountryCodes((current) => checked ? [...new Set([...current, countryCode])] : current.filter((code) => code !== countryCode))
+  }
+
+  function toggleAllCountries(checked) {
+    setSelectedCountryCodes(checked ? [...SYNCHRONIZED_HOLIDAY_COUNTRY_CODES] : [])
     setGermanyEnabled(checked)
     setSelectedStates(checked ? GERMAN_STATES.map((state) => state.code) : [])
   }
@@ -87,12 +101,12 @@ export default function HolidayCalendarPage() {
 
     <aside className="holiday-countries-card">
       <div className="holiday-countries-card__heading"><h2>Länder</h2><p>Feiertagsauswahl</p></div>
-      <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={germanyEnabled} onChange={(event) => toggleGermany(event.target.checked)} /><span>Alle Länder</span></label>{EUROPEAN_COUNTRIES.map((country) => {
+      <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={allCountriesSelected} onChange={(event) => toggleAllCountries(event.target.checked)} /><span>Alle Länder</span></label>{EUROPEAN_COUNTRIES.map((country) => {
         const isExpanded = expandedCountries.has(country.code)
         return <div className={`holiday-country${country.available ? '' : ' holiday-country--unavailable'}`} key={country.code}>
           <div className="holiday-country__row">
             {country.regions.length > 0 ? <button className={`holiday-country__toggle${isExpanded ? ' holiday-country__toggle--open' : ''}`} type="button" onClick={() => toggleCountryExpansion(country.code)} aria-label={`${country.name} ${isExpanded ? 'einklappen' : 'ausklappen'}`}>›</button> : <span className="holiday-country__toggle-placeholder" />}
-            <label><input type="checkbox" checked={country.code === 'DE' ? germanyEnabled : false} disabled={!country.available} onChange={(event) => { if (country.code === 'DE') toggleGermany(event.target.checked) }} /><span>{country.name}</span></label>
+            <label><input type="checkbox" checked={country.code === 'DE' ? germanyEnabled : selectedCountryCodes.includes(country.code)} disabled={!country.available} onChange={(event) => toggleCountry(country.code, event.target.checked)} /><span>{country.name}</span></label>
             {!country.available && <small>Feiertage folgen</small>}
           </div>
           {country.code === 'DE' && isExpanded && <div className="holiday-state-list">{country.regions.map((state) => <label className="holiday-state" key={state.code}><input type="checkbox" checked={selectedStates.includes(state.code)} disabled={!germanyEnabled} onChange={(event) => toggleState(state.code, event.target.checked)} /><span>{state.name}</span></label>)}</div>}

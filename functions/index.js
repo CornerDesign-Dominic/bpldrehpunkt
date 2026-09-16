@@ -662,6 +662,19 @@ export const updatePartnerEvaluationSettings = onCall({ region: 'europe-west3', 
   return { settings }
 })
 
+const companyHolidaySubdivisionCodes = new Set(['DE-BW', 'DE-BY', 'DE-BE', 'DE-BB', 'DE-HB', 'DE-HH', 'DE-HE', 'DE-MV', 'DE-NI', 'DE-NW', 'DE-RP', 'DE-SL', 'DE-SN', 'DE-ST', 'DE-SH', 'DE-TH'])
+
+export const updateCompanyHolidayRegion = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await assertManager(request)
+  const value = request.data?.companyHolidayRegion
+  const countryCode = typeof value?.countryCode === 'string' ? value.countryCode.trim().toUpperCase() : ''
+  const subdivisionCode = typeof value?.subdivisionCode === 'string' ? value.subdivisionCode.trim().toUpperCase() : ''
+  if (countryCode !== 'DE' || !companyHolidaySubdivisionCodes.has(subdivisionCode)) throw new HttpsError('invalid-argument', 'Bitte ein gültiges deutsches Bundesland auswählen.')
+  const companyHolidayRegion = { countryCode, subdivisionCode }
+  await db.doc('appSettings/holidayCalendar').set({ companyHolidayRegion, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid }, { merge: true })
+  return { companyHolidayRegion }
+})
+
 export const migrateLegacyDepartments = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const users = await db.collection('users').get()

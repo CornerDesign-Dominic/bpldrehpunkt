@@ -12,7 +12,7 @@ function holidayDetail(holiday) {
     const states = getHolidayStateNames(country.stateCodes)
     return states.length ? `${country.name} (${states.join(', ')})` : country.name
   })
-  return `${holiday.name} · Gilt in: ${locations.join(', ')}`
+  return `${holiday.name} · Quelle: ${holiday.sourceName || holiday.name} · Gilt in: ${locations.join(', ')}`
 }
 
 export default function HolidayMonthCalendar({ holidays, month, onHolidayClick, today, year }) {

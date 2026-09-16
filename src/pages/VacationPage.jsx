@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
+import { useCompanyHolidaySettings } from '../company-holidays/useCompanyHolidaySettings.js'
 import VacationCalendar from '../components/vacation/VacationCalendar.jsx'
 import VacationCalendarLegend from '../components/vacation/VacationCalendarLegend.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -152,6 +153,7 @@ function CancellationModal({ request, onClose, onSubmit }) {
 export default function VacationPage() {
   const { canEdit } = usePermissions()
   const { user, profile } = useAuth()
+  const { calendarEntries: companyHolidayEntries } = useCompanyHolidaySettings()
   const today = todayValue()
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth()
@@ -229,6 +231,7 @@ export default function VacationPage() {
   const years = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
 
   const calendarEntries = useMemo(() => [
+    ...companyHolidayEntries,
     ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
     ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
     ...visibleRequests.flatMap((item) => {
@@ -249,7 +252,7 @@ export default function VacationPage() {
       const annotation = pendingCancellation ? 'Storno angefragt' : ''
       return [{ id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${ownerName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: item.status, modifier: pendingCancellation ? 'cancellation_requested' : '', own, title: `${ownerName} · ${annotation || getVacationStatus(item.status).label}` }]
     }),
-  ], [holidays, ownRelatedByOriginal, user.uid, usersById, vacationBlocks, visibleRequests])
+  ], [companyHolidayEntries, holidays, ownRelatedByOriginal, user.uid, usersById, vacationBlocks, visibleRequests])
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)

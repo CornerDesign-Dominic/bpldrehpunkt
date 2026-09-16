@@ -42,9 +42,10 @@ import InkassoPage from './pages/InkassoPage.jsx'
 import InkassoCaseDetailPage from './pages/InkassoCaseDetailPage.jsx'
 import AgbCheckerPage from './pages/AgbCheckerPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
+import { CompanyHolidaySettingsProvider } from './company-holidays/CompanyHolidaySettingsProvider.jsx'
 
 function ProtectedAppLayout() {
-  return <ProtectedRoute><PartnerEvaluationSettingsProvider><AppShell><Outlet /></AppShell></PartnerEvaluationSettingsProvider></ProtectedRoute>
+  return <ProtectedRoute><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></ProtectedRoute>
 }
 
 export default function App() {

@@ -29,6 +29,7 @@
 .vacation-calendar-bar--cancellation_requested, .vacation-legend__item--cancellation_requested::before { color: var(--vacation-cancellation-text); background: var(--vacation-cancellation-background); }
 .vacation-calendar-bar--cancellation_requested { outline: 1px dashed currentColor; outline-offset: -1px; }
 .vacation-calendar-bar--holiday, .vacation-legend__item--holiday::before { color: var(--text-secondary); background: var(--surface-secondary); border: 1px solid var(--border-strong); }
+.vacation-calendar-bar--company-holiday { color: var(--text-secondary); background: var(--surface-secondary); border: 1px solid var(--border-strong); font-style: italic; }
 .vacation-calendar-bar--block, .vacation-legend__item--block::before { color: var(--status-warning-text); background: var(--status-warning-background); border: 1px dashed var(--status-warning-text); }
 .vacation-calendar-bar--own { outline: 1px solid currentColor; outline-offset: -1px; font-weight: 750; }
 .vacation-calendar-bar--highlighted { animation: vacation-calendar-highlight 1.8s ease-out; box-shadow: 0 0 0 2px var(--button-background); }

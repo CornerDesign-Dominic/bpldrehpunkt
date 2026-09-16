@@ -5,6 +5,7 @@ import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
+import { getHolidayDisplayNameDe } from './holidayTranslations.js'
 
 if (!getApps().length) initializeApp()
 
@@ -14,31 +15,10 @@ const SYNC_STATUS_COLLECTION = 'holidaySyncStatus'
 const SYNC_LOG_COLLECTION = 'holidaySyncLogs'
 const NAGER_SOURCE = 'Nager.Date Community API v4'
 const NAGER_URL = 'https://nagerholidays.com/api/v4/Holidays'
-const COUNTRY_CODE = 'DE'
-const GERMAN_HOLIDAY_TRANSLATIONS = Object.freeze({
-  "New Year's Day": 'Neujahr',
-  Epiphany: 'Heilige Drei Könige',
-  'Good Friday': 'Karfreitag',
-  'Easter Sunday': 'Ostersonntag',
-  'Easter Monday': 'Ostermontag',
-  'Labour Day': 'Tag der Arbeit',
-  'Ascension Day': 'Christi Himmelfahrt',
-  Pentecost: 'Pfingstsonntag',
-  'Whit Monday': 'Pfingstmontag',
-  'Corpus Christi': 'Fronleichnam',
-  'Assumption Day': 'Mariä Himmelfahrt',
-  'German Unity Day': 'Tag der Deutschen Einheit',
-  'Reformation Day': 'Reformationstag',
-  "All Saints' Day": 'Allerheiligen',
-  'Day of Repentance and Prayer': 'Buß- und Bettag',
-  'Repentance and Prayer Day': 'Buß- und Bettag',
-  "International Women's Day": 'Internationaler Frauentag',
-  "World Children's Day": 'Weltkindertag',
-  'Christmas Day': '1. Weihnachtstag',
-  'Second Day of Christmas': '2. Weihnachtstag',
-  "St. Stephen's Day": '2. Weihnachtstag',
-  '75th anniversary of the uprising of June 17, 1953': '75. Jahrestag des Volksaufstands vom 17. Juni 1953',
-})
+const PRIMARY_COUNTRY_CODE = 'DE'
+const SYNC_COUNTRY_CODES = Object.freeze(['DE', 'NL', 'BE', 'LU', 'FR', 'AT', 'CH', 'IT', 'ES', 'PT', 'PL', 'CZ', 'SK', 'HU', 'DK', 'GB', 'IE', 'SI', 'HR', 'RO'])
+const COUNTRY_SYNC_CONCURRENCY = 4
+const YEAR_FETCH_CONCURRENCY = 3
 
 function berlinDateValue(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
@@ -49,6 +29,20 @@ function berlinDateValue(date = new Date()) {
 function syncYears(today) {
   const year = Number(today.slice(0, 4))
   return Array.from({ length: 5 }, (_, index) => year + index)
+}
+
+async function mapWithConcurrency(items, concurrency, callback) {
+  const results = new Array(items.length)
+  let nextIndex = 0
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await callback(items[index], index)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker))
+  return results
 }
 
 function cleanText(value) {
@@ -76,11 +70,12 @@ function normalizeHoliday(item, countryCode, year, today) {
   const date = cleanText(item?.date)
   const sourceName = cleanText(item?.name)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !sourceName || Number(date.slice(0, 4)) !== year || date < today || !publicType(item?.holidayTypes || item?.types)) return null
-  const displayName = countryCode === 'DE' ? (GERMAN_HOLIDAY_TRANSLATIONS[sourceName] || sourceName) : sourceName
+  const translatedName = getHolidayDisplayNameDe(countryCode, sourceName)
+  const displayNameDe = translatedName || sourceName
   const normalized = {
     date,
     sourceName,
-    displayName,
+    displayNameDe,
     countryCode,
     year,
     nationalHoliday: item?.nationalHoliday === true,
@@ -88,7 +83,7 @@ function normalizeHoliday(item, countryCode, year, today) {
     holidayType: 'Public',
     source: NAGER_SOURCE,
   }
-  return { id: recordId(countryCode, date, sourceName), ...normalized, dataHash: dataHash(normalized), translationMissing: countryCode === 'DE' && !GERMAN_HOLIDAY_TRANSLATIONS[sourceName] }
+  return { id: recordId(countryCode, date, sourceName), ...normalized, dataHash: dataHash(normalized), translationMissing: !translatedName }
 }
 
 async function fetchNagerHolidays(countryCode, year, today) {
@@ -138,34 +133,58 @@ async function applyYear(countryCode, year, records, today) {
   return { createdEntryCount, changedEntryCount }
 }
 
-export async function syncGermanPublicHolidays() {
-  const today = berlinDateValue()
-  const years = syncYears(today)
+async function syncCountryPublicHolidays(countryCode, years, today) {
   // Fetch every requested year before mutating Firestore. A partial API
-  // failure therefore cannot leave the previously maintained data altered.
-  const recordsByYear = await Promise.all(years.map(async (year) => [year, await fetchNagerHolidays(COUNTRY_CODE, year, today)]))
-  const translationMissingNames = [...new Set(recordsByYear.flatMap(([, records]) => records.filter((record) => record.translationMissing).map((record) => record.sourceName)))].sort((left, right) => left.localeCompare(right, 'en'))
+  // failure therefore cannot leave the previously maintained country altered.
+  const recordsByYear = await mapWithConcurrency(years, YEAR_FETCH_CONCURRENCY, async (year) => [year, await fetchNagerHolidays(countryCode, year, today)])
+  const translationMissing = [...new Map(recordsByYear.flatMap(([, records]) => records.filter((record) => record.translationMissing).map((record) => [`${countryCode}\u0000${record.sourceName}`, { countryCode, sourceName: record.sourceName }]))).values()]
   let createdEntryCount = 0
   let changedEntryCount = 0
   let updatedEntryCount = 0
   let totalEntries = 0
   for (const [year, records] of recordsByYear) {
     totalEntries += records.length
-    const changes = await applyYear(COUNTRY_CODE, year, records, today)
+    const changes = await applyYear(countryCode, year, records, today)
     createdEntryCount += changes.createdEntryCount
     changedEntryCount += changes.changedEntryCount
     updatedEntryCount += changes.createdEntryCount + changes.changedEntryCount
   }
-  await db.collection(SYNC_STATUS_COLLECTION).doc(COUNTRY_CODE).set({
-    countryCode: COUNTRY_CODE,
+  return { countryCode, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, translationMissing }
+}
+
+export async function syncPublicHolidays() {
+  const today = berlinDateValue()
+  const years = syncYears(today)
+  // 20 countries × 5 years equals the explicit API-request limit of 100.
+  if (SYNC_COUNTRY_CODES.length * years.length > 100) throw new Error('Die konfigurierte Feiertagssynchronisation überschreitet das Limit von 100 API-Abfragen.')
+  const countryResults = await mapWithConcurrency(SYNC_COUNTRY_CODES, COUNTRY_SYNC_CONCURRENCY, async (countryCode) => {
+    try {
+      return { result: await syncCountryPublicHolidays(countryCode, years, today) }
+    } catch (error) {
+      logger.error(`Feiertagssynchronisation für ${countryCode} fehlgeschlagen.`, error)
+      return { error: { countryCode, errorMessage: syncErrorMessage(error) } }
+    }
+  })
+  const successfulCountries = countryResults.flatMap(({ result }) => result ? [result] : [])
+  const failedCountries = countryResults.flatMap(({ error }) => error ? [error] : [])
+  const createdEntryCount = successfulCountries.reduce((count, result) => count + result.createdEntryCount, 0)
+  const changedEntryCount = successfulCountries.reduce((count, result) => count + result.changedEntryCount, 0)
+  const updatedEntryCount = createdEntryCount + changedEntryCount
+  const totalEntries = successfulCountries.reduce((count, result) => count + result.totalEntries, 0)
+  const translationMissing = [...new Map(successfulCountries.flatMap((result) => result.translationMissing).map((item) => [`${item.countryCode}\u0000${item.sourceName}`, item])).values()]
+  await db.collection(SYNC_STATUS_COLLECTION).doc(PRIMARY_COUNTRY_CODE).set({
+    countryCode: PRIMARY_COUNTRY_CODE,
     source: NAGER_SOURCE,
-    sourceUrl: `${NAGER_URL}/${COUNTRY_CODE}/{year}`,
+    sourceUrl: `${NAGER_URL}/{countryCode}/{year}`,
     years,
+    countries: SYNC_COUNTRY_CODES,
+    successfulCountryCount: successfulCountries.length,
+    failedCountryCodes: failedCountries.map((item) => item.countryCode),
     lastSyncedAt: FieldValue.serverTimestamp(),
     updatedEntryCount,
     totalEntries,
   }, { merge: true })
-  return { countryCode: COUNTRY_CODE, years, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, translationMissingNames }
+  return { years, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, successfulCountryCount: successfulCountries.length, failedCountries, translationMissing }
 }
 
 function syncActorName(profile, request) {
@@ -180,11 +199,11 @@ function syncErrorMessage(error) {
 
 async function writeSyncLog(entry) {
   await db.collection(SYNC_LOG_COLLECTION).add({
-    countryCode: COUNTRY_CODE,
+    countryCode: PRIMARY_COUNTRY_CODE,
     loggedAt: Timestamp.now(),
     ...entry,
   })
-  const logs = await db.collection(SYNC_LOG_COLLECTION).where('countryCode', '==', COUNTRY_CODE).orderBy('loggedAt', 'desc').get()
+  const logs = await db.collection(SYNC_LOG_COLLECTION).where('countryCode', '==', PRIMARY_COUNTRY_CODE).orderBy('loggedAt', 'desc').get()
   if (logs.size <= 10) return
   const batch = db.batch()
   logs.docs.slice(10).forEach((document) => batch.delete(document.ref))
@@ -194,7 +213,7 @@ async function writeSyncLog(entry) {
 async function runHolidaySync({ trigger, actorName = null }) {
   let result
   try {
-    result = await syncGermanPublicHolidays()
+    result = await syncPublicHolidays()
   } catch (error) {
     try {
       await writeSyncLog({
@@ -203,7 +222,9 @@ async function runHolidaySync({ trigger, actorName = null }) {
         status: 'failed',
         createdEntryCount: 0,
         changedEntryCount: 0,
-        translationMissingNames: [],
+        successfulCountryCount: 0,
+        failedCountries: [],
+        translationMissing: [],
         errorMessage: syncErrorMessage(error),
       })
     } catch (logError) {
@@ -215,19 +236,22 @@ async function runHolidaySync({ trigger, actorName = null }) {
     await writeSyncLog({
       trigger,
       actorName,
-      status: 'success',
+      status: result.successfulCountryCount ? 'success' : 'failed',
       createdEntryCount: result.createdEntryCount,
       changedEntryCount: result.changedEntryCount,
-      translationMissingNames: result.translationMissingNames,
-      errorMessage: null,
+      successfulCountryCount: result.successfulCountryCount,
+      failedCountries: result.failedCountries,
+      translationMissing: result.translationMissing,
+      errorMessage: result.successfulCountryCount ? null : 'Keines der Länder konnte aktualisiert werden.',
     })
   } catch (logError) {
     logger.error('Erfolgreiche Synchronisation konnte nicht protokolliert werden.', logError)
   }
+  if (!result.successfulCountryCount) throw new Error('Keines der Länder konnte aktualisiert werden.')
   return result
 }
 
-export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 180 }, async (request) => {
+export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540 }, async (request) => {
   const profile = await requireActiveProfile(request)
   requireRole(profile, ['admin', 'superadmin'], 'Nur Administratoren können Feiertage aktualisieren.')
   try {
@@ -238,7 +262,7 @@ export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppChe
   }
 })
 
-export const scheduledHolidayDataRefresh = onSchedule({ region: 'europe-west3', schedule: '15 3 1 * *', timeZone: 'Europe/Berlin' }, async () => {
+export const scheduledHolidayDataRefresh = onSchedule({ region: 'europe-west3', schedule: '15 3 1 * *', timeZone: 'Europe/Berlin', timeoutSeconds: 540 }, async () => {
   try {
     const result = await runHolidaySync({ trigger: 'automatic' })
     logger.info('Feiertagssynchronisation abgeschlossen.', result)

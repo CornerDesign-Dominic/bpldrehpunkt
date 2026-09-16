@@ -42,6 +42,7 @@
 .calendar-month__week-bars { position: absolute; z-index: 2; inset: 30px 4px 4px; grid-auto-rows: 17px; gap: 3px 0; pointer-events: none; }
 .calendar-event-bar { display: flex; min-width: 0; align-items: center; padding: 2px 5px; overflow: hidden; border: 0; border-left: 3px solid var(--calendar-color); border-radius: 2px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; font: inherit; font-size: 10px; line-height: 1.2; text-align: left; pointer-events: auto; }
 .calendar-event-bar:hover { color: var(--text-primary); background: var(--surface-active); }
+.calendar-event-bar--company-holiday { border-left-style: dashed; color: var(--text-muted); background: var(--surface-secondary); font-style: italic; }
 .calendar-event-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-state { margin: 0; padding: 42px 14px; color: var(--text-muted); font-size: 12px; text-align: center; }
 .calendar-upcoming__list { display: grid; gap: 4px; }

@@ -1,3 +1,5 @@
+import { getHolidayDisplayNameDe } from '../../functions/holidayTranslations.js'
+
 export const GERMAN_STATES = Object.freeze([
   { code: 'BW', name: 'Baden-Württemberg' },
   { code: 'BY', name: 'Bayern' },
@@ -18,43 +20,19 @@ export const GERMAN_STATES = Object.freeze([
 ])
 
 const stateNames = Object.fromEntries(GERMAN_STATES.map((state) => [state.code, state.name]))
-// Existing historic records are deliberately not rewritten by the importer.
-// This keeps those records readable with the same German labels until they
-// have a server-provided displayName of their own.
-const LEGACY_GERMAN_HOLIDAY_NAMES = Object.freeze({
-  "New Year's Day": 'Neujahr',
-  Epiphany: 'Heilige Drei Könige',
-  'Good Friday': 'Karfreitag',
-  'Easter Sunday': 'Ostersonntag',
-  'Easter Monday': 'Ostermontag',
-  'Labour Day': 'Tag der Arbeit',
-  'Ascension Day': 'Christi Himmelfahrt',
-  Pentecost: 'Pfingstsonntag',
-  'Whit Monday': 'Pfingstmontag',
-  'Corpus Christi': 'Fronleichnam',
-  'Assumption Day': 'Mariä Himmelfahrt',
-  'German Unity Day': 'Tag der Deutschen Einheit',
-  'Reformation Day': 'Reformationstag',
-  "All Saints' Day": 'Allerheiligen',
-  'Day of Repentance and Prayer': 'Buß- und Bettag',
-  'Repentance and Prayer Day': 'Buß- und Bettag',
-  "International Women's Day": 'Internationaler Frauentag',
-  "World Children's Day": 'Weltkindertag',
-  'Christmas Day': '1. Weihnachtstag',
-  'Second Day of Christmas': '2. Weihnachtstag',
-  "St. Stephen's Day": '2. Weihnachtstag',
-  '75th anniversary of the uprising of June 17, 1953': '75. Jahrestag des Volksaufstands vom 17. Juni 1953',
-})
 
 export function holidayYears(referenceDate = new Date()) {
   return Array.from({ length: 5 }, (_, index) => referenceDate.getFullYear() + index)
 }
 
+export const SYNCHRONIZED_HOLIDAY_COUNTRY_CODES = Object.freeze(['DE', 'NL', 'BE', 'LU', 'FR', 'AT', 'CH', 'IT', 'ES', 'PT', 'PL', 'CZ', 'SK', 'HU', 'DK', 'GB', 'IE', 'SI', 'HR', 'RO'])
+
 const europeanCountryNames = [
   ['AL', 'Albanien'], ['AD', 'Andorra'], ['AM', 'Armenien'], ['AT', 'Österreich'], ['AZ', 'Aserbaidschan'], ['BE', 'Belgien'], ['BA', 'Bosnien und Herzegowina'], ['BG', 'Bulgarien'], ['DK', 'Dänemark'], ['DE', 'Deutschland'], ['EE', 'Estland'], ['FI', 'Finnland'], ['FR', 'Frankreich'], ['GE', 'Georgien'], ['GR', 'Griechenland'], ['IE', 'Irland'], ['IS', 'Island'], ['IT', 'Italien'], ['XK', 'Kosovo'], ['HR', 'Kroatien'], ['LV', 'Lettland'], ['LI', 'Liechtenstein'], ['LT', 'Litauen'], ['LU', 'Luxemburg'], ['MT', 'Malta'], ['MD', 'Moldau'], ['MC', 'Monaco'], ['ME', 'Montenegro'], ['NL', 'Niederlande'], ['MK', 'Nordmazedonien'], ['NO', 'Norwegen'], ['PL', 'Polen'], ['PT', 'Portugal'], ['RO', 'Rumänien'], ['RU', 'Russland'], ['SM', 'San Marino'], ['SE', 'Schweden'], ['CH', 'Schweiz'], ['RS', 'Serbien'], ['SK', 'Slowakei'], ['SI', 'Slowenien'], ['ES', 'Spanien'], ['CZ', 'Tschechien'], ['TR', 'Türkei'], ['UA', 'Ukraine'], ['HU', 'Ungarn'], ['VA', 'Vatikanstadt'], ['GB', 'Vereinigtes Königreich'], ['BY', 'Weißrussland'], ['CY', 'Zypern'],
 ]
 
-const countriesByCode = Object.fromEntries(europeanCountryNames.map(([code, name]) => [code, Object.freeze({ code, name, available: code === 'DE', regions: code === 'DE' ? GERMAN_STATES : [] })]))
+const synchronizedCountryCodes = new Set(SYNCHRONIZED_HOLIDAY_COUNTRY_CODES)
+const countriesByCode = Object.fromEntries(europeanCountryNames.map(([code, name]) => [code, Object.freeze({ code, name, available: synchronizedCountryCodes.has(code), regions: code === 'DE' ? GERMAN_STATES : [] })]))
 
 export const EUROPEAN_COUNTRIES = Object.freeze([
   countriesByCode.DE,
@@ -65,19 +43,22 @@ export function getHolidayStateNames(stateCodes) {
   return stateCodes.map((code) => stateNames[code]).filter(Boolean)
 }
 
+export function getHolidayCountryName(countryCode) {
+  return countriesByCode[countryCode]?.name || countryCode
+}
+
 function colorVariant(holiday) {
   if (holiday.countryCode === 'DE' && holiday.nationalHoliday === true) return 'germany-national'
-  return holiday.nationalHoliday === true ? 'foreign-national' : 'regional'
+  if (holiday.countryCode === 'DE') return 'germany-regional'
+  return holiday.nationalHoliday === true ? 'foreign-national' : 'foreign-regional'
 }
 
 function colorPriority(value) {
-  return ({ regional: 1, 'foreign-national': 2, 'germany-national': 3 })[value] || 0
+  return ({ 'foreign-regional': 1, 'foreign-national': 2, 'germany-regional': 3, 'germany-national': 4 })[value] || 0
 }
 
 function holidayDisplayName(holiday, sourceName) {
-  if (holiday.displayName) return holiday.displayName
-  if (holiday.countryCode === 'DE') return LEGACY_GERMAN_HOLIDAY_NAMES[sourceName] || sourceName
-  return sourceName
+  return getHolidayDisplayNameDe(holiday.countryCode, sourceName) || holiday.displayNameDe || sourceName
 }
 
 export function getVisibleHolidays(records, year, germanyEnabled, selectedStateCodes, selectedCountryCodes = ['DE']) {
@@ -98,7 +79,7 @@ export function getVisibleHolidays(records, year, germanyEnabled, selectedStateC
     const displayName = holidayDisplayName(holiday, sourceName)
     const id = `${holiday.date}-${sourceName}`
     const nextColor = colorVariant(holiday)
-    const current = items.get(id) || { id, date: holiday.date, name: displayName, colorVariant: nextColor, countries: [] }
+    const current = items.get(id) || { id, date: holiday.date, name: displayName, sourceName, colorVariant: nextColor, countries: [] }
     const country = current.countries.find((item) => item.countryCode === holiday.countryCode)
     const subdivisionCodes = Array.isArray(holiday.subdivisionCodes) ? holiday.subdivisionCodes : []
     if (country) country.stateCodes = [...new Set([...country.stateCodes, ...subdivisionCodes])]

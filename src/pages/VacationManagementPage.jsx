@@ -1,5 +1,6 @@
 /* eslint-disable no-unreachable, no-useless-assignment */
 import { useEffect, useMemo, useState } from 'react'
+import { useCompanyHolidaySettings } from '../company-holidays/useCompanyHolidaySettings.js'
 import VacationCalendar from '../components/vacation/VacationCalendar.jsx'
 import VacationCalendarLegend from '../components/vacation/VacationCalendarLegend.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
@@ -33,6 +34,7 @@ function RequestDetailModal({ request, actionRequest, history, people, onClose, 
 }
 
 export default function VacationManagementPage() {
+  const { calendarEntries: companyHolidayEntries } = useCompanyHolidaySettings()
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
   const [requests, setRequests] = useState([])
@@ -79,6 +81,7 @@ export default function VacationManagementPage() {
   }), [currentListRequests, selectedMonthEnd, selectedMonthStart, sort, status])
 
   const calendarEntries = useMemo(() => [
+    ...companyHolidayEntries,
     ...holidays.map((item) => ({ id: `holiday-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'holiday' })),
     ...vacationBlocks.map((item) => ({ id: `block-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: item.label, kind: 'block' })),
     ...filteredRequests.filter((item) => requestType(item) === 'request' && (status === 'all' || requestStatus(item) === status)).flatMap((item) => {
@@ -89,7 +92,7 @@ export default function VacationManagementPage() {
       if (pendingRequest && requestType(pendingRequest) === 'change') return [vacationEntry, { id: `change-${pendingRequest.id}`, startDate: pendingRequest.startDate, endDate: pendingRequest.endDate, label: `${item.employeeName.split(' ')[0]} · Änderung angefragt`, kind: 'pending', title: `${item.employeeName} · Änderung angefragt` }]
       return [vacationEntry]
     }),
-  ], [filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
+  ], [companyHolidayEntries, filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
 
   function moveMonth(delta) { const next = new Date(year, month + delta, 1); setYear(next.getFullYear()); setMonth(next.getMonth()) }
   function showToday() { const current = new Date(); setYear(current.getFullYear()); setMonth(current.getMonth()); setDepartment('all'); setEmployee('all'); setStatus('all'); setSort('newest') }
