@@ -100,6 +100,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /holidaySyncLogs/{logId} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Process content is written through the callable function, where the
     // complete graph is validated before publication. Readers with view
     // access can only query active processes; editors may also work with

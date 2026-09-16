@@ -61,9 +61,11 @@ export function getVisibleHolidays(records, year, germanyEnabled, selectedStateC
   // A shared holiday is one calendar item, even when future country sources
   // contribute multiple records for the same date and holiday key.
   return [...visibleRecords.reduce((items, holiday) => {
-    const id = `${holiday.date}-${holiday.name}`
+    const sourceName = holiday.sourceName || holiday.name || ''
+    const displayName = holiday.displayName || sourceName
+    const id = `${holiday.date}-${sourceName}`
     const nextColor = colorVariant(holiday)
-    const current = items.get(id) || { id, date: holiday.date, name: holiday.name, colorVariant: nextColor, countries: [] }
+    const current = items.get(id) || { id, date: holiday.date, name: displayName, colorVariant: nextColor, countries: [] }
     const country = current.countries.find((item) => item.countryCode === holiday.countryCode)
     const subdivisionCodes = Array.isArray(holiday.subdivisionCodes) ? holiday.subdivisionCodes : []
     if (country) country.stateCodes = [...new Set([...country.stateCodes, ...subdivisionCodes])]

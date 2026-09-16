@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { getApps, initializeApp } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
@@ -11,9 +11,34 @@ if (!getApps().length) initializeApp()
 const db = getFirestore()
 const HOLIDAY_COLLECTION = 'publicHolidays'
 const SYNC_STATUS_COLLECTION = 'holidaySyncStatus'
+const SYNC_LOG_COLLECTION = 'holidaySyncLogs'
 const NAGER_SOURCE = 'Nager.Date Community API v4'
 const NAGER_URL = 'https://nagerholidays.com/api/v4/Holidays'
 const COUNTRY_CODE = 'DE'
+const GERMAN_HOLIDAY_TRANSLATIONS = Object.freeze({
+  "New Year's Day": 'Neujahr',
+  Epiphany: 'Heilige Drei Könige',
+  'Good Friday': 'Karfreitag',
+  'Easter Sunday': 'Ostersonntag',
+  'Easter Monday': 'Ostermontag',
+  'Labour Day': 'Tag der Arbeit',
+  'Ascension Day': 'Christi Himmelfahrt',
+  Pentecost: 'Pfingstsonntag',
+  'Whit Monday': 'Pfingstmontag',
+  'Corpus Christi': 'Fronleichnam',
+  'Assumption Day': 'Mariä Himmelfahrt',
+  'German Unity Day': 'Tag der Deutschen Einheit',
+  'Reformation Day': 'Reformationstag',
+  "All Saints' Day": 'Allerheiligen',
+  'Day of Repentance and Prayer': 'Buß- und Bettag',
+  'Repentance and Prayer Day': 'Buß- und Bettag',
+  "International Women's Day": 'Internationaler Frauentag',
+  "World Children's Day": 'Weltkindertag',
+  'Christmas Day': '1. Weihnachtstag',
+  'Second Day of Christmas': '2. Weihnachtstag',
+  "St. Stephen's Day": '2. Weihnachtstag',
+  '75th anniversary of the uprising of June 17, 1953': '75. Jahrestag des Volksaufstands vom 17. Juni 1953',
+})
 
 function berlinDateValue(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
@@ -49,11 +74,13 @@ function dataHash(data) {
 
 function normalizeHoliday(item, countryCode, year, today) {
   const date = cleanText(item?.date)
-  const name = cleanText(item?.localName) || cleanText(item?.name)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !name || Number(date.slice(0, 4)) !== year || date < today || !publicType(item?.holidayTypes || item?.types)) return null
+  const sourceName = cleanText(item?.name)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !sourceName || Number(date.slice(0, 4)) !== year || date < today || !publicType(item?.holidayTypes || item?.types)) return null
+  const displayName = countryCode === 'DE' ? (GERMAN_HOLIDAY_TRANSLATIONS[sourceName] || sourceName) : sourceName
   const normalized = {
     date,
-    name,
+    sourceName,
+    displayName,
     countryCode,
     year,
     nationalHoliday: item?.nationalHoliday === true,
@@ -61,7 +88,7 @@ function normalizeHoliday(item, countryCode, year, today) {
     holidayType: 'Public',
     source: NAGER_SOURCE,
   }
-  return { id: recordId(countryCode, date, name), ...normalized, dataHash: dataHash(normalized) }
+  return { id: recordId(countryCode, date, sourceName), ...normalized, dataHash: dataHash(normalized), translationMissing: countryCode === 'DE' && !GERMAN_HOLIDAY_TRANSLATIONS[sourceName] }
 }
 
 async function fetchNagerHolidays(countryCode, year, today) {
@@ -83,7 +110,8 @@ async function applyYear(countryCode, year, records, today) {
   const existing = new Map(existingSnapshot.docs.map((document) => [document.id, document.data()]))
   const incoming = new Map(records.map((record) => [record.id, record]))
   const batch = db.batch()
-  let writes = 0
+  let createdEntryCount = 0
+  let changedEntryCount = 0
 
   for (const record of records) {
     const previous = existing.get(record.id)
@@ -93,7 +121,8 @@ async function applyYear(countryCode, year, records, today) {
       lastUpdatedAt: FieldValue.serverTimestamp(),
       ...(previous ? {} : { createdAt: FieldValue.serverTimestamp() }),
     }, { merge: true })
-    writes += 1
+    if (previous) changedEntryCount += 1
+    else createdEntryCount += 1
   }
 
   for (const [id, previous] of existing) {
@@ -101,12 +130,12 @@ async function applyYear(countryCode, year, records, today) {
     // are deliberately immutable, including when the upstream source changes.
     if (!incoming.has(id) && typeof previous.date === 'string' && previous.date >= today) {
       batch.delete(db.collection(HOLIDAY_COLLECTION).doc(id))
-      writes += 1
+      changedEntryCount += 1
     }
   }
 
-  if (writes) await batch.commit()
-  return writes
+  if (createdEntryCount || changedEntryCount) await batch.commit()
+  return { createdEntryCount, changedEntryCount }
 }
 
 export async function syncGermanPublicHolidays() {
@@ -115,11 +144,17 @@ export async function syncGermanPublicHolidays() {
   // Fetch every requested year before mutating Firestore. A partial API
   // failure therefore cannot leave the previously maintained data altered.
   const recordsByYear = await Promise.all(years.map(async (year) => [year, await fetchNagerHolidays(COUNTRY_CODE, year, today)]))
+  const translationMissingNames = [...new Set(recordsByYear.flatMap(([, records]) => records.filter((record) => record.translationMissing).map((record) => record.sourceName)))].sort((left, right) => left.localeCompare(right, 'en'))
+  let createdEntryCount = 0
+  let changedEntryCount = 0
   let updatedEntryCount = 0
   let totalEntries = 0
   for (const [year, records] of recordsByYear) {
     totalEntries += records.length
-    updatedEntryCount += await applyYear(COUNTRY_CODE, year, records, today)
+    const changes = await applyYear(COUNTRY_CODE, year, records, today)
+    createdEntryCount += changes.createdEntryCount
+    changedEntryCount += changes.changedEntryCount
+    updatedEntryCount += changes.createdEntryCount + changes.changedEntryCount
   }
   await db.collection(SYNC_STATUS_COLLECTION).doc(COUNTRY_CODE).set({
     countryCode: COUNTRY_CODE,
@@ -130,14 +165,73 @@ export async function syncGermanPublicHolidays() {
     updatedEntryCount,
     totalEntries,
   }, { merge: true })
-  return { countryCode: COUNTRY_CODE, years, updatedEntryCount, totalEntries }
+  return { countryCode: COUNTRY_CODE, years, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, translationMissingNames }
+}
+
+function syncActorName(profile, request) {
+  const name = [cleanText(profile?.firstName), cleanText(profile?.lastName)].filter(Boolean).join(' ')
+  return name || cleanText(profile?.name) || cleanText(request?.auth?.token?.name) || cleanText(request?.auth?.token?.email) || 'Administrator'
+}
+
+function syncErrorMessage(error) {
+  const message = cleanText(error?.message).replace(/^.*?:\s*/, '')
+  return (message || 'Die Feiertage konnten nicht aktualisiert werden.').slice(0, 300)
+}
+
+async function writeSyncLog(entry) {
+  await db.collection(SYNC_LOG_COLLECTION).add({
+    countryCode: COUNTRY_CODE,
+    loggedAt: Timestamp.now(),
+    ...entry,
+  })
+  const logs = await db.collection(SYNC_LOG_COLLECTION).where('countryCode', '==', COUNTRY_CODE).orderBy('loggedAt', 'desc').get()
+  if (logs.size <= 10) return
+  const batch = db.batch()
+  logs.docs.slice(10).forEach((document) => batch.delete(document.ref))
+  await batch.commit()
+}
+
+async function runHolidaySync({ trigger, actorName = null }) {
+  let result
+  try {
+    result = await syncGermanPublicHolidays()
+  } catch (error) {
+    try {
+      await writeSyncLog({
+        trigger,
+        actorName,
+        status: 'failed',
+        createdEntryCount: 0,
+        changedEntryCount: 0,
+        translationMissingNames: [],
+        errorMessage: syncErrorMessage(error),
+      })
+    } catch (logError) {
+      logger.error('Synchronisationsfehler konnte nicht protokolliert werden.', logError)
+    }
+    throw error
+  }
+  try {
+    await writeSyncLog({
+      trigger,
+      actorName,
+      status: 'success',
+      createdEntryCount: result.createdEntryCount,
+      changedEntryCount: result.changedEntryCount,
+      translationMissingNames: result.translationMissingNames,
+      errorMessage: null,
+    })
+  } catch (logError) {
+    logger.error('Erfolgreiche Synchronisation konnte nicht protokolliert werden.', logError)
+  }
+  return result
 }
 
 export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 180 }, async (request) => {
   const profile = await requireActiveProfile(request)
   requireRole(profile, ['admin', 'superadmin'], 'Nur Administratoren können Feiertage aktualisieren.')
   try {
-    return await syncGermanPublicHolidays()
+    return await runHolidaySync({ trigger: 'manual', actorName: syncActorName(profile, request) })
   } catch (error) {
     logger.error('Feiertagssynchronisation fehlgeschlagen.', error)
     throw new HttpsError('unavailable', 'Feiertage konnten nicht aktualisiert werden. Vorhandene Daten wurden nicht verändert.')
@@ -146,7 +240,7 @@ export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppChe
 
 export const scheduledHolidayDataRefresh = onSchedule({ region: 'europe-west3', schedule: '15 3 1 * *', timeZone: 'Europe/Berlin' }, async () => {
   try {
-    const result = await syncGermanPublicHolidays()
+    const result = await runHolidaySync({ trigger: 'automatic' })
     logger.info('Feiertagssynchronisation abgeschlossen.', result)
   } catch (error) {
     logger.error('Geplante Feiertagssynchronisation fehlgeschlagen.', error)

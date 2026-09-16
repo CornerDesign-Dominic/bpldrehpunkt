@@ -1,8 +1,9 @@
-import { collection, getDoc, getDocs, doc, query, where } from 'firebase/firestore'
+import { collection, getDoc, getDocs, doc, limit, orderBy, query, where } from 'firebase/firestore'
 import { db } from './firebase.js'
 
 export const PUBLIC_HOLIDAYS_COLLECTION = 'publicHolidays'
 export const HOLIDAY_SYNC_STATUS_COLLECTION = 'holidaySyncStatus'
+export const HOLIDAY_SYNC_LOG_COLLECTION = 'holidaySyncLogs'
 
 function snapshotData(snapshot) {
   return { id: snapshot.id, ...snapshot.data() }
@@ -18,4 +19,9 @@ export async function listPublicHolidays(countryCode = 'DE') {
 export async function getHolidaySyncStatus(countryCode = 'DE') {
   const snapshot = await getDoc(doc(db, HOLIDAY_SYNC_STATUS_COLLECTION, countryCode))
   return snapshot.exists() ? snapshotData(snapshot) : null
+}
+
+export async function listHolidaySyncLogs(countryCode = 'DE') {
+  const snapshot = await getDocs(query(collection(db, HOLIDAY_SYNC_LOG_COLLECTION), where('countryCode', '==', countryCode), orderBy('loggedAt', 'desc'), limit(10)))
+  return snapshot.docs.map(snapshotData)
 }
