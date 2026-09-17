@@ -24,7 +24,6 @@ export default function LegalDisputeCaseForm({ onCancel, onSubmit }) {
     <section className="damage-form__section"><h3>Grunddaten</h3><div className="damage-form__grid damage-form__grid--context">
       <label className="form-field damage-form__wide"><span>Fall / Betreff *</span><textarea autoFocus rows="3" value={form.title} maxLength="500" onChange={(event) => update('title', event.target.value)} /></label>
       <label className="form-field"><span>Art</span><input value={form.caseType} maxLength="120" onChange={(event) => update('caseType', event.target.value)} placeholder="z. B. Klage, Mahnverfahren" /></label>
-      <label className="form-field"><span>Beteiligter</span><input value={form.participant} maxLength="240" onChange={(event) => update('participant', event.target.value)} /></label>
       <label className="form-field"><span>Gegner</span><input value={form.counterparty} maxLength="240" onChange={(event) => update('counterparty', event.target.value)} /></label>
       <label className="form-field"><span>Nächste Frist</span><input type="date" value={form.nextDeadline} onChange={(event) => update('nextDeadline', event.target.value)} /></label>
     </div></section>

@@ -20,7 +20,6 @@ export function createEmptyLegalDispute() {
   return {
     title: '',
     caseType: '',
-    participant: '',
     counterparty: '',
     nextDeadline: '',
   }
@@ -43,7 +42,7 @@ export async function createLegalDispute(values, actor) {
     title,
     description: null,
     caseType: optionalText(values.caseType),
-    participant: optionalText(values.participant),
+    participant: null,
     counterparty: optionalText(values.counterparty),
     opposingCounsel: null,
     responsibleUserId: null,

@@ -12,7 +12,7 @@ export default function LegalDisputeCasesTable({ cases, emptyMessage, onOpen }) 
 
   return <div className="todos-table-frame"><table className="data-table todos-table legal-disputes-cases-table"><thead><tr><TableHeader>Aktenzeichen</TableHeader><TableHeader>Gegenseite</TableHeader><TableHeader>Art</TableHeader><TableHeader>Status</TableHeader><TableHeader>Streitwert</TableHeader><TableHeader>Termin / Frist</TableHeader></tr></thead><tbody>{cases.map((legalDispute) => <tr className={onOpen ? 'legal-disputes-cases-table__row' : ''} key={legalDispute.id} tabIndex={onOpen ? 0 : undefined} role={onOpen ? 'link' : undefined} aria-label={onOpen ? `Fall ${legalDispute.caseNumber || legalDispute.reference || ''} öffnen` : undefined} onClick={() => onOpen?.(legalDispute)} onKeyDown={(event) => { if (onOpen && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(legalDispute) } }}>
     <td className="todos-table__title">{legalDispute.caseNumber || legalDispute.reference || '—'}</td>
-    <td>{[legalDispute.participant, legalDispute.counterparty].filter(Boolean).join(' · ') || '—'}</td>
+    <td>{legalDispute.counterparty || '—'}</td>
     <td>{legalDispute.caseType || '—'}</td>
     <td><span className={`todo-status damage-status damage-status--${legalDispute.status}`}>{legalDisputeStatusLabel(legalDispute.status)}</span></td>
     <td>{formatCurrency(legalDispute.amountInDispute)}</td>
