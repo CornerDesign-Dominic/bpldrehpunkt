@@ -4,10 +4,10 @@
 .vacation-page, .vacation-management-layout { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
 .vacation-calendar-card, .vacation-summary-card, .vacation-list-card { min-width: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .vacation-calendar-card { display: flex; min-height: 0; flex-direction: column; padding: 13px; }
-.vacation-toolbar { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
+.vacation-toolbar { display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--border); }
 .vacation-toolbar__period, .vacation-toolbar__filters { display: flex; align-items: center; gap: 6px; }
 .vacation-toolbar select, .vacation-list-card select { height: 30px; max-width: 155px; padding: 0 7px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }
-.vacation-toolbar__period .vacation-nav-button, .vacation-today-button { position: absolute; top: 0; display: grid; height: 30px; place-items: center; padding: 0; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; line-height: 1; }.vacation-toolbar__period .vacation-nav-button { width: 30px; font-size: 0; }.vacation-toolbar__period .vacation-nav-button:first-of-type { left: calc(50% - 58px); }.vacation-toolbar__period .vacation-nav-button:last-of-type { left: calc(50% + 28px); }.vacation-toolbar__period .vacation-nav-button::before { display: block; font-size: 22px; line-height: 1; transform: translateY(-1px); }.vacation-toolbar__period .vacation-nav-button:first-of-type::before { content: '‹'; }.vacation-toolbar__period .vacation-nav-button:last-of-type::before { content: '›'; }.vacation-today-button { left: 50%; min-width: 44px; padding-inline: 7px; transform: translateX(-50%); font: inherit; font-size: 11px; font-weight: 650; }
+.vacation-toolbar__period .vacation-nav-button, .vacation-today-button { position: static; display: grid; height: 30px; place-items: center; padding: 0; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; line-height: 1; transform: none; }.vacation-toolbar__period .vacation-nav-button { order: 0; width: 30px; font-size: 0; }.vacation-toolbar__period .vacation-nav-button::before { display: block; font-size: 22px; line-height: 1; transform: translateY(-1px); }.vacation-toolbar__period .vacation-nav-button:first-of-type::before { content: '‹'; }.vacation-toolbar__period .vacation-nav-button:last-of-type::before { content: '›'; }.vacation-today-button { order: 0; min-width: 44px; padding-inline: 7px; font: inherit; font-size: 11px; font-weight: 650; }.vacation-toolbar__period .filter-field { order: 1; }
 .vacation-nav-button:hover { color: var(--text-primary); background: var(--surface-active); }
 .vacation-calendar { display: flex; min-height: 0; flex: 1; flex-direction: column; padding-top: 12px; }
 .vacation-calendar__weekdays, .vacation-calendar-week__days, .vacation-calendar-week__bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
@@ -38,7 +38,7 @@
 .vacation-calendar-bar--own { outline: 1px solid currentColor; outline-offset: -1px; font-weight: 750; }
 .vacation-calendar-bar--highlighted { animation: vacation-calendar-highlight 1.8s ease-out; box-shadow: 0 0 0 2px var(--button-background); }
 @keyframes vacation-calendar-highlight { 0% { box-shadow: 0 0 0 4px var(--button-background); } 100% { box-shadow: 0 0 0 2px var(--button-background); } }
-.vacation-legend { display: flex; flex-wrap: wrap; gap: 8px 13px; padding-top: 10px; color: var(--text-muted); font-size: 10px; font-weight: 650; }
+.vacation-legend { display: none; }
 .vacation-legend__item { display: inline-flex; align-items: center; gap: 5px; }
 .vacation-legend__item::before { width: 8px; height: 8px; border-radius: 2px; content: ''; }
 .vacation-sidebar { display: grid; min-width: 0; min-height: 0; overflow: hidden; grid-template-rows: auto auto minmax(0, 1fr); gap: 14px; }.vacation-sidebar > * { min-width: 0; }

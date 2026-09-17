@@ -1,5 +1,4 @@
 import PlaceholderPanel from '../components/ui/PlaceholderPanel.jsx'
-import CurrentNewsTopics from '../components/dashboard/CurrentNewsTopics.jsx'
 
 export default function DashboardPage() {
   return (
@@ -11,7 +10,6 @@ export default function DashboardPage() {
       <div className="dashboard-grid">
         <PlaceholderPanel label="Kennzahlen" />
         <PlaceholderPanel label="Hinweise" />
-        <CurrentNewsTopics />
       </div>
     </div>
   )

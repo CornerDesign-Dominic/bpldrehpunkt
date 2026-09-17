@@ -70,6 +70,19 @@ export async function listInsolvencies() {
   return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot)
 }
 
+export function insolvencyLossNet(claims, quotaPayments) {
+  const sumNet = (entries) => entries.reduce((total, entry) => total + (Number(entry.netAmount) || 0), 0)
+  return sumNet(claims) - sumNet(quotaPayments)
+}
+
+export async function listInsolvenciesWithLossNet() {
+  const insolvencies = await listInsolvencies()
+  return Promise.all(insolvencies.map(async (insolvency) => {
+    const [claims, quotaPayments] = await Promise.all([listInsolvencyClaims(insolvency.id), listInsolvencyQuotaPayments(insolvency.id)])
+    return { ...insolvency, lossNet: insolvencyLossNet(claims, quotaPayments) }
+  }))
+}
+
 export async function getInsolvency(partnerId) {
   const snapshot = await getDoc(doc(db, INSOLVENCIES_COLLECTION, partnerId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null

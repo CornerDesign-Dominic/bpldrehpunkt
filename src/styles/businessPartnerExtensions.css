@@ -47,6 +47,33 @@
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
 .masterdata-half-grid__column { display: grid; align-content: start; gap: 12px; min-width: 0; }
 .masterdata-half-grid .form-section { min-width: 0; }
+.masterdata-readonly-section__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 22px; margin-bottom: 8px; }
+.business-partner-form .masterdata-readonly-section__header h2 { margin: 0; }
+.masterdata-readonly-section__edit { display: inline-flex; width: 29px; height: 29px; flex: 0 0 auto; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; }
+.masterdata-readonly-section__edit:hover { color: var(--text-primary); background: var(--surface-active); }
+.masterdata-readonly-section__edit:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
+.masterdata-readonly-grid { margin: 0; }
+.masterdata-readonly-field { display: grid; min-width: 0; gap: 3px; }
+.masterdata-readonly-field dt { overflow: hidden; color: var(--text-secondary); font-size: 11px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.masterdata-readonly-field dd { min-width: 0; margin: 0; }
+.masterdata-readonly-field__value { overflow-wrap: anywhere; color: var(--text-primary); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.masterdata-readonly-field__value--status { width: fit-content; min-width: 58px; padding: 3px 7px; border: 1px solid var(--partner-status-text); border-radius: 4px; color: var(--partner-status-text); background: var(--partner-status-background); font-weight: 700; }
+.masterdata-readonly-field__value--status-active { --partner-status-text: var(--status-success-text); --partner-status-background: var(--status-success-background); }
+.masterdata-readonly-field__value--status-inactive, .masterdata-readonly-field__value--status-insolvency { --partner-status-text: var(--status-warning-text); --partner-status-background: var(--status-warning-background); }
+.masterdata-readonly-field__value--status-blocked { --partner-status-text: var(--status-danger-text); --partner-status-background: var(--status-danger-background); }
+.masterdata-edit-modal-backdrop { position: fixed; z-index: 60; inset: 0; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--app-background) 68%, transparent); }
+.masterdata-edit-modal { width: min(720px, 100%); max-height: calc(100vh - 48px); overflow: auto; padding: 18px; border: 1px solid var(--workspace-border); border-radius: 8px; color: var(--text-primary); background: var(--workspace-background); box-shadow: 0 18px 38px var(--workspace-shadow); }
+.masterdata-edit-modal__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.masterdata-edit-modal__heading h2 { margin: 0; font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
+.masterdata-edit-modal__heading button { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 4px; color: var(--text-secondary); background: transparent; cursor: pointer; }
+.masterdata-edit-modal__heading button:hover { color: var(--text-primary); background: var(--surface-active); }
+.masterdata-edit-modal__heading button:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
+.masterdata-edit-modal__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.masterdata-edit-modal__fields.form-grid--company-address { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.masterdata-edit-modal__fields .form-field--company-address { grid-column: span 2; }
+.masterdata-edit-modal__fields .form-field--status, .masterdata-edit-modal__fields .form-field--street { grid-column: auto; }
+.masterdata-edit-modal__fields.form-grid--references, .masterdata-edit-modal__fields.form-grid--billing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.masterdata-edit-modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .contacts-table th:nth-child(6) { width: 72px; }
 .portals-table th:nth-child(4) { width: 72px; }
 .contacts-table__action, .portals-table__action { text-align: right; }

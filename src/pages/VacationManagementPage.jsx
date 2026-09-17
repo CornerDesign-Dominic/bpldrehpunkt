@@ -95,7 +95,7 @@ export default function VacationManagementPage() {
   ], [companyHolidayEntries, filteredRequests, holidays, relatedByOriginal, status, vacationBlocks])
 
   function moveMonth(delta) { const next = new Date(year, month + delta, 1); setYear(next.getFullYear()); setMonth(next.getMonth()) }
-  function showToday() { const current = new Date(); setYear(current.getFullYear()); setMonth(current.getMonth()); setDepartment('all'); setEmployee('all'); setStatus('all'); setSort('newest') }
+  function showToday() { const current = new Date(); setYear(current.getFullYear()); setMonth(current.getMonth()) }
   function showRequestInCalendar(request) {
     const activeRequest = request.activeRequest && requestStatus(request.activeRequest) === 'pending' ? request.activeRequest : null
     const target = activeRequest?.startDate ? activeRequest : request

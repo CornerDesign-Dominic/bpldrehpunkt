@@ -4,7 +4,7 @@ import InsolvencyCaseForm from '../components/insolvencies/InsolvencyCaseForm.js
 import InsolvenciesTable from '../components/insolvencies/InsolvenciesTable.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
-import { createInsolvency, listInsolvencies, listInsolvencyPartners } from '../lib/insolvencies.js'
+import { createInsolvency, listInsolvenciesWithLossNet, listInsolvencyPartners } from '../lib/insolvencies.js'
 
 export default function InsolvenciesPage() {
   const { user, profile } = useAuth()
@@ -23,7 +23,7 @@ export default function InsolvenciesPage() {
 
   useEffect(() => {
     let current = true
-    listInsolvencies().then((entries) => { if (current) setInsolvencies(entries) }).catch(() => { if (current) setError('Die Insolvenzfälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') }).finally(() => { if (current) setLoading(false) })
+    listInsolvenciesWithLossNet().then((entries) => { if (current) setInsolvencies(entries) }).catch(() => { if (current) setError('Die Insolvenzfälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [])
 

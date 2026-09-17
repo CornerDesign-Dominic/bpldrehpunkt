@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CheckIcon, CloseIcon, EditIcon, TrashIcon } from '../icons.jsx'
 import { BUSINESS_PARTNER_STATUSES, createEmptyBusinessPartner, normalizePartnerPortal } from '../../lib/businessPartners.js'
 import '../../styles/businessPartnerExtensions.css'
@@ -22,7 +23,7 @@ function createContact() {
   return { id: `contact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: '', department: '', departmentOther: '', phone: '', mobile: '', email: '' }
 }
 
-function createPortal() {
+function createPartnerPortal() {
   return { id: `portal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: '', url: '', username: '', accessNumber: '', purpose: '' }
 }
 
@@ -35,7 +36,7 @@ function normalizeForm(value) {
     contact: { ...defaults.contact, ...(value?.contact ?? {}) },
     companyData: { ...defaults.companyData, ...(value?.companyData ?? {}) },
     contacts: (value?.contacts ?? []).map((contact) => ({ ...createContact(), ...contact })),
-    portals: (value?.portals ?? []).map((portal) => ({ ...createPortal(), ...normalizePartnerPortal(portal) })),
+    portals: (value?.portals ?? []).map((portal) => ({ ...createPartnerPortal(), ...normalizePartnerPortal(portal) })),
   }
 }
 
@@ -51,6 +52,49 @@ function Field({ label, name, value, onChange, error, type = 'text', placeholder
 
 function FormSection({ title, className = '', children }) {
   return <section className="form-section"><h2>{title}</h2><div className={`form-grid ${className}`}>{children}</div></section>
+}
+
+const masterDataSections = {
+  company: { title: 'Unternehmen & Anschrift', className: 'form-grid--company-address' },
+  contact: { title: 'Allgemeiner Kontakt', className: 'form-grid--contact' },
+  references: { title: 'Referenzen & Nummern', className: 'form-grid--references' },
+  companyData: { title: 'Unternehmensdaten', className: 'form-grid--company-data' },
+  billing: { title: 'Abrechnung', className: 'form-grid--billing' },
+}
+
+function statusLabel(value) {
+  return BUSINESS_PARTNER_STATUSES.find((status) => status.value === value)?.label ?? '—'
+}
+
+function ReadOnlyField({ label, value, className = '', status }) {
+  const displayValue = value === '' || value === null || value === undefined ? '—' : value
+  return <div className={`masterdata-readonly-field ${className}`}><dt>{label}</dt><dd className={status ? `masterdata-readonly-field__value masterdata-readonly-field__value--status masterdata-readonly-field__value--status-${status}` : 'masterdata-readonly-field__value'}>{displayValue}</dd></div>
+}
+
+function ReadOnlySection({ section, form, onEdit }) {
+  const { title, className } = masterDataSections[section]
+  let fields
+
+  if (section === 'company') fields = <><ReadOnlyField className="form-field--company-address" label="Firmenname" value={form.companyName} /><ReadOnlyField className="form-field--status" label="Status" value={statusLabel(form.status)} status={form.status} /><ReadOnlyField className="form-field--street" label="Straße" value={form.address.street} /><ReadOnlyField label="Hausnummer" value={form.address.houseNumber} /><ReadOnlyField label="PLZ" value={form.address.postalCode} /><ReadOnlyField label="Ort" value={form.address.city} /><ReadOnlyField label="Land" value={form.address.country} /></>
+  if (section === 'contact') fields = <><ReadOnlyField className="form-field--contact-phone" label="Telefon" value={form.contact.phone} /><ReadOnlyField className="form-field--contact-fax" label="Fax" value={form.contact.fax} /><ReadOnlyField className="form-field--contact-email" label="E-Mail" value={form.contact.email} /><ReadOnlyField className="form-field--contact-website" label="Website" value={form.contact.website} /></>
+  if (section === 'references') fields = <><ReadOnlyField label="Debitorennummer" value={form.debtorNumber} /><ReadOnlyField label="Kreditorennummer" value={form.creditorNumber} /><ReadOnlyField label="TIMOCOM-Nummer" value={form.timocomNumber} /><ReadOnlyField label="Trans.eu-Nummer" value={form.transeuNumber} /><ReadOnlyField label="DPL-Nummer" value={form.dplNumber} /><ReadOnlyField label="Paki-Nummer" value={form.pakiNumber} /></>
+  if (section === 'companyData') fields = <><ReadOnlyField className="form-field--company-vat" label="USt-IdNr." value={form.companyData.vatId} /><ReadOnlyField className="form-field--company-tax" label="Steuernummer" value={form.companyData.taxNumber} /><ReadOnlyField className="form-field--company-register-number" label="Handelsregisternummer" value={form.companyData.commercialRegisterNumber} /><ReadOnlyField className="form-field--company-register-court" label="Registergericht" value={form.companyData.registerCourt} /></>
+  if (section === 'billing') fields = <><ReadOnlyField label="Zahlungsziel in Tagen" value={form.paymentTermDays} /><ReadOnlyField label="Gutschriftverfahren" value={form.creditNoteProcedure ? 'Ja' : 'Nein'} /></>
+
+  return <section className="form-section masterdata-readonly-section"><div className="masterdata-readonly-section__header"><h2>{title}</h2>{onEdit && <button className="masterdata-readonly-section__edit" type="button" onClick={onEdit} title={`${title} bearbeiten`} aria-label={`${title} bearbeiten`}><EditIcon /></button>}</div><dl className={`form-grid masterdata-readonly-grid ${className}`}>{fields}</dl></section>
+}
+
+function MasterDataFields({ section, form, onChange, errors }) {
+  if (section === 'company') return <><Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={onChange} error={errors.companyName} /><label className={`form-field form-field--status form-field--status-${form.status}`}><span>Status</span><select name="status" value={form.status} onChange={onChange}>{BUSINESS_PARTNER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={onChange} /><Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={onChange} /><Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={onChange} /><Field label="Ort" name="address.city" value={form.address.city} onChange={onChange} /><Field label="Land" name="address.country" value={form.address.country} onChange={onChange} /></>
+  if (section === 'contact') return <><Field className="form-field--contact-phone" label="Telefon" name="contact.phone" value={form.contact.phone} onChange={onChange} type="tel" /><Field className="form-field--contact-fax" label="Fax" name="contact.fax" value={form.contact.fax} onChange={onChange} type="tel" /><Field className="form-field--contact-email" label="E-Mail" name="contact.email" value={form.contact.email} onChange={onChange} error={errors['contact.email']} type="email" /><Field className="form-field--contact-website" label="Website" name="contact.website" value={form.contact.website} onChange={onChange} error={errors['contact.website']} placeholder="https://" /></>
+  if (section === 'references') return <><Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={onChange} placeholder="DyCoS-Referenz" /><Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={onChange} placeholder="DyCoS-Referenz" /><Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={onChange} /><Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={onChange} /><Field label="DPL-Nummer" name="dplNumber" value={form.dplNumber} onChange={onChange} /><Field label="Paki-Nummer" name="pakiNumber" value={form.pakiNumber} onChange={onChange} />{errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}</>
+  if (section === 'companyData') return <><Field className="form-field--company-vat" label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={onChange} /><Field className="form-field--company-tax" label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={onChange} /><Field className="form-field--company-register-number" label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={onChange} /><Field className="form-field--company-register-court" label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={onChange} /></>
+  return <><Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={onChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" /><label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={onChange}><option value="false">Nein</option><option value="true">Ja</option></select></label></>
+}
+
+function MasterDataEditModal({ section, form, errors, onChange, onClose, onApply }) {
+  const { title, className } = masterDataSections[section]
+  return createPortal(<div className="masterdata-edit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="masterdata-edit-modal" role="dialog" aria-modal="true" aria-labelledby="masterdata-edit-modal-title"><div className="masterdata-edit-modal__heading"><h2 id="masterdata-edit-modal-title">{title} bearbeiten</h2><button type="button" onClick={onClose} aria-label="Dialog schließen"><CloseIcon /></button></div><div className={`form-grid masterdata-edit-modal__fields ${className}`}><MasterDataFields section={section} form={form} onChange={onChange} errors={errors} /></div><div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="button" onClick={onApply}>Übernehmen</button></div></section></div>, document.body)
 }
 
 function displayDepartment(contact) {
@@ -140,7 +184,7 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
 function PortalsSection({ portals, onChange }) {
   const [editDraft, setEditDraft] = useState(null)
   const [editErrors, setEditErrors] = useState({})
-  const [newPortal, setNewPortal] = useState(createPortal)
+  const [newPortal, setNewPortal] = useState(createPartnerPortal)
   const [newErrors, setNewErrors] = useState({})
 
   function startEdit(portal) {
@@ -170,7 +214,7 @@ function PortalsSection({ portals, onChange }) {
   }
 
   function resetNewPortal() {
-    setNewPortal(createPortal())
+    setNewPortal(createPartnerPortal())
     setNewErrors({})
   }
 
@@ -206,11 +250,14 @@ function PortalsSection({ portals, onChange }) {
   )
 }
 
-export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false }) {
+export default function BusinessPartnerForm({ initialValue, isNew = false, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false }) {
   const [form, setForm] = useState(() => normalizeForm(initialValue))
   const [savedForm, setSavedForm] = useState(() => normalizeForm(initialValue))
   const [contactDraft, setContactDraft] = useState(null)
   const [errors, setErrors] = useState({})
+  const [editingSection, setEditingSection] = useState(null)
+  const [sectionDraft, setSectionDraft] = useState(null)
+  const [sectionErrors, setSectionErrors] = useState({})
 
   function updateForm(nextForm) {
     setForm(nextForm)
@@ -227,6 +274,51 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     setErrors((current) => ({ ...current, [name]: undefined }))
   }
 
+  function openSectionEditor(section) {
+    setEditingSection(section)
+    setSectionErrors({})
+    setSectionDraft({ ...form, address: { ...form.address }, contact: { ...form.contact }, companyData: { ...form.companyData } })
+  }
+
+  function closeSectionEditor() {
+    setEditingSection(null)
+    setSectionDraft(null)
+    setSectionErrors({})
+  }
+
+  function handleSectionChange(event) {
+    const { name, value } = event.target
+    const [group, field] = name.split('.')
+    const normalizedValue = name === 'creditNoteProcedure' ? value === 'true' : value
+    setSectionDraft((current) => field ? { ...current, [group]: { ...current[group], [field]: normalizedValue } } : { ...current, [name]: normalizedValue })
+    setSectionErrors((current) => ({ ...current, [name]: undefined, references: name === 'debtorNumber' || name === 'creditorNumber' ? undefined : current.references }))
+  }
+
+  function validateSection(section, values) {
+    const nextErrors = {}
+    if (section === 'company' && !values.companyName.trim()) nextErrors.companyName = 'Firmenname ist erforderlich.'
+    if (section === 'references' && !values.debtorNumber.trim() && !values.creditorNumber.trim()) nextErrors.references = 'Mindestens eine Debitoren- oder Kreditorennummer ist erforderlich.'
+    if (section === 'contact' && values.contact.email.trim() && !validateEmail(values.contact.email)) nextErrors['contact.email'] = 'Bitte eine gültige E-Mail-Adresse eingeben.'
+    if (section === 'contact' && values.contact.website.trim() && !validateWebsite(values.contact.website)) nextErrors['contact.website'] = 'Bitte eine vollständige Website-Adresse eingeben.'
+    if (section === 'billing' && values.paymentTermDays !== '' && (!Number.isInteger(Number(values.paymentTermDays)) || Number(values.paymentTermDays) < 0)) nextErrors.paymentTermDays = 'Bitte volle Tage ab 0 eingeben.'
+    return nextErrors
+  }
+
+  function applySectionChanges() {
+    const nextErrors = validateSection(editingSection, sectionDraft)
+    setSectionErrors(nextErrors)
+    if (Object.keys(nextErrors).length) return
+    updateForm(sectionDraft)
+    const sectionErrorKeys = {
+      company: ['companyName'],
+      contact: ['contact.email', 'contact.website'],
+      references: ['references'],
+      billing: ['paymentTermDays'],
+    }
+    setErrors((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !(sectionErrorKeys[editingSection] ?? []).includes(key))))
+    closeSectionEditor()
+  }
+
   function updateContacts(contacts) {
     updateForm({ ...form, contacts })
     setErrors((current) => ({ ...current, contacts: undefined }))
@@ -238,12 +330,7 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
 
   async function handleSubmit(event) {
     event.preventDefault()
-    const nextErrors = {}
-    if (!form.companyName.trim()) nextErrors.companyName = 'Firmenname ist erforderlich.'
-    if (!form.debtorNumber.trim() && !form.creditorNumber.trim()) nextErrors.references = 'Mindestens eine Debitoren- oder Kreditorennummer ist erforderlich.'
-    if (form.contact.email.trim() && !validateEmail(form.contact.email)) nextErrors['contact.email'] = 'Bitte eine gültige E-Mail-Adresse eingeben.'
-    if (form.contact.website.trim() && !validateWebsite(form.contact.website)) nextErrors['contact.website'] = 'Bitte eine vollständige Website-Adresse eingeben.'
-    if (form.paymentTermDays !== '' && (!Number.isInteger(Number(form.paymentTermDays)) || Number(form.paymentTermDays) < 0)) nextErrors.paymentTermDays = 'Bitte volle Tage ab 0 eingeben.'
+    const nextErrors = { ...validateSection('company', form), ...validateSection('references', form), ...validateSection('contact', form), ...validateSection('billing', form) }
     if (form.contacts.some((contact) => !contact.name.trim() || !contact.department || (contact.email.trim() && !validateEmail(contact.email)))) nextErrors.contacts = 'Bitte die Ansprechpartnerangaben prüfen.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
@@ -254,56 +341,27 @@ export default function BusinessPartnerForm({ initialValue, onSubmit, onDirtyCha
     }
   }
 
+  const displayOnlyMasterData = !isNew
+
   return (
     <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate><fieldset disabled={readOnly} className="business-partner-form__fieldset">
-      <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address">
-        <Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={handleChange} error={errors.companyName} />
-        <label className={`form-field form-field--status form-field--status-${form.status}`}><span>Status</span><select name="status" value={form.status} onChange={handleChange}>{BUSINESS_PARTNER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label>
-        <Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={handleChange} />
-        <Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={handleChange} />
-        <Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={handleChange} />
-        <Field label="Ort" name="address.city" value={form.address.city} onChange={handleChange} />
-        <Field label="Land" name="address.country" value={form.address.country} onChange={handleChange} />
-      </FormSection>
+      {displayOnlyMasterData ? <ReadOnlySection section="company" form={form} onEdit={readOnly ? null : () => openSectionEditor('company')} /> : <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address"><MasterDataFields section="company" form={form} onChange={handleChange} errors={errors} /></FormSection>}
 
       <div className="masterdata-half-grid">
         <div className="masterdata-half-grid__column">
-          <FormSection title="Allgemeiner Kontakt" className="form-grid--contact">
-            <Field className="form-field--contact-phone" label="Telefon" name="contact.phone" value={form.contact.phone} onChange={handleChange} type="tel" />
-            <Field className="form-field--contact-fax" label="Fax" name="contact.fax" value={form.contact.fax} onChange={handleChange} type="tel" />
-            <Field className="form-field--contact-email" label="E-Mail" name="contact.email" value={form.contact.email} onChange={handleChange} error={errors['contact.email']} type="email" />
-            <Field className="form-field--contact-website" label="Website" name="contact.website" value={form.contact.website} onChange={handleChange} error={errors['contact.website']} placeholder="https://" />
-          </FormSection>
-
-          <FormSection title="Unternehmensdaten" className="form-grid--company-data">
-            <Field className="form-field--company-vat" label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={handleChange} />
-            <Field className="form-field--company-tax" label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={handleChange} />
-            <Field className="form-field--company-register-number" label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={handleChange} />
-            <Field className="form-field--company-register-court" label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={handleChange} />
-          </FormSection>
+          {displayOnlyMasterData ? <ReadOnlySection section="contact" form={form} onEdit={readOnly ? null : () => openSectionEditor('contact')} /> : <FormSection title="Allgemeiner Kontakt" className="form-grid--contact"><MasterDataFields section="contact" form={form} onChange={handleChange} errors={errors} /></FormSection>}
+          {displayOnlyMasterData ? <ReadOnlySection section="companyData" form={form} onEdit={readOnly ? null : () => openSectionEditor('companyData')} /> : <FormSection title="Unternehmensdaten" className="form-grid--company-data"><MasterDataFields section="companyData" form={form} onChange={handleChange} errors={errors} /></FormSection>}
         </div>
 
         <div className="masterdata-half-grid__column">
-          <FormSection title="Referenzen & Nummern" className="form-grid--references">
-            <Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-            <Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={handleChange} placeholder="DyCoS-Referenz" />
-            <Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={handleChange} />
-            <Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={handleChange} />
-            <Field label="DPL-Nummer" name="dplNumber" value={form.dplNumber} onChange={handleChange} />
-            <Field label="Paki-Nummer" name="pakiNumber" value={form.pakiNumber} onChange={handleChange} />
-            {errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}
-          </FormSection>
-
-          <FormSection title="Abrechnung" className="form-grid--billing">
-            <Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={handleChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" />
-            <label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={handleChange}><option value="false">Nein</option><option value="true">Ja</option></select></label>
-          </FormSection>
+          {displayOnlyMasterData ? <ReadOnlySection section="references" form={form} onEdit={readOnly ? null : () => openSectionEditor('references')} /> : <FormSection title="Referenzen & Nummern" className="form-grid--references"><MasterDataFields section="references" form={form} onChange={handleChange} errors={errors} /></FormSection>}
+          {displayOnlyMasterData ? <ReadOnlySection section="billing" form={form} onEdit={readOnly ? null : () => openSectionEditor('billing')} /> : <FormSection title="Abrechnung" className="form-grid--billing"><MasterDataFields section="billing" form={form} onChange={handleChange} errors={errors} /></FormSection>}
         </div>
       </div>
 
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
       <PortalsSection portals={form.portals} onChange={updatePortals} />
-    </fieldset></form>
+    </fieldset>{editingSection && sectionDraft && <MasterDataEditModal section={editingSection} form={sectionDraft} errors={sectionErrors} onChange={handleSectionChange} onClose={closeSectionEditor} onApply={applySectionChanges} />}</form>
   )
 }
