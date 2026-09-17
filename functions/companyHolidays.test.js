@@ -15,6 +15,7 @@ test('projects national and Nordrhein-Westfalen public holidays into work calend
   const entries = companyHolidayEntries(holidays, DEFAULT_COMPANY_HOLIDAY_REGION)
   assert.deepEqual(entries.map((entry) => entry.label), ['Feiertag: Fronleichnam', 'Feiertag: Tag der Deutschen Einheit', 'Feiertag: Allerheiligen'])
   assert(entries.every((entry) => entry.kind === 'company-holiday' && entry.readOnly === true))
+  assert.deepEqual(entries[0].holidayDetail, { id: 'nrw', date: '2026-06-04', name: 'Fronleichnam', sourceName: 'Corpus Christi', countries: [{ countryCode: 'DE', name: 'Deutschland', stateCodes: ['NW'] }] })
 })
 
 test('does not project holidays that only apply to Bavaria or Saxony', () => {

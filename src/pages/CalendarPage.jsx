@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useCompanyHolidaySettings } from '../company-holidays/useCompanyHolidaySettings.js'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
+import HolidayDetailModal from '../components/holidays/HolidayDetailModal.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createCalendarEvent, deleteCalendarEvent, listCalendarEvents, listUserCalendars, updateCalendarEvent } from '../lib/calendars.js'
 import { listSystemCalendarEvents, listSystemCalendars } from '../lib/systemCalendars.js'
@@ -69,6 +70,8 @@ function EventModal({ event, calendars, initialDate, editable, onClose, onSave, 
   const [error, setError] = useState('')
   const [deleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false)
 
+  if (event?.kind === 'company-holiday') return <HolidayDetailModal holiday={event.holidayDetail} onClose={onClose} />
+
   async function submit(eventSubmit) {
     eventSubmit.preventDefault()
     setSubmitting(true)
@@ -132,7 +135,16 @@ function MonthGrid({ year, month, events, onDayClick, onEventClick }) {
   })
   const weeks = Array.from({ length: 6 }, (_, index) => cells.slice(index * 7, index * 7 + 7))
   const today = todayValue()
-  return <div className="calendar-month"><div className="calendar-month__weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-month__weeks">{weeks.map((week, weekIndex) => <div className="calendar-month__week" key={week[0].date}><div className="calendar-month__week-days">{week.map((cell) => <div className={`calendar-day${cell.outside ? ' calendar-day--outside' : ''}${cell.date === today ? ' calendar-day--today' : ''}`} key={cell.date}><button type="button" className="calendar-day__number" onClick={() => onDayClick(cell.date)} aria-label={`Termin am ${cell.date} anlegen`}>{cell.day}</button></div>)}</div><div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className={`calendar-event-bar${event.kind === 'company-holiday' ? ' calendar-event-bar--company-holiday' : ''}`} key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div></div>)}</div></div>
+  const companyHolidayDates = new Set(events.filter((event) => event.kind === 'company-holiday').map((event) => event.startDate))
+  return <div className="calendar-month">
+    <div className="calendar-month__weekdays">{weekdayLabels.map((day) => <span key={day}>{day}</span>)}</div>
+    <div className="calendar-month__weeks">{weeks.map((week, weekIndex) => <div className="calendar-month__week" key={week[0].date}>
+      <div className="calendar-month__week-days">{week.map((cell) => <div className={`calendar-day${cell.outside ? ' calendar-day--outside' : ''}${companyHolidayDates.has(cell.date) ? ' calendar-day--company-holiday' : ''}${cell.date === today ? ' calendar-day--today' : ''}`} key={cell.date} role={companyHolidayDates.has(cell.date) ? 'button' : undefined} tabIndex={companyHolidayDates.has(cell.date) ? 0 : undefined} aria-label={companyHolidayDates.has(cell.date) ? `Feiertag am ${cell.date}. Details öffnen` : undefined} onClick={companyHolidayDates.has(cell.date) ? () => onDayClick(cell.date) : undefined} onKeyDown={companyHolidayDates.has(cell.date) ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onDayClick(cell.date) } } : undefined}>
+        <button type="button" className="calendar-day__number" onClick={(event) => { event.stopPropagation(); onDayClick(cell.date) }} aria-label={companyHolidayDates.has(cell.date) ? `Feiertag am ${cell.date}. Details öffnen` : `Termin am ${cell.date} anlegen`}>{cell.day}</button>
+      </div>)}</div>
+      <div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className={`calendar-event-bar${event.kind === 'company-holiday' ? ' calendar-event-bar--company-holiday' : ''}`} key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div>
+    </div>)}</div>
+  </div>
 }
 
 export default function CalendarPage() {
@@ -216,6 +228,11 @@ export default function CalendarPage() {
   }
 
   function openDay(date) {
+    const holiday = companyHolidayEntries.find((entry) => entry.startDate === date)
+    if (holiday) {
+      setModal({ event: holiday })
+      return
+    }
     if (!editableCalendars.length) return
     setModal({ initialDate: date })
   }

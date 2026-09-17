@@ -14,6 +14,17 @@ function displayName(holiday) {
   return getHolidayDisplayNameDe(holiday?.countryCode, sourceName) || holiday?.displayNameDe || sourceName
 }
 
+export function companyHolidayDetail(holiday) {
+  const name = displayName(holiday)
+  return {
+    id: holiday.id,
+    date: holiday.date,
+    name,
+    sourceName: holiday.sourceName || holiday.name || name,
+    countries: [{ countryCode: holiday.countryCode, name: 'Deutschland', stateCodes: Array.isArray(holiday.subdivisionCodes) ? holiday.subdivisionCodes : [] }],
+  }
+}
+
 // This projection is intentionally shared by every work calendar.  The
 // standalone holiday calendar keeps its own country and state filtering.
 export function companyHolidayEntries(records, configuredRegion) {
@@ -23,7 +34,8 @@ export function companyHolidayEntries(records, configuredRegion) {
     .filter((holiday) => holiday?.countryCode === region.countryCode && /^\d{4}-\d{2}-\d{2}$/.test(holiday?.date || ''))
     .filter((holiday) => holiday.nationalHoliday === true || (Array.isArray(holiday.subdivisionCodes) && holiday.subdivisionCodes.includes(stateCode)))
     .map((holiday) => {
-      const name = displayName(holiday)
+      const holidayDetail = companyHolidayDetail(holiday)
+      const name = holidayDetail.name
       return {
         id: `company-holiday-${holiday.id || `${holiday.date}-${holiday.sourceName || name}`}`,
         startDate: holiday.date,
@@ -31,6 +43,7 @@ export function companyHolidayEntries(records, configuredRegion) {
         label: `Feiertag: ${name}`,
         title: `Feiertag: ${name}`,
         kind: 'company-holiday',
+        holidayDetail,
         allDay: true,
         readOnly: true,
         calendarName: 'Feiertage',

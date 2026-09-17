@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import HolidayDetailModal from '../holidays/HolidayDetailModal.jsx'
 import { dateValue } from '../../lib/vacationRequests.js'
 import { VACATION_MONTHS, vacationMonthDays } from '../../lib/vacationCalendar.js'
 
@@ -30,10 +32,15 @@ function barsForWeek(entries, week, weekIndex) {
 }
 
 export default function VacationCalendar({ entries = [], focusedDate = '', highlightedEntryId = '', month, today, year }) {
+  const [selectedHoliday, setSelectedHoliday] = useState(null)
   const weeks = weekDays(vacationMonthDays(year, month))
-  return <div className="vacation-calendar" aria-label={`Urlaubskalender ${VACATION_MONTHS[month]} ${year}`}><div className="vacation-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div><div className="vacation-calendar__weeks">{weeks.map((week, weekIndex) => <div className="vacation-calendar-week" key={`week-${weekIndex}`}><div className="vacation-calendar-week__days">{week.map((date, index) => {
+  const companyHolidaysByDate = new Map(entries.filter((entry) => entry.kind === 'company-holiday').map((entry) => [entry.startDate, entry]))
+  const entryClassName = (entry) => `vacation-calendar-bar vacation-calendar-bar--${entry.kind || 'pending'} ${entry.modifier ? `vacation-calendar-bar--${entry.modifier}` : ''} ${entry.own ? 'vacation-calendar-bar--own' : ''} ${entry.id === highlightedEntryId ? 'vacation-calendar-bar--highlighted' : ''}`
+  return <><div className="vacation-calendar" aria-label={`Urlaubskalender ${VACATION_MONTHS[month]} ${year}`}><div className="vacation-calendar__weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div><div className="vacation-calendar__weeks">{weeks.map((week, weekIndex) => <div className="vacation-calendar-week" key={`week-${weekIndex}`}><div className="vacation-calendar-week__days">{week.map((date, index) => {
     if (!date) return <div key={`empty-${weekIndex}-${index}`} className="vacation-day vacation-day--empty" />
     const value = dateValue(date)
-    return <div key={value} className={`vacation-day ${value === today ? 'vacation-day--today' : ''} ${value === focusedDate ? 'vacation-day--focused' : ''}`}><time dateTime={value}>{date.getDate()}</time></div>
-  })}</div><div className="vacation-calendar-week__bars">{barsForWeek(entries, week, weekIndex).map((entry) => <span key={`${entry.id}-${weekIndex}`} className={`vacation-calendar-bar vacation-calendar-bar--${entry.kind || 'pending'} ${entry.modifier ? `vacation-calendar-bar--${entry.modifier}` : ''} ${entry.own ? 'vacation-calendar-bar--own' : ''} ${entry.id === highlightedEntryId ? 'vacation-calendar-bar--highlighted' : ''}`} style={{ gridColumn: `${entry.startColumn} / ${entry.endColumn + 1}`, gridRow: entry.lane + 1 }} title={entry.title || entry.label}>{entry.showLabel ? entry.label : ''}</span>)}</div></div>)}</div></div>
+    const holiday = companyHolidaysByDate.get(value)
+    const openHoliday = () => { if (holiday?.holidayDetail) setSelectedHoliday(holiday.holidayDetail) }
+    return <div key={value} className={`vacation-day ${holiday ? 'vacation-day--company-holiday' : ''} ${value === today ? 'vacation-day--today' : ''} ${value === focusedDate ? 'vacation-day--focused' : ''}`} role={holiday ? 'button' : undefined} tabIndex={holiday ? 0 : undefined} aria-label={holiday ? `${holiday.label}. Details öffnen` : undefined} onClick={holiday ? openHoliday : undefined} onKeyDown={holiday ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openHoliday() } } : undefined}><time dateTime={value}>{date.getDate()}</time></div>
+  })}</div><div className="vacation-calendar-week__bars">{barsForWeek(entries, week, weekIndex).map((entry) => entry.kind === 'company-holiday' ? <button type="button" key={`${entry.id}-${weekIndex}`} className={entryClassName(entry)} style={{ gridColumn: `${entry.startColumn} / ${entry.endColumn + 1}`, gridRow: entry.lane + 1 }} title={entry.title || entry.label} onClick={() => setSelectedHoliday(entry.holidayDetail)}>{entry.showLabel ? entry.label : ''}</button> : <span key={`${entry.id}-${weekIndex}`} className={entryClassName(entry)} style={{ gridColumn: `${entry.startColumn} / ${entry.endColumn + 1}`, gridRow: entry.lane + 1 }} title={entry.title || entry.label}>{entry.showLabel ? entry.label : ''}</span>)}</div></div>)}</div></div>{selectedHoliday && <HolidayDetailModal holiday={selectedHoliday} onClose={() => setSelectedHoliday(null)} />}</>
 }

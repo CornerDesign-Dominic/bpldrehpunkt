@@ -35,6 +35,8 @@
 .calendar-day { min-width: 0; padding: 4px; border-right: 1px solid var(--border); background: var(--content-background); }
 .calendar-day:nth-child(7n) { border-right: 0; }
 .calendar-day--outside { background: var(--surface-secondary); }
+.calendar-day--company-holiday { background: color-mix(in srgb, var(--status-danger-background) 66%, var(--content-background)); }
+.calendar-day--company-holiday { cursor: pointer; }
 .calendar-day--outside .calendar-day__number { color: var(--text-muted); }
 .calendar-day__number { justify-self: end; width: 23px; height: 23px; padding: 0; border: 0; border-radius: 50%; color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 11px; font-weight: 650; }
 .calendar-day__number:hover { background: var(--surface-active); }
@@ -42,7 +44,7 @@
 .calendar-month__week-bars { position: absolute; z-index: 2; inset: 30px 4px 4px; grid-auto-rows: 17px; gap: 3px 0; pointer-events: none; }
 .calendar-event-bar { display: flex; min-width: 0; align-items: center; padding: 2px 5px; overflow: hidden; border: 0; border-left: 3px solid var(--calendar-color); border-radius: 2px; color: var(--text-secondary); background: var(--surface-secondary); cursor: pointer; font: inherit; font-size: 10px; line-height: 1.2; text-align: left; pointer-events: auto; }
 .calendar-event-bar:hover { color: var(--text-primary); background: var(--surface-active); }
-.calendar-event-bar--company-holiday { border-left-style: dashed; color: var(--text-muted); background: var(--surface-secondary); font-style: italic; }
+.calendar-event-bar--company-holiday, .calendar-event-bar--company-holiday:hover { border-left-color: var(--status-danger-text); border-left-style: solid; color: var(--status-danger-text); background: color-mix(in srgb, var(--status-danger-background) 82%, var(--content-background)); font-style: normal; }
 .calendar-event-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-state { margin: 0; padding: 42px 14px; color: var(--text-muted); font-size: 12px; text-align: center; }
 .calendar-upcoming__list { display: grid; gap: 4px; }
