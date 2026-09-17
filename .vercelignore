@@ -1,6 +1,9 @@
 # Firebase is deployed independently via firebase.json. It is not a Vercel
 # runtime and must never be uploaded as part of this frontend deployment.
-/functions/
+# The holiday translation table is a pure client-side lookup that is imported
+# by the calendar.  Keep exactly that source file available to Vite.
+/functions/*
+!/functions/holidayTranslations.js
 /.firebase/
 /firebase-emulator-data/
 /emulator-data/
