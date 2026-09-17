@@ -23,3 +23,14 @@ test('calendar projection uses German names whenever a translation exists', () =
   assert.deepEqual(holidays.map((holiday) => holiday.name), ['Neujahr', 'Französischer Nationalfeiertag'])
   assert.equal(holidays.some((holiday) => holiday.name === "New Year's Day" || holiday.name === 'Bastille Day'), false)
 })
+
+test('shows national holidays of selected foreign countries independently of German state filters', () => {
+  const records = [
+    { countryCode: 'FR', year: 2027, date: '2027-07-14', sourceName: 'Bastille Day', nationalHoliday: true, subdivisionCodes: [] },
+    { countryCode: 'NL', year: 2027, date: '2027-04-27', sourceName: "King's Day", nationalHoliday: true, subdivisionCodes: [] },
+    { countryCode: 'PL', year: 2027, date: '2027-11-11', sourceName: 'Independence Day', nationalHoliday: true, subdivisionCodes: [] },
+  ]
+  const holidays = getVisibleHolidays(records, 2027, false, [], ['FR', 'NL', 'PL'])
+  assert.deepEqual(holidays.map((holiday) => holiday.name), ['Königstag', 'Französischer Nationalfeiertag', 'Unabhängigkeitstag'])
+  assert.deepEqual(holidays.flatMap((holiday) => holiday.countries.map((country) => country.countryCode)).sort(), ['FR', 'NL', 'PL'])
+})

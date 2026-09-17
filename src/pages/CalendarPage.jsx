@@ -195,7 +195,7 @@ export default function CalendarPage() {
   const monthStart = dateValue(year, month, 1)
   const monthEnd = dateValue(year, month + 1, 0)
   const selectableYears = Array.from({ length: 9 }, (_, index) => now.getFullYear() - 3 + index)
-  const upcoming = useMemo(() => visibleEvents.filter((event) => event.endDate >= todayValue()).sort((left, right) => left.startDate.localeCompare(right.startDate) || (left.startTime || '').localeCompare(right.startTime || '')).slice(0, 10), [visibleEvents])
+  const upcoming = useMemo(() => visibleEvents.filter((event) => event.kind !== 'company-holiday' && event.endDate >= todayValue()).sort((left, right) => left.startDate.localeCompare(right.startDate) || (left.startTime || '').localeCompare(right.startTime || '')).slice(0, 10), [visibleEvents])
   const monthEvents = useMemo(() => visibleEvents.filter((event) => overlaps(event, monthStart, monthEnd)), [monthEnd, monthStart, visibleEvents])
 
   function moveMonth(delta) {

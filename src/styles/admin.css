@@ -28,6 +28,14 @@
 .admin-holiday-sync-log__status--failed, .admin-holiday-sync-log__error { color: var(--status-danger-text); }
 .admin-holiday-sync-log__translation { min-width: 0; color: var(--text-muted); line-height: 1.35; }
 .admin-holiday-sync-log__error { min-width: 0; line-height: 1.35; }
+.admin-holiday-sync-log__countries { display: grid; grid-column: 1 / -1; gap: 6px; margin-top: 3px; }
+.admin-holiday-sync-log__countries summary { color: var(--text-secondary); cursor: pointer; font-weight: 650; }
+.admin-holiday-sync-log__countries ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; margin: 0; padding: 0; list-style: none; }
+.admin-holiday-sync-log__countries li { display: flex; min-width: 0; justify-content: space-between; gap: 7px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--content-background); }
+.admin-holiday-sync-log__countries li strong, .admin-holiday-sync-log__country-status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-holiday-sync-log__country-status--success { color: var(--status-success-text); }
+.admin-holiday-sync-log__country-status--empty { color: var(--status-warning-text); }
+.admin-holiday-sync-log__country-status--failed { color: var(--status-danger-text); }
 .admin-holiday-sync-log__empty { margin: 0; color: var(--text-muted); font-size: 12px; }
 .admin-manual-triggers__actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .admin-system-mails-card { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
@@ -207,6 +215,7 @@
   .admin-holiday-sync-log__entry { grid-template-columns: 1fr; }
   .admin-holiday-sync-log__details { grid-template-columns: auto auto; }
   .admin-holiday-sync-log__translation, .admin-holiday-sync-log__error { grid-column: 1 / -1; }
+  .admin-holiday-sync-log__countries ul { grid-template-columns: 1fr; }
   .company-holiday-settings__fields { grid-template-columns: 1fr; }
   .admin-departments__create { max-width: none; }
   .admin-departments__row { grid-template-columns: 1fr auto; }

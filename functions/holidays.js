@@ -80,6 +80,7 @@ function normalizeHoliday(item, countryCode, year, today) {
     year,
     nationalHoliday: item?.nationalHoliday === true,
     subdivisionCodes: cleanSubdivisionCodes(countryCode, item?.subdivisionCodes),
+    scope: item?.nationalHoliday === true ? 'national' : 'regional',
     holidayType: 'Public',
     source: NAGER_SOURCE,
   }
@@ -142,14 +143,16 @@ async function syncCountryPublicHolidays(countryCode, years, today) {
   let changedEntryCount = 0
   let updatedEntryCount = 0
   let totalEntries = 0
+  const yearResults = []
   for (const [year, records] of recordsByYear) {
     totalEntries += records.length
     const changes = await applyYear(countryCode, year, records, today)
     createdEntryCount += changes.createdEntryCount
     changedEntryCount += changes.changedEntryCount
     updatedEntryCount += changes.createdEntryCount + changes.changedEntryCount
+    yearResults.push({ year, entryCount: records.length, ...changes })
   }
-  return { countryCode, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, translationMissing }
+  return { countryCode, status: totalEntries ? 'success' : 'empty', updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, yearResults, translationMissing }
 }
 
 export async function syncPublicHolidays() {
@@ -162,11 +165,13 @@ export async function syncPublicHolidays() {
       return { result: await syncCountryPublicHolidays(countryCode, years, today) }
     } catch (error) {
       logger.error(`Feiertagssynchronisation für ${countryCode} fehlgeschlagen.`, error)
-      return { error: { countryCode, errorMessage: syncErrorMessage(error) } }
+      return { error: { countryCode, status: 'failed', createdEntryCount: 0, changedEntryCount: 0, totalEntries: 0, yearResults: [], errorMessage: syncErrorMessage(error) } }
     }
   })
-  const successfulCountries = countryResults.flatMap(({ result }) => result ? [result] : [])
-  const failedCountries = countryResults.flatMap(({ error }) => error ? [error] : [])
+  const detailedCountryResults = countryResults.flatMap(({ result, error }) => result ? [result] : error ? [error] : [])
+  const successfulCountries = detailedCountryResults.filter((result) => result.status === 'success')
+  const emptyCountries = detailedCountryResults.filter((result) => result.status === 'empty')
+  const failedCountries = detailedCountryResults.filter((result) => result.status === 'failed')
   const createdEntryCount = successfulCountries.reduce((count, result) => count + result.createdEntryCount, 0)
   const changedEntryCount = successfulCountries.reduce((count, result) => count + result.changedEntryCount, 0)
   const updatedEntryCount = createdEntryCount + changedEntryCount
@@ -179,12 +184,13 @@ export async function syncPublicHolidays() {
     years,
     countries: SYNC_COUNTRY_CODES,
     successfulCountryCount: successfulCountries.length,
+    emptyCountryCodes: emptyCountries.map((item) => item.countryCode),
     failedCountryCodes: failedCountries.map((item) => item.countryCode),
     lastSyncedAt: FieldValue.serverTimestamp(),
     updatedEntryCount,
     totalEntries,
   }, { merge: true })
-  return { years, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, successfulCountryCount: successfulCountries.length, failedCountries, translationMissing }
+  return { years, updatedEntryCount, createdEntryCount, changedEntryCount, totalEntries, successfulCountryCount: successfulCountries.length, countryResults: detailedCountryResults, failedCountries, emptyCountries, translationMissing }
 }
 
 function syncActorName(profile, request) {
@@ -223,6 +229,7 @@ async function runHolidaySync({ trigger, actorName = null }) {
         createdEntryCount: 0,
         changedEntryCount: 0,
         successfulCountryCount: 0,
+        countryResults: [],
         failedCountries: [],
         translationMissing: [],
         errorMessage: syncErrorMessage(error),
@@ -240,6 +247,7 @@ async function runHolidaySync({ trigger, actorName = null }) {
       createdEntryCount: result.createdEntryCount,
       changedEntryCount: result.changedEntryCount,
       successfulCountryCount: result.successfulCountryCount,
+      countryResults: result.countryResults,
       failedCountries: result.failedCountries,
       translationMissing: result.translationMissing,
       errorMessage: result.successfulCountryCount ? null : 'Keines der Länder konnte aktualisiert werden.',
