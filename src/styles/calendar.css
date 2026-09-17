@@ -27,7 +27,7 @@
 .calendar-month { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; }
 .calendar-month__weekdays, .calendar-month__week-days, .calendar-month__week-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .calendar-month__weekdays { border-bottom: 1px solid var(--border); background: var(--surface-secondary); }
-.calendar-month__weekdays span { padding: 8px 7px; color: var(--text-muted); font-size: 10px; font-weight: 700; text-align: right; text-transform: uppercase; }
+.calendar-month__weekdays span { padding: 8px 7px; color: var(--text-muted); font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; }
 .calendar-month__weeks { display: grid; min-height: 0; flex: 1; grid-template-rows: repeat(6, minmax(104px, 1fr)); }
 .calendar-month__week { position: relative; min-height: 104px; border-bottom: 1px solid var(--border); }
 .calendar-month__week:last-child { border-bottom: 0; }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerStatusLabel, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
 import Toast from '../components/ui/Toast.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
@@ -49,6 +49,7 @@ export default function CustomersPage() {
   const { canEdit } = usePermissions()
   const [partners, setPartners] = useState([])
   const location = useLocation()
+  const navigate = useNavigate()
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
@@ -76,12 +77,22 @@ export default function CustomersPage() {
     return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}><span>{label}</span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{isActive ? `, aktuell ${sort.direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert` : ', sortieren'}</span></button></th>
   }
 
+  function openPartner(partner) {
+    navigate(`/kunden-unternehmer/${partner.id}`)
+  }
+
+  function handlePartnerKeyDown(event, partner) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openPartner(partner)
+  }
+
   return (
     <div className="business-partners-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <div className="list-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Geschäftspartner suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Suchen" type="search" /></label><label className="filter-field"><span className="sr-only">Filter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div>{canEdit('masterData') && <Link className="button" to="/kunden-unternehmer/neu">Geschäftspartner anlegen</Link>}</div>
       {error && <p className="form-error">{error}</p>}
-      <div className="table-frame business-partners-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', 'Firmenname')}{renderSortableHeader('city', 'Ort')}{renderSortableHeader('type', 'Typ')}{renderSortableHeader('debtorNumber', 'Debitor')}{renderSortableHeader('creditorNumber', 'Kreditor')}{renderSortableHeader('timocomNumber', 'TIMOCOM')}{renderSortableHeader('transeuNumber', 'Trans.eu')}{renderSortableHeader('status', 'Status')}<th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{loading ? <tr><td colSpan="9" className="table-state">Stammdaten werden geladen …</td></tr> : error ? <tr><td colSpan="9" className="table-state">Keine Stammdaten verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{partner.timocomNumber || '—'}</td><td>{partner.transeuNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></td><td className="table-action"><Link className="table-action__open" to={`/kunden-unternehmer/${partner.id}`} aria-label={`${partner.companyName} öffnen`} title="Öffnen">Öffnen</Link></td></tr>) : <tr><td colSpan="9" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
+      <div className="table-frame business-partners-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', 'Firmenname')}{renderSortableHeader('city', 'Ort')}{renderSortableHeader('type', 'Typ')}{renderSortableHeader('debtorNumber', 'Debitor')}{renderSortableHeader('creditorNumber', 'Kreditor')}{renderSortableHeader('timocomNumber', 'TIMOCOM')}{renderSortableHeader('transeuNumber', 'Trans.eu')}{renderSortableHeader('status', 'Status')}</tr></thead><tbody>{loading ? <tr><td colSpan="8" className="table-state">Stammdaten werden geladen …</td></tr> : error ? <tr><td colSpan="8" className="table-state">Keine Stammdaten verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="business-partners-table__row" key={partner.id} role="link" tabIndex="0" onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{partner.timocomNumber || '—'}</td><td>{partner.transeuNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></td></tr>) : <tr><td colSpan="8" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
     </div>
   )
 }

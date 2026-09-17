@@ -97,12 +97,14 @@ export default function HolidayCalendarPage() {
   return <div className="holiday-page">
     <section className="holiday-calendar-card">
       <div className="holiday-toolbar">
-        <div className="holiday-toolbar__period">
-          <label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
-          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <div className="holiday-toolbar__actions">
           <button className="holiday-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button>
           <button className="holiday-today-button" type="button" onClick={showToday}>Heute</button>
           <button className="holiday-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button>
+        </div>
+        <div className="holiday-toolbar__period">
+          <label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
         </div>
       </div>
       {holidayLoadError && <p className="holiday-calendar-state">{holidayLoadError}</p>}

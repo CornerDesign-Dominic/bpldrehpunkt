@@ -10,7 +10,7 @@ import { listSystemCalendarEvents, listSystemCalendars } from '../lib/systemCale
 import { canView } from '../lib/permissions.js'
 import '../styles/calendar.css'
 
-const weekdayLabels = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+const weekdayLabels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
 const monthOptions = Array.from({ length: 12 }, (_, month) => ({ value: month, label: new Intl.DateTimeFormat('de-DE', { month: 'long' }).format(new Date(2026, month, 1)) }))
 const monthFormatter = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' })
 const dateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
