@@ -5,7 +5,7 @@ import { EditIcon } from '../icons.jsx'
 export default function PalletJournal({ account, accountError, isEntryFormActive, onAddClosing, onAddMovement, onEditClosing, onEditMovement, canEdit }) {
   return <section className="pallet-journal">
     <div className="pallet-journal__header"><h3>Kontoliste</h3>{canEdit && <div className="pallet-journal__actions"><button className="button" type="button" onClick={onAddMovement} disabled={isEntryFormActive}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={onAddClosing} disabled={isEntryFormActive}>Abschluss hinzufügen</button></div>}</div>
-    <div className="table-frame"><table><thead><tr><th>Datum</th><th>Art</th><th>Tournummer</th><th>Palettentyp</th><th>Lade-Zug.</th><th>Lade-Abg.</th><th>Entl.-Zug.</th><th>Entl.-Abg.</th><th>Veränderung</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
+    <div className="table-frame"><table className="data-table"><thead><tr><th>Datum</th><th>Art</th><th>Tournummer</th><th>Palettentyp</th><th>Lade-Zug.</th><th>Lade-Abg.</th><th>Entl.-Zug.</th><th>Entl.-Abg.</th><th>Veränderung</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
       {accountError ? <tr><td colSpan="11" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => {
         const isMovement = entry.entryType === 'movement'
         return <tr className={entry.entryType === 'closing' ? 'pallet-journal__closing' : ''} key={`${entry.entryType}-${entry.id}`}>

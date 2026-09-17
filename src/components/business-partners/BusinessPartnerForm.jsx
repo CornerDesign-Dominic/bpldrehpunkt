@@ -166,7 +166,7 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
   return (
     <section className="form-section contacts-section">
       <div className="contacts-section__header"><h2>Ansprechpartner</h2></div>
-      <div className="contacts-table table-frame"><table><thead><tr><th>Name</th><th>Abteilung</th><th>Telefon</th><th>Mobil</th><th>E-Mail</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => {
+      <div className="contacts-table table-frame"><table className="data-table"><thead><tr><th>Name</th><th>Abteilung</th><th>Telefon</th><th>Mobil</th><th>E-Mail</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => {
         const isEditing = draft?.id === contact.id
         return <tr key={contact.id} className={isEditing ? 'contacts-table__row--editing' : ''}>
           <td>{isEditing ? <input aria-label="Name" value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} aria-invalid={Boolean(editErrors.name)} title={editErrors.name} /> : <strong>{contact.name}</strong>}</td>
@@ -237,7 +237,7 @@ function PortalsSection({ portals, onChange }) {
   return (
     <section className="form-section portals-section">
       <h2>Zugänge auf Kundenportalen</h2>
-      <div className="portals-table table-frame"><table><thead><tr><th>Link</th><th>Benutzer / Mail</th><th>Zugangsnummer</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => {
+      <div className="portals-table table-frame"><table className="data-table"><thead><tr><th>Link</th><th>Benutzer / Mail</th><th>Zugangsnummer</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => {
         const isEditing = editDraft?.id === portal.id
         return <tr key={portal.id} className={isEditing ? 'portals-table__row--editing' : ''}>
           <td>{isEditing ? <input aria-label="Link" value={editDraft.url} onChange={(event) => updateEditDraft('url', event.target.value)} aria-invalid={Boolean(editErrors.url)} title={editErrors.url} placeholder="https://" /> : portal.url ? <a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">{portal.url}</a> : '—'}</td>

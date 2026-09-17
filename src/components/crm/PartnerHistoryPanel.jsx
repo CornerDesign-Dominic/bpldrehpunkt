@@ -63,7 +63,7 @@ export default function PartnerHistoryPanel({ partnerId, refreshKey }) {
 
   return <section className="partner-history" aria-label="Partner-Historie">
     <div className="partner-history__heading"><div><h3>Partner-Historie</h3><p>Unveränderbares Protokoll aller relevanten Vorgänge.</p></div><label><span className="sr-only">Historie filtern</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{PARTNER_HISTORY_CATEGORIES.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}</select></label></div>
-    <div className="partner-history__table table-frame"><table><thead><tr><th>Datum</th><th>Themenpunkt</th><th>Eintrag von</th><th>Inhalt</th></tr></thead><tbody>
+    <div className="partner-history__table table-frame"><table className="data-table"><thead><tr><th>Datum</th><th>Themenpunkt</th><th>Eintrag von</th><th>Inhalt</th></tr></thead><tbody>
       {loading && <tr><td colSpan="4" className="table-state">Partner-Historie wird geladen …</td></tr>}
       {error && <tr><td colSpan="4" className="table-state">{error}</td></tr>}
       {!loading && !error && entries.length === 0 && <tr><td colSpan="4" className="table-state">Für diese Auswahl gibt es noch keine Einträge.</td></tr>}
