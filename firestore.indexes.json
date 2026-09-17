@@ -33,6 +33,22 @@
         { "fieldPath": "countryCode", "order": "ASCENDING" },
         { "fieldPath": "loggedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "schoolHolidays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "countryCode", "order": "ASCENDING" },
+        { "fieldPath": "subdivisionCode", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "schoolHolidaySyncLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "countryCode", "order": "ASCENDING" },
+        { "fieldPath": "loggedAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
