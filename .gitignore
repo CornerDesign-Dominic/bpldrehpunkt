@@ -2,6 +2,28 @@ node_modules/
 node_modules.install-incomplete/
 dist/
 .vite/
+# Local artefacts that must not enter Git-based Vercel deployments either.
+/.firebase/
+/firebase-emulator-data/
+/emulator-data/
+/tmp/
+/coverage/
+/test-results/
+/test-data/
+/screenshots/
+/uploads/
+/downloads/
+/documents/
+/pdfs/
+/generated-pdfs/
+/ai-tmp/
+/ai-output/
+/backups/
+*.pdf
+*.PDF
+*.bak
+*.backup
+*.orig
 # Local environment and credentials (keep the documented template versioned).
 .env
 .env.*

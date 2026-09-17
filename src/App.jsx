@@ -53,7 +53,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
         <Route path="/personal/urlaub" element={<PermissionRoute module="personnel"><PersonnelVacationPage /></PermissionRoute>} />

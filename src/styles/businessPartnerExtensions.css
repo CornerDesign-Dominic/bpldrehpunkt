@@ -53,6 +53,14 @@
 .masterdata-readonly-section__edit:hover { color: var(--text-primary); background: var(--surface-active); }
 .masterdata-readonly-section__edit:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
 .masterdata-readonly-grid { margin: 0; }
+.masterdata-readonly-grid.form-grid--company-address { grid-template-columns: minmax(0, 2.1fr) minmax(0, 0.55fr) minmax(0, 0.7fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'company company company company status' 'street house-number postal-code city country'; }
+.masterdata-readonly-grid .form-field--company-address { grid-area: company; grid-column: auto; }
+.masterdata-readonly-grid .form-field--status { grid-area: status; grid-column: auto; }
+.masterdata-readonly-grid .form-field--street { grid-area: street; grid-column: auto; }
+.masterdata-readonly-grid .form-field--house-number { grid-area: house-number; }
+.masterdata-readonly-grid .form-field--postal-code { grid-area: postal-code; }
+.masterdata-readonly-grid .form-field--city { grid-area: city; }
+.masterdata-readonly-grid .form-field--country { grid-area: country; }
 .masterdata-readonly-field { display: grid; min-width: 0; gap: 3px; }
 .masterdata-readonly-field dt { overflow: hidden; color: var(--text-secondary); font-size: 11px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .masterdata-readonly-field dd { min-width: 0; margin: 0; }
@@ -129,7 +137,8 @@
 @media (max-width: 1080px) { .partner-header__tiles { width: 100%; } }
 
 .portals-section { display: grid; gap: 9px; }
-.portals-section > h2 { margin-bottom: 0 !important; }
+.portals-section__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.portals-section__header h2 { margin-bottom: 3px !important; }
 .portals-table table { min-width: 0; table-layout: fixed; }
 .portals-table th, .portals-table td { height: 38px; padding: 6px 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .portals-table th:nth-child(1) { width: 36%; }
@@ -149,6 +158,8 @@
   .business-partner-form .form-grid--contact, .business-partner-form .form-grid--company-data { grid-template-columns: 1fr; grid-template-areas: none; }
   .form-field--contact-phone, .form-field--contact-fax, .form-field--contact-email, .form-field--contact-website, .form-field--company-vat, .form-field--company-tax, .form-field--company-register-number, .form-field--company-register-court { grid-area: auto; }
   .form-field--company-address, .form-field--street, .form-field--status { grid-column: auto; }
+  .masterdata-readonly-grid.form-grid--company-address { grid-template-columns: 1fr; grid-template-areas: none; }
+  .masterdata-readonly-grid .form-field--company-address, .masterdata-readonly-grid .form-field--status, .masterdata-readonly-grid .form-field--street, .masterdata-readonly-grid .form-field--house-number, .masterdata-readonly-grid .form-field--postal-code, .masterdata-readonly-grid .form-field--city, .masterdata-readonly-grid .form-field--country { grid-area: auto; grid-column: auto; }
   .masterdata-action-row { grid-template-columns: 1fr; grid-template-areas: 'back' 'actions'; gap: 10px; }
   .masterdata-action-row > :first-child { grid-area: back; }
   .masterdata-record-actions { --masterdata-dirty-area: minmax(0, 1fr); --masterdata-discard-area: 94px; --masterdata-save-area: 104px; width: 100%; }

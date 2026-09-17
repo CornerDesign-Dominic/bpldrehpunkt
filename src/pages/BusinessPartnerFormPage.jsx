@@ -21,8 +21,6 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [loading, setLoading] = useState(mode === 'existing')
   const [error, setError] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
-  const [isDirty, setDirty] = useState(false)
-  const [resetVersion, setResetVersion] = useState(0)
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [crmRatings, setCrmRatings] = useState({})
   const [palletMovements, setPalletMovements] = useState(null)
@@ -73,13 +71,6 @@ export default function BusinessPartnerFormPage({ mode }) {
     }
   }
 
-  function discardChanges() {
-    setError('')
-    setCurrentValues(partner)
-    setDirty(false)
-    setResetVersion((current) => current + 1)
-  }
-
   const palletAccount = useMemo(() => (palletMovements && palletClosings ? summarizePalletAccount(palletMovements, palletClosings, partnerId) : null), [palletClosings, palletMovements, partnerId])
 
   if (loading) return <p className="page-state">Stammdaten werden geladen …</p>
@@ -92,10 +83,10 @@ export default function BusinessPartnerFormPage({ mode }) {
   return (
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{editable && <div className="masterdata-record-actions"><div className="masterdata-record-actions__content">{isDirty && <span className="dirty-hint" role="status"><span className="dirty-hint__icon" aria-hidden="true">!</span>Ungespeicherte Änderungen</span>}<button className="button button--secondary masterdata-record-actions__discard" type="button" onClick={discardChanges} disabled={isSubmitting || !isDirty}>Verwerfen</button><button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting || (!isNew && !isDirty)}>{isSubmitting ? 'Wird gespeichert …' : isNew ? 'Anlegen' : 'Speichern'}</button></div></div>}</div>
+      <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird angelegt …' : 'Anlegen'}</button>}</div>
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={canView('crm')} canViewPallets={canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
       {error && <p className="form-error">{error}</p>}
-      <section className="masterdata-content-card"><BusinessPartnerForm key={resetVersion} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onDirtyChange={setDirty} onFormChange={setCurrentValues} readOnly={!editable} /></section>
+      <section className="masterdata-content-card"><BusinessPartnerForm formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} /></section>
     </div>
   )
 }

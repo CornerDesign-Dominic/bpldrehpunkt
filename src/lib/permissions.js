@@ -3,6 +3,7 @@ export const PERMISSION_LEVELS = ['none', 'view', 'edit']
 // Keep every product module in one place. Adding a module is deliberately a
 // small, explicit change: add it here, protect its route and add it to navigation.
 export const MODULES = {
+  dashboard: { label: 'Dashboard' },
   vacation: { label: 'Urlaub' },
   feiertagskalender: { label: 'Feiertagskalender' },
   calendar: { label: 'Kalender' },

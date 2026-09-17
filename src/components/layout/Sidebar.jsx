@@ -8,7 +8,7 @@ import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { SIDEBAR_BADGE_DEFINITIONS } from '../../lib/sidebarBadges.js'
 
 const navigationItems = [
-  { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, group: 'overview' },
+  { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'overview' },
   { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar', group: 'overview' },
   { label: 'Feiertagskalender', to: '/feiertagskalender', icon: CalendarIcon, module: 'feiertagskalender', group: 'overview' },
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'overview', badge: 'news' },

@@ -75,7 +75,7 @@ function ReadOnlySection({ section, form, onEdit }) {
   const { title, className } = masterDataSections[section]
   let fields
 
-  if (section === 'company') fields = <><ReadOnlyField className="form-field--company-address" label="Firmenname" value={form.companyName} /><ReadOnlyField className="form-field--status" label="Status" value={statusLabel(form.status)} status={form.status} /><ReadOnlyField className="form-field--street" label="Straße" value={form.address.street} /><ReadOnlyField label="Hausnummer" value={form.address.houseNumber} /><ReadOnlyField label="PLZ" value={form.address.postalCode} /><ReadOnlyField label="Ort" value={form.address.city} /><ReadOnlyField label="Land" value={form.address.country} /></>
+  if (section === 'company') fields = <><ReadOnlyField className="form-field--company-address" label="Firmenname" value={form.companyName} /><ReadOnlyField className="form-field--status" label="Status" value={statusLabel(form.status)} status={form.status} /><ReadOnlyField className="form-field--street" label="Straße" value={form.address.street} /><ReadOnlyField className="form-field--house-number" label="Hausnummer" value={form.address.houseNumber} /><ReadOnlyField className="form-field--postal-code" label="PLZ" value={form.address.postalCode} /><ReadOnlyField className="form-field--city" label="Ort" value={form.address.city} /><ReadOnlyField className="form-field--country" label="Land" value={form.address.country} /></>
   if (section === 'contact') fields = <><ReadOnlyField className="form-field--contact-phone" label="Telefon" value={form.contact.phone} /><ReadOnlyField className="form-field--contact-fax" label="Fax" value={form.contact.fax} /><ReadOnlyField className="form-field--contact-email" label="E-Mail" value={form.contact.email} /><ReadOnlyField className="form-field--contact-website" label="Website" value={form.contact.website} /></>
   if (section === 'references') fields = <><ReadOnlyField label="Debitorennummer" value={form.debtorNumber} /><ReadOnlyField label="Kreditorennummer" value={form.creditorNumber} /><ReadOnlyField label="TIMOCOM-Nummer" value={form.timocomNumber} /><ReadOnlyField label="Trans.eu-Nummer" value={form.transeuNumber} /><ReadOnlyField label="DPL-Nummer" value={form.dplNumber} /><ReadOnlyField label="Paki-Nummer" value={form.pakiNumber} /></>
   if (section === 'companyData') fields = <><ReadOnlyField className="form-field--company-vat" label="USt-IdNr." value={form.companyData.vatId} /><ReadOnlyField className="form-field--company-tax" label="Steuernummer" value={form.companyData.taxNumber} /><ReadOnlyField className="form-field--company-register-number" label="Handelsregisternummer" value={form.companyData.commercialRegisterNumber} /><ReadOnlyField className="form-field--company-register-court" label="Registergericht" value={form.companyData.registerCourt} /></>
@@ -92,9 +92,9 @@ function MasterDataFields({ section, form, onChange, errors }) {
   return <><Field label="Zahlungsziel in Tagen" name="paymentTermDays" value={form.paymentTermDays} onChange={onChange} error={errors.paymentTermDays} type="number" placeholder="z. B. 30" /><label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={onChange}><option value="false">Nein</option><option value="true">Ja</option></select></label></>
 }
 
-function MasterDataEditModal({ section, form, errors, onChange, onClose, onApply }) {
+function MasterDataEditModal({ section, form, errors, onChange, onClose, onApply, saving }) {
   const { title, className } = masterDataSections[section]
-  return createPortal(<div className="masterdata-edit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="masterdata-edit-modal" role="dialog" aria-modal="true" aria-labelledby="masterdata-edit-modal-title"><div className="masterdata-edit-modal__heading"><h2 id="masterdata-edit-modal-title">{title} bearbeiten</h2><button type="button" onClick={onClose} aria-label="Dialog schließen"><CloseIcon /></button></div><div className={`form-grid masterdata-edit-modal__fields ${className}`}><MasterDataFields section={section} form={form} onChange={onChange} errors={errors} /></div><div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="button" onClick={onApply}>Übernehmen</button></div></section></div>, document.body)
+  return createPortal(<div className="masterdata-edit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}><section className="masterdata-edit-modal" role="dialog" aria-modal="true" aria-labelledby="masterdata-edit-modal-title"><div className="masterdata-edit-modal__heading"><h2 id="masterdata-edit-modal-title">{title} bearbeiten</h2><button type="button" onClick={onClose} aria-label="Dialog schließen" disabled={saving}><CloseIcon /></button></div><div className={`form-grid masterdata-edit-modal__fields ${className}`}><MasterDataFields section={section} form={form} onChange={onChange} errors={errors} /></div><div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>Abbrechen</button><button className="button" type="button" onClick={onApply} disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div></section></div>, document.body)
 }
 
 function displayDepartment(contact) {
@@ -109,10 +109,11 @@ function portalNameFromUrl(url) {
   }
 }
 
-function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
+function ContactsSection({ contacts, onChange, draft, onDraftChange, saving }) {
   const [editErrors, setEditErrors] = useState({})
   const [newContact, setNewContact] = useState(createContact)
   const [newErrors, setNewErrors] = useState({})
+  const [adding, setAdding] = useState(false)
 
   function startEdit(contact) {
     setEditErrors({})
@@ -124,7 +125,7 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
     setEditErrors((current) => ({ ...current, [field]: undefined }))
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     const nextErrors = {}
     if (!draft.name.trim()) nextErrors.name = 'Name ist erforderlich.'
     if (!draft.department) nextErrors.department = 'Abteilung ist erforderlich.'
@@ -132,8 +133,8 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
     setEditErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    onChange(contacts.map((contact) => contact.id === draft.id ? draft : contact))
-    onDraftChange(null)
+    const saved = await onChange(contacts.map((contact) => contact.id === draft.id ? draft : contact))
+    if (saved) onDraftChange(null)
   }
 
   function updateNewContact(field, value) {
@@ -146,7 +147,17 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
     setNewErrors({})
   }
 
-  function saveNewContact() {
+  function startNewContact() {
+    resetNewContact()
+    setAdding(true)
+  }
+
+  function cancelNewContact() {
+    resetNewContact()
+    setAdding(false)
+  }
+
+  async function saveNewContact() {
     const nextErrors = {}
     if (!newContact.name.trim()) nextErrors.name = 'Name ist erforderlich.'
     if (!newContact.department) nextErrors.department = 'Abteilung ist erforderlich.'
@@ -154,18 +165,21 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
     setNewErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    onChange([...contacts, newContact])
-    resetNewContact()
+    const saved = await onChange([...contacts, newContact])
+    if (saved) {
+      resetNewContact()
+      setAdding(false)
+    }
   }
 
-  function removeContact(contactId) {
-    onChange(contacts.filter((contact) => contact.id !== contactId))
-    if (draft?.id === contactId) onDraftChange(null)
+  async function removeContact(contactId) {
+    const saved = await onChange(contacts.filter((contact) => contact.id !== contactId))
+    if (saved && draft?.id === contactId) onDraftChange(null)
   }
 
   return (
     <section className="form-section contacts-section">
-      <div className="contacts-section__header"><h2>Ansprechpartner</h2></div>
+      <div className="contacts-section__header"><h2>Ansprechpartner</h2>{!adding && <button className="button button--secondary" type="button" onClick={startNewContact} disabled={saving}>Hinzufügen</button>}</div>
       <div className="contacts-table table-frame"><table className="data-table"><thead><tr><th>Name</th><th>Abteilung</th><th>Telefon</th><th>Mobil</th><th>E-Mail</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => {
         const isEditing = draft?.id === contact.id
         return <tr key={contact.id} className={isEditing ? 'contacts-table__row--editing' : ''}>
@@ -174,18 +188,19 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange }) {
           <td>{isEditing ? <input aria-label="Telefon" type="tel" value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} /> : contact.phone || '—'}</td>
           <td>{isEditing ? <input aria-label="Mobil" type="tel" value={draft.mobile} onChange={(event) => updateDraft('mobile', event.target.value)} /> : contact.mobile || '—'}</td>
           <td>{isEditing ? <input aria-label="E-Mail" type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} aria-invalid={Boolean(editErrors.email)} title={editErrors.email} /> : contact.email || '—'}</td>
-          <td className="contacts-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveDraft} title="Speichern" aria-label="Ansprechpartner speichern"><CheckIcon /></button><button type="button" onClick={() => onDraftChange(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen"><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(contact)} title="Bearbeiten" aria-label="Ansprechpartner bearbeiten"><EditIcon /></button><button type="button" onClick={() => removeContact(contact.id)} title="Entfernen" aria-label="Ansprechpartner entfernen"><TrashIcon /></button></>}</div></td>
+          <td className="contacts-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveDraft} title="Speichern" aria-label="Ansprechpartner speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={() => onDraftChange(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen" disabled={saving}><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(contact)} title="Bearbeiten" aria-label="Ansprechpartner bearbeiten" disabled={saving}><EditIcon /></button><button type="button" onClick={() => removeContact(contact.id)} title="Entfernen" aria-label="Ansprechpartner entfernen" disabled={saving}><TrashIcon /></button></>}</div></td>
         </tr>
-      }) : null}<tr className="contacts-table__row--new"><td><input aria-label="Name des neuen Ansprechpartners" value={newContact.name} onChange={(event) => updateNewContact('name', event.target.value)} aria-invalid={Boolean(newErrors.name)} title={newErrors.name} /></td><td><select aria-label="Abteilung des neuen Ansprechpartners" value={newContact.department} onChange={(event) => updateNewContact('department', event.target.value)} aria-invalid={Boolean(newErrors.department)} title={newErrors.department}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><input aria-label="Telefon des neuen Ansprechpartners" type="tel" value={newContact.phone} onChange={(event) => updateNewContact('phone', event.target.value)} /></td><td><input aria-label="Mobil des neuen Ansprechpartners" type="tel" value={newContact.mobile} onChange={(event) => updateNewContact('mobile', event.target.value)} /></td><td><input aria-label="E-Mail des neuen Ansprechpartners" type="email" value={newContact.email} onChange={(event) => updateNewContact('email', event.target.value)} aria-invalid={Boolean(newErrors.email)} title={newErrors.email} /></td><td className="contacts-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewContact} title="Speichern" aria-label="Neuen Ansprechpartner speichern"><CheckIcon /></button><button type="button" onClick={resetNewContact} title="Eingaben zurücksetzen" aria-label="Neue Ansprechpartner-Eingaben zurücksetzen"><CloseIcon /></button></div></td></tr></tbody></table></div>
+      }) : null}{adding && <tr className="contacts-table__row--new"><td><input aria-label="Name des neuen Ansprechpartners" value={newContact.name} onChange={(event) => updateNewContact('name', event.target.value)} aria-invalid={Boolean(newErrors.name)} title={newErrors.name} disabled={saving} /></td><td><select aria-label="Abteilung des neuen Ansprechpartners" value={newContact.department} onChange={(event) => updateNewContact('department', event.target.value)} aria-invalid={Boolean(newErrors.department)} title={newErrors.department} disabled={saving}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><input aria-label="Telefon des neuen Ansprechpartners" type="tel" value={newContact.phone} onChange={(event) => updateNewContact('phone', event.target.value)} disabled={saving} /></td><td><input aria-label="Mobil des neuen Ansprechpartners" type="tel" value={newContact.mobile} onChange={(event) => updateNewContact('mobile', event.target.value)} disabled={saving} /></td><td><input aria-label="E-Mail des neuen Ansprechpartners" type="email" value={newContact.email} onChange={(event) => updateNewContact('email', event.target.value)} aria-invalid={Boolean(newErrors.email)} title={newErrors.email} disabled={saving} /></td><td className="contacts-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewContact} title="Speichern" aria-label="Neuen Ansprechpartner speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={cancelNewContact} title="Abbrechen" aria-label="Neue Ansprechpartner-Eingaben verwerfen" disabled={saving}><CloseIcon /></button></div></td></tr>}</tbody></table></div>
     </section>
   )
 }
 
-function PortalsSection({ portals, onChange }) {
+function PortalsSection({ portals, onChange, saving }) {
   const [editDraft, setEditDraft] = useState(null)
   const [editErrors, setEditErrors] = useState({})
   const [newPortal, setNewPortal] = useState(createPartnerPortal)
   const [newErrors, setNewErrors] = useState({})
+  const [adding, setAdding] = useState(false)
 
   function startEdit(portal) {
     setEditErrors({})
@@ -197,15 +212,15 @@ function PortalsSection({ portals, onChange }) {
     setEditErrors((current) => ({ ...current, [field]: undefined }))
   }
 
-  function saveEditDraft() {
+  async function saveEditDraft() {
     const nextErrors = {}
     if (!editDraft.url.trim()) nextErrors.url = 'Link ist erforderlich.'
     else if (!validateWebsite(editDraft.url)) nextErrors.url = 'Bitte eine vollständige Link-Adresse eingeben.'
     setEditErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    onChange(portals.map((portal) => portal.id === editDraft.id ? editDraft : portal))
-    setEditDraft(null)
+    const saved = await onChange(portals.map((portal) => portal.id === editDraft.id ? editDraft : portal))
+    if (saved) setEditDraft(null)
   }
 
   function updateNewPortal(field, value) {
@@ -218,39 +233,52 @@ function PortalsSection({ portals, onChange }) {
     setNewErrors({})
   }
 
-  function saveNewPortal() {
+  function startNewPortal() {
+    resetNewPortal()
+    setAdding(true)
+  }
+
+  function cancelNewPortal() {
+    resetNewPortal()
+    setAdding(false)
+  }
+
+  async function saveNewPortal() {
     const nextErrors = {}
     if (!newPortal.url.trim()) nextErrors.url = 'Link ist erforderlich.'
     else if (!validateWebsite(newPortal.url)) nextErrors.url = 'Bitte eine vollständige Link-Adresse eingeben.'
     setNewErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
 
-    onChange([...portals, { ...newPortal, name: portalNameFromUrl(newPortal.url) || newPortal.name }])
-    resetNewPortal()
+    const saved = await onChange([...portals, { ...newPortal, name: portalNameFromUrl(newPortal.url) || newPortal.name }])
+    if (saved) {
+      resetNewPortal()
+      setAdding(false)
+    }
   }
 
-  function removePortal(portalId) {
-    onChange(portals.filter((portal) => portal.id !== portalId))
-    if (editDraft?.id === portalId) setEditDraft(null)
+  async function removePortal(portalId) {
+    const saved = await onChange(portals.filter((portal) => portal.id !== portalId))
+    if (saved && editDraft?.id === portalId) setEditDraft(null)
   }
 
   return (
     <section className="form-section portals-section">
-      <h2>Zugänge auf Kundenportalen</h2>
+      <div className="portals-section__header"><h2>Zugänge auf Kundenportalen</h2>{!adding && <button className="button button--secondary" type="button" onClick={startNewPortal} disabled={saving}>Hinzufügen</button>}</div>
       <div className="portals-table table-frame"><table className="data-table"><thead><tr><th>Link</th><th>Benutzer / Mail</th><th>Zugangsnummer</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => {
         const isEditing = editDraft?.id === portal.id
         return <tr key={portal.id} className={isEditing ? 'portals-table__row--editing' : ''}>
           <td>{isEditing ? <input aria-label="Link" value={editDraft.url} onChange={(event) => updateEditDraft('url', event.target.value)} aria-invalid={Boolean(editErrors.url)} title={editErrors.url} placeholder="https://" /> : portal.url ? <a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">{portal.url}</a> : '—'}</td>
           <td>{isEditing ? <input aria-label="Benutzer oder Mail" value={editDraft.username} onChange={(event) => updateEditDraft('username', event.target.value)} autoComplete="username" /> : portal.username || '—'}</td>
           <td>{isEditing ? <input aria-label="Zugangsnummer" value={editDraft.accessNumber} onChange={(event) => updateEditDraft('accessNumber', event.target.value)} /> : portal.accessNumber || '—'}</td>
-          <td className="portals-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveEditDraft} title="Speichern" aria-label="Zugang speichern"><CheckIcon /></button><button type="button" onClick={() => setEditDraft(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen"><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(portal)} title="Bearbeiten" aria-label="Zugang bearbeiten"><EditIcon /></button><button type="button" onClick={() => removePortal(portal.id)} title="Entfernen" aria-label="Zugang entfernen"><TrashIcon /></button></>}</div></td>
+          <td className="portals-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveEditDraft} title="Speichern" aria-label="Zugang speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={() => setEditDraft(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen" disabled={saving}><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(portal)} title="Bearbeiten" aria-label="Zugang bearbeiten" disabled={saving}><EditIcon /></button><button type="button" onClick={() => removePortal(portal.id)} title="Entfernen" aria-label="Zugang entfernen" disabled={saving}><TrashIcon /></button></>}</div></td>
         </tr>
-      }) : null}<tr className="portals-table__row--new"><td><input aria-label="Link des neuen Zugangs" value={newPortal.url} onChange={(event) => updateNewPortal('url', event.target.value)} aria-invalid={Boolean(newErrors.url)} title={newErrors.url} placeholder="https://" /></td><td><input aria-label="Benutzer oder Mail des neuen Zugangs" value={newPortal.username} onChange={(event) => updateNewPortal('username', event.target.value)} autoComplete="username" /></td><td><input aria-label="Zugangsnummer des neuen Zugangs" value={newPortal.accessNumber} onChange={(event) => updateNewPortal('accessNumber', event.target.value)} /></td><td className="portals-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewPortal} title="Speichern" aria-label="Neuen Zugang speichern"><CheckIcon /></button><button type="button" onClick={resetNewPortal} title="Eingaben zurücksetzen" aria-label="Neue Zugangseingaben zurücksetzen"><CloseIcon /></button></div></td></tr></tbody></table></div>
+      }) : null}{adding && <tr className="portals-table__row--new"><td><input aria-label="Link des neuen Zugangs" value={newPortal.url} onChange={(event) => updateNewPortal('url', event.target.value)} aria-invalid={Boolean(newErrors.url)} title={newErrors.url} placeholder="https://" disabled={saving} /></td><td><input aria-label="Benutzer oder Mail des neuen Zugangs" value={newPortal.username} onChange={(event) => updateNewPortal('username', event.target.value)} autoComplete="username" disabled={saving} /></td><td><input aria-label="Zugangsnummer des neuen Zugangs" value={newPortal.accessNumber} onChange={(event) => updateNewPortal('accessNumber', event.target.value)} disabled={saving} /></td><td className="portals-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewPortal} title="Speichern" aria-label="Neuen Zugang speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={cancelNewPortal} title="Abbrechen" aria-label="Neue Zugangseingaben verwerfen" disabled={saving}><CloseIcon /></button></div></td></tr>}</tbody></table></div>
     </section>
   )
 }
 
-export default function BusinessPartnerForm({ initialValue, isNew = false, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false }) {
+export default function BusinessPartnerForm({ initialValue, isNew = false, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false, saving = false }) {
   const [form, setForm] = useState(() => normalizeForm(initialValue))
   const [savedForm, setSavedForm] = useState(() => normalizeForm(initialValue))
   const [contactDraft, setContactDraft] = useState(null)
@@ -272,6 +300,22 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
     const nextForm = field ? { ...form, [group]: { ...form[group], [field]: normalizedValue } } : { ...form, [name]: normalizedValue }
     updateForm(nextForm)
     setErrors((current) => ({ ...current, [name]: undefined }))
+  }
+
+  async function persistChanges(nextForm) {
+    if (isNew) {
+      updateForm(nextForm)
+      return true
+    }
+
+    const saved = await onSubmit(nextForm)
+    if (saved) {
+      setForm(nextForm)
+      setSavedForm(nextForm)
+      onFormChange?.(nextForm)
+      onDirtyChange?.(false)
+    }
+    return saved
   }
 
   function openSectionEditor(section) {
@@ -304,11 +348,12 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
     return nextErrors
   }
 
-  function applySectionChanges() {
+  async function applySectionChanges() {
     const nextErrors = validateSection(editingSection, sectionDraft)
     setSectionErrors(nextErrors)
     if (Object.keys(nextErrors).length) return
-    updateForm(sectionDraft)
+    const saved = await persistChanges(sectionDraft)
+    if (!saved) return
     const sectionErrorKeys = {
       company: ['companyName'],
       contact: ['contact.email', 'contact.website'],
@@ -319,17 +364,19 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
     closeSectionEditor()
   }
 
-  function updateContacts(contacts) {
-    updateForm({ ...form, contacts })
-    setErrors((current) => ({ ...current, contacts: undefined }))
+  async function updateContacts(contacts) {
+    const saved = await persistChanges({ ...form, contacts })
+    if (saved) setErrors((current) => ({ ...current, contacts: undefined }))
+    return saved
   }
 
-  function updatePortals(portals) {
-    updateForm({ ...form, portals })
+  async function updatePortals(portals) {
+    return persistChanges({ ...form, portals })
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
+    if (!isNew) return
     const nextErrors = { ...validateSection('company', form), ...validateSection('references', form), ...validateSection('contact', form), ...validateSection('billing', form) }
     if (form.contacts.some((contact) => !contact.name.trim() || !contact.department || (contact.email.trim() && !validateEmail(contact.email)))) nextErrors.contacts = 'Bitte die Ansprechpartnerangaben prüfen.'
     setErrors(nextErrors)
@@ -359,9 +406,9 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
         </div>
       </div>
 
-      <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} />
+      <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} saving={saving} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
-      <PortalsSection portals={form.portals} onChange={updatePortals} />
-    </fieldset>{editingSection && sectionDraft && <MasterDataEditModal section={editingSection} form={sectionDraft} errors={sectionErrors} onChange={handleSectionChange} onClose={closeSectionEditor} onApply={applySectionChanges} />}</form>
+      <PortalsSection portals={form.portals} onChange={updatePortals} saving={saving} />
+    </fieldset>{editingSection && sectionDraft && <MasterDataEditModal section={editingSection} form={sectionDraft} errors={sectionErrors} onChange={handleSectionChange} onClose={closeSectionEditor} onApply={applySectionChanges} saving={saving} />}</form>
   )
 }

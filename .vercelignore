@@ -1,0 +1,42 @@
+# Firebase is deployed independently via firebase.json. It is not a Vercel
+# runtime and must never be uploaded as part of this frontend deployment.
+/functions/
+/.firebase/
+/firebase-emulator-data/
+/emulator-data/
+
+# Local build output and package-install remnants. Vercel builds the Vite app
+# from source, so a locally generated dist directory is neither needed nor
+# served as a source artifact.
+/dist/
+/.vite/
+/node_modules/
+/node_modules.install-incomplete/
+
+# Local development, emulator, test and diagnostic artifacts.
+/tmp/
+/coverage/
+/test-results/
+/test-data/
+/screenshots/
+firebase-debug*.log
+firestore-debug*.log
+ui-debug*.log
+*.log
+
+# Documents belong in Firebase Storage, never in a deployment artifact.
+/uploads/
+/downloads/
+/documents/
+/pdfs/
+/generated-pdfs/
+/ai-tmp/
+/ai-output/
+*.pdf
+*.PDF
+
+# Local recovery copies and archives are not deployable application source.
+/backups/
+*.bak
+*.backup
+*.orig

@@ -1,4 +1,3 @@
-import { Navigate, useLocation } from 'react-router-dom'
 import AuthLoadingScreen from './AuthLoadingScreen.jsx'
 import { useAuth } from './useAuth.js'
 import { canManagePermissions, canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../lib/permissions.js'
@@ -9,12 +8,8 @@ export function AccessDenied() {
 
 export default function PermissionRoute({ module, children, requireUserManagement = false, requireVacationManagement = false, requireSuperadmin = false }) {
   const { isLoading, profile } = useAuth()
-  const location = useLocation()
   if (isLoading) return <AuthLoadingScreen />
   const allowed = requireSuperadmin ? canManagePermissions(profile) && profile?.active === true : requireUserManagement ? canManageUsers(profile) : requireVacationManagement ? canManageVacations(profile) : module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : canView(profile, module)
   if (allowed) return children
-  // Keep a compact denial view for logged-in users; unauthenticated access still
-  // goes through ProtectedRoute before this component.
-  if (location.pathname === '/dashboard') return <Navigate to="/profil" replace />
   return <AccessDenied />
 }
