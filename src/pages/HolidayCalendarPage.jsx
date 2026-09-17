@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
 import HolidayDetailModal from '../components/holidays/HolidayDetailModal.jsx'
 import { EUROPEAN_COUNTRIES, GERMAN_STATES, SYNCHRONIZED_HOLIDAY_COUNTRY_CODES, getVisibleHolidays, holidayYears } from '../lib/holidayCalendar.js'
-import { listPublicHolidays } from '../lib/holidayData.js'
+import { listPublicHolidays, listSchoolHolidays } from '../lib/holidayData.js'
+import { schoolHolidayDaysForMonth } from '../lib/schoolHolidayCalendar.js'
 import { VACATION_MONTHS } from '../lib/vacationCalendar.js'
 import '../styles/holidayCalendar.css'
 
@@ -23,7 +24,12 @@ export default function HolidayCalendarPage() {
   const [selectedHoliday, setSelectedHoliday] = useState(null)
   const [holidayRecords, setHolidayRecords] = useState([])
   const [holidayLoadError, setHolidayLoadError] = useState('')
+  const [schoolHolidaysEnabled, setSchoolHolidaysEnabled] = useState(false)
+  const [schoolHolidaySubdivisionCode, setSchoolHolidaySubdivisionCode] = useState('DE-NW')
+  const [schoolHolidayRecords, setSchoolHolidayRecords] = useState([])
+  const [schoolHolidayLoadError, setSchoolHolidayLoadError] = useState('')
   const holidays = useMemo(() => getVisibleHolidays(holidayRecords, year, germanyEnabled, selectedStates, selectedCountryCodes), [germanyEnabled, holidayRecords, selectedCountryCodes, selectedStates, year])
+  const schoolHolidayDays = useMemo(() => schoolHolidaysEnabled ? schoolHolidayDaysForMonth(schoolHolidayRecords, year, month) : {}, [month, schoolHolidayRecords, schoolHolidaysEnabled, year])
   const allCountriesSelected = SYNCHRONIZED_HOLIDAY_COUNTRY_CODES.every((countryCode) => selectedCountryCodes.includes(countryCode))
   const today = localTodayValue()
 
@@ -34,6 +40,15 @@ export default function HolidayCalendarPage() {
       .catch(() => { if (active) setHolidayLoadError('Feiertage konnten nicht geladen werden.') })
     return () => { active = false }
   }, [selectedCountryCodes])
+
+  useEffect(() => {
+    if (!schoolHolidaysEnabled) return undefined
+    let active = true
+    listSchoolHolidays('DE', schoolHolidaySubdivisionCode)
+      .then((records) => { if (active) { setSchoolHolidayRecords(records); setSchoolHolidayLoadError('') } })
+      .catch(() => { if (active) { setSchoolHolidayRecords([]); setSchoolHolidayLoadError('Ferien konnten nicht geladen werden.') } })
+    return () => { active = false }
+  }, [schoolHolidaySubdivisionCode, schoolHolidaysEnabled])
 
   function moveMonth(delta) {
     const next = new Date(year, month + delta, 1)
@@ -91,10 +106,17 @@ export default function HolidayCalendarPage() {
         </div>
       </div>
       {holidayLoadError && <p className="holiday-calendar-state">{holidayLoadError}</p>}
-      <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} onHolidayClick={setSelectedHoliday} />
+      <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} schoolHolidayDays={schoolHolidayDays} onHolidayClick={setSelectedHoliday} />
     </section>
 
-    <aside className="holiday-countries-card">
+    <div className="holiday-sidebar">
+      <section className="school-holidays-card">
+        <div className="school-holidays-card__heading"><h2>Schulferien</h2><p>Nur im Feiertagskalender.</p></div>
+        <label className="school-holidays-card__toggle"><input type="checkbox" checked={schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaysEnabled(event.target.checked)} /><span>Ferien einblenden</span></label>
+        <label className="filter-field school-holidays-card__field"><span>Bundesland</span><select value={schoolHolidaySubdivisionCode} disabled={!schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaySubdivisionCode(event.target.value)}>{GERMAN_STATES.map((state) => <option key={state.code} value={`DE-${state.code}`}>{state.name}</option>)}</select></label>
+        {schoolHolidayLoadError && <p className="school-holidays-card__error">{schoolHolidayLoadError}</p>}
+      </section>
+      <aside className="holiday-countries-card">
       <div className="holiday-countries-card__heading"><h2>Länder</h2><p>Feiertagsauswahl</p></div>
       <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={allCountriesSelected} onChange={(event) => toggleAllCountries(event.target.checked)} /><span>Alle Länder</span></label>{EUROPEAN_COUNTRIES.map((country) => {
         const isExpanded = expandedCountries.has(country.code)
@@ -107,7 +129,8 @@ export default function HolidayCalendarPage() {
           {country.code === 'DE' && isExpanded && <div className="holiday-state-list">{country.regions.map((state) => <label className="holiday-state" key={state.code}><input type="checkbox" checked={selectedStates.includes(state.code)} disabled={!germanyEnabled} onChange={(event) => toggleState(state.code, event.target.checked)} /><span>{state.name}</span></label>)}</div>}
         </div>
       })}</div>
-    </aside>
+      </aside>
+    </div>
     {selectedHoliday && <HolidayDetailModal holiday={selectedHoliday} onClose={() => setSelectedHoliday(null)} />}
   </div>
 }

@@ -115,6 +115,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // School holidays are an independent, server-maintained projection used
+    // only by the standalone Feiertagskalender. No client may alter data or
+    // synchronization history.
+    match /schoolHolidays/{holidayId} {
+      allow read: if view('feiertagskalender');
+      allow write: if false;
+    }
+
+    match /schoolHolidaySyncStatus/{countryCode} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    match /schoolHolidaySyncLogs/{logId} {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Process content is written through the callable function, where the
     // complete graph is validated before publication. Readers with view
     // access can only query active processes; editors may also work with

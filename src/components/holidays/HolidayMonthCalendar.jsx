@@ -15,7 +15,7 @@ function holidayDetail(holiday) {
   return `${holiday.name} · Quelle: ${holiday.sourceName || holiday.name} · Gilt in: ${locations.join(', ')}`
 }
 
-export default function HolidayMonthCalendar({ holidays, month, onHolidayClick, today, year }) {
+export default function HolidayMonthCalendar({ holidays, month, onHolidayClick, schoolHolidayDays = {}, today, year }) {
   const holidaysByDate = holidays.reduce((items, holiday) => {
     items[holiday.date] = [...(items[holiday.date] || []), holiday]
     return items
@@ -28,9 +28,10 @@ export default function HolidayMonthCalendar({ holidays, month, onHolidayClick, 
       {week.map((date, index) => {
         if (!date) return <div key={`empty-${weekIndex}-${index}`} className="holiday-day holiday-day--empty" />
         const value = dateValue(date)
-        return <div className={`holiday-day${value === today ? ' holiday-day--today' : ''}`} key={value}>
+        const schoolHolidays = schoolHolidayDays[value] || []
+        return <div className={`holiday-day${value === today ? ' holiday-day--today' : ''}${schoolHolidays.length ? ' holiday-day--school-holiday' : ''}`} key={value}>
           <time dateTime={value}>{date.getDate()}</time>
-          <div className="holiday-day__entries">{(holidaysByDate[value] || []).map((holiday) => {
+          <div className="holiday-day__entries">{schoolHolidays.map((holiday) => <span className="school-holiday-entry" key={`${holiday.id}-${value}`} title={holiday.name}>{holiday.name}</span>)}{(holidaysByDate[value] || []).map((holiday) => {
             const detail = holidayDetail(holiday)
             return <button className={`holiday-entry holiday-entry--${holiday.colorVariant}`} type="button" key={holiday.id} title={detail} aria-label={`${detail}. Details öffnen`} onClick={() => onHolidayClick(holiday)}>{holiday.name}</button>
           })}</div>

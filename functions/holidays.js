@@ -6,6 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
 import { getHolidayDisplayNameDe } from './holidayTranslations.js'
+import { runSchoolHolidaySync } from './schoolHolidays.js'
 
 if (!getApps().length) initializeApp()
 
@@ -16,9 +17,12 @@ const SYNC_LOG_COLLECTION = 'holidaySyncLogs'
 const NAGER_SOURCE = 'Nager.Date Community API v4'
 const NAGER_URL = 'https://nagerholidays.com/api/v4/Holidays'
 const PRIMARY_COUNTRY_CODE = 'DE'
-const SYNC_COUNTRY_CODES = Object.freeze(['DE', 'NL', 'BE', 'LU', 'FR', 'AT', 'CH', 'IT', 'ES', 'PT', 'PL', 'CZ', 'SK', 'HU', 'DK', 'GB', 'IE', 'SI', 'HR', 'RO'])
+const SYNC_COUNTRY_CODES = Object.freeze(['DE', 'NL', 'BE', 'LU', 'FR', 'AT', 'CH', 'IT', 'ES', 'PT', 'PL', 'CZ', 'SK', 'HU', 'DK', 'GB', 'IE', 'SI', 'HR', 'RO', 'SE', 'NO', 'FI', 'EE', 'LV', 'LT', 'BG', 'GR', 'TR', 'RS'])
 const COUNTRY_SYNC_CONCURRENCY = 4
 const YEAR_FETCH_CONCURRENCY = 3
+// Thirty enabled countries with five years each require exactly 150 Nager.Date
+// requests. The country/year worker limits still cap active API requests at 12.
+const MAX_SYNC_API_REQUESTS = 150
 
 function berlinDateValue(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
@@ -158,8 +162,7 @@ async function syncCountryPublicHolidays(countryCode, years, today) {
 export async function syncPublicHolidays() {
   const today = berlinDateValue()
   const years = syncYears(today)
-  // 20 countries × 5 years equals the explicit API-request limit of 100.
-  if (SYNC_COUNTRY_CODES.length * years.length > 100) throw new Error('Die konfigurierte Feiertagssynchronisation überschreitet das Limit von 100 API-Abfragen.')
+  if (SYNC_COUNTRY_CODES.length * years.length > MAX_SYNC_API_REQUESTS) throw new Error(`Die konfigurierte Feiertagssynchronisation überschreitet das Limit von ${MAX_SYNC_API_REQUESTS} API-Abfragen.`)
   const countryResults = await mapWithConcurrency(SYNC_COUNTRY_CODES, COUNTRY_SYNC_CONCURRENCY, async (countryCode) => {
     try {
       return { result: await syncCountryPublicHolidays(countryCode, years, today) }
@@ -276,5 +279,11 @@ export const scheduledHolidayDataRefresh = onSchedule({ region: 'europe-west3', 
     logger.info('Feiertagssynchronisation abgeschlossen.', result)
   } catch (error) {
     logger.error('Geplante Feiertagssynchronisation fehlgeschlagen.', error)
+  }
+  try {
+    const result = await runSchoolHolidaySync({ trigger: 'automatic' })
+    logger.info('Feriensynchronisation abgeschlossen.', result)
+  } catch (error) {
+    logger.error('Geplante Feriensynchronisation fehlgeschlagen.', error)
   }
 })
