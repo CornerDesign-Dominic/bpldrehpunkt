@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { PALLET_ACCOUNT_FILTERS } from '../../constants/pallets.js'
 import { getBusinessPartnerType, listBusinessPartners } from '../../lib/businessPartners.js'
 import { isPalletMovementForPartner, listAllPalletClosings, listAllPalletMovements, summarizePalletAccount } from '../../lib/palletAccounts.js'
@@ -7,6 +7,7 @@ import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 import { getPartnerEvaluationStatus } from '../../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../../partner-evaluation/usePartnerEvaluationSettings.js'
 import '../../styles/businessPartnerExtensions.css'
+import '../../styles/pallets.css'
 
 function matchesFilter(partner, filter) {
   if (filter === 'all') return true
@@ -46,6 +47,7 @@ function sortAccounts(accounts, sort) {
 
 export default function PalletAccountList() {
   const { settings } = usePartnerEvaluationSettings()
+  const navigate = useNavigate()
   const [partners, setPartners] = useState([])
   const [movements, setMovements] = useState([])
   const [closings, setClosings] = useState([])
@@ -81,6 +83,16 @@ export default function PalletAccountList() {
     setFilter('all')
   }
 
+  function openAccount(partnerId) {
+    navigate(`/paletten/${partnerId}`)
+  }
+
+  function handleAccountRowKeyDown(event, partnerId) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openAccount(partnerId)
+  }
+
   function renderSortableHeader(key, label) {
     const isActive = sort.key === key
     const direction = isActive ? sort.direction : 'none'
@@ -94,6 +106,6 @@ export default function PalletAccountList() {
     <div className="list-toolbar pallets-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Palettenkonto suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">Partnerfilter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{PALLET_ACCOUNT_FILTERS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div><button className="button button--secondary" type="button" onClick={resetFilters} disabled={!hasActiveFilters}>Filter zurücksetzen</button></div>
     {partnerError && <p className="form-error">{partnerError}</p>}
     {accountError && <p className="form-error">{accountError}</p>}
-    <div className="table-frame pallets-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', 'Firmenname')}{renderSortableHeader('city', 'Ort')}{renderSortableHeader('debtorNumber', 'Debitor')}{renderSortableHeader('creditorNumber', 'Kreditor')}{renderSortableHeader('balance', 'Saldo')}{renderSortableHeader('closingDate', 'Letzter Kontoabschluss')}<th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{loading ? <tr><td colSpan="7" className="table-state">Palettenkonten werden geladen …</td></tr> : partnerError ? <tr><td colSpan="7" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visibleAccounts.length ? visibleAccounts.map(({ partner, account }) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{accountError ? '—' : balancePresentation(account.balance)}</td><td>{accountError ? '—' : formatClosing(account.latestClosing)}</td><td className="table-action"><Link className="table-action__open" to={`/paletten/${partner.id}`} aria-label={`${partner.companyName} öffnen`} title="Öffnen">Öffnen</Link></td></tr>) : <tr><td colSpan="7" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
+    <div className="table-frame pallets-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', 'Firmenname')}{renderSortableHeader('city', 'Ort')}{renderSortableHeader('debtorNumber', 'Debitor')}{renderSortableHeader('creditorNumber', 'Kreditor')}{renderSortableHeader('balance', 'Saldo')}{renderSortableHeader('closingDate', 'Letzter Kontoabschluss')}</tr></thead><tbody>{loading ? <tr><td colSpan="6" className="table-state">Palettenkonten werden geladen …</td></tr> : partnerError ? <tr><td colSpan="6" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visibleAccounts.length ? visibleAccounts.map(({ partner, account }) => <tr className="pallet-account-row" key={partner.id} tabIndex="0" aria-label={`${partner.companyName} öffnen`} onClick={() => openAccount(partner.id)} onKeyDown={(event) => handleAccountRowKeyDown(event, partner.id)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{accountError ? '—' : balancePresentation(account.balance)}</td><td>{accountError ? '—' : formatClosing(account.latestClosing)}</td></tr>) : <tr><td colSpan="6" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
   </div>
 }

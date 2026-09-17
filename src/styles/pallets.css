@@ -1,0 +1,5 @@
+.pallet-account-row { cursor: pointer; }
+.pallet-account-row td { transition: background-color 120ms ease; }
+.pallet-account-row:hover td { background: var(--table-hover-background); }
+.pallet-account-row:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
+.pallet-account-row:focus-visible td { background: var(--surface-active); }
