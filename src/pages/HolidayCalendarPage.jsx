@@ -24,7 +24,7 @@ export default function HolidayCalendarPage() {
   const [selectedHoliday, setSelectedHoliday] = useState(null)
   const [holidayRecords, setHolidayRecords] = useState([])
   const [holidayLoadError, setHolidayLoadError] = useState('')
-  const [schoolHolidaysEnabled, setSchoolHolidaysEnabled] = useState(false)
+  const [schoolHolidaysEnabled, setSchoolHolidaysEnabled] = useState(true)
   const [schoolHolidaySubdivisionCode, setSchoolHolidaySubdivisionCode] = useState('DE-NW')
   const [schoolHolidayRecords, setSchoolHolidayRecords] = useState([])
   const [schoolHolidayLoadError, setSchoolHolidayLoadError] = useState('')
@@ -111,13 +111,13 @@ export default function HolidayCalendarPage() {
 
     <div className="holiday-sidebar">
       <section className="school-holidays-card">
-        <div className="school-holidays-card__heading"><h2>Schulferien</h2><p>Nur im Feiertagskalender.</p></div>
+        <div className="school-holidays-card__heading"><h2>Schulferien</h2></div>
         <label className="school-holidays-card__toggle"><input type="checkbox" checked={schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaysEnabled(event.target.checked)} /><span>Ferien einblenden</span></label>
-        <label className="filter-field school-holidays-card__field"><span>Bundesland</span><select value={schoolHolidaySubdivisionCode} disabled={!schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaySubdivisionCode(event.target.value)}>{GERMAN_STATES.map((state) => <option key={state.code} value={`DE-${state.code}`}>{state.name}</option>)}</select></label>
+        <label className="filter-field school-holidays-card__field"><span className="sr-only">Bundesland</span><select aria-label="Bundesland" value={schoolHolidaySubdivisionCode} disabled={!schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaySubdivisionCode(event.target.value)}>{GERMAN_STATES.map((state) => <option key={state.code} value={`DE-${state.code}`}>{state.name}</option>)}</select></label>
         {schoolHolidayLoadError && <p className="school-holidays-card__error">{schoolHolidayLoadError}</p>}
       </section>
       <aside className="holiday-countries-card">
-      <div className="holiday-countries-card__heading"><h2>Länder</h2><p>Feiertagsauswahl</p></div>
+        <div className="holiday-countries-card__heading"><h2>Feiertage</h2></div>
       <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={allCountriesSelected} onChange={(event) => toggleAllCountries(event.target.checked)} /><span>Alle Länder</span></label>{EUROPEAN_COUNTRIES.map((country) => {
         const isExpanded = expandedCountries.has(country.code)
         return <div className={`holiday-country${country.available ? '' : ' holiday-country--unavailable'}`} key={country.code}>
