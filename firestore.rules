@@ -759,7 +759,7 @@ service cloud.firestore {
     }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
     }
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
@@ -782,7 +782,7 @@ service cloud.firestore {
     function validTodoExtras(data) {
       return (!data.keys().hasAny(['priority']) || data.priority in ['low', 'medium', 'high'])
         && (!data.keys().hasAny(['reminderDate']) || data.reminderDate == null || (data.reminderDate is string && data.reminderDate.size() == 10))
-        && validCustomerLink(data) && validCarrierLink(data) && validDamageCaseLink(data)
+        && validCustomerLink(data) && validCarrierLink(data) && validDamageCaseLink(data) && validInsolvencyLink(data)
         && (!data.keys().hasAny(['reference']) || data.reference == null || (data.reference is string && data.reference.size() <= 240));
     }
     function validCustomerLink(data) {
@@ -804,6 +804,10 @@ service cloud.firestore {
     function validDamageCaseLink(data) {
       return !data.keys().hasAny(['damageCaseId']) || data.damageCaseId == null
         || (data.damageCaseId is string && exists(/databases/$(database)/documents/damageCases/$(data.damageCaseId)));
+    }
+    function validInsolvencyLink(data) {
+      return !data.keys().hasAny(['insolvencyId']) || data.insolvencyId == null
+        || (data.insolvencyId is string && exists(/databases/$(database)/documents/insolvencies/$(data.insolvencyId)));
     }
     function validTodoContent(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 240
@@ -879,12 +883,12 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
