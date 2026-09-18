@@ -10,6 +10,7 @@ export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
 export const LEGAL_DISPUTE_PAYMENT_RECIPIENTS = [
   { value: 'court', label: 'Gericht' },
   { value: 'lawyer', label: 'Anwalt' },
+  { value: 'bailiff', label: 'Gerichtsvollzieher' },
   { value: 'counterparty', label: 'Gegenseite' },
   { value: 'other', label: 'Sonstiges' },
 ]
@@ -35,8 +36,8 @@ function financialEntryPayload(values) {
   if (!LEGAL_DISPUTE_FINANCIAL_DIRECTIONS.some((item) => item.value === direction)) throw new Error('Bitte auswählen, ob wir bezahlen oder einen Betrag erhalten.')
   if (values.netAmount === '' || values.netAmount === null || values.netAmount === undefined || !Number.isFinite(netAmount) || netAmount < 0) throw new Error('Bitte einen Nettobetrag eingeben.')
   if (!Number.isFinite(vatAmount) || vatAmount < 0) throw new Error('Die Umsatzsteuer muss eine positive Zahl sein.')
-  const payeeType = direction === 'paid' ? values.payeeType : null
-  if (direction === 'paid' && !LEGAL_DISPUTE_PAYMENT_RECIPIENTS.some((item) => item.value === payeeType)) throw new Error('Bitte den Zahlungsempfänger auswählen.')
+  const payeeType = values.payeeType
+  if (!LEGAL_DISPUTE_PAYMENT_RECIPIENTS.some((item) => item.value === payeeType)) throw new Error('Bitte die Gegenpartei auswählen.')
   return { date, direction, payeeType, netAmount, vatAmount }
 }
 
