@@ -292,6 +292,7 @@ test('HR-recorded vacations are visible to the employee but cannot enter the emp
   const replacement = functionsIndex.match(/export const replacePendingVacationRequest = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   assert.match(manualVacationCreate, /await assertPersonnelAccess\(request, 'edit'\)/)
   assert.match(manualVacationCreate, /status: 'manual', mainStatus: 'manual', hrManualEntry: true/)
+  assert.match(manualVacationCreate, /hrManualCreatedByName: profileDisplayName\(actor\)/)
   assert.match(manualVacationCreate, /managerComment: comment/)
   assert.match(manualVacationUpdate, /await assertPersonnelAccess\(request, 'edit'\)/)
   assert.match(manualVacationUpdate, /vacation\.data\(\)\?\.hrManualEntry !== true/)
@@ -303,4 +304,5 @@ test('HR-recorded vacations are visible to the employee but cannot enter the emp
   assert.match(vacationPage, /isSelectedHrManualVacation = selectedBaseRequest\?\.hrManualEntry === true/)
   assert.match(vacationPage, /!request\.hrManualEntry \|\| request\.status !== 'withdrawn'/)
   assert.match(vacationPage, /<option value="manual">Manuell<\/option>/)
+  assert.match(vacationPage, /Urlaub manuell erfasst von \$\{request\.hrManualCreatedByName \|\| 'HR'\}/)
 })

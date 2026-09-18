@@ -953,7 +953,7 @@ export const createPersonnelVacationAdjustment = onCall({ region: 'europe-west3'
 // employee can see the absence in "Mein Urlaub". The dedicated marker makes
 // the entry immutable for the employee and keeps it out of request workflows.
 export const createPersonnelManualVacation = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
-  await assertPersonnelAccess(request, 'edit')
+  const actor = await assertPersonnelAccess(request, 'edit')
   const { userId, startDate, endDate, days, managerComment } = request.data ?? {}
   if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
   const start = optionalDate(startDate, 'Von')
@@ -967,7 +967,7 @@ export const createPersonnelManualVacation = onCall({ region: 'europe-west3', en
   const user = await db.doc(`users/${userId}`).get()
   if (!user.exists) throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.')
   const vacationRef = db.collection('vacationRequests').doc()
-  await vacationRef.set({ id: vacationRef.id, userId, startDate: start, endDate: end, days: amount, vacationType: 'normal', type: 'vacation', status: 'manual', mainStatus: 'manual', hrManualEntry: true, managerComment: comment, createdAt: FieldValue.serverTimestamp(), createdBy: request.auth.uid, updatedAt: FieldValue.serverTimestamp() })
+  await vacationRef.set({ id: vacationRef.id, userId, startDate: start, endDate: end, days: amount, vacationType: 'normal', type: 'vacation', status: 'manual', mainStatus: 'manual', hrManualEntry: true, hrManualCreatedByName: profileDisplayName(actor), managerComment: comment, createdAt: FieldValue.serverTimestamp(), createdBy: request.auth.uid, updatedAt: FieldValue.serverTimestamp() })
   return { vacationId: vacationRef.id }
 })
 
