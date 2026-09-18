@@ -24,7 +24,9 @@ export default function LegalDisputeFinancialOverview({ canEdit, entries, legalD
   const [error, setError] = useState('')
   const received = entries.filter((entry) => entry.direction === 'received').reduce((total, entry) => total + Number(entry.netAmount || 0) + Number(entry.vatAmount || 0), 0)
   const paid = entries.filter((entry) => entry.direction === 'paid').reduce((total, entry) => total + Number(entry.netAmount || 0) + Number(entry.vatAmount || 0), 0)
-  const currentBalance = received - paid
+  // Der Streitbetrag bildet die offene Ausgangsposition: Solange nichts von
+  // der Gegenseite eingegangen ist, entspricht er einem Verlust für uns.
+  const currentBalance = received - paid - Number(legalDispute.amountInDispute || 0)
   const columns = canEdit ? 7 : 6
 
   function startNew() { setError(''); setDraft({ mode: 'new', values: createEmptyLegalDisputeFinancialEntry() }) }
