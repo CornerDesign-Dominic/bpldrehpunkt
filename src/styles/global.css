@@ -744,7 +744,7 @@ td strong { color: var(--legacy-2e3745); font-weight: 650; }
 .table-action { text-align: right; }
 .table-action a { color: var(--legacy-475e76); font-weight: 600; text-decoration: none; }
 .table-action a:hover { color: var(--legacy-263e57); text-decoration: underline; }
-.crm-table-frame { overflow-x: auto; overflow-y: hidden; border-radius: 6px; }
+.crm-table-frame { overflow-x: auto; overflow-y: hidden; border-radius: 6px; }.crm-table__row { cursor: pointer; }.crm-table__row:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
 .pallets-table-frame { overflow-x: auto; overflow-y: hidden; border-radius: 6px; }
 .pallets-table-frame th { padding: 0; }
 .pallets-table-frame th:not(:last-child) { border-right: 1px solid var(--table-border); }

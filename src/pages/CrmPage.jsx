@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
 import { formatRatingScore, getRatingRoles, listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getPartnerEvaluationStatus } from '../lib/partnerEvaluation.js'
@@ -24,6 +24,7 @@ function matchesFilter(partner, filter) {
 
 export default function CrmPage() {
   const { settings } = usePartnerEvaluationSettings()
+  const navigate = useNavigate()
   const [partners, setPartners] = useState([])
   const [ratings, setRatings] = useState({})
   const [search, setSearch] = useState('')
@@ -53,11 +54,21 @@ export default function CrmPage() {
     return <span className="crm-rating-summary">K: <span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', current.customer?.overallScore, settings)}>{current.customer ? formatRatingScore(current.customer.overallScore) : '—'}</span> · U: <span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', current.carrier?.overallScore, settings)}>{current.carrier ? formatRatingScore(current.carrier.overallScore) : '—'}</span></span>
   }
 
+  function openPartner(partner) {
+    navigate(`/crm/${partner.id}`)
+  }
+
+  function handlePartnerKeyDown(event, partner) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    openPartner(partner)
+  }
+
   return (
     <div className="crm-page">
       <div className="list-toolbar crm-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">CRM-Partner suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label><label className="filter-field"><span className="sr-only">CRM-Filter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div></div>
       {error && <p className="form-error">{error}</p>}
-      <div className="crm-table-frame"><table className="data-table"><thead><tr><th>Firmenname</th><th>Typ</th><th>Ort</th><th>Debitor</th><th>Kreditor</th><th>CRM-Status</th><th>Bewertung</th><th>Potenzial</th><th className="table-action">Öffnen</th></tr></thead><tbody>{loading ? <tr><td colSpan="9" className="table-state">CRM-Partner werden geladen …</td></tr> : error ? <tr><td colSpan="9" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr key={partner.id}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>Nicht bewertet</td><td>{ratingLabel(partner)}</td><td>—</td><td className="table-action"><Link className="table-action__open" to={`/crm/${partner.id}`} aria-label={`${partner.companyName} öffnen`} title="Öffnen">Öffnen</Link></td></tr>) : <tr><td colSpan="9" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
+      <div className="crm-table-frame"><table className="data-table"><thead><tr><th>Firmenname</th><th>Typ</th><th>Ort</th><th>Debitor</th><th>Kreditor</th><th>CRM-Status</th><th>Bewertung</th><th>Potenzial</th></tr></thead><tbody>{loading ? <tr><td colSpan="8" className="table-state">CRM-Partner werden geladen …</td></tr> : error ? <tr><td colSpan="8" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="crm-table__row" key={partner.id} role="link" tabIndex="0" aria-label={`${partner.companyName} öffnen`} onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>Nicht bewertet</td><td>{ratingLabel(partner)}</td><td>—</td></tr>) : <tr><td colSpan="8" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
     </div>
   )
 }
