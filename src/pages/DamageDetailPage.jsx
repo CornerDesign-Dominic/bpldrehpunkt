@@ -7,6 +7,7 @@ import DamageFinancialOverview from '../components/damages/DamageFinancialOvervi
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import { ChevronDownIcon, EditIcon } from '../components/icons.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -240,7 +241,7 @@ export default function DamageDetailPage() {
   }
 
   if (loading) return <p className="page-state">Fall wird geladen …</p>
-  if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><Link className="button button--secondary" to="/schaeden">Zurück</Link></section>
+  if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><BackLink to="/schaeden" /></section>
   if (!damageCase) return null
 
   const nextDeadline = nextDamageDeadline(deadlines)
@@ -255,7 +256,7 @@ export default function DamageDetailPage() {
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
     {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
-    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/schaeden">← Zur Schäden-Übersicht</Link></div>
+    <div className="todo-detail-navigation"><BackLink to="/schaeden" /></div>
     <div className="todo-detail-page damage-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('title')} title="Falltitel bearbeiten" aria-label="Falltitel bearbeiten"><EditIcon size={14} /></button>}</div><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></header>
       {error && <p className="form-error">{error}</p>}

@@ -43,7 +43,6 @@
 .partner-evaluation-label[data-status='red'], .partner-evaluation-value[data-status='red'] { color: var(--status-danger-text); }
 .partner-evaluation-label[data-status='neutral'], .partner-evaluation-value[data-status='neutral'] { color: var(--text-muted); }
 .partner-evaluation-value { font-weight: 700; }
-.masterdata-content-card { padding: 12px 13px; border: 1px solid var(--workspace-border); border-radius: 7px; background: var(--workspace-background); }
 .masterdata-half-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
 .masterdata-half-grid__column { display: grid; align-content: start; gap: 12px; min-width: 0; }
 .masterdata-half-grid .form-section { min-width: 0; }
@@ -61,16 +60,17 @@
 .masterdata-readonly-grid .form-field--postal-code { grid-area: postal-code; }
 .masterdata-readonly-grid .form-field--city { grid-area: city; }
 .masterdata-readonly-grid .form-field--country { grid-area: country; }
-.masterdata-readonly-field { display: grid; min-width: 0; gap: 3px; }
+.masterdata-readonly-field { display: grid; min-width: 0; gap: 4px; }
 .masterdata-readonly-field dt { overflow: hidden; color: var(--text-secondary); font-size: 11px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .masterdata-readonly-field dd { min-width: 0; margin: 0; }
-.masterdata-readonly-field__value { overflow-wrap: anywhere; color: var(--text-primary); font-size: 16px; font-weight: 600; line-height: 1.35; }
-.masterdata-readonly-field__value--copyable, .copy-email-value { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
+.masterdata-readonly-field__value { display: flex; width: 100%; min-width: 0; min-height: 34px; box-sizing: border-box; align-items: center; padding: 5px 8px; overflow: hidden; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font-size: 16px; font-weight: 600; line-height: 1.35; }
+.masterdata-readonly-field__value > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.masterdata-readonly-field__value--copyable, .copy-email-value { display: flex; min-width: 0; align-items: center; gap: 5px; }
 .masterdata-readonly-field__value--copyable > span, .copy-email-value > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .copy-email-button { display: inline-flex; width: 22px; height: 22px; flex: 0 0 22px; align-items: center; justify-content: center; border-radius: 4px; color: var(--text-muted); cursor: pointer; }
 .copy-email-button:hover { color: var(--text-primary); background: var(--surface-active); }
 .copy-email-button:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
-.masterdata-readonly-field__value--status { width: fit-content; min-width: 58px; padding: 3px 7px; border: 1px solid var(--partner-status-text); border-radius: 4px; color: var(--partner-status-text); background: var(--partner-status-background); font-weight: 700; }
+.masterdata-readonly-field__value--status { min-width: 0; border-color: var(--partner-status-text); color: var(--partner-status-text); background: var(--partner-status-background); font-weight: 700; }
 .masterdata-readonly-field__value--status-active { --partner-status-text: var(--status-success-text); --partner-status-background: var(--status-success-background); }
 .masterdata-readonly-field__value--status-inactive, .masterdata-readonly-field__value--status-insolvency { --partner-status-text: var(--status-warning-text); --partner-status-background: var(--status-warning-background); }
 .masterdata-readonly-field__value--status-blocked { --partner-status-text: var(--status-danger-text); --partner-status-background: var(--status-danger-background); }

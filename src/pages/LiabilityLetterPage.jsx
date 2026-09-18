@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import LiabilityLetterForm from '../components/templates/LiabilityLetterForm.jsx'
 import LiabilityLetterPreview from '../components/templates/LiabilityLetterPreview.jsx'
 import LiabilityAiInputModal from '../components/templates/LiabilityAiInputModal.jsx'
 import LiabilityAiResultModal from '../components/templates/LiabilityAiResultModal.jsx'
 import PersonalSignatureOption from '../components/templates/PersonalSignatureOption.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import { usePersonalDocumentSignature } from '../hooks/usePersonalDocumentSignature.js'
 import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
@@ -129,7 +129,7 @@ export default function LiabilityLetterPage() {
     <ConfirmDialog open={Boolean(pdfConfirmationAction)} title="Unvollständige Angaben" message="Nicht alle Felder sind ausgefüllt. Möchtest du die PDF trotzdem erzeugen?" confirmLabel="Trotzdem erzeugen" onCancel={() => setPdfConfirmationAction(null)} onConfirm={confirmPdfAction} />
     <ConfirmDialog open={newDocumentConfirmationOpen} title="Neue Haftbarhaltung erstellen?" message="Alle eingegebenen Daten werden geleert." confirmLabel="Neu erstellen" onCancel={() => setNewDocumentConfirmationOpen(false)} onConfirm={confirmNewDocument} />
     <div className="liability-page__toolbar">
-      <Link className="button button--secondary liability-page__back" to="/vorlagen">Zurück</Link>
+      <BackLink className="liability-page__back" to="/vorlagen" />
       <button className="button button--ai" type="button" onClick={() => setAiStep('input')}>Mit KI vorausfüllen</button>
     </div>
     <div className="liability-page">

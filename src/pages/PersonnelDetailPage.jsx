@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
 import { EditIcon } from '../components/icons.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import { PersonnelManualVacationModal, PersonnelVacationAdjustmentModal, PersonnelVacationMetaModal, PersonnelVacationTable } from '../components/personnel/PersonnelVacationTable.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createPersonnelManualVacation, createPersonnelVacationAdjustment, getPersonnelEmployee, listPersonnelVacations, updatePersonnelEmployee, updatePersonnelManualVacation, updatePersonnelVacationMeta } from '../lib/personnel.js'
@@ -187,7 +188,7 @@ export default function PersonnelDetailPage() {
   const isEditingPersonalData = editingSection === 'personal-data'
   const isEditingVacationData = editingSection === 'vacation-data'
 
-  return <div className="personnel-detail-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="personnel-detail__heading"><Link className="button button--secondary" to="/personal">Zurück</Link></div>{error && <p className="form-error">{error}</p>}
+  return <div className="personnel-detail-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="personnel-detail__heading"><BackLink to="/personal" /></div>{error && <p className="form-error">{error}</p>}
     <div className="personnel-detail__cards">
       <form onSubmit={save}><PersonnelCard title="Stammdaten" editing={isEditingMasterData} isAnotherCardEditing={isAnotherCardEditing} onEdit={canModify ? () => setEditingSection('master-data') : null}>{isEditingMasterData ? <><div className="personnel-detail__grid">{masterDataFields.map(([field, label, type]) => <label className="form-field" key={field}><span>{label}</span><input type={type} required={field === 'firstName' || field === 'lastName'} value={employee[field] ?? ''} onChange={(event) => set(field, event.target.value)} /></label>)}<label className="form-field"><span>Abteilung</span><select value={employee.departmentId || ''} onChange={(event) => set('departmentId', event.target.value)}><option value="">Nicht zugeordnet</option>{availableDepartments.map((department) => <option key={department.id} value={department.id}>{department.name}{department.active ? '' : ' (inaktiv)'}</option>)}</select></label></div><EditActions saving={saving} onCancel={cancelEditing} /></> : <ReadOnlyFields fields={[...masterDataFields, ['department', 'Abteilung']]} employee={employee} />}</PersonnelCard></form>
       <form onSubmit={save}><PersonnelCard title="Arbeitsverhältnis" editing={isEditingEmployment} isAnotherCardEditing={isAnotherCardEditing} onEdit={canModify ? () => setEditingSection('employment') : null}>{isEditingEmployment ? <><div className="personnel-detail__grid">{employmentFields.map(([field, label, type]) => <label className="form-field" key={field}><span>{label}</span><input type={type} value={employee[field] ?? ''} onChange={(event) => set(field, event.target.value)} /></label>)}</div><EditActions saving={saving} onCancel={cancelEditing} /></> : <ReadOnlyFields fields={employmentFields} employee={employee} />}</PersonnelCard></form>

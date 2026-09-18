@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ConfirmDialog from '../ui/ConfirmDialog.jsx'
+import BackLink from '../ui/BackLink.jsx'
 import { usePermissions } from '../../auth/usePermissions.js'
 import Toast from '../ui/Toast.jsx'
 import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
@@ -191,14 +192,14 @@ export default function PalletAccountDetail({ partnerId }) {
   }
 
   if (!partnerResult) return <p className="page-state">Geschäftspartner wird geladen …</p>
-  if (partnerResult.error) return <section className="pallets-empty-state pallets-empty-state--error"><h3>{partnerResult.error}</h3><Link className="button button--secondary" to="/paletten">Zurück zur Übersicht</Link></section>
+  if (partnerResult.error) return <section className="pallets-empty-state pallets-empty-state--error"><h3>{partnerResult.error}</h3><BackLink to="/paletten" /></section>
 
   const { partner } = partnerResult
 
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(deleteTarget)} title={deleteTarget?.type === 'movement' ? 'Palettenbewegung löschen?' : 'Kontoabschluss löschen?'} message={deleteTarget?.type === 'movement' ? 'Diese Palettenbewegung wird dauerhaft gelöscht.' : 'Dieser Kontoabschluss wird dauerhaft gelöscht.'} confirmLabel="Löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
-    <div className="pallet-account-navigation"><Link className="button button--secondary" to="/paletten">Zurück</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Stammdaten</Link></div>
+    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Stammdaten</Link></div>
     <PalletAccountPartnerCard partner={partner} />
     <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={partnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">

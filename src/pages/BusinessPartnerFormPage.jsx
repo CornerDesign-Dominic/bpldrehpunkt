@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
 import BusinessPartnerHeader from '../components/business-partners/BusinessPartnerHeader.jsx'
 import Toast from '../components/ui/Toast.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, updateBusinessPartner } from '../lib/businessPartners.js'
 import { listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
@@ -74,7 +75,7 @@ export default function BusinessPartnerFormPage({ mode }) {
   const palletAccount = useMemo(() => (palletMovements && palletClosings ? summarizePalletAccount(palletMovements, palletClosings, partnerId) : null), [palletClosings, palletMovements, partnerId])
 
   if (loading) return <p className="page-state">Stammdaten werden geladen …</p>
-  if (error && !partner) return <section className="page-state page-state--error"><p>{error}</p><Link className="button button--secondary" to="/kunden-unternehmer">Zur Übersicht</Link></section>
+  if (error && !partner) return <section className="page-state page-state--error"><p>{error}</p><BackLink to="/kunden-unternehmer" /></section>
 
   const shownPartner = currentValues ?? partner
   const isNew = mode === 'create'
@@ -83,10 +84,10 @@ export default function BusinessPartnerFormPage({ mode }) {
   return (
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <div className="masterdata-action-row"><div><Link className="button button--secondary" to="/kunden-unternehmer">Zurück</Link></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird angelegt …' : 'Anlegen'}</button>}</div>
+      <div className="masterdata-action-row"><div><BackLink to="/kunden-unternehmer" /></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird angelegt …' : 'Anlegen'}</button>}</div>
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={canView('crm')} canViewPallets={canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
       {error && <p className="form-error">{error}</p>}
-      <section className="masterdata-content-card"><BusinessPartnerForm formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} /></section>
+      <BusinessPartnerForm formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} />
     </div>
   )
 }

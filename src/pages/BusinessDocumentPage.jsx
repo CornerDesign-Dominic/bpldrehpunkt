@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import BusinessDocumentForm from '../components/templates/BusinessDocumentForm.jsx'
 import BusinessDocumentPreview from '../components/templates/BusinessDocumentPreview.jsx'
 import PersonalSignatureOption from '../components/templates/PersonalSignatureOption.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import { usePersonalDocumentSignature } from '../hooks/usePersonalDocumentSignature.js'
 import { documentPdfFileName } from '../lib/documentExport.js'
 import { downloadBusinessDocumentPdf } from '../lib/businessDocumentPdf.js'
@@ -34,7 +34,7 @@ export default function BusinessDocumentPage() {
   }
 
   return <>
-    <div className="liability-page__toolbar"><Link className="button button--secondary liability-page__back" to="/vorlagen">Zurück</Link></div>
+    <div className="liability-page__toolbar"><BackLink className="liability-page__back" to="/vorlagen" /></div>
     <div className="liability-page">
       <div className="liability-page__header"><div><h2>Geschäftsdokument</h2></div></div>
       <BusinessDocumentForm documentData={documentData} onChange={updateDocumentData} />

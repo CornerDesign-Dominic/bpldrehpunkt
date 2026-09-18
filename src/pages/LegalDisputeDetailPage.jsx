@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
 import LegalDisputeFinancialOverview from '../components/legal-disputes/LegalDisputeFinancialOverview.jsx'
 import LegalDisputeEditModal from '../components/legal-disputes/LegalDisputeEditModal.jsx'
@@ -8,6 +8,7 @@ import DocumentForm from '../components/documents/DocumentForm.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { EditIcon } from '../components/icons.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
@@ -112,7 +113,7 @@ export default function LegalDisputeDetailPage() {
   }
 
   if (loading) return <p className="page-state">Fall wird geladen …</p>
-  if (error && !legalDispute) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><Link className="button button--secondary" to="/legal-disputes">Zurück</Link></section>
+  if (error && !legalDispute) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><BackLink to="/legal-disputes" /></section>
   if (!legalDispute) return null
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
@@ -127,7 +128,7 @@ export default function LegalDisputeDetailPage() {
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
     {editing && <LegalDisputeEditModal key={editing} legalDispute={legalDispute} section={editing} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
-    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/legal-disputes">← Zur Gericht-/Streit-Übersicht</Link></div>
+    <div className="todo-detail-navigation"><BackLink to="/legal-disputes" /></div>
     <div className="todo-detail-page damage-detail-page legal-dispute-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><div className="legal-dispute-detail-page__header-meta"><span className={`todo-status damage-status damage-status--${legalDispute.status}`}>{legalDisputeStatusLabel(legalDispute.status)}</span>{legalDispute.caseType && <span className="todo-status">{legalDispute.caseType}</span>}</div></header>
       {error && <p className="form-error">{error}</p>}

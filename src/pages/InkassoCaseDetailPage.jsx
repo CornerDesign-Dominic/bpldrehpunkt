@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import InkassoCaseEditModal from '../components/inkasso/InkassoCaseEditModal.jsx'
 import InkassoFinancialOverview from '../components/inkasso/InkassoFinancialOverview.jsx'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import { EditIcon } from '../components/icons.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -105,7 +106,7 @@ export default function InkassoCaseDetailPage() {
   }
 
   if (loading) return <p className="page-state">Inkassofall wird geladen …</p>
-  if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><Link className="button button--secondary" to="/inkasso">Zurück</Link></section>
+  if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><BackLink to="/inkasso" /></section>
   if (!inkassoCase) return null
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
@@ -119,7 +120,7 @@ export default function InkassoCaseDetailPage() {
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
     {editing && <InkassoCaseEditModal inkassoCase={inkassoCase} mode={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveCase} />}
-    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/inkasso">← Zur Inkasso-Übersicht</Link></div>
+    <div className="todo-detail-navigation"><BackLink to="/inkasso" /></div>
     <div className="todo-detail-page damage-detail-page inkasso-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
       {error && <p className="form-error">{error}</p>}

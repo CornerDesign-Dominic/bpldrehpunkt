@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
+import BackLink from '../components/ui/BackLink.jsx'
 import CrmActivityPanel from '../components/crm/CrmActivityPanel.jsx'
 import PartnerHistoryPanel from '../components/crm/PartnerHistoryPanel.jsx'
 import CrmRatingPanel from '../components/crm/CrmRatingPanel.jsx'
@@ -76,14 +77,14 @@ export default function CrmDetailPage() {
   }, [partnerId])
 
   if (!result) return <p className="page-state">Geschäftspartner wird geladen …</p>
-  if (result.error) return <section className="crm-empty-state crm-empty-state--error"><h3>{result.error}</h3><Link className="button button--secondary" to="/crm">Zurück zum CRM</Link></section>
+  if (result.error) return <section className="crm-empty-state crm-empty-state--error"><h3>{result.error}</h3><BackLink to="/crm" /></section>
 
   const { partner } = result
   const actor = getHistoryActor(authState)
   const refreshHistory = () => setHistoryVersion((current) => current + 1)
 
   return <div className="crm-detail-page">
-    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div></div><div className="crm-detail-header__actions"><Link className="button button--secondary" to="/crm">Zurück zum CRM</Link><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
+    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div></div><div className="crm-detail-header__actions"><BackLink to="/crm" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
     <section className="crm-current-overview" aria-label="Aktueller Stand">
       <div className="crm-current-overview__heading"><h3>Aktueller Stand</h3><span>Historische Änderungen stehen ausschließlich in der Partner-Historie.</span></div>
       <div className="crm-current-metrics"><div><span>Kennzahlen</span><strong>—</strong></div><div><span>Zahlungsziel</span><strong>{partner.paymentTermDays ?? '—'}{partner.paymentTermDays === null || partner.paymentTermDays === undefined ? '' : ' Tage'}</strong></div><div><span>Bonität</span><strong>—</strong></div></div>

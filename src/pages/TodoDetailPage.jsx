@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import TodoQuickEditModal from '../components/todos/TodoQuickEditModal.jsx'
 import { TodoPriority } from '../components/todos/TodoPriority.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
+import BackLink from '../components/ui/BackLink.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { EditIcon } from '../components/icons.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -184,7 +185,7 @@ export default function TodoDetailPage() {
   }
 
   if (!result) return <p className="page-state">Aufgabe wird geladen …</p>
-  if (result.error) return <section className="todo-detail-empty"><h2>{result.error}</h2><Link className="button button--secondary" to="/todos">Zurück</Link></section>
+  if (result.error) return <section className="todo-detail-empty"><h2>{result.error}</h2><BackLink to="/todos" /></section>
 
   const { todo } = result
   const caseUpdates = updates.filter((update) => update.type === 'note')
@@ -197,7 +198,7 @@ export default function TodoDetailPage() {
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} cancelLabel={confirmation?.type === 'complete' ? 'Nein' : 'Abbrechen'} confirmLabel={confirmation?.type === 'complete' ? 'Ja, erledigen' : 'Bestätigen'} variant={confirmation?.type === 'withdraw' ? 'danger' : 'primary'} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
-    <div className="todo-detail-navigation"><Link className="button button--secondary" to="/todos">Zurück</Link><TodoActions actor={actor} editable={editable} onAction={handleAction} todo={todo} /></div>
+    <div className="todo-detail-navigation"><BackLink to="/todos" /><TodoActions actor={actor} editable={editable} onAction={handleAction} todo={todo} /></div>
     <div className="todo-detail-page">
     <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{todo.title}</h2>{canManageSections && <button className="todo-detail-section-edit" type="button" onClick={() => setQuickEditing('content')} title="Titel bearbeiten" aria-label="Titel bearbeiten"><EditIcon size={14} /></button>}<span className={`todo-status todo-status--${todoStatus(todo)}`}>{TODO_STATUS[todoStatus(todo)] || '—'}</span></div></header>
     {error && <p className="form-error">{error}</p>}
