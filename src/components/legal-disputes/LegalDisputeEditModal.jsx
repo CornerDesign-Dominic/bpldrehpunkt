@@ -8,7 +8,7 @@ const fieldsBySection = {
   deadlines: [['Nächste Frist', 'nextDeadline', 'date'], ['Hinweis zur Frist', 'nextDeadlineLabel'], ['Nächster Termin', 'nextHearing', 'date'], ['Uhrzeit', 'nextHearingTime', 'time']],
   parties: [['Verknüpfter Gegner', 'counterparty'], ['Vertretung', 'opposingRepresentation', 'representation'], ['Aktenzeichen der Gegenseite', 'opposingReference']],
   lawyer: [['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Übergabe an Rechtsanwalt', 'lawyerHandoverDate', 'date'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail']],
-  court: [['Gericht', 'court'], ['Gerichtliches Aktenzeichen', 'courtReference'], ['Richter / Kammer', 'judgeOrChamber']],
+  court: [['Gericht', 'court'], ['Ort', 'courtLocation'], ['Gerichtliches Aktenzeichen', 'courtReference']],
   procedure: [['Verfahrensart', 'procedureType'], ['Verfahrensstand', 'proceedingStage'], ['Instanz', 'instance'], ['Beginn des Falls', 'startedAt', 'date']],
 }
 

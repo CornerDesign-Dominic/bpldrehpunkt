@@ -105,6 +105,7 @@ export async function createLegalDispute(values, actor) {
       lawyerPhone: null,
       lawyerEmail: null,
       court: null,
+      courtLocation: null,
       courtReference: null,
       judgeOrChamber: null,
       nextDeadline: optionalDate(values.nextDeadline),
