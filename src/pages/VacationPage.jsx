@@ -253,7 +253,8 @@ export default function VacationPage() {
       ]
 
       const annotation = pendingCancellation ? 'Storno angefragt' : ''
-      return [{ id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${ownerName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: item.status, modifier: pendingCancellation ? 'cancellation_requested' : '', own, title: `${ownerName} · ${annotation || getVacationStatus(item.status).label}` }]
+      const calendarKind = item.hrManualEntry === true ? 'approved' : item.status
+      return [{ id: `vacation-${item.id}`, startDate: item.startDate, endDate: item.endDate, label: `${ownerName.split(' ')[0]}${annotation ? ` · ${annotation}` : ''}`, kind: calendarKind, modifier: pendingCancellation ? 'cancellation_requested' : '', own, title: `${ownerName} · ${annotation || getVacationStatus(item.status).label}` }]
     }),
   ], [companyHolidayEntries, holidays, ownRelatedByOriginal, user.uid, usersById, vacationBlocks, visibleRequests])
 

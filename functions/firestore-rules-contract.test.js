@@ -305,4 +305,5 @@ test('HR-recorded vacations are visible to the employee but cannot enter the emp
   assert.match(vacationPage, /!request\.hrManualEntry \|\| request\.status !== 'withdrawn'/)
   assert.match(vacationPage, /<option value="manual">Manuell<\/option>/)
   assert.match(vacationPage, /Urlaub manuell erfasst von \$\{request\.hrManualCreatedByName \|\| 'HR'\}/)
+  assert.match(vacationPage, /const calendarKind = item\.hrManualEntry === true \? 'approved' : item\.status/)
 })
