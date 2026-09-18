@@ -48,7 +48,7 @@ export default function LegalDisputeFinancialOverview({ canEdit, entries, legalD
     {canEdit && <div className="legal-dispute-financial-overview__payment-action"><button className="button damage-financial-overview__add" type="button" disabled={Boolean(draft) || saving} onClick={startNew}>Zahlung hinzufügen</button></div>}
     {error && <p className="form-error">{error}</p>}
     <div className="todos-table-frame damage-financial-overview__table-frame"><table className="data-table todos-table damage-financial-overview__table legal-dispute-financial-overview__table"><thead><tr><th>Datum</th><th>Bewegung</th><th>Von / an</th><th>Netto</th><th>USt.</th><th>Brutto</th>{canEdit && <th className="damage-financial-overview__actions"><span className="sr-only">Aktionen</span></th>}</tr></thead><tbody>
-      {loading ? <tr><td className="table-state" colSpan={columns}>Zahlungspositionen werden geladen …</td></tr> : !entries.length && draft?.mode !== 'new' ? <tr><td className="table-state" colSpan={columns}>Noch keine Ist-Zahlungen hinterlegt.</td></tr> : entries.map((entry) => {
+      {loading ? <tr><td className="table-state" colSpan={columns}>Zahlungspositionen werden geladen …</td></tr> : !entries.length && draft?.mode !== 'new' ? <tr><td className="table-state legal-dispute-financial-overview__empty-state" colSpan={columns}>Noch keine Ist-Zahlungen hinterlegt.</td></tr> : entries.map((entry) => {
         const editing = draft?.mode === 'edit' && draft.entry.id === entry.id
         const grossAmount = Number(entry.netAmount || 0) + Number(entry.vatAmount || 0)
         const directionLabel = labelFor(LEGAL_DISPUTE_FINANCIAL_DIRECTIONS, entry.direction)
