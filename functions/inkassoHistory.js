@@ -90,8 +90,24 @@ export const recordInkassoInvoiceCreated = onDocumentCreatedWithAuthContext({ re
 export const recordInkassoInvoicePaymentUpdated = onDocumentUpdatedWithAuthContext({ region, document: 'inkassoCases/{caseId}/invoices/{invoiceId}' }, async (event) => {
   const before = event.data.before.data()
   const after = event.data.after.data()
-  if (before.isPaid === after.isPaid) return
-  await writeHistory(event.params.caseId, event.id, after.isPaid ? 'invoice_paid' : 'invoice_payment_reverted', after.isPaid ? `Rechnung als bezahlt markiert: ${after.invoiceNumber}` : `Zahlungsstatus zurückgesetzt: ${after.invoiceNumber}`, await actorFrom(after, event), values(['isPaid'], before), values(['isPaid'], after))
+  if (before.isPaid !== after.isPaid) {
+    await writeHistory(event.params.caseId, event.id, after.isPaid ? 'invoice_paid' : 'invoice_payment_reverted', after.isPaid ? `Rechnung als bezahlt markiert: ${after.invoiceNumber}` : `Zahlungsstatus zurückgesetzt: ${after.invoiceNumber}`, await actorFrom(after, event), values(['isPaid'], before), values(['isPaid'], after))
+    return
+  }
+  if (!changed(before, after, ['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'])) return
+  await writeHistory(event.params.caseId, event.id, 'invoice_updated', `Rechnung aktualisiert: ${after.invoiceNumber}`, await actorFrom(after, event), values(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'], before), values(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'], after))
+})
+
+export const recordInkassoDeadlineCreated = onDocumentCreatedWithAuthContext({ region, document: 'inkassoCases/{caseId}/deadlines/{deadlineId}' }, async (event) => {
+  const deadline = event.data.data()
+  await writeHistory(event.params.caseId, event.id, 'deadline_created', `Termin hinzugefügt: ${deadline.date}`, await actorFrom(deadline, event), null, values(['date', 'reminderEnabled', 'note'], deadline))
+})
+
+export const recordInkassoDeadlineUpdated = onDocumentUpdatedWithAuthContext({ region, document: 'inkassoCases/{caseId}/deadlines/{deadlineId}' }, async (event) => {
+  const before = event.data.before.data()
+  const after = event.data.after.data()
+  if (!changed(before, after, ['date', 'reminderEnabled', 'note'])) return
+  await writeHistory(event.params.caseId, event.id, 'deadline_updated', `Termin aktualisiert: ${after.date}`, await actorFrom(after, event), values(['date', 'reminderEnabled', 'note'], before), values(['date', 'reminderEnabled', 'note'], after))
 })
 
 function movementText(action, movement) {

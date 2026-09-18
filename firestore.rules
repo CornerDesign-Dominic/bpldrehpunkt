@@ -741,17 +741,81 @@ service cloud.firestore {
             && ((data.isPaid == false && data.paidAt == null && data.paidBy == null && data.paidByName == null) || (data.isPaid == true && data.paidAt is timestamp && data.paidBy is string && data.paidByName is string))
             && data.createdBy is string && data.createdByName is string;
         }
+        function invoiceParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedBy == request.auth.uid;
+        }
+        function invoiceCreatedWithCase() {
+          return getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.createdAt == request.time;
+        }
+        function previousInkassoClaimAmount() {
+          return get(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == null ? 0 : get(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount;
+        }
+        function previousInkassoPaidAmount() {
+          return get(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == null ? 0 : get(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount;
+        }
+        function invoiceAmountsFollowCreate() {
+          return getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == previousInkassoClaimAmount() + request.resource.data.grossAmount
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == previousInkassoPaidAmount();
+        }
+        function invoiceAmountsFollowEdit() {
+          return (resource.data.isPaid == false && request.resource.data.isPaid == false
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == previousInkassoClaimAmount() + request.resource.data.grossAmount - resource.data.grossAmount
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == previousInkassoPaidAmount())
+            || (resource.data.isPaid == true && request.resource.data.isPaid == true
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == previousInkassoClaimAmount()
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == previousInkassoPaidAmount() + request.resource.data.grossAmount - resource.data.grossAmount);
+        }
+        function invoiceAmountsFollowPaymentChange() {
+          return (resource.data.isPaid == false && request.resource.data.isPaid == true
+              && request.resource.data.paidAt == request.time && request.resource.data.paidBy == request.auth.uid && request.resource.data.paidByName == profileName(ownProfile())
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == previousInkassoClaimAmount() - resource.data.grossAmount
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == previousInkassoPaidAmount() + resource.data.grossAmount)
+            || (resource.data.isPaid == true && request.resource.data.isPaid == false
+              && request.resource.data.paidAt == null && request.resource.data.paidBy == null && request.resource.data.paidByName == null
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == previousInkassoClaimAmount() + resource.data.grossAmount
+              && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == previousInkassoPaidAmount() - resource.data.grossAmount);
+        }
         allow read: if view('inkasso');
-        allow create: if edit('inkasso') && validInkassoInvoice(request.resource.data)
-          && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
-          && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.createdAt == request.time
+        allow create: if edit('inkasso') && validInkassoInvoice(request.resource.data) && (invoiceCreatedWithCase() || (invoiceParentWasUpdated() && invoiceAmountsFollowCreate()))
+          && request.resource.data.isPaid == false && request.resource.data.paidAt == null && request.resource.data.paidBy == null && request.resource.data.paidByName == null
           && request.resource.data.createdAt == request.time && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile());
-        allow update: if edit('inkasso') && validInkassoInvoice(request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPaid', 'paidAt', 'paidBy', 'paidByName'])
-          && request.resource.data.invoiceNumber == resource.data.invoiceNumber && request.resource.data.netAmount == resource.data.netAmount && request.resource.data.vatAmount == resource.data.vatAmount && request.resource.data.grossAmount == resource.data.grossAmount
+        allow update: if edit('inkasso') && validInkassoInvoice(request.resource.data) && invoiceParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
-          && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedAt == request.time && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedBy == request.auth.uid
-          && ((resource.data.isPaid == false && request.resource.data.isPaid == true && request.resource.data.paidAt == request.time && request.resource.data.paidBy == request.auth.uid && request.resource.data.paidByName == profileName(ownProfile()) && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount - resource.data.grossAmount && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount + resource.data.grossAmount) || (resource.data.isPaid == true && request.resource.data.isPaid == false && request.resource.data.paidAt == null && request.resource.data.paidBy == null && request.resource.data.paidByName == null && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount + resource.data.grossAmount && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount - resource.data.grossAmount));
+          && ((request.resource.data.isPaid == resource.data.isPaid
+              && request.resource.data.paidAt == resource.data.paidAt && request.resource.data.paidBy == resource.data.paidBy && request.resource.data.paidByName == resource.data.paidByName
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'])
+              && invoiceAmountsFollowEdit())
+            || (request.resource.data.invoiceNumber == resource.data.invoiceNumber && request.resource.data.netAmount == resource.data.netAmount && request.resource.data.vatAmount == resource.data.vatAmount && request.resource.data.grossAmount == resource.data.grossAmount
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPaid', 'paidAt', 'paidBy', 'paidByName'])
+              && invoiceAmountsFollowPaymentChange()));
+        allow delete: if false;
+      }
+
+      match /deadlines/{deadlineId} {
+        function validInkassoDeadline(data) {
+          return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.reminderEnabled is bool && (data.note == null || (data.note is string && data.note.size() <= 4000))
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        }
+        function deadlineParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedBy == request.auth.uid;
+        }
+        allow read: if view('inkasso');
+        allow create: if edit('inkasso') && validInkassoDeadline(request.resource.data) && deadlineParentWasUpdated()
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('inkasso') && validInkassoDeadline(request.resource.data) && deadlineParentWasUpdated()
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if false;
       }
 

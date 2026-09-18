@@ -1163,6 +1163,8 @@ export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export {
   recordInkassoCaseCreated,
   recordInkassoCaseUpdated,
+  recordInkassoDeadlineCreated,
+  recordInkassoDeadlineUpdated,
   recordInkassoDocumentCreated,
   recordInkassoDocumentDeleted,
   recordInkassoDocumentUpdated,

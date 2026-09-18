@@ -32,11 +32,10 @@ const optionalAmount = (value, label = 'Der Betrag') => {
 
 function mapSnapshot(snapshot) { return { id: snapshot.id, ...snapshot.data() } }
 
-function casePayload(values, responsibleUsersById) {
+function casePayload(values, responsibleUsersById = new Map()) {
   const responsibleUserId = optionalText(values.responsibleUserId)
   const responsibleUser = responsibleUserId ? responsibleUsersById.get(responsibleUserId) : null
   const responsibleUserName = responsibleUserId ? (responsibleUser ? getUserDisplayName(responsibleUser, responsibleUser) : optionalText(values.responsibleUserName)) : null
-  if (responsibleUserId && !responsibleUserName) throw new Error('Die zuständige Person ist nicht verfügbar.')
   const status = INKASSO_CASE_STATUSES.some((item) => item.value === values.status) ? values.status : 'open'
   return {
     title: optionalText(values.title),
@@ -166,12 +165,52 @@ export async function listInkassoCaseInvoices(caseId) {
   return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'invoices'), orderBy('createdAt', 'asc')))).docs.map(mapSnapshot)
 }
 
+function invoicePayload(values) {
+  const [invoice] = normalizeInkassoInvoices([values])
+  if (!invoice) throw new Error('Bitte Rechnungsnummer, Nettobetrag und USt.-Betrag erfassen.')
+  return invoice
+}
+
+function invoiceCaseAmounts(inkassoCase) {
+  const claimAmount = Number(inkassoCase.claimAmount || 0)
+  const paidAmount = Number(inkassoCase.paidAmount || 0)
+  if (!Number.isFinite(claimAmount) || !Number.isFinite(paidAmount)) throw new Error('Die Rechnungsbeträge sind ungültig.')
+  return { claimAmount, paidAmount }
+}
+
+export async function createInkassoCaseInvoice(inkassoCase, values, actor) {
+  const invoice = invoicePayload(values)
+  const { claimAmount, paidAmount } = invoiceCaseAmounts(inkassoCase)
+  const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
+  const actorName = getUserDisplayName(actor.profile, actor.user)
+  const batch = writeBatch(db)
+  batch.update(caseRef, { claimAmount: claimAmount + invoice.grossAmount, paidAmount, ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'invoices')), { ...invoice, isPaid: false, paidAt: null, paidBy: null, paidByName: null, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName })
+  await batch.commit()
+}
+
+export async function updateInkassoCaseInvoice(inkassoCase, invoice, values, actor) {
+  const next = invoicePayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== invoice[field])) return false
+  const { claimAmount, paidAmount } = invoiceCaseAmounts(inkassoCase)
+  const difference = next.grossAmount - Number(invoice.grossAmount)
+  const nextClaimAmount = invoice.isPaid ? claimAmount : claimAmount + difference
+  const nextPaidAmount = invoice.isPaid ? paidAmount + difference : paidAmount
+  if (nextClaimAmount < 0 || nextPaidAmount < 0) throw new Error('Der Forderungsbetrag kann nicht negativ werden.')
+
+  const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, { claimAmount: nextClaimAmount, paidAmount: nextPaidAmount, ...updateMetadata(actor) })
+  batch.update(doc(caseRef, 'invoices', invoice.id), next)
+  await batch.commit()
+  return true
+}
+
 export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, actor) {
   if (invoice.isPaid === isPaid) return false
   const grossAmount = Number(invoice.grossAmount)
-  const claimAmount = Number(inkassoCase.claimAmount)
-  const paidAmount = Number(inkassoCase.paidAmount || 0)
-  if (!Number.isFinite(grossAmount) || !Number.isFinite(claimAmount) || !Number.isFinite(paidAmount)) throw new Error('Die Rechnungsbeträge sind ungültig.')
+  const { claimAmount, paidAmount } = invoiceCaseAmounts(inkassoCase)
+  if (!Number.isFinite(grossAmount)) throw new Error('Die Rechnungsbeträge sind ungültig.')
   const direction = isPaid ? 1 : -1
   const nextClaimAmount = claimAmount - direction * grossAmount
   const nextPaidAmount = paidAmount + direction * grossAmount
@@ -187,6 +226,55 @@ export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, 
     paidBy: isPaid ? actor.user.uid : null,
     paidByName: isPaid ? actorName : null,
   })
+  await batch.commit()
+  return true
+}
+
+function deadlinePayload(values) {
+  const date = trim(values.date)
+  const note = optionalText(values.note)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
+  if (note && note.length > 4000) throw new Error('Die Bemerkung ist zu lang.')
+  return { date, reminderEnabled: values.reminderEnabled === true, note }
+}
+
+export function createEmptyInkassoDeadline() {
+  return { date: new Date().toISOString().slice(0, 10), reminderEnabled: false, note: '' }
+}
+
+export function inkassoDeadlinePresentation(deadline, now = new Date()) {
+  if (!deadline?.date) return { kind: 'none', label: 'Keine Frist', days: null }
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const due = new Date(`${deadline.date}T12:00:00`)
+  const days = Math.round((due - today) / 86400000)
+  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
+  if (days === 0) return { kind: 'today', label: 'Heute', days }
+  if (days <= 2) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  if (days <= 5) return { kind: 'warning', label: `In ${days} Tagen`, days }
+  return { kind: 'none', label: 'Später', days }
+}
+
+export async function listInkassoCaseDeadlines(caseId) {
+  const snapshots = await getDocs(collection(db, INKASSO_CASES_COLLECTION, caseId, 'deadlines'))
+  return snapshots.docs.map(mapSnapshot).sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
+}
+
+export async function createInkassoCaseDeadline(inkassoCase, values, actor) {
+  const deadline = deadlinePayload(values)
+  const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  await batch.commit()
+}
+
+export async function updateInkassoCaseDeadline(inkassoCase, deadline, values, actor) {
+  const next = deadlinePayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))) return false
+  const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   await batch.commit()
   return true
 }

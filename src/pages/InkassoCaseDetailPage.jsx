@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import InkassoCaseEditModal from '../components/inkasso/InkassoCaseEditModal.jsx'
 import InkassoFinancialOverview from '../components/inkasso/InkassoFinancialOverview.jsx'
+import InkassoDeadlinesCard from '../components/inkasso/InkassoDeadlinesCard.jsx'
 import InkassoInvoicesCard from '../components/inkasso/InkassoInvoicesCard.jsx'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
@@ -14,11 +15,10 @@ import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createInkassoCaseDocument, deleteInkassoCaseDocument, getInkassoCaseDocumentBlob, listInkassoCaseDocuments, updateInkassoCaseDocument } from '../lib/inkassoDocuments.js'
-import { addInkassoCaseUpdate, createInkassoCaseMovement, deleteInkassoCaseMovement, getInkassoCase, inkassoCaseStatusLabel, listInkassoCaseHistory, listInkassoCaseInvoices, listInkassoCaseMovements, listInkassoCaseUpdates, updateInkassoCaseFields, updateInkassoCaseMovement, updateInkassoInvoicePayment } from '../lib/inkasso.js'
+import { addInkassoCaseUpdate, createInkassoCaseDeadline, createInkassoCaseInvoice, createInkassoCaseMovement, deleteInkassoCaseMovement, getInkassoCase, inkassoCaseStatusLabel, listInkassoCaseDeadlines, listInkassoCaseHistory, listInkassoCaseInvoices, listInkassoCaseMovements, listInkassoCaseUpdates, updateInkassoCaseDeadline, updateInkassoCaseFields, updateInkassoCaseInvoice, updateInkassoCaseMovement, updateInkassoInvoicePayment } from '../lib/inkasso.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { getUserDisplayName, listVisibleUserDirectory } from '../lib/userProfiles.js'
+import { getUserDisplayName } from '../lib/userProfiles.js'
 
-function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
 function hasValue(value) { return value !== null && value !== undefined && value !== '' }
 function Detail({ label, children }) { return <div><dt>{label}</dt><dd>{children || '—'}</dd></div> }
@@ -35,16 +35,17 @@ export default function InkassoCaseDetailPage() {
   const { setTitle } = usePageHeader()
   const editable = canEdit('inkasso')
   const [inkassoCase, setInkassoCase] = useState(null)
-  const [users, setUsers] = useState([])
   const [updates, setUpdates] = useState([])
   const [historyEntries, setHistoryEntries] = useState([])
   const [documents, setDocuments] = useState([])
   const [invoices, setInvoices] = useState([])
+  const [deadlines, setDeadlines] = useState([])
   const [movements, setMovements] = useState([])
   const [loading, setLoading] = useState(true)
   const [updatesLoading, setUpdatesLoading] = useState(true)
   const [documentsLoading, setDocumentsLoading] = useState(true)
   const [invoicesLoading, setInvoicesLoading] = useState(true)
+  const [deadlinesLoading, setDeadlinesLoading] = useState(true)
   const [movementsLoading, setMovementsLoading] = useState(true)
   const [editing, setEditing] = useState(null)
   const [editingDocument, setEditingDocument] = useState(null)
@@ -58,24 +59,22 @@ export default function InkassoCaseDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseMovements, directory] = await Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseMovements(caseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
-    setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setInvoices(caseInvoices); setMovements(caseMovements); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setMovementsLoading(false)
+    const [entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseDeadlines, caseMovements] = await Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseDeadlines(caseId), listInkassoCaseMovements(caseId)])
+    setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setInvoices(caseInvoices); setDeadlines(caseDeadlines); setMovements(caseMovements); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setDeadlinesLoading(false); setMovementsLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseMovements(caseId), editable ? listVisibleUserDirectory() : Promise.resolve([])])
-      .then(([entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseMovements, directory]) => { if (current) { setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setInvoices(caseInvoices); setMovements(caseMovements); setUsers(directory); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setMovementsLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Inkassofall.' : 'Der Inkassofall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setMovementsLoading(false) } })
+    Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseDeadlines(caseId), listInkassoCaseMovements(caseId)])
+      .then(([entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseDeadlines, caseMovements]) => { if (current) { setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setInvoices(caseInvoices); setDeadlines(caseDeadlines); setMovements(caseMovements); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setDeadlinesLoading(false); setMovementsLoading(false) } })
+      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Inkassofall.' : 'Der Inkassofall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setDeadlinesLoading(false); setMovementsLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
   }, [caseId, editable, setTitle])
 
-  const usersById = useMemo(() => new Map(users.map((entry) => [entry.id, entry])), [users])
-
   async function saveCase(values) {
     setError('')
-    try { const changed = await updateInkassoCaseFields(inkassoCase, values, { user, profile }, usersById); if (changed) { await load(); setToast('Fallinformationen gespeichert.') } } catch (saveError) { setError(saveError.message || 'Die Änderung konnte nicht gespeichert werden.'); throw saveError }
+    try { const changed = await updateInkassoCaseFields(inkassoCase, values, { user, profile }); if (changed) { await load(); setToast('Fallinformationen gespeichert.') } } catch (saveError) { setError(saveError.message || 'Die Änderung konnte nicht gespeichert werden.'); throw saveError }
   }
 
   async function saveNote(event) {
@@ -114,6 +113,16 @@ export default function InkassoCaseDetailPage() {
     try { await updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, { user, profile }); await load(); setToast(isPaid ? 'Rechnung als bezahlt markiert.' : 'Zahlungsstatus zurückgesetzt.') } catch (saveError) { setError(saveError.message || 'Der Zahlungsstatus konnte nicht geändert werden.') } finally { setSavingInvoiceId('') }
   }
 
+  async function saveInvoice(existingInvoice, values) {
+    setError('')
+    try { if (existingInvoice) await updateInkassoCaseInvoice(inkassoCase, existingInvoice, values, { user, profile }); else await createInkassoCaseInvoice(inkassoCase, values, { user, profile }); await load(); setToast(existingInvoice ? 'Rechnung aktualisiert.' : 'Rechnung hinzugefügt.') } catch (saveError) { setError(saveError.message || 'Die Rechnung konnte nicht gespeichert werden.'); throw saveError }
+  }
+
+  async function saveDeadline(existingDeadline, values) {
+    setError('')
+    try { if (existingDeadline) await updateInkassoCaseDeadline(inkassoCase, existingDeadline, values, { user, profile }); else await createInkassoCaseDeadline(inkassoCase, values, { user, profile }); await load(); setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.') } catch (saveError) { setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.'); throw saveError }
+  }
+
   if (loading) return <p className="page-state">Inkassofall wird geladen …</p>
   if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><BackLink to="/inkasso" /></section>
   if (!inkassoCase) return null
@@ -121,14 +130,14 @@ export default function InkassoCaseDetailPage() {
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = [...updates.filter((update) => update.type === 'system'), ...historyEntries].sort((left, right) => (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
   const title = `${inkassoCase.caseNumber || 'Inkassofall'} – ${inkassoCase.title || inkassoCase.debtorName || 'Ohne Bezeichnung'}`
-  const allInformationValues = [inkassoCase.caseNumber, inkassoCase.status, inkassoCase.responsibleUserName, inkassoCase.createdAt, inkassoCase.completedAt, inkassoCase.debtorName, inkassoCase.debtorNumber, inkassoCase.debtorContactName, inkassoCase.debtorAddress, inkassoCase.debtorEmail, inkassoCase.debtorPhone, inkassoCase.invoiceNumbers, inkassoCase.invoiceDate, inkassoCase.originalDueDate, inkassoCase.lastReminderDate, inkassoCase.lawFirm, inkassoCase.lawyerReference, inkassoCase.lawFirmContactName, inkassoCase.lawFirmEmail, inkassoCase.lawFirmPhone, inkassoCase.lawyerHandoverDate, inkassoCase.court, inkassoCase.courtReference, inkassoCase.paymentOrderDate, inkassoCase.enforcementOrderDate, inkassoCase.titleAvailable]
+  const allInformationValues = [inkassoCase.caseNumber, inkassoCase.status, inkassoCase.createdAt, inkassoCase.completedAt]
 
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
-    {editing && <InkassoCaseEditModal inkassoCase={inkassoCase} mode={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveCase} />}
+    {editing && <InkassoCaseEditModal inkassoCase={inkassoCase} mode={editing} onCancel={() => setEditing(null)} onSubmit={saveCase} />}
     <div className="todo-detail-navigation"><BackLink to="/inkasso" /></div>
     <div className="todo-detail-page damage-detail-page inkasso-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
@@ -136,18 +145,16 @@ export default function InkassoCaseDetailPage() {
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3>Beschreibung</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} aria-label="Beschreibung bearbeiten" title="Beschreibung bearbeiten"><EditIcon size={14} /></button>}</div><p className="todo-detail-description">{inkassoCase.description || 'Keine Beschreibung hinterlegt.'}</p></section>
-          <InkassoInvoicesCard canEdit={editable} invoices={invoices} inkassoCase={inkassoCase} loading={invoicesLoading} onPaymentChange={changeInvoicePayment} savingInvoiceId={savingInvoiceId} />
+          <InkassoInvoicesCard canEdit={editable} invoices={invoices} inkassoCase={inkassoCase} loading={invoicesLoading} onPaymentChange={changeInvoicePayment} onSave={saveInvoice} savingInvoiceId={savingInvoiceId} />
+          <InkassoDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onSave={saveDeadline} />
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getInkassoCaseDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <InkassoFinancialOverview canEdit={editable} inkassoCase={inkassoCase} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="inkasso-update-title"><div className="todo-updates__heading"><h3 id="inkasso-update-title">Updates</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Inkassofall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Inkassofall hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : !manualUpdates.length ? <p className="todo-updates__empty">Noch keine Updates zum Inkassofall.</p> : <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="inkasso-history-title"><div className="todo-updates__heading"><h3 id="inkasso-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
         <aside className="todo-detail-sidebar">
-          <InformationSection title="Fallinformationen" values={allInformationValues} onEdit={editable ? () => setEditing('information') : null}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail><Detail label="Status">{inkassoCaseStatusLabel(inkassoCase.status)}</Detail><Detail label="Zuständig">{inkassoCase.responsibleUserName}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
-          <InformationSection title="Schuldner" values={[inkassoCase.debtorName, inkassoCase.debtorNumber, inkassoCase.debtorContactName, inkassoCase.debtorAddress, inkassoCase.debtorEmail, inkassoCase.debtorPhone]}><Detail label="Schuldner / Unternehmen">{inkassoCase.debtorName}</Detail><Detail label="Debitorennummer">{inkassoCase.debtorNumber}</Detail><Detail label="Ansprechpartner">{inkassoCase.debtorContactName}</Detail><Detail label="Anschrift">{inkassoCase.debtorAddress}</Detail><Detail label="E-Mail">{inkassoCase.debtorEmail}</Detail><Detail label="Telefon">{inkassoCase.debtorPhone}</Detail></InformationSection>
-          <InformationSection title="Forderung" values={[inkassoCase.invoiceNumbers, inkassoCase.invoiceDate, inkassoCase.originalDueDate, inkassoCase.lastReminderDate]}><Detail label="Rechnungsnummer(n)">{inkassoCase.invoiceNumbers}</Detail><Detail label="Rechnungsdatum">{formatDate(inkassoCase.invoiceDate)}</Detail><Detail label="Ursprüngliche Fälligkeit">{formatDate(inkassoCase.originalDueDate)}</Detail><Detail label="Datum letzte Mahnung">{formatDate(inkassoCase.lastReminderDate)}</Detail></InformationSection>
-          <InformationSection title="Rechtsanwalt / externe Bearbeitung" values={[inkassoCase.lawFirm, inkassoCase.lawyerReference, inkassoCase.lawFirmContactName, inkassoCase.lawFirmEmail, inkassoCase.lawFirmPhone, inkassoCase.lawyerHandoverDate]}><Detail label="Kanzlei">{inkassoCase.lawFirm}</Detail><Detail label="Aktenzeichen Kanzlei">{inkassoCase.lawyerReference}</Detail><Detail label="Ansprechpartner">{inkassoCase.lawFirmContactName}</Detail><Detail label="E-Mail">{inkassoCase.lawFirmEmail}</Detail><Detail label="Telefon">{inkassoCase.lawFirmPhone}</Detail><Detail label="Übergabe an Rechtsanwalt">{formatDate(inkassoCase.lawyerHandoverDate)}</Detail></InformationSection>
-          <InformationSection title="Gerichtliche Informationen" values={[inkassoCase.court, inkassoCase.courtReference, inkassoCase.paymentOrderDate, inkassoCase.enforcementOrderDate, inkassoCase.titleAvailable]}><Detail label="Zuständiges Gericht">{inkassoCase.court}</Detail><Detail label="Gerichtliches Aktenzeichen">{inkassoCase.courtReference}</Detail><Detail label="Mahnbescheid">{formatDate(inkassoCase.paymentOrderDate)}</Detail><Detail label="Vollstreckungsbescheid">{formatDate(inkassoCase.enforcementOrderDate)}</Detail><Detail label="Titel vorhanden">{inkassoCase.titleAvailable ? 'Ja' : 'Nein'}</Detail></InformationSection>
+          <InformationSection title="Fallinformationen" values={allInformationValues} onEdit={editable ? () => setEditing('information') : null}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail><Detail label="Status">{inkassoCaseStatusLabel(inkassoCase.status)}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
+          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{inkassoCase.debtorName}</Detail></InformationSection>
         </aside>
       </div>
     </div>

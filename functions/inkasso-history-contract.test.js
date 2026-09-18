@@ -10,6 +10,7 @@ const inkassoRules = rules.match(/match \/inkassoCases\/\{id\} \{([\s\S]*?)\n {4
 const updatesRule = inkassoRules.match(/match \/updates\/\{updateId\} \{([\s\S]*?)\n {6}\}/)?.[1] || ''
 const historyRule = inkassoRules.match(/match \/history\/\{historyId\} \{([\s\S]*?)\n {6}\}/)?.[1] || ''
 const invoicesRule = inkassoRules.match(/match \/invoices\/\{invoiceId\} \{([\s\S]*?)\n {6}\}/)?.[1] || ''
+const deadlinesRule = inkassoRules.match(/match \/deadlines\/\{deadlineId\} \{([\s\S]*?)\n {6}\}/)?.[1] || ''
 
 test('inkasso editors cannot create, update, or delete system history from a browser client', () => {
   assert.match(updatesRule, /data\.type == 'note'/)
@@ -27,11 +28,21 @@ test('manual updates remain tied to the authenticated editor and server time', (
   assert.doesNotMatch(client, /updatePayload\('system'/)
 })
 
-test('invoice payments can only change their payment state together with the case totals', () => {
+test('invoice creation, editing, and payment changes keep the case totals atomically consistent', () => {
   assert.match(invoicesRule, /allow update: if edit\('inkasso'\) && validInkassoInvoice\(request\.resource\.data\)/)
-  assert.match(invoicesRule, /affectedKeys\(\)\.hasOnly\(\['isPaid', 'paidAt', 'paidBy', 'paidByName'\]\)/)
-  assert.match(invoicesRule, /data\.claimAmount == get\(\/databases\/\$\(database\)\/documents\/inkassoCases\/\$\(id\)\)\.data\.claimAmount - resource\.data\.grossAmount/)
-  assert.match(invoicesRule, /data\.paidAmount == get\(\/databases\/\$\(database\)\/documents\/inkassoCases\/\$\(id\)\)\.data\.paidAmount \+ resource\.data\.grossAmount/)
+  assert.match(invoicesRule, /allow create: if edit\('inkasso'\) && validInkassoInvoice\(request\.resource\.data\) && \(invoiceCreatedWithCase\(\) \|\| \(invoiceParentWasUpdated\(\) && invoiceAmountsFollowCreate\(\)\)\)/)
+  assert.match(invoicesRule, /affectedKeys\(\)\.hasOnly\(\['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'\]\)/)
+  assert.match(invoicesRule, /invoiceAmountsFollowEdit\(\)/)
+  assert.match(invoicesRule, /invoiceAmountsFollowPaymentChange\(\)/)
+  assert.match(client, /export async function createInkassoCaseInvoice/)
+  assert.match(client, /export async function updateInkassoCaseInvoice/)
+})
+
+test('inkasso deadlines require an atomic parent update and retain creation metadata', () => {
+  assert.match(deadlinesRule, /allow create: if edit\('inkasso'\) && validInkassoDeadline\(request\.resource\.data\) && deadlineParentWasUpdated\(\)/)
+  assert.match(deadlinesRule, /request\.resource\.data\.createdAt == request\.time/)
+  assert.match(deadlinesRule, /affectedKeys\(\)\.hasOnly\(\['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName'\]\)/)
+  assert.match(deadlinesRule, /allow delete: if false;/)
 })
 
 test('trusted server triggers create immutable inkasso history for relevant case changes', () => {
@@ -41,6 +52,8 @@ test('trusted server triggers create immutable inkasso history for relevant case
   assert.match(historyFunction, /onDocumentDeletedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/documents\/\{documentId\}' \}/)
   assert.match(historyFunction, /onDocumentCreatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/invoices\/\{invoiceId\}' \}/)
   assert.match(historyFunction, /onDocumentUpdatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/invoices\/\{invoiceId\}' \}/)
+  assert.match(historyFunction, /onDocumentCreatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/deadlines\/\{deadlineId\}' \}/)
+  assert.match(historyFunction, /onDocumentUpdatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/deadlines\/\{deadlineId\}' \}/)
   assert.match(historyFunction, /onDocumentCreatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/movements\/\{movementId\}' \}/)
   assert.match(historyFunction, /source: 'server'/)
   assert.match(historyFunction, /createdAt: FieldValue\.serverTimestamp\(\)/)
