@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 
@@ -64,59 +64,69 @@ export async function createLegalDispute(values, actor) {
   const title = trim(values.title)
   if (!title) throw new Error('Bitte einen Betreff für den Fall eingeben.')
 
-  const caseRef = doc(collection(db, LEGAL_DISPUTES_COLLECTION))
+  const year = String(new Date().getFullYear())
+  const counterRef = doc(db, 'legalDisputeCaseCounters', year)
   const actorName = getUserDisplayName(actor.profile, actor.user)
-  const caseNumber = `G-${new Date().getFullYear()}-${caseRef.id.slice(0, 8).toUpperCase()}`
   const optionalText = (value) => trim(value) || null
   const optionalDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(trim(value)) ? trim(value) : null
-  const batch = writeBatch(db)
-  batch.set(caseRef, {
-    caseNumber,
-    status: 'open',
-    isClosed: false,
-    title,
-    description: null,
-    caseType: optionalText(values.caseType),
-    participant: null,
-    counterparty: optionalText(values.counterparty),
-    opposingCounsel: null,
-    responsibleUserId: null,
-    responsibleUserName: null,
-    lawFirm: null,
-    ownCounsel: null,
-    lawyerReference: null,
-    lawyerHandoverDate: null,
-    lawyerPhone: null,
-    lawyerEmail: null,
-    court: null,
-    courtReference: null,
-    judgeOrChamber: null,
-    nextDeadline: optionalDate(values.nextDeadline),
-    nextDeadlineLabel: null,
-    nextHearing: null,
-    nextHearingTime: null,
-    procedureType: null,
-    proceedingStage: null,
-    instance: null,
-    startedAt: new Date().toISOString().slice(0, 10),
-    completedAt: null,
-    originalClaim: null,
-    counterClaim: null,
-    amountInDispute: null,
-    paidAmount: null,
-    openAmount: null,
-    legalFees: null,
-    courtCosts: null,
-    otherCosts: null,
-    createdAt: serverTimestamp(),
-    createdBy: actor.user.uid,
-    createdByName: actorName,
-    updatedAt: serverTimestamp(),
-    updatedBy: actor.user.uid,
-    updatedByName: actorName,
+  let caseRef
+  await runTransaction(db, async (transaction) => {
+    const counter = await transaction.get(counterRef)
+    const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
+    if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
+
+    const caseNumber = `G-${year}-${String(sequence).padStart(4, '0')}`
+    caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, caseNumber)
+    transaction.set(counterRef, { year, nextNumber: sequence, updatedAt: serverTimestamp() })
+    transaction.set(caseRef, {
+      caseNumber,
+      caseYear: year,
+      caseSequence: sequence,
+      status: 'open',
+      isClosed: false,
+      title,
+      description: null,
+      caseType: optionalText(values.caseType),
+      participant: null,
+      counterparty: optionalText(values.counterparty),
+      opposingCounsel: null,
+      responsibleUserId: null,
+      responsibleUserName: null,
+      lawFirm: null,
+      ownCounsel: null,
+      lawyerReference: null,
+      lawyerHandoverDate: null,
+      lawyerPhone: null,
+      lawyerEmail: null,
+      court: null,
+      courtReference: null,
+      judgeOrChamber: null,
+      nextDeadline: optionalDate(values.nextDeadline),
+      nextDeadlineLabel: null,
+      nextHearing: null,
+      nextHearingTime: null,
+      procedureType: null,
+      proceedingStage: null,
+      instance: null,
+      startedAt: new Date().toISOString().slice(0, 10),
+      completedAt: null,
+      originalClaim: null,
+      counterClaim: null,
+      amountInDispute: null,
+      paidAmount: null,
+      openAmount: null,
+      legalFees: null,
+      courtCosts: null,
+      otherCosts: null,
+      createdAt: serverTimestamp(),
+      createdBy: actor.user.uid,
+      createdByName: actorName,
+      updatedAt: serverTimestamp(),
+      updatedBy: actor.user.uid,
+      updatedByName: actorName,
+    })
+    transaction.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
   })
-  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
-  await batch.commit()
   return caseRef.id
 }
 

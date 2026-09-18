@@ -607,10 +607,13 @@ service cloud.firestore {
     function legalDisputeDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
     function legalDisputeKeysAreValid(data) {
       return data.keys().hasAll(['caseNumber', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['caseNumber', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerHandoverDate', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+        && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerHandoverDate', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validLegalDispute(data) {
       return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
+        && (!data.keys().hasAny(['caseYear', 'caseSequence']) || (data.keys().hasAll(['caseYear', 'caseSequence'])
+          && data.caseNumber.matches('^G-[0-9]{4}-[0-9]{4}$') && data.caseYear is string && data.caseYear.matches('^[0-9]{4}$')
+          && data.caseSequence is int && data.caseSequence >= 1 && data.caseSequence <= 9999))
         && data.status in ['open', 'completed'] && data.isClosed == (data.status == 'completed')
         && data.title is string && data.title.size() > 0 && data.title.size() <= 500 && legalDisputeText(data.description, 4000)
         && legalDisputeText(data.caseType, 120) && legalDisputeText(data.participant, 240) && legalDisputeText(data.counterparty, 240) && legalDisputeText(data.opposingCounsel, 240)
@@ -622,8 +625,12 @@ service cloud.firestore {
         && (data.completedAt == null || data.completedAt is timestamp)
         && legalDisputeAmount(data.originalClaim) && legalDisputeAmount(data.counterClaim) && legalDisputeAmount(data.amountInDispute) && legalDisputeAmount(data.paidAmount) && legalDisputeAmount(data.openAmount) && legalDisputeAmount(data.legalFees) && legalDisputeAmount(data.courtCosts) && legalDisputeAmount(data.otherCosts);
     }
-    function createdLegalDispute() {
+    function legalDisputeCounterAfter(year) { return getAfter(/databases/$(database)/documents/legalDisputeCaseCounters/$(year)).data; }
+    function createdLegalDispute(id) {
       return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data)
+        && request.resource.data.keys().hasAll(['caseYear', 'caseSequence'])
+        && id == request.resource.data.caseNumber
+        && request.resource.data.caseSequence == legalDisputeCounterAfter(request.resource.data.caseYear).nextNumber
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
         && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
@@ -631,12 +638,22 @@ service cloud.firestore {
     function updatedLegalDispute() {
       return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data)
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
+        && ((!resource.data.keys().hasAny(['caseYear', 'caseSequence']) && !request.resource.data.keys().hasAny(['caseYear', 'caseSequence']))
+          || (request.resource.data.caseYear == resource.data.caseYear && request.resource.data.caseSequence == resource.data.caseSequence))
         && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
     }
+    match /legalDisputeCaseCounters/{year} {
+      allow get: if edit('legalDisputes');
+      allow list, delete: if false;
+      allow create: if edit('legalDisputes') && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
+        && request.resource.data.year == year && request.resource.data.nextNumber == 1 && request.resource.data.updatedAt == request.time;
+      allow update: if edit('legalDisputes') && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
+        && request.resource.data.year == year && request.resource.data.nextNumber is int && request.resource.data.nextNumber == resource.data.nextNumber + 1 && request.resource.data.updatedAt == request.time;
+    }
     match /legalDisputes/{id} {
       allow read: if view('legalDisputes');
-      allow create: if edit('legalDisputes') && createdLegalDispute();
+      allow create: if edit('legalDisputes') && createdLegalDispute(id);
       allow update: if edit('legalDisputes') && updatedLegalDispute();
       allow delete: if false;
 
