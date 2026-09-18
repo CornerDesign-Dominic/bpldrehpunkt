@@ -10,6 +10,7 @@ const movementLabels = {
   legal_fees: 'Rechtsanwaltskosten',
   court_costs: 'Gerichtskosten',
   collection_costs: 'Inkassokosten',
+  processing_fees: 'Bearbeitungsgebühren',
   other_costs: 'Sonstige Kosten',
 }
 

@@ -8,3 +8,7 @@
 .damage-deadlines .inkasso-empty-state,
 .inkasso-invoices-card .inkasso-empty-state,
 .inkasso-invoices-card__financial .inkasso-empty-state { height: 54px; }
+
+.inkasso-invoices-card__table-frame { overflow: hidden; border: 1px solid var(--border); border-radius: 6px; }
+.inkasso-invoices-card__table-frame .data-table { border: 0; }
+.inkasso-financial-overview__movement-editor { display: grid; grid-template-columns: minmax(125px, 0.9fr) minmax(100px, 1.1fr); gap: 5px; }

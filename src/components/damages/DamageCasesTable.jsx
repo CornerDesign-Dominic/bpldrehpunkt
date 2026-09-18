@@ -19,7 +19,7 @@ function TableHeader({ children }) {
 
 export default function DamageCasesTable({ cases, onOpen }) {
   if (!cases.length) return <p className="todos-gallery__state">Keine Fälle vorhanden.</p>
-  return <div className="damage-cases-table-frame"><table className="data-table todos-table damage-cases-table"><thead><tr><TableHeader>Fallnummer</TableHeader><TableHeader>Status</TableHeader><TableHeader>TA-Nummer</TableHeader><TableHeader>Kunde</TableHeader><TableHeader>Unternehmer</TableHeader><TableHeader>Schadenhöhe</TableHeader><TableHeader>Nächste Frist</TableHeader><TableHeader>Verantwortlich</TableHeader></tr></thead><tbody>{cases.map((damageCase) => {
+  return <div className="damage-cases-table-frame"><table className="data-table todos-table damage-cases-table"><thead><tr><TableHeader>Fallnummer</TableHeader><TableHeader>Status</TableHeader><TableHeader>TA-Nummer</TableHeader><TableHeader>Kunde</TableHeader><TableHeader>Unternehmer</TableHeader><TableHeader>Schadenhöhe</TableHeader><TableHeader>Nächste Frist</TableHeader></tr></thead><tbody>{cases.map((damageCase) => {
     const due = nextDeadlinePresentation(damageCase)
     return <tr className={`damage-cases-table__row todos-table__row--${due.appearance}`} key={damageCase.id} tabIndex="0" role="link" aria-label={`Fall ${damageCase.caseNumber} öffnen`} onClick={() => onOpen(damageCase)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(damageCase) } }}>
       <td className="todos-table__title damage-cases-table__case-number">{damageCase.caseNumber}</td>
@@ -29,7 +29,6 @@ export default function DamageCasesTable({ cases, onOpen }) {
       <td title={damageCase.contractor || ''}>{damageCase.contractor || '—'}</td>
       <td>{formatCurrency(damageCase.damageAmount)}</td>
       <td className={`todos-table__due todos-table__due--${due.appearance}`}>{due.value}</td>
-      <td>{damageCase.responsibleUserName || '—'}</td>
     </tr>
   })}</tbody></table></div>
 }

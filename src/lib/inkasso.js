@@ -17,7 +17,14 @@ export const INKASSO_MOVEMENT_TYPES = [
   { value: 'legal_fees', label: 'Rechtsanwaltskosten' },
   { value: 'court_costs', label: 'Gerichtskosten' },
   { value: 'collection_costs', label: 'Inkassokosten' },
+  { value: 'processing_fees', label: 'Bearbeitungsgebühren' },
   { value: 'other_costs', label: 'Sonstige Kosten' },
+]
+export const INKASSO_FINANCIAL_COST_TYPES = [
+  { value: 'dunning_costs', label: 'Mahngebühr' },
+  { value: 'interest', label: 'Zinsen' },
+  { value: 'collection_costs', label: 'Inkassogebühr' },
+  { value: 'processing_fees', label: 'Bearbeitungsgebühr' },
 ]
 
 const inkassoCasesRef = collection(db, INKASSO_CASES_COLLECTION)
