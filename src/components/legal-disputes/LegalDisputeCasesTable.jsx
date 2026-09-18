@@ -1,4 +1,4 @@
-import { legalDisputeStatusLabel } from '../../lib/legalDisputes.js'
+import { legalDisputeScheduleTypeLabel, legalDisputeStatusLabel } from '../../lib/legalDisputes.js'
 
 function TableHeader({ children }) {
   return <th><span className="table-sort-button legal-disputes-cases-table__header">{children}</span></th>
@@ -16,6 +16,6 @@ export default function LegalDisputeCasesTable({ cases, emptyMessage, onOpen }) 
     <td>{legalDispute.caseType || '—'}</td>
     <td><span className={`todo-status damage-status damage-status--${legalDispute.status}`}>{legalDisputeStatusLabel(legalDispute.status)}</span></td>
     <td>{formatCurrency(legalDispute.amountInDispute)}</td>
-    <td>{legalDispute.nextHearing ? formatDate(legalDispute.nextHearing) : formatDate(legalDispute.nextDeadline)}</td>
+    <td>{legalDispute.nextSchedule ? `${legalDisputeScheduleTypeLabel(legalDispute.nextSchedule.type)} · ${formatDate(legalDispute.nextSchedule.date)}${legalDispute.nextSchedule.time ? ` · ${legalDispute.nextSchedule.time}` : ''}` : legalDispute.nextHearing ? formatDate(legalDispute.nextHearing) : formatDate(legalDispute.nextDeadline)}</td>
   </tr>)}</tbody></table></div>
 }

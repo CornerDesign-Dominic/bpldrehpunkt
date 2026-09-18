@@ -6,7 +6,6 @@ const courtTypes = ['Amtsgericht', 'Landgericht', 'Oberlandesgericht', 'Bundesge
 const fieldsBySection = {
   financial: financialFields,
   information: [['Art des Falls', 'caseType'], ['Zuständig', 'responsibleUserName']],
-  deadlines: [['Nächste Frist', 'nextDeadline', 'date'], ['Hinweis zur Frist', 'nextDeadlineLabel'], ['Nächster Termin', 'nextHearing', 'date'], ['Uhrzeit', 'nextHearingTime', 'time']],
   parties: [['Verknüpfter Gegner', 'counterparty'], ['Vertretung', 'opposingRepresentation', 'representation'], ['Aktenzeichen der Gegenseite', 'opposingReference']],
   lawyer: [['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Übergabe an Rechtsanwalt', 'lawyerHandoverDate', 'date'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail']],
   court: [['Gericht', 'court', 'court'], ['Ort', 'courtLocation'], ['Gerichtliches Aktenzeichen', 'courtReference']],
@@ -17,7 +16,6 @@ const titles = {
   description: 'Sachverhalt bearbeiten',
   financial: 'Finanziellen Überblick bearbeiten',
   information: 'Fallinformationen bearbeiten',
-  deadlines: 'Termine & Fristen bearbeiten',
   parties: 'Beteiligte bearbeiten',
   lawyer: 'Rechtsanwalt / Übergabe bearbeiten',
   court: 'Gericht bearbeiten',

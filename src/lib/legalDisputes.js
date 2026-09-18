@@ -11,6 +11,10 @@ export const LEGAL_DISPUTE_STATUSES = [
   { value: 'open', label: 'Offen' },
   { value: 'completed', label: 'Abgeschlossen' },
 ]
+export const LEGAL_DISPUTE_SCHEDULE_TYPES = [
+  { value: 'deadline', label: 'Frist' },
+  { value: 'appointment', label: 'Termin' },
+]
 export const LEGAL_DISPUTE_PAYMENT_RECIPIENTS = [
   { value: 'court', label: 'Gericht' },
   { value: 'lawyer', label: 'Anwalt' },
@@ -51,8 +55,27 @@ function financialEntryLabel(entry) {
   return recipient ? `${direction} · ${recipient}` : direction
 }
 
+function legalDisputeDeadlinePayload(values) {
+  const type = values.type
+  const date = trim(values.date)
+  const time = trim(values.time)
+  const note = trim(values.note)
+  if (!LEGAL_DISPUTE_SCHEDULE_TYPES.some((item) => item.value === type)) throw new Error('Bitte auswählen, ob es sich um eine Frist oder einen Termin handelt.')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
+  if (time && !/^\d{2}:\d{2}$/.test(time)) throw new Error('Bitte eine gültige Uhrzeit erfassen.')
+  return { type, date, time: time || null, reminderEnabled: values.reminderEnabled === true, note: note || null }
+}
+
+function legalDisputeDeadlineLabel(deadline) {
+  return `${legalDisputeScheduleTypeLabel(deadline.type)} für ${new Intl.DateTimeFormat('de-DE').format(new Date(`${deadline.date}T12:00:00`))}`
+}
+
 export function legalDisputeStatusLabel(status) {
   return LEGAL_DISPUTE_STATUSES.find((item) => item.value === status)?.label || 'Offen'
+}
+
+export function legalDisputeScheduleTypeLabel(type) {
+  return LEGAL_DISPUTE_SCHEDULE_TYPES.find((item) => item.value === type)?.label || 'Termin / Frist'
 }
 
 export function createEmptyLegalDispute() {
@@ -73,6 +96,7 @@ export async function createLegalDispute(values, actor) {
   const actorName = getUserDisplayName(actor.profile, actor.user)
   const optionalText = (value) => trim(value) || null
   const optionalDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(trim(value)) ? trim(value) : null
+  const initialDeadline = optionalDate(values.nextDeadline)
   let caseRef
   await runTransaction(db, async (transaction) => {
     const counter = await transaction.get(counterRef)
@@ -108,7 +132,7 @@ export async function createLegalDispute(values, actor) {
       courtLocation: null,
       courtReference: null,
       judgeOrChamber: null,
-      nextDeadline: optionalDate(values.nextDeadline),
+      nextDeadline: initialDeadline,
       nextDeadlineLabel: null,
       nextHearing: null,
       nextHearingTime: null,
@@ -133,6 +157,7 @@ export async function createLegalDispute(values, actor) {
       updatedByName: actorName,
     })
     transaction.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
+    if (initialDeadline) transaction.set(doc(collection(caseRef, 'deadlines')), { type: 'deadline', date: initialDeadline, time: null, reminderEnabled: false, note: null, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
   })
   return caseRef.id
 }
@@ -143,11 +168,64 @@ export async function getLegalDispute(legalDisputeId) {
 }
 
 export async function listLegalDisputes() {
-  return (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot)
+  const disputes = (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot)
+  return Promise.all(disputes.map(async (legalDispute) => ({ ...legalDispute, nextSchedule: nextLegalDisputeDeadline(await listLegalDisputeDeadlines(legalDispute.id)) })))
 }
 
 export async function listLegalDisputeUpdates(legalDisputeId) {
   return (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+}
+
+export function createEmptyLegalDisputeDeadline() {
+  return { type: 'deadline', date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
+}
+
+export function legalDisputeDeadlinePresentation(deadline, now = new Date()) {
+  if (!deadline?.date) return { kind: 'none', label: 'Kein Termin', days: null }
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const due = new Date(`${deadline.date}T12:00:00`)
+  const days = Math.round((due - today) / 86400000)
+  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
+  if (days === 0) return { kind: 'today', label: 'Heute', days }
+  if (days <= 3) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  if (days <= 7) return { kind: 'warning', label: `In ${days} Tagen`, days }
+  return { kind: 'none', label: 'Später', days }
+}
+
+export function nextLegalDisputeDeadline(deadlines, now = new Date()) {
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const datedDeadlines = (deadlines || []).filter((deadline) => /^\d{4}-\d{2}-\d{2}$/.test(deadline?.date || ''))
+  const byDate = (left, right) => left.date.localeCompare(right.date) || (left.time || '').localeCompare(right.time || '')
+  const overdue = datedDeadlines.filter((deadline) => new Date(`${deadline.date}T12:00:00`) < today).sort(byDate)
+  if (overdue.length) return overdue[0]
+  return datedDeadlines.filter((deadline) => new Date(`${deadline.date}T12:00:00`) >= today).sort(byDate)[0] || null
+}
+
+export async function listLegalDisputeDeadlines(legalDisputeId) {
+  const snapshots = await getDocs(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'deadlines'))
+  return snapshots.docs.map(mapSnapshot).sort((left, right) => left.date.localeCompare(right.date) || (left.time || '').localeCompare(right.time || '') || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
+}
+
+export async function createLegalDisputeDeadline(legalDispute, values, actor) {
+  const deadline = legalDisputeDeadlinePayload(values)
+  const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} hinzugefügt.`, actor))
+  await batch.commit()
+}
+
+export async function updateLegalDisputeDeadline(legalDispute, deadline, values, actor) {
+  const next = legalDisputeDeadlinePayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))) return false
+  const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(next)} aktualisiert.`, actor))
+  await batch.commit()
+  return true
 }
 
 export function createEmptyLegalDisputeFinancialEntry() {

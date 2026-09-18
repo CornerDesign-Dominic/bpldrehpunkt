@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
+import LegalDisputeDeadlinesCard from '../components/legal-disputes/LegalDisputeDeadlinesCard.jsx'
 import LegalDisputeFinancialOverview from '../components/legal-disputes/LegalDisputeFinancialOverview.jsx'
 import LegalDisputeEditModal from '../components/legal-disputes/LegalDisputeEditModal.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
@@ -13,7 +14,7 @@ import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createLegalDisputeDocument, deleteLegalDisputeDocument, getLegalDisputeDocumentBlob, listLegalDisputeDocuments, updateLegalDisputeDocument } from '../lib/legalDisputeDocuments.js'
-import { addLegalDisputeSystemUpdate, addLegalDisputeUpdate, createLegalDisputeFinancialEntry, deleteLegalDisputeFinancialEntry, getLegalDispute, legalDisputeStatusLabel, listLegalDisputeFinancialEntries, listLegalDisputeUpdates, updateLegalDisputeFields, updateLegalDisputeFinancialEntry } from '../lib/legalDisputes.js'
+import { addLegalDisputeSystemUpdate, addLegalDisputeUpdate, createLegalDisputeDeadline, createLegalDisputeFinancialEntry, deleteLegalDisputeFinancialEntry, getLegalDispute, legalDisputeScheduleTypeLabel, legalDisputeStatusLabel, listLegalDisputeDeadlines, listLegalDisputeFinancialEntries, listLegalDisputeUpdates, nextLegalDisputeDeadline, updateLegalDisputeDeadline, updateLegalDisputeFields, updateLegalDisputeFinancialEntry } from '../lib/legalDisputes.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 
@@ -37,10 +38,12 @@ export default function LegalDisputeDetailPage() {
   const editable = canEdit('legalDisputes')
   const [legalDispute, setLegalDispute] = useState(null)
   const [documents, setDocuments] = useState([])
+  const [deadlines, setDeadlines] = useState([])
   const [financialEntries, setFinancialEntries] = useState([])
   const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
   const [documentsLoading, setDocumentsLoading] = useState(true)
+  const [deadlinesLoading, setDeadlinesLoading] = useState(true)
   const [updatesLoading, setUpdatesLoading] = useState(true)
   const [financialEntriesLoading, setFinancialEntriesLoading] = useState(true)
   const [error, setError] = useState('')
@@ -54,22 +57,24 @@ export default function LegalDisputeDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, entries, caseDocuments, caseFinancialEntries] = await Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
+    const [entry, entries, caseDocuments, caseDeadlines, caseFinancialEntries] = await Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeDeadlines(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
     setLegalDispute(entry)
     setUpdates(entries)
     setDocuments(caseDocuments)
+    setDeadlines(caseDeadlines)
     setFinancialEntries(caseFinancialEntries)
     setTitle(entry?.caseNumber || '')
     setDocumentsLoading(false)
+    setDeadlinesLoading(false)
     setUpdatesLoading(false)
     setFinancialEntriesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
-      .then(([entry, entries, caseDocuments, caseFinancialEntries]) => { if (current) { setLegalDispute(entry); setUpdates(entries); setDocuments(caseDocuments); setFinancialEntries(caseFinancialEntries); setTitle(entry?.caseNumber || ''); setDocumentsLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setDocumentsLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
+    Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeDeadlines(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
+      .then(([entry, entries, caseDocuments, caseDeadlines, caseFinancialEntries]) => { if (current) { setLegalDispute(entry); setUpdates(entries); setDocuments(caseDocuments); setDeadlines(caseDeadlines); setFinancialEntries(caseFinancialEntries); setTitle(entry?.caseNumber || ''); setDocumentsLoading(false); setDeadlinesLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
+      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setDocumentsLoading(false); setDeadlinesLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
   }, [legalDisputeId, setTitle])
@@ -115,7 +120,7 @@ export default function LegalDisputeDetailPage() {
       : values
     const systemText = {
       description: 'Sachverhalt aktualisiert', financial: 'Finanzieller Überblick aktualisiert', information: 'Fallinformationen aktualisiert',
-      deadlines: 'Termine und Fristen aktualisiert', parties: 'Beteiligte aktualisiert', lawyer: 'Rechtsanwalt / Übergabe aktualisiert', court: 'Gerichtsdaten aktualisiert', procedure: 'Verfahrensdaten aktualisiert',
+      parties: 'Beteiligte aktualisiert', lawyer: 'Rechtsanwalt / Übergabe aktualisiert', court: 'Gerichtsdaten aktualisiert', procedure: 'Verfahrensdaten aktualisiert',
     }[editing]
     try { await updateLegalDisputeFields(legalDispute, changes, { user, profile }, systemText); await load(); setEditing(null); setToast('Änderung gespeichert.') } catch (saveError) { setError(saveError.message || 'Die Änderung konnte nicht gespeichert werden.'); throw saveError }
   }
@@ -133,6 +138,15 @@ export default function LegalDisputeDetailPage() {
     try { await deleteLegalDisputeFinancialEntry(legalDispute, entry, { user, profile }); await load(); setToast('Zahlungsposition gelöscht.') } catch (deleteError) { setError(deleteError.message || 'Die Zahlungsposition konnte nicht gelöscht werden.'); throw deleteError }
   }
 
+  async function saveDeadline(existingDeadline, values) {
+    try {
+      if (existingDeadline) await updateLegalDisputeDeadline(legalDispute, existingDeadline, values, { user, profile })
+      else await createLegalDisputeDeadline(legalDispute, values, { user, profile })
+      await load()
+      setToast(existingDeadline ? 'Termin / Frist aktualisiert.' : 'Termin / Frist hinzugefügt.')
+    } catch (saveError) { setError(saveError.message || 'Der Termin oder die Frist konnte nicht gespeichert werden.'); throw saveError }
+  }
+
   if (loading) return <p className="page-state">Fall wird geladen …</p>
   if (error && !legalDispute) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><BackLink to="/legal-disputes" /></section>
   if (!legalDispute) return null
@@ -140,8 +154,8 @@ export default function LegalDisputeDetailPage() {
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = updates.filter((update) => update.type === 'system')
   const title = `${legalDispute.caseNumber || legalDispute.reference || 'Fall'} – ${legalDispute.title || legalDispute.subject || 'Ohne Betreff'}`
-  const nextDeadline = legalDispute.nextDeadline ? `${formatDate(legalDispute.nextDeadline)}${legalDispute.nextDeadlineLabel ? ` · ${legalDispute.nextDeadlineLabel}` : ''}` : ''
-  const nextHearing = legalDispute.nextHearing ? `${formatDate(legalDispute.nextHearing)}${legalDispute.nextHearingTime ? ` · ${legalDispute.nextHearingTime}` : ''}` : ''
+  const nextSchedule = nextLegalDisputeDeadline(deadlines)
+  const nextScheduleDisplay = nextSchedule ? `${formatDate(nextSchedule.date)}${nextSchedule.time ? ` · ${nextSchedule.time}` : ''}` : ''
 
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
@@ -158,12 +172,13 @@ export default function LegalDisputeDetailPage() {
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3>Sachverhalt</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} title="Sachverhalt bearbeiten" aria-label="Sachverhalt bearbeiten"><EditIcon size={14} /></button>}</div><p className="todo-detail-description">{legalDispute.description || 'Kein Sachverhalt hinterlegt.'}</p></section>
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getLegalDisputeDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <LegalDisputeFinancialOverview canEdit={editable} entries={financialEntries} legalDispute={legalDispute} loading={financialEntriesLoading} onDeleteEntry={deleteFinancialEntry} onEditDispute={() => setEditing('financial')} onSaveEntry={saveFinancialEntry} />
+          <LegalDisputeDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onSave={saveDeadline} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="legal-dispute-update-title"><div className="todo-updates__heading"><h3 id="legal-dispute-update-title">Updates</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Fall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Fall hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : !manualUpdates.length && <p className="todo-updates__empty">Noch keine Updates zum Fall.</p>}{manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="legal-dispute-history-title"><div className="todo-updates__heading"><h3 id="legal-dispute-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
         <aside className="todo-detail-sidebar">
           <InformationSection title="Fallinformationen" onEdit={editable ? () => setEditing('information') : null} showEmpty values={[legalDispute.caseType, legalDispute.responsibleUserName, legalDispute.completedAt]}><Detail label="Art des Falls">{legalDispute.caseType}</Detail><Detail label="Zuständig">{legalDispute.responsibleUserName}</Detail>{legalDispute.isClosed && <Detail label="Abgeschlossen am">{formatTimestamp(legalDispute.completedAt)}</Detail>}</InformationSection>
-          <InformationSection title="Nächste Termine & Fristen" onEdit={editable ? () => setEditing('deadlines') : null} showEmpty values={[nextDeadline, nextHearing]}><Detail label="Nächste Frist">{nextDeadline ? <span className="due-date due-date--soon">{nextDeadline}</span> : null}</Detail><Detail label="Nächster Termin">{nextHearing}</Detail></InformationSection>
+          <InformationSection title="Nächster Termin / Frist" showEmpty values={[nextSchedule]}><Detail label={nextSchedule ? `Nächste ${legalDisputeScheduleTypeLabel(nextSchedule.type)}` : 'Nächster Termin / Frist'}>{nextScheduleDisplay}</Detail></InformationSection>
           <InformationSection title="Beteiligte" onEdit={editable ? () => setEditing('parties') : null} showEmpty values={[legalDispute.counterparty, legalDispute.opposingRepresentation, legalDispute.opposingReference]}><Detail label="Verknüpfter Gegner">{legalDispute.counterparty}</Detail><Detail label="Vertretung">{opposingRepresentationLabel(legalDispute.opposingRepresentation)}</Detail><Detail label="Aktenzeichen der Gegenseite">{legalDispute.opposingReference}</Detail></InformationSection>
           <InformationSection title="Rechtsanwalt / Übergabe" onEdit={editable ? () => setEditing('lawyer') : null} showEmpty values={[legalDispute.lawFirm, legalDispute.ownCounsel, legalDispute.lawyerReference, legalDispute.lawyerHandoverDate, legalDispute.lawyerPhone, legalDispute.lawyerEmail]}><Detail label="Rechtsanwalt / Kanzlei">{legalDispute.lawFirm}</Detail><Detail label="Ansprechpartner">{legalDispute.ownCounsel}</Detail><Detail label="Aktenzeichen">{legalDispute.lawyerReference}</Detail><Detail label="Übergeben am">{formatDate(legalDispute.lawyerHandoverDate)}</Detail><Detail label="Telefon">{legalDispute.lawyerPhone}</Detail><Detail label="E-Mail">{legalDispute.lawyerEmail}</Detail></InformationSection>
           <InformationSection title="Gericht" onEdit={editable ? () => setEditing('court') : null} showEmpty values={[legalDispute.court, legalDispute.courtLocation, legalDispute.courtReference]}><Detail label="Gericht">{legalDispute.court}</Detail><Detail label="Ort">{legalDispute.courtLocation}</Detail><Detail label="Gerichtliches Aktenzeichen">{legalDispute.courtReference}</Detail></InformationSection>

@@ -671,6 +671,31 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      match /deadlines/{deadlineId} {
+        function validLegalDisputeDeadline(data) {
+          return data.keys().hasAll(['type', 'date', 'time', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && (data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$'))) && data.reminderEnabled is bool
+            && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        }
+        function deadlineParentWasUpdated() {
+          return getAfter(/databases/$(database)/documents/legalDisputes/$(id)).data.caseNumber is string
+            && getAfter(/databases/$(database)/documents/legalDisputes/$(id)).data.updatedAt == request.time
+            && getAfter(/databases/$(database)/documents/legalDisputes/$(id)).data.updatedBy == request.auth.uid;
+        }
+        allow read: if view('legalDisputes');
+        allow create: if edit('legalDisputes') && validLegalDisputeDeadline(request.resource.data) && deadlineParentWasUpdated()
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('legalDisputes') && validLegalDisputeDeadline(request.resource.data) && deadlineParentWasUpdated()
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+        allow delete: if false;
+      }
+
       match /documents/{documentId} {
         function validLegalDisputeDocument(data) {
           return data.keys().hasAll(['id', 'title', 'description', 'pageCount', 'fileName', 'storagePath', 'contentType', 'fileSize', 'uploadedByUserId', 'uploadedByName', 'createdAt', 'updatedAt'])
