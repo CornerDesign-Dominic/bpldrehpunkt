@@ -2,18 +2,30 @@ import { useState } from 'react'
 
 const financialFields = [['Streitbetrag', 'amountInDispute']]
 
-const informationFields = [
-  ['Art des Falls', 'caseType'], ['Zuständig', 'responsibleUserName'], ['Beteiligter', 'participant'], ['Gegner', 'counterparty'], ['Gegnerischer Rechtsanwalt', 'opposingCounsel'],
-  ['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Übergabe an Rechtsanwalt', 'lawyerHandoverDate', 'date'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail'],
-  ['Gericht', 'court'], ['Gerichtliches Aktenzeichen', 'courtReference'], ['Richter / Kammer', 'judgeOrChamber'], ['Nächste Frist', 'nextDeadline', 'date'], ['Hinweis zur Frist', 'nextDeadlineLabel'],
-  ['Nächster Termin', 'nextHearing', 'date'], ['Uhrzeit', 'nextHearingTime', 'time'], ['Verfahrensart', 'procedureType'], ['Verfahrensstand', 'proceedingStage'], ['Instanz', 'instance'], ['Beginn des Falls', 'startedAt', 'date'],
-]
+const fieldsBySection = {
+  financial: financialFields,
+  information: [['Art des Falls', 'caseType'], ['Zuständig', 'responsibleUserName']],
+  deadlines: [['Nächste Frist', 'nextDeadline', 'date'], ['Hinweis zur Frist', 'nextDeadlineLabel'], ['Nächster Termin', 'nextHearing', 'date'], ['Uhrzeit', 'nextHearingTime', 'time']],
+  parties: [['Beteiligter', 'participant'], ['Gegenseite', 'counterparty'], ['Gegnerischer Rechtsanwalt', 'opposingCounsel']],
+  lawyer: [['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Übergabe an Rechtsanwalt', 'lawyerHandoverDate', 'date'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail']],
+  court: [['Gericht', 'court'], ['Gerichtliches Aktenzeichen', 'courtReference'], ['Richter / Kammer', 'judgeOrChamber']],
+  procedure: [['Verfahrensart', 'procedureType'], ['Verfahrensstand', 'proceedingStage'], ['Instanz', 'instance'], ['Beginn des Falls', 'startedAt', 'date']],
+}
 
-const titles = { description: 'Sachverhalt bearbeiten', financial: 'Finanziellen Überblick bearbeiten', information: 'Fallinformationen bearbeiten' }
+const titles = {
+  description: 'Sachverhalt bearbeiten',
+  financial: 'Finanziellen Überblick bearbeiten',
+  information: 'Fallinformationen bearbeiten',
+  deadlines: 'Termine & Fristen bearbeiten',
+  parties: 'Beteiligte bearbeiten',
+  lawyer: 'Rechtsanwalt / Übergabe bearbeiten',
+  court: 'Gericht bearbeiten',
+  procedure: 'Verfahren bearbeiten',
+}
 
 function initialValue(legalDispute, section) {
   if (section === 'description') return { description: legalDispute.description || '' }
-  const fields = section === 'financial' ? financialFields : informationFields
+  const fields = fieldsBySection[section] || []
   return Object.fromEntries(fields.map(([, field]) => [field, legalDispute[field] ?? '']).concat(section === 'information' ? [['status', legalDispute.status || 'open']] : []))
 }
 
@@ -21,7 +33,7 @@ export default function LegalDisputeEditModal({ legalDispute, section, onCancel,
   const [form, setForm] = useState(() => initialValue(legalDispute, section))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const fields = section === 'financial' ? financialFields : informationFields
+  const fields = fieldsBySection[section] || []
 
   function update(field, value) { setForm((current) => ({ ...current, [field]: value })) }
 
