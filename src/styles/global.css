@@ -968,7 +968,10 @@ tbody tr:hover { background: var(--table-hover-background); }
 .user-placeholder { color: var(--text-muted); }
 .user-placeholder__dot { background: var(--text-muted); }
 
-.app-content > .pallet-account-page {
+.app-content > .pallet-account-page,
+.app-content > .business-partners-page,
+.app-content > .crm-page,
+.app-content > .pallets-page {
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -977,9 +980,6 @@ tbody tr:hover { background: var(--table-hover-background); }
 }
 
 .app-content > .dashboard-page,
-.app-content > .business-partners-page,
-.app-content > .crm-page,
-.app-content > .pallets-page,
 .app-content > .documents-page,
 .app-content > .todos-page,
 .app-content > .todo-detail-page,

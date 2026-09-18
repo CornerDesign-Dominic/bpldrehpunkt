@@ -64,7 +64,7 @@
 .masterdata-readonly-field { display: grid; min-width: 0; gap: 3px; }
 .masterdata-readonly-field dt { overflow: hidden; color: var(--text-secondary); font-size: 11px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .masterdata-readonly-field dd { min-width: 0; margin: 0; }
-.masterdata-readonly-field__value { overflow-wrap: anywhere; color: var(--text-primary); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.masterdata-readonly-field__value { overflow-wrap: anywhere; color: var(--text-primary); font-size: 16px; font-weight: 600; line-height: 1.35; }
 .masterdata-readonly-field__value--copyable, .copy-email-value { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
 .masterdata-readonly-field__value--copyable > span, .copy-email-value > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .copy-email-button { display: inline-flex; width: 22px; height: 22px; flex: 0 0 22px; align-items: center; justify-content: center; border-radius: 4px; color: var(--text-muted); cursor: pointer; }
