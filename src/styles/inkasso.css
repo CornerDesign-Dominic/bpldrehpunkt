@@ -1,0 +1,10 @@
+.inkasso-cases-table { min-width: 900px; table-layout: fixed; }
+.inkasso-cases-table th:nth-child(1) { width: 150px; }
+.inkasso-cases-table th:nth-child(2) { width: 180px; }
+.inkasso-cases-table th:nth-child(3) { width: 150px; }
+.inkasso-cases-table th:nth-child(4) { width: 140px; }
+.inkasso-cases-table th:nth-child(5) { width: 210px; }
+
+.damage-deadlines .inkasso-empty-state,
+.inkasso-invoices-card .inkasso-empty-state,
+.inkasso-invoices-card__financial .inkasso-empty-state { height: 54px; }

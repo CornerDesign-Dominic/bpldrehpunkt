@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
-import { db } from './firebase.js'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 
 export const INKASSO_CASES_COLLECTION = 'inkassoCases'
@@ -105,7 +106,11 @@ export function createEmptyInkassoMovement() {
 
 export async function listInkassoCases() {
   const snapshots = await getDocs(query(inkassoCasesRef, orderBy('createdAt', 'desc')))
-  return snapshots.docs.map(mapSnapshot)
+  const inkassoCases = snapshots.docs.map(mapSnapshot)
+  return Promise.all(inkassoCases.map(async (inkassoCase) => ({
+    ...inkassoCase,
+    nextDeadline: nextInkassoDeadline(await listInkassoCaseDeadlines(inkassoCase.id)),
+  })))
 }
 
 export async function getInkassoCase(caseId) {
@@ -113,40 +118,20 @@ export async function getInkassoCase(caseId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createInkassoCase(values, actor, responsibleUsersById) {
+export async function createInkassoCase(values) {
   const invoices = normalizeInkassoInvoices(values.invoices)
-  const claimAmount = invoices.length ? invoices.reduce((total, invoice) => total + invoice.netAmount + invoice.vatAmount, 0) : null
-  const invoiceNumbers = invoices.length ? invoices.map((invoice) => invoice.invoiceNumber).join(', ') : null
-  const next = casePayload({ ...createEmptyInkassoCase(), ...values, status: 'open', claimAmount, paidAmount: 0, invoiceNumbers }, responsibleUsersById)
-  if (!next.title) throw new Error('Bitte eine Fallbezeichnung eingeben.')
+  const title = optionalText(values.title)
+  if (!title) throw new Error('Bitte eine Fallbezeichnung eingeben.')
 
-  const caseRef = doc(inkassoCasesRef)
-  const actorName = getUserDisplayName(actor.profile, actor.user)
-  const caseNumber = `I-${new Date().getFullYear()}-${caseRef.id.slice(0, 8).toUpperCase()}`
-  const batch = writeBatch(db)
-  batch.set(caseRef, {
-    ...next,
-    caseNumber,
-    completedAt: null,
-    createdAt: serverTimestamp(),
-    createdBy: actor.user.uid,
-    createdByName: actorName,
-    updatedAt: serverTimestamp(),
-    updatedBy: actor.user.uid,
-    updatedByName: actorName,
+  const result = await httpsCallable(functions, 'createInkassoCase')({
+    title,
+    description: optionalText(values.description),
+    collectionAgency: optionalText(values.collectionAgency),
+    collectionReference: optionalText(values.collectionReference),
+    debtorPartnerId: optionalText(values.debtorPartnerId),
+    invoices,
   })
-  invoices.forEach((invoice) => batch.set(doc(collection(caseRef, 'invoices')), {
-    ...invoice,
-    isPaid: false,
-    paidAt: null,
-    paidBy: null,
-    paidByName: null,
-    createdAt: serverTimestamp(),
-    createdBy: actor.user.uid,
-    createdByName: actorName,
-  }))
-  await batch.commit()
-  return caseRef.id
+  return result.data.caseId
 }
 
 export function normalizeInkassoInvoices(rows) {
@@ -254,6 +239,10 @@ export function inkassoDeadlinePresentation(deadline, now = new Date()) {
   if (days <= 2) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
   if (days <= 5) return { kind: 'warning', label: `In ${days} Tagen`, days }
   return { kind: 'none', label: 'Später', days }
+}
+
+export function nextInkassoDeadline(deadlines) {
+  return Array.isArray(deadlines) ? deadlines.find((deadline) => deadline?.date) || null : null
 }
 
 export async function listInkassoCaseDeadlines(caseId) {

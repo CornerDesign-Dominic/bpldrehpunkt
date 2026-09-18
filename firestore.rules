@@ -739,6 +739,10 @@ service cloud.firestore {
         allow delete: if edit('legalDisputes');
       }
     }
+    // Annual counter documents are exclusively maintained by the Admin SDK.
+    match /inkassoCaseCounters/{year} {
+      allow read, write: if false;
+    }
     function inkassoText(value, limit) { return value == null || (value is string && value.size() <= limit); }
     function inkassoDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
     function inkassoAmount(value) { return value is number && value >= 0; }
@@ -757,12 +761,6 @@ service cloud.firestore {
         && inkassoText(data.court, 240) && inkassoText(data.courtReference, 240) && inkassoDate(data.paymentOrderDate) && inkassoDate(data.enforcementOrderDate)
         && data.titleAvailable is bool && (data.completedAt == null || data.completedAt is timestamp);
     }
-    function createdInkassoCase() {
-      return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
-        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
-        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
-        && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
-    }
     function updatedInkassoCase() {
       return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
@@ -771,7 +769,9 @@ service cloud.firestore {
     }
     match /inkassoCases/{id} {
       allow read: if view('inkasso');
-      allow create: if edit('inkasso') && createdInkassoCase();
+      // Case numbers are assigned in a transaction by the callable function.
+      // Browser writes would bypass that single source of truth.
+      allow create: if false;
       allow update: if edit('inkasso') && updatedInkassoCase();
       allow delete: if false;
 

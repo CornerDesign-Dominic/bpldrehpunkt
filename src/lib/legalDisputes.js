@@ -229,7 +229,7 @@ export async function updateLegalDisputeDeadline(legalDispute, deadline, values,
 }
 
 export function createEmptyLegalDisputeFinancialEntry() {
-  return { date: new Date().toISOString().slice(0, 10), direction: 'received', payeeType: '', netAmount: '', vatAmount: '' }
+  return { date: new Date().toISOString().slice(0, 10), direction: 'paid', payeeType: '', netAmount: '', vatAmount: '' }
 }
 
 export async function listLegalDisputeFinancialEntries(legalDisputeId) {

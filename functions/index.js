@@ -1160,6 +1160,7 @@ export { refreshSchoolHolidayData } from './schoolHolidays.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
 export { generateKnowledgeProcessDraft } from './knowledgeProcessAi.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
+export { createInkassoCase } from './inkassoCases.js'
 export {
   recordInkassoCaseCreated,
   recordInkassoCaseUpdated,

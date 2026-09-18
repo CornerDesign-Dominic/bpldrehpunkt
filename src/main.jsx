@@ -5,6 +5,7 @@ import App from './App.jsx'
 import { AuthProvider } from './auth/AuthProvider.jsx'
 import { ThemeProvider } from './theme/ThemeProvider.jsx'
 import './styles/global.css'
+import './styles/inkasso.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
