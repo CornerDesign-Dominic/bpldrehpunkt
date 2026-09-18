@@ -44,6 +44,7 @@ function casePayload(values, responsibleUsersById) {
     status,
     isClosed: status === 'completed',
     debtorName: optionalText(values.debtorName),
+    debtorPartnerId: optionalText(values.debtorPartnerId),
     debtorNumber: optionalText(values.debtorNumber),
     debtorContactName: optionalText(values.debtorContactName),
     debtorAddress: optionalText(values.debtorAddress),
@@ -66,6 +67,7 @@ function casePayload(values, responsibleUsersById) {
     paymentOrderDate: optionalDate(values.paymentOrderDate),
     enforcementOrderDate: optionalDate(values.enforcementOrderDate),
     titleAvailable: values.titleAvailable === true,
+    claimAmount: optionalAmount(values.claimAmount, 'Der Forderungsbetrag'),
   }
 }
 
@@ -90,9 +92,8 @@ export function createEmptyInkassoCase() {
     title: '',
     status: 'open',
     debtorName: '',
-    responsibleUserId: '',
-    invoiceNumbers: '',
-    originalDueDate: '',
+    debtorPartnerId: '',
+    invoices: [],
   }
 }
 
@@ -111,13 +112,17 @@ export async function getInkassoCase(caseId) {
 }
 
 export async function createInkassoCase(values, actor, responsibleUsersById) {
-  const next = casePayload({ ...createEmptyInkassoCase(), ...values, status: 'open' }, responsibleUsersById)
+  const invoices = normalizeInkassoInvoices(values.invoices)
+  const claimAmount = invoices.length ? invoices.reduce((total, invoice) => total + invoice.netAmount + invoice.vatAmount, 0) : null
+  const invoiceNumbers = invoices.length ? invoices.map((invoice) => invoice.invoiceNumber).join(', ') : null
+  const next = casePayload({ ...createEmptyInkassoCase(), ...values, status: 'open', claimAmount, invoiceNumbers }, responsibleUsersById)
   if (!next.title) throw new Error('Bitte eine Fallbezeichnung eingeben.')
 
   const caseRef = doc(inkassoCasesRef)
   const actorName = getUserDisplayName(actor.profile, actor.user)
   const caseNumber = `I-${new Date().getFullYear()}-${caseRef.id.slice(0, 8).toUpperCase()}`
-  await writeBatch(db).set(caseRef, {
+  const batch = writeBatch(db)
+  batch.set(caseRef, {
     ...next,
     caseNumber,
     completedAt: null,
@@ -127,8 +132,29 @@ export async function createInkassoCase(values, actor, responsibleUsersById) {
     updatedAt: serverTimestamp(),
     updatedBy: actor.user.uid,
     updatedByName: actorName,
-  }).commit()
+  })
+  invoices.forEach((invoice) => batch.set(doc(collection(caseRef, 'invoices')), {
+    ...invoice,
+    createdAt: serverTimestamp(),
+    createdBy: actor.user.uid,
+    createdByName: actorName,
+  }))
+  await batch.commit()
   return caseRef.id
+}
+
+export function normalizeInkassoInvoices(rows) {
+  if (!Array.isArray(rows)) return []
+  const invoices = rows.filter((row) => [row?.invoiceNumber, row?.netAmount, row?.vatAmount].some((value) => trim(String(value ?? ''))))
+  if (invoices.length > 50) throw new Error('Es können höchstens 50 Rechnungen gleichzeitig erfasst werden.')
+  return invoices.map((row) => {
+    const invoiceNumber = trim(row.invoiceNumber)
+    const netAmount = optionalAmount(row.netAmount, 'Der Nettobetrag')
+    const vatAmount = optionalAmount(row.vatAmount, 'Der USt.-Betrag')
+    if (!invoiceNumber || netAmount === null || vatAmount === null) throw new Error('Bitte je Rechnung Nummer, Nettobetrag und USt.-Betrag erfassen.')
+    if (invoiceNumber.length > 240) throw new Error('Die Rechnungsnummer ist zu lang.')
+    return { invoiceNumber, netAmount, vatAmount, grossAmount: netAmount + vatAmount }
+  })
 }
 
 export async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {

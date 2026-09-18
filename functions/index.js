@@ -1166,6 +1166,7 @@ export {
   recordInkassoDocumentCreated,
   recordInkassoDocumentDeleted,
   recordInkassoDocumentUpdated,
+  recordInkassoInvoiceCreated,
   recordInkassoMovementCreated,
   recordInkassoMovementDeleted,
   recordInkassoMovementUpdated,

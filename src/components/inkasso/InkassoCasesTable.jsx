@@ -17,9 +17,9 @@ function TableHeader({ children }) {
 export default function InkassoCasesTable({ cases, emptyMessage, onOpen }) {
   if (!cases.length) return <p className="todos-gallery__state">{emptyMessage}</p>
 
-  return <div className="damage-cases-table-frame"><table className="data-table todos-table damage-cases-table"><thead><tr><TableHeader>Akten-/Fallnummer</TableHeader><TableHeader>Kunde / Schuldner</TableHeader><TableHeader>Forderungsbetrag</TableHeader><TableHeader>Status</TableHeader><TableHeader>Zuständig</TableHeader><TableHeader>Erstellt am</TableHeader><TableHeader>Letzter Bearbeitungsstand</TableHeader></tr></thead><tbody>{cases.map((inkassoCase) => {
+  return <div className="inkasso-cases-table-frame"><table className="data-table todos-table inkasso-cases-table"><thead><tr><TableHeader>Akten-/Fallnummer</TableHeader><TableHeader>Kunde / Schuldner</TableHeader><TableHeader>Forderungsbetrag</TableHeader><TableHeader>Status</TableHeader><TableHeader>Zuständig</TableHeader><TableHeader>Erstellt am</TableHeader><TableHeader>Letzter Bearbeitungsstand</TableHeader></tr></thead><tbody>{cases.map((inkassoCase) => {
     const canOpen = typeof onOpen === 'function'
-    return <tr className={canOpen ? 'damage-cases-table__row' : ''} key={inkassoCase.id} {...(canOpen ? { tabIndex: 0, role: 'link', 'aria-label': `Inkassofall ${inkassoCase.caseNumber || inkassoCase.id} öffnen`, onClick: () => onOpen(inkassoCase), onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(inkassoCase) } } } : {})}>
+    return <tr className={canOpen ? 'inkasso-cases-table__row' : ''} key={inkassoCase.id} {...(canOpen ? { tabIndex: 0, role: 'link', 'aria-label': `Inkassofall ${inkassoCase.caseNumber || inkassoCase.id} öffnen`, onClick: () => onOpen(inkassoCase), onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(inkassoCase) } } } : {})}>
       <td className="todos-table__title">{inkassoCase.caseNumber || '—'}</td>
       <td>{inkassoCase.debtorName || inkassoCase.customerName || '—'}</td>
       <td>{formatCurrency(inkassoCase.claimAmount)}</td>

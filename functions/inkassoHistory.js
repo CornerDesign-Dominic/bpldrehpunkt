@@ -82,6 +82,11 @@ export const recordInkassoDocumentDeleted = onDocumentDeletedWithAuthContext({ r
   await writeHistory(event.params.caseId, event.id, 'document_deleted', `Dokument gelöscht: ${document.title || document.fileName || 'Unbenanntes Dokument'}`, await actorFrom(document, event))
 })
 
+export const recordInkassoInvoiceCreated = onDocumentCreatedWithAuthContext({ region, document: 'inkassoCases/{caseId}/invoices/{invoiceId}' }, async (event) => {
+  const invoice = event.data.data()
+  await writeHistory(event.params.caseId, event.id, 'invoice_created', `Rechnung hinzugefügt: ${invoice.invoiceNumber}`, await actorFrom(invoice, event), null, values(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'], invoice))
+})
+
 function movementText(action, movement) {
   return `${movementLabels[movement.type] || 'Betragsbewegung'} ${action}`
 }

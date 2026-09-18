@@ -31,6 +31,7 @@ test('trusted server triggers create immutable inkasso history for relevant case
   assert.match(historyFunction, /onDocumentUpdatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}' \}/)
   assert.match(historyFunction, /onDocumentCreatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/documents\/\{documentId\}' \}/)
   assert.match(historyFunction, /onDocumentDeletedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/documents\/\{documentId\}' \}/)
+  assert.match(historyFunction, /onDocumentCreatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/invoices\/\{invoiceId\}' \}/)
   assert.match(historyFunction, /onDocumentCreatedWithAuthContext\(\{ region, document: 'inkassoCases\/\{caseId\}\/movements\/\{movementId\}' \}/)
   assert.match(historyFunction, /source: 'server'/)
   assert.match(historyFunction, /createdAt: FieldValue\.serverTimestamp\(\)/)
