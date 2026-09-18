@@ -85,6 +85,17 @@ export function isClosedInkassoCase(inkassoCase) {
   return inkassoCase.isClosed === true || inkassoCase.status === 'completed'
 }
 
+export function createEmptyInkassoCase() {
+  return {
+    title: '',
+    status: 'open',
+    debtorName: '',
+    responsibleUserId: '',
+    invoiceNumbers: '',
+    originalDueDate: '',
+  }
+}
+
 export function createEmptyInkassoMovement() {
   return { date: new Date().toISOString().slice(0, 10), type: 'main_claim', amount: '', description: '' }
 }
@@ -97,6 +108,27 @@ export async function listInkassoCases() {
 export async function getInkassoCase(caseId) {
   const snapshot = await getDoc(doc(db, INKASSO_CASES_COLLECTION, caseId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null
+}
+
+export async function createInkassoCase(values, actor, responsibleUsersById) {
+  const next = casePayload({ ...createEmptyInkassoCase(), ...values, status: 'open' }, responsibleUsersById)
+  if (!next.title) throw new Error('Bitte eine Fallbezeichnung eingeben.')
+
+  const caseRef = doc(inkassoCasesRef)
+  const actorName = getUserDisplayName(actor.profile, actor.user)
+  const caseNumber = `I-${new Date().getFullYear()}-${caseRef.id.slice(0, 8).toUpperCase()}`
+  await writeBatch(db).set(caseRef, {
+    ...next,
+    caseNumber,
+    completedAt: null,
+    createdAt: serverTimestamp(),
+    createdBy: actor.user.uid,
+    createdByName: actorName,
+    updatedAt: serverTimestamp(),
+    updatedBy: actor.user.uid,
+    updatedByName: actorName,
+  }).commit()
+  return caseRef.id
 }
 
 export async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {
