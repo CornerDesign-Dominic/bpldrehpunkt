@@ -90,6 +90,8 @@ export async function createLegalDispute(values, actor) {
       participant: null,
       counterparty: optionalText(values.counterparty),
       opposingCounsel: null,
+      opposingRepresentation: null,
+      opposingReference: null,
       responsibleUserId: null,
       responsibleUserName: null,
       lawFirm: null,
