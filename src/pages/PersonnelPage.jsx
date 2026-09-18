@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { listPersonnelEmployees } from '../lib/personnel.js'
 import '../styles/personnel.css'
 
@@ -37,7 +37,6 @@ export default function PersonnelPage() {
   }, [employees, search])
 
   return <div className="personnel-page">
-    <nav className="personnel-subnav" aria-label="Personalverwaltung"><Link to="/personal" className="personnel-subnav__active">Mitarbeiter</Link><Link to="/personal/urlaub">Urlaub</Link></nav>
     <div className="personnel-toolbar"><label className="search-field"><span className="sr-only">Mitarbeiter suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Personalnummer, Abteilung oder Funktion suchen" /></label></div>
     {error && <p className="form-error">{error}</p>}
     <div className="personnel-table table-frame"><table className="data-table"><thead><tr><th>Name</th><th>Personalnummer</th><th>Abteilung</th><th>Funktion</th><th>Eintrittsdatum</th></tr></thead><tbody>

@@ -44,13 +44,13 @@ export default function LegalDisputesPage() {
   return <div className="damages-page legal-disputes-page">
     {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}>Neuer Fall</button></div>}
     {error && <p className="form-error">{error}</p>}
-    {loading ? <p className="page-state">Fälle werden geladen …</p> : <div className="todo-sections">
-      <section className="todo-section" aria-labelledby="current-legal-disputes-heading">
-        <div className="todo-section__heading"><h2 id="current-legal-disputes-heading">Aktuelle Fälle</h2><span>{currentCases.length}</span></div>
+    {loading ? <p className="page-state">Fälle werden geladen …</p> : <div className="legal-disputes-lists">
+      <section className="legal-disputes-list" aria-labelledby="current-legal-disputes-heading">
+        <div className="legal-disputes-list__heading"><h2 id="current-legal-disputes-heading">Aktuelle Fälle</h2><span>{currentCases.length}</span></div>
         <LegalDisputeCasesTable cases={currentCases} emptyMessage="Keine aktuellen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
-      <section className="todo-section" aria-labelledby="closed-legal-disputes-heading">
-        <div className="todo-section__heading"><h2 id="closed-legal-disputes-heading">Abgeschlossene Fälle</h2><span>{closedCases.length}</span></div>
+      <section className="legal-disputes-list" aria-labelledby="closed-legal-disputes-heading">
+        <div className="legal-disputes-list__heading"><h2 id="closed-legal-disputes-heading">Abgeschlossene Fälle</h2><span>{closedCases.length}</span></div>
         <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
     </div>}

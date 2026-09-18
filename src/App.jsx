@@ -31,7 +31,6 @@ import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
 import BusinessDocumentPage from './pages/BusinessDocumentPage.jsx'
 import PersonnelPage from './pages/PersonnelPage.jsx'
 import PersonnelDetailPage from './pages/PersonnelDetailPage.jsx'
-import PersonnelVacationPage from './pages/PersonnelVacationPage.jsx'
 import KnowledgeProcessesPage from './pages/KnowledgeProcessesPage.jsx'
 import KnowledgeProcessPage from './pages/KnowledgeProcessPage.jsx'
 import InsolvenciesPage from './pages/InsolvenciesPage.jsx'
@@ -56,7 +55,6 @@ export default function App() {
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
-        <Route path="/personal/urlaub" element={<PermissionRoute module="personnel"><PersonnelVacationPage /></PermissionRoute>} />
         <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />

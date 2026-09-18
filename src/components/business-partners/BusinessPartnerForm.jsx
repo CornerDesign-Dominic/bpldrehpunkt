@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckIcon, CloseIcon, CopyIcon, EditIcon, TrashIcon } from '../icons.jsx'
+import Toast from '../ui/Toast.jsx'
 import { BUSINESS_PARTNER_STATUSES, createEmptyBusinessPartner, normalizePartnerPortal } from '../../lib/businessPartners.js'
 import '../../styles/businessPartnerExtensions.css'
 
 const departments = ['Geschäftsführung', 'Disposition', 'Einkauf', 'Verkauf', 'Logistik', 'Lager', 'Buchhaltung', 'Finanzbuchhaltung', 'Rechnungswesen', 'Controlling', 'Personal', 'Einkauf / Beschaffung', 'Kundenservice', 'Qualität / QM', 'IT', 'Empfang / Zentrale', 'Sonstiges']
+const CopyFeedbackContext = createContext(() => {})
 
 function validateEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -85,11 +87,13 @@ async function copyToClipboard(value) {
 
 function CopyValueButton({ value, label }) {
   const [copied, setCopied] = useState(false)
+  const showCopyFeedback = useContext(CopyFeedbackContext)
 
   async function copyValue() {
     try {
       await copyToClipboard(value)
       setCopied(true)
+      showCopyFeedback()
       window.setTimeout(() => setCopied(false), 1600)
     } catch {
       setCopied(false)
@@ -326,6 +330,7 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
   const [editingSection, setEditingSection] = useState(null)
   const [sectionDraft, setSectionDraft] = useState(null)
   const [sectionErrors, setSectionErrors] = useState({})
+  const [copyFeedback, setCopyFeedback] = useState(false)
 
   function updateForm(nextForm) {
     setForm(nextForm)
@@ -431,7 +436,9 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
   const displayOnlyMasterData = !isNew
 
   return (
-    <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate><fieldset disabled={readOnly} className="business-partner-form__fieldset">
+    <CopyFeedbackContext.Provider value={() => setCopyFeedback(true)}>
+      {copyFeedback && <Toast message="Kopiert" onDismiss={() => setCopyFeedback(false)} />}
+      <form id={formId} className="business-partner-form" onSubmit={handleSubmit} noValidate><fieldset disabled={readOnly} className="business-partner-form__fieldset">
       {displayOnlyMasterData ? <ReadOnlySection section="company" form={form} onEdit={readOnly ? null : () => openSectionEditor('company')} /> : <FormSection title="Unternehmen & Anschrift" className="form-grid--company-address"><MasterDataFields section="company" form={form} onChange={handleChange} errors={errors} /></FormSection>}
 
       <div className="masterdata-half-grid">
@@ -449,6 +456,7 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} saving={saving} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
       <PortalsSection portals={form.portals} onChange={updatePortals} saving={saving} />
-    </fieldset>{editingSection && sectionDraft && <MasterDataEditModal section={editingSection} form={sectionDraft} errors={sectionErrors} onChange={handleSectionChange} onClose={closeSectionEditor} onApply={applySectionChanges} saving={saving} />}</form>
+      </fieldset>{editingSection && sectionDraft && <MasterDataEditModal section={editingSection} form={sectionDraft} errors={sectionErrors} onChange={handleSectionChange} onClose={closeSectionEditor} onApply={applySectionChanges} saving={saving} />}</form>
+    </CopyFeedbackContext.Provider>
   )
 }

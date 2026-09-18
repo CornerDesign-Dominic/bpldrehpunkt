@@ -107,7 +107,8 @@ test('employment and vacation baseline data stay HR-only while central employmen
   assert.match(functionsIndex, /annualVacationEntitlement: optionalNumber\(value\.annualVacationEntitlement, 'Urlaubsanspruch pro Jahr', 0, 366\)/)
   assert.match(functionsIndex, /vacationTrackingStartYear: optionalInteger\(value\.vacationTrackingStartYear, 'Beginn der Urlaubserfassung', 1900, 2100\)/)
   assert.match(functionsIndex, /vacationTrackingOpeningBalance: optionalNumber\(value\.vacationTrackingOpeningBalance, 'Urlaubsstand zu Beginn', -366, 366\)/)
-  assert.match(personnelDetailPage, /DetailSection title="Arbeitsverhältnis & Urlaub"/)
+  assert.match(personnelDetailPage, /PersonnelCard title="Arbeitsverhältnis"/)
+  assert.match(personnelDetailPage, /PersonnelCard title="Urlaubsdaten"/)
   assert.match(personnelDetailPage, /\['personnelNumber', 'Personalnummer', 'text'\], \['employmentStart', 'Eintrittsdatum', 'date'\]/)
   assert.match(personnelDetailPage, /\['vacationTrackingStartYear', 'Startjahr Urlaubserfassung', 'select'\]/)
   assert.match(personnelDetailPage, /\['vacationTrackingOpeningBalance', 'Anzahl Urlaubstage im Startjahr', 'number'\]/)
@@ -115,12 +116,18 @@ test('employment and vacation baseline data stay HR-only while central employmen
   assert.doesNotMatch(functionsIndex.match(/const normalFields = \[[^\]]*\]/)?.[0] || '', /employmentEnd|annualVacationEntitlement|vacationTrackingStartYear|vacationTrackingOpeningBalance/)
 })
 
-test('personnel details require an explicit edit action before HR fields or vacation metadata can be changed', () => {
-  assert.match(personnelDetailPage, /const \[editing, setEditing\] = useState\(false\)/)
-  assert.match(personnelDetailPage, /Bearbeiten<\/button>/)
-  assert.match(personnelDetailPage, /canModify && editing \? <form/)
-  assert.match(personnelDetailPage, /editable=\{canModify && editing\}/)
-  assert.match(personnelDetailPage, /function cancelEditing\(\) \{[\s\S]*?setEditing\(false\)/)
+test('personnel details require an explicit per-card edit action while vacation HR metadata remains directly available to editors', () => {
+  assert.match(personnelDetailPage, /const \[editingSection, setEditingSection\] = useState\(null\)/)
+  assert.match(personnelDetailPage, /title="Stammdaten" editing=\{isEditingMasterData\}/)
+  assert.match(personnelDetailPage, /title="Arbeitsverhältnis" editing=\{isEditingEmployment\}/)
+  assert.match(personnelDetailPage, /title="Persönliche Angaben" editing=\{isEditingPersonalData\}/)
+  assert.match(personnelDetailPage, /title="Urlaubsdaten" editing=\{isEditingVacationData\}/)
+  assert.match(personnelDetailPage, /<EditIcon size=\{16\} \/>/)
+  assert.doesNotMatch(personnelDetailPage, /Bearbeiten<\/button>/)
+  assert.match(personnelDetailPage, /editable=\{canModify\}/)
+  assert.match(personnelDetailPage, /vacation\.status === 'approved' && vacation\.payrollProcessed === true/)
+  assert.match(personnelDetailPage, /<option value="relevant">Relevante anzeigen<\/option>/)
+  assert.match(personnelDetailPage, /function cancelEditing\(\) \{[\s\S]*?setEditingSection\(null\)/)
 })
 
 test('AI prompt configurations are callable-only and have dedicated server-side administration', () => {
