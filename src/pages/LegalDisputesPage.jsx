@@ -1,11 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import LegalDisputeCaseForm from '../components/legal-disputes/LegalDisputeCaseForm.jsx'
 import LegalDisputeCasesTable from '../components/legal-disputes/LegalDisputeCasesTable.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { createLegalDispute, listLegalDisputes } from '../lib/legalDisputes.js'
+import { createLegalDispute, LEGAL_DISPUTE_STATUSES, listLegalDisputes } from '../lib/legalDisputes.js'
+
+function isCriticalDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false
+  const due = new Date(`${value}T12:00:00`)
+  const cutoff = new Date()
+  cutoff.setHours(12, 0, 0, 0)
+  cutoff.setDate(cutoff.getDate() + 7)
+  return due <= cutoff
+}
 
 export default function LegalDisputesPage() {
   const { user, profile } = useAuth()
@@ -17,9 +26,21 @@ export default function LegalDisputesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [search, setSearch] = useState('')
+  const [status, setStatus] = useState('')
+  const [criticalOnly, setCriticalOnly] = useState(false)
 
-  const currentCases = cases.filter((legalDispute) => !legalDispute.isClosed)
-  const closedCases = cases.filter((legalDispute) => legalDispute.isClosed)
+  const filteredCases = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase('de-DE')
+    return cases.filter((legalDispute) => {
+      const haystack = [legalDispute.caseNumber, legalDispute.title, legalDispute.counterparty, legalDispute.caseType].filter(Boolean).join(' ').toLocaleLowerCase('de-DE')
+      return (!needle || haystack.includes(needle))
+        && (!status || legalDispute.status === status)
+        && (!criticalOnly || isCriticalDate(legalDispute.nextDeadline) || isCriticalDate(legalDispute.nextHearing))
+    })
+  }, [cases, criticalOnly, search, status])
+  const currentCases = useMemo(() => filteredCases.filter((legalDispute) => !legalDispute.isClosed), [filteredCases])
+  const closedCases = useMemo(() => filteredCases.filter((legalDispute) => legalDispute.isClosed), [filteredCases])
 
   useEffect(() => {
     setTitle('')
@@ -43,6 +64,7 @@ export default function LegalDisputesPage() {
 
   return <div className="damages-page legal-disputes-page">
     {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}>Neuer Fall</button></div>}
+    <section className="damages-filter-area" aria-labelledby="legal-disputes-filter-heading"><h2 id="legal-disputes-filter-heading">Filter</h2><div className="damage-filters"><label className="search-field"><span className="sr-only">Fälle durchsuchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aktenzeichen, Betreff, Gegenseite oder Art" /></label><label className="filter-field"><span className="sr-only">Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Alle Status</option>{LEGAL_DISPUTE_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className={`damage-filter-toggle${criticalOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={criticalOnly} onChange={(event) => setCriticalOnly(event.target.checked)} />Frist / Termin kritisch</label></div></section>
     {error && <p className="form-error">{error}</p>}
     {loading ? <p className="page-state">Fälle werden geladen …</p> : <div className="legal-disputes-lists">
       <section className="legal-disputes-list" aria-labelledby="current-legal-disputes-heading">

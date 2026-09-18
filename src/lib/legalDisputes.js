@@ -7,6 +7,10 @@ export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
   { value: 'received', label: 'Wir erhalten' },
   { value: 'paid', label: 'Wir bezahlen' },
 ]
+export const LEGAL_DISPUTE_STATUSES = [
+  { value: 'open', label: 'Offen' },
+  { value: 'completed', label: 'Abgeschlossen' },
+]
 export const LEGAL_DISPUTE_PAYMENT_RECIPIENTS = [
   { value: 'court', label: 'Gericht' },
   { value: 'lawyer', label: 'Anwalt' },
@@ -48,7 +52,7 @@ function financialEntryLabel(entry) {
 }
 
 export function legalDisputeStatusLabel(status) {
-  return status === 'completed' ? 'Abgeschlossen' : 'Offen'
+  return LEGAL_DISPUTE_STATUSES.find((item) => item.value === status)?.label || 'Offen'
 }
 
 export function createEmptyLegalDispute() {
