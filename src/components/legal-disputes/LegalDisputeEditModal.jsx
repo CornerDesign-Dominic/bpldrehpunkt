@@ -4,7 +4,7 @@ const financialFields = [['Streitbetrag', 'amountInDispute']]
 
 const informationFields = [
   ['Art des Falls', 'caseType'], ['Zuständig', 'responsibleUserName'], ['Beteiligter', 'participant'], ['Gegner', 'counterparty'], ['Gegnerischer Rechtsanwalt', 'opposingCounsel'],
-  ['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail'],
+  ['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Übergabe an Rechtsanwalt', 'lawyerHandoverDate', 'date'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail'],
   ['Gericht', 'court'], ['Gerichtliches Aktenzeichen', 'courtReference'], ['Richter / Kammer', 'judgeOrChamber'], ['Nächste Frist', 'nextDeadline', 'date'], ['Hinweis zur Frist', 'nextDeadlineLabel'],
   ['Nächster Termin', 'nextHearing', 'date'], ['Uhrzeit', 'nextHearingTime', 'time'], ['Verfahrensart', 'procedureType'], ['Verfahrensstand', 'proceedingStage'], ['Instanz', 'instance'], ['Beginn des Falls', 'startedAt', 'date'],
 ]

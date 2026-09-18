@@ -84,6 +84,7 @@ export async function createLegalDispute(values, actor) {
     lawFirm: null,
     ownCounsel: null,
     lawyerReference: null,
+    lawyerHandoverDate: null,
     lawyerPhone: null,
     lawyerEmail: null,
     court: null,
