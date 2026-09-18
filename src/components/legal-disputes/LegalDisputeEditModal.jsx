@@ -1,9 +1,6 @@
 import { useState } from 'react'
 
-const financialFields = [
-  ['Ursprüngliche Forderung', 'originalClaim'], ['Gegenforderung', 'counterClaim'], ['Streitwert', 'amountInDispute'], ['Bereits gezahlt', 'paidAmount'],
-  ['Noch offen', 'openAmount'], ['Rechtsanwaltskosten', 'legalFees'], ['Gerichtskosten', 'courtCosts'], ['Sonstige Kosten', 'otherCosts'],
-]
+const financialFields = [['Streitbetrag', 'amountInDispute']]
 
 const informationFields = [
   ['Art des Falls', 'caseType'], ['Zuständig', 'responsibleUserName'], ['Beteiligter', 'participant'], ['Gegner', 'counterparty'], ['Gegnerischer Rechtsanwalt', 'opposingCounsel'],

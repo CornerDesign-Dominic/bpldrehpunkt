@@ -3,6 +3,16 @@ import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 
 export const LEGAL_DISPUTES_COLLECTION = 'legalDisputes'
+export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
+  { value: 'received', label: 'Wir erhalten' },
+  { value: 'paid', label: 'Wir bezahlen' },
+]
+export const LEGAL_DISPUTE_PAYMENT_RECIPIENTS = [
+  { value: 'court', label: 'Gericht' },
+  { value: 'lawyer', label: 'Anwalt' },
+  { value: 'counterparty', label: 'Gegenseite' },
+  { value: 'other', label: 'Sonstiges' },
+]
 
 const trim = (value) => (value ?? '').trim()
 
@@ -10,6 +20,30 @@ function mapSnapshot(snapshot) { return { id: snapshot.id, ...snapshot.data() } 
 
 function updatePayload(type, text, actor) {
   return { type, text, createdByUserId: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), createdAt: serverTimestamp() }
+}
+
+function updateMetadata(actor) {
+  return { updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: getUserDisplayName(actor.profile, actor.user) }
+}
+
+function financialEntryPayload(values) {
+  const date = trim(values.date)
+  const direction = values.direction
+  const netAmount = Number(values.netAmount)
+  const vatAmount = Number(values.vatAmount || 0)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein Zahlungsdatum eingeben.')
+  if (!LEGAL_DISPUTE_FINANCIAL_DIRECTIONS.some((item) => item.value === direction)) throw new Error('Bitte auswählen, ob wir bezahlen oder einen Betrag erhalten.')
+  if (values.netAmount === '' || values.netAmount === null || values.netAmount === undefined || !Number.isFinite(netAmount) || netAmount < 0) throw new Error('Bitte einen Nettobetrag eingeben.')
+  if (!Number.isFinite(vatAmount) || vatAmount < 0) throw new Error('Die Umsatzsteuer muss eine positive Zahl sein.')
+  const payeeType = direction === 'paid' ? values.payeeType : null
+  if (direction === 'paid' && !LEGAL_DISPUTE_PAYMENT_RECIPIENTS.some((item) => item.value === payeeType)) throw new Error('Bitte den Zahlungsempfänger auswählen.')
+  return { date, direction, payeeType, netAmount, vatAmount }
+}
+
+function financialEntryLabel(entry) {
+  const direction = LEGAL_DISPUTE_FINANCIAL_DIRECTIONS.find((item) => item.value === entry.direction)?.label || 'Zahlung'
+  const recipient = LEGAL_DISPUTE_PAYMENT_RECIPIENTS.find((item) => item.value === entry.payeeType)?.label
+  return recipient ? `${direction} · ${recipient}` : direction
 }
 
 export function legalDisputeStatusLabel(status) {
@@ -97,13 +131,52 @@ export async function listLegalDisputeUpdates(legalDisputeId) {
   return (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
 }
 
+export function createEmptyLegalDisputeFinancialEntry() {
+  return { date: new Date().toISOString().slice(0, 10), direction: 'received', payeeType: '', netAmount: '', vatAmount: '' }
+}
+
+export async function listLegalDisputeFinancialEntries(legalDisputeId) {
+  return (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'financialEntries'), orderBy('date', 'desc')))).docs.map(mapSnapshot)
+}
+
+export async function createLegalDisputeFinancialEntry(legalDispute, values, actor) {
+  const entry = financialEntryPayload(values)
+  const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.set(doc(collection(caseRef, 'financialEntries')), { ...entry, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Zahlungsposition hinzugefügt: ${financialEntryLabel(entry)}`, actor))
+  await batch.commit()
+}
+
+export async function updateLegalDisputeFinancialEntry(legalDispute, entry, values, actor) {
+  const next = financialEntryPayload(values)
+  if (!Object.entries(next).some(([field, value]) => value !== entry[field])) return false
+  const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.update(doc(caseRef, 'financialEntries', entry.id), { ...next, ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Zahlungsposition aktualisiert: ${financialEntryLabel(next)}`, actor))
+  await batch.commit()
+  return true
+}
+
+export async function deleteLegalDisputeFinancialEntry(legalDispute, entry, actor) {
+  const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.delete(doc(caseRef, 'financialEntries', entry.id))
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Zahlungsposition gelöscht: ${financialEntryLabel(entry)}`, actor))
+  await batch.commit()
+}
+
 export async function addLegalDisputeUpdate(legalDispute, text, actor) {
   const cleanText = trim(text)
   if (!cleanText) throw new Error('Bitte einen Update-Text eingeben.')
   if (cleanText.length > 1000) throw new Error('Das Update ist zu lang.')
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
-  batch.update(caseRef, { updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: getUserDisplayName(actor.profile, actor.user) })
+  batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('note', cleanText, actor))
   await batch.commit()
 }
@@ -121,7 +194,7 @@ export async function updateLegalDisputeFields(legalDispute, changes, actor, sys
   if (changes.status && changes.status !== legalDispute.status) next.completedAt = nextStatus === 'completed' ? serverTimestamp() : null
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
-  batch.update(caseRef, { ...next, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: getUserDisplayName(actor.profile, actor.user) })
+  batch.update(caseRef, { ...next, ...updateMetadata(actor) })
   if (systemText) batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', systemText, actor))
   await batch.commit()
 }

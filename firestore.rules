@@ -674,17 +674,37 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'updatedAt']);
         allow delete: if edit('legalDisputes');
       }
+
+      match /financialEntries/{entryId} {
+        function validLegalDisputeFinancialEntry(data) {
+          return data.keys().hasAll(['date', 'direction', 'payeeType', 'netAmount', 'vatAmount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'direction', 'payeeType', 'netAmount', 'vatAmount', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && data.direction in ['received', 'paid']
+            && ((data.direction == 'received' && data.payeeType == null) || (data.direction == 'paid' && data.payeeType in ['court', 'lawyer', 'counterparty', 'other']))
+            && data.netAmount is number && data.netAmount >= 0 && data.vatAmount is number && data.vatAmount >= 0;
+        }
+        allow read: if view('legalDisputes');
+        allow create: if edit('legalDisputes') && validLegalDisputeFinancialEntry(request.resource.data)
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if edit('legalDisputes') && validLegalDisputeFinancialEntry(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow delete: if edit('legalDisputes');
+      }
     }
     function inkassoText(value, limit) { return value == null || (value is string && value.size() <= limit); }
     function inkassoDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
     function inkassoAmount(value) { return value is number && value >= 0; }
     function inkassoCaseKeysAreValid(data) {
       return data.keys().hasAll(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorPartnerId', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'claimAmount', 'paidAmount', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+        && data.keys().hasOnly(['caseNumber', 'title', 'description', 'collectionAgency', 'status', 'isClosed', 'debtorName', 'debtorPartnerId', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'claimAmount', 'paidAmount', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validInkassoCase(data) {
       return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
-        && inkassoText(data.title, 500) && inkassoText(data.description, 4000)
+        && inkassoText(data.title, 500) && inkassoText(data.description, 4000) && (!data.keys().hasAny(['collectionAgency']) || inkassoText(data.collectionAgency, 240))
         && data.status in ['open', 'in_progress', 'completed'] && data.isClosed == (data.status == 'completed')
         && inkassoText(data.debtorName, 240) && (!data.keys().hasAny(['debtorPartnerId']) || data.debtorPartnerId == null || (data.debtorPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.debtorPartnerId)) && data.debtorName == get(/databases/$(database)/documents/businessPartners/$(data.debtorPartnerId)).data.companyName)) && inkassoText(data.debtorNumber, 120) && inkassoText(data.debtorContactName, 240) && inkassoText(data.debtorAddress, 1000) && inkassoText(data.debtorEmail, 320) && inkassoText(data.debtorPhone, 80)
         && inkassoText(data.responsibleUserId, 240) && inkassoText(data.responsibleUserName, 240)

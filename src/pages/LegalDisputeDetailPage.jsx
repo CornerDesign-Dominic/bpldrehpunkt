@@ -13,7 +13,7 @@ import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createLegalDisputeDocument, deleteLegalDisputeDocument, getLegalDisputeDocumentBlob, listLegalDisputeDocuments, updateLegalDisputeDocument } from '../lib/legalDisputeDocuments.js'
-import { addLegalDisputeSystemUpdate, addLegalDisputeUpdate, getLegalDispute, legalDisputeStatusLabel, listLegalDisputeUpdates, updateLegalDisputeFields } from '../lib/legalDisputes.js'
+import { addLegalDisputeSystemUpdate, addLegalDisputeUpdate, createLegalDisputeFinancialEntry, deleteLegalDisputeFinancialEntry, getLegalDispute, legalDisputeStatusLabel, listLegalDisputeFinancialEntries, listLegalDisputeUpdates, updateLegalDisputeFields, updateLegalDisputeFinancialEntry } from '../lib/legalDisputes.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 
@@ -36,10 +36,12 @@ export default function LegalDisputeDetailPage() {
   const editable = canEdit('legalDisputes')
   const [legalDispute, setLegalDispute] = useState(null)
   const [documents, setDocuments] = useState([])
+  const [financialEntries, setFinancialEntries] = useState([])
   const [updates, setUpdates] = useState([])
   const [loading, setLoading] = useState(true)
   const [documentsLoading, setDocumentsLoading] = useState(true)
   const [updatesLoading, setUpdatesLoading] = useState(true)
+  const [financialEntriesLoading, setFinancialEntriesLoading] = useState(true)
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const [noteSaving, setNoteSaving] = useState(false)
@@ -51,20 +53,22 @@ export default function LegalDisputeDetailPage() {
   const [toast, setToast] = useState('')
 
   async function load() {
-    const [entry, entries, caseDocuments] = await Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId)])
+    const [entry, entries, caseDocuments, caseFinancialEntries] = await Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
     setLegalDispute(entry)
     setUpdates(entries)
     setDocuments(caseDocuments)
+    setFinancialEntries(caseFinancialEntries)
     setTitle(entry?.caseNumber || '')
     setDocumentsLoading(false)
     setUpdatesLoading(false)
+    setFinancialEntriesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId)])
-      .then(([entry, entries, caseDocuments]) => { if (current) { setLegalDispute(entry); setUpdates(entries); setDocuments(caseDocuments); setTitle(entry?.caseNumber || ''); setDocumentsLoading(false); setUpdatesLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setDocumentsLoading(false); setUpdatesLoading(false) } })
+    Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
+      .then(([entry, entries, caseDocuments, caseFinancialEntries]) => { if (current) { setLegalDispute(entry); setUpdates(entries); setDocuments(caseDocuments); setFinancialEntries(caseFinancialEntries); setTitle(entry?.caseNumber || ''); setDocumentsLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
+      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setDocumentsLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
   }, [legalDisputeId, setTitle])
@@ -112,6 +116,19 @@ export default function LegalDisputeDetailPage() {
     try { await updateLegalDisputeFields(legalDispute, changes, { user, profile }, systemText); await load(); setEditing(null); setToast('Änderung gespeichert.') } catch (saveError) { setError(saveError.message || 'Die Änderung konnte nicht gespeichert werden.'); throw saveError }
   }
 
+  async function saveFinancialEntry(existingEntry, values) {
+    try {
+      if (existingEntry) await updateLegalDisputeFinancialEntry(legalDispute, existingEntry, values, { user, profile })
+      else await createLegalDisputeFinancialEntry(legalDispute, values, { user, profile })
+      await load()
+      setToast(existingEntry ? 'Zahlungsposition aktualisiert.' : 'Zahlungsposition hinzugefügt.')
+    } catch (saveError) { setError(saveError.message || 'Die Zahlungsposition konnte nicht gespeichert werden.'); throw saveError }
+  }
+
+  async function deleteFinancialEntry(entry) {
+    try { await deleteLegalDisputeFinancialEntry(legalDispute, entry, { user, profile }); await load(); setToast('Zahlungsposition gelöscht.') } catch (deleteError) { setError(deleteError.message || 'Die Zahlungsposition konnte nicht gelöscht werden.'); throw deleteError }
+  }
+
   if (loading) return <p className="page-state">Fall wird geladen …</p>
   if (error && !legalDispute) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><BackLink to="/legal-disputes" /></section>
   if (!legalDispute) return null
@@ -136,7 +153,7 @@ export default function LegalDisputeDetailPage() {
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3>Sachverhalt</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} title="Sachverhalt bearbeiten" aria-label="Sachverhalt bearbeiten"><EditIcon size={14} /></button>}</div><p className="todo-detail-description">{legalDispute.description || 'Kein Sachverhalt hinterlegt.'}</p></section>
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getLegalDisputeDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
-          <LegalDisputeFinancialOverview canEdit={editable} legalDispute={legalDispute} onEdit={() => setEditing('financial')} />
+          <LegalDisputeFinancialOverview canEdit={editable} entries={financialEntries} legalDispute={legalDispute} loading={financialEntriesLoading} onDeleteEntry={deleteFinancialEntry} onEditDispute={() => setEditing('financial')} onSaveEntry={saveFinancialEntry} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="legal-dispute-update-title"><div className="todo-updates__heading"><h3 id="legal-dispute-update-title">Updates</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Fall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Fall hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : !manualUpdates.length && <p className="todo-updates__empty">Noch keine Updates zum Fall.</p>}{manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="legal-dispute-history-title"><div className="todo-updates__heading"><h3 id="legal-dispute-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
