@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import InkassoCaseEditModal from '../components/inkasso/InkassoCaseEditModal.jsx'
-import InkassoFinancialOverview from '../components/inkasso/InkassoFinancialOverview.jsx'
 import InkassoDeadlinesCard from '../components/inkasso/InkassoDeadlinesCard.jsx'
 import InkassoInvoicesCard from '../components/inkasso/InkassoInvoicesCard.jsx'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
@@ -130,7 +129,7 @@ export default function InkassoCaseDetailPage() {
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = [...updates.filter((update) => update.type === 'system'), ...historyEntries].sort((left, right) => (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
   const title = `${inkassoCase.caseNumber || 'Inkassofall'} – ${inkassoCase.title || inkassoCase.debtorName || 'Ohne Bezeichnung'}`
-  const allInformationValues = [inkassoCase.caseNumber, inkassoCase.status, inkassoCase.createdAt, inkassoCase.completedAt]
+  const allInformationValues = [inkassoCase.caseNumber, inkassoCase.completedAt]
 
   return <>
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
@@ -140,21 +139,22 @@ export default function InkassoCaseDetailPage() {
     {editing && <InkassoCaseEditModal inkassoCase={inkassoCase} mode={editing} onCancel={() => setEditing(null)} onSubmit={saveCase} />}
     <div className="todo-detail-navigation"><BackLink to="/inkasso" /></div>
     <div className="todo-detail-page damage-detail-page inkasso-detail-page">
-      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
+      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('information')} aria-label="Falltitel bearbeiten" title="Falltitel bearbeiten"><EditIcon size={14} /></button>}</div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
       {error && <p className="form-error">{error}</p>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3>Beschreibung</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} aria-label="Beschreibung bearbeiten" title="Beschreibung bearbeiten"><EditIcon size={14} /></button>}</div><p className="todo-detail-description">{inkassoCase.description || 'Keine Beschreibung hinterlegt.'}</p></section>
-          <InkassoInvoicesCard canEdit={editable} invoices={invoices} inkassoCase={inkassoCase} loading={invoicesLoading} onPaymentChange={changeInvoicePayment} onSave={saveInvoice} savingInvoiceId={savingInvoiceId} />
           <InkassoDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onSave={saveDeadline} />
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getInkassoCaseDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
-          <InkassoFinancialOverview canEdit={editable} inkassoCase={inkassoCase} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
+          <InkassoInvoicesCard canEdit={editable} invoices={invoices} inkassoCase={inkassoCase} loading={invoicesLoading} movements={movements} movementsLoading={movementsLoading} onDeleteMovement={deleteMovement} onPaymentChange={changeInvoicePayment} onSave={saveInvoice} onSaveMovement={saveMovement} savingInvoiceId={savingInvoiceId} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="inkasso-update-title"><div className="todo-updates__heading"><h3 id="inkasso-update-title">Updates</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Inkassofall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Inkassofall hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : !manualUpdates.length ? <p className="todo-updates__empty">Noch keine Updates zum Inkassofall.</p> : <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="inkasso-history-title"><div className="todo-updates__heading"><h3 id="inkasso-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
         <aside className="todo-detail-sidebar">
-          <InformationSection title="Fallinformationen" values={allInformationValues} onEdit={editable ? () => setEditing('information') : null}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail><Detail label="Status">{inkassoCaseStatusLabel(inkassoCase.status)}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
+          <InformationSection title="Allgemein" values={allInformationValues} onEdit={editable ? () => setEditing('information') : null}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
+          <InformationSection title="Inkassodaten" values={[inkassoCase.collectionAgency, inkassoCase.collectionReference, inkassoCase.createdAt]} onEdit={editable ? () => setEditing('information') : null}><Detail label="Inkassounternehmen">{inkassoCase.collectionAgency}</Detail><Detail label="Aktenzeichen">{inkassoCase.collectionReference}</Detail><Detail label="Inkasso eröffnet am">{formatTimestamp(inkassoCase.createdAt)}</Detail></InformationSection>
           <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{inkassoCase.debtorName}</Detail></InformationSection>
+          <InformationSection title="Systemdaten" values={[inkassoCase.createdByName, inkassoCase.createdAt, inkassoCase.updatedByName, inkassoCase.updatedAt]}><Detail label="Erstellt von">{inkassoCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail><Detail label="Zuletzt geändert von">{inkassoCase.updatedByName}</Detail><Detail label="Zuletzt geändert am">{formatTimestamp(inkassoCase.updatedAt)}</Detail></InformationSection>
         </aside>
       </div>
     </div>

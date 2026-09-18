@@ -40,6 +40,8 @@ function casePayload(values, responsibleUsersById = new Map()) {
   return {
     title: optionalText(values.title),
     description: optionalText(values.description),
+    collectionAgency: optionalText(values.collectionAgency),
+    collectionReference: optionalText(values.collectionReference),
     status,
     isClosed: status === 'completed',
     debtorName: optionalText(values.debtorName),

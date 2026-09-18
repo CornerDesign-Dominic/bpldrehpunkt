@@ -1482,6 +1482,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .data-table td button { max-height: 26px; }
 .data-table .table-subline { margin-top: 0; font-size: 10px; line-height: 1; }
 .data-table td > strong:has(+ .table-subline) { line-height: 1.1; }
+
+.inkasso-invoices-card__financial { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--border); }
 .data-table :is(.table-action, .todos-table__actions, .contacts-table__action, .portals-table__action, .admin-employees__action, .pallet-journal__action) { text-align: right; }
 
 /* History is the intentional exception: its descriptive column may span multiple lines. */

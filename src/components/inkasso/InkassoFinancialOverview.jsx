@@ -10,7 +10,7 @@ function MovementFields({ draft, onChange }) {
   return <><td><input aria-label="Datum" type="date" value={draft.date} onChange={(event) => onChange('date', event.target.value)} /></td><td><input aria-label="Hinweis" value={draft.description || ''} maxLength="500" placeholder="Hinweis" onChange={(event) => onChange('description', event.target.value)} /></td><td><input aria-label="Betrag" type="number" min="0" step="0.01" value={draft.amount} onChange={(event) => onChange('amount', event.target.value)} /></td></>
 }
 
-export default function InkassoFinancialOverview({ canEdit, inkassoCase, loading, movements, onDelete, onSave }) {
+export default function InkassoFinancialOverview({ canEdit, embedded = false, inkassoCase, loading, movements, onDelete, onSave }) {
   const [draft, setDraft] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -23,7 +23,10 @@ export default function InkassoFinancialOverview({ canEdit, inkassoCase, loading
   async function saveDraft() { if (!draft) return; setSaving(true); setError(''); try { await onSave(draft.mode === 'edit' ? draft.movement : null, draft.values); setDraft(null) } catch (saveError) { setError(saveError.message || 'Die Betragsbewegung konnte nicht gespeichert werden.') } finally { setSaving(false) } }
   async function remove(movement) { setSaving(true); setError(''); try { await onDelete(movement) } catch (deleteError) { setError(deleteError.message || 'Die Betragsbewegung konnte nicht gelöscht werden.') } finally { setSaving(false) } }
 
-  return <section className="todo-detail-content damage-financial-overview inkasso-financial-overview" aria-labelledby="inkasso-financial-overview-title">
+  const Wrapper = embedded ? 'div' : 'section'
+  const wrapperProps = embedded ? { className: 'inkasso-invoices-card__financial' } : { className: 'todo-detail-content damage-financial-overview inkasso-financial-overview' }
+
+  return <Wrapper {...wrapperProps} aria-labelledby="inkasso-financial-overview-title">
     <div className="todo-detail-section-heading"><h3 id="inkasso-financial-overview-title">Finanzieller Überblick</h3>{canEdit && <button className="button damage-financial-overview__add" type="button" disabled={Boolean(draft) || saving} onClick={() => { setError(''); setDraft({ mode: 'new', values: { ...createEmptyInkassoMovement(), type: 'collection_costs' } }) }}>Inkassogebühr hinzufügen</button>}</div>
     {error && <p className="form-error">{error}</p>}
     <div className="inkasso-financial-overview__summary"><div><span>Inkassogebühren</span><strong>{formatCurrency(collectionCosts)}</strong></div><div><span>Zahlungen vom Schuldner</span><strong>{formatCurrency(paidAmount)}</strong></div></div>
@@ -34,5 +37,5 @@ export default function InkassoFinancialOverview({ canEdit, inkassoCase, loading
       })}
       {canEdit && draft?.mode === 'new' && <tr className="damage-financial-overview__row--editing"><MovementFields draft={draft.values} onChange={updateDraft} /><td className="damage-financial-overview__actions"><button className="damage-financial-overview__icon-action damage-financial-overview__icon-action--save" type="button" disabled={saving} onClick={saveDraft} aria-label="Speichern" title="Speichern"><CheckIcon size={15} /></button><button className="damage-financial-overview__icon-action damage-financial-overview__icon-action--cancel" type="button" disabled={saving} onClick={() => setDraft(null)} aria-label="Abbrechen" title="Abbrechen"><CloseIcon size={15} /></button></td></tr>}
     </tbody></table></div>
-  </section>
+  </Wrapper>
 }
