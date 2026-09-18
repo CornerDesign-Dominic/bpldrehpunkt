@@ -14,16 +14,9 @@
 .calendar-upcoming-column__new { width: 100%; }
 .calendar-upcoming-column .calendar-upcoming { min-height: 0; }
 .calendar-main { display: flex; min-width: 0; flex-direction: column; padding: 17px; }
-.calendar-toolbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; margin-bottom: 15px; }
+.calendar-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; margin-bottom: 15px; }
 .calendar-toolbar h2 { font-size: 17px; text-transform: capitalize; }
 .calendar-toolbar h2 { justify-self: end; }
-.calendar-toolbar__navigation { display: flex; gap: 5px; }
-.calendar-toolbar__navigation .button { min-width: 31px; height: 30px; padding: 0 8px; font-size: 12px; }
-.calendar-toolbar__filters { display: flex; gap: 7px; }
-.calendar-toolbar__filters label { display: grid; }
-.calendar-toolbar__filters select { height: 30px; min-width: 94px; padding: 0 24px 0 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; outline: none; }
-.calendar-toolbar__filters label:last-child select { min-width: 72px; }
-.calendar-toolbar__filters select:focus { border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }
 .calendar-month { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; }
 .calendar-month__weekdays, .calendar-month__week-days, .calendar-month__week-bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .calendar-month__weekdays { border-bottom: 1px solid var(--border); background: var(--surface-secondary); }

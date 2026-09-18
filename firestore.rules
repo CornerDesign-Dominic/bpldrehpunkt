@@ -174,7 +174,10 @@ service cloud.firestore {
     }
 
     match /calendars/{calendarId} {
-      allow get: if !systemCalendarId(calendarId) && view('calendar') && canReadCalendar(calendarId);
+      // The own calendar is created lazily. Its initial get must be permitted
+      // even before the document exists, otherwise provisioning can never run.
+      allow get: if !systemCalendarId(calendarId) && view('calendar')
+        && (calendarId == 'personal-' + request.auth.uid || canReadCalendar(calendarId));
       allow list: if view('calendar') && superadmin();
       // Personal calendars are provisioned on first use. Shared calendars and
       // their lifecycle are deliberately restricted to superadmins.

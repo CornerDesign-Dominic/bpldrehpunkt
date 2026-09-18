@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
 import HolidayDetailModal from '../components/holidays/HolidayDetailModal.jsx'
+import CalendarNavigation from '../components/ui/CalendarNavigation.jsx'
 import { EUROPEAN_COUNTRIES, GERMAN_STATES, SYNCHRONIZED_HOLIDAY_COUNTRY_CODES, getVisibleHolidays, holidayYears } from '../lib/holidayCalendar.js'
 import { listPublicHolidays, listSchoolHolidays } from '../lib/holidayData.js'
 import { schoolHolidayDaysForMonth } from '../lib/schoolHolidayCalendar.js'
@@ -96,17 +97,8 @@ export default function HolidayCalendarPage() {
 
   return <div className="holiday-page">
     <section className="holiday-calendar-card">
-      <div className="holiday-toolbar">
-        <div className="holiday-toolbar__actions">
-          <button className="holiday-nav-button" type="button" onClick={() => moveMonth(-1)} aria-label="Vorheriger Monat">‹</button>
-          <button className="holiday-today-button" type="button" onClick={showToday}>Heute</button>
-          <button className="holiday-nav-button" type="button" onClick={() => moveMonth(1)} aria-label="Nächster Monat">›</button>
-        </div>
-        <div className="holiday-toolbar__period">
-          <label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
-          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        </div>
-      </div>
+      <div className="holiday-toolbar"><CalendarNavigation onPrevious={() => moveMonth(-1)} onToday={showToday} onNext={() => moveMonth(1)}><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></CalendarNavigation></div>
       {holidayLoadError && <p className="holiday-calendar-state">{holidayLoadError}</p>}
       <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} schoolHolidayDays={schoolHolidayDays} onHolidayClick={setSelectedHoliday} />
     </section>
