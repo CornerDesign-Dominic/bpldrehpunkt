@@ -261,6 +261,35 @@ export const getPersonnelEmployee = onCall({ region: 'europe-west3', enforceAppC
   return { employee: personnelDetailEntry(user, hr) }
 })
 
+function ownVacationBalanceProfile(profile) {
+  const value = profile?.data?.() || {}
+  const number = (field) => Number.isFinite(value[field]) ? value[field] : null
+  return {
+    annualVacationEntitlement: number('annualVacationEntitlement'),
+    vacationTrackingStartYear: number('vacationTrackingStartYear'),
+    vacationTrackingOpeningBalance: number('vacationTrackingOpeningBalance'),
+  }
+}
+
+function ownVacationAdjustment(snapshot) {
+  const value = snapshot.data()
+  const days = Number.isFinite(value.days) ? value.days : 0
+  const adjustmentDate = typeof value.adjustmentDate === 'string' ? value.adjustmentDate : ''
+  return { isManual: true, status: 'manual', startDate: adjustmentDate, endDate: adjustmentDate, days: value.direction === 'deduct' ? -days : days }
+}
+
+// Employees receive only the three balance inputs and signed adjustment values
+// needed for their own vacation total. HR notes, payroll flags, and all other
+// personnel data remain in their protected records.
+export const getOwnVacationBalanceData = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await requireActiveProfile(request)
+  const [hrProfile, adjustments] = await Promise.all([
+    db.doc(`employeeHrProfiles/${request.auth.uid}`).get(),
+    db.collection('hrVacationAdjustments').where('userId', '==', request.auth.uid).get(),
+  ])
+  return { profile: ownVacationBalanceProfile(hrProfile), adjustments: adjustments.docs.map(ownVacationAdjustment) }
+})
+
 // Central employment data and HR-only data are written in one transaction.
 // There is one source of truth for shared fields: users/{uid}.
 export const updatePersonnelEmployee = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {

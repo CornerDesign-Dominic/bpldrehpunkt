@@ -126,6 +126,10 @@ export async function listVacationHistory(userId) {
   }
 }
 
+export function getOwnVacationBalanceData() {
+  return httpsCallable(functions, 'getOwnVacationBalanceData')().then((result) => result.data || { profile: {}, adjustments: [] })
+}
+
 export function getVacationType(type) {
   return VACATION_TYPES.find((item) => item.value === type) ?? VACATION_TYPES[0]
 }

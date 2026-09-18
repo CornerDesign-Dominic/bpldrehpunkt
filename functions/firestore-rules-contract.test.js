@@ -9,6 +9,7 @@ const profilePage = await readFile(new URL('../src/pages/ProfilePage.jsx', impor
 const personnelPage = await readFile(new URL('../src/pages/PersonnelPage.jsx', import.meta.url), 'utf8')
 const personnelDetailPage = await readFile(new URL('../src/pages/PersonnelDetailPage.jsx', import.meta.url), 'utf8')
 const vacationPage = await readFile(new URL('../src/pages/VacationPage.jsx', import.meta.url), 'utf8')
+const vacationBalance = await readFile(new URL('../src/lib/vacationBalance.js', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
 const knowledgeProcessAi = await readFile(new URL('./knowledgeProcessAi.js', import.meta.url), 'utf8')
 const aiPrompts = await readFile(new URL('./aiPrompts.js', import.meta.url), 'utf8')
@@ -132,12 +133,24 @@ test('personnel details require an explicit per-card edit action while vacation 
   assert.match(personnelDetailPage, /vacation\.hrManualEntry === true && vacation\.status === 'manual'/)
   assert.match(personnelDetailPage, /<option value="relevant">Relevante anzeigen<\/option>/)
   assert.match(personnelDetailPage, /<h2>Urlaubsübersicht<\/h2>/)
-  assert.match(personnelDetailPage, /vacation\.status === 'approved' && overlapsYear\(vacation, year\)/)
+  assert.match(personnelDetailPage, /calculateVacationYearBalance\(\{ \.\.\.employee, entries: vacations, year \}\)/)
   assert.match(personnelDetailPage, /Verfügbare Urlaubstage/)
   assert.match(personnelDetailPage, /Bereits genommene Urlaubstage/)
   assert.match(personnelDetailPage, /Übrige Urlaubstage/)
-  assert.match(personnelDetailPage, /const initialAvailableDays = hasOpeningBalance \? openingBalance : hasAnnualEntitlement \? annualEntitlement : null/)
+  assert.match(vacationBalance, /entry\?\.isManual === true && entry\?\.status === 'manual'/)
+  assert.match(vacationBalance, /entry\?\.status === 'manual' && entry\?\.hrManualEntry === true/)
   assert.match(personnelDetailPage, /function cancelEditing\(\) \{[\s\S]*?setEditingSection\(null\)/)
+})
+
+test('employees receive only their own minimum vacation-balance projection through a callable', () => {
+  const ownBalance = functionsIndex.match(/export const getOwnVacationBalanceData = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(ownBalance, /await requireActiveProfile\(request\)/)
+  assert.match(ownBalance, /employeeHrProfiles\/\$\{request\.auth\.uid\}/)
+  assert.match(ownBalance, /hrVacationAdjustments'\)\.where\('userId', '==', request\.auth\.uid\)/)
+  assert.match(ownBalance, /ownVacationBalanceProfile\(hrProfile\)/)
+  assert.match(ownBalance, /adjustments\.docs\.map\(ownVacationAdjustment\)/)
+  assert.match(vacationPage, /getOwnVacationBalanceData\(\)/)
+  assert.match(vacationPage, /calculateVacationYearBalance\(\{ \.\.\.vacationBalance\.profile, entries: \[\.\.\.ownRequests, \.\.\.\(vacationBalance\.adjustments \|\| \[\]\)\], year \}\)/)
 })
 
 test('AI prompt configurations are callable-only and have dedicated server-side administration', () => {

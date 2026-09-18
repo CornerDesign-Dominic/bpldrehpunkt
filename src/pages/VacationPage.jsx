@@ -13,12 +13,12 @@ import {
   createVacationCancellationRequest,
   createVacationRequest,
   formatVacationPeriod,
+  getOwnVacationBalanceData,
   getVacationStatus,
   getVacationType,
   listVacationCalendarItems,
   listVacationHistory,
   listVacationRequests,
-  reducesVacationAllowance,
   requestOverlaps,
   replacePendingVacationRequest,
   todayValue,
@@ -26,6 +26,7 @@ import {
 } from '../lib/vacationRequests.js'
 import { getMainVacationStatus, getVacationRequestKind, getVacationRequestStatus, latestVacationRequest, requestStatusLabel } from '../lib/vacationStatus.js'
 import { formatVacationHistoryDate, vacationHistoryLabel } from '../lib/vacationHistory.js'
+import { calculateVacationYearBalance } from '../lib/vacationBalance.js'
 import '../styles/vacation.css'
 
 function displayName(profile) {
@@ -36,25 +37,10 @@ function departmentKey(profile) {
   return profile?.departmentId || profile?.department?.trim() || ''
 }
 
-function vacationAllowance(profile) {
-  return Number(profile?.vacationAllowance ?? profile?.vacationEntitlement ?? profile?.annualVacationEntitlement ?? 0) || 0
-}
-
-function previousYearCarryover(profile) {
-  return Number(profile?.vacationCarryover ?? profile?.previousYearVacationCarryover ?? 0) || 0
-}
-
 async function loadVacationData(currentUser, currentProfile) {
-  const [profiles, requests, calendarItems, history] = await Promise.all([listVisibleUserDirectory(), listVacationRequests(currentUser.uid), listVacationCalendarItems(), listVacationHistory(currentUser.uid)])
+  const [profiles, requests, calendarItems, history, vacationBalance] = await Promise.all([listVisibleUserDirectory(), listVacationRequests(currentUser.uid), listVacationCalendarItems(), listVacationHistory(currentUser.uid), getOwnVacationBalanceData()])
   const ownProfile = { id: currentUser.uid, ...currentProfile, email: currentUser.email || currentProfile?.email }
-  return { users: profiles.some((item) => item.id === currentUser.uid) ? profiles : [...profiles, ownProfile], requests, history, ...calendarItems }
-}
-
-function requestDaysInYear(request, year) {
-  if (!reducesVacationAllowance(request)) return 0
-  const start = request.startDate < `${year}-01-01` ? `${year}-01-01` : request.startDate
-  const end = request.endDate > `${year}-12-31` ? `${year}-12-31` : request.endDate
-  return businessDays(start, end)
+  return { users: profiles.some((item) => item.id === currentUser.uid) ? profiles : [...profiles, ownProfile], requests, history, vacationBalance, ...calendarItems }
 }
 
 function StatusBadge({ status, label }) {
@@ -113,6 +99,7 @@ function RequestModal({ request, onClose, onSubmit }) {
 
 function historyDate(value) { return formatVacationHistoryDate(value) }
 function historyLabel(eventType) { return vacationHistoryLabel(eventType) }
+function formatVacationDays(value) { return value === null ? '—' : new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(value) }
 function RequestDetail({ request, history, onClose, onChange, onCancel, onWithdraw, withdrawLabel = 'Antrag zurückziehen' }) {
   const entries = history.filter((item) => item.vacationId === request.id).sort((left, right) => (left.createdAt?.toMillis?.() || 0) - (right.createdAt?.toMillis?.() || 0))
   const manualEntryLabel = `Urlaub manuell erfasst von ${request.hrManualCreatedByName || 'HR'}`
@@ -165,6 +152,7 @@ export default function VacationPage() {
   const [users, setUsers] = useState([])
   const [requests, setRequests] = useState([])
   const [history, setHistory] = useState([])
+  const [vacationBalance, setVacationBalance] = useState({ profile: {}, adjustments: [] })
   const [holidays, setHolidays] = useState([])
   const [vacationBlocks, setVacationBlocks] = useState([])
   const [loading, setLoading] = useState(true)
@@ -181,6 +169,7 @@ export default function VacationPage() {
     setUsers(result.users)
     setRequests(result.requests)
     setHistory(result.history)
+    setVacationBalance(result.vacationBalance)
     setHolidays(result.holidays)
     setVacationBlocks(result.blocks)
   }
@@ -193,6 +182,7 @@ export default function VacationPage() {
         setUsers(result.users)
         setRequests(result.requests)
         setHistory(result.history)
+        setVacationBalance(result.vacationBalance)
         setHolidays(result.holidays)
         setVacationBlocks(result.blocks)
       })
@@ -222,15 +212,7 @@ export default function VacationPage() {
   const ownRequests = useMemo(() => requests.filter((request) => request.userId === user.uid), [requests, user.uid])
   const ownRelatedByOriginal = useMemo(() => ownRequests.filter((request) => request.originalRequestId).reduce((map, request) => { const related = map.get(request.originalRequestId) || []; related.push(request); map.set(request.originalRequestId, related); return map }, new Map()), [ownRequests])
   const ownList = useMemo(() => ownRequests.filter((request) => getVacationRequestKind(request) === 'vacation' && request.status !== 'superseded' && (!request.hrManualEntry || request.status !== 'withdrawn') && requestOverlaps(request, `${listYear}-01-01`, `${listYear}-12-31`) && (listStatus === 'all' || getMainVacationStatus(request) === listStatus)).map((request) => ({ ...request, activeRequest: latestVacationRequest(ownRelatedByOriginal.get(request.id) || []) })).sort((left, right) => right.startDate.localeCompare(left.startDate)), [listStatus, listYear, ownRelatedByOriginal, ownRequests])
-  const summary = useMemo(() => {
-    const relevant = ownRequests.filter((request) => ['approved', 'manual'].includes(request.status) && !ownRelatedByOriginal.get(request.id)?.some((related) => (isCancellationRequest(related) && related.status === 'approved') || related.status === 'cancelled') && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`))
-    const taken = relevant.filter((request) => request.endDate < today).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
-    const planned = relevant.filter((request) => request.endDate >= today).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
-    const pending = ownRequests.filter((request) => request.status === 'pending' && requestOverlaps(request, `${year}-01-01`, `${year}-12-31`)).reduce((sum, request) => sum + requestDaysInYear(request, year), 0)
-    const allowance = vacationAllowance(profile)
-    const carryover = previousYearCarryover(profile)
-    return { allowance, carryover, taken, planned, pending, remaining: allowance + carryover - taken - planned }
-  }, [ownRelatedByOriginal, ownRequests, profile, today, year])
+  const summary = useMemo(() => calculateVacationYearBalance({ ...vacationBalance.profile, entries: [...ownRequests, ...(vacationBalance.adjustments || [])], year }), [ownRequests, vacationBalance, year])
   const years = Array.from({ length: 7 }, (_, index) => currentYear - 2 + index)
 
   const calendarEntries = useMemo(() => [
@@ -326,7 +308,7 @@ export default function VacationPage() {
       {loading ? <p className="vacation-state">Kalender wird geladen …</p> : <><VacationCalendar key={calendarHighlight?.token || 'calendar'} year={year} month={month} today={today} entries={calendarEntries} focusedDate={calendarHighlight?.focusedDate} highlightedEntryId={calendarHighlight?.entryId} /><VacationCalendarLegend /></>}
     </section>
     <aside className="vacation-sidebar">
-      <section className="vacation-summary-card"><div className="vacation-card-heading vacation-summary-heading"><h2>Mein Urlaub</h2><span>{year}</span></div><dl className="vacation-summary"><div><dt>Jahresanspruch</dt><dd>{summary.allowance}</dd></div><div><dt>Resturlaub Vorjahr</dt><dd>{summary.carryover}</dd></div><div><dt>Bereits genommen</dt><dd>{summary.taken}</dd></div><div><dt>Geplant / genehmigt</dt><dd>{summary.planned}</dd></div><div><dt>Ausstehend</dt><dd>{summary.pending}</dd></div><div className="vacation-summary__available"><dt>Noch verfügbar</dt><dd>{summary.remaining}</dd></div></dl></section>
+      <section className="vacation-summary-card"><div className="vacation-card-heading vacation-summary-heading"><h2>Mein Urlaub</h2><span>{year}</span></div><dl className="vacation-summary vacation-summary--balance"><div><dt>Verfügbare Urlaubstage</dt><dd>{formatVacationDays(summary.availableDays)}</dd>{summary.availableDays !== null && <small>{summary.isTrackingStartYear ? `Startbestand: ${formatVacationDays(summary.availableDays)}` : `${formatVacationDays(summary.annualEntitlement)} ${summary.carryBalance < 0 ? '−' : '+'} ${formatVacationDays(Math.abs(summary.carryBalance))} = ${formatVacationDays(summary.availableDays)}`}</small>}</div><div><dt>Bereits genommene Urlaubstage</dt><dd>{formatVacationDays(summary.takenDays)}</dd></div><div className="vacation-summary__available"><dt>Übrige Urlaubstage</dt><dd>{formatVacationDays(summary.remainingDays)}</dd></div></dl></section>
       {editable && <div className="vacation-request-actions"><button className="button" type="button" onClick={() => setModal({ type: 'new' })}>Urlaub beantragen</button></div>}
       <section className="vacation-list-card"><div className="vacation-card-heading vacation-list-heading"><div className="vacation-list-filters"><label className="filter-field vacation-list-year"><span className="sr-only">Jahr filtern</span><select value={listYear} onChange={(event) => setListYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="filter-field vacation-list-status"><span className="sr-only">Status filtern</span><select value={listStatus} onChange={(event) => setListStatus(event.target.value)}><option value="all">Alle Status</option><option value="approved">Genehmigt</option><option value="manual">Manuell</option><option value="pending">Ausstehend</option><option value="rejected">Abgelehnt</option><option value="cancelled">Storniert</option><option value="withdrawn">Zurückgezogen</option></select></label></div></div><div className="vacation-request-list">{loading ? <p className="vacation-state">Urlaube werden geladen …</p> : ownList.length ? ownList.map((request) => <article className="vacation-request" key={request.id} role="button" tabIndex="0" onClick={() => showVacationInCalendar(request)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); showVacationInCalendar(request) } }}><span className="vacation-request__top"><span className="vacation-request__period">{formatVacationPeriod(request)}</span><StatusBadge status={displayRequestStatus(request)} /></span><span className="vacation-request__meta">{request.days ?? businessDays(request.startDate, request.endDate)} Tage · {getVacationType(request.vacationType).label}</span>{request.activeRequest && getVacationRequestStatus(request.activeRequest) === 'pending' && <span className="vacation-request__substatus"><StatusBadge status="pending" label={`${getVacationRequestKind(request.activeRequest) === 'cancellation' ? 'Stornoantrag' : 'Änderungsantrag'} · ${requestStatusLabel(getVacationRequestStatus(request.activeRequest))}`} /></span>}<a className="vacation-request__details" href={`#urlaub-${request.id}`} onClick={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedRequest(request) }} onKeyDown={(event) => event.stopPropagation()}>Details</a></article>) : <p className="vacation-state">Keine Urlaubsanträge für diese Auswahl.</p>}</div></section>
     </aside>

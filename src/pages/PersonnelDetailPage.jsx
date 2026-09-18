@@ -6,6 +6,7 @@ import { PersonnelManualVacationModal, PersonnelVacationAdjustmentModal, Personn
 import Toast from '../components/ui/Toast.jsx'
 import { createPersonnelManualVacation, createPersonnelVacationAdjustment, getPersonnelEmployee, listPersonnelVacations, updatePersonnelEmployee, updatePersonnelManualVacation, updatePersonnelVacationMeta } from '../lib/personnel.js'
 import { listDepartments } from '../lib/departments.js'
+import { calculateVacationYearBalance } from '../lib/vacationBalance.js'
 import '../styles/personnel.css'
 
 const masterDataFields = [
@@ -47,38 +48,12 @@ function overlapsYear(vacation, year) {
   return vacation.startDate <= `${year}-12-31` && vacation.endDate >= `${year}-01-01`
 }
 
-function vacationDaysInYear(vacations, year) {
-  return vacations.filter((vacation) => vacation.status === 'approved' && overlapsYear(vacation, year)).reduce((total, vacation) => total + (Number(vacation.days) || 0), 0)
-}
-
-function manualAdjustmentDaysInYear(vacations, year) {
-  return vacations.filter((vacation) => vacation.status === 'manual' && overlapsYear(vacation, year)).reduce((total, vacation) => total + (Number(vacation.days) || 0), 0)
-}
-
 function formatVacationDays(value) {
   return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(value)
 }
 
 function VacationYearSummary({ employee, vacations, year }) {
-  const annualEntitlement = Number(employee.annualVacationEntitlement)
-  const hasAnnualEntitlement = Number.isFinite(annualEntitlement)
-  const startYear = Number(employee.vacationTrackingStartYear)
-  const openingBalance = Number(employee.vacationTrackingOpeningBalance)
-  const hasOpeningBalance = Number.isFinite(openingBalance)
-  const initialAvailableDays = hasOpeningBalance ? openingBalance : hasAnnualEntitlement ? annualEntitlement : null
-  let carryBalance = initialAvailableDays ?? 0
-
-  if (hasAnnualEntitlement && Number.isFinite(startYear) && year > startYear) {
-    carryBalance -= vacationDaysInYear(vacations, startYear) - manualAdjustmentDaysInYear(vacations, startYear)
-    for (let balanceYear = startYear + 1; balanceYear < year; balanceYear += 1) carryBalance += annualEntitlement - vacationDaysInYear(vacations, balanceYear) + manualAdjustmentDaysInYear(vacations, balanceYear)
-  } else if (!Number.isFinite(startYear) || year < startYear) {
-    carryBalance = 0
-  }
-
-  const takenDays = vacationDaysInYear(vacations, year)
-  const isTrackingStartYear = Number.isFinite(startYear) && year === startYear
-  const availableDays = isTrackingStartYear ? initialAvailableDays : hasAnnualEntitlement ? annualEntitlement + carryBalance : null
-  const remainingDays = availableDays === null ? null : availableDays - takenDays + manualAdjustmentDaysInYear(vacations, year)
+  const { annualEntitlement, availableDays, carryBalance, isTrackingStartYear, remainingDays, takenDays } = calculateVacationYearBalance({ ...employee, entries: vacations, year })
   const carryOperator = carryBalance < 0 ? '−' : '+'
 
   return <dl className="personnel-vacation-summary"><div><dt>Verfügbare Urlaubstage</dt><dd>{availableDays === null ? '—' : formatVacationDays(availableDays)}</dd>{availableDays !== null && <small>{isTrackingStartYear ? `Startbestand: ${formatVacationDays(availableDays)}` : `${formatVacationDays(annualEntitlement)} ${carryOperator} ${formatVacationDays(Math.abs(carryBalance))} = ${formatVacationDays(availableDays)}`}</small>}</div><div><dt>Bereits genommene Urlaubstage</dt><dd>{formatVacationDays(takenDays)}</dd></div><div><dt>Übrige Urlaubstage</dt><dd>{remainingDays === null ? '—' : formatVacationDays(remainingDays)}</dd></div></dl>
