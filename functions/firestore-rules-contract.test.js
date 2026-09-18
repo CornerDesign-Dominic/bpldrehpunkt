@@ -129,6 +129,7 @@ test('personnel details require an explicit per-card edit action while vacation 
   assert.doesNotMatch(personnelDetailPage, /Bearbeiten<\/button>/)
   assert.match(personnelDetailPage, /editable=\{canModify\}/)
   assert.match(personnelDetailPage, /vacation\.status === 'approved' && vacation\.payrollProcessed === true/)
+  assert.match(personnelDetailPage, /vacation\.hrManualEntry === true && vacation\.status === 'manual'/)
   assert.match(personnelDetailPage, /<option value="relevant">Relevante anzeigen<\/option>/)
   assert.match(personnelDetailPage, /<h2>Urlaubsübersicht<\/h2>/)
   assert.match(personnelDetailPage, /vacation\.status === 'approved' && overlapsYear\(vacation, year\)/)

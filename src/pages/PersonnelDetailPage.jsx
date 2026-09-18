@@ -205,7 +205,7 @@ export default function PersonnelDetailPage() {
   const vacationTrackingYears = Array.from({ length: new Date().getFullYear() - 2023 }, (_, index) => new Date().getFullYear() + 1 - index)
   const vacationYears = [...new Set([new Date().getFullYear(), vacationYear, ...vacations.flatMap((vacation) => [Number(vacation.startDate?.slice(0, 4)), Number(vacation.endDate?.slice(0, 4))]).filter(Number.isFinite)])].sort((left, right) => right - left)
   const yearVacations = vacations.filter((vacation) => overlapsYear(vacation, vacationYear)).sort((left, right) => left.startDate.localeCompare(right.startDate))
-  const displayedVacations = vacationDisplay === 'relevant' ? yearVacations.filter((vacation) => vacation.status === 'approved' && vacation.payrollProcessed === true) : yearVacations
+  const displayedVacations = vacationDisplay === 'relevant' ? yearVacations.filter((vacation) => (vacation.status === 'approved' && vacation.payrollProcessed === true) || (vacation.hrManualEntry === true && vacation.status === 'manual')) : yearVacations
   const isAnotherCardEditing = Boolean(editingSection)
   const isEditingMasterData = editingSection === 'master-data'
   const isEditingEmployment = editingSection === 'employment'
