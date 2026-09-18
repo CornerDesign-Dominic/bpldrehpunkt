@@ -1,4 +1,4 @@
-export const MAIN_VACATION_STATUSES = ['pending', 'approved', 'rejected', 'cancelled', 'withdrawn']
+export const MAIN_VACATION_STATUSES = ['pending', 'approved', 'rejected', 'cancelled', 'withdrawn', 'manual']
 export const VACATION_REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'withdrawn']
 
 export function getVacationRequestKind(item) {
@@ -32,7 +32,7 @@ export function requestStatusLabel(status) {
 }
 
 export function mainStatusLabel(status) {
-  return ({ pending: 'Ausstehend', approved: 'Genehmigt', rejected: 'Abgelehnt', cancelled: 'Storniert', withdrawn: 'Zurückgezogen' })[status] || 'Ausstehend'
+  return ({ pending: 'Ausstehend', approved: 'Genehmigt', rejected: 'Abgelehnt', cancelled: 'Storniert', withdrawn: 'Zurückgezogen', manual: 'Manuell' })[status] || 'Ausstehend'
 }
 
 export function latestVacationRequest(requests) {

@@ -10,6 +10,7 @@ export const VACATION_HISTORY_COLLECTION = 'vacationHistory'
 
 export const VACATION_STATUSES = [
   { value: 'approved', label: 'Genehmigt' },
+  { value: 'manual', label: 'Manuell' },
   { value: 'pending', label: 'Ausstehend' },
   { value: 'rejected', label: 'Abgelehnt' },
   { value: 'cancelled', label: 'Storniert' },

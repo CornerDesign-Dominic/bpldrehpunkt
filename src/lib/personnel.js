@@ -20,3 +20,15 @@ export function listPersonnelVacations(userId) {
 export function updatePersonnelVacationMeta(vacationId, values) {
   return httpsCallable(functions, 'updatePersonnelVacationMeta')({ vacationId, ...values }).then((result) => result.data)
 }
+
+export function createPersonnelVacationAdjustment(userId, values) {
+  return httpsCallable(functions, 'createPersonnelVacationAdjustment')({ userId, ...values }).then((result) => result.data)
+}
+
+export function createPersonnelManualVacation(userId, values) {
+  return httpsCallable(functions, 'createPersonnelManualVacation')({ userId, ...values }).then((result) => result.data)
+}
+
+export function updatePersonnelManualVacation(vacationId, values) {
+  return httpsCallable(functions, 'updatePersonnelManualVacation')({ vacationId, ...values }).then((result) => result.data)
+}

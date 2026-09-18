@@ -823,14 +823,14 @@ export const recordVacationCreated = onDocumentCreated({ region: 'europe-west3',
   const data = event.data.data()
   const requestId = event.params.requestId
   const kind = requestType(data)
-  const status = kind === 'request' ? (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data.mainStatus || data.status) ? data.mainStatus || data.status : 'pending') : vacationRequestStatus(data)
-  await db.collection('vacationHistory').doc(`created-${requestId}`).set({ id: `created-${requestId}`, vacationId: vacationRootId(data, requestId), userId: data.userId, eventType: historyEventType(data, status), status, createdAt: FieldValue.serverTimestamp(), createdBy: data.userId, requestId })
+  const status = kind === 'request' ? (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn', 'manual'].includes(data.mainStatus || data.status) ? data.mainStatus || data.status : 'pending') : vacationRequestStatus(data)
+  await db.collection('vacationHistory').doc(`created-${requestId}`).set({ id: `created-${requestId}`, vacationId: vacationRootId(data, requestId), userId: data.userId, eventType: historyEventType(data, status), status, createdAt: FieldValue.serverTimestamp(), createdBy: data.createdBy || data.userId, requestId })
 })
 
 function personnelVacationStatus(data) {
-  return ['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data?.mainStatus)
+  return ['pending', 'approved', 'rejected', 'cancelled', 'withdrawn', 'manual'].includes(data?.mainStatus)
     ? data.mainStatus
-    : (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn'].includes(data?.status) ? data.status : 'pending')
+    : (['pending', 'approved', 'rejected', 'cancelled', 'withdrawn', 'manual'].includes(data?.status) ? data.status : 'pending')
 }
 
 function personnelVacationEntry(snapshot, employee, meta) {
@@ -846,8 +846,31 @@ function personnelVacationEntry(snapshot, employee, meta) {
     days: Number.isFinite(vacation.days) ? vacation.days : 0,
     vacationType: ['normal', 'overtime', 'special'].includes(vacation.vacationType) ? vacation.vacationType : 'normal',
     status: personnelVacationStatus(vacation),
+    hrManualEntry: vacation.hrManualEntry === true,
+    managerComment: typeof vacation.managerComment === 'string' ? vacation.managerComment : '',
     payrollProcessed: meta?.payrollProcessed === true,
     hrNote: typeof meta?.hrNote === 'string' ? meta.hrNote : '',
+  }
+}
+
+function personnelVacationAdjustmentEntry(snapshot, employee) {
+  const adjustment = snapshot.data()
+  const days = Number.isFinite(adjustment.days) ? adjustment.days : 0
+  return {
+    vacationId: `manual-${snapshot.id}`,
+    manualAdjustmentId: snapshot.id,
+    isManual: true,
+    userId: adjustment.userId,
+    employeeName: [employee?.firstName, employee?.lastName].filter(Boolean).join(' ').trim() || employee?.email || '—',
+    department: employee?.departmentName || employee?.department || '—',
+    departmentId: employee?.departmentId || '',
+    startDate: typeof adjustment.adjustmentDate === 'string' ? adjustment.adjustmentDate : '',
+    endDate: typeof adjustment.adjustmentDate === 'string' ? adjustment.adjustmentDate : '',
+    days: adjustment.direction === 'deduct' ? -days : days,
+    vacationType: 'adjustment',
+    status: 'manual',
+    payrollProcessed: adjustment.payrollProcessed === true,
+    hrNote: typeof adjustment.hrNote === 'string' ? adjustment.hrNote : '',
   }
 }
 
@@ -857,20 +880,26 @@ export const listPersonnelVacations = onCall({ region: 'europe-west3', enforceAp
   await assertPersonnelAccess(request)
   const userId = request.data?.userId
   if (userId !== undefined && (typeof userId !== 'string' || !userId || userId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
-  const [vacations, employees, metadata] = await Promise.all([
+  const [vacations, employees, metadata, adjustments] = await Promise.all([
     db.collection('vacationRequests').get(),
     db.collection('users').get(),
     db.collection('hrVacationMeta').get(),
+    db.collection('hrVacationAdjustments').get(),
   ])
   const employeeById = new Map(employees.docs.map((item) => [item.id, item.data()]))
   const metaByVacationId = new Map(metadata.docs.map((item) => [item.id, item.data()]))
   return {
-    vacations: vacations.docs
+    vacations: [
+      ...vacations.docs
       .filter((item) => {
         const data = item.data()
         return (data.type === 'vacation' || !data.type) && requestType(data) === 'request' && (!userId || data.userId === userId)
       })
       .map((item) => personnelVacationEntry(item, employeeById.get(item.data().userId), metaByVacationId.get(item.id))),
+      ...adjustments.docs
+        .filter((item) => !userId || item.data().userId === userId)
+        .map((item) => personnelVacationAdjustmentEntry(item, employeeById.get(item.data().userId))),
+    ],
   }
 })
 
@@ -898,6 +927,73 @@ export const updatePersonnelVacationMeta = onCall({ region: 'europe-west3', enfo
   return { vacationId }
 })
 
+// Manual adjustments such as a vacation payout stay in a dedicated HR-only
+// record. They never alter the original vacation request or its workflow.
+export const createPersonnelVacationAdjustment = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await assertPersonnelAccess(request, 'edit')
+  const { userId, adjustmentDate, days, direction, payrollProcessed, hrNote } = request.data ?? {}
+  if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
+  const date = optionalDate(adjustmentDate, 'Datum')
+  const amount = optionalNumber(days, 'Tage', 0.5, 366)
+  const note = optionalText(hrNote, 'Bemerkung', 3000)
+  if (!date) throw new HttpsError('invalid-argument', 'Ein Datum ist erforderlich.')
+  if (amount === null) throw new HttpsError('invalid-argument', 'Eine Tagesanzahl ist erforderlich.')
+  if (!['add', 'deduct'].includes(direction)) throw new HttpsError('invalid-argument', 'Die Ausgleichsart ist ungültig.')
+  if (typeof payrollProcessed !== 'boolean') throw new HttpsError('invalid-argument', 'Lohnbuchhaltungsstatus ist ungültig.')
+  if (!note) throw new HttpsError('invalid-argument', 'Eine Bemerkung ist erforderlich.')
+
+  const user = await db.doc(`users/${userId}`).get()
+  if (!user.exists) throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.')
+  const adjustmentRef = db.collection('hrVacationAdjustments').doc()
+  await adjustmentRef.set({ userId, adjustmentDate: date, days: amount, direction, payrollProcessed, hrNote: note, createdAt: FieldValue.serverTimestamp(), createdBy: request.auth.uid, updatedAt: FieldValue.serverTimestamp() })
+  return { adjustmentId: adjustmentRef.id }
+})
+
+// HR-recorded vacations use the existing vacation source so that the affected
+// employee can see the absence in "Mein Urlaub". The dedicated marker makes
+// the entry immutable for the employee and keeps it out of request workflows.
+export const createPersonnelManualVacation = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await assertPersonnelAccess(request, 'edit')
+  const { userId, startDate, endDate, days, managerComment } = request.data ?? {}
+  if (typeof userId !== 'string' || !userId || userId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Mitarbeiter-ID.')
+  const start = optionalDate(startDate, 'Von')
+  const end = optionalDate(endDate, 'Bis')
+  const amount = optionalNumber(days, 'Tage', 0.5, 366)
+  const comment = optionalText(managerComment, 'Kommentar des Genehmigers', 3000)
+  if (!start || !end || end < start) throw new HttpsError('invalid-argument', 'Der Urlaubszeitraum ist ungültig.')
+  if (amount === null) throw new HttpsError('invalid-argument', 'Eine Tagesanzahl ist erforderlich.')
+  if (!comment) throw new HttpsError('invalid-argument', 'Ein Kommentar des Genehmigers ist erforderlich.')
+
+  const user = await db.doc(`users/${userId}`).get()
+  if (!user.exists) throw new HttpsError('not-found', 'Mitarbeiter nicht gefunden.')
+  const vacationRef = db.collection('vacationRequests').doc()
+  await vacationRef.set({ id: vacationRef.id, userId, startDate: start, endDate: end, days: amount, vacationType: 'normal', type: 'vacation', status: 'manual', mainStatus: 'manual', hrManualEntry: true, managerComment: comment, createdAt: FieldValue.serverTimestamp(), createdBy: request.auth.uid, updatedAt: FieldValue.serverTimestamp() })
+  return { vacationId: vacationRef.id }
+})
+
+export const updatePersonnelManualVacation = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await assertPersonnelAccess(request, 'edit')
+  const { vacationId, startDate, endDate, days, managerComment, status } = request.data ?? {}
+  if (typeof vacationId !== 'string' || !vacationId || vacationId.includes('/')) throw new HttpsError('invalid-argument', 'Ungültige Urlaubs-ID.')
+  const start = optionalDate(startDate, 'Von')
+  const end = optionalDate(endDate, 'Bis')
+  const amount = optionalNumber(days, 'Tage', 0.5, 366)
+  const comment = optionalText(managerComment, 'Kommentar des Genehmigers', 3000)
+  if (!start || !end || end < start) throw new HttpsError('invalid-argument', 'Der Urlaubszeitraum ist ungültig.')
+  if (amount === null) throw new HttpsError('invalid-argument', 'Eine Tagesanzahl ist erforderlich.')
+  if (!comment) throw new HttpsError('invalid-argument', 'Ein Kommentar des Genehmigers ist erforderlich.')
+  if (!['manual', 'withdrawn'].includes(status)) throw new HttpsError('invalid-argument', 'Der Status ist ungültig.')
+
+  const vacationRef = db.doc(`vacationRequests/${vacationId}`)
+  await db.runTransaction(async (transaction) => {
+    const vacation = await transaction.get(vacationRef)
+    if (!vacation.exists || vacation.data()?.hrManualEntry !== true) throw new HttpsError('not-found', 'Manuell erfasster Urlaub nicht gefunden.')
+    transaction.update(vacationRef, { startDate: start, endDate: end, days: amount, managerComment: comment, status, mainStatus: status, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid })
+    writeVacationHistory(transaction, { id: db.collection('vacationHistory').doc().id, vacationId, userId: vacation.data().userId, eventType: status === 'withdrawn' ? 'vacation_withdrawn' : 'vacation_manual', status, createdBy: request.auth.uid })
+  })
+  return { vacationId, status }
+})
+
 export const listManagedVacationRequests = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const manager = await assertVacationManager(request)
   const [requestSnapshot, employeeSnapshot, holidaySnapshot, blockSnapshot] = await Promise.all([db.collection('vacationRequests').get(), db.collection('users').get(), db.collection('calendarHolidays').get(), db.collection('vacationBlocks').get()])
@@ -918,7 +1014,7 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3', enfo
     })
   const requests = requestSnapshot.docs
     .map((item) => ({ id: item.id, ...item.data() }))
-    .filter((item) => canManageVacationDepartment(manager, employees.get(item.userId)?.departmentId || employees.get(item.userId)?.department || ''))
+    .filter((item) => item.hrManualEntry !== true && canManageVacationDepartment(manager, employees.get(item.userId)?.departmentId || employees.get(item.userId)?.department || ''))
     .map((item) => {
       const employee = employees.get(item.userId) || {}
       return { ...item, employeeName: [employee.firstName, employee.lastName].filter(Boolean).join(' ').trim() || employee.email || '—', employeeEmail: employee.email || '', employeeDepartment: employee.departmentName || employee.department || '—', employeeDepartmentId: employee.departmentId || employee.department || '', requestType: requestType(item), submittedAt: submittedAt(item) }
@@ -944,6 +1040,7 @@ export const withdrawVacationRequest = onCall({ region: 'europe-west3', enforceA
     const vacationRequest = await transaction.get(requestRef)
     const data = vacationRequest.data()
     if (!vacationRequest.exists || data?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Keine Berechtigung für diesen Urlaubsantrag.')
+    if (data?.hrManualEntry === true) throw new HttpsError('failed-precondition', 'Ein manuell von HR erfasster Urlaub kann nicht geändert werden.')
     if (!['pending', 'change_requested', 'cancellation_requested'].includes(data.status) && vacationRequestStatus(data) !== 'pending') throw new HttpsError('failed-precondition', 'Der Urlaubsantrag kann nicht zurückgezogen werden.')
     const kind = requestType(data)
     const rootId = vacationRootId(data, requestId)
@@ -977,6 +1074,7 @@ export const replacePendingVacationRequest = onCall({ region: 'europe-west3', en
     const previousRequest = await transaction.get(previousRequestRef)
     const previousData = previousRequest.data()
     if (!previousRequest.exists || previousData?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Keine Berechtigung für diesen Urlaubsantrag.')
+    if (previousData?.hrManualEntry === true) throw new HttpsError('failed-precondition', 'Ein manuell von HR erfasster Urlaub kann nicht geändert werden.')
     if (previousData.status !== 'pending' || previousData.originalRequestId || previousData.requestKind === 'cancellation' || previousData.cancellationRequest) throw new HttpsError('failed-precondition', 'Nur ein ausstehender Urlaubsantrag kann überarbeitet werden.')
     transaction.update(previousRequestRef, { status: 'superseded', supersededBy: replacementRequestRef.id, supersededAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
     writeVacationHistory(transaction, { id: `replaced-${requestId}`, vacationId: requestId, userId: request.auth.uid, eventType: 'vacation_replaced', status: 'withdrawn', createdBy: request.auth.uid, requestId, previousValues: { startDate: previousData.startDate, endDate: previousData.endDate, days: previousData.days, vacationType: previousData.vacationType }, nextValues: { startDate, endDate, days, vacationType } })

@@ -8,6 +8,7 @@ const authProvider = await readFile(new URL('../src/auth/AuthProvider.jsx', impo
 const profilePage = await readFile(new URL('../src/pages/ProfilePage.jsx', import.meta.url), 'utf8')
 const personnelPage = await readFile(new URL('../src/pages/PersonnelPage.jsx', import.meta.url), 'utf8')
 const personnelDetailPage = await readFile(new URL('../src/pages/PersonnelDetailPage.jsx', import.meta.url), 'utf8')
+const vacationPage = await readFile(new URL('../src/pages/VacationPage.jsx', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
 const knowledgeProcessAi = await readFile(new URL('./knowledgeProcessAi.js', import.meta.url), 'utf8')
 const aiPrompts = await readFile(new URL('./aiPrompts.js', import.meta.url), 'utf8')
@@ -100,6 +101,7 @@ test('personnel edit never grants user creation and the personnel UI has no crea
 
 test('vacation HR metadata is inaccessible to direct Firestore clients', () => {
   assert.match(rules, /match \/hrVacationMeta\/\{vacationId\} \{\s*allow read, write: if false;/)
+  assert.match(rules, /match \/hrVacationAdjustments\/\{adjustmentId\} \{\s*allow read, write: if false;/)
 })
 
 test('employment and vacation baseline data stay HR-only while central employment fields remain shared', () => {
@@ -112,6 +114,7 @@ test('employment and vacation baseline data stay HR-only while central employmen
   assert.match(personnelDetailPage, /\['personnelNumber', 'Personalnummer', 'text'\], \['employmentStart', 'Eintrittsdatum', 'date'\]/)
   assert.match(personnelDetailPage, /\['vacationTrackingStartYear', 'Startjahr Urlaubserfassung', 'select'\]/)
   assert.match(personnelDetailPage, /\['vacationTrackingOpeningBalance', 'Anzahl Urlaubstage im Startjahr', 'number'\]/)
+  assert.match(personnelDetailPage, /length: new Date\(\)\.getFullYear\(\) - 2023/)
   assert.match(personnelDetailPage, /vacationTrackingYears\.map\(\(year\) => <option/)
   assert.doesNotMatch(functionsIndex.match(/const normalFields = \[[^\]]*\]/)?.[0] || '', /employmentEnd|annualVacationEntitlement|vacationTrackingStartYear|vacationTrackingOpeningBalance/)
 })
@@ -127,6 +130,12 @@ test('personnel details require an explicit per-card edit action while vacation 
   assert.match(personnelDetailPage, /editable=\{canModify\}/)
   assert.match(personnelDetailPage, /vacation\.status === 'approved' && vacation\.payrollProcessed === true/)
   assert.match(personnelDetailPage, /<option value="relevant">Relevante anzeigen<\/option>/)
+  assert.match(personnelDetailPage, /<h2>Urlaubsübersicht<\/h2>/)
+  assert.match(personnelDetailPage, /vacation\.status === 'approved' && overlapsYear\(vacation, year\)/)
+  assert.match(personnelDetailPage, /Verfügbare Urlaubstage/)
+  assert.match(personnelDetailPage, /Bereits genommene Urlaubstage/)
+  assert.match(personnelDetailPage, /Übrige Urlaubstage/)
+  assert.match(personnelDetailPage, /const initialAvailableDays = hasOpeningBalance \? openingBalance : hasAnnualEntitlement \? annualEntitlement : null/)
   assert.match(personnelDetailPage, /function cancelEditing\(\) \{[\s\S]*?setEditingSection\(null\)/)
 })
 
@@ -263,4 +272,34 @@ test('HR vacation metadata cannot alter the underlying vacation workflow', () =>
   assert.doesNotMatch(vacationMetaUpdate, /transaction\.(update|set)\(vacationRef/)
   const vacationRules = rules.match(/match \/vacationRequests\/\{id\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
   assert.match(vacationRules, /allow update, delete: if false;/)
+})
+
+test('manual vacation adjustments are Personnel-edit callables and stay separate from vacation requests', () => {
+  const adjustmentCreate = functionsIndex.match(/export const createPersonnelVacationAdjustment = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(adjustmentCreate, /await assertPersonnelAccess\(request, 'edit'\)/)
+  assert.match(adjustmentCreate, /db\.collection\('hrVacationAdjustments'\)\.doc\(\)/)
+  assert.match(adjustmentCreate, /\['add', 'deduct'\]\.includes\(direction\)/)
+  assert.match(adjustmentCreate, /if \(!note\) throw new HttpsError/)
+  assert.doesNotMatch(adjustmentCreate, /vacationRequests/)
+  assert.match(functionsIndex, /status: 'manual'/)
+})
+
+test('HR-recorded vacations are visible to the employee but cannot enter the employee request workflow', () => {
+  const manualVacationCreate = functionsIndex.match(/export const createPersonnelManualVacation = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  const manualVacationUpdate = functionsIndex.match(/export const updatePersonnelManualVacation = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  const withdrawal = functionsIndex.match(/export const withdrawVacationRequest = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  const replacement = functionsIndex.match(/export const replacePendingVacationRequest = onCall([\s\S]*?\n\}\))/)?.[1] || ''
+  assert.match(manualVacationCreate, /await assertPersonnelAccess\(request, 'edit'\)/)
+  assert.match(manualVacationCreate, /status: 'manual', mainStatus: 'manual', hrManualEntry: true/)
+  assert.match(manualVacationCreate, /managerComment: comment/)
+  assert.match(manualVacationUpdate, /await assertPersonnelAccess\(request, 'edit'\)/)
+  assert.match(manualVacationUpdate, /vacation\.data\(\)\?\.hrManualEntry !== true/)
+  assert.match(manualVacationUpdate, /\['manual', 'withdrawn'\]\.includes\(status\)/)
+  assert.match(withdrawal, /data\?\.hrManualEntry === true/)
+  assert.match(replacement, /previousData\?\.hrManualEntry === true/)
+  assert.match(functionsIndex, /item\.hrManualEntry !== true && canManageVacationDepartment/)
+  assert.match(rules, /allow read: if view\('vacation'\) && \(resource\.data\.userId == request\.auth\.uid \|\| resource\.data\.status == 'approved'\);/)
+  assert.match(vacationPage, /isSelectedHrManualVacation = selectedBaseRequest\?\.hrManualEntry === true/)
+  assert.match(vacationPage, /!request\.hrManualEntry \|\| request\.status !== 'withdrawn'/)
+  assert.match(vacationPage, /<option value="manual">Manuell<\/option>/)
 })

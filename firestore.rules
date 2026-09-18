@@ -965,6 +965,11 @@ service cloud.firestore {
     match /hrVacationMeta/{vacationId} {
       allow read, write: if false;
     }
+    // Manual vacation adjustments are private HR data and may only be read
+    // and written through the Personalverwaltung callables.
+    match /hrVacationAdjustments/{adjustmentId} {
+      allow read, write: if false;
+    }
     match /vacationHistory/{id} {
       allow read: if view('vacation') && resource.data.userId == request.auth.uid;
       allow create, update, delete: if false;

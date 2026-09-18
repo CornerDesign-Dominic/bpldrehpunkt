@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
 import { EditIcon } from '../components/icons.jsx'
-import { PersonnelVacationMetaModal, PersonnelVacationTable } from '../components/personnel/PersonnelVacationTable.jsx'
+import { PersonnelManualVacationModal, PersonnelVacationAdjustmentModal, PersonnelVacationMetaModal, PersonnelVacationTable } from '../components/personnel/PersonnelVacationTable.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import { getPersonnelEmployee, listPersonnelVacations, updatePersonnelEmployee, updatePersonnelVacationMeta } from '../lib/personnel.js'
+import { createPersonnelManualVacation, createPersonnelVacationAdjustment, getPersonnelEmployee, listPersonnelVacations, updatePersonnelEmployee, updatePersonnelManualVacation, updatePersonnelVacationMeta } from '../lib/personnel.js'
 import { listDepartments } from '../lib/departments.js'
 import '../styles/personnel.css'
 
@@ -47,10 +47,41 @@ function overlapsYear(vacation, year) {
   return vacation.startDate <= `${year}-12-31` && vacation.endDate >= `${year}-01-01`
 }
 
-function VacationYearSummary({ vacations }) {
-  const sum = (status) => vacations.filter((vacation) => vacation.status === status).reduce((total, vacation) => total + (Number(vacation.days) || 0), 0)
-  const cancelled = vacations.filter((vacation) => ['cancelled', 'withdrawn'].includes(vacation.status)).reduce((total, vacation) => total + (Number(vacation.days) || 0), 0)
-  return <dl className="personnel-vacation-summary"><div><dt>Genehmigte Urlaubstage</dt><dd>{sum('approved')}</dd></div><div><dt>Aktuell angefragte Urlaubstage</dt><dd>{sum('pending')}</dd></div><div><dt>Abgelehnte Urlaubstage</dt><dd>{sum('rejected')}</dd></div><div><dt>Stornierte / zurückgezogene Tage</dt><dd>{cancelled}</dd></div></dl>
+function vacationDaysInYear(vacations, year) {
+  return vacations.filter((vacation) => vacation.status === 'approved' && overlapsYear(vacation, year)).reduce((total, vacation) => total + (Number(vacation.days) || 0), 0)
+}
+
+function manualAdjustmentDaysInYear(vacations, year) {
+  return vacations.filter((vacation) => vacation.status === 'manual' && overlapsYear(vacation, year)).reduce((total, vacation) => total + (Number(vacation.days) || 0), 0)
+}
+
+function formatVacationDays(value) {
+  return new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(value)
+}
+
+function VacationYearSummary({ employee, vacations, year }) {
+  const annualEntitlement = Number(employee.annualVacationEntitlement)
+  const hasAnnualEntitlement = Number.isFinite(annualEntitlement)
+  const startYear = Number(employee.vacationTrackingStartYear)
+  const openingBalance = Number(employee.vacationTrackingOpeningBalance)
+  const hasOpeningBalance = Number.isFinite(openingBalance)
+  const initialAvailableDays = hasOpeningBalance ? openingBalance : hasAnnualEntitlement ? annualEntitlement : null
+  let carryBalance = initialAvailableDays ?? 0
+
+  if (hasAnnualEntitlement && Number.isFinite(startYear) && year > startYear) {
+    carryBalance -= vacationDaysInYear(vacations, startYear) - manualAdjustmentDaysInYear(vacations, startYear)
+    for (let balanceYear = startYear + 1; balanceYear < year; balanceYear += 1) carryBalance += annualEntitlement - vacationDaysInYear(vacations, balanceYear) + manualAdjustmentDaysInYear(vacations, balanceYear)
+  } else if (!Number.isFinite(startYear) || year < startYear) {
+    carryBalance = 0
+  }
+
+  const takenDays = vacationDaysInYear(vacations, year)
+  const isTrackingStartYear = Number.isFinite(startYear) && year === startYear
+  const availableDays = isTrackingStartYear ? initialAvailableDays : hasAnnualEntitlement ? annualEntitlement + carryBalance : null
+  const remainingDays = availableDays === null ? null : availableDays - takenDays + manualAdjustmentDaysInYear(vacations, year)
+  const carryOperator = carryBalance < 0 ? '−' : '+'
+
+  return <dl className="personnel-vacation-summary"><div><dt>Verfügbare Urlaubstage</dt><dd>{availableDays === null ? '—' : formatVacationDays(availableDays)}</dd>{availableDays !== null && <small>{isTrackingStartYear ? `Startbestand: ${formatVacationDays(availableDays)}` : `${formatVacationDays(annualEntitlement)} ${carryOperator} ${formatVacationDays(Math.abs(carryBalance))} = ${formatVacationDays(availableDays)}`}</small>}</div><div><dt>Bereits genommene Urlaubstage</dt><dd>{formatVacationDays(takenDays)}</dd></div><div><dt>Übrige Urlaubstage</dt><dd>{remainingDays === null ? '—' : formatVacationDays(remainingDays)}</dd></div></dl>
 }
 
 export default function PersonnelDetailPage() {
@@ -65,9 +96,14 @@ export default function PersonnelDetailPage() {
   const [vacationYear, setVacationYear] = useState(new Date().getFullYear())
   const [vacationDisplay, setVacationDisplay] = useState('all')
   const [selectedVacation, setSelectedVacation] = useState(null)
+  const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false)
+  const [manualVacationModalOpen, setManualVacationModalOpen] = useState(false)
+  const [selectedManualVacation, setSelectedManualVacation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [vacationSaving, setVacationSaving] = useState(false)
+  const [adjustmentSaving, setAdjustmentSaving] = useState(false)
+  const [manualVacationSaving, setManualVacationSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
 
@@ -130,11 +166,43 @@ export default function PersonnelDetailPage() {
     }
   }
 
+  async function saveVacationAdjustment(values) {
+    setAdjustmentSaving(true)
+    setError('')
+    try {
+      await createPersonnelVacationAdjustment(userId, values)
+      setVacations(await listPersonnelVacations(userId))
+      setAdjustmentModalOpen(false)
+      setToast('Urlaubsausgleich wurde hinzugefügt.')
+    } catch (saveError) {
+      setError(saveError?.message?.replace(/^.*?:\s*/, '') || 'Urlaubsausgleich konnte nicht hinzugefügt werden.')
+    } finally {
+      setAdjustmentSaving(false)
+    }
+  }
+
+  async function saveManualVacation(values) {
+    setManualVacationSaving(true)
+    setError('')
+    try {
+      if (selectedManualVacation) await updatePersonnelManualVacation(selectedManualVacation.vacationId, values)
+      else await createPersonnelManualVacation(userId, values)
+      setVacations(await listPersonnelVacations(userId))
+      setManualVacationModalOpen(false)
+      setSelectedManualVacation(null)
+      setToast(selectedManualVacation ? 'Manuell erfasster Urlaub wurde aktualisiert.' : 'Urlaub wurde manuell hinzugefügt.')
+    } catch (saveError) {
+      setError(saveError?.message?.replace(/^.*?:\s*/, '') || 'Urlaub konnte nicht hinzugefügt werden.')
+    } finally {
+      setManualVacationSaving(false)
+    }
+  }
+
   if (loading) return <p className="personnel-state">Mitarbeiterdaten werden geladen …</p>
   if (error && !employee) return <section className="page-state page-state--error"><h2>Mitarbeiter nicht verfügbar</h2><p>{error}</p></section>
 
   const availableDepartments = departments.filter((department) => department.active || department.id === employee.departmentId)
-  const vacationTrackingYears = Array.from({ length: new Date().getFullYear() - 1898 }, (_, index) => new Date().getFullYear() + 1 - index)
+  const vacationTrackingYears = Array.from({ length: new Date().getFullYear() - 2023 }, (_, index) => new Date().getFullYear() + 1 - index)
   const vacationYears = [...new Set([new Date().getFullYear(), vacationYear, ...vacations.flatMap((vacation) => [Number(vacation.startDate?.slice(0, 4)), Number(vacation.endDate?.slice(0, 4))]).filter(Number.isFinite)])].sort((left, right) => right - left)
   const yearVacations = vacations.filter((vacation) => overlapsYear(vacation, vacationYear)).sort((left, right) => left.startDate.localeCompare(right.startDate))
   const displayedVacations = vacationDisplay === 'relevant' ? yearVacations.filter((vacation) => vacation.status === 'approved' && vacation.payrollProcessed === true) : yearVacations
@@ -151,7 +219,9 @@ export default function PersonnelDetailPage() {
       <form onSubmit={save}><PersonnelCard title="Persönliche Angaben" editing={isEditingPersonalData} isAnotherCardEditing={isAnotherCardEditing} onEdit={canModify ? () => setEditingSection('personal-data') : null}>{isEditingPersonalData ? <><div className="personnel-detail__grid">{hrFields.map(([field, label, type]) => <label className="form-field" key={field}><span>{label}</span><input type={type} value={employee[field] ?? ''} onChange={(event) => set(field, event.target.value)} /></label>)}<label className="form-field"><span>Steuerklasse</span><select value={employee.taxClass ?? ''} onChange={(event) => set('taxClass', event.target.value)}><option value="">Nicht angegeben</option>{['1', '2', '3', '4', '5', '6'].map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="form-field"><span>Anzahl Kinder</span><input type="number" min="0" max="50" step="1" value={employee.childrenCount ?? ''} onChange={(event) => set('childrenCount', event.target.value)} /></label></div><EditActions saving={saving} onCancel={cancelEditing} /></> : <ReadOnlyFields fields={[...hrFields, ['taxClass', 'Steuerklasse'], ['childrenCount', 'Anzahl Kinder']]} employee={employee} />}</PersonnelCard></form>
     </div>
     <form onSubmit={save}><PersonnelCard title="Urlaubsdaten" editing={isEditingVacationData} isAnotherCardEditing={isAnotherCardEditing} onEdit={canModify ? () => setEditingSection('vacation-data') : null}>{isEditingVacationData ? <><div className="personnel-detail__grid">{vacationFields.map(([field, label, type]) => <label className="form-field" key={field}><span>{label}</span>{type === 'select' ? <select value={employee[field] ?? ''} onChange={(event) => set(field, event.target.value)}><option value="">Nicht angegeben</option>{vacationTrackingYears.map((year) => <option key={year} value={year}>{year}</option>)}</select> : <input type={type} min={field === 'annualVacationEntitlement' ? '0' : '-366'} max="366" step="0.5" value={employee[field] ?? ''} onChange={(event) => set(field, event.target.value)} />}</label>)}</div><EditActions saving={saving} onCancel={cancelEditing} /></> : <ReadOnlyFields fields={vacationFields} employee={employee} />}</PersonnelCard></form>
-    <section className="personnel-detail__form personnel-vacation-detail"><div className="personnel-vacation-detail__heading"><div><h2>Urlaub</h2><p>Jahresübersicht aus den bestehenden Urlaubsanträgen.</p></div><div className="personnel-vacation-detail__filters"><label className="filter-field"><span>Anzeige</span><select value={vacationDisplay} onChange={(event) => setVacationDisplay(event.target.value)}><option value="all">Alle anzeigen</option><option value="relevant">Relevante anzeigen</option></select></label><label className="filter-field"><span>Jahr</span><select value={vacationYear} onChange={(event) => setVacationYear(Number(event.target.value))}>{vacationYears.map((year) => <option key={year} value={year}>{year}</option>)}</select></label></div></div><VacationYearSummary vacations={yearVacations} /><PersonnelVacationTable vacations={displayedVacations} includeEmployee={false} editable={canModify} onEdit={setSelectedVacation} /></section>
+    <section className="personnel-detail__form personnel-vacation-detail"><div className="personnel-vacation-detail__heading"><h2>Urlaubsübersicht</h2><div className="personnel-vacation-detail__filters">{canModify && <><button className="button" type="button" onClick={() => { setSelectedManualVacation(null); setManualVacationModalOpen(true) }}>Urlaub hinzufügen</button><button className="button" type="button" onClick={() => setAdjustmentModalOpen(true)}>Ausgleich hinzufügen</button></>}<label className="filter-field"><span>Anzeige</span><select value={vacationDisplay} onChange={(event) => setVacationDisplay(event.target.value)}><option value="all">Alle anzeigen</option><option value="relevant">Relevante anzeigen</option></select></label><label className="filter-field"><span>Jahr</span><select value={vacationYear} onChange={(event) => setVacationYear(Number(event.target.value))}>{vacationYears.map((year) => <option key={year} value={year}>{year}</option>)}</select></label></div></div><VacationYearSummary employee={employee} vacations={vacations} year={vacationYear} /><PersonnelVacationTable vacations={displayedVacations} includeEmployee={false} editable={canModify} onEdit={setSelectedVacation} onEditManualVacation={(vacation) => { setSelectedManualVacation(vacation); setManualVacationModalOpen(true) }} /></section>
     {selectedVacation && <PersonnelVacationMetaModal key={selectedVacation.vacationId} vacation={selectedVacation} saving={vacationSaving} onClose={() => setSelectedVacation(null)} onSave={saveVacationMeta} />}
+    {adjustmentModalOpen && <PersonnelVacationAdjustmentModal saving={adjustmentSaving} onClose={() => setAdjustmentModalOpen(false)} onSave={saveVacationAdjustment} />}
+    {manualVacationModalOpen && <PersonnelManualVacationModal vacation={selectedManualVacation} saving={manualVacationSaving} onClose={() => { setManualVacationModalOpen(false); setSelectedManualVacation(null) }} onSave={saveManualVacation} />}
   </div>
 }
