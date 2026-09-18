@@ -65,6 +65,11 @@
 .masterdata-readonly-field dt { overflow: hidden; color: var(--text-secondary); font-size: 11px; font-weight: 650; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .masterdata-readonly-field dd { min-width: 0; margin: 0; }
 .masterdata-readonly-field__value { overflow-wrap: anywhere; color: var(--text-primary); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.masterdata-readonly-field__value--copyable, .copy-email-value { display: inline-flex; min-width: 0; align-items: center; gap: 5px; }
+.masterdata-readonly-field__value--copyable > span, .copy-email-value > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-email-button { display: inline-flex; width: 22px; height: 22px; flex: 0 0 22px; align-items: center; justify-content: center; border-radius: 4px; color: var(--text-muted); cursor: pointer; }
+.copy-email-button:hover { color: var(--text-primary); background: var(--surface-active); }
+.copy-email-button:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
 .masterdata-readonly-field__value--status { width: fit-content; min-width: 58px; padding: 3px 7px; border: 1px solid var(--partner-status-text); border-radius: 4px; color: var(--partner-status-text); background: var(--partner-status-background); font-weight: 700; }
 .masterdata-readonly-field__value--status-active { --partner-status-text: var(--status-success-text); --partner-status-background: var(--status-success-background); }
 .masterdata-readonly-field__value--status-inactive, .masterdata-readonly-field__value--status-insolvency { --partner-status-text: var(--status-warning-text); --partner-status-background: var(--status-warning-background); }
@@ -144,7 +149,7 @@
 .portals-table th:nth-child(1) { width: 36%; }
 .portals-table th:nth-child(2) { width: 26%; }
 .portals-table th:nth-child(3) { width: auto; }
-.portal-link { display: block; overflow: hidden; color: var(--text-secondary); font-size: 12px; font-weight: 600; text-decoration: none; text-overflow: ellipsis; }
+.portal-link { display: block; min-width: 0; flex: 1; overflow: hidden; color: var(--text-secondary); font-size: 12px; font-weight: 600; text-decoration: none; text-overflow: ellipsis; }
 .portal-link:hover { color: var(--text-primary); text-decoration: underline; }
 .crm-credit-limit-editor { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 13px 0; padding: 12px; border: 1px solid var(--border, var(--legacy-dfe4e9)); border-radius: 6px; background: var(--surface-secondary, var(--legacy-fbfcfd)); }
 .crm-credit-limit-editor h3 { margin: 0; color: var(--legacy-435061); font-size: 12px; font-weight: 700; }

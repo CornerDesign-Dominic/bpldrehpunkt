@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { CheckIcon, CloseIcon, EditIcon, TrashIcon } from '../icons.jsx'
+import { CheckIcon, CloseIcon, CopyIcon, EditIcon, TrashIcon } from '../icons.jsx'
 import { BUSINESS_PARTNER_STATUSES, createEmptyBusinessPartner, normalizePartnerPortal } from '../../lib/businessPartners.js'
 import '../../styles/businessPartnerExtensions.css'
 
@@ -66,9 +66,49 @@ function statusLabel(value) {
   return BUSINESS_PARTNER_STATUSES.find((status) => status.value === value)?.label ?? '—'
 }
 
-function ReadOnlyField({ label, value, className = '', status }) {
+async function copyToClipboard(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const temporaryInput = document.createElement('textarea')
+  temporaryInput.value = value
+  temporaryInput.setAttribute('readonly', '')
+  temporaryInput.style.position = 'fixed'
+  temporaryInput.style.opacity = '0'
+  document.body.appendChild(temporaryInput)
+  temporaryInput.select()
+  document.execCommand('copy')
+  temporaryInput.remove()
+}
+
+function CopyValueButton({ value, label }) {
+  const [copied, setCopied] = useState(false)
+
+  async function copyValue() {
+    try {
+      await copyToClipboard(value)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  function handleKeyDown(event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    copyValue()
+  }
+
+  return <span className="copy-email-button" role="button" tabIndex="0" onClick={copyValue} onKeyDown={handleKeyDown} title={copied ? 'Kopiert' : `${label} kopieren`} aria-label={copied ? `${label} kopiert` : `${label} kopieren`}><CopyIcon /></span>
+}
+
+function ReadOnlyField({ label, value, className = '', status, copyable = false }) {
   const displayValue = value === '' || value === null || value === undefined ? '—' : value
-  return <div className={`masterdata-readonly-field ${className}`}><dt>{label}</dt><dd className={status ? `masterdata-readonly-field__value masterdata-readonly-field__value--status masterdata-readonly-field__value--status-${status}` : 'masterdata-readonly-field__value'}>{displayValue}</dd></div>
+  const hasCopyAction = copyable && displayValue !== '—'
+  return <div className={`masterdata-readonly-field ${className}`}><dt>{label}</dt><dd className={status ? `masterdata-readonly-field__value masterdata-readonly-field__value--status masterdata-readonly-field__value--status-${status}` : `masterdata-readonly-field__value${hasCopyAction ? ' masterdata-readonly-field__value--copyable' : ''}`}><span>{displayValue}</span>{hasCopyAction && <CopyValueButton value={displayValue} label={label} />}</dd></div>
 }
 
 function ReadOnlySection({ section, form, onEdit }) {
@@ -76,8 +116,8 @@ function ReadOnlySection({ section, form, onEdit }) {
   let fields
 
   if (section === 'company') fields = <><ReadOnlyField className="form-field--company-address" label="Firmenname" value={form.companyName} /><ReadOnlyField className="form-field--status" label="Status" value={statusLabel(form.status)} status={form.status} /><ReadOnlyField className="form-field--street" label="Straße" value={form.address.street} /><ReadOnlyField className="form-field--house-number" label="Hausnummer" value={form.address.houseNumber} /><ReadOnlyField className="form-field--postal-code" label="PLZ" value={form.address.postalCode} /><ReadOnlyField className="form-field--city" label="Ort" value={form.address.city} /><ReadOnlyField className="form-field--country" label="Land" value={form.address.country} /></>
-  if (section === 'contact') fields = <><ReadOnlyField className="form-field--contact-phone" label="Telefon" value={form.contact.phone} /><ReadOnlyField className="form-field--contact-fax" label="Fax" value={form.contact.fax} /><ReadOnlyField className="form-field--contact-email" label="E-Mail" value={form.contact.email} /><ReadOnlyField className="form-field--contact-website" label="Website" value={form.contact.website} /></>
-  if (section === 'references') fields = <><ReadOnlyField label="Debitorennummer" value={form.debtorNumber} /><ReadOnlyField label="Kreditorennummer" value={form.creditorNumber} /><ReadOnlyField label="TIMOCOM-Nummer" value={form.timocomNumber} /><ReadOnlyField label="Trans.eu-Nummer" value={form.transeuNumber} /><ReadOnlyField label="DPL-Nummer" value={form.dplNumber} /><ReadOnlyField label="Paki-Nummer" value={form.pakiNumber} /></>
+  if (section === 'contact') fields = <><ReadOnlyField className="form-field--contact-phone" label="Telefon" value={form.contact.phone} /><ReadOnlyField className="form-field--contact-fax" label="Fax" value={form.contact.fax} /><ReadOnlyField className="form-field--contact-email" label="E-Mail" value={form.contact.email} copyable /><ReadOnlyField className="form-field--contact-website" label="Website" value={form.contact.website} /></>
+  if (section === 'references') fields = <><ReadOnlyField label="Debitorennummer" value={form.debtorNumber} copyable /><ReadOnlyField label="Kreditorennummer" value={form.creditorNumber} copyable /><ReadOnlyField label="TIMOCOM-Nummer" value={form.timocomNumber} copyable /><ReadOnlyField label="Trans.eu-Nummer" value={form.transeuNumber} copyable /><ReadOnlyField label="DPL-Nummer" value={form.dplNumber} copyable /><ReadOnlyField label="Paki-Nummer" value={form.pakiNumber} copyable /></>
   if (section === 'companyData') fields = <><ReadOnlyField className="form-field--company-vat" label="USt-IdNr." value={form.companyData.vatId} /><ReadOnlyField className="form-field--company-tax" label="Steuernummer" value={form.companyData.taxNumber} /><ReadOnlyField className="form-field--company-register-number" label="Handelsregisternummer" value={form.companyData.commercialRegisterNumber} /><ReadOnlyField className="form-field--company-register-court" label="Registergericht" value={form.companyData.registerCourt} /></>
   if (section === 'billing') fields = <><ReadOnlyField label="Zahlungsziel in Tagen" value={form.paymentTermDays} /><ReadOnlyField label="Gutschriftverfahren" value={form.creditNoteProcedure ? 'Ja' : 'Nein'} /></>
 
@@ -187,7 +227,7 @@ function ContactsSection({ contacts, onChange, draft, onDraftChange, saving }) {
           <td>{isEditing ? <select aria-label="Abteilung" value={draft.department} onChange={(event) => updateDraft('department', event.target.value)} aria-invalid={Boolean(editErrors.department)} title={editErrors.department}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select> : displayDepartment(contact)}</td>
           <td>{isEditing ? <input aria-label="Telefon" type="tel" value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} /> : contact.phone || '—'}</td>
           <td>{isEditing ? <input aria-label="Mobil" type="tel" value={draft.mobile} onChange={(event) => updateDraft('mobile', event.target.value)} /> : contact.mobile || '—'}</td>
-          <td>{isEditing ? <input aria-label="E-Mail" type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} aria-invalid={Boolean(editErrors.email)} title={editErrors.email} /> : contact.email || '—'}</td>
+          <td>{isEditing ? <input aria-label="E-Mail" type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} aria-invalid={Boolean(editErrors.email)} title={editErrors.email} /> : contact.email ? <span className="copy-email-value"><span>{contact.email}</span><CopyValueButton value={contact.email} label="E-Mail" /></span> : '—'}</td>
           <td className="contacts-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveDraft} title="Speichern" aria-label="Ansprechpartner speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={() => onDraftChange(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen" disabled={saving}><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(contact)} title="Bearbeiten" aria-label="Ansprechpartner bearbeiten" disabled={saving}><EditIcon /></button><button type="button" onClick={() => removeContact(contact.id)} title="Entfernen" aria-label="Ansprechpartner entfernen" disabled={saving}><TrashIcon /></button></>}</div></td>
         </tr>
       }) : null}{adding && <tr className="contacts-table__row--new"><td><input aria-label="Name des neuen Ansprechpartners" value={newContact.name} onChange={(event) => updateNewContact('name', event.target.value)} aria-invalid={Boolean(newErrors.name)} title={newErrors.name} disabled={saving} /></td><td><select aria-label="Abteilung des neuen Ansprechpartners" value={newContact.department} onChange={(event) => updateNewContact('department', event.target.value)} aria-invalid={Boolean(newErrors.department)} title={newErrors.department} disabled={saving}><option value="">Auswählen</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></td><td><input aria-label="Telefon des neuen Ansprechpartners" type="tel" value={newContact.phone} onChange={(event) => updateNewContact('phone', event.target.value)} disabled={saving} /></td><td><input aria-label="Mobil des neuen Ansprechpartners" type="tel" value={newContact.mobile} onChange={(event) => updateNewContact('mobile', event.target.value)} disabled={saving} /></td><td><input aria-label="E-Mail des neuen Ansprechpartners" type="email" value={newContact.email} onChange={(event) => updateNewContact('email', event.target.value)} aria-invalid={Boolean(newErrors.email)} title={newErrors.email} disabled={saving} /></td><td className="contacts-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewContact} title="Speichern" aria-label="Neuen Ansprechpartner speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={cancelNewContact} title="Abbrechen" aria-label="Neue Ansprechpartner-Eingaben verwerfen" disabled={saving}><CloseIcon /></button></div></td></tr>}</tbody></table></div>
@@ -268,9 +308,9 @@ function PortalsSection({ portals, onChange, saving }) {
       <div className="portals-table table-frame"><table className="data-table"><thead><tr><th>Link</th><th>Benutzer / Mail</th><th>Zugangsnummer</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>{portals.length ? portals.map((portal) => {
         const isEditing = editDraft?.id === portal.id
         return <tr key={portal.id} className={isEditing ? 'portals-table__row--editing' : ''}>
-          <td>{isEditing ? <input aria-label="Link" value={editDraft.url} onChange={(event) => updateEditDraft('url', event.target.value)} aria-invalid={Boolean(editErrors.url)} title={editErrors.url} placeholder="https://" /> : portal.url ? <a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">{portal.url}</a> : '—'}</td>
-          <td>{isEditing ? <input aria-label="Benutzer oder Mail" value={editDraft.username} onChange={(event) => updateEditDraft('username', event.target.value)} autoComplete="username" /> : portal.username || '—'}</td>
-          <td>{isEditing ? <input aria-label="Zugangsnummer" value={editDraft.accessNumber} onChange={(event) => updateEditDraft('accessNumber', event.target.value)} /> : portal.accessNumber || '—'}</td>
+          <td>{isEditing ? <input aria-label="Link" value={editDraft.url} onChange={(event) => updateEditDraft('url', event.target.value)} aria-invalid={Boolean(editErrors.url)} title={editErrors.url} placeholder="https://" /> : portal.url ? <span className="copy-email-value"><a className="portal-link" href={portal.url} target="_blank" rel="noreferrer">{portal.url}</a><CopyValueButton value={portal.url} label="Link" /></span> : '—'}</td>
+          <td>{isEditing ? <input aria-label="Benutzer oder Mail" value={editDraft.username} onChange={(event) => updateEditDraft('username', event.target.value)} autoComplete="username" /> : portal.username ? <span className="copy-email-value"><span>{portal.username}</span><CopyValueButton value={portal.username} label="Benutzer oder Mail" /></span> : '—'}</td>
+          <td>{isEditing ? <input aria-label="Zugangsnummer" value={editDraft.accessNumber} onChange={(event) => updateEditDraft('accessNumber', event.target.value)} /> : portal.accessNumber ? <span className="copy-email-value"><span>{portal.accessNumber}</span><CopyValueButton value={portal.accessNumber} label="Zugangsnummer" /></span> : '—'}</td>
           <td className="portals-table__action"><div className="contact-actions contact-actions--icons">{isEditing ? <><button className="contact-actions__save" type="button" onClick={saveEditDraft} title="Speichern" aria-label="Zugang speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={() => setEditDraft(null)} title="Abbrechen" aria-label="Bearbeitung abbrechen" disabled={saving}><CloseIcon /></button></> : <><button type="button" onClick={() => startEdit(portal)} title="Bearbeiten" aria-label="Zugang bearbeiten" disabled={saving}><EditIcon /></button><button type="button" onClick={() => removePortal(portal.id)} title="Entfernen" aria-label="Zugang entfernen" disabled={saving}><TrashIcon /></button></>}</div></td>
         </tr>
       }) : null}{adding && <tr className="portals-table__row--new"><td><input aria-label="Link des neuen Zugangs" value={newPortal.url} onChange={(event) => updateNewPortal('url', event.target.value)} aria-invalid={Boolean(newErrors.url)} title={newErrors.url} placeholder="https://" disabled={saving} /></td><td><input aria-label="Benutzer oder Mail des neuen Zugangs" value={newPortal.username} onChange={(event) => updateNewPortal('username', event.target.value)} autoComplete="username" disabled={saving} /></td><td><input aria-label="Zugangsnummer des neuen Zugangs" value={newPortal.accessNumber} onChange={(event) => updateNewPortal('accessNumber', event.target.value)} disabled={saving} /></td><td className="portals-table__action"><div className="contact-actions contact-actions--icons"><button className="contact-actions__save" type="button" onClick={saveNewPortal} title="Speichern" aria-label="Neuen Zugang speichern" disabled={saving}><CheckIcon /></button><button type="button" onClick={cancelNewPortal} title="Abbrechen" aria-label="Neue Zugangseingaben verwerfen" disabled={saving}><CloseIcon /></button></div></td></tr>}</tbody></table></div>
