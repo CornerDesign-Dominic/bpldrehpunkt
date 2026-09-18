@@ -680,7 +680,7 @@ service cloud.firestore {
     function inkassoAmount(value) { return value is number && value >= 0; }
     function inkassoCaseKeysAreValid(data) {
       return data.keys().hasAll(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorPartnerId', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'claimAmount', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+        && data.keys().hasOnly(['caseNumber', 'title', 'description', 'status', 'isClosed', 'debtorName', 'debtorPartnerId', 'debtorNumber', 'debtorContactName', 'debtorAddress', 'debtorEmail', 'debtorPhone', 'responsibleUserId', 'responsibleUserName', 'invoiceNumbers', 'claimAmount', 'paidAmount', 'invoiceDate', 'originalDueDate', 'lastReminderDate', 'lawFirm', 'lawyerReference', 'lawFirmContactName', 'lawFirmEmail', 'lawFirmPhone', 'lawyerHandoverDate', 'court', 'courtReference', 'paymentOrderDate', 'enforcementOrderDate', 'titleAvailable', 'completedAt', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
     function validInkassoCase(data) {
       return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
@@ -688,7 +688,7 @@ service cloud.firestore {
         && data.status in ['open', 'in_progress', 'completed'] && data.isClosed == (data.status == 'completed')
         && inkassoText(data.debtorName, 240) && (!data.keys().hasAny(['debtorPartnerId']) || data.debtorPartnerId == null || (data.debtorPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.debtorPartnerId)) && data.debtorName == get(/databases/$(database)/documents/businessPartners/$(data.debtorPartnerId)).data.companyName)) && inkassoText(data.debtorNumber, 120) && inkassoText(data.debtorContactName, 240) && inkassoText(data.debtorAddress, 1000) && inkassoText(data.debtorEmail, 320) && inkassoText(data.debtorPhone, 80)
         && inkassoText(data.responsibleUserId, 240) && inkassoText(data.responsibleUserName, 240)
-        && inkassoText(data.invoiceNumbers, 1000) && (!data.keys().hasAny(['claimAmount']) || data.claimAmount == null || inkassoAmount(data.claimAmount)) && inkassoDate(data.invoiceDate) && inkassoDate(data.originalDueDate) && inkassoDate(data.lastReminderDate)
+        && inkassoText(data.invoiceNumbers, 1000) && (!data.keys().hasAny(['claimAmount']) || data.claimAmount == null || inkassoAmount(data.claimAmount)) && (!data.keys().hasAny(['paidAmount']) || data.paidAmount == null || inkassoAmount(data.paidAmount)) && inkassoDate(data.invoiceDate) && inkassoDate(data.originalDueDate) && inkassoDate(data.lastReminderDate)
         && inkassoText(data.lawFirm, 240) && inkassoText(data.lawyerReference, 240) && inkassoText(data.lawFirmContactName, 240) && inkassoText(data.lawFirmEmail, 320) && inkassoText(data.lawFirmPhone, 80) && inkassoDate(data.lawyerHandoverDate)
         && inkassoText(data.court, 240) && inkassoText(data.courtReference, 240) && inkassoDate(data.paymentOrderDate) && inkassoDate(data.enforcementOrderDate)
         && data.titleAvailable is bool && (data.completedAt == null || data.completedAt is timestamp);
@@ -733,11 +733,12 @@ service cloud.firestore {
 
       match /invoices/{invoiceId} {
         function validInkassoInvoice(data) {
-          return data.keys().hasAll(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount', 'createdAt', 'createdBy', 'createdByName'])
-            && data.keys().hasOnly(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount', 'createdAt', 'createdBy', 'createdByName'])
+          return data.keys().hasAll(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount', 'isPaid', 'paidAt', 'paidBy', 'paidByName', 'createdAt', 'createdBy', 'createdByName'])
+            && data.keys().hasOnly(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount', 'isPaid', 'paidAt', 'paidBy', 'paidByName', 'createdAt', 'createdBy', 'createdByName'])
             && data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 240
             && inkassoAmount(data.netAmount) && inkassoAmount(data.vatAmount) && inkassoAmount(data.grossAmount)
-            && data.grossAmount == data.netAmount + data.vatAmount
+            && data.grossAmount == data.netAmount + data.vatAmount && data.isPaid is bool
+            && ((data.isPaid == false && data.paidAt == null && data.paidBy == null && data.paidByName == null) || (data.isPaid == true && data.paidAt is timestamp && data.paidBy is string && data.paidByName is string))
             && data.createdBy is string && data.createdByName is string;
         }
         allow read: if view('inkasso');
@@ -745,7 +746,13 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
           && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.createdAt == request.time
           && request.resource.data.createdAt == request.time && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile());
-        allow update, delete: if false;
+        allow update: if edit('inkasso') && validInkassoInvoice(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isPaid', 'paidAt', 'paidBy', 'paidByName'])
+          && request.resource.data.invoiceNumber == resource.data.invoiceNumber && request.resource.data.netAmount == resource.data.netAmount && request.resource.data.vatAmount == resource.data.vatAmount && request.resource.data.grossAmount == resource.data.grossAmount
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedAt == request.time && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.updatedBy == request.auth.uid
+          && ((resource.data.isPaid == false && request.resource.data.isPaid == true && request.resource.data.paidAt == request.time && request.resource.data.paidBy == request.auth.uid && request.resource.data.paidByName == profileName(ownProfile()) && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount - resource.data.grossAmount && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount + resource.data.grossAmount) || (resource.data.isPaid == true && request.resource.data.isPaid == false && request.resource.data.paidAt == null && request.resource.data.paidBy == null && request.resource.data.paidByName == null && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.claimAmount + resource.data.grossAmount && getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount == get(/databases/$(database)/documents/inkassoCases/$(id)).data.paidAmount - resource.data.grossAmount));
+        allow delete: if false;
       }
 
       match /movements/{movementId} {

@@ -87,6 +87,13 @@ export const recordInkassoInvoiceCreated = onDocumentCreatedWithAuthContext({ re
   await writeHistory(event.params.caseId, event.id, 'invoice_created', `Rechnung hinzugefügt: ${invoice.invoiceNumber}`, await actorFrom(invoice, event), null, values(['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'], invoice))
 })
 
+export const recordInkassoInvoicePaymentUpdated = onDocumentUpdatedWithAuthContext({ region, document: 'inkassoCases/{caseId}/invoices/{invoiceId}' }, async (event) => {
+  const before = event.data.before.data()
+  const after = event.data.after.data()
+  if (before.isPaid === after.isPaid) return
+  await writeHistory(event.params.caseId, event.id, after.isPaid ? 'invoice_paid' : 'invoice_payment_reverted', after.isPaid ? `Rechnung als bezahlt markiert: ${after.invoiceNumber}` : `Zahlungsstatus zurückgesetzt: ${after.invoiceNumber}`, await actorFrom(after, event), values(['isPaid'], before), values(['isPaid'], after))
+})
+
 function movementText(action, movement) {
   return `${movementLabels[movement.type] || 'Betragsbewegung'} ${action}`
 }

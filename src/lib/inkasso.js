@@ -68,6 +68,7 @@ function casePayload(values, responsibleUsersById) {
     enforcementOrderDate: optionalDate(values.enforcementOrderDate),
     titleAvailable: values.titleAvailable === true,
     claimAmount: optionalAmount(values.claimAmount, 'Der Forderungsbetrag'),
+    paidAmount: optionalAmount(values.paidAmount, 'Der bereits gezahlte Betrag'),
   }
 }
 
@@ -115,7 +116,7 @@ export async function createInkassoCase(values, actor, responsibleUsersById) {
   const invoices = normalizeInkassoInvoices(values.invoices)
   const claimAmount = invoices.length ? invoices.reduce((total, invoice) => total + invoice.netAmount + invoice.vatAmount, 0) : null
   const invoiceNumbers = invoices.length ? invoices.map((invoice) => invoice.invoiceNumber).join(', ') : null
-  const next = casePayload({ ...createEmptyInkassoCase(), ...values, status: 'open', claimAmount, invoiceNumbers }, responsibleUsersById)
+  const next = casePayload({ ...createEmptyInkassoCase(), ...values, status: 'open', claimAmount, paidAmount: 0, invoiceNumbers }, responsibleUsersById)
   if (!next.title) throw new Error('Bitte eine Fallbezeichnung eingeben.')
 
   const caseRef = doc(inkassoCasesRef)
@@ -135,6 +136,10 @@ export async function createInkassoCase(values, actor, responsibleUsersById) {
   })
   invoices.forEach((invoice) => batch.set(doc(collection(caseRef, 'invoices')), {
     ...invoice,
+    isPaid: false,
+    paidAt: null,
+    paidBy: null,
+    paidByName: null,
     createdAt: serverTimestamp(),
     createdBy: actor.user.uid,
     createdByName: actorName,
@@ -155,6 +160,35 @@ export function normalizeInkassoInvoices(rows) {
     if (invoiceNumber.length > 240) throw new Error('Die Rechnungsnummer ist zu lang.')
     return { invoiceNumber, netAmount, vatAmount, grossAmount: netAmount + vatAmount }
   })
+}
+
+export async function listInkassoCaseInvoices(caseId) {
+  return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'invoices'), orderBy('createdAt', 'asc')))).docs.map(mapSnapshot)
+}
+
+export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, actor) {
+  if (invoice.isPaid === isPaid) return false
+  const grossAmount = Number(invoice.grossAmount)
+  const claimAmount = Number(inkassoCase.claimAmount)
+  const paidAmount = Number(inkassoCase.paidAmount || 0)
+  if (!Number.isFinite(grossAmount) || !Number.isFinite(claimAmount) || !Number.isFinite(paidAmount)) throw new Error('Die Rechnungsbeträge sind ungültig.')
+  const direction = isPaid ? 1 : -1
+  const nextClaimAmount = claimAmount - direction * grossAmount
+  const nextPaidAmount = paidAmount + direction * grossAmount
+  if (nextClaimAmount < 0 || nextPaidAmount < 0) throw new Error('Der Forderungsbetrag kann nicht negativ werden.')
+
+  const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
+  const actorName = getUserDisplayName(actor.profile, actor.user)
+  const batch = writeBatch(db)
+  batch.update(caseRef, { claimAmount: nextClaimAmount, paidAmount: nextPaidAmount, ...updateMetadata(actor) })
+  batch.update(doc(caseRef, 'invoices', invoice.id), {
+    isPaid,
+    paidAt: isPaid ? serverTimestamp() : null,
+    paidBy: isPaid ? actor.user.uid : null,
+    paidByName: isPaid ? actorName : null,
+  })
+  await batch.commit()
+  return true
 }
 
 export async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {
