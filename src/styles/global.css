@@ -1510,3 +1510,19 @@ tbody tr:hover td { background: var(--table-hover-background); }
 @media (max-width: 720px) { .calendar-navigation { width: 100%; }.calendar-navigation__period { flex: 1 1 100%; }.calendar-navigation__period > label { flex: 1 1 120px; }.calendar-navigation__period select { max-width: none; } }
 
 .legal-dispute-financial-overview__table th:nth-child(1) { width: 100px; }.legal-dispute-financial-overview__table th:nth-child(2) { width: 125px; }.legal-dispute-financial-overview__table th:nth-child(3) { width: 155px; }.legal-dispute-financial-overview__table th:nth-child(4), .legal-dispute-financial-overview__table th:nth-child(5), .legal-dispute-financial-overview__table th:nth-child(6) { width: 92px; }.legal-dispute-financial-overview__table th:last-child, .legal-dispute-financial-overview__table td:last-child { width: 66px; min-width: 66px; padding-inline: 2px !important; }.legal-dispute-financial-overview__table td:last-child { white-space: nowrap; }.legal-dispute-financial-overview__table .legal-dispute-financial-overview__empty-state { height: 68px; }
+
+.legal-dispute-financial-overview { container-type: inline-size; }
+@container (max-width: 720px) {
+  .legal-dispute-financial-overview__table-frame { overflow-x: hidden; }
+  .legal-dispute-financial-overview__table { min-width: 0 !important; max-width: 100%; table-layout: fixed; }
+  .legal-dispute-financial-overview__table th, .legal-dispute-financial-overview__table td { padding-inline: 5px !important; font-size: 10px; }
+  .legal-dispute-financial-overview__table th:nth-child(1) { width: 17%; }
+  .legal-dispute-financial-overview__table th:nth-child(2) { width: 18%; }
+  .legal-dispute-financial-overview__table th:nth-child(3) { width: 20%; }
+  .legal-dispute-financial-overview__table th:nth-child(4), .legal-dispute-financial-overview__table th:nth-child(5) { width: 11%; }
+  .legal-dispute-financial-overview__table th:nth-child(6) { width: 13%; }
+  .legal-dispute-financial-overview__table th:last-child, .legal-dispute-financial-overview__table td:last-child { width: 10%; min-width: 0; padding-inline: 2px !important; }
+  .legal-dispute-financial-overview__table .damage-financial-overview__row--editing :is(input, select) { min-width: 0; padding-inline: 4px; font-size: 11px; }
+  .legal-dispute-financial-overview__table .damage-financial-overview__actions { white-space: nowrap; }
+  .legal-dispute-financial-overview__table .damage-financial-overview__icon-action { width: 24px; height: 24px; }
+}
