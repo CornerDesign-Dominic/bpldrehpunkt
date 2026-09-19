@@ -54,6 +54,7 @@ function casePayload(values, responsibleUsersById = new Map()) {
     isClosed: status === 'completed',
     debtorName: optionalText(values.debtorName),
     debtorPartnerId: optionalText(values.debtorPartnerId),
+    debtorPartnerRole: optionalText(values.debtorPartnerRole),
     debtorNumber: optionalText(values.debtorNumber),
     debtorContactName: optionalText(values.debtorContactName),
     debtorAddress: optionalText(values.debtorAddress),
@@ -103,6 +104,7 @@ export function createEmptyInkassoCase() {
     status: 'open',
     debtorName: '',
     debtorPartnerId: '',
+    debtorPartnerRole: '',
     invoices: [],
   }
 }
@@ -136,6 +138,7 @@ export async function createInkassoCase(values) {
     collectionAgency: optionalText(values.collectionAgency),
     collectionReference: optionalText(values.collectionReference),
     debtorPartnerId: optionalText(values.debtorPartnerId),
+    debtorPartnerRole: optionalText(values.debtorPartnerRole),
     invoices,
   })
   return result.data.caseId

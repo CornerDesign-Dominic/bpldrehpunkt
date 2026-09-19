@@ -57,8 +57,14 @@ function highestIssuedNumber(cases, year) {
 
 function optionalPartnerId(value) {
   const id = cleanText(value)
-  if (id.includes('/')) throw new HttpsError('invalid-argument', 'Der ausgewählte Unternehmer ist ungültig.')
+  if (id.includes('/')) throw new HttpsError('invalid-argument', 'Der ausgewählte Geschäftspartner ist ungültig.')
   return id || null
+}
+
+function optionalPartnerRole(value) {
+  const role = cleanText(value)
+  if (role && !['customer', 'carrier'].includes(role)) throw new HttpsError('invalid-argument', 'Die Rolle des ausgewählten Geschäftspartners ist ungültig.')
+  return role || null
 }
 
 export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async (request) => {
@@ -71,6 +77,7 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
   const collectionAgency = optionalText(data.collectionAgency, 240, 'Das Inkassounternehmen')
   const collectionReference = optionalText(data.collectionReference, 240, 'Das Aktenzeichen des Inkassounternehmens')
   const debtorPartnerId = optionalPartnerId(data.debtorPartnerId)
+  const debtorPartnerRole = optionalPartnerRole(data.debtorPartnerRole)
   const invoices = invoicesFrom(data.invoices)
   const year = berlinYear()
   const database = getFirestore()
@@ -95,11 +102,13 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
     let debtorNumber = null
     if (debtorPartnerId) {
       const partner = await transaction.get(database.doc(`businessPartners/${debtorPartnerId}`))
-      if (!partner.exists || typeof partner.data().companyName !== 'string' || !partner.data().companyName.trim() || typeof partner.data().creditorNumber !== 'string' || !partner.data().creditorNumber.trim()) {
-        throw new HttpsError('invalid-argument', 'Der ausgewählte Unternehmer ist nicht verfügbar.')
+      const partnerData = partner.data()
+      const partnerNumber = debtorPartnerRole === 'customer' ? partnerData?.debtorNumber : partnerData?.creditorNumber
+      if (!partner.exists || !debtorPartnerRole || typeof partnerData?.companyName !== 'string' || !partnerData.companyName.trim() || typeof partnerNumber !== 'string' || !partnerNumber.trim()) {
+        throw new HttpsError('invalid-argument', 'Der ausgewählte Geschäftspartner ist nicht verfügbar.')
       }
-      debtorName = partner.data().companyName.trim()
-      debtorNumber = partner.data().creditorNumber.trim()
+      debtorName = partnerData.companyName.trim()
+      debtorNumber = partnerNumber.trim()
     }
 
     const nextNumber = lastNumber + 1
@@ -125,6 +134,7 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
       isClosed: false,
       debtorName,
       debtorPartnerId,
+      debtorPartnerRole,
       debtorNumber,
       debtorContactName: null,
       debtorAddress: null,
