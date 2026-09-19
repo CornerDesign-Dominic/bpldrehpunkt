@@ -5,7 +5,7 @@ const courtTypes = ['Amtsgericht', 'Landgericht', 'Oberlandesgericht', 'Bundesge
 
 const fieldsBySection = {
   financial: financialFields,
-  information: [['Art des Falls', 'caseType'], ['Zuständig', 'responsibleUserName']],
+  information: [['Art des Falls', 'caseType'], ['Transportauftragsnummer', 'transportReference'], ['Zuständig', 'responsibleUserName']],
   parties: [['Verknüpfter Gegner', 'counterparty'], ['Vertretung', 'opposingRepresentation', 'representation'], ['Aktenzeichen der Gegenseite', 'opposingReference']],
   lawyer: [['Kanzlei', 'lawFirm'], ['Ansprechpartner', 'ownCounsel'], ['Aktenzeichen Anwalt', 'lawyerReference'], ['Übergabe an Rechtsanwalt', 'lawyerHandoverDate', 'date'], ['Telefon', 'lawyerPhone'], ['E-Mail', 'lawyerEmail']],
   court: [['Gericht', 'court', 'court'], ['Ort', 'courtLocation'], ['Gerichtliches Aktenzeichen', 'courtReference']],

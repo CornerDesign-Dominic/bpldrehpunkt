@@ -83,7 +83,7 @@ export function createEmptyLegalDispute() {
     title: '',
     caseType: '',
     counterparty: '',
-    nextDeadline: '',
+    transportReference: '',
   }
 }
 
@@ -95,8 +95,6 @@ export async function createLegalDispute(values, actor) {
   const counterRef = doc(db, 'legalDisputeCaseCounters', year)
   const actorName = getUserDisplayName(actor.profile, actor.user)
   const optionalText = (value) => trim(value) || null
-  const optionalDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(trim(value)) ? trim(value) : null
-  const initialDeadline = optionalDate(values.nextDeadline)
   let caseRef
   await runTransaction(db, async (transaction) => {
     const counter = await transaction.get(counterRef)
@@ -117,6 +115,7 @@ export async function createLegalDispute(values, actor) {
       caseType: optionalText(values.caseType),
       participant: null,
       counterparty: optionalText(values.counterparty),
+      transportReference: optionalText(values.transportReference),
       opposingCounsel: null,
       opposingRepresentation: null,
       opposingReference: null,
@@ -132,7 +131,7 @@ export async function createLegalDispute(values, actor) {
       courtLocation: null,
       courtReference: null,
       judgeOrChamber: null,
-      nextDeadline: initialDeadline,
+      nextDeadline: null,
       nextDeadlineLabel: null,
       nextHearing: null,
       nextHearingTime: null,
@@ -157,7 +156,6 @@ export async function createLegalDispute(values, actor) {
       updatedByName: actorName,
     })
     transaction.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
-    if (initialDeadline) transaction.set(doc(collection(caseRef, 'deadlines')), { type: 'deadline', date: initialDeadline, time: null, reminderEnabled: false, note: null, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
   })
   return caseRef.id
 }

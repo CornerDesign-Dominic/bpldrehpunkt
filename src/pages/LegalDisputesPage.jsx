@@ -4,6 +4,7 @@ import LegalDisputeCaseForm from '../components/legal-disputes/LegalDisputeCaseF
 import LegalDisputeCasesTable from '../components/legal-disputes/LegalDisputeCasesTable.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
+import { listBusinessPartners } from '../lib/businessPartners.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { createLegalDispute, LEGAL_DISPUTE_STATUSES, listLegalDisputes } from '../lib/legalDisputes.js'
 
@@ -18,11 +19,13 @@ function isCriticalDate(value) {
 
 export default function LegalDisputesPage() {
   const { user, profile } = useAuth()
-  const { canEdit } = usePermissions()
+  const { canEdit, canView } = usePermissions()
   const { setTitle } = usePageHeader()
   const navigate = useNavigate()
   const editable = canEdit('legalDisputes')
+  const canViewMasterData = canView('masterData')
   const [cases, setCases] = useState([])
+  const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -49,12 +52,12 @@ export default function LegalDisputesPage() {
 
   useEffect(() => {
     let current = true
-    listLegalDisputes()
-      .then((entries) => { if (current) setCases(entries) })
+    Promise.all([listLegalDisputes(), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      .then(([entries, businessPartners]) => { if (current) { setCases(entries); setPartners(businessPartners) } })
       .catch(() => { if (current) setError('Die Fälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
-  }, [])
+  }, [canViewMasterData, editable])
 
   async function save(values) {
     const id = await createLegalDispute(values, { user, profile })
@@ -76,6 +79,6 @@ export default function LegalDisputesPage() {
         <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
     </div>}
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></div>}
   </div>
 }
