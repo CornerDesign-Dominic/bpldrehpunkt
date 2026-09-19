@@ -45,7 +45,7 @@ export default function LegalDisputeFinancialOverview({ canEdit, entries, legalD
   }
 
   return <section className="todo-detail-content damage-financial-overview legal-dispute-financial-overview" aria-labelledby="legal-dispute-financial-overview-title">
-    <div className="todo-detail-section-heading"><h3 id="legal-dispute-financial-overview-title">Finanzieller Überblick</h3>{canEdit && <div className="legal-dispute-financial-overview__actions"><button className="button button--secondary damage-financial-overview__add" type="button" disabled={Boolean(draft) || saving} onClick={onEditDispute}>Streitbetrag bearbeiten</button></div>}</div>
+    <div className="todo-detail-section-heading"><h3 id="legal-dispute-financial-overview-title">Finanzieller Überblick</h3>{canEdit && <div className="legal-dispute-financial-overview__actions"><button className="button damage-financial-overview__add" type="button" disabled={Boolean(draft) || saving} onClick={onEditDispute}>Streitbetrag bearbeiten</button></div>}</div>
     <div className="legal-dispute-financial-overview__claim"><span>Streitbetrag · SOLL</span><strong>{legalDispute.amountInDispute === null || legalDispute.amountInDispute === undefined ? '—' : formatCurrency(legalDispute.amountInDispute)}</strong></div>
     {canEdit && <div className="legal-dispute-financial-overview__payment-action"><button className="button damage-financial-overview__add" type="button" disabled={Boolean(draft) || saving} onClick={startNew}>Zahlung hinzufügen</button></div>}
     {error && <p className="form-error">{error}</p>}
