@@ -1531,3 +1531,10 @@ tbody tr:hover td { background: var(--table-hover-background); }
 
 .damage-deadlines__table .table-state { height: 38px !important; }
 .damage-financial-overview__table .damage-financial-overview__empty-state { height: 38px !important; }
+
+/* All four case-detail modules share this container. Keep navigation and content aligned. */
+.todo-detail-page.damage-detail-page,
+.todo-detail-navigation.damage-detail-navigation {
+  width: min(100%, 1120px);
+  max-width: none;
+}
