@@ -1526,3 +1526,5 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .legal-dispute-financial-overview__table .damage-financial-overview__actions { white-space: nowrap; }
   .legal-dispute-financial-overview__table .damage-financial-overview__icon-action { width: 24px; height: 24px; }
 }
+
+.damage-deadlines__table .table-state { height: 38px !important; }
