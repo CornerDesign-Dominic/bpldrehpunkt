@@ -24,8 +24,8 @@ export default function DamageCaseForm({ damageCase, onCancel, onSubmit, partner
 
   async function submit(event) {
     event.preventDefault()
-    if (!form.damageDate || !form.title.trim() || !form.damageType.trim() || form.damageAmount === '') {
-      setError('Bitte Schadendatum, Kurzbezeichnung, Schadenart und Schadenhöhe erfassen.')
+    if (!form.damageDate || !form.damageType.trim() || form.damageAmount === '') {
+      setError('Bitte Schadendatum, Schadenart und Schadenhöhe erfassen.')
       return
     }
     setSubmitting(true)
@@ -45,7 +45,6 @@ export default function DamageCaseForm({ damageCase, onCancel, onSubmit, partner
       <label className="form-field"><span>Schadendatum *</span><input type="date" value={form.damageDate} onChange={(event) => update('damageDate', event.target.value)} /></label>
       <label className="form-field"><span>Schadenart *</span><select value={form.damageType} onChange={(event) => update('damageType', event.target.value)}><option value="">Bitte wählen</option>{DAMAGE_CASE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
       <label className="form-field"><span>Schadenhöhe *</span><input required type="number" min="0" step="0.01" inputMode="decimal" value={form.damageAmount} onChange={(event) => update('damageAmount', event.target.value)} placeholder="0,00" /></label>
-      <label className="form-field damage-form__wide"><span>Kurzbezeichnung / Beschreibung *</span><textarea rows="3" value={form.title} maxLength="500" onChange={(event) => update('title', event.target.value)} /></label>
     </div></section>
     <section className="damage-form__section"><h3>Verknüpfung</h3><div className="damage-form__grid damage-form__grid--context">
       <label className="form-field"><span>Auftrag-/Tourreferenz</span><input value={form.transportReference} maxLength="240" onChange={(event) => update('transportReference', event.target.value)} /></label>

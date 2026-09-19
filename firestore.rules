@@ -486,6 +486,7 @@ service cloud.firestore {
     function isCreatedDamageCase() {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
         && request.resource.data.damageAmount is number
+        && request.resource.data.title == request.resource.data.caseNumber + (request.resource.data.transportReference == null ? '' : ' – ' + request.resource.data.transportReference)
         && !request.resource.data.keys().hasAny(['damageLocation', 'liabilityNote'])
         && request.resource.data.caseSequence == damageCounterAfter(request.resource.data.caseYear).nextNumber
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())

@@ -267,7 +267,7 @@ export default function DamageDetailPage() {
   const nextDeadline = nextDamageDeadline(deadlines)
   const due = damageDeadlinePresentation(nextDeadline)
   const dueValue = nextDeadline ? `${due.label} · ${formatDate(nextDeadline.date)}` : '—'
-  const title = `${damageCase.caseNumber} – ${damageCase.title || 'Ohne Kurzbezeichnung'}`
+  const title = damageCase.title || damageCase.caseNumber
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = updates.filter((update) => update.type === 'system')
   return <>

@@ -165,10 +165,12 @@ export async function createDamageCase(values, actor, responsibleUsersById) {
     const counter = await transaction.get(counterRef)
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
+    const caseNumber = `S-${year}-${String(sequence).padStart(4, '0')}`
+    const transportReference = optionalText(values.transportReference)
     transaction.set(counterRef, { year, nextNumber: sequence, updatedAt: serverTimestamp() })
     transaction.set(caseRef, {
-      ...payload(values, responsibleUsersById, true),
-      caseNumber: `S-${year}-${String(sequence).padStart(4, '0')}`,
+      ...payload({ ...values, title: transportReference ? `${caseNumber} – ${transportReference}` : caseNumber }, responsibleUsersById, true),
+      caseNumber,
       caseYear: year,
       caseSequence: sequence,
       openBplRisk: null,
@@ -358,7 +360,12 @@ export async function deleteDamageCaseMovement(damageCase, movement, actor) {
 }
 
 export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById, systemMessages = null) {
-  const next = payload({ ...damageCase, ...changes }, responsibleUsersById)
+  const values = { ...damageCase, ...changes }
+  if (Object.hasOwn(changes, 'transportReference')) {
+    const transportReference = optionalText(values.transportReference)
+    values.title = transportReference ? `${damageCase.caseNumber} – ${transportReference}` : damageCase.caseNumber
+  }
+  const next = payload(values, responsibleUsersById)
   const changedFields = Object.fromEntries(Object.entries(next).filter(([key, value]) => value !== (damageCase[key] ?? null)))
   if (!Object.keys(changedFields).length) return false
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
