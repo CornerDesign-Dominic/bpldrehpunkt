@@ -91,7 +91,9 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
   const title = trim(values.title)
   const damageDate = trim(values.damageDate)
   const damageType = trim(values.damageType)
+  const damageAmount = optionalAmount(values.damageAmount)
   if (!title || !damageDate || (requireDamageType && !damageType)) throw new Error('Bitte Schadendatum, Kurzbezeichnung und Schadenart erfassen.')
+  if (requireDamageType && damageAmount === null) throw new Error('Bitte die Schadenhöhe erfassen.')
   return {
     status,
     damageDate,
@@ -105,7 +107,7 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
     contractorPartnerId: optionalText(values.contractorPartnerId),
     responsibleUserId,
     responsibleUserName,
-    damageAmount: optionalAmount(values.damageAmount),
+    damageAmount,
     legalBasis: optionalSelection(values.legalBasis, DAMAGE_LEGAL_BASES),
     cargoWeightKg: optionalAmount(values.cargoWeightKg, 'Das Gewicht der Ware'),
     liabilityLimit: optionalAmount(values.liabilityLimit, 'Die Bemessungsgrenze'),

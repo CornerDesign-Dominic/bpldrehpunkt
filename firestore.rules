@@ -252,7 +252,7 @@ service cloud.firestore {
       allow read: if view('insolvencies');
       allow create: if edit('insolvencies') && createdInsolvency(partnerId);
       allow update: if edit('insolvencies') && updatedInsolvency(partnerId);
-      allow delete: if false;
+      allow delete: if edit('insolvencies');
 
       match /movements/{movementId} {
         // Legacy general movements are intentionally retired. Insolvency
@@ -485,6 +485,7 @@ service cloud.firestore {
     function damageCounterAfter(year) { return getAfter(/databases/$(database)/documents/damageCaseCounters/$(year)).data; }
     function isCreatedDamageCase() {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
+        && request.resource.data.damageAmount is number
         && !request.resource.data.keys().hasAny(['damageLocation', 'liabilityNote'])
         && request.resource.data.caseSequence == damageCounterAfter(request.resource.data.caseYear).nextNumber
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
@@ -512,7 +513,7 @@ service cloud.firestore {
       allow read: if view('damages');
       allow create: if edit('damages') && isCreatedDamageCase();
       allow update: if edit('damages') && isUpdatedDamageCase();
-      allow delete: if false;
+      allow delete: if edit('damages');
 
       match /updates/{updateId} {
         function validDamageCaseUpdate(data) {
@@ -656,7 +657,7 @@ service cloud.firestore {
       allow read: if view('legalDisputes');
       allow create: if edit('legalDisputes') && createdLegalDispute(id);
       allow update: if edit('legalDisputes') && updatedLegalDispute();
-      allow delete: if false;
+      allow delete: if edit('legalDisputes');
 
       match /updates/{updateId} {
         function validLegalDisputeUpdate(data) {
@@ -773,7 +774,7 @@ service cloud.firestore {
       // Browser writes would bypass that single source of truth.
       allow create: if false;
       allow update: if edit('inkasso') && updatedInkassoCase();
-      allow delete: if false;
+      allow delete: if edit('inkasso');
 
       match /updates/{updateId} {
         function validInkassoCaseUpdate(data) {

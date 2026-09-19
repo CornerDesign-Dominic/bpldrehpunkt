@@ -19,6 +19,18 @@ test('active superadmins retain elevated rights while disabled superadmins do no
   assert.match(rules, /function admin\(\) \{ return active\(\) && \(role\(\) == 'admin' \|\| superadmin\(\)\); \}/)
 })
 
+test('case editors may delete the four non-live case root documents', () => {
+  const insolvencyRules = rules.match(/match \/insolvencies\/\{partnerId\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  const damageRules = rules.match(/match \/damageCases\/\{id\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  const legalRules = rules.match(/match \/legalDisputes\/\{id\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+  const inkassoRules = rules.match(/match \/inkassoCases\/\{id\} \{([\s\S]*?)\n {4}\}/)?.[1] || ''
+
+  assert.match(insolvencyRules, /allow delete: if edit\('insolvencies'\);/)
+  assert.match(damageRules, /allow delete: if edit\('damages'\);/)
+  assert.match(legalRules, /allow delete: if edit\('legalDisputes'\);/)
+  assert.match(inkassoRules, /allow delete: if edit\('inkasso'\);/)
+})
+
 test('an active user may read only their own profile; administration uses a callable projection', () => {
   assert.match(rules, /allow get: if active\(\) && userId == request\.auth\.uid;/)
   assert.match(rules, /allow list: if false;/)
@@ -194,7 +206,7 @@ test('insolvency creation binds the selected partner and permits only the atomic
   assert.match(insolvencyRules, /request\.resource\.data\.updatedBy == request\.auth\.uid/)
   assert.match(insolvencyRules, /request\.resource\.data\.updatedByName == profileName\(ownProfile\(\)\)/)
   assert.match(insolvencyRules, /existsAfter\(\/databases\/\$\(database\)\/documents\/insolvencies\/\$\(partnerId\)\)/)
-  assert.match(insolvencyRules, /allow delete: if false;/)
+  assert.match(insolvencyRules, /allow delete: if edit\('insolvencies'\);/)
 })
 
 test('insolvency detail content is scoped to insolvency view and edit rights', () => {
