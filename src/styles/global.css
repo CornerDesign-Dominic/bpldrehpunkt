@@ -1531,6 +1531,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 
 .damage-deadlines__table .table-state { height: 38px !important; }
 .damage-financial-overview__table .damage-financial-overview__empty-state { height: 38px !important; }
+.insolvency-claims-overview__table .insolvency-claims-overview__empty-state { height: 38px !important; }
 
 /* All four case-detail modules share this container. Keep navigation and content aligned. */
 .todo-detail-page.damage-detail-page,
