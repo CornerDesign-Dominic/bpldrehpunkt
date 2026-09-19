@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { useAuth } from '../../auth/useAuth.js'
+import { usePermissions } from '../../auth/usePermissions.js'
+import { listBusinessPartners } from '../../lib/businessPartners.js'
 import { functions } from '../../lib/firebase.js'
-import { BugIcon } from '../icons.jsx'
+import { createTodo } from '../../lib/todos.js'
+import { listVisibleUserDirectory } from '../../lib/userProfiles.js'
+import TodoForm from '../todos/TodoForm.jsx'
+import { BugIcon, CloseIcon, TodoIcon } from '../icons.jsx'
 import Toast from '../ui/Toast.jsx'
 
 const modules = ['Dashboard', 'Urlaub', 'Kalender', 'Urlaubsmanagement', 'Team Brennpunkt', 'Kunden & Unternehmer', 'CRM', 'Palettenmanagement', 'News', 'Dokumente', 'To-dos', 'Mein Profil', 'Adminbereich', 'Sonstiges']
@@ -91,15 +96,67 @@ function BugReportModal({ onClose, onSuccess }) {
 }
 
 export default function BugReportButton() {
-  const { user } = useAuth()
-  const [open, setOpen] = useState(false)
+  const { profile, user } = useAuth()
+  const { canEdit, canView } = usePermissions()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [bugReportOpen, setBugReportOpen] = useState(false)
+  const [todoOpen, setTodoOpen] = useState(false)
+  const [todoSetupLoading, setTodoSetupLoading] = useState(false)
+  const [todoSetupError, setTodoSetupError] = useState('')
+  const [todoUsers, setTodoUsers] = useState([])
+  const [todoPartners, setTodoPartners] = useState([])
   const [toast, setToast] = useState('')
+  const menuRef = useRef(null)
+  const canCreateTodos = canEdit('todos')
+  const canViewMasterData = canView('masterData')
+  const todoUsersById = useMemo(() => new Map(todoUsers.filter((item) => item.active !== false).map((item) => [item.id, item])), [todoUsers])
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    function closeMenu(event) {
+      if (event.key === 'Escape' || (event.type === 'pointerdown' && !menuRef.current?.contains(event.target))) setMenuOpen(false)
+    }
+    document.addEventListener('keydown', closeMenu)
+    document.addEventListener('pointerdown', closeMenu)
+    return () => {
+      document.removeEventListener('keydown', closeMenu)
+      document.removeEventListener('pointerdown', closeMenu)
+    }
+  }, [menuOpen])
+
+  async function openTodoModal() {
+    setMenuOpen(false)
+    setTodoOpen(true)
+    setTodoSetupLoading(true)
+    setTodoSetupError('')
+    try {
+      const [users, partners] = await Promise.all([listVisibleUserDirectory(), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+      setTodoUsers(users)
+      setTodoPartners(partners)
+    } catch {
+      setTodoSetupError('Die Angaben für das To-do konnten nicht geladen werden. Bitte versuche es erneut.')
+    } finally {
+      setTodoSetupLoading(false)
+    }
+  }
+
+  async function createGlobalTodo(values) {
+    await createTodo(values, { profile, user }, todoUsersById)
+    setToast('To-do gespeichert.')
+  }
 
   if (!user) return null
 
   return <>
-    <button className="bug-report-button" type="button" onClick={() => setOpen(true)} aria-label="Fehler melden" title="Fehler melden"><BugIcon size={21} /></button>
-    {open && <BugReportModal onClose={() => setOpen(false)} onSuccess={() => { setOpen(false); setToast('Danke, deine Meldung wurde versendet.') }} />}
+    <div ref={menuRef} className="global-action-menu">
+      {menuOpen && <div className="global-action-menu__options" role="menu" aria-label="Schnellaktionen">
+        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setBugReportOpen(true) }}><BugIcon size={18} /><span>Bug melden</span></button>
+        {canCreateTodos && <button type="button" role="menuitem" onClick={openTodoModal}><TodoIcon size={18} /><span>To-do anlegen</span></button>}
+      </div>}
+      <button className="global-action-menu__toggle" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label={menuOpen ? 'Schnellaktionen schließen' : 'Schnellaktionen öffnen'} title={menuOpen ? 'Schließen' : 'Schnellaktionen'} aria-expanded={menuOpen}>{menuOpen ? <CloseIcon size={20} /> : <span aria-hidden="true">+</span>}</button>
+    </div>
+    {bugReportOpen && <BugReportModal onClose={() => setBugReportOpen(false)} onSuccess={() => { setBugReportOpen(false); setToast('Danke, deine Meldung wurde versendet.') }} />}
+    {todoOpen && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !todoSetupLoading) setTodoOpen(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen">{todoSetupLoading ? <p className="page-state">To-do wird vorbereitet …</p> : todoSetupError ? <div className="global-action-menu__todo-error"><p className="form-error">{todoSetupError}</p><button className="button button--secondary" type="button" onClick={() => setTodoOpen(false)}>Schließen</button></div> : <TodoForm key="global-new-todo" currentUserId={user.uid} partners={todoPartners} users={todoUsers.filter((item) => item.active !== false)} onCancel={() => setTodoOpen(false)} onSubmit={createGlobalTodo} />}</section></div>}
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
   </>
 }
