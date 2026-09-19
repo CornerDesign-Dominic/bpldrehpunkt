@@ -25,15 +25,12 @@ function InvoiceFields({ draft, onChange }) {
   return <><td><input aria-label="Rechnungsnummer" autoFocus value={draft.invoiceNumber} maxLength="240" onChange={(event) => onChange('invoiceNumber', event.target.value)} /></td><td><input aria-label="Nettobetrag" type="number" min="0" step="0.01" inputMode="decimal" value={draft.netAmount} onChange={(event) => onChange('netAmount', event.target.value)} /></td><td><input aria-label="USt.-Betrag" type="number" min="0" step="0.01" inputMode="decimal" value={draft.vatAmount} onChange={(event) => onChange('vatAmount', event.target.value)} /></td></>
 }
 
-export default function InkassoInvoicesCard({ canEdit, invoices, inkassoCase, loading, movements, movementsLoading, onDeleteMovement, onPaymentChange, onSave, onSaveMovement, savingInvoiceId }) {
+export default function InkassoInvoicesCard({ canEdit, invoices, loading, movements, movementsLoading, onDeleteMovement, onPaymentChange, onSave, onSaveMovement, savingInvoiceId }) {
   const [draft, setDraft] = useState(null)
   const [modal, setModal] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const columns = 5
-  const openInvoices = invoices.filter((invoice) => invoice.isPaid !== true)
-  const openNetAmount = openInvoices.reduce((total, invoice) => total + Number(invoice.netAmount || 0), 0)
-  const openGrossAmount = openInvoices.reduce((total, invoice) => total + Number(invoice.grossAmount || 0), 0)
 
   function updateDraft(field, value) { setDraft((current) => ({ ...current, [field]: value })); setError('') }
   async function saveDraft() { if (!draft) return; setSaving(true); setError(''); try { await onSave(null, draft); setDraft(null) } catch (saveError) { setError(saveError.message || 'Die Rechnung konnte nicht gespeichert werden.') } finally { setSaving(false) } }
@@ -46,7 +43,6 @@ export default function InkassoInvoicesCard({ canEdit, invoices, inkassoCase, lo
       {loading ? <tr><td className="table-state" colSpan={columns}>Rechnungen werden geladen …</td></tr> : !invoices.length && !draft ? <tr><td className="table-state inkasso-empty-state" colSpan={columns}>Keine Rechnungen hinterlegt.</td></tr> : invoices.map((invoice) => <tr key={invoice.id} className="damage-deadlines__row" tabIndex="0" role="button" onClick={() => setModal(invoice)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setModal(invoice) } }} aria-label={`Rechnung ${invoice.invoiceNumber} öffnen`}><td className="todos-table__title">{invoice.invoiceNumber}</td><td>{formatCurrency(invoice.netAmount)}</td><td>{formatCurrency(invoice.vatAmount)}</td><td>{formatCurrency(invoice.grossAmount)}</td><td><label className="damage-filter-toggle" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><input type="checkbox" checked={invoice.isPaid === true} disabled={!canEdit || Boolean(savingInvoiceId) || saving} onChange={(event) => onPaymentChange(invoice, event.target.checked)} />Bezahlt</label></td></tr>)}
       {canEdit && draft && <tr className="damage-financial-overview__row--editing"><InvoiceFields draft={draft} onChange={updateDraft} /><td>{formatCurrency(Number(draft.netAmount || 0) + Number(draft.vatAmount || 0))}</td><td className="damage-financial-overview__actions"><button className="damage-financial-overview__icon-action damage-financial-overview__icon-action--save" type="button" disabled={saving} onClick={saveDraft} aria-label="Speichern" title="Speichern"><CheckIcon size={15} /></button><button className="damage-financial-overview__icon-action damage-financial-overview__icon-action--cancel" type="button" disabled={saving} onClick={() => setDraft(null)} aria-label="Abbrechen" title="Abbrechen"><CloseIcon size={15} /></button></td></tr>}
     </tbody></table></div>
-    <div className="inkasso-financial-overview__summary"><div><span>Offene Forderungen netto</span><strong>{formatCurrency(openNetAmount)}</strong></div><div><span>Offene Forderungen brutto</span><strong>{formatCurrency(openGrossAmount)}</strong></div></div>
-    <InkassoFinancialOverview canEdit={canEdit} embedded inkassoCase={inkassoCase} loading={movementsLoading} movements={movements} onDelete={onDeleteMovement} onSave={onSaveMovement} />
+    <InkassoFinancialOverview canEdit={canEdit} embedded invoices={invoices} loading={movementsLoading} movements={movements} onDelete={onDeleteMovement} onSave={onSaveMovement} />
   </section>
 }

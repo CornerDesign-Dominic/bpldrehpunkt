@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
@@ -110,7 +110,7 @@ export function createEmptyInkassoCase() {
 }
 
 export function createEmptyInkassoMovement() {
-  return { date: new Date().toISOString().slice(0, 10), type: 'main_claim', amount: '', description: '' }
+  return { date: new Date().toISOString().slice(0, 10), type: 'collection_costs', direction: 'paid', amount: '' }
 }
 
 export async function listInkassoCases() {
@@ -323,9 +323,10 @@ export async function addInkassoCaseUpdate(inkassoCase, text, actor) {
 function movementPayload(values) {
   const date = optionalDate(values.date)
   const type = INKASSO_MOVEMENT_TYPES.some((item) => item.value === values.type) ? values.type : ''
+  const direction = values.direction === 'received' || values.direction === 'paid' ? values.direction : ''
   const amount = optionalAmount(values.amount)
-  if (!date || !type || amount === null) throw new Error('Bitte Datum, Art und Betrag erfassen.')
-  return { date, type, amount, description: optionalText(values.description) }
+  if (!date || !type || !direction || amount === null) throw new Error('Bitte Datum, Art, Richtung und Betrag erfassen.')
+  return { date, type, direction, amount }
 }
 
 export async function listInkassoCaseMovements(caseId) {
@@ -348,7 +349,7 @@ export async function updateInkassoCaseMovement(inkassoCase, movement, values, a
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.update(doc(caseRef, 'movements', movement.id), { ...next, ...updateMetadata(actor) })
+  batch.update(doc(caseRef, 'movements', movement.id), { ...next, description: deleteField(), ...updateMetadata(actor) })
   await batch.commit()
   return true
 }
