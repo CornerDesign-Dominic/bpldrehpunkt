@@ -101,6 +101,7 @@ export async function createLegalDispute(values, actor) {
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
 
     const caseNumber = `G-${year}-${String(sequence).padStart(4, '0')}`
+    const counterparty = optionalText(values.counterparty)
     caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, caseNumber)
     transaction.set(counterRef, { year, nextNumber: sequence, updatedAt: serverTimestamp() })
     transaction.set(caseRef, {
@@ -109,11 +110,11 @@ export async function createLegalDispute(values, actor) {
       caseSequence: sequence,
       status: 'open',
       isClosed: false,
-      title: `${caseNumber} – ${transportReference}`,
+      title: [caseNumber, transportReference, counterparty].filter(Boolean).join(' – '),
       description: null,
       caseType: optionalText(values.caseType),
       participant: null,
-      counterparty: optionalText(values.counterparty),
+      counterparty,
       transportReference,
       opposingCounsel: null,
       opposingRepresentation: null,
@@ -294,10 +295,12 @@ export async function addLegalDisputeSystemUpdate(legalDispute, text, actor) {
 export async function updateLegalDisputeFields(legalDispute, changes, actor, systemText) {
   const nextStatus = changes.status || legalDispute.status
   const next = { ...changes, status: nextStatus, isClosed: nextStatus === 'completed' }
-  if (Object.hasOwn(changes, 'transportReference')) {
-    const transportReference = trim(changes.transportReference)
+  if (Object.hasOwn(changes, 'transportReference') || Object.hasOwn(changes, 'counterparty')) {
+    const transportReference = Object.hasOwn(changes, 'transportReference') ? trim(changes.transportReference) : legalDispute.transportReference
+    const counterparty = Object.hasOwn(changes, 'counterparty') ? trim(changes.counterparty) : legalDispute.counterparty
     next.transportReference = transportReference || null
-    next.title = transportReference ? `${legalDispute.caseNumber} – ${transportReference}` : legalDispute.caseNumber
+    next.counterparty = counterparty || null
+    next.title = [legalDispute.caseNumber, transportReference, counterparty].filter(Boolean).join(' – ')
   }
   if (changes.status && changes.status !== legalDispute.status) next.completedAt = nextStatus === 'completed' ? serverTimestamp() : null
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)

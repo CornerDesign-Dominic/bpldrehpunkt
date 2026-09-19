@@ -634,7 +634,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['caseYear', 'caseSequence'])
         && id == request.resource.data.caseNumber
         && request.resource.data.transportReference is string && request.resource.data.transportReference.size() > 0
-        && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.transportReference
+        && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.transportReference + (request.resource.data.counterparty == null ? '' : ' – ' + request.resource.data.counterparty)
         && request.resource.data.caseSequence == legalDisputeCounterAfter(request.resource.data.caseYear).nextNumber
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
