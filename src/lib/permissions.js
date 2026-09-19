@@ -20,7 +20,6 @@ export const MODULES = {
   legalDisputes: { label: 'Gericht / Streit' },
   inkasso: { label: 'Inkasso' },
   personnel: { label: 'Personal' },
-  knowledgeProcesses: { label: 'Wissen & Prozesse' },
   agbChecker: { label: 'AGB-Prüfer' },
 }
 

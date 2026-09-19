@@ -11,7 +11,7 @@ if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'knowledgeProcesses', 'agbChecker']
+const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -444,164 +444,6 @@ export const migrateLegacyDamageDocuments = onCall({ region: 'europe-west3', enf
   return result
 })
 
-const knowledgeProcessCategories = new Set(['damages', 'transport_dispatch', 'customers_carriers', 'accounting_billing', 'personnel_administration', 'general'])
-const knowledgeProcessNodeTypes = new Set(['start', 'action', 'decision', 'checklist', 'end'])
-const knowledgeProcessStatuses = new Set(['draft', 'active', 'archived'])
-const processText = (value, field, limit, required = false) => {
-  const clean = typeof value === 'string' ? value.trim() : ''
-  if ((required && !clean) || clean.length > limit) throw new HttpsError('invalid-argument', `${field} ist ungültig.`)
-  return clean
-}
-
-function hasKnowledgeProcessesPermission(profile, minimum = 'view') {
-  if (profile?.role === 'superadmin') return true
-  const values = { none: 0, view: 1, edit: 2 }
-  return values[profile?.permissions?.knowledgeProcesses] >= values[minimum]
-}
-
-async function assertKnowledgeProcessesAccess(request, minimum = 'view') {
-  const profile = await requireActiveProfile(request)
-  if (!hasKnowledgeProcessesPermission(profile, minimum)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Wissen & Prozesse.')
-  return profile
-}
-
-function knowledgeProcessActorName(profile) {
-  return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || profile?.name || 'Unbekannt'
-}
-
-function processReferenceId(value, field) {
-  if (!value) return ''
-  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,120}$/.test(value)) throw new HttpsError('invalid-argument', `${field} ist ungültig.`)
-  return value
-}
-
-function existingProcessReferenceIds(existing, field) {
-  return new Set((existing?.nodes || []).map((node) => node?.[field]).filter(Boolean))
-}
-
-async function applyProcessResponsibilities(nodes, existing) {
-  const existingDepartmentIds = existingProcessReferenceIds(existing, 'departmentId')
-  const existingFunctionalRoleIds = existingProcessReferenceIds(existing, 'functionalRoleId')
-  return Promise.all(nodes.map(async (node) => {
-    if (!['action', 'checklist'].includes(node.type)) return node
-    const departmentId = processReferenceId(node.departmentId, 'Die ausgewählte Abteilung')
-    const functionalRoleId = processReferenceId(node.functionalRoleId, 'Die ausgewählte Fachrolle')
-    const responsible = { ...node }
-    if (departmentId) {
-      const department = await db.doc(`departments/${departmentId}`).get()
-      if (!department.exists || (department.data().active === false && !existingDepartmentIds.has(departmentId))) throw new HttpsError('invalid-argument', 'Die ausgewählte Abteilung ist nicht verfügbar.')
-      responsible.departmentId = department.id
-      responsible.departmentName = department.data().name
-    }
-    if (functionalRoleId) {
-      const functionalRole = await db.doc(`functionalRoles/${functionalRoleId}`).get()
-      if (!functionalRole.exists || (functionalRole.data().active === false && !existingFunctionalRoleIds.has(functionalRoleId))) throw new HttpsError('invalid-argument', 'Die ausgewählte Fachrolle ist nicht verfügbar.')
-      responsible.functionalRoleId = functionalRole.id
-      responsible.functionalRoleName = functionalRole.data().name
-    }
-    return responsible
-  }))
-}
-
-async function sanitizeKnowledgeProcess(process, existing) {
-  if (!process || typeof process !== 'object' || Array.isArray(process)) throw new HttpsError('invalid-argument', 'Die Prozessdaten fehlen.')
-  const title = processText(process.title, 'Titel', 160)
-  const category = typeof process.category === 'string' && knowledgeProcessCategories.has(process.category) ? process.category : ''
-  const shortDescription = processText(process.shortDescription, 'Kurzbeschreibung', 1000)
-  if (!Array.isArray(process.nodes) || process.nodes.length === 0 || process.nodes.length > 100) throw new HttpsError('invalid-argument', 'Die Prozessblöcke sind ungültig.')
-  if (!Array.isArray(process.edges) || process.edges.length > 160) throw new HttpsError('invalid-argument', 'Die Prozessverbindungen sind ungültig.')
-
-  const nodeIds = new Set()
-  const nodes = process.nodes.map((node) => {
-    if (!node || typeof node !== 'object' || Array.isArray(node) || typeof node.id !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(node.id) || nodeIds.has(node.id) || !knowledgeProcessNodeTypes.has(node.type)) throw new HttpsError('invalid-argument', 'Ein Prozessblock ist ungültig.')
-    nodeIds.add(node.id)
-    const clean = { id: node.id, type: node.type, title: processText(node.title, 'Blocktitel', 160), description: processText(node.description, 'Blockbeschreibung', 2000) }
-    if (node.type === 'checklist') {
-      if (!Array.isArray(node.checklistItems) || node.checklistItems.length > 30) throw new HttpsError('invalid-argument', 'Die Checkliste ist ungültig.')
-      clean.checklistItems = node.checklistItems.map((item) => processText(item, 'Checklistenpunkt', 300)).filter(Boolean)
-    }
-    if (node.type === 'decision') {
-      if (!Array.isArray(node.outputs)) throw new HttpsError('invalid-argument', 'Die Antwortwege der Frage sind ungültig.')
-      const outputIds = new Set()
-      clean.outputs = node.outputs.map((output) => {
-        if (!output || typeof output !== 'object' || typeof output.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(output.id) || outputIds.has(output.id)) throw new HttpsError('invalid-argument', 'Ein Antwortweg ist ungültig.')
-        outputIds.add(output.id)
-        return { id: output.id, label: processText(output.label, 'Bezeichnung des Antwortwegs', 80) }
-      })
-    }
-    if (['action', 'checklist'].includes(node.type)) {
-      clean.departmentId = processReferenceId(node.departmentId, 'Die ausgewählte Abteilung')
-      clean.functionalRoleId = processReferenceId(node.functionalRoleId, 'Die ausgewählte Fachrolle')
-    }
-    return clean
-  })
-  if (nodes.filter((node) => node.type === 'start').length !== 1) throw new HttpsError('invalid-argument', 'Ein Prozess benötigt genau einen Startblock.')
-
-  const edgeIds = new Set()
-  const edges = process.edges.map((edge) => {
-    if (!edge || typeof edge !== 'object' || Array.isArray(edge) || typeof edge.id !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(edge.id) || edgeIds.has(edge.id) || !nodeIds.has(edge.sourceId) || !nodeIds.has(edge.targetId) || edge.sourceId === edge.targetId) throw new HttpsError('invalid-argument', 'Eine Prozessverbindung ist ungültig.')
-    edgeIds.add(edge.id)
-    const source = nodes.find((node) => node.id === edge.sourceId)
-    const sourceOutputId = typeof edge.sourceOutputId === 'string' ? edge.sourceOutputId : ''
-    if (source.type === 'decision') {
-      if (!source.outputs.some((output) => output.id === sourceOutputId)) throw new HttpsError('invalid-argument', 'Der Antwortweg einer Verbindung ist ungültig.')
-    } else if (sourceOutputId) throw new HttpsError('invalid-argument', 'Nur Fragen dürfen benannte Antwortwege haben.')
-    return { id: edge.id, sourceId: edge.sourceId, targetId: edge.targetId, sourceOutputId }
-  })
-  return { title, category, shortDescription, nodes: await applyProcessResponsibilities(nodes, existing), edges }
-}
-
-function validateActiveKnowledgeProcess(process) {
-  if (!process.title || !process.category) throw new HttpsError('failed-precondition', 'Titel und Kategorie sind für die Freigabe erforderlich.')
-  const nodesById = new Map(process.nodes.map((node) => [node.id, node]))
-  const start = process.nodes.find((node) => node.type === 'start')
-  const outgoing = new Map(process.nodes.map((node) => [node.id, []]))
-  for (const edge of process.edges) outgoing.get(edge.sourceId).push(edge)
-  if (outgoing.get(start.id).length === 0) throw new HttpsError('failed-precondition', 'Nach dem Startblock fehlt ein Schritt.')
-  for (const node of process.nodes) {
-    const nodeEdges = outgoing.get(node.id)
-    if (!node.title) throw new HttpsError('failed-precondition', 'Jeder Prozessblock benötigt einen Titel.')
-    if (node.type === 'end' && nodeEdges.length) throw new HttpsError('failed-precondition', 'Endblöcke dürfen keinen nachfolgenden Schritt haben.')
-    if (node.type === 'decision') {
-      if (node.outputs.length < 2) throw new HttpsError('failed-precondition', 'Eine Frage benötigt mindestens zwei Antwortwege.')
-      const labels = new Set()
-      if (node.outputs.some((output) => !output.label || labels.has(output.label.toLocaleLowerCase('de-DE')) || !labels.add(output.label.toLocaleLowerCase('de-DE')))) throw new HttpsError('failed-precondition', 'Antwortwege einer Frage benötigen eindeutige Bezeichnungen.')
-      if (node.outputs.some((output) => nodeEdges.filter((edge) => edge.sourceOutputId === output.id).length !== 1)) throw new HttpsError('failed-precondition', 'Jeder Antwortweg benötigt genau einen nächsten Schritt.')
-    } else if (node.type !== 'end' && nodeEdges.length !== 1) throw new HttpsError('failed-precondition', 'Jeder Schritt benötigt genau eine Verbindung.')
-  }
-  const visited = new Set()
-  const visiting = new Set()
-  function walk(nodeId) {
-    if (visiting.has(nodeId)) throw new HttpsError('failed-precondition', 'Zirkuläre Prozesswege sind in Phase 1 nicht zulässig.')
-    if (visited.has(nodeId)) return
-    visiting.add(nodeId)
-    for (const edge of outgoing.get(nodeId)) walk(edge.targetId)
-    visiting.delete(nodeId)
-    visited.add(nodeId)
-  }
-  walk(start.id)
-  if (visited.size !== process.nodes.length) throw new HttpsError('failed-precondition', 'Alle Prozessblöcke müssen mit dem Start verbunden sein.')
-  if (!process.nodes.some((node) => node.type === 'end')) throw new HttpsError('failed-precondition', 'Der Prozess benötigt mindestens einen Endblock.')
-  if ([...visited].some((id) => nodesById.get(id).type !== 'end' && outgoing.get(id).length === 0)) throw new HttpsError('failed-precondition', 'Jeder erreichbare Weg muss in einem Endblock enden.')
-}
-
-export const saveKnowledgeProcess = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
-  const actor = await assertKnowledgeProcessesAccess(request, 'edit')
-  const data = request.data ?? {}
-  const status = knowledgeProcessStatuses.has(data.status) ? data.status : 'draft'
-  const id = typeof data.id === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(data.id) ? data.id : ''
-  const ref = id ? db.collection('knowledgeProcesses').doc(id) : db.collection('knowledgeProcesses').doc()
-  const existing = await ref.get()
-  if (id && !existing.exists) throw new HttpsError('not-found', 'Der Prozess wurde nicht gefunden.')
-  const process = await sanitizeKnowledgeProcess(data.process, existing.exists ? existing.data() : null)
-  if (status === 'active') validateActiveKnowledgeProcess(process)
-  if (existing.exists && existing.data().status === 'archived' && status !== 'archived') throw new HttpsError('failed-precondition', 'Archivierte Prozesse können in Phase 1 nicht erneut freigegeben werden.')
-  const now = FieldValue.serverTimestamp()
-  const actorName = knowledgeProcessActorName(actor)
-  await ref.set({ id: ref.id, ...process, status, createdAt: existing.exists ? existing.data().createdAt : now, createdBy: existing.exists ? existing.data().createdBy : request.auth.uid, createdByName: existing.exists ? existing.data().createdByName : actorName, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName }, { merge: false })
-  return { id: ref.id, status }
-})
-
 async function assertSuperadmin(request) {
   const actor = await assertManager(request)
   if (actor.role !== 'superadmin') throw new HttpsError('permission-denied', 'Diese Aktion ist nur für Superadmins erlaubt.')
@@ -769,40 +611,6 @@ export const updateDepartment = onCall({ region: 'europe-west3', enforceAppCheck
     const users = await db.collection('users').where('departmentId', '==', id).get()
     await Promise.all(users.docs.map((user) => user.ref.update({ department: update.name, departmentName: update.name, updatedAt: FieldValue.serverTimestamp() })))
   }
-  return { id }
-})
-
-export const createFunctionalRole = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
-  await assertSuperadmin(request)
-  const name = departmentName(request.data?.name)
-  if (!name) throw new HttpsError('invalid-argument', 'Der Name der Fachrolle ist erforderlich.')
-  const normalizedName = normalizedDepartmentName(name)
-  const existing = await db.collection('functionalRoles').where('normalizedName', '==', normalizedName).limit(1).get()
-  if (!existing.empty) throw new HttpsError('already-exists', 'Diese Fachrolle existiert bereits.')
-  const reference = db.collection('functionalRoles').doc()
-  await reference.set({ id: reference.id, name, normalizedName, active: true, createdAt: FieldValue.serverTimestamp(), createdBy: request.auth.uid, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid })
-  return { id: reference.id }
-})
-
-export const updateFunctionalRole = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
-  await assertSuperadmin(request)
-  const { id, name, active } = request.data ?? {}
-  if (typeof id !== 'string' || id.includes('/')) throw new HttpsError('invalid-argument', 'Fachrollen-ID fehlt.')
-  const reference = db.doc(`functionalRoles/${id}`)
-  const current = await reference.get()
-  if (!current.exists) throw new HttpsError('not-found', 'Fachrolle nicht gefunden.')
-  const update = { updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid }
-  if (name !== undefined) {
-    const cleanName = departmentName(name)
-    if (!cleanName) throw new HttpsError('invalid-argument', 'Der Name der Fachrolle ist erforderlich.')
-    const normalizedName = normalizedDepartmentName(cleanName)
-    const duplicate = await db.collection('functionalRoles').where('normalizedName', '==', normalizedName).limit(1).get()
-    if (!duplicate.empty && duplicate.docs[0].id !== id) throw new HttpsError('already-exists', 'Diese Fachrolle existiert bereits.')
-    update.name = cleanName
-    update.normalizedName = normalizedName
-  }
-  if (typeof active === 'boolean') update.active = active
-  await reference.update(update)
   return { id }
 })
 
@@ -1158,7 +966,6 @@ export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'
 export { refreshSchoolHolidayData } from './schoolHolidays.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
-export { generateKnowledgeProcessDraft } from './knowledgeProcessAi.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export { createInkassoCase } from './inkassoCases.js'
 export {

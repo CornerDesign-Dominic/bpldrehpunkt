@@ -8,7 +8,6 @@ const pageTitles = [
   { path: '/news', title: 'News' },
   { path: '/dokumente', title: 'Dokumente' },
   { path: '/vorlagen', title: 'Vorlagen' },
-  { path: '/wissen-prozesse', title: 'Wissen & Prozesse' },
   { path: '/todos', title: 'To-dos' },
   { path: '/schaeden', title: 'Schäden' },
   { path: '/insolvenzen', title: 'Insolvenzen' },

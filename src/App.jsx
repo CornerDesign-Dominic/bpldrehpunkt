@@ -31,8 +31,6 @@ import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
 import BusinessDocumentPage from './pages/BusinessDocumentPage.jsx'
 import PersonnelPage from './pages/PersonnelPage.jsx'
 import PersonnelDetailPage from './pages/PersonnelDetailPage.jsx'
-import KnowledgeProcessesPage from './pages/KnowledgeProcessesPage.jsx'
-import KnowledgeProcessPage from './pages/KnowledgeProcessPage.jsx'
 import InsolvenciesPage from './pages/InsolvenciesPage.jsx'
 import InsolvencyDetailPage from './pages/InsolvencyDetailPage.jsx'
 import LegalDisputesPage from './pages/LegalDisputesPage.jsx'
@@ -69,9 +67,6 @@ export default function App() {
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
-        <Route path="/wissen-prozesse" element={<PermissionRoute module="knowledgeProcesses"><KnowledgeProcessesPage /></PermissionRoute>} />
-        <Route path="/wissen-prozesse/neu" element={<PermissionRoute module="knowledgeProcesses"><KnowledgeProcessPage isNew /></PermissionRoute>} />
-        <Route path="/wissen-prozesse/:processId" element={<PermissionRoute module="knowledgeProcesses"><KnowledgeProcessPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />

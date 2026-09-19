@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
 import { canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../../lib/permissions.js'
-import { CalendarIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, KnowledgeProcessesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
+import { CalendarIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, TemplatesIcon, TodoIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { SIDEBAR_BADGE_DEFINITIONS } from '../../lib/sidebarBadges.js'
 
@@ -26,7 +26,6 @@ const navigationItems = [
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets', group: 'customers' },
   { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon, module: 'documents', group: 'documents' },
   { label: 'Vorlagen', to: '/vorlagen', icon: TemplatesIcon, module: 'templates', group: 'documents' },
-  { label: 'Wissen & Prozesse', to: '/wissen-prozesse', icon: KnowledgeProcessesIcon, module: 'knowledgeProcesses', group: 'documents' },
   { label: 'AGB-Prüfer', to: '/agb-pruefer', icon: DocumentSearchIcon, module: 'agbChecker', group: 'documents' },
   { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true, group: 'administration' },
 ]

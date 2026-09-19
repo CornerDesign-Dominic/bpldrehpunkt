@@ -18,9 +18,7 @@
 | `analyzeLiabilityTransportOrder` | Ja | `templates`: view/edit oder Superadmin |
 | `confirmLegacyAccountProfile` | Ja | Superadmin |
 | `createDepartment` | Ja | Superadmin |
-| `createFunctionalRole` | Ja | Superadmin |
 | `createManagedUser` | Ja | Admin oder Superadmin |
-| `generateKnowledgeProcessDraft` | Ja | `knowledgeProcesses`: edit oder Superadmin |
 | `getPersonnelEmployee` | Ja | `personnel`: view/edit oder Superadmin |
 | `listAiPromptConfigs` | Ja | Superadmin |
 | `listLegacyAccountMigrationHistory` | Ja | Superadmin |
@@ -40,12 +38,10 @@
 | `resetAiPromptDraft` | Ja | Superadmin |
 | `runAutomatedNewsResearch` | Ja | Superadmin |
 | `saveAiPromptDraft` | Ja | Superadmin |
-| `saveKnowledgeProcess` | Ja | `knowledgeProcesses`: edit oder Superadmin |
 | `sendSystemTestMail` | Ja | Admin oder Superadmin |
 | `setNewsReaction` | Ja | `news`: view/edit oder Superadmin |
 | `submitBugReport` | Ja | aktives Profil |
 | `updateDepartment` | Ja | Superadmin |
-| `updateFunctionalRole` | Ja | Superadmin |
 | `updateManagedUser` | Ja | Admin oder Superadmin |
 | `updatePartnerEvaluationSettings` | Ja | Superadmin |
 | `updatePersonnelEmployee` | Ja | `personnel`: edit oder Superadmin |

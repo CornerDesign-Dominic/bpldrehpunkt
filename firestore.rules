@@ -73,14 +73,6 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Fachrollen are centrally maintained by superadmin-only callable
-    // functions. Process users can read them to render responsibilities,
-    // including a role that was deactivated after a process was saved.
-    match /functionalRoles/{functionalRoleId} {
-      allow read: if superadmin() || view('knowledgeProcesses');
-      allow write: if false;
-    }
-
     match /appSettings/partnerEvaluation {
       // Evaluation colors are part of the signed-in client presentation, but
       // settings may only be changed by the Admin SDK callable function.
@@ -131,15 +123,6 @@ service cloud.firestore {
     match /schoolHolidaySyncLogs/{logId} {
       allow read: if admin();
       allow write: if false;
-    }
-
-    // Process content is written through the callable function, where the
-    // complete graph is validated before publication. Readers with view
-    // access can only query active processes; editors may also work with
-    // drafts and archived entries.
-    match /knowledgeProcesses/{processId} {
-      allow read: if edit('knowledgeProcesses') || (view('knowledgeProcesses') && resource.data.status == 'active');
-      allow create, update, delete: if false;
     }
 
     // Systemmail templates are exclusively exposed through superadmin-only
