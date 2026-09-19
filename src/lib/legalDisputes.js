@@ -228,6 +228,15 @@ export async function updateLegalDisputeDeadline(legalDispute, deadline, values,
   return true
 }
 
+export async function deleteLegalDisputeDeadline(legalDispute, deadline, actor) {
+  const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.delete(doc(caseRef, 'deadlines', deadline.id))
+  batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} gelöscht.`, actor))
+  await batch.commit()
+}
+
 export function createEmptyLegalDisputeFinancialEntry() {
   return { date: new Date().toISOString().slice(0, 10), direction: 'paid', payeeType: '', netAmount: '', vatAmount: '' }
 }

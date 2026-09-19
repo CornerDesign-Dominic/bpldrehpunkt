@@ -57,6 +57,8 @@ function todoFields(values) {
     reference: optionalName(values.reference),
     damageCaseId: optionalId(values.damageCaseId),
     insolvencyId: optionalId(values.insolvencyId),
+    legalDisputeId: optionalId(values.legalDisputeId),
+    inkassoCaseId: optionalId(values.inkassoCaseId),
   }
 }
 
@@ -76,7 +78,7 @@ function audienceValues(values, usersById, actor) {
 function sortTodos(todos) { return [...todos].sort((left, right) => timestampValue(right.createdAt) - timestampValue(left.createdAt)) }
 async function queryTodos(...constraints) { return (await getDocs(query(todosRef, ...constraints))).docs.map(mapSnapshot) }
 
-export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', damageCaseId: '', insolvencyId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
+export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
 export function todoStatus(todo) { return !todo.assignedUserId && todo.status !== 'withdrawn' ? 'open' : TODO_STATUS[todo.status] ? todo.status : 'open' }
@@ -269,6 +271,8 @@ function changedFieldMessages(todo, fields, resetAssignment) {
   if ((todo.reference || null) !== fields.reference) changed('die TA-Nummer', todo.reference, fields.reference, 'keine TA-Nummer', 'keine TA-Nummer')
   if ((todo.damageCaseId || null) !== fields.damageCaseId) messages.push(fields.damageCaseId ? 'hat den Schadenfall verknüpft.' : 'hat die Schadenfall-Verknüpfung entfernt.')
   if ((todo.insolvencyId || null) !== fields.insolvencyId) messages.push(fields.insolvencyId ? 'hat den Insolvenzfall verknüpft.' : 'hat die Insolvenzfall-Verknüpfung entfernt.')
+  if ((todo.legalDisputeId || null) !== fields.legalDisputeId) messages.push(fields.legalDisputeId ? 'hat den Gerichtsfall verknüpft.' : 'hat die Gerichtsfall-Verknüpfung entfernt.')
+  if ((todo.inkassoCaseId || null) !== fields.inkassoCaseId) messages.push(fields.inkassoCaseId ? 'hat den Inkassofall verknüpft.' : 'hat die Inkassofall-Verknüpfung entfernt.')
   if (todo.audienceLabel !== fields.audienceLabel) changed('die Zuständigkeit', todo.audienceLabel, fields.audienceLabel)
   if (resetAssignment && todo.assignedUserName) changed('den Bearbeiter', todo.assignedUserName, null, 'nicht übernommen', 'nicht übernommen')
   else if (resetAssignment && todo.audienceLabel === fields.audienceLabel) messages.push('hat die Aufgabe zur erneuten Übernahme freigegeben.')

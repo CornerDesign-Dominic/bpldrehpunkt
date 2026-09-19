@@ -6,6 +6,8 @@ import DocumentForm from '../components/documents/DocumentForm.jsx'
 import InsolvencyEditModal from '../components/insolvencies/InsolvencyEditModal.jsx'
 import InsolvencyClaimsOverview from '../components/insolvencies/InsolvencyClaimsOverview.jsx'
 import InsolvencyDeadlinesCard from '../components/insolvencies/InsolvencyDeadlinesCard.jsx'
+import LinkedTodoCreateModal from '../components/todos/LinkedTodoCreateModal.jsx'
+import LinkedTodosCard from '../components/todos/LinkedTodosCard.jsx'
 import { EditIcon } from '../components/icons.jsx'
 import BackLink from '../components/ui/BackLink.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
@@ -14,8 +16,9 @@ import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createInsolvencyDocument, deleteInsolvencyDocument, getInsolvencyDocumentBlob, listInsolvencyDocuments, updateInsolvencyDocument } from '../lib/insolvencyDocuments.js'
-import { createInsolvencyClaim, createInsolvencyDeadline, createInsolvencyQuotaPayment, deleteInsolvencyClaim, deleteInsolvencyQuotaPayment, getInsolvency, insolvencyDeadlinePresentation, listInsolvencyClaims, listInsolvencyDeadlines, listInsolvencyQuotaPayments, listInsolvencyUpdates, updateInsolvency, updateInsolvencyClaim, updateInsolvencyDeadline, updateInsolvencyDescription, updateInsolvencyQuotaPayment } from '../lib/insolvencies.js'
+import { createInsolvencyClaim, createInsolvencyDeadline, createInsolvencyQuotaPayment, deleteInsolvencyClaim, deleteInsolvencyDeadline, deleteInsolvencyQuotaPayment, getInsolvency, insolvencyDeadlinePresentation, listInsolvencyClaims, listInsolvencyDeadlines, listInsolvencyQuotaPayments, listInsolvencyUpdates, updateInsolvency, updateInsolvencyClaim, updateInsolvencyDeadline, updateInsolvencyDescription, updateInsolvencyQuotaPayment } from '../lib/insolvencies.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
+import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
 
 function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
@@ -31,6 +34,8 @@ export default function InsolvencyDetailPage() {
   const { canEdit, canView } = usePermissions()
   const editable = canEdit('insolvencies')
   const canViewMasterData = canView('masterData')
+  const canCreateTodos = canEdit('todos')
+  const canViewTodos = canView('todos')
   const [insolvency, setInsolvency] = useState(null)
   const [documents, setDocuments] = useState([])
   const [claims, setClaims] = useState([])
@@ -49,6 +54,8 @@ export default function InsolvencyDetailPage() {
   const [documentConfirmation, setDocumentConfirmation] = useState(null)
   const [documentSaving, setDocumentSaving] = useState(false)
   const [toast, setToast] = useState('')
+  const [showTodoCreate, setShowTodoCreate] = useState(false)
+  const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'insolvencyId', caseId: partnerId, profile, user })
 
   async function load() {
     const [entry, entries, insolvencyClaims, insolvencyQuotaPayments, insolvencyDeadlines, insolvencyHistory] = await Promise.all([getInsolvency(partnerId), listInsolvencyDocuments(partnerId), listInsolvencyClaims(partnerId), listInsolvencyQuotaPayments(partnerId), listInsolvencyDeadlines(partnerId), listInsolvencyUpdates(partnerId)])
@@ -166,9 +173,23 @@ export default function InsolvencyDetailPage() {
     }
   }
 
+  async function deleteDeadline(deadline) {
+    setError('')
+    try {
+      await deleteInsolvencyDeadline(insolvency, deadline, { user, profile })
+      await load()
+      setToast('Termin gelöscht.')
+    } catch (deleteError) {
+      setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.')
+      throw deleteError
+    }
+  }
+
   if (loading) return <p className="page-state">Insolvenzfall wird geladen …</p>
   if (error && !insolvency) return <section className="damage-detail-empty"><h2>Insolvenzfall nicht verfügbar</h2><p>{error}</p><BackLink to="/insolvenzen" /></section>
   if (!insolvency) return null
+  const insolvencyPartner = todoPartners.find((partner) => partner.id === insolvency.partnerId)
+  const todoFixedLink = { field: 'insolvencyId', id: insolvency.id, label: 'Insolvenzfall', value: [insolvency.partnerName, insolvency.courtReference].filter(Boolean).join(' · ') || 'Insolvenzfall', values: insolvencyPartner?.creditorNumber?.trim() ? { carrierId: insolvencyPartner.id, carrierName: insolvencyPartner.companyName } : {} }
   const nextDeadline = deadlines[0] || null
 
   return <>
@@ -176,15 +197,17 @@ export default function InsolvencyDetailPage() {
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
+    {showTodoCreate && <LinkedTodoCreateModal currentUserId={user.uid} fixedLink={todoFixedLink} partners={todoPartners} users={todoUsers} onCancel={() => setShowTodoCreate(false)} onSubmit={async (values) => { await createLinkedTodo(values); setShowTodoCreate(false); setToast('To-do angelegt.') }} />}
     {editing && <InsolvencyEditModal key={editing} insolvency={insolvency} section={editing} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
-    <div className="todo-detail-navigation"><BackLink to="/insolvenzen" /></div>
+    <div className="todo-detail-navigation"><BackLink to="/insolvenzen" />{canCreateTodos && <button className="button" type="button" onClick={() => setShowTodoCreate(true)}>To-do anlegen</button>}</div>
     <div className="todo-detail-page damage-detail-page insolvency-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{insolvency.partnerName}</h2></div>{editable && <button className="button button--secondary" type="button" onClick={() => setEditing('general')}>Bearbeiten</button>}</header>
       {error && <p className="form-error">{error}</p>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3>Beschreibung</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} aria-label="Beschreibung bearbeiten" title="Beschreibung bearbeiten"><EditIcon size={14} /></button>}</div><p className="todo-detail-description">{insolvency.description || 'Keine Beschreibung hinterlegt.'}</p></section>
-          <InsolvencyDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onSave={saveDeadline} />
+          <InsolvencyDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+          {canViewTodos && <LinkedTodosCard loading={linkedTodoLoading} todos={linkedTodos} />}
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getInsolvencyDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <InsolvencyClaimsOverview canEdit={editable} claims={claims} quotaPayments={quotaPayments} loading={financialLoading} onDeleteClaim={deleteClaim} onDeleteQuotaPayment={deleteQuotaPayment} onSaveClaim={saveClaim} onSaveQuotaPayment={saveQuotaPayment} />
           <section className="todo-updates todo-history" aria-labelledby="insolvency-history-title"><div className="todo-updates__heading"><h3 id="insolvency-history-title">Historie</h3><span>{history.length}</span></div>{historyLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((entry) => <li key={entry.id} className="todo-updates__item todo-updates__item--system"><div><strong>{entry.createdByName}</strong><span>System · {formatTimestamp(entry.createdAt)}</span></div><p>{entry.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>

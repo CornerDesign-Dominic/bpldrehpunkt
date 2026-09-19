@@ -272,3 +272,12 @@ export async function updateInsolvencyDeadline(insolvency, deadline, values, act
   await batch.commit()
   return true
 }
+
+export async function deleteInsolvencyDeadline(insolvency, deadline, actor) {
+  const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
+  const batch = writeBatch(db)
+  batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
+  batch.delete(doc(insolvencyRef, 'deadlines', deadline.id))
+  batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(deadline.date)} gelöscht.`, actor))
+  await batch.commit()
+}

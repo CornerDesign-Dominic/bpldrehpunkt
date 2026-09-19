@@ -4,6 +4,8 @@ import DamageCaseEditModal from '../components/damages/DamageCaseEditModal.jsx'
 import DamageDeadlinesCard from '../components/damages/DamageDeadlinesCard.jsx'
 import DamageDocumentsCard from '../components/damages/DamageDocumentsCard.jsx'
 import DamageFinancialOverview from '../components/damages/DamageFinancialOverview.jsx'
+import LinkedTodoCreateModal from '../components/todos/LinkedTodoCreateModal.jsx'
+import LinkedTodosCard from '../components/todos/LinkedTodosCard.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import { ChevronDownIcon, EditIcon } from '../components/icons.jsx'
@@ -16,8 +18,9 @@ import { listBusinessPartners } from '../lib/businessPartners.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createDamageCaseDocument, deleteDamageCaseDocument, listDamageCaseDocuments, updateDamageCaseDocument } from '../lib/damageDocuments.js'
 import { usePageHeader } from '../lib/pageHeader.js'
-import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseDeadline, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDeadlinePresentation, deleteDamageCaseMovement, getDamageCase, listDamageCaseDeadlines, listDamageCaseMovements, listDamageCaseUpdates, nextDamageDeadline, updateDamageCaseDeadline, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
+import { addDamageCaseSystemUpdate, addDamageCaseUpdate, createDamageCaseDeadline, createDamageCaseMovement, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES, damageCaseStatusLabel, damageDeadlinePresentation, deleteDamageCaseDeadline, deleteDamageCaseMovement, getDamageCase, listDamageCaseDeadlines, listDamageCaseMovements, listDamageCaseUpdates, nextDamageDeadline, updateDamageCaseDeadline, updateDamageCaseFields, updateDamageCaseMovement } from '../lib/damages.js'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
+import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
@@ -88,6 +91,8 @@ export default function DamageDetailPage() {
   const { setTitle } = usePageHeader()
   const editable = canEdit('damages')
   const canViewMasterData = canView('masterData')
+  const canCreateTodos = canEdit('todos')
+  const canViewTodos = canView('todos')
   const canEditDocuments = editable
   const [damageCase, setDamageCase] = useState(null)
   const [users, setUsers] = useState([])
@@ -110,6 +115,8 @@ export default function DamageDetailPage() {
   const [noteSaving, setNoteSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const [showTodoCreate, setShowTodoCreate] = useState(false)
+  const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'damageCaseId', caseId: damageCaseId, profile, user })
 
   async function load() {
     const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
@@ -240,9 +247,22 @@ export default function DamageDetailPage() {
     }
   }
 
+  async function deleteDeadline(deadline) {
+    setError('')
+    try {
+      await deleteDamageCaseDeadline(damageCase, deadline, { user, profile })
+      await load()
+      setToast('Termin gelöscht.')
+    } catch (deleteError) {
+      setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.')
+      throw deleteError
+    }
+  }
+
   if (loading) return <p className="page-state">Fall wird geladen …</p>
   if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><BackLink to="/schaeden" /></section>
   if (!damageCase) return null
+  const todoFixedLink = { field: 'damageCaseId', id: damageCase.id, label: 'Schadenfall', value: [damageCase.caseNumber, damageCase.title].filter(Boolean).join(' · ') || 'Schadenfall', values: { customerId: damageCase.claimantPartnerId || '', customerName: damageCase.claimant || '', carrierId: damageCase.contractorPartnerId || '', carrierName: damageCase.contractor || '', reference: damageCase.transportReference || '' } }
 
   const nextDeadline = nextDamageDeadline(deadlines)
   const due = damageDeadlinePresentation(nextDeadline)
@@ -255,15 +275,17 @@ export default function DamageDetailPage() {
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
+    {showTodoCreate && <LinkedTodoCreateModal currentUserId={user.uid} fixedLink={todoFixedLink} partners={todoPartners} users={todoUsers} onCancel={() => setShowTodoCreate(false)} onSubmit={async (values) => { await createLinkedTodo(values); setShowTodoCreate(false); setToast('To-do angelegt.') }} />}
     {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
-    <div className="todo-detail-navigation"><BackLink to="/schaeden" /></div>
+    <div className="todo-detail-navigation"><BackLink to="/schaeden" />{canCreateTodos && <button className="button" type="button" onClick={() => setShowTodoCreate(true)}>To-do anlegen</button>}</div>
     <div className="todo-detail-page damage-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('title')} title="Falltitel bearbeiten" aria-label="Falltitel bearbeiten"><EditIcon size={14} /></button>}</div><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></header>
       {error && <p className="form-error">{error}</p>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><DetailSectionHeading onEdit={editable ? () => setEditing('description') : null}>Schadenbeschreibung</DetailSectionHeading><p className="todo-detail-description">{damageCase.description || 'Keine Schadenbeschreibung hinterlegt.'}</p></section>
-          <DamageDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onSave={saveDeadline} />
+          <DamageDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+          {canViewTodos && <LinkedTodosCard loading={linkedTodoLoading} todos={linkedTodos} />}
           <DamageDocumentsCard canEdit={canEditDocuments} documents={documents} loading={documentsLoading} onDelete={(documentItem) => setDocumentConfirmation(documentItem)} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <DamageFinancialOverview canEdit={editable} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="damage-update-title"><div className="todo-updates__heading"><h3 id="damage-update-title">Update zum Schaden</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><textarea aria-label="Update zum Schaden" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Schaden hinzufügen …" /><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'}</button></form>}{updatesLoading ? <p className="todo-updates__empty">Updates werden geladen …</p> : manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}

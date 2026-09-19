@@ -8,7 +8,7 @@ function initialValues(todo, currentUserId) {
   return {
     title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '', reminderDate: todo.reminderDate || '', priority: todo.priority || 'medium',
     customerId: todo.customerId || '', customerName: todo.customerName || '', carrierId: todo.carrierId || '', carrierName: todo.carrierName || '', reference: todo.reference || '',
-    damageCaseId: todo.damageCaseId || '', insolvencyId: todo.insolvencyId || '',
+    damageCaseId: todo.damageCaseId || '', insolvencyId: todo.insolvencyId || '', legalDisputeId: todo.legalDisputeId || '', inkassoCaseId: todo.inkassoCaseId || '',
     audienceType: isSelf ? 'self' : todo.audienceType === 'department' ? 'department' : todo.audienceType === 'all' ? 'all' : 'people',
     audienceId: todo.audienceType === 'department' ? todo.audienceId || '' : '',
     audienceIds: todo.audienceType === 'people' ? todo.audienceIds || [] : todo.audienceType === 'person' && !isSelf ? [todo.audienceId] : [],

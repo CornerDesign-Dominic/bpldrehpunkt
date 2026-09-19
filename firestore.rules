@@ -347,7 +347,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
-        allow delete: if false;
+        allow delete: if edit('insolvencies') && deadlineParentWasUpdated();
       }
 
       match /documents/{documentId} {
@@ -574,7 +574,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
-        allow delete: if false;
+        allow delete: if edit('damages') && deadlineParentWasUpdated();
       }
 
       match /documents/{documentId} {
@@ -693,7 +693,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
-        allow delete: if false;
+        allow delete: if edit('legalDisputes') && deadlineParentWasUpdated();
       }
 
       match /documents/{documentId} {
@@ -880,7 +880,7 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
-        allow delete: if false;
+        allow delete: if edit('inkasso') && deadlineParentWasUpdated();
       }
 
       match /movements/{movementId} {
@@ -932,7 +932,7 @@ service cloud.firestore {
     }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
     }
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
@@ -955,7 +955,7 @@ service cloud.firestore {
     function validTodoExtras(data) {
       return (!data.keys().hasAny(['priority']) || data.priority in ['low', 'medium', 'high'])
         && (!data.keys().hasAny(['reminderDate']) || data.reminderDate == null || (data.reminderDate is string && data.reminderDate.size() == 10))
-        && validCustomerLink(data) && validCarrierLink(data) && validDamageCaseLink(data) && validInsolvencyLink(data)
+        && validCustomerLink(data) && validCarrierLink(data) && validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)
         && (!data.keys().hasAny(['reference']) || data.reference == null || (data.reference is string && data.reference.size() <= 240));
     }
     function validCustomerLink(data) {
@@ -981,6 +981,14 @@ service cloud.firestore {
     function validInsolvencyLink(data) {
       return !data.keys().hasAny(['insolvencyId']) || data.insolvencyId == null
         || (data.insolvencyId is string && exists(/databases/$(database)/documents/insolvencies/$(data.insolvencyId)));
+    }
+    function validLegalDisputeLink(data) {
+      return !data.keys().hasAny(['legalDisputeId']) || data.legalDisputeId == null
+        || (data.legalDisputeId is string && exists(/databases/$(database)/documents/legalDisputes/$(data.legalDisputeId)));
+    }
+    function validInkassoCaseLink(data) {
+      return !data.keys().hasAny(['inkassoCaseId']) || data.inkassoCaseId == null
+        || (data.inkassoCaseId is string && exists(/databases/$(database)/documents/inkassoCases/$(data.inkassoCaseId)));
     }
     function validTodoContent(data) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 240
@@ -1056,12 +1064,12 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']

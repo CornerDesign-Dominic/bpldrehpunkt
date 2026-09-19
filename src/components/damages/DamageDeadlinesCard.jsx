@@ -20,7 +20,7 @@ function deadlineDisplay(deadline) {
   return `${damageDeadlinePresentation(deadline).label} · ${formatDate(deadline.date)}`
 }
 
-function DeadlineModal({ canEdit, deadline, mode, onClose, onSave }) {
+function DeadlineModal({ canEdit, deadline, mode, onClose, onDelete, onSave }) {
   const [editing, setEditing] = useState(mode === 'new')
   const [values, setValues] = useState(() => ({
     date: deadline?.date || createEmptyDamageDeadline().date,
@@ -61,6 +61,20 @@ function DeadlineModal({ canEdit, deadline, mode, onClose, onSave }) {
     }
   }
 
+  async function remove() {
+    if (!deadline || !window.confirm('Termin wirklich löschen?')) return
+    setSaving(true)
+    setError('')
+    try {
+      await onDelete(deadline)
+      onClose()
+    } catch (deleteError) {
+      setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const title = mode === 'new' ? 'Termin hinzufügen' : editing ? 'Termin bearbeiten' : 'Termindetails'
   return <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
     <section className="todo-quick-edit-modal damage-deadline-modal" role="dialog" aria-modal="true" aria-labelledby="damage-deadline-modal-title">
@@ -75,13 +89,13 @@ function DeadlineModal({ canEdit, deadline, mode, onClose, onSave }) {
           <section><h3>Systeminformationen</h3><dl><div><dt>Erstellt von</dt><dd>{deadline.createdByName || '—'}</dd></div><div><dt>Erstellt am</dt><dd>{formatTimestamp(deadline.createdAt)}</dd></div><div><dt>Zuletzt aktualisiert von</dt><dd>{deadline.updatedByName || '—'}</dd></div><div><dt>Zuletzt aktualisiert am</dt><dd>{formatTimestamp(deadline.updatedAt)}</dd></div></dl></section>
         </div>}
         {error && <p className="form-error">{error}</p>}
-        <div className="form-actions">{editing ? <><button className="button button--secondary" type="button" disabled={saving} onClick={mode === 'new' ? onClose : () => setEditing(false)}>Abbrechen</button><button className="button" type="submit" disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></> : <button className="button button--secondary" type="button" onClick={onClose}>Schließen</button>}</div>
+        <div className="form-actions">{canEdit && mode !== 'new' && <button className="button button--danger" type="button" disabled={saving} onClick={remove}>Löschen</button>}{editing ? <><button className="button button--secondary" type="button" disabled={saving} onClick={mode === 'new' ? onClose : () => setEditing(false)}>Abbrechen</button><button className="button" type="submit" disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></> : <button className="button button--secondary" type="button" onClick={onClose}>Schließen</button>}</div>
       </form>
     </section>
   </div>
 }
 
-export default function DamageDeadlinesCard({ canEdit, deadlines, loading, onSave }) {
+export default function DamageDeadlinesCard({ canEdit, deadlines, loading, onDelete, onSave }) {
   const [modal, setModal] = useState(null)
 
   function openDetails(deadline) { setModal({ mode: 'details', deadline }) }
@@ -94,7 +108,7 @@ export default function DamageDeadlinesCard({ canEdit, deadlines, loading, onSav
   }
 
   return <section className="todo-detail-content damage-deadlines" aria-labelledby="damage-deadlines-title">
-    {modal && <DeadlineModal canEdit={canEdit} deadline={modal.deadline} mode={modal.mode === 'new' ? 'new' : 'details'} onClose={() => setModal(null)} onSave={onSave} />}
+    {modal && <DeadlineModal canEdit={canEdit} deadline={modal.deadline} mode={modal.mode === 'new' ? 'new' : 'details'} onClose={() => setModal(null)} onDelete={onDelete} onSave={onSave} />}
     <div className="todo-detail-section-heading"><h3 id="damage-deadlines-title">Termine &amp; Fristen</h3>{canEdit && <button className="button damage-deadlines__add" type="button" onClick={() => setModal({ mode: 'new', deadline: null })}>Termin hinzufügen</button>}</div>
     <div className="todos-table-frame damage-deadlines__table-frame"><table className="data-table todos-table damage-deadlines__table"><thead><tr><th>Datum</th><th>Erinnerung</th><th>Bemerkung</th></tr></thead><tbody>
       {loading ? <tr><td className="table-state" colSpan="3">Termine werden geladen …</td></tr> : !deadlines.length ? <tr><td className="table-state" colSpan="3">Noch keine Termine oder Fristen hinterlegt.</td></tr> : deadlines.map((deadline) => <tr key={deadline.id} className="damage-deadlines__row" tabIndex="0" role="button" onClick={() => openDetails(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={`Termin vom ${formatDate(deadline.date)} öffnen`}><td><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></td><td><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{deadline.reminderEnabled ? 'An' : 'Aus'}</span></td><td className="damage-deadlines__note" title={deadline.note || ''}>{deadline.note || '—'}</td></tr>)}

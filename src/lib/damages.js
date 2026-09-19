@@ -290,6 +290,15 @@ export async function updateDamageCaseDeadline(damageCase, deadline, values, act
   return true
 }
 
+export async function deleteDamageCaseDeadline(damageCase, deadline, actor) {
+  const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.delete(doc(caseRef, 'deadlines', deadline.id))
+  batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin vom ${damageDeadlineLabel(deadline.date)} gelöscht.`, actor))
+  await batch.commit()
+}
+
 export function createEmptyDamageMovement() {
   return { date: new Date().toISOString().slice(0, 10), transactionType: 'received', counterpartyType: 'customer', amount: '' }
 }

@@ -277,6 +277,14 @@ export async function updateInkassoCaseDeadline(inkassoCase, deadline, values, a
   return true
 }
 
+export async function deleteInkassoCaseDeadline(inkassoCase, deadline, actor) {
+  const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
+  const batch = writeBatch(db)
+  batch.update(caseRef, updateMetadata(actor))
+  batch.delete(doc(caseRef, 'deadlines', deadline.id))
+  await batch.commit()
+}
+
 export async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {
   const next = casePayload({ ...inkassoCase, ...values }, responsibleUsersById)
   const changedFields = Object.fromEntries(Object.entries(next).filter(([field, value]) => value !== (inkassoCase[field] ?? null)))
