@@ -1530,3 +1530,4 @@ tbody tr:hover td { background: var(--table-hover-background); }
 }
 
 .damage-deadlines__table .table-state { height: 38px !important; }
+.damage-financial-overview__table .damage-financial-overview__empty-state { height: 38px !important; }
