@@ -201,7 +201,7 @@ export default function InsolvencyDetailPage() {
     {editing && <InsolvencyEditModal key={editing} insolvency={insolvency} section={editing} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/insolvenzen" /></div>
     <div className="todo-detail-page damage-detail-page insolvency-detail-page">
-      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{insolvency.partnerName}</h2></div>{editable && <button className="button button--secondary" type="button" onClick={() => setEditing('general')}>Bearbeiten</button>}</header>
+      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{insolvency.partnerName}</h2></div></header>
       {error && <p className="form-error">{error}</p>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
