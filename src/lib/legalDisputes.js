@@ -80,7 +80,6 @@ export function legalDisputeScheduleTypeLabel(type) {
 
 export function createEmptyLegalDispute() {
   return {
-    title: '',
     caseType: '',
     counterparty: '',
     transportReference: '',
@@ -88,8 +87,8 @@ export function createEmptyLegalDispute() {
 }
 
 export async function createLegalDispute(values, actor) {
-  const title = trim(values.title)
-  if (!title) throw new Error('Bitte einen Betreff für den Fall eingeben.')
+  const transportReference = trim(values.transportReference)
+  if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
 
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'legalDisputeCaseCounters', year)
@@ -110,12 +109,12 @@ export async function createLegalDispute(values, actor) {
       caseSequence: sequence,
       status: 'open',
       isClosed: false,
-      title,
+      title: `${caseNumber} – ${transportReference}`,
       description: null,
       caseType: optionalText(values.caseType),
       participant: null,
       counterparty: optionalText(values.counterparty),
-      transportReference: optionalText(values.transportReference),
+      transportReference,
       opposingCounsel: null,
       opposingRepresentation: null,
       opposingReference: null,
@@ -295,6 +294,11 @@ export async function addLegalDisputeSystemUpdate(legalDispute, text, actor) {
 export async function updateLegalDisputeFields(legalDispute, changes, actor, systemText) {
   const nextStatus = changes.status || legalDispute.status
   const next = { ...changes, status: nextStatus, isClosed: nextStatus === 'completed' }
+  if (Object.hasOwn(changes, 'transportReference')) {
+    const transportReference = trim(changes.transportReference)
+    next.transportReference = transportReference || null
+    next.title = transportReference ? `${legalDispute.caseNumber} – ${transportReference}` : legalDispute.caseNumber
+  }
   if (changes.status && changes.status !== legalDispute.status) next.completedAt = nextStatus === 'completed' ? serverTimestamp() : null
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)

@@ -166,7 +166,7 @@ export default function LegalDisputeDetailPage() {
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = updates.filter((update) => update.type === 'system')
-  const title = `${legalDispute.caseNumber || legalDispute.reference || 'Fall'} – ${legalDispute.title || legalDispute.subject || 'Ohne Betreff'}`
+  const title = legalDispute.title || legalDispute.caseNumber || legalDispute.reference || 'Fall'
   const nextSchedule = nextLegalDisputeDeadline(deadlines)
   const nextScheduleDisplay = nextSchedule ? `${formatDate(nextSchedule.date)}${nextSchedule.time ? ` · ${nextSchedule.time}` : ''}` : ''
 
