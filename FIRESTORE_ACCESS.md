@@ -1,102 +1,97 @@
-# Firestore-Zugriff in der Entwicklung
+# Zugriffs- und Betriebsmodell für Firestore und Storage
 
-Die Anwendung verwendet Firestore für die produktiven Fachbereiche. Die Firebase-Web-Konfiguration ist bereits zentral in `src/lib/firebase.js` hinterlegt; zusätzliche Environment-Variablen sind derzeit nicht erforderlich.
+Diese Dokumentation beschreibt den im Repository implementierten Produktionsstand. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions.
 
-## Rollen- und Berechtigungsmodell
+## Authentifizierung und aktive Profile
 
-Die produktiven Regeln liegen nun in `firestore.rules` und `storage.rules`; sie werden über `firebase.json` ausgerollt. Sie prüfen die Modulrechte auf dem Benutzerprofil und verbieten sämtliche Client-Änderungen an `role` und `permissions`. Benutzeranlage sowie Änderungen an Rollen und Berechtigungen laufen ausschließlich über die Callable Functions in `functions/index.js`.
+Ein nutzbares Konto erfüllt stets beide Bedingungen:
 
-Vor dem ersten Deployment muss ein bestehendes vertrauenswürdiges Konto einmalig als `superadmin` im Profil `users/{uid}` angelegt werden. Danach werden alle weiteren Änderungen nur noch über die Anwendung bzw. die Functions vorgenommen. Für die Functions zuerst in `functions/` die Abhängigkeiten installieren und anschließend `firebase deploy --only firestore:rules,storage,functions` ausführen.
+1. Firebase Authentication liefert eine angemeldete Sitzung.
+2. Unter `users/{uid}` existiert ein Benutzerprofil mit `active: true`.
 
-## Aktueller Status
+Der Client beobachtet dieses Profil nach der Anmeldung. Fehlt es, ist es nicht aktiv oder kann es nicht gelesen werden, meldet der Client die Sitzung ab. Geschützte Routen verlangen gleichzeitig Auth-Sitzung, Profil und aktiven Status. Die Blocking Function `requireActiveProfileBeforeSignIn` prüft den aktiven Profilstatus zusätzlich beim Anmelden. Client-erreichbare Functions prüfen für geschützte Abläufe ebenfalls das aktive Profil.
 
-Die Firestore-Regeln des Projekts blockieren anonyme Lese- und Schreibzugriffe mit `permission-denied`. Das ist ohne implementierte Authentifizierung erwartbar und sicherer, als die Produktionsdatenbank öffentlich zu öffnen. Die produktiven Regeln und Indizes werden über `firebase deploy --only firestore:rules,firestore:indexes` ausgerollt.
+Ein fehlendes `active`-Feld gilt nicht als aktiv. Eine reine Firebase-Authentifizierung ohne aktives Profil gewährt daher keinen Anwendungszugriff.
 
-## Empfohlene Regel nach Einführung der Authentifizierung
+## Rollen und Modulrechte
 
-Nach der Authentifizierung sollte der Zugriff mindestens angemeldete Benutzer voraussetzen:
+Die zulässigen globalen Rollen sind `user`, `admin` und `superadmin`. Ungültige oder fehlende Rollen werden im Client als `user` behandelt. Die Modulrechte verwenden ausschließlich die Stufen `none`, `view` und `edit`:
 
-```rules
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+| Stufe | Bedeutung |
+| --- | --- |
+| `none` | Kein Zugriff auf das Modul. |
+| `view` | Lesender Modulzugriff. |
+| `edit` | Lesender und schreibender Modulzugriff, soweit die jeweilige Rule die konkrete Operation zulässt. |
 
-Für die Entwicklungsphase ohne Login ist ein lokaler Firestore Emulator der sichere Weg, um Anlegen und Bearbeiten zu testen. Eine dauerhafte Regel wie `allow read, write: if true` darf nicht für das Firebase-Projekt deployed werden.
+`superadmin` erhält im Client und in den Firestore-/Storage-Rules den `edit`-Override für alle vorhandenen Module. `admin` ist kein pauschaler Modulrechte-Override: Administrative Kontoverwaltung ist möglich, der Fachzugriff folgt aber weiterhin den Modulrechten. Die zentrale Modulliste umfasst Dashboard, Urlaub, Feiertagskalender, Kalender, Team, Stammdaten, CRM, Palettenmanagement, News, Dokumente, Vorlagen, To-dos, Schäden, Insolvenzen, Gericht/Streit, Inkasso, Personal und AGB-Prüfer.
 
-## Urlaubsanträge
+Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt über Firestore durch Browser-Clients angelegt, geändert oder gelöscht werden.
 
-Die persönliche Urlaubsübersicht verwendet `vacationRequests`. Ein Antrag enthält unter anderem `userId`, `startDate`, `endDate`, `days`, `status`, `type`, `note`, `createdAt` und `updatedAt`. Änderungs- und Stornoanträge werden als neue Datensätze mit `originalRequestId` sowie `changeRequest` beziehungsweise `cancellationRequest` angelegt; der ursprüngliche Antrag wird nie überschrieben. Die Anwendung lädt nur eigene Anträge und genehmigte Anträge anderer Mitarbeitender.
+## Zwei Zugriffsebenen
 
-Das Urlaubsmanagement ist über die Benutzerfelder `vacationManager`, `vacationManagerAllDepartments` und `vacationManagerDepartments` abgesichert. `vacationManagerDepartments` enthält ausschließlich IDs aus der zentralen Collection `departments`. Die Callable Functions `listManagedVacationRequests` und `processVacationRequest` prüfen die Zuständigkeit des angemeldeten Managers anhand der Abteilungs-ID des Antragstellers erneut serverseitig. Genehmigung und Ablehnung erfolgen ausschließlich darüber; Firestore-Clients dürfen Anträge nicht direkt aktualisieren oder löschen.
+| Ebene | Durchsetzung | Zweck |
+| --- | --- | --- |
+| Browserzugriff | Firestore- und Storage-Rules | Erzwingt aktive Profile, Rollen, Modulrechte, Eigentümerschaft und datenbezogene Validierungen für direkte SDK-Zugriffe. Eine ausgeblendete UI ersetzt diese Rules nicht. |
+| Serverseitiger Zugriff | Firebase Admin SDK in Cloud Functions und Triggern | Führt privilegierte, validierte Abläufe aus. Admin-SDK-Zugriffe unterliegen nicht den Browser-Rules; client-erreichbare Callables müssen deshalb selbst Authentifizierung, aktives Profil, Rollen bzw. Modulrechte und App Check prüfen. |
 
-## Zentrale Abteilungen
+Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enforceAppCheck: true`. App Check ergänzt Authentifizierung und Rules, ersetzt aber weder das aktive Profil noch die serverseitigen Berechtigungsprüfungen.
 
-Abteilungen liegen zentral unter `departments/{id}` mit `id`, `name`, `normalizedName`, `active`, `createdAt` und `updatedAt`. Anlegen, Umbenennen sowie Aktivieren/Deaktivieren ist ausschließlich über die Superadmin-Callable-Functions `createDepartment` und `updateDepartment` möglich. Benutzer speichern `departmentId`; die Felder `department` und `departmentName` bleiben für bestehende Ansichten als lesbare Spiegelwerte erhalten.
+## Firestore-Schutzgrenzen
 
-`migrateLegacyDepartments` kann vorhandene Freitext-Abteilungen und frühere Urlaubsmanager-Zuständigkeiten in die zentrale Struktur übernehmen. Die Benutzerliste lädt jedoch immer unabhängig davon; alte Profile bleiben mit ihrem bisherigen Abteilungsnamen sichtbar.
+### Benutzerprofile und Personal
 
-Feiertage werden unter `calendarHolidays` vorbereitet (`date` oder `startDate`/`endDate`, `label`). Spätere Verwaltungsfunktionen können Urlaubssperren unter `vacationBlocks` anlegen (`startDate`, `endDate`, `label`, optional `note`, `createdAt`, `updatedAt`). Beide Collections werden nur gelesen und im Kalender dezent als eigene Eintragstypen dargestellt.
+- Ein Browser-Client darf sein eigenes vollständiges Profil unter `users/{uid}` nur bei aktivem Profil lesen. Direkte Listen-, Anlege-, Änderungs- und Löschzugriffe auf Benutzerprofile sind gesperrt.
+- Vollständige Profile werden nicht als allgemeines Verzeichnis bereitgestellt. Reduzierte Verwaltungs- oder Verzeichnissichten stammen aus geschützten Callables.
+- `employeeHrProfiles`, `hrVacationMeta` und `hrVacationAdjustments` sind für Browser-Clients vollständig gesperrt. Der Personalbereich verwendet dafür Callables mit aktivem Profil und `personnel`-Recht.
+- Persönliche Urlaubsanträge können nur im zulässigen eigenen Umfang angelegt werden. Direkte Änderungen, Entscheidungen und Löschungen von `vacationRequests` sind gesperrt; Entscheidungen erfolgen serverseitig nach Prüfung der Urlaubsmanager-Zuständigkeit.
 
-## Personalverwaltung
+### Fach- und Konfigurationsdaten
 
-Die gemeinsamen Beschäftigungs-Stammdaten verbleiben ausschließlich unter `users/{uid}`: `firstName`, `lastName`, `jobTitle`, `departmentId`/`departmentName`/`department`, `phone`, `personnelNumber` und `employmentStart`. Die Personalverwaltung bearbeitet diese Felder über dieselbe zentrale Quelle wie der Adminbereich; es gibt keine zweite Kopie und keine Synchronisation.
+- Direkte Fachzugriffe richten sich nach dem jeweiligen Modulrecht. Die Rules beschränken dabei zusätzlich erlaubte Datenfelder und Zustandsübergänge.
+- Zentrale Abteilungen sowie globale Einstellungen für Partnerbewertung und Feiertagsregion sind im Browser nur lesbar; ihre Änderung ist direkt in Firestore gesperrt.
+- Systemmail-Vorlagen, KI-Prompt-Konfigurationen, Kontenmigrationen und Nutzungsprotokolle sind für Browser-Clients vollständig gesperrt.
+- Inkassofälle dürfen im Browser nicht direkt angelegt werden, damit die serverseitige Fallnummernvergabe die einzige Quelle bleibt.
 
-Die zusätzlichen personenbezogenen Angaben liegen getrennt unter `employeeHrProfiles/{uid}`: `birthDate`, `streetAddress`, `postalCode`, `city`, `country`, `taxClass` und `childrenCount`. Firestore-Regeln verweigern für diese Collection ausnahmslos jeden direkten Client-Zugriff. Die drei Callable Functions `listPersonnelEmployees`, `getPersonnelEmployee` und `updatePersonnelEmployee` prüfen vor jeder Aktion ein aktives Profil sowie das Modulrecht `personnel` (`view`/`edit`); ausschließlich aktive Superadmins erhalten den bestehenden Override. Allgemeine Adminrechte sind dafür nicht ausreichend.
+### Historien und Systemdaten
 
-`updatePersonnelEmployee` schreibt zentrale Stammdaten und den HR-Datensatz in einer Firestore-Transaktion. `listManagedUsers` liefert dem Adminbereich nur die dafür nötige, explizite Projektion zentraler Konto- und Beschäftigungsfelder; direkte Listen- oder Fremdlesezugriffe auf `users` sind gesperrt. Für historische `birthDate`-Felder im zentralen Profil steht die explizite, superadmin-geschützte Einmalmigration `migrateLegacyBirthDatesToPersonnel` bereit; sie übernimmt den Wert, falls im HR-Datensatz noch keiner gepflegt wurde, und entfernt anschließend die alte Kopie.
+- Die Inkasso-Historie ist für Browser-Schreibzugriffe gesperrt. Sie wird durch Firestore-getriggerte Functions mit Auth-Kontext erzeugt und ist für berechtigte Inkasso-Nutzer nur lesbar.
+- News-Recherche-Updates und KI-Nutzungsprotokolle sind im Browser nicht schreibbar.
+- Urlaubsverlauf ist im Browser nicht schreibbar; lesbar ist ausschließlich der eigene Verlauf mit passendem Urlaubsrecht.
+- Geschäftspartner-Historie und CRM-Bewertungen sind append-only: Berechtigte Fachnutzer können Einträge erzeugen, bestehende Einträge aber nicht direkt ändern oder löschen.
 
-Die HR-Urlaubsansicht leitet Zeitraum, Tage, Art und Status ausschließlich aus den bestehenden Hauptanträgen in `vacationRequests` ab. Sie verwaltet nur `hrVacationMeta/{vacationId}` mit `payrollProcessed`, `hrNote`, `updatedAt` und `updatedBy` (zusätzlich `createdAt` bei der ersten Pflege). Diese Collection ist für alle Firestore-Clients vollständig gesperrt. Die Callable Functions `listPersonnelVacations` und `updatePersonnelVacationMeta` erzwingen erneut das aktive Personalmodulrecht; letztere akzeptiert nur die zwei HR-Metafelder und schreibt niemals in `vacationRequests`.
+## Storage-Schutzgrenzen
 
-Für den produktiven Einsatz müssen Firestore-Regeln Schreibzugriffe auf den eigenen Benutzer beschränken. Die Kalenderansicht benötigt Leserechte für genehmigte Anträge aller Mitarbeitenden sowie für die eigenen Anträge. Diese fachliche Sichtbarkeit muss durch geeignete Regeln oder eine serverseitige Abfrage abgesichert werden; eine reine UI-Filterung ist keine Berechtigungskontrolle.
+Alle erlaubten Storage-Pfade verlangen ein angemeldetes, aktives Profil und das jeweilige Modulrecht. Nicht explizit gematchte Pfade erhalten keinen Zugriff.
 
-## Firebase Storage
+| Speicherbereich | Lesen | Schreiben |
+| --- | --- | --- |
+| Allgemeine interne Dokumente | `documents`: `view` oder `edit` | `documents`: `edit`; PDF, höchstens 20 MiB |
+| Schadens-, Streit-, Inkasso- und Insolvenz-Dokumente | jeweiliges Fachmodul: `view` oder `edit` | jeweiliges Fachmodul: `edit`; PDF, höchstens 20 MiB; Fallpfade erlauben keine Objekt-Updates |
+| Persönliche Signatur | nur der angemeldete Eigentümer | nur der angemeldete Eigentümer am festen eigenen Pfad; JPEG, höchstens 2 MiB |
 
-Die Storage-Regeln müssen ebenfalls mindestens eine angemeldete Firebase-Sitzung voraussetzen:
+Für Insolvenz-Dokumente muss der zugehörige Insolvenzfall existieren. Für Signaturen existiert bewusst kein administrativer Storage-Zugriffspfad.
 
-```rules
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+## Bewusst serverseitige Verwaltungsabläufe
 
-Die Storage-Regeln werden getrennt über `firebase deploy --only storage` ausgerollt.
+Folgende Änderungen erfolgen nicht über direkte Browser-Schreibrechte:
 
-## News-Recherche
+- Kontenanlage und Kontopflege erfolgen über `createManagedUser` und `updateManagedUser`. `admin` darf reguläre `user`-Konten verwalten; `superadmin` verwaltet zusätzlich Rollen, Modulrechte und Urlaubsmanager-Zuordnungen.
+- Abteilungen werden ausschließlich durch die superadmin-geschützten Callables `createDepartment` und `updateDepartment` gepflegt.
+- Partnerbewertungs-Einstellungen werden ausschließlich durch `updatePartnerEvaluationSettings` für Superadmins geändert. Die Feiertagsregion wird über `updateCompanyHolidayRegion` für Admins und Superadmins validiert aktualisiert.
+- Personal-, HR-Urlaubs- und manuell erfasste Urlaubsabläufe verwenden die dafür vorgesehenen Personal-Callables; direkte HR-Datenzugriffe bleiben gesperrt.
+- Urlaubsmanager entscheiden Anträge über `processVacationRequest`; die Functions prüfen die berechtigte Abteilung serverseitig.
+- Systemmail-Vorlagen werden ausschließlich durch Superadmins über `updateSystemMailTemplate` gepflegt. Das Auslösen einer Testmail ist auf aktive Admins und Superadmins begrenzt.
+- KI-Prompt-Konfigurationen, Migrationen sowie die manuelle Feiertags- und Feriensynchronisation laufen über ihre jeweils geschützten Callables.
 
-Die geplante News-Recherche und die serverseitigen Systemmails nutzen weiterhin `OPENAI_API_KEY` beziehungsweise den folgenden Power-Automate-Webhook als Firebase-Secret:
+## Pre-Live-Tests
 
-```powershell
-firebase functions:secrets:set POWER_AUTOMATE_NOTIFICATION_URL
-```
+| Profil | Mindestprüfung |
+| --- | --- |
+| Standardnutzer | Anmeldung mit aktivem Profil; Zugriff ausschließlich auf zugewiesene Module; kein Zugriff auf fremde Vollprofile, HR-Daten, Systemmail-Vorlagen oder gesperrte Historien. |
+| Fachrolle | Ein Modul mit `view` und ein Modul mit `edit` prüfen: Lesen, erlaubtes Schreiben, verweigertes Schreiben außerhalb des eigenen Modulrechts sowie zugehörigen Storage-Upload/-Download testen. |
+| Administrator | Kontenverwaltung für reguläre Nutzer, global lesbare Einstellungen, Urlaubs- bzw. Systemmail-Ablauf gemäß Rolle prüfen; Änderungen an Rollen, Modulrechten und Superadmin-geschützten Daten als nicht berechtigt verifizieren. |
+| Deaktiviertes oder fehlendes Profil | Anmeldeblockierung und verweigerten Firestore-/Storage-/Callable-Zugriff prüfen. |
 
-Anschließend die Functions deployen. Empfänger werden bei jedem Fehler dynamisch aus aktiven Profilen mit der Rolle `superadmin` und gültiger E-Mail-Adresse ermittelt.
+## Betriebsgrenzen
 
-## KI-Usage und Haftbarhaltung
-
-Jeder serverseitige KI-Aufruf wird zentral in `aiUsage` protokolliert. Die Collection ist für Frontend-Clients vollständig gesperrt; nur Cloud Functions schreiben die technischen Nutzungsdaten. Ein Eintrag enthält ausschließlich Feature, Zeitpunkt, Nutzer-ID, Modell, Token-Usage, geschätzte Kosten, Dauer, Ergebnisstatus und gegebenenfalls einen technischen Fehlertyp – niemals Transportauftrags- oder Sachverhaltsinhalte.
-
-Die Haftbarhaltung verwendet für die Formulierung des Sachverhalts ein eigenes Firebase-Secret. Vor dem Functions-Deployment muss es gesetzt werden:
-
-```powershell
-firebase functions:secrets:set OPENAI_API_KEY_HAFTBARHALTUNG
-firebase deploy --only functions:analyzeLiabilityTransportOrder,firestore:rules
-```
-
-Die Callable Function `analyzeLiabilityTransportOrder` erhält die Transportauftrags-PDF nur zur unmittelbaren Auswertung. Die PDF wird weder gespeichert noch in den Usage-Logs abgelegt. Modellpreise und die zentrale Kostenberechnung liegen in `functions/aiUsage.js`. Bei Preis- oder Modelländerungen wird ausschließlich die dortige Registry aktualisiert.
-
-## To-dos
-
-To-dos liegen unter `todos/{todoId}`. Sie verwenden `creatorUserId`/`creatorName`, `audienceType` (`all`, `department`, `person`), `audienceId`, `audienceLabel`, die unabhängigen Bearbeiterfelder `assignedUserId`/`assignedUserName`/`assignedAt` sowie den Status `open`, `in_progress`, `completed` oder `withdrawn`.
-
-Die Firestore-Regeln erlauben Leserechte nur für berechtigte Benutzer, die jeweils Ersteller, Bearbeiter oder Teil der Zielgruppe sind; zurückgezogene Einträge bleiben Ersteller und Superadmin vorbehalten. Übernahmen, Freigaben und Erledigungen prüfen die zulässigen Statuswechsel und den aktuellen Benutzer. Client-Hard-Deletes sind verboten. Die Abfragen für Zielgruppen verwenden die Composite-Indizes aus `firestore.indexes.json`.
+Die Rules und Functions beschreiben den Anwendungszugriff. Die erstmalige Einrichtung eines vertrauenswürdigen Superadmin-Kontos, die konkrete Produktions-Identitätsverwaltung sowie Console-seitige Enforcement-Schalter sind nicht aus dem Repository ableitbar und werden hier nicht festgelegt.

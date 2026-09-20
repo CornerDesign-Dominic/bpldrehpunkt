@@ -1,170 +1,140 @@
-# Projektgrundsätze
+# Projektgrundsätze und Live-Release-Umfang
 
-## Allgemein
-- Projektname: Drehpunkt
-- Interne Unternehmensanwendung
-- Fokus auf Desktop-Nutzung
-- Modular und langfristig erweiterbar aufbauen
-- Bestehende Strukturen nicht unnötig komplizieren
-- Keine Funktionen auf Vorrat entwickeln
-- Neue Features immer so bauen, dass sie später erweitert werden können
-- Saubere Trennung von Layout, Navigation, Seiten und wiederverwendbaren Komponenten
+## Zweck und Systemgrenze
 
-## UX & Design
-- Ruhige, professionelle Business-Oberfläche
-- Modern, aber nicht verspielt
-- Keine typische überladene SaaS-Optik
-- Keine Gradients
-- Keine unnötigen Animationen
-- Klare visuelle Hierarchie
-- Großzügige Abstände bei normalen Inhaltsbereichen
-- Listen und Tabellen dagegen kompakt darstellen
-- Inhalte möglichst so strukturieren, dass Seiten im normalen Desktopbetrieb wenig oder gar nicht scrollen müssen
-- Scrollen nur dort einsetzen, wo es inhaltlich sinnvoll oder notwendig ist
-- Gute Informationsdichte ohne gequetschte Darstellung
-- Einheitliche Abstände, Typografie und Komponenten im gesamten Projekt
-- Funktionen sollen möglichst selbsterklärend sein
-- Keine unnötig langen Texte in der UI
+Drehpunkt ist eine geschlossene, desktoporientierte interne Anwendung für
+fachliche Arbeitsabläufe, gemeinsame Stammdaten, Vorgänge, Dokumente und
+Aufgaben. Die Anwendung ergänzt führende operative Systeme; sie ersetzt diese
+nicht. Externe Systeme werden über fachliche Referenzen angebunden, ohne deren
+Stammdaten oder operative Führungsrolle zu übernehmen.
 
-## Navigation
-- Hauptnavigation befindet sich links
-- Sidebar ist ein- und ausklappbar
-- Ausgeklappt: Icon + Menüname
-- Eingeklappt: nur Icons
-- Aktive Navigation klar, aber dezent hervorheben
-- Hauptnavigation muss später leicht um weitere Module ergänzt werden können
-- Navigation ohne vollständigen Seitenreload
+Geschäftspartner bilden den zentralen Stammdatenbezug für Kunden und
+Unternehmer. Fachmodule referenzieren diese Daten, statt sie mehrfach zu
+kopieren. Dokumentdateien liegen in Firebase Storage; zugehörige Metadaten und
+fachliche Vorgänge liegen in Firestore.
 
-## Architektur
-- Wiederverwendbare Komponenten erstellen
-- Gemeinsames App-Layout verwenden
-- Sidebar und Header nicht pro Seite duplizieren
-- Seiten sauber über Routing trennen
-- Keine Business-Logik direkt in Layout-Komponenten
-- Komponenten und Dateien nachvollziehbar benennen
-- Keine unnötigen Abhängigkeiten installieren
-- Bestehenden Tech-Stack des Projekts respektieren
-- Firebase zentral in einer Infrastrukturdatei kapseln; Produktlogik bleibt davon getrennt
-- Firestore und künftige Authentifizierung nur bedarfsorientiert über diese zentrale Integration anbinden
-- Geschäftspartner zentral führen; Kunde und Unternehmer sind Rollen desselben Geschäftspartners
-- Die interne operative Plattform heißt „DyCoS“
-- Externe Systeme über Referenznummern mit Drehpunkt verknüpfen
-- DyCoS-Debitoren- und Kreditorennummern ausschließlich als Strings und externe Referenzen behandeln
-- Niederlassungen als separate Geschäftspartner führen
-- Geschäftspartner besitzen genau einen Stammdatensatz
-- Tabellen kompakt halten
-- Formulare desktoporientiert und möglichst kompakt aufbauen
-- Erfolgreiche Aktionen über dezente Toast-Nachrichten bestätigen
-- Stammdaten bevorzugt in direkt bearbeitbaren Masken darstellen
-- Separate Anzeige- und Bearbeitungsseiten vermeiden, wenn dieselben Daten betroffen sind
-- Interne Stammdatenmasken kompakt und auf schnelle Datenerfassung auslegen
-- Stammdaten und CRM als getrennte fachliche Bereiche behandeln
-- Stammdaten als zentrale Quelle für Geschäftspartner-Grunddaten verwenden
-- CRM-Funktionen über die interne Firestore-ID mit Geschäftspartnern verknüpfen
-- Stammdaten im CRM nicht unnötig duplizieren
-- Fachbereiche direkt verlinken, wenn dadurch unnötige Suche vermieden wird
-- Palettenmanagement als eigenen Fachbereich behandeln
-- Palettenkonten über die interne Firestore-ID mit Geschäftspartnern verknüpfen
-- Geschäftspartner-Stammdaten im Palettenmanagement nicht duplizieren
-- Aus Stammdaten direkte Sprünge in partnerbezogene Fachbereiche ermöglichen
-- Fachbereiche besitzen eigene Übersichten und Detailseiten
-- CRM verwendet Geschäftspartner-Stammdaten ausschließlich als Basisreferenz
-- CRM-Übersichten dürfen andere Spalten zeigen als Stammdatenübersichten
-- CRM-Detailseiten kompakt und informationsorientiert aufbauen
-- Palettenmanagement besitzt eine zentrale Kontoübersicht und partnerbezogene Detailkonten
-- Ein Palettenkonto besteht aus Transportbewegungen sowie separaten Abschluss- und Korrekturbuchungen
-- Kontoabschlüsse verändern den Saldo, nicht jedoch historische Bewegungen
-- Kontostände müssen aus der Buchungshistorie nachvollziehbar berechnet werden
-- Geschäftspartner-Stammdaten im Palettenmanagement nur referenzieren, nicht duplizieren
-- Fachseiten verwenden eine einheitliche maximale Inhaltsbreite
-- Tabellen- und Listenansichten folgen einer gemeinsamen Breite und Gestaltung
-- Doppelte Seitentitel innerhalb derselben Ansicht vermeiden
-- Abkürzungen in der Navigation kurz halten und Seitentitel bei besserer Verständlichkeit ausschreiben
-- Palettenbewegungen bilden reale Transportvorgänge ab, keine manuell erzeugten Soll- oder Haben-Buchungen
-- Erhaltene und abgegebene Paletten ausschließlich als positive Stückzahlen oder 0 eingeben
-- Vorzeichen ausschließlich durch die Berechnungslogik erzeugen
-- Palettenbewegungen fachlich aus Sicht des Unternehmers berechnen und Kundenwirkungen automatisch spiegeln
-- Kunde und Unternehmer können optional sein; mindestens ein beteiligter Geschäftspartner ist erforderlich
-- Eine reale Palettenbewegung genau einmal speichern
-- Palettenkonten primär tourbezogen darstellen
-- Tour oder interne Referenz als zentralen Bezugspunkt einer Transportbewegung verwenden
-- Stationswerte direkt sichtbar halten und nicht hinter Detail-Aufklappungen verbergen
-- Reale Bewegungsdaten unabhängig von der Kontoperspektive identisch halten; nur Saldoauswirkung und Kontostand partnerbezogen darstellen
-- Geschäftspartner besitzen einen allgemeinen Firmenkontakt und können zusätzlich mehrere Ansprechpartner haben
-- Ansprechpartner kompakt tabellarisch darstellen
-- Abteilungen bevorzugt über standardisierte Auswahlwerte pflegen
-- Ansprechpartner gehören fachlich zum jeweiligen Geschäftspartner
-- Palettenbewegungen dürfen nachträglich korrigiert werden
-- Änderungen an historischen Bewegungen müssen nachfolgende Kontostände vollständig neu berechnen
-- Eine Bewegung wird weiterhin nur einmal gespeichert
-- Bearbeitungen müssen zumindest technisch nachvollziehbar bleiben
-- createdAt bleibt unverändert, updatedAt wird bei Korrekturen aktualisiert
-- Operative Eingabemasken orientieren sich am realen Arbeitsablauf und nicht an der technischen Buchungslogik
-- Berechnete Zwischenwerte werden nicht zwischen Eingabefeldern dargestellt, wenn sie für die Datenerfassung nicht erforderlich sind
-- Bei komplexen Buchungen werden Eingabe und Ergebnis visuell klar getrennt
-- Informationen dürfen innerhalb einer Maske nicht unnötig doppelt dargestellt werden
-- Der aktuelle Fachbereich wird immer im zentralen App-Header angezeigt
-- Seitentitel werden nicht zusätzlich im Inhaltsbereich wiederholt
-- Detailseiten zeigen im Header den Fachbereich und im Inhalt den konkreten Datensatz
+Der Produktumfang dieses Dokuments ist der aktuelle, auf `main` vorhandene und
+für den ersten Livegang fachlich freigegebene Stand. Es werden damit keine
+zusätzlichen Features angekündigt oder eingeplant.
 
-## Produktiver Funktionsumfang
-- Der produktive Hauptstand umfasst Dashboard, Kunden & Unternehmer, CRM, Palettenmanagement, News, Dokumente und To-dos.
-- Weitere Fachbereiche werden getrennt entwickelt und gehören nicht zum produktiven Hauptstand.
+## Verbindlicher Umfang des ersten Live-Releases
 
-## Authentifizierung
-- Drehpunkt ist eine geschlossene interne Anwendung; Benutzerkonten werden nicht öffentlich registriert.
-- Geschützte Inhalte setzen Firebase Authentication voraus.
-- Authentifizierung und fachliche Berechtigungen sind getrennte Ebenen.
-- Eine UI-Ausblendung ersetzt niemals serverseitige Zugriffsregeln.
-- Benutzerprofile liegen optional unter `users/{uid}`; fehlende Profile dürfen die Anmeldung nicht verhindern.
+### Übersicht und Zusammenarbeit
 
-## CRM-Aktivitäten
-- CRM-Aktivitäten werden chronologisch und dauerhaft dokumentiert.
-- Aktivitätsart und Hinweisstufe sind getrennte Eigenschaften.
-- Wachsende Historien werden als eigene Firestore-Subcollections gespeichert.
-- Historien werden kompakt und scrollbar dargestellt, damit Detailseiten nicht unbegrenzt wachsen.
-- Neue Historieneinträge werden standardmäßig zuerst angezeigt.
+- Dashboard
+- Kalender und Feiertagskalender
+- News
+- Urlaub, Urlaubsmanagement, Personal und Team
+- To-dos
+- Persönliches Profil
 
-## CRM-Bewertungen
-- Geschäftspartnerbewertungen gehören fachlich ins CRM und nicht in die Stammdaten.
-- Kunden- und Unternehmerbewertungen werden getrennt geführt.
-- Höhere Bewertungswerte bedeuten bei allen Kriterien eine bessere Bewertung.
-- Neue Bewertungen überschreiben keine historischen Bewertungen.
-- Die jeweils neueste Bewertung gilt als aktueller Bewertungsstand.
-- Bewertungen sollen mit Datum und optionaler Begründung nachvollziehbar bleiben.
+### Kunden, Vorgänge und Disposition
 
-## To-dos
-- To-dos können persönlich oder an Abteilungen adressiert werden.
-- Abteilungs-To-dos besitzen einen gemeinsamen Status für alle Mitglieder.
-- Abteilungs-To-dos können freiwillig von einem Benutzer übernommen werden.
-- Benutzer dürfen sich nur selbst als Bearbeiter eintragen.
-- Ersteller, Empfänger und Bearbeiter sind fachlich getrennte Rollen.
-- To-do-Datenstrukturen müssen spätere benutzer- und abteilungsbezogene Zugriffsrechte ermöglichen.
+- Kunden & Unternehmer als Geschäftspartner-Stammdaten
+- CRM einschließlich Aktivitäten und Bewertungen
+- Palettenmanagement mit Kontoübersichten und Detailansichten
+- Schäden
+- Insolvenzen
+- Gericht / Streit
+- Inkasso
 
-## News
-- News ist ein eigener zentraler Informationsbereich.
-- Interne und externe Meldungen werden fachlich getrennt über `sourceType` gespeichert.
-- News-Kategorien werden über zentral definierte Werte verwaltet.
-- Externe News unterstützen immer Quelle und Veröffentlichungsdatum.
-- Newslisten werden kompakt und chronologisch dargestellt.
-- Die Datenstruktur muss spätere automatisierte KI- und News-Pipelines ermöglichen.
+### Dokumente und fachliche Hilfen
 
-## Dokumente
-- Interne Dokumente werden zentral im Modul „Dokumente“ verwaltet.
-- Binärdateien werden in Firebase Storage gespeichert, Metadaten in Firestore.
-- Das Löschen eines Dokuments entfernt Datei und Metadaten dauerhaft; eine Archivierung wird nicht geführt.
-- Dokumente werden als PDF-Galerie dargestellt.
-- Dateizugriffe müssen später rollenbasiert beschränkbar sein.
+- Dokumente
+- Vorlagen einschließlich Haftbarhaltung und Geschäftsdokumenten
+- AGB-Prüfer
 
-## Entwicklung
-- Light und Dark Mode werden zentral unterstützt.
-- Farben werden ausschließlich über zentrale Theme-Tokens definiert.
-- Neue Komponenten müssen in beiden Themes funktionieren.
-- Vor größeren Änderungen zuerst bestehende Struktur prüfen
-- Bestehende Funktionen nicht unbeabsichtigt verändern
-- Keine Dummy-Funktionen implementieren, wenn sie aktuell nicht benötigt werden
-- Platzhalter nur dort verwenden, wo sie für die spätere Struktur sinnvoll sind
-- Code sauber und wartbar halten
-- Nach Änderungen Anwendung lokal prüfen
-- Build / Lint / vorhandene Tests ausführen, soweit vorhanden
-- Fehler vor Abschluss beheben
+### Administration und Zugriffssteuerung
+
+- Benutzerverwaltung
+- Rollen, Modulrechte und aktive Benutzerprofile
+- Systemmail-Verwaltung
+- KI-Prompt-Verwaltung
+- Abteilungs-, Personal-, Urlaubs- und Feiertagsverwaltungsabläufe im jeweils
+  geschützten Umfang
+
+Alle Fachmodule sind über die zentrale Berechtigungsregistrierung und
+geschützte Routen eingebunden. Der Modulzugriff wird mit den Stufen `none`,
+`view` und `edit` gesteuert. Die globalen Rollen sind `user`, `admin` und
+`superadmin`; nur `superadmin` besitzt den allgemeinen Rechte-Override.
+Administration ist keine Umgehung der Fachrechte: Der Zugriff auf Fachbereiche
+folgt weiterhin dem jeweils zugewiesenen Modulrecht.
+
+## Zugriffs- und Datenprinzipien
+
+- Ein nutzbares Konto benötigt Firebase Authentication und ein aktives
+  Benutzerprofil. Fehlende oder deaktivierte Profile erhalten keinen
+  Anwendungszugriff.
+- Browserzugriffe werden durch Firestore- und Storage-Rules erzwungen. Eine
+  UI-Ausblendung ersetzt keine serverseitige Zugriffskontrolle.
+- Geschützte Konto-, Rollen-, Rechte-, HR-, System- und Historienabläufe werden
+  ausschließlich über dafür vorgesehene Callables oder serverseitige Trigger
+  abgewickelt. Direkte Browser-Schreibzugriffe auf diese Daten sind nicht
+  zulässig.
+- Neue Datenstrukturen bleiben fachlich klar getrennt: Stammdaten, CRM,
+  Paletten, Vorgänge, Dokumente und persönliche Daten werden nicht unnötig
+  dupliziert.
+- Historien und fachliche Statuswechsel bleiben nachvollziehbar. Wo Rules oder
+  Functions append-only bzw. serverseitige Abläufe vorgeben, dürfen Clients
+  bestehende Historieneinträge nicht nachträglich verändern.
+- Secrets, Tokens, API-Keys, Service-Account-Dateien und externe
+  Zugangsdaten gehören nicht in das Repository, in Client-Variablen oder in
+  Anwendungsdaten.
+
+Die verbindliche technische Zugriffsbeschreibung steht in
+`FIRESTORE_ACCESS.md`. App-Check-Rollout und spätere
+Enforcement-Entscheidungen stehen in `APP_CHECK_ROLLOUT.md`.
+
+## Produkt- und Architekturgrundsätze
+
+- Die Oberfläche bleibt ruhig, professionell und desktoporientiert. Navigation
+  erfolgt ohne vollständigen Seitenreload über das gemeinsame App-Layout.
+- Layout, Navigation, Seiten und wiederverwendbare Komponenten bleiben
+  getrennt. Business-Logik gehört nicht in Layout-Komponenten.
+- Themen, Farben und Light-/Dark-Mode werden zentral verwaltet. Neue
+  Komponenten funktionieren in beiden Themes.
+- Fachbereiche besitzen übersichtliche Listen- und Detailansichten. Formulare
+  und Tabellen sind auf schnelle, nachvollziehbare operative Arbeit ausgelegt.
+- Neue Abhängigkeiten, technische Sonderwege und Platzhalter werden nur bei
+  belegtem fachlichem Bedarf ergänzt.
+
+## Bewusste Produktgrenzen
+
+- Drehpunkt ist kein Ersatz für führende operative Systeme und übernimmt keine
+  unkontrollierte Synchronisation oder Kopie ihrer Stammdaten.
+- Produktive Secrets und externe Zugangsdaten bleiben ausschließlich in den
+  vorgesehenen serverseitigen oder Hosting-seitigen Verwaltungen.
+- Direkte Client-Schreibzugriffe auf geschützte Konten, Rechte, HR-Daten,
+  Systemkonfigurationen und Systemhistorien sind keine zulässige
+  Erweiterungsoption.
+- Der erste Live-Release umfasst nur die oben aufgeführten, bereits in Routen,
+  Navigation und Berechtigungsmodell vorhandenen Bereiche. Nicht belegbare
+  zukünftige Module gehören nicht zum Release-Umfang.
+
+## Entwicklung nach dem Livegang
+
+Die laufende Weiterentwicklung erfolgt künftig in einer separaten
+Entwicklungsumgebung. Änderungen werden dort implementiert und geprüft; erst
+freigegebene, gezielte Änderungen werden nach `main` übernommen. Production
+bleibt stabil und ist kein Arbeitsbereich für laufende Entwicklung oder
+unverifizierte Experimente.
+
+Für jede Änderung gelten mindestens:
+
+1. Betroffene Routen, Modulrechte, Firestore-/Storage-Regeln und Functions
+   vorab prüfen.
+2. Build, Lint und vorhandene Tests für den geänderten Stand ausführen.
+3. Auswirkungen auf Rollen, aktive Profile, Storage, Callables und kritische
+   Benutzerabläufe nachvollziehbar testen.
+4. Nur den freigegebenen Umfang gezielt nach `main` übernehmen.
+
+## Abnahme- und Änderungsregel
+
+Neue Module sowie wesentliche Änderungen an Rollen, Modulrechten,
+Datenmodellen, Rules, Storage-Pfaden oder privilegierten Functions benötigen
+vor einem Production-Release eine dokumentierte Prüfung. Diese umfasst
+mindestens Berechtigungen, Datenzugriff, betroffene Benutzerabläufe,
+Build/Lint/Tests und die Release-Zuordnung.
+
+Ohne diese dokumentierte Abnahme wird keine wesentliche Erweiterung nach
+`main` für Production freigegeben.

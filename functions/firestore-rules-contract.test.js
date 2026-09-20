@@ -11,7 +11,6 @@ const personnelDetailPage = await readFile(new URL('../src/pages/PersonnelDetail
 const vacationPage = await readFile(new URL('../src/pages/VacationPage.jsx', import.meta.url), 'utf8')
 const vacationBalance = await readFile(new URL('../src/lib/vacationBalance.js', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
-const aiPrompts = await readFile(new URL('./aiPrompts.js', import.meta.url), 'utf8')
 
 test('active superadmins retain elevated rights while disabled superadmins do not', () => {
   assert.match(rules, /function superadmin\(\) \{ return active\(\) && role\(\) == 'superadmin'; \}/)
