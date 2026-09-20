@@ -1543,3 +1543,40 @@ tbody tr:hover td { background: var(--table-hover-background); }
   width: min(100%, 1120px);
   max-width: none;
 }
+
+/* Einheitliche, klar abgesetzte Tabellen-Zusammenfassungen in allen Fallmodulen. */
+.damage-financial-overview__table-frame + .damage-financial-overview__totals {
+  margin-top: 0;
+}
+
+.damage-financial-overview__totals,
+.insolvency-claims-overview__summary,
+.inkasso-financial-overview__summary {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-secondary);
+}
+
+.damage-financial-overview__totals > div,
+.insolvency-claims-overview__summary > div,
+.inkasso-financial-overview__summary > div {
+  min-height: 52px;
+  padding: 8px 11px;
+}
+
+.damage-financial-overview__totals span,
+.insolvency-claims-overview__summary span,
+.inkasso-financial-overview__summary span {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.damage-financial-overview__totals strong,
+.insolvency-claims-overview__summary strong,
+.inkasso-financial-overview__summary strong {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
