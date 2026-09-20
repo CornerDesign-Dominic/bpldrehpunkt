@@ -469,7 +469,7 @@ service cloud.firestore {
     function isCreatedDamageCase() {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
         && request.resource.data.damageAmount is number
-        && request.resource.data.title == request.resource.data.caseNumber + (request.resource.data.transportReference == null ? '' : ' – ' + request.resource.data.transportReference)
+        && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
         && !request.resource.data.keys().hasAny(['damageLocation', 'liabilityNote'])
         && request.resource.data.caseSequence == damageCounterAfter(request.resource.data.caseYear).nextNumber
         && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
@@ -480,6 +480,7 @@ service cloud.firestore {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.caseYear == resource.data.caseYear
         && request.resource.data.caseSequence == resource.data.caseSequence && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
         && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
         && request.resource.data.updatedAt == request.time

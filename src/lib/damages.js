@@ -82,14 +82,20 @@ function optionalSelection(value, options) {
   return options.some((option) => option.value === value) ? value : null
 }
 
+function damageCaseTitle(caseNumber, damageDate) {
+  const number = trim(caseNumber)
+  const date = trim(damageDate)
+  return number && date ? `${number} – ${date}` : ''
+}
+
 function payload(values, responsibleUsersById, requireDamageType = false) {
   const responsibleUserId = optionalText(values.responsibleUserId)
   const responsibleUser = responsibleUserId ? responsibleUsersById.get(responsibleUserId) : null
   const responsibleUserName = responsibleUserId ? (responsibleUser ? getUserDisplayName(responsibleUser, responsibleUser) : optionalText(values.responsibleUserName)) : null
   if (responsibleUserId && !responsibleUserName) throw new Error('Die verantwortliche Person ist nicht verfügbar.')
   const status = DAMAGE_CASE_STATUSES.some((item) => item.value === values.status) ? values.status : 'new'
-  const title = trim(values.title)
   const damageDate = trim(values.damageDate)
+  const title = damageCaseTitle(values.caseNumber, damageDate) || trim(values.title)
   const damageType = trim(values.damageType)
   const damageAmount = optionalAmount(values.damageAmount)
   if (!title || !damageDate || (requireDamageType && !damageType)) throw new Error('Bitte Schadendatum, Kurzbezeichnung und Schadenart erfassen.')
@@ -124,7 +130,7 @@ function payload(values, responsibleUsersById, requireDamageType = false) {
 export function createEmptyDamageCase() {
   return {
     damageDate: new Date().toISOString().slice(0, 10),
-    title: '', description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', damageAmount: '',
+    description: '', damageType: '', status: 'new', transportReference: '', claimant: '', claimantPartnerId: '', contractor: '', contractorPartnerId: '', responsibleUserId: '', responsibleUserName: '', damageAmount: '',
     legalBasis: '', cargoWeightKg: '', liabilityLimit: '', insuranceRelevance: '', bplInsuranceCaseNumber: '', contractorInsurance: '', contractorInsuranceCaseNumber: '', customerInsurance: '', customerInsuranceNumber: '', contractorLiability: '',
   }
 }
@@ -166,10 +172,9 @@ export async function createDamageCase(values, actor, responsibleUsersById) {
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
     const caseNumber = `S-${year}-${String(sequence).padStart(4, '0')}`
-    const transportReference = optionalText(values.transportReference)
     transaction.set(counterRef, { year, nextNumber: sequence, updatedAt: serverTimestamp() })
     transaction.set(caseRef, {
-      ...payload({ ...values, title: transportReference ? `${caseNumber} – ${transportReference}` : caseNumber }, responsibleUsersById, true),
+      ...payload({ ...values, caseNumber }, responsibleUsersById, true),
       caseNumber,
       caseYear: year,
       caseSequence: sequence,
@@ -361,10 +366,7 @@ export async function deleteDamageCaseMovement(damageCase, movement, actor) {
 
 export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById, systemMessages = null) {
   const values = { ...damageCase, ...changes }
-  if (Object.hasOwn(changes, 'transportReference')) {
-    const transportReference = optionalText(values.transportReference)
-    values.title = transportReference ? `${damageCase.caseNumber} – ${transportReference}` : damageCase.caseNumber
-  }
+  values.title = damageCaseTitle(damageCase.caseNumber, values.damageDate)
   const next = payload(values, responsibleUsersById)
   const changedFields = Object.fromEntries(Object.entries(next).filter(([key, value]) => value !== (damageCase[key] ?? null)))
   if (!Object.keys(changedFields).length) return false

@@ -4,7 +4,7 @@ import { createEmptyDamageCase, DAMAGE_CASE_TYPES } from '../../lib/damages.js'
 function initialValues(damageCase) {
   if (!damageCase) return createEmptyDamageCase()
   return {
-    damageDate: damageCase.damageDate || '', title: damageCase.title || '', description: damageCase.description || '', damageType: damageCase.damageType || '',
+    damageDate: damageCase.damageDate || '', description: damageCase.description || '', damageType: damageCase.damageType || '',
     transportReference: damageCase.transportReference || '', claimant: damageCase.claimant || '', claimantPartnerId: damageCase.claimantPartnerId || '', contractor: damageCase.contractor || '', contractorPartnerId: damageCase.contractorPartnerId || '', damageAmount: damageCase.damageAmount ?? '',
   }
 }

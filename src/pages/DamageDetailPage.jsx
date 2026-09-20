@@ -74,7 +74,6 @@ function sectionMessages(section, previous, changes) {
     return messages
   }
   return {
-    title: 'Falltitel aktualisiert',
     description: 'Schadenbeschreibung aktualisiert',
     general: 'Allgemeine Falldaten aktualisiert',
     links: 'Verknüpfungen aktualisiert',
@@ -262,12 +261,12 @@ export default function DamageDetailPage() {
   if (loading) return <p className="page-state">Fall wird geladen …</p>
   if (error && !damageCase) return <section className="damage-detail-empty"><h2>Fall nicht verfügbar</h2><p>{error}</p><BackLink to="/schaeden" /></section>
   if (!damageCase) return null
-  const todoFixedLink = { field: 'damageCaseId', id: damageCase.id, label: 'Schadenfall', value: [damageCase.caseNumber, damageCase.title].filter(Boolean).join(' · ') || 'Schadenfall', values: { customerId: damageCase.claimantPartnerId || '', customerName: damageCase.claimant || '', carrierId: damageCase.contractorPartnerId || '', carrierName: damageCase.contractor || '', reference: damageCase.transportReference || '' } }
+  const todoFixedLink = { field: 'damageCaseId', id: damageCase.id, label: 'Schadenfall', value: [damageCase.caseNumber, formatDate(damageCase.damageDate)].filter(Boolean).join(' · ') || 'Schadenfall', values: { customerId: damageCase.claimantPartnerId || '', customerName: damageCase.claimant || '', carrierId: damageCase.contractorPartnerId || '', carrierName: damageCase.contractor || '', reference: damageCase.transportReference || '' } }
 
   const nextDeadline = nextDamageDeadline(deadlines)
   const due = damageDeadlinePresentation(nextDeadline)
   const dueValue = nextDeadline ? `${due.label} · ${formatDate(nextDeadline.date)}` : '—'
-  const title = damageCase.title || damageCase.caseNumber
+  const title = [damageCase.caseNumber, formatDate(damageCase.damageDate)].filter(Boolean).join(' – ')
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = updates.filter((update) => update.type === 'system')
   return <>
@@ -279,7 +278,7 @@ export default function DamageDetailPage() {
     {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/schaeden" /></div>
     <div className="todo-detail-page damage-detail-page">
-      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('title')} title="Falltitel bearbeiten" aria-label="Falltitel bearbeiten"><EditIcon size={14} /></button>}</div><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></header>
+      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></header>
       {error && <p className="form-error">{error}</p>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">

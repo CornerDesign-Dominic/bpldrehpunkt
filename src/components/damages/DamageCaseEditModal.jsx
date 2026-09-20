@@ -3,7 +3,6 @@ import { DAMAGE_CASE_STATUSES, DAMAGE_CASE_TYPES, DAMAGE_CONTRACTOR_LIABILITY, D
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 
 const sectionTitles = {
-  title: 'Falltitel bearbeiten',
   description: 'Schadenbeschreibung bearbeiten',
   general: 'Allgemeine Falldaten bearbeiten',
   links: 'Verknüpfungen bearbeiten',
@@ -13,7 +12,6 @@ const sectionTitles = {
 }
 
 const sectionFields = {
-  title: ['title', 'description'],
   description: ['description'],
   general: ['status', 'damageType', 'damageDate', 'damageAmount', 'bplInsuranceCaseNumber', 'responsibleUserId'],
   links: ['transportReference'],
@@ -67,7 +65,6 @@ export default function DamageCaseEditModal({ damageCase, onCancel, onSubmit, pa
     <section className={`todo-quick-edit-modal damage-case-edit-modal${section === 'general' ? ' damage-case-edit-modal--general' : ''}`} role="dialog" aria-modal="true" aria-labelledby="damage-case-edit-title">
       <form className="todo-quick-editor" onSubmit={save} noValidate>
         <div className="todo-quick-editor__heading"><h2 id="damage-case-edit-title">{sectionTitles[section]}</h2></div>
-        {section === 'title' && <div className="todo-quick-editor__grid"><Field label="Kurzbezeichnung *"><input autoFocus value={form.title} maxLength="500" required onChange={(event) => update('title', event.target.value)} /></Field><Field label="Kurzbeschreibung"><textarea rows="4" value={form.description} maxLength="4000" onChange={(event) => update('description', event.target.value)} /></Field></div>}
         {section === 'description' && <div className="todo-quick-editor__grid"><Field label="Schadensbeschreibung / Sachverhalt"><textarea autoFocus rows="8" value={form.description} maxLength="4000" onChange={(event) => update('description', event.target.value)} /></Field></div>}
         {section === 'general' && <div className="todo-quick-editor__grid damage-case-edit-modal__general">
           <Field label="Status"><select value={form.status} onChange={(event) => update('status', event.target.value)}>{DAMAGE_CASE_STATUSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
