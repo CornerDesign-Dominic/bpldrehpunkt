@@ -751,6 +751,7 @@ service cloud.firestore {
     function updatedInkassoCase() {
       return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.title == resource.data.title
         && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
     }

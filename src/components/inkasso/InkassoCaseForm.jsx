@@ -23,8 +23,8 @@ export default function InkassoCaseForm({ partners = [], onCancel, onSubmit }) {
 
   async function submit(event) {
     event.preventDefault()
-    if (!form.title.trim()) {
-      setError('Bitte eine Fallbezeichnung eingeben.')
+    if (!form.debtorPartnerId) {
+      setError('Bitte ein Unternehmen auswählen.')
       return
     }
     setSubmitting(true)
@@ -35,8 +35,7 @@ export default function InkassoCaseForm({ partners = [], onCancel, onSubmit }) {
   return <form className="damage-form" onSubmit={submit} noValidate>
     <div className="damage-form__heading"><h2>Inkasso hinzufügen</h2></div>
     <section className="damage-form__section"><h3>Grunddaten</h3><div className="damage-form__grid damage-form__grid--context">
-      <label className="form-field damage-form__wide"><span>Fallbezeichnung *</span><textarea autoFocus rows="3" value={form.title} maxLength="500" onChange={(event) => update('title', event.target.value)} /></label>
-      <label className="form-field"><span>Schuldner</span><select value={debtorSelection} onChange={(event) => selectDebtor(event.target.value)}><option value="">Kunde oder Unternehmer auswählen</option>{customers.length > 0 && <optgroup label="Kunden">{customers.map((partner) => <option key={`customer-${partner.id}`} value={`customer:${partner.id}`}>{partner.companyName}{partner.debtorNumber ? ` · Debitor ${partner.debtorNumber}` : ''}</option>)}</optgroup>}{carriers.length > 0 && <optgroup label="Unternehmer">{carriers.map((partner) => <option key={`carrier-${partner.id}`} value={`carrier:${partner.id}`}>{partner.companyName}{partner.creditorNumber ? ` · Kreditor ${partner.creditorNumber}` : ''}</option>)}</optgroup>}</select></label>
+      <label className="form-field"><span>Schuldner *</span><select autoFocus value={debtorSelection} onChange={(event) => selectDebtor(event.target.value)}><option value="">Kunde oder Unternehmer auswählen</option>{customers.length > 0 && <optgroup label="Kunden">{customers.map((partner) => <option key={`customer-${partner.id}`} value={`customer:${partner.id}`}>{partner.companyName}{partner.debtorNumber ? ` · Debitor ${partner.debtorNumber}` : ''}</option>)}</optgroup>}{carriers.length > 0 && <optgroup label="Unternehmer">{carriers.map((partner) => <option key={`carrier-${partner.id}`} value={`carrier:${partner.id}`}>{partner.companyName}{partner.creditorNumber ? ` · Kreditor ${partner.creditorNumber}` : ''}</option>)}</optgroup>}</select></label>
       <label className="form-field"><span>Inkassounternehmen</span><input value={form.collectionAgency || ''} maxLength="240" onChange={(event) => update('collectionAgency', event.target.value)} /></label>
       <label className="form-field"><span>Aktenzeichen Inkassounternehmen</span><input value={form.collectionReference || ''} maxLength="240" onChange={(event) => update('collectionReference', event.target.value)} /></label>
     </div></section>

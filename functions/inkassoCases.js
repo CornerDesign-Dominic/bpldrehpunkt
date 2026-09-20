@@ -70,14 +70,12 @@ function optionalPartnerRole(value) {
 export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async (request) => {
   const currentActor = await actor(request)
   const data = request.data || {}
-  const title = optionalText(data.title, 500, 'Die Fallbezeichnung')
-  if (!title) throw new HttpsError('invalid-argument', 'Bitte eine Fallbezeichnung eingeben.')
-
   const description = optionalText(data.description, 4000, 'Die Beschreibung')
   const collectionAgency = optionalText(data.collectionAgency, 240, 'Das Inkassounternehmen')
   const collectionReference = optionalText(data.collectionReference, 240, 'Das Aktenzeichen des Inkassounternehmens')
   const debtorPartnerId = optionalPartnerId(data.debtorPartnerId)
   const debtorPartnerRole = optionalPartnerRole(data.debtorPartnerRole)
+  if (!debtorPartnerId || !debtorPartnerRole) throw new HttpsError('invalid-argument', 'Bitte ein Unternehmen auswählen.')
   const invoices = invoicesFrom(data.invoices)
   const year = berlinYear()
   const database = getFirestore()
@@ -113,6 +111,7 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
 
     const nextNumber = lastNumber + 1
     const caseNumber = `I-${year}-${nextNumber}`
+    const title = `${caseNumber} – ${debtorName}`
     const claimAmount = invoices.length ? invoices.reduce((total, invoice) => total + invoice.grossAmount, 0) : null
     const invoiceNumbers = invoices.length ? invoices.map((invoice) => invoice.invoiceNumber).join(', ') : null
     const metadata = {

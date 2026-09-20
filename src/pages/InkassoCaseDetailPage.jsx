@@ -138,11 +138,11 @@ export default function InkassoCaseDetailPage() {
   if (loading) return <p className="page-state">Inkassofall wird geladen …</p>
   if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><BackLink to="/inkasso" /></section>
   if (!inkassoCase) return null
-  const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.title].filter(Boolean).join(' · ') || 'Inkassofall', values: { carrierId: inkassoCase.debtorPartnerId || '', carrierName: inkassoCase.debtorName || '' } }
+  const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' · ') || 'Inkassofall', values: { carrierId: inkassoCase.debtorPartnerId || '', carrierName: inkassoCase.debtorName || '' } }
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = [...updates.filter((update) => update.type === 'system'), ...historyEntries].sort((left, right) => (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
-  const title = `${inkassoCase.caseNumber || 'Inkassofall'} – ${inkassoCase.title || inkassoCase.debtorName || 'Ohne Bezeichnung'}`
+  const title = [inkassoCase.caseNumber || 'Inkassofall', inkassoCase.debtorName].filter(Boolean).join(' – ')
   const allInformationValues = [inkassoCase.caseNumber, inkassoCase.completedAt]
 
   return <>
@@ -154,7 +154,7 @@ export default function InkassoCaseDetailPage() {
     {editing && <InkassoCaseEditModal inkassoCase={inkassoCase} mode={editing} onCancel={() => setEditing(null)} onSubmit={saveCase} />}
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/inkasso" /></div>
     <div className="todo-detail-page damage-detail-page inkasso-detail-page">
-      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('title')} aria-label="Falltitel bearbeiten" title="Falltitel bearbeiten"><EditIcon size={14} /></button>}</div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
+      <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
       {error && <p className="form-error">{error}</p>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">

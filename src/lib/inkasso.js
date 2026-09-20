@@ -100,7 +100,6 @@ export function isClosedInkassoCase(inkassoCase) {
 
 export function createEmptyInkassoCase() {
   return {
-    title: '',
     status: 'open',
     debtorName: '',
     debtorPartnerId: '',
@@ -129,11 +128,8 @@ export async function getInkassoCase(caseId) {
 
 export async function createInkassoCase(values) {
   const invoices = normalizeInkassoInvoices(values.invoices)
-  const title = optionalText(values.title)
-  if (!title) throw new Error('Bitte eine Fallbezeichnung eingeben.')
 
   const result = await httpsCallable(functions, 'createInkassoCase')({
-    title,
     description: optionalText(values.description),
     collectionAgency: optionalText(values.collectionAgency),
     collectionReference: optionalText(values.collectionReference),
