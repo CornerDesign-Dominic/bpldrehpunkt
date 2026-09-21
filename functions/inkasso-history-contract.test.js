@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const rules = await readFile(new URL('../firestore.rules', import.meta.url), 'utf8')
+const rules = (await readFile(new URL('../firestore.rules', import.meta.url), 'utf8')).replace(/\r\n/g, '\n')
 const client = await readFile(new URL('../src/lib/inkasso.js', import.meta.url), 'utf8')
 const historyFunction = await readFile(new URL('./inkassoHistory.js', import.meta.url), 'utf8')
 
