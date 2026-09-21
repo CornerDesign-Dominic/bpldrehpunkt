@@ -7,6 +7,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
 import { getHolidayDisplayNameDe } from './holidayTranslations.js'
 import { runSchoolHolidaySync } from './schoolHolidays.js'
+import { externalEffectsAllowed, logExternalEffectsSkipped, publicDataSynchronizationAllowed } from './externalEffects.js'
 
 if (!getApps().length) initializeApp()
 
@@ -265,6 +266,10 @@ async function runHolidaySync({ trigger, actorName = null }) {
 export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540 }, async (request) => {
   const profile = await requireActiveProfile(request)
   requireRole(profile, ['admin', 'superadmin'], 'Nur Administratoren können Feiertage aktualisieren.')
+  if (!publicDataSynchronizationAllowed()) {
+    logExternalEffectsSkipped('manual-holiday-data-refresh')
+    throw new HttpsError('failed-precondition', 'Die Feiertagssynchronisierung ist für dieses Firebase-Projekt deaktiviert.')
+  }
   try {
     return await runHolidaySync({ trigger: 'manual', actorName: syncActorName(profile, request) })
   } catch (error) {
@@ -274,6 +279,10 @@ export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppChe
 })
 
 export const scheduledHolidayDataRefresh = onSchedule({ region: 'europe-west3', schedule: '15 3 1 * *', timeZone: 'Europe/Berlin', timeoutSeconds: 540 }, async () => {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('scheduled-holiday-data-refresh')
+    return { skipped: true }
+  }
   try {
     const result = await runHolidaySync({ trigger: 'automatic' })
     logger.info('Feiertagssynchronisation abgeschlossen.', result)

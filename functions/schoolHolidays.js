@@ -4,6 +4,7 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
+import { logExternalEffectsSkipped, publicDataSynchronizationAllowed } from './externalEffects.js'
 
 if (!getApps().length) initializeApp()
 
@@ -225,6 +226,10 @@ export async function runSchoolHolidaySync({ trigger, actorName = null }) {
 export const refreshSchoolHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540 }, async (request) => {
   const profile = await requireActiveProfile(request)
   requireRole(profile, ['admin', 'superadmin'], 'Nur Administratoren können Ferien aktualisieren.')
+  if (!publicDataSynchronizationAllowed()) {
+    logExternalEffectsSkipped('manual-school-holiday-data-refresh')
+    throw new HttpsError('failed-precondition', 'Die Feriensynchronisierung ist für dieses Firebase-Projekt deaktiviert.')
+  }
   try {
     return await runSchoolHolidaySync({ trigger: 'manual', actorName: syncActorName(profile, request) })
   } catch (error) {

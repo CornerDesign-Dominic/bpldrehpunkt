@@ -4,6 +4,7 @@ import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
+import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
 
 const openAiApiKey = defineSecret('DREHPUNKT_AGB_CHECKER_KEY')
 const model = 'gpt-5.4'
@@ -101,6 +102,10 @@ function prompt(documentText) {
 }
 
 async function callOpenAi(documentText) {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('agb-checker-openai')
+    throw errorWithType('Der AGB-Prüfer ist außerhalb der Produktionsumgebung deaktiviert.', 'external-effects-disabled')
+  }
   const apiKey = openAiApiKey.value()
   if (!apiKey) throw errorWithType('Der OpenAI-Key für den AGB-Prüfer ist nicht konfiguriert.', 'configuration_error')
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -176,6 +181,10 @@ export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', enforc
     if (error instanceof HttpsError || ['unauthenticated', 'permission-denied'].includes(error?.code)) throw error
     logger.error('AGB-Prüfer-Zugriffsprüfung fehlgeschlagen.', { errorType: error?.errorType || 'profile_access_failed' })
     throw new HttpsError('unavailable', 'Der AGB-Prüfer ist aktuell nicht erreichbar. Bitte versuche es später erneut.')
+  }
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('agb-checker')
+    throw new HttpsError('failed-precondition', 'Der AGB-Prüfer ist außerhalb der Produktionsumgebung deaktiviert.')
   }
   const startedAt = Date.now()
   const analyzedFileName = fileName(request.data?.fileName)

@@ -5,6 +5,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
+import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -179,12 +180,17 @@ function renderTemplate(template, values) {
 }
 
 async function sendWebhook(recipient, templateId, values) {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('system-mail-webhook')
+    return false
+  }
   const url = powerAutomateNotificationUrl.value()
   if (!url) throw new Error('notification-service-not-configured')
   const template = await loadTemplate(templateId)
   const { subject, message, messageHtml } = renderTemplate(template, values)
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: recipient, subject, message, messageHtml, type: templateId }) })
   if (!response.ok) throw new Error(`notification-service-${response.status}`)
+  return true
 }
 
 async function deliverVacationMail({ requestId, deliveryId, recipientId, recipient, templateId, values }) {
@@ -259,10 +265,18 @@ async function sendCancellationWithdrawalNotifications(requestId, request) {
 }
 
 export const notifyVacationRequestCreated = onDocumentCreated({ region, document: 'vacationRequests/{requestId}', secrets: [powerAutomateNotificationUrl], retry: true }, async (event) => {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('vacation-request-notifications')
+    return
+  }
   await sendSubmissionNotifications(event.params.requestId, event.data.data())
 })
 
 export const notifyVacationRequestDecision = onDocumentUpdated({ region, document: 'vacationRequests/{requestId}', secrets: [powerAutomateNotificationUrl], retry: true }, async (event) => {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('vacation-decision-notifications')
+    return
+  }
   const before = event.data.before.data()
   const after = event.data.after.data()
   if (before.status === after.status && before.requestStatus === after.requestStatus) return
@@ -291,6 +305,10 @@ export const updateSystemMailTemplate = onCall({ region, enforceAppCheck: true }
 
 export const sendSystemTestMail = onCall({ region, enforceAppCheck: true, secrets: [powerAutomateNotificationUrl] }, async (request) => {
   const profile = await assertActiveAdmin(request)
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('system-mail-test')
+    throw new HttpsError('failed-precondition', 'Der Systemmail-Versand ist außerhalb der Produktionsumgebung deaktiviert.')
+  }
   const authUser = await getAuth().getUser(request.auth.uid)
   const recipient = emailPattern.test(profile.email || '') ? profile.email.trim() : authUser.email
   if (!emailPattern.test(recipient || '')) throw new HttpsError('failed-precondition', 'Für das aktive Benutzerprofil ist keine gültige E-Mail-Adresse vorhanden.')
