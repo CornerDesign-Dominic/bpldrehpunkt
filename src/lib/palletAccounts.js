@@ -1,6 +1,7 @@
 import { Timestamp, addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { PALLET_TYPES } from '../constants/pallets.js'
+import { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const PALLET_MOVEMENTS_COLLECTION = 'palletMovements'
 export const PALLET_CLOSINGS_COLLECTION = 'palletClosings'
@@ -21,16 +22,18 @@ function getMovementSnapshots(partnerId) {
   ])
 }
 
-export function isPalletMovementForPartner(movement, partnerId) {
-  return movement.customerId === partnerId || movement.carrierId === partnerId || movement.partnerId === partnerId
+export function isPalletMovementForPartner(movement, partnerId, memberIds = [partnerId]) {
+  const ids = new Set(memberIds)
+  return ids.has(movement.customerId) || ids.has(movement.carrierId) || ids.has(movement.partnerId)
 }
 
-export function getPalletMovementChangeForPartner(movement, partnerId) {
-  if (movement.partnerId === partnerId) return toNumber(movement.incoming) - toNumber(movement.outgoing)
+export function getPalletMovementChangeForPartner(movement, partnerId, memberIds = [partnerId]) {
+  const ids = new Set(memberIds)
+  if (ids.has(movement.partnerId)) return toNumber(movement.incoming) - toNumber(movement.outgoing)
 
   let change = 0
-  if (movement.carrierId === partnerId) change += toNumber(movement.carrierBalance)
-  if (movement.customerId === partnerId) change += toNumber(movement.customerBalance)
+  if (ids.has(movement.carrierId)) change += toNumber(movement.carrierBalance)
+  if (ids.has(movement.customerId)) change += toNumber(movement.customerBalance)
   return change
 }
 
@@ -63,14 +66,16 @@ export function calculatePalletMovement(values) {
 }
 
 export async function listPalletMovements(partnerId) {
-  const snapshots = await getMovementSnapshots(partnerId)
-  const movements = snapshots.flatMap((snapshot) => snapshot.docs.map(mapSnapshot))
+  const cluster = await getPartnerCluster(partnerId)
+  const snapshots = await Promise.all(cluster.members.map((partner) => getMovementSnapshots(partner.id)))
+  const movements = snapshots.flatMap((group) => group.flatMap((snapshot) => snapshot.docs.map(mapSnapshot)))
   return [...new Map(movements.map((movement) => [movement.id, movement])).values()]
 }
 
 export async function listPalletClosings(partnerId) {
-  const snapshot = await getDocs(query(palletClosingsRef, where('partnerId', '==', partnerId)))
-  return snapshot.docs.map(mapSnapshot)
+  const cluster = await getPartnerCluster(partnerId)
+  const snapshots = await Promise.all(cluster.members.map((partner) => getDocs(query(palletClosingsRef, where('partnerId', '==', partner.id)))))
+  return snapshots.flatMap((snapshot) => snapshot.docs.map(mapSnapshot))
 }
 
 export async function listAllPalletMovements() {
@@ -196,12 +201,12 @@ function timestampValue(value) {
   return value?.toMillis?.() ?? 0
 }
 
-export function getPalletAccountEntries(movements, closings, partnerId) {
+export function getPalletAccountEntries(movements, closings, partnerId, memberIds = [partnerId]) {
   const entries = [
     ...movements.map((movement) => ({
       ...movement,
       entryType: 'movement',
-      change: getPalletMovementChangeForPartner(movement, partnerId),
+      change: getPalletMovementChangeForPartner(movement, partnerId, memberIds),
       counterpartyId: getPalletMovementCounterpartyId(movement, partnerId),
     })),
     ...closings.map((closing) => ({ ...closing, entryType: 'closing', change: toNumber(closing.adjustment) })),
@@ -214,9 +219,9 @@ export function getPalletAccountEntries(movements, closings, partnerId) {
   })
 }
 
-export function summarizePalletAccount(movements, closings, partnerId) {
-  const entries = getPalletAccountEntries(movements, closings, partnerId)
-  const movementChanges = movements.map((movement) => getPalletMovementChangeForPartner(movement, partnerId))
+export function summarizePalletAccount(movements, closings, partnerId, memberIds = [partnerId]) {
+  const entries = getPalletAccountEntries(movements, closings, partnerId, memberIds)
+  const movementChanges = movements.map((movement) => getPalletMovementChangeForPartner(movement, partnerId, memberIds))
   const latestClosing = entries.filter((entry) => entry.entryType === 'closing').at(-1) ?? null
 
   return {

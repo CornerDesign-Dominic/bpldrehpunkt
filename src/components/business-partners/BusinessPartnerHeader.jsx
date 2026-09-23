@@ -14,6 +14,17 @@ function formatRankingValue(rating) {
   return rating?.score === null || rating?.score === undefined ? '-' : rating.value
 }
 
+function formatPartnerSince(value) {
+  const text = String(value).trim()
+  const germanDate = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/)
+  if (germanDate) return `${germanDate[1].padStart(2, '0')}.${germanDate[2].padStart(2, '0')}.${germanDate[3]}`
+
+  const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoDate) return `${isoDate[3]}.${isoDate[2]}.${isoDate[1]}`
+
+  return text
+}
+
 function PartnerHeaderTile({ ariaLabel, children, title, to, tone }) {
   const content = <><span className="partner-header__tile-heading"><span className="partner-header__tile-label">{title}</span>{to && <span className="partner-header__tile-chevron" aria-hidden="true"><ChevronIcon size={18} /></span>}</span>{children}</>
   return to
@@ -33,6 +44,7 @@ export default function BusinessPartnerHeader({ account, canViewCrm, canViewPall
   return <section className="partner-header" aria-labelledby="partner-header-title">
     <div className="partner-header__identity">
       <h1 id="partner-header-title">{partner.companyName || 'Geschäftspartner'}</h1>
+      {partner.dycosCreatedAt && <p className="partner-header__since">Partner seit (DyCoS): <strong>{formatPartnerSince(partner.dycosCreatedAt)}</strong></p>}
       <p>{getBusinessPartnerType(partner)}</p>
       <p className="partner-header__numbers">Debitor: <strong>{partner.debtorNumber || '—'}</strong><span aria-hidden="true">·</span>Kreditor: <strong>{partner.creditorNumber || '—'}</strong></p>
     </div>

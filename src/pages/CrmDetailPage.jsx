@@ -6,8 +6,9 @@ import BackLink from '../components/ui/BackLink.jsx'
 import CrmActivityPanel from '../components/crm/CrmActivityPanel.jsx'
 import PartnerHistoryPanel from '../components/crm/PartnerHistoryPanel.jsx'
 import CrmRatingPanel from '../components/crm/CrmRatingPanel.jsx'
-import { getBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartnerCreditLimit, updateBusinessPartnerCrmFields } from '../lib/businessPartners.js'
+import { getEffectiveBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartnerCreditLimit, updateBusinessPartnerCrmFields } from '../lib/businessPartners.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
+import { paymentTermText } from '../lib/paymentTerms.js'
 import { getPartnerEvaluationStatus, PARTNER_EVALUATION_STATUS_LABELS } from '../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../partner-evaluation/usePartnerEvaluationSettings.js'
 import '../styles/businessPartnerExtensions.css'
@@ -70,7 +71,7 @@ export default function CrmDetailPage() {
 
   useEffect(() => {
     let isCurrent = true
-    getBusinessPartner(partnerId)
+    getEffectiveBusinessPartner(partnerId)
       .then((partner) => { if (isCurrent) setResult({ partner, error: partner ? '' : 'Geschäftspartner nicht gefunden.' }) })
       .catch(() => { if (isCurrent) setResult({ partner: null, error: 'Geschäftspartner nicht gefunden.' }) })
     return () => { isCurrent = false }
@@ -84,15 +85,15 @@ export default function CrmDetailPage() {
   const refreshHistory = () => setHistoryVersion((current) => current + 1)
 
   return <div className="crm-detail-page">
-    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div></div><div className="crm-detail-header__actions"><BackLink to="/crm" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
+    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div></div><div className="crm-detail-header__actions"><BackLink to="/crm" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partner.id}`}>Zu den Stammdaten</Link></div></header>
     <section className="crm-current-overview" aria-label="Aktueller Stand">
       <div className="crm-current-overview__heading"><h3>Aktueller Stand</h3><span>Historische Änderungen stehen ausschließlich in der Partner-Historie.</span></div>
-      <div className="crm-current-metrics"><div><span>Kennzahlen</span><strong>—</strong></div><div><span>Zahlungsziel</span><strong>{partner.paymentTermDays ?? '—'}{partner.paymentTermDays === null || partner.paymentTermDays === undefined ? '' : ' Tage'}</strong></div><div><span>Bonität</span><strong>—</strong></div></div>
-      <CreditLimitEditor key={`credit-${partner.creditLimit}`} partnerId={partnerId} value={partner.creditLimit} actor={actor} canEdit={canEdit('crm')} settings={settings} onSaved={(creditLimit) => { setResult((current) => ({ ...current, partner: { ...current.partner, creditLimit } })); refreshHistory() }} />
-      <CrmStatusEditor key={`crm-${partner.crmStatus}-${partner.potential}`} partnerId={partnerId} partner={partner} actor={actor} canEdit={canEdit('crm')} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} />
+      <div className="crm-current-metrics"><div><span>Kennzahlen</span><strong>—</strong></div><div><span>Zahlungsziel</span><strong>{paymentTermText(partner) || '—'}</strong></div><div><span>Bonität</span><strong>—</strong></div></div>
+      <CreditLimitEditor key={`credit-${partner.creditLimit}`} partnerId={partner.id} value={partner.creditLimit} actor={actor} canEdit={canEdit('crm')} settings={settings} onSaved={(creditLimit) => { setResult((current) => ({ ...current, partner: { ...current.partner, creditLimit } })); refreshHistory() }} />
+      <CrmStatusEditor key={`crm-${partner.crmStatus}-${partner.potential}`} partnerId={partner.id} partner={partner} actor={actor} canEdit={canEdit('crm')} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} />
     </section>
-    <CrmRatingPanel partner={partner} partnerId={partnerId} onSaved={refreshHistory} canEdit={canEdit('crm')} />
-    <CrmActivityPanel partnerId={partnerId} onSaved={refreshHistory} canEdit={canEdit('crm')} />
-    <PartnerHistoryPanel partnerId={partnerId} refreshKey={historyVersion} />
+    <CrmRatingPanel partner={partner} partnerId={partner.id} onSaved={refreshHistory} canEdit={canEdit('crm')} />
+    <CrmActivityPanel partnerId={partner.id} onSaved={refreshHistory} canEdit={canEdit('crm')} />
+    <PartnerHistoryPanel partnerId={partner.id} refreshKey={historyVersion} />
   </div>
 }

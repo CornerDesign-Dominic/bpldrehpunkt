@@ -6,6 +6,7 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { createInkassoCase, INKASSO_CASE_STATUSES, inkassoDeadlinePresentation, isClosedInkassoCase, listInkassoCases } from '../lib/inkasso.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
+import { resolvePartnerInIndex } from '../lib/partnerCluster.js'
 
 export default function InkassoPage() {
   const { canEdit, canView } = usePermissions()
@@ -20,16 +21,26 @@ export default function InkassoPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
+  const displayedCases = useMemo(() => {
+    const byId = new Map(partners.map((partner) => [partner.id, partner]))
+    return cases.map((inkassoCase) => {
+      if (!inkassoCase.debtorPartnerId || !byId.has(inkassoCase.debtorPartnerId)) return inkassoCase
+      try {
+        const effective = resolvePartnerInIndex(byId, inkassoCase.debtorPartnerId)
+        return effective ? { ...inkassoCase, debtorName: effective.companyName || inkassoCase.debtorName } : inkassoCase
+      } catch { return inkassoCase }
+    })
+  }, [cases, partners])
   const filteredCases = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('de-DE')
-    return cases.filter((inkassoCase) => {
+    return displayedCases.filter((inkassoCase) => {
       const haystack = [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' ').toLocaleLowerCase('de-DE')
       const due = inkassoDeadlinePresentation(inkassoCase.nextDeadline)
       return (!needle || haystack.includes(needle))
         && (!status || inkassoCase.status === status)
         && (!criticalOnly || ['overdue', 'today', 'urgent', 'warning'].includes(due.kind))
     })
-  }, [cases, criticalOnly, search, status])
+  }, [criticalOnly, displayedCases, search, status])
   const currentCases = useMemo(() => filteredCases.filter((inkassoCase) => !isClosedInkassoCase(inkassoCase)), [filteredCases])
   const closedCases = useMemo(() => filteredCases.filter(isClosedInkassoCase), [filteredCases])
 
@@ -40,7 +51,7 @@ export default function InkassoPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([listInkassoCases(), editable && canView('masterData') ? listBusinessPartners() : Promise.resolve([])])
+    Promise.all([listInkassoCases(), canView('masterData') ? listBusinessPartners() : Promise.resolve([])])
       .then(([entries, businessPartners]) => { if (current) { setCases(entries); setPartners(businessPartners) } })
       .catch(() => { if (current) setError('Die Inkassofälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })
@@ -69,6 +80,6 @@ export default function InkassoPage() {
       </section>
     </div>
     }
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Inkassofall hinzufügen"><InkassoCaseForm partners={partners} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Inkassofall hinzufügen"><InkassoCaseForm partners={partners.filter((partner) => !partner.mergedIntoPartnerId)} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
   </div>
 }

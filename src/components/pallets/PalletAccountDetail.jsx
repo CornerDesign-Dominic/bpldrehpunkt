@@ -4,7 +4,7 @@ import ConfirmDialog from '../ui/ConfirmDialog.jsx'
 import BackLink from '../ui/BackLink.jsx'
 import { usePermissions } from '../../auth/usePermissions.js'
 import Toast from '../ui/Toast.jsx'
-import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
+import { getEffectiveBusinessPartner, getPartnerCluster, listBusinessPartners } from '../../lib/businessPartners.js'
 import { calculatePalletMovement, createPalletClosing, createPalletMovement, deletePalletClosing, deletePalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletClosing, updatePalletMovement } from '../../lib/palletAccounts.js'
 import PalletAccountOverviewCard from './PalletAccountOverviewCard.jsx'
 import PalletAccountPartnerCard from './PalletAccountPartnerCard.jsx'
@@ -20,6 +20,7 @@ function fetchAccountData(partnerId) {
 export default function PalletAccountDetail({ partnerId }) {
   const { canEdit } = usePermissions()
   const [partnerResult, setPartnerResult] = useState(null)
+  const [clusterIds, setClusterIds] = useState([partnerId])
   const [partners, setPartners] = useState([])
   const [movements, setMovements] = useState([])
   const [closings, setClosings] = useState([])
@@ -36,9 +37,10 @@ export default function PalletAccountDetail({ partnerId }) {
 
   useEffect(() => {
     let isCurrent = true
-    getBusinessPartner(partnerId)
+    getEffectiveBusinessPartner(partnerId)
       .then((partner) => { if (isCurrent) setPartnerResult({ partner, error: partner ? '' : 'Geschäftspartner nicht gefunden.' }) })
       .catch(() => { if (isCurrent) setPartnerResult({ partner: null, error: 'Geschäftspartner nicht gefunden.' }) })
+    getPartnerCluster(partnerId).then((cluster) => { if (isCurrent) setClusterIds(cluster.members.map((member) => member.id)) }).catch(() => { if (isCurrent) setAccountError('Partnerverbund konnte nicht geladen werden.') })
     listBusinessPartners().then((loadedPartners) => { if (isCurrent) setPartners(loadedPartners) }).catch(() => { if (isCurrent) setAccountError('Geschäftspartner für die Bewegungsauswahl konnten nicht geladen werden.') })
     fetchAccountData(partnerId)
       .then(([loadedMovements, loadedClosings]) => { if (isCurrent) { setMovements(loadedMovements); setClosings(loadedClosings) } })
@@ -46,15 +48,16 @@ export default function PalletAccountDetail({ partnerId }) {
     return () => { isCurrent = false }
   }, [partnerId])
 
-  const account = useMemo(() => summarizePalletAccount(movements, closings, partnerId), [closings, movements, partnerId])
+  const activePartnerId = partnerResult?.partner?.id || partnerId
+  const account = useMemo(() => summarizePalletAccount(movements, closings, activePartnerId, clusterIds), [activePartnerId, closings, clusterIds, movements])
   const movementCalculation = useMemo(() => calculatePalletMovement(movementForm), [movementForm])
   const closingQuantity = Number(closingForm.quantity) || 0
   const closingAdjustment = closingForm.direction === 'add' ? closingQuantity : closingForm.direction === 'subtract' ? closingQuantity * -1 : 0
   const closingBaseBalance = editingClosing ? account.balance - (Number(editingClosing.adjustment) || 0) : account.balance
   const newClosingBalance = closingBaseBalance + closingAdjustment
   const partnersById = useMemo(() => new Map(partners.map((partner) => [partner.id, partner])), [partners])
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.debtorNumber?.trim()), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.creditorNumber?.trim()), [partners])
   const selectedCustomer = partnersById.get(movementForm.customerId)
   const selectedCarrier = partnersById.get(movementForm.carrierId)
 
@@ -158,7 +161,7 @@ export default function PalletAccountDetail({ partnerId }) {
     try {
       const values = { ...closingForm, adjustment: closingAdjustment, previousBalance: closingBaseBalance, newBalance: newClosingBalance }
       if (editingClosing) await updatePalletClosing(editingClosing.id, values)
-      else await createPalletClosing(partnerId, values)
+      else await createPalletClosing(activePartnerId, values)
       await reloadAccount()
       closeActiveForm()
       setToast(editingClosing ? 'Kontoabschluss aktualisiert.' : 'Kontoabschluss gespeichert.')
@@ -199,9 +202,9 @@ export default function PalletAccountDetail({ partnerId }) {
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(deleteTarget)} title={deleteTarget?.type === 'movement' ? 'Palettenbewegung löschen?' : 'Kontoabschluss löschen?'} message={deleteTarget?.type === 'movement' ? 'Diese Palettenbewegung wird dauerhaft gelöscht.' : 'Dieser Kontoabschluss wird dauerhaft gelöscht.'} confirmLabel="Löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
-    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Stammdaten</Link></div>
+    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={`/kunden-unternehmer/${activePartnerId}`}>Stammdaten</Link></div>
     <PalletAccountPartnerCard partner={partner} />
-    <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={partnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
+    <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={activePartnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">
       {accountError && <p className="form-error">{accountError}</p>}
       {canEdit('pallets') && activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onDelete={requestMovementDelete} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}

@@ -67,7 +67,7 @@ export function createEmptyInsolvency() {
 }
 
 export async function listInsolvencies() {
-  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot)
+  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt && !entry.mergedIntoPartnerId)
 }
 
 export function insolvencyLossNet(claims, quotaPayments) {
@@ -85,7 +85,7 @@ export async function listInsolvenciesWithLossNet() {
 
 export async function getInsolvency(partnerId) {
   const snapshot = await getDoc(doc(db, INSOLVENCIES_COLLECTION, partnerId))
-  return snapshot.exists() ? mapSnapshot(snapshot) : null
+  return snapshot.exists() && !snapshot.data().splitArchivedAt && !snapshot.data().mergedIntoPartnerId ? mapSnapshot(snapshot) : null
 }
 
 export async function listInsolvencyPartners() {
@@ -166,23 +166,26 @@ export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
 export async function listInsolvencyClaims(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'claims'))).docs
     .map(mapSnapshot)
+    .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => left.invoiceNumber.localeCompare(right.invoiceNumber, 'de') || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyQuotaPayments(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'quotaPayments'))).docs
     .map(mapSnapshot)
+    .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyDeadlines(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'deadlines'))).docs
     .map(mapSnapshot)
+    .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyUpdates(partnerId) {
-  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt)
 }
 
 export async function createInsolvencyClaim(insolvency, values, actor) {

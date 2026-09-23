@@ -42,15 +42,15 @@ export default function PartnerHistoryPanel({ partnerId, refreshKey }) {
   }, [partnerId, refreshKey])
 
   const entries = [...history, ...legacyActivities.map((activity) => ({
-    id: `legacy-${activity.id}`,
+    id: `legacy-${activity.originPartnerId || partnerId}/${activity.id}`,
     category: 'contact',
     action: 'created',
     summary: `${typeLabels.get(activity.type) || 'Aktivität'}: ${activity.text || '—'}`,
     createdAt: activity.createdAt,
     createdByName: activity.createdByName ?? null,
     metadata: { ...activity, date: activity.date },
-  })), ...legacyRatings.filter((rating) => !history.some((entry) => entry.metadata?.ratingId === rating.id)).map((rating) => ({
-    id: `legacy-rating-${rating.id}`,
+  })), ...legacyRatings.filter((rating) => !history.some((entry) => entry.originPartnerId === rating.originPartnerId && entry.metadata?.ratingId === rating.id)).map((rating) => ({
+    id: `legacy-rating-${rating.originPartnerId || partnerId}/${rating.id}`,
     category: 'rating',
     action: 'created',
     summary: `${rating.role === 'customer' ? 'Kundenbewertung' : 'Unternehmerbewertung'} mit ${formatRatingScore(rating.overallScore)} / 5 hinzugefügt`,

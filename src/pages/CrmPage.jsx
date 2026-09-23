@@ -34,8 +34,8 @@ export default function CrmPage() {
 
   useEffect(() => {
     listBusinessPartners()
-      .then((businessPartners) => Promise.all([businessPartners, listCurrentCrmRatings(businessPartners.map((partner) => partner.id))]))
-      .then(([businessPartners, currentRatings]) => { setPartners(businessPartners); setRatings(currentRatings) })
+      .then((businessPartners) => Promise.all([businessPartners, listCurrentCrmRatings(businessPartners.filter((partner) => !partner.mergedIntoPartnerId).map((partner) => partner.id), businessPartners)]))
+      .then(([businessPartners, currentRatings]) => { setPartners(businessPartners.filter((partner) => !partner.mergedIntoPartnerId)); setRatings(currentRatings) })
       .catch(() => setError('Die CRM-Partnerübersicht konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.'))
       .finally(() => setLoading(false))
   }, [])

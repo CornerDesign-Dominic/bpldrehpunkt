@@ -27,8 +27,8 @@ export default function TodoQuickEditModal({ canViewDamageCases = false, canView
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const departments = useMemo(() => [...new Set(users.map((user) => user.department?.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'de')), [users])
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.debtorNumber?.trim()), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.creditorNumber?.trim()), [partners])
   const matchingDamageCases = useMemo(() => {
     const needle = damageCaseSearch.trim().toLocaleLowerCase('de-DE')
     return damageCases.filter((damageCase) => !needle || [damageCase.caseNumber, damageCase.title, damageCase.transportReference, damageCase.bplInsuranceCaseNumber, damageCase.customerInsuranceNumber, damageCase.contractorInsuranceCaseNumber].filter(Boolean).join(' ').toLocaleLowerCase('de-DE').includes(needle)).sort((left, right) => damageCaseLabel(left).localeCompare(damageCaseLabel(right), 'de'))

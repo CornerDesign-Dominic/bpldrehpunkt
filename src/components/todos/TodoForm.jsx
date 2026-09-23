@@ -38,8 +38,8 @@ export default function TodoForm({ currentUserId, fixedLink = null, initialTodo,
     else setForm((current) => ({ ...current, carrierId: partner?.id || '', carrierName: partner?.companyName || '' }))
   }
 
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.debtorNumber?.trim()), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.creditorNumber?.trim()), [partners])
 
   async function submit(event) {
     event.preventDefault()

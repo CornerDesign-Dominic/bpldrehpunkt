@@ -11,6 +11,8 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { createHistoryPayload } from './partnerHistory.js'
+import { paymentTermText } from './paymentTerms.js'
+export { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
 export const BUSINESS_PARTNER_STATUSES = [
@@ -31,15 +33,12 @@ function normalizeOptionalNonNegativeNumber(value, fieldName) {
   return number
 }
 
-function normalizeOptionalNonNegativeInteger(value, fieldName) {
-  const number = normalizeOptionalNonNegativeNumber(value, fieldName)
-  if (number !== null && !Number.isInteger(number)) throw new Error(`Ungültiger Wert für ${fieldName}`)
-  return number
-}
+const hasReference = (value) => Boolean(value !== null && value !== undefined && String(value).trim())
 
-export function getBusinessPartnerType({ debtorNumber, creditorNumber }) {
-  const hasDebtorNumber = Boolean(debtorNumber?.trim())
-  const hasCreditorNumber = Boolean(creditorNumber?.trim())
+export function getBusinessPartnerType({ debtorNumber, creditorNumber, dycosReferences = {} }) {
+  const references = dycosReferences || {}
+  const hasDebtorNumber = hasReference(debtorNumber) || (references.debtorNumbers || []).some(hasReference)
+  const hasCreditorNumber = hasReference(creditorNumber) || (references.creditorNumbers || []).some(hasReference)
 
   if (hasDebtorNumber && hasCreditorNumber) return 'Kunde & Unternehmer'
   if (hasDebtorNumber) return 'Kunde'
@@ -92,7 +91,7 @@ function createPayload(values) {
     dplNumber: trimValue(values.dplNumber),
     pakiNumber: trimValue(values.pakiNumber),
     status: values.status,
-    paymentTermDays: normalizeOptionalNonNegativeInteger(values.paymentTermDays, 'Zahlungsziel'),
+    paymentTermDays: paymentTermText(values),
     creditNoteProcedure: Boolean(values.creditNoteProcedure),
     creditLimit: normalizeOptionalNonNegativeNumber(values.creditLimit, 'Kreditlimit'),
     palletNote: trimValue(values.palletNote),
@@ -123,6 +122,21 @@ export async function getBusinessPartner(partnerId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
+export async function getEffectiveBusinessPartner(partnerId) {
+  if (!partnerId) return null
+  const visited = new Set()
+  let current = await getBusinessPartner(partnerId)
+  while (current?.mergedIntoPartnerId) {
+    if (visited.has(current.id) || current.mergedIntoPartnerId === current.id) throw new Error('Zyklische Partner-Weiterleitung.')
+    visited.add(current.id)
+    current = await getBusinessPartner(current.mergedIntoPartnerId)
+    if (!current) throw new Error('Weiterleitungsziel nicht vorhanden.')
+  }
+  if (current?.status === 'merged') throw new Error('Archivierter Partner ohne Zielpartner.')
+  return current
+}
+
+
 export async function createBusinessPartner(values) {
   const partnerRef = doc(businessPartnersRef)
   await setDoc(partnerRef, {
@@ -151,7 +165,7 @@ function createBusinessPartnerHistoryEntries(previous, next, actor) {
   if (changed(previous.potential, next.potential)) entry('crm', `Potenzial von ${previous.potential || '—'} auf ${next.potential || '—'} geändert`, { field: 'potential', oldValue: previous.potential || null, newValue: next.potential || null })
   if (changed(previous.address, next.address)) entry('masterData', 'Adresse geändert', { field: 'address' })
   if (changed(previous.contacts, next.contacts)) entry('contactPerson', 'Ansprechpartner geändert', { field: 'contacts' })
-  if (changed(previous.paymentTermDays, next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${previous.paymentTermDays ?? '—'} auf ${next.paymentTermDays ?? '—'} Tage geändert`, { field: 'paymentTermDays', oldValue: previous.paymentTermDays ?? null, newValue: next.paymentTermDays ?? null })
+  if (changed(paymentTermText(previous), next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${paymentTermText(previous) || '—'} auf ${next.paymentTermDays || '—'} geändert`, { field: 'paymentTermDays', oldValue: paymentTermText(previous) || null, newValue: next.paymentTermDays || null })
   if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
 
   const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'dplNumber', 'pakiNumber', 'status', 'contact', 'companyData', 'portals', 'palletNote']

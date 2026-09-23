@@ -6,12 +6,16 @@ import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { requireActiveProfile, requireRole } from './access.js'
+import { importTransportOrdersHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
+import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
+import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
+import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
+const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -968,6 +972,26 @@ export { refreshSchoolHolidayData } from './schoolHolidays.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export { createInkassoCase } from './inkassoCases.js'
+export const previewTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewTransportOrderImportHandler)
+export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
+export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
+export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)
+export const processCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCustomerImportHandler)
+export const listCustomerImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCustomerImportQueueHandler)
+export const claimCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCustomerImportRowHandler)
+export const releaseCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCustomerImportRowHandler)
+export const approveCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, approveCustomerImportRowHandler)
+export const mergeCustomerImportPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeCustomerImportPartnersHandler)
+export const processCarrierImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCarrierImportHandler)
+export const listCarrierImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCarrierImportQueueHandler)
+export const claimCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCarrierImportRowHandler)
+export const releaseCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCarrierImportRowHandler)
+export const approveCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, approveCarrierImportRowHandler)
+export const mergeCarrierImportPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeCarrierImportPartnersHandler)
+export const prepareManualPartnerMerge = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, prepareManualPartnerMergeHandler)
+export const mergeManualPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeManualPartnersHandler)
+export const previewPartnerMergeReversal = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewPartnerMergeReversalHandler)
+export const separatePartnerMerge = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, separatePartnerMergeHandler)
 export {
   recordInkassoCaseCreated,
   recordInkassoCaseUpdated,

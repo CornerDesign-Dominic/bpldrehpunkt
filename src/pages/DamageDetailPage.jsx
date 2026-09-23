@@ -23,6 +23,7 @@ import { listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { resolvePartnerInIndex } from '../lib/partnerCluster.js'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -118,13 +119,13 @@ export default function DamageDetailPage() {
   const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'damageCaseId', caseId: damageCaseId, profile, user })
 
   async function load() {
-    const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
     setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setDeadlines(damageDeadlines); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
       .then(([entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setDeadlines(damageDeadlines); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false) } })
       .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
@@ -132,6 +133,10 @@ export default function DamageDetailPage() {
   }, [canViewMasterData, damageCaseId, editable, setTitle])
 
   const usersById = useMemo(() => new Map(users.map((entry) => [entry.id, entry])), [users])
+  const partnersById = useMemo(() => new Map(partners.map((entry) => [entry.id, entry])), [partners])
+  const effectivePartner = (id) => {
+    try { return resolvePartnerInIndex(partnersById, id) } catch { return null }
+  }
 
   async function saveSection(section, changes) {
     setError('')
@@ -293,8 +298,8 @@ export default function DamageDetailPage() {
         <aside className="todo-detail-sidebar">
           <CollapsibleDetailCard title="Allgemein" onEdit={editable ? () => setEditing('general') : null} primaryDetails={<><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail><Detail label="Nächste Frist"><span className={dueClass(nextDeadline)}>{dueValue}</span></Detail><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></>} secondaryDetails={<><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Aktennummer BPL-Versicherung">{damageCase.bplInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.damageType, damageCase.damageDate, damageCase.bplInsuranceCaseNumber]} />
           <section><DetailSectionHeading onEdit={editable ? () => setEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="TA-Nummer">{damageCase.transportReference}</Detail></dl></section>
-          <CollapsibleDetailCard title="Kunde & Anspruch" onEdit={editable ? () => setEditing('claimant') : null} primaryDetails={<Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.claimantPartnerId}`}>{damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail>} secondaryDetails={<><Detail label="Versicherung Kunde">{damageCase.customerInsurance}</Detail><Detail label="Vorgangsnummer Kunde">{damageCase.customerInsuranceNumber}</Detail></>} secondaryValues={[damageCase.customerInsurance, damageCase.customerInsuranceNumber]} />
-          <CollapsibleDetailCard title="Unternehmer & Versicherung" onEdit={editable ? () => setEditing('contractor') : null} primaryDetails={<><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.contractorPartnerId}`}>{damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail></>} secondaryDetails={<><Detail label="Versicherer UTN">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.contractorInsurance, damageCase.contractorInsuranceCaseNumber]} />
+          <CollapsibleDetailCard title="Kunde & Anspruch" onEdit={editable ? () => setEditing('claimant') : null} primaryDetails={<Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${effectivePartner(damageCase.claimantPartnerId)?.id || damageCase.claimantPartnerId}`}>{effectivePartner(damageCase.claimantPartnerId)?.companyName || damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail>} secondaryDetails={<><Detail label="Versicherung Kunde">{damageCase.customerInsurance}</Detail><Detail label="Vorgangsnummer Kunde">{damageCase.customerInsuranceNumber}</Detail></>} secondaryValues={[damageCase.customerInsurance, damageCase.customerInsuranceNumber]} />
+          <CollapsibleDetailCard title="Unternehmer & Versicherung" onEdit={editable ? () => setEditing('contractor') : null} primaryDetails={<><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${effectivePartner(damageCase.contractorPartnerId)?.id || damageCase.contractorPartnerId}`}>{effectivePartner(damageCase.contractorPartnerId)?.companyName || damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail></>} secondaryDetails={<><Detail label="Versicherer UTN">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.contractorInsurance, damageCase.contractorInsuranceCaseNumber]} />
           <CollapsibleDetailCard title="Haftungsgrundlage" onEdit={editable ? () => setEditing('liability') : null} primaryDetails={<><Detail label="Rechtsgrundlage">{labelFor(DAMAGE_LEGAL_BASES, damageCase.legalBasis)}</Detail><Detail label="Bemessungs-/Haftungsgrenze">{formatCurrency(damageCase.liabilityLimit)}</Detail></>} secondaryDetails={<><Detail label="Gewicht der Ware">{formatNumber(damageCase.cargoWeightKg, ' kg')}</Detail><Detail label="Versicherungsrelevanz">{labelFor(DAMAGE_INSURANCE_RELEVANCE, damageCase.insuranceRelevance)}</Detail></>} secondaryValues={[damageCase.cargoWeightKg, damageCase.insuranceRelevance]} />
           <section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Erstellt von">{damageCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(damageCase.createdAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(damageCase.updatedAt)}</Detail></dl></section>
         </aside>

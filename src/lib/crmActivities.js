@@ -1,6 +1,7 @@
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { BUSINESS_PARTNERS_COLLECTION } from './businessPartners.js'
 import { db } from './firebase.js'
+import { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const ACTIVITY_TYPES = [
   { value: 'phone', label: 'Telefonat' },
@@ -35,10 +36,10 @@ function createPayload(values) {
 }
 
 export async function listCrmActivities(partnerId) {
-  const snapshot = await getDocs(query(activitiesRef(partnerId), orderBy('date', 'desc')))
-
-  return snapshot.docs
-    .map(mapSnapshot)
+  const cluster = await getPartnerCluster(partnerId)
+  const snapshots = await Promise.all(cluster.members.map((partner) => getDocs(query(activitiesRef(partner.id), orderBy('date', 'desc')))))
+  return snapshots.flatMap((snapshot, index) => snapshot.docs.map((entry) => ({ ...mapSnapshot(entry), originPartnerId: cluster.members[index].id })))
+    .filter((activity) => !activity.splitArchivedAt)
     .sort((left, right) => (
       right.date.localeCompare(left.date)
       || timestampValue(right.createdAt) - timestampValue(left.createdAt)

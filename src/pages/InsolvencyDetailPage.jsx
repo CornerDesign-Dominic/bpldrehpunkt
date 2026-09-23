@@ -19,6 +19,7 @@ import { createInsolvencyDocument, deleteInsolvencyDocument, getInsolvencyDocume
 import { createInsolvencyClaim, createInsolvencyDeadline, createInsolvencyQuotaPayment, deleteInsolvencyClaim, deleteInsolvencyDeadline, deleteInsolvencyQuotaPayment, getInsolvency, insolvencyDeadlinePresentation, listInsolvencyClaims, listInsolvencyDeadlines, listInsolvencyQuotaPayments, listInsolvencyUpdates, updateInsolvency, updateInsolvencyClaim, updateInsolvencyDeadline, updateInsolvencyDescription, updateInsolvencyQuotaPayment } from '../lib/insolvencies.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
+import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
 
 function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
@@ -37,6 +38,7 @@ export default function InsolvencyDetailPage() {
   const canCreateTodos = canEdit('todos')
   const canViewTodos = canView('todos')
   const [insolvency, setInsolvency] = useState(null)
+  const [effectivePartner, setEffectivePartner] = useState(null)
   const [documents, setDocuments] = useState([])
   const [claims, setClaims] = useState([])
   const [quotaPayments, setQuotaPayments] = useState([])
@@ -56,6 +58,13 @@ export default function InsolvencyDetailPage() {
   const [toast, setToast] = useState('')
   const [showTodoCreate, setShowTodoCreate] = useState(false)
   const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'insolvencyId', caseId: partnerId, profile, user })
+
+  useEffect(() => {
+    if (!canViewMasterData) return undefined
+    let current = true
+    getEffectiveBusinessPartner(partnerId).then((partner) => { if (current) setEffectivePartner(partner) }).catch(() => { if (current) setEffectivePartner(null) })
+    return () => { current = false }
+  }, [canViewMasterData, partnerId])
 
   async function load() {
     const [entry, entries, insolvencyClaims, insolvencyQuotaPayments, insolvencyDeadlines, insolvencyHistory] = await Promise.all([getInsolvency(partnerId), listInsolvencyDocuments(partnerId), listInsolvencyClaims(partnerId), listInsolvencyQuotaPayments(partnerId), listInsolvencyDeadlines(partnerId), listInsolvencyUpdates(partnerId)])
@@ -212,7 +221,7 @@ export default function InsolvencyDetailPage() {
           <InsolvencyClaimsOverview canEdit={editable} claims={claims} quotaPayments={quotaPayments} loading={financialLoading} onDeleteClaim={deleteClaim} onDeleteQuotaPayment={deleteQuotaPayment} onSaveClaim={saveClaim} onSaveQuotaPayment={saveQuotaPayment} />
           <section className="todo-updates todo-history" aria-labelledby="insolvency-history-title"><div className="todo-updates__heading"><h3 id="insolvency-history-title">Historie</h3><span>{history.length}</span></div>{historyLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : history.length ? <ol className="todo-updates__list">{history.map((entry) => <li key={entry.id} className="todo-updates__item todo-updates__item--system"><div><strong>{entry.createdByName}</strong><span>System · {formatTimestamp(entry.createdAt)}</span></div><p>{entry.text}</p></li>)}</ol> : <p className="todo-updates__empty">Noch keine Historieneinträge.</p>}</section>
         </main>
-        <aside className="todo-detail-sidebar"><section><div className="todo-detail-section-heading"><h3>Allgemein</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('general')} aria-label="Allgemeine Falldaten bearbeiten" title="Allgemeine Falldaten bearbeiten"><EditIcon size={14} /></button>}</div><dl><Detail label="Unternehmen">{canViewMasterData ? <Link to={`/kunden-unternehmer/${insolvency.partnerId}`}>{insolvency.partnerName}</Link> : insolvency.partnerName}</Detail><Detail label="Bekannt geworden am">{formatDate(insolvency.knownDate)}</Detail><Detail label="Nächste Frist">{nextDeadline ? <span className={deadlineClass(nextDeadline)}>{insolvencyDeadlinePresentation(nextDeadline).label} · {formatDate(nextDeadline.date)}</span> : '—'}</Detail></dl></section><section><div className="todo-detail-section-heading"><h3>Gerichtliche Angaben</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('general')} aria-label="Gerichtliche Angaben bearbeiten" title="Gerichtliche Angaben bearbeiten"><EditIcon size={14} /></button>}</div><dl><Detail label="Insolvenzeröffnung">{formatDate(insolvency.insolvencyDate)}</Detail><Detail label="Aktenzeichen Gericht">{insolvency.courtReference}</Detail><Detail label="Gerichtsstand">{insolvency.courtVenue}</Detail></dl></section><section className="todo-detail-system"><div className="todo-detail-section-heading"><h3>Systemdaten</h3></div><dl><Detail label="Angelegt am">{formatTimestamp(insolvency.createdAt)}</Detail><Detail label="Geändert am">{formatTimestamp(insolvency.updatedAt)}</Detail></dl></section></aside>
+        <aside className="todo-detail-sidebar"><section><div className="todo-detail-section-heading"><h3>Allgemein</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('general')} aria-label="Allgemeine Falldaten bearbeiten" title="Allgemeine Falldaten bearbeiten"><EditIcon size={14} /></button>}</div><dl><Detail label="Unternehmen">{canViewMasterData ? <Link to={`/kunden-unternehmer/${effectivePartner?.id || insolvency.partnerId}`}>{effectivePartner?.companyName || insolvency.partnerName}</Link> : insolvency.partnerName}</Detail><Detail label="Bekannt geworden am">{formatDate(insolvency.knownDate)}</Detail><Detail label="Nächste Frist">{nextDeadline ? <span className={deadlineClass(nextDeadline)}>{insolvencyDeadlinePresentation(nextDeadline).label} · {formatDate(nextDeadline.date)}</span> : '—'}</Detail></dl></section><section><div className="todo-detail-section-heading"><h3>Gerichtliche Angaben</h3>{editable && <button className="todo-detail-section-edit" type="button" onClick={() => setEditing('general')} aria-label="Allgemeine Falldaten bearbeiten" title="Allgemeine Falldaten bearbeiten"><EditIcon size={14} /></button>}</div><dl><Detail label="Insolvenzeröffnung">{formatDate(insolvency.insolvencyDate)}</Detail><Detail label="Aktenzeichen Gericht">{insolvency.courtReference}</Detail><Detail label="Gerichtsstand">{insolvency.courtVenue}</Detail></dl></section><section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Angelegt am">{formatTimestamp(insolvency.createdAt)}</Detail><Detail label="Geändert am">{formatTimestamp(insolvency.updatedAt)}</Detail></dl></section></aside>
       </div>
     </div>
   </>

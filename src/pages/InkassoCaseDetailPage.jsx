@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import InkassoCaseEditModal from '../components/inkasso/InkassoCaseEditModal.jsx'
 import InkassoDeadlinesCard from '../components/inkasso/InkassoDeadlinesCard.jsx'
 import InkassoInvoicesCard from '../components/inkasso/InkassoInvoicesCard.jsx'
@@ -20,6 +20,7 @@ import { addInkassoCaseUpdate, createInkassoCaseDeadline, createInkassoCaseInvoi
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
+import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
 
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
 function hasValue(value) { return value !== null && value !== undefined && value !== '' }
@@ -40,6 +41,7 @@ export default function InkassoCaseDetailPage() {
   const canViewTodos = canView('todos')
   const canViewMasterData = canView('masterData')
   const [inkassoCase, setInkassoCase] = useState(null)
+  const [effectivePartnerResult, setEffectivePartnerResult] = useState({ partnerId: '', data: null })
   const [updates, setUpdates] = useState([])
   const [historyEntries, setHistoryEntries] = useState([])
   const [documents, setDocuments] = useState([])
@@ -64,6 +66,13 @@ export default function InkassoCaseDetailPage() {
   const [toast, setToast] = useState('')
   const [showTodoCreate, setShowTodoCreate] = useState(false)
   const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'inkassoCaseId', caseId, profile, user })
+
+  useEffect(() => {
+    let current = true
+    if (!canViewMasterData || !inkassoCase?.debtorPartnerId) return undefined
+    getEffectiveBusinessPartner(inkassoCase.debtorPartnerId).then((partner) => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: partner }) }).catch(() => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: null }) })
+    return () => { current = false }
+  }, [canViewMasterData, inkassoCase?.debtorPartnerId])
 
   async function load() {
     const [entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseDeadlines, caseMovements] = await Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseDeadlines(caseId), listInkassoCaseMovements(caseId)])
@@ -138,6 +147,7 @@ export default function InkassoCaseDetailPage() {
   if (loading) return <p className="page-state">Inkassofall wird geladen …</p>
   if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><BackLink to="/inkasso" /></section>
   if (!inkassoCase) return null
+  const effectivePartner = effectivePartnerResult.partnerId === inkassoCase.debtorPartnerId ? effectivePartnerResult.data : null
   const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' · ') || 'Inkassofall', values: { carrierId: inkassoCase.debtorPartnerId || '', carrierName: inkassoCase.debtorName || '' } }
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
@@ -169,7 +179,7 @@ export default function InkassoCaseDetailPage() {
         <aside className="todo-detail-sidebar">
           <InformationSection title="Allgemein" values={allInformationValues}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
           <InformationSection title="Inkassodaten" values={[inkassoCase.collectionAgency, inkassoCase.collectionReference, inkassoCase.createdAt]} onEdit={editable ? () => setEditing('collection') : null}><Detail label="Inkassounternehmen">{inkassoCase.collectionAgency}</Detail><Detail label="Aktenzeichen">{inkassoCase.collectionReference}</Detail><Detail label="Inkasso eröffnet am">{formatTimestamp(inkassoCase.createdAt)}</Detail></InformationSection>
-          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{inkassoCase.debtorName}</Detail></InformationSection>
+          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{canViewMasterData && effectivePartner ? <Link to={`/kunden-unternehmer/${encodeURIComponent(effectivePartner.id)}`}>{effectivePartner.companyName || inkassoCase.debtorName}</Link> : inkassoCase.debtorName}</Detail></InformationSection>
           <InformationSection title="Systemdaten" values={[inkassoCase.createdByName, inkassoCase.createdAt, inkassoCase.updatedByName, inkassoCase.updatedAt]}><Detail label="Erstellt von">{inkassoCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail><Detail label="Zuletzt geändert von">{inkassoCase.updatedByName}</Detail><Detail label="Zuletzt geändert am">{formatTimestamp(inkassoCase.updatedAt)}</Detail></InformationSection>
         </aside>
       </div>

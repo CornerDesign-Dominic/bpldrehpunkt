@@ -17,7 +17,7 @@ function documentFailure(stage, error) {
 
 export async function listInsolvencyDocuments(partnerId) {
   const snapshot = await getDocs(collection(db, 'insolvencies', partnerId, 'documents'))
-  return snapshot.docs.map(mapSnapshot).sort((left, right) => timestampValue(right.updatedAt || right.createdAt) - timestampValue(left.updatedAt || left.createdAt))
+  return snapshot.docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt).sort((left, right) => timestampValue(right.updatedAt || right.createdAt) - timestampValue(left.updatedAt || left.createdAt))
 }
 
 export async function createInsolvencyDocument(partnerId, values, file, uploader = {}) {
