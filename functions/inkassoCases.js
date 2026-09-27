@@ -1,6 +1,9 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
+import { caseTransportLinkId } from './shared/caseTransportLinks.js'
+import { businessPartnerRoles } from './shared/businessPartnerRoles.js'
 
 const region = 'europe-west3'
 const maximumInvoiceCount = 50
@@ -39,7 +42,7 @@ async function actor(request) {
   const profile = await requireActiveProfile(request)
   if (!inkassoPermission(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zum Anlegen von Inkassofällen.')
   const name = [profile.firstName, profile.lastName].filter((value) => typeof value === 'string' && value.trim()).join(' ').trim()
-  return { id: request.auth.uid, name: name || profile.email || 'Unbekannt' }
+  return { id: request.auth.uid, name: name || profile.email || 'Unbekannt', profile }
 }
 
 function berlinYear() {
@@ -67,6 +70,22 @@ function optionalPartnerRole(value) {
   return role || null
 }
 
+function optionalTransportOrderId(value) {
+  const id = cleanText(value)
+  if (id.includes('/') || id.includes('|')) throw new HttpsError('invalid-argument', 'Der Transportauftrag ist ungültig.')
+  return id || null
+}
+
+export function inkassoPartnerSnapshot(partner, role) {
+  if (!businessPartnerRoles(partner)[role] || typeof partner?.companyName !== 'string' || !partner.companyName.trim()) return null
+  const primaryNumber = role === 'customer' ? partner.debtorNumber : partner.creditorNumber
+  return { debtorName: partner.companyName.trim(), debtorNumber: cleanText(primaryNumber) || null }
+}
+
+function canViewTransportOrders(profile) {
+  return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.transportOrders)
+}
+
 export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async (request) => {
   const currentActor = await actor(request)
   const data = request.data || {}
@@ -75,7 +94,9 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
   const collectionReference = optionalText(data.collectionReference, 240, 'Das Aktenzeichen des Inkassounternehmens')
   const debtorPartnerId = optionalPartnerId(data.debtorPartnerId)
   const debtorPartnerRole = optionalPartnerRole(data.debtorPartnerRole)
+  const transportOrderId = optionalTransportOrderId(data.transportOrderId)
   if (!debtorPartnerId || !debtorPartnerRole) throw new HttpsError('invalid-argument', 'Bitte ein Unternehmen auswählen.')
+  if (transportOrderId && !canViewTransportOrders(currentActor.profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den Transportauftrag.')
   const invoices = invoicesFrom(data.invoices)
   const year = berlinYear()
   const database = getFirestore()
@@ -83,6 +104,8 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
   const caseRef = database.collection('inkassoCases').doc()
 
   await database.runTransaction(async (transaction) => {
+    const transportOrder = transportOrderId ? await transaction.get(database.doc(`transportOrders/${transportOrderId}`)) : null
+    if (transportOrderId && !transportOrder.exists) throw new HttpsError('not-found', 'Der Transportauftrag ist nicht mehr verfügbar.')
     const counter = await transaction.get(counterRef)
     let lastNumber
     if (counter.exists) {
@@ -101,12 +124,18 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
     if (debtorPartnerId) {
       const partner = await transaction.get(database.doc(`businessPartners/${debtorPartnerId}`))
       const partnerData = partner.data()
-      const partnerNumber = debtorPartnerRole === 'customer' ? partnerData?.debtorNumber : partnerData?.creditorNumber
-      if (!partner.exists || !debtorPartnerRole || typeof partnerData?.companyName !== 'string' || !partnerData.companyName.trim() || typeof partnerNumber !== 'string' || !partnerNumber.trim()) {
+      const snapshot = partner.exists ? inkassoPartnerSnapshot(partnerData, debtorPartnerRole) : null
+      if (!snapshot) {
+        logger.warn('Inkassofall abgelehnt: Geschäftspartner oder angeforderte Rolle nicht verfügbar.', {
+          partnerId: debtorPartnerId,
+          requestedRole: debtorPartnerRole,
+          partnerExists: partner.exists,
+          roles: partner.exists ? businessPartnerRoles(partnerData) : null,
+        })
         throw new HttpsError('invalid-argument', 'Der ausgewählte Geschäftspartner ist nicht verfügbar.')
       }
-      debtorName = partnerData.companyName.trim()
-      debtorNumber = partnerNumber.trim()
+      debtorName = snapshot.debtorName
+      debtorNumber = snapshot.debtorNumber
     }
 
     const nextNumber = lastNumber + 1
@@ -176,6 +205,12 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
       lastNumber: nextNumber,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true })
+    if (transportOrderId) {
+      transaction.set(database.doc(`caseTransportOrderLinks/${caseTransportLinkId('inkasso', caseRef.id, transportOrderId)}`), {
+        caseType: 'inkasso', caseId: caseRef.id, transportOrderId,
+        createdAt: FieldValue.serverTimestamp(), createdByUserId: currentActor.id, createdByName: currentActor.name,
+      })
+    }
   })
 
   return { caseId: caseRef.id }

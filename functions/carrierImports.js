@@ -6,6 +6,7 @@ import { projectAcceptedCustomerImportRow, reviewedCustomerImportResult } from '
 import { hasPartnerMergeAccess } from './partnerMerges.js'
 import { partnerMergePreview } from './partnerMergeDecisions.js'
 import { carrierActions, carrierAdditions, carrierDecisionDetails, carrierIdentity, carrierPayload, carrierReadPath, carrierReviewId, hasCarrierImportAccess, sameCarrierValue } from './carrierImportModel.js'
+import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 
 const text = (value) => value === null || value === undefined ? '' : String(value).trim()
 const actorName = (profile) => [text(profile?.firstName), text(profile?.lastName)].filter(Boolean).join(' ') || text(profile?.email) || 'Unbekannt'
@@ -71,8 +72,8 @@ export async function processCarrierImportHandler(request) {
   const fileName = text(request.data?.fileName)
   const rows = Array.isArray(request.data?.rows) ? request.data.rows.map(cleanRow) : []
   if (!fileName || !rows.length) throw new HttpsError('invalid-argument', 'Keine Unternehmer-CSV-Zeilen vorhanden.')
-  const db = getFirestore(); const runRef = db.collection(runCollection).doc()
-  const snapshots = await db.collection('businessPartners').get(); const partners = snapshots.docs.map(partner)
+  const db = getFirestore(); const [catalogSnapshot, partnerSnapshot] = await Promise.all([db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get(), db.collection('businessPartners').get()]); const ruleCatalog = catalogSnapshot.exists ? normalizeShipmentTrackingRuleCatalog(catalogSnapshot.data()) : fallbackShipmentTrackingRuleCatalog(); const runRef = db.collection(runCollection).doc()
+  const partners = partnerSnapshot.docs.map(partner)
   const seen = new Set(); const openIds = new Set(); const counts = { automaticallyAccepted: 0, open: 0, errors: 0 }; const accepted = []
   await runRef.set({ id: runRef.id, source: 'dycosCarrierImport', fileName, importedAt: FieldValue.serverTimestamp(), importedByUserId: request.auth.uid, importedByName: actorName(profile), status: 'processing' })
   for (const row of rows) {
@@ -96,7 +97,7 @@ export async function processCarrierImportHandler(request) {
     }
     const existing = found.partner
     const existingBefore = existing ? { creditorNumber: existing.creditorNumber, debtorNumber: existing.debtorNumber, dycosReferences: { ...(existing.dycosReferences || {}) } } : null
-    const payload = carrierPayload(row, runRef.id, FieldValue.serverTimestamp())
+    const payload = carrierPayload(row, runRef.id, FieldValue.serverTimestamp(), ruleCatalog)
     const additions = existing ? carrierAdditions(existing, row) : { patch: {}, conflicts: [] }
     const details = carrierDecisionDetails(row, additions, existing)
     const needsReview = details.comparisons.length > 0 || details.reasons.length > 0

@@ -4,15 +4,19 @@ import { Link } from 'react-router-dom'
 import { CheckIcon, CloseIcon, CopyIcon, EditIcon, TrashIcon } from '../icons.jsx'
 import Toast from '../ui/Toast.jsx'
 import { BUSINESS_PARTNER_STATUSES, createEmptyBusinessPartner, normalizePartnerPortal } from '../../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../../lib/businessPartnerLinks.js'
 import { listMergedPartnerSources } from '../../lib/partnerHistory.js'
 import { previewPartnerMergeReversal, separatePartnerMerge } from '../../lib/manualPartnerMerges.js'
 import { partnerMergeReversalAction, partnerReferenceNumbers } from '../../lib/partnerReferencePresentation.js'
 import { paymentTermText } from '../../lib/paymentTerms.js'
+import { crmIndustryValue } from '../../lib/crmIndustry.js'
+import { shipmentTrackingPolicyCardState } from '../../lib/shipmentTrackingPolicyPresentation.js'
+import { normalizeShipmentTrackingPolicy } from '../../lib/shipmentTrackingPolicy.js'
 import '../../styles/businessPartnerExtensions.css'
 
 const departments = ['Geschäftsführung', 'Disposition', 'Einkauf', 'Verkauf', 'Logistik', 'Lager', 'Buchhaltung', 'Finanzbuchhaltung', 'Rechnungswesen', 'Controlling', 'Personal', 'Einkauf / Beschaffung', 'Kundenservice', 'Qualität / QM', 'IT', 'Empfang / Zentrale', 'Sonstiges']
 const CopyFeedbackContext = createContext(() => {})
-const mergeModuleLabels = { transportOrders: 'Transportaufträge', todos: 'To-dos', damageCases: 'Schäden', palletMovements: 'Palettenbewegungen', palletClosings: 'Palettenabschlüsse', inkassoCases: 'Inkasso', customerImportRows: 'Kundenimportzeilen', carrierImportRows: 'Unternehmerimportzeilen', businessPartners: 'Partnerverknüpfungen', insolvencies: 'Insolvenzen', activities: 'CRM-Aktivitäten', ratings: 'Bewertungen' }
+const mergeModuleLabels = { transportOrders: 'Transportaufträge', todos: 'To-dos', damageCases: 'Schäden', palletMovements: 'Palettenbewegungen', palletClosings: 'Palettenabschlüsse', inkassoCases: 'Inkasso', customerImportRows: 'Kundenimportzeilen', carrierImportRows: 'Unternehmerimportzeilen', businessPartners: 'Partnerverknüpfungen', insolvencies: 'Insolvenzen', activities: 'CRM-Kontakte & Notizen', ratings: 'Bewertungen' }
 
 function validateEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
@@ -40,10 +44,12 @@ function normalizeForm(value) {
   return {
     ...defaults,
     ...(value ?? {}),
+    crmIndustry: crmIndustryValue(value),
     paymentTermDays: paymentTermText(value),
     address: { ...defaults.address, ...(value?.address ?? {}) },
     contact: { ...defaults.contact, ...(value?.contact ?? {}) },
     companyData: { ...defaults.companyData, ...(value?.companyData ?? {}) },
+    shipmentTrackingPolicy: value?.shipmentTrackingPolicy === undefined ? undefined : normalizeShipmentTrackingPolicy(value.shipmentTrackingPolicy),
     contacts: (value?.contacts ?? []).map((contact) => ({ ...createContact(), ...contact })),
     portals: (value?.portals ?? []).map((portal) => ({ ...createPartnerPortal(), ...normalizePartnerPortal(portal) })),
   }
@@ -61,6 +67,35 @@ function Field({ label, name, value, onChange, error, type = 'text', placeholder
 
 function FormSection({ title, className = '', children }) {
   return <section className="form-section"><h2>{title}</h2><div className={`form-grid ${className}`}>{children}</div></section>
+}
+
+function TrackingPolicyCheckbox({ label, checked, onChange, disabled, title }) {
+  return <label className="shipment-tracking-policy__checkbox" title={title}><input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange?.(event.target.checked)} /><span>{label}</span></label>
+}
+
+function ShipmentTrackingPolicyAreas({ roles, policy, carrierRules, disabled, onCustomerChange, onCarrierChange }) {
+  const carrierTopic = (topic, title) => <div><h4>{title}</h4><div className="shipment-tracking-policy__choices">{carrierRules.filter((rule) => rule.topic === topic).map((rule) => <TrackingPolicyCheckbox key={rule.id} label={`${rule.label} · ${rule.offsetWorkingHours === 0 ? 'Zum Beladebeginn' : `${rule.offsetWorkingHours} Arbeitsstunden vorher`}`} checked={policy.carrier.enabledRuleIds[rule.id] === true} disabled={disabled} onChange={(value) => onCarrierChange?.(rule.id, value)} />)}</div></div>
+  return <>{roles.customer && <div className="shipment-tracking-policy__area"><h3>Kunde</h3><div className="shipment-tracking-policy__choices"><TrackingPolicyCheckbox label="Kennzeichen wichtig" checked={policy.customer.licensePlateImportant} disabled={disabled} title="Spätere interne BPL-Mindesteskalation für das Kennzeichen" onChange={(value) => onCustomerChange?.('licensePlateImportant', value)} /><TrackingPolicyCheckbox label="Informationen zur Ladestelle wichtig" checked={policy.customer.loadingSiteInformationImportant} disabled={disabled} title="Spätere interne BPL-Mindesteskalation für die Ladestelle" onChange={(value) => onCustomerChange?.('loadingSiteInformationImportant', value)} /></div></div>}{roles.customer && roles.carrier && <hr className="shipment-tracking-policy__divider" />}{roles.carrier && <div className="shipment-tracking-policy__area"><h3>Unternehmer</h3><div className="shipment-tracking-policy__groups">{carrierTopic('licensePlate', 'Kennzeichen')}{carrierTopic('loadingSite', 'Ladestelle')}</div></div>}</>
+}
+
+function ShipmentTrackingPolicyEditModal({ card, saving, onSave, onClose }) {
+  const [draft, setDraft] = useState(() => card.policy)
+  const [error, setError] = useState('')
+  const updateCustomer = (field, value) => { setError(''); setDraft((current) => ({ ...current, customer: { ...current.customer, [field]: value } })) }
+  const updateCarrier = (id, value) => { setError(''); setDraft((current) => { const enabledRuleIds = { ...current.carrier.enabledRuleIds }; if (value) enabledRuleIds[id] = true; else delete enabledRuleIds[id]; return { ...current, carrier: { enabledRuleIds } } }) }
+  async function save() {
+    const saved = await onSave(draft)
+    if (saved) onClose()
+    else setError('Speichern nicht möglich.')
+  }
+  return createPortal(<div className="masterdata-edit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}><section className="masterdata-edit-modal shipment-tracking-policy-modal" role="dialog" aria-modal="true" aria-labelledby="shipment-tracking-policy-modal-title"><div className="masterdata-edit-modal__heading"><h2 id="shipment-tracking-policy-modal-title">Sendungsverfolgung bearbeiten</h2><button type="button" onClick={onClose} aria-label="Dialog schließen" disabled={saving}><CloseIcon /></button></div><ShipmentTrackingPolicyAreas roles={card.roles} policy={draft} carrierRules={card.carrierRules} disabled={saving} onCustomerChange={updateCustomer} onCarrierChange={updateCarrier} />{error && <p className="form-error">{error}</p>}<div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>Abbrechen</button><button className="button" type="button" onClick={() => void save()} disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div></section></div>, document.body)
+}
+
+function ShipmentTrackingPolicyCard({ partner, policy, ruleCatalog, readOnly, saving, onSave }) {
+  const card = shipmentTrackingPolicyCardState(partner, policy, !readOnly, ruleCatalog)
+  const [editing, setEditing] = useState(false)
+  if (!card.roles.customer && !card.roles.carrier) return null
+  return <section className="form-section shipment-tracking-policy" aria-labelledby="shipment-tracking-policy-title"><div className="shipment-tracking-policy__heading"><h2 id="shipment-tracking-policy-title">Sendungsverfolgung</h2>{card.editable && <button className="masterdata-readonly-section__edit" type="button" onClick={() => setEditing(true)} title="Sendungsverfolgung bearbeiten" aria-label="Sendungsverfolgung bearbeiten" disabled={saving}><EditIcon /></button>}</div><ShipmentTrackingPolicyAreas roles={card.roles} policy={card.policy} carrierRules={card.carrierRules} disabled />{editing && <ShipmentTrackingPolicyEditModal card={card} saving={saving} onSave={onSave} onClose={() => setEditing(false)} />}</section>
 }
 
 const masterDataSections = {
@@ -199,14 +234,14 @@ function PartnerNumbersModal({ partner, onClose, canViewArchivedPartner, canMerg
       </>}
       {actionError && <p className="form-error">{actionError}</p>}
       <div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={() => { setSelected(null); setActionError('') }} disabled={busy}>Zurück</button>{selected.preview.canSeparate && <button className="button" type="button" onClick={() => void confirmReversal()} disabled={!confirmed || busy}>{busy ? 'Trennung läuft …' : 'Zusammenführung trennen'}</button>}</div>
-    </div> : <><div className="partner-numbers-modal__numbers"><NumberList title="Debitorennummern" reference={partnerReferenceNumbers(partner, 'debtor')} /><NumberList title="Kreditorennummern" reference={partnerReferenceNumbers(partner, 'creditor')} /></div>{history.loading && <p className="partner-numbers-modal__state">Zusammenführungen werden geladen …</p>}{history.error && <p className="form-error">{history.error}</p>}{history.entries.length > 0 && <section className="partner-numbers-modal__merged"><h3>Zusammengeführte Stammdatenblätter</h3><ul>{history.entries.map((entry) => <li key={entry.id}><strong>{entry.companyName}</strong><span>Frühere Hauptnummern: Debitor {entry.debtorNumber || '—'} · Kreditor {entry.creditorNumber || '—'}</span><span>Zusammengeführt am {formatMergeDate(entry.mergedAt)} · durch {entry.actorName || '—'}</span>{canViewArchivedPartner && entry.canOpen && <Link to={`/kunden-unternehmer/${entry.id}`} onClick={onClose}>Archiviertes Stammdatenblatt ansehen</Link>}{canMerge && <><button className="button button--secondary" type="button" disabled={busy || !partnerMergeReversalAction(entry).enabled} onClick={() => void openReversal(entry)}>Zusammenführung trennen</button>{!partnerMergeReversalAction(entry).enabled && <small>{partnerMergeReversalAction(entry).reason}</small>}</>}</li>)}</ul></section>}{actionError && <p className="form-error">{actionError}</p>}<div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></>}
+    </div> : <><div className="partner-numbers-modal__numbers"><NumberList title="Debitorennummern" reference={partnerReferenceNumbers(partner, 'debtor')} /><NumberList title="Kreditorennummern" reference={partnerReferenceNumbers(partner, 'creditor')} /></div>{history.loading && <p className="partner-numbers-modal__state">Zusammenführungen werden geladen …</p>}{history.error && <p className="form-error">{history.error}</p>}{history.entries.length > 0 && <section className="partner-numbers-modal__merged"><h3>Zusammengeführte Stammdatenblätter</h3><ul>{history.entries.map((entry) => <li key={entry.id}><strong>{entry.companyName}</strong><span>Frühere Hauptnummern: Debitor {entry.debtorNumber || '—'} · Kreditor {entry.creditorNumber || '—'}</span><span>Zusammengeführt am {formatMergeDate(entry.mergedAt)} · durch {entry.actorName || '—'}</span>{canViewArchivedPartner && entry.canOpen && <Link to={businessPartnerDetailPath(entry.id)} onClick={onClose}>Archiviertes Stammdatenblatt ansehen</Link>}{canMerge && <><button className="button button--secondary" type="button" disabled={busy || !partnerMergeReversalAction(entry).enabled} onClick={() => void openReversal(entry)}>Zusammenführung trennen</button>{!partnerMergeReversalAction(entry).enabled && <small>{partnerMergeReversalAction(entry).reason}</small>}</>}</li>)}</ul></section>}{actionError && <p className="form-error">{actionError}</p>}<div className="masterdata-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></>}
   </section></div>, document.body)
 }
 
-function MasterDataFields({ section, form, onChange, errors }) {
+function MasterDataFields({ section, form, onChange, onRolesChange, errors }) {
   if (section === 'company') return <><Field className="form-field--company-address" label="Firmenname *" name="companyName" value={form.companyName} onChange={onChange} error={errors.companyName} /><label className={`form-field form-field--status form-field--status-${form.status}`}><span>Status</span><select name="status" value={form.status} onChange={onChange}>{BUSINESS_PARTNER_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}</select></label><Field className="form-field--street" label="Straße" name="address.street" value={form.address.street} onChange={onChange} /><Field label="Hausnummer" name="address.houseNumber" value={form.address.houseNumber} onChange={onChange} /><Field label="PLZ" name="address.postalCode" value={form.address.postalCode} onChange={onChange} /><Field label="Ort" name="address.city" value={form.address.city} onChange={onChange} /><Field label="Land" name="address.country" value={form.address.country} onChange={onChange} /></>
   if (section === 'contact') return <><Field className="form-field--contact-phone" label="Telefon" name="contact.phone" value={form.contact.phone} onChange={onChange} type="tel" /><Field className="form-field--contact-fax" label="Fax" name="contact.fax" value={form.contact.fax} onChange={onChange} type="tel" /><Field className="form-field--contact-email" label="E-Mail" name="contact.email" value={form.contact.email} onChange={onChange} error={errors['contact.email']} type="email" /><Field className="form-field--contact-website" label="Website" name="contact.website" value={form.contact.website} onChange={onChange} error={errors['contact.website']} placeholder="https://" /></>
-  if (section === 'references') return <><Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={onChange} placeholder="DyCoS-Referenz" /><Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={onChange} placeholder="DyCoS-Referenz" /><Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={onChange} /><Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={onChange} /><Field label="DPL-Nummer" name="dplNumber" value={form.dplNumber} onChange={onChange} /><Field label="Paki-Nummer" name="pakiNumber" value={form.pakiNumber} onChange={onChange} />{errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}</>
+  if (section === 'references') return <><Field label="Debitorennummer" name="debtorNumber" value={form.debtorNumber} onChange={onChange} placeholder="DyCoS-Referenz" /><Field label="Kreditorennummer" name="creditorNumber" value={form.creditorNumber} onChange={onChange} placeholder="DyCoS-Referenz" /><Field label="TIMOCOM-Nummer" name="timocomNumber" value={form.timocomNumber} onChange={onChange} /><Field label="Trans.eu-Nummer" name="transeuNumber" value={form.transeuNumber} onChange={onChange} /><Field label="DPL-Nummer" name="dplNumber" value={form.dplNumber} onChange={onChange} /><Field label="Paki-Nummer" name="pakiNumber" value={form.pakiNumber} onChange={onChange} />{onRolesChange && <div className="form-grid__wide"><span>Rollen</span><label className="shipment-tracking-policy__checkbox"><input type="checkbox" checked={form.businessPartnerRoles?.includes('customer')} onChange={(event) => onRolesChange('customer', event.target.checked)} /><span>Kunde</span></label><label className="shipment-tracking-policy__checkbox"><input type="checkbox" checked={form.businessPartnerRoles?.includes('carrier')} onChange={(event) => onRolesChange('carrier', event.target.checked)} /><span>Unternehmer</span></label></div>}{errors.references && <p className="form-error form-grid__wide">{errors.references}</p>}</>
   if (section === 'companyData') return <><Field className="form-field--company-vat" label="USt-IdNr." name="companyData.vatId" value={form.companyData.vatId} onChange={onChange} /><Field className="form-field--company-tax" label="Steuernummer" name="companyData.taxNumber" value={form.companyData.taxNumber} onChange={onChange} /><Field className="form-field--company-register-number" label="Handelsregisternummer" name="companyData.commercialRegisterNumber" value={form.companyData.commercialRegisterNumber} onChange={onChange} /><Field className="form-field--company-register-court" label="Registergericht" name="companyData.registerCourt" value={form.companyData.registerCourt} onChange={onChange} /></>
   return <><Field label="Zahlungsziel" name="paymentTermDays" value={form.paymentTermDays} onChange={onChange} error={errors.paymentTermDays} placeholder="z. B. 30 Tage Netto" /><label className="form-field"><span>Gutschriftverfahren</span><select name="creditNoteProcedure" value={String(form.creditNoteProcedure)} onChange={onChange}><option value="false">Nein</option><option value="true">Ja</option></select></label></>
 }
@@ -397,7 +432,7 @@ function PortalsSection({ portals, onChange, saving }) {
   )
 }
 
-export default function BusinessPartnerForm({ initialValue, isNew = false, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false, saving = false, canViewArchivedPartner = false, canMerge = false, onMergeSeparated }) {
+export default function BusinessPartnerForm({ initialValue, isNew = false, onSubmit, onDirtyChange, onFormChange, formId, readOnly = false, saving = false, canViewArchivedPartner = false, canMerge = false, onMergeSeparated, ruleCatalog }) {
   const [form, setForm] = useState(() => normalizeForm(initialValue))
   const [savedForm, setSavedForm] = useState(() => normalizeForm(initialValue))
   const [contactDraft, setContactDraft] = useState(null)
@@ -421,6 +456,13 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
     const nextForm = field ? { ...form, [group]: { ...form[group], [field]: normalizedValue } } : { ...form, [name]: normalizedValue }
     updateForm(nextForm)
     setErrors((current) => ({ ...current, [name]: undefined }))
+  }
+
+  function handleRoleChange(role, enabled) {
+    const roles = new Set(form.businessPartnerRoles || [])
+    if (enabled) roles.add(role)
+    else roles.delete(role)
+    updateForm({ ...form, businessPartnerRoles: [...roles] })
   }
 
   async function persistChanges(nextForm) {
@@ -462,7 +504,6 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
   function validateSection(section, values) {
     const nextErrors = {}
     if (section === 'company' && !values.companyName.trim()) nextErrors.companyName = 'Firmenname ist erforderlich.'
-    if (section === 'references' && !values.debtorNumber.trim() && !values.creditorNumber.trim()) nextErrors.references = 'Mindestens eine Debitoren- oder Kreditorennummer ist erforderlich.'
     if (section === 'contact' && values.contact.email.trim() && !validateEmail(values.contact.email)) nextErrors['contact.email'] = 'Bitte eine gültige E-Mail-Adresse eingeben.'
     if (section === 'contact' && values.contact.website.trim() && !validateWebsite(values.contact.website)) nextErrors['contact.website'] = 'Bitte eine vollständige Website-Adresse eingeben.'
     return nextErrors
@@ -523,7 +564,7 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
         </div>
 
         <div className="masterdata-half-grid__column">
-          {displayOnlyMasterData ? <ReadOnlySection section="references" form={form} onEdit={readOnly ? null : () => openSectionEditor('references')} onShowNumbers={() => setShowNumbers(true)} /> : <FormSection title="Referenzen & Nummern" className="form-grid--references"><MasterDataFields section="references" form={form} onChange={handleChange} errors={errors} /></FormSection>}
+          {displayOnlyMasterData ? <ReadOnlySection section="references" form={form} onEdit={readOnly ? null : () => openSectionEditor('references')} onShowNumbers={() => setShowNumbers(true)} /> : <FormSection title="Referenzen & Nummern" className="form-grid--references"><MasterDataFields section="references" form={form} onChange={handleChange} onRolesChange={handleRoleChange} errors={errors} /></FormSection>}
           {displayOnlyMasterData ? <ReadOnlySection section="billing" form={form} onEdit={readOnly ? null : () => openSectionEditor('billing')} /> : <FormSection title="Abrechnung" className="form-grid--billing"><MasterDataFields section="billing" form={form} onChange={handleChange} errors={errors} /></FormSection>}
         </div>
       </div>
@@ -531,6 +572,7 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
       <ContactsSection contacts={form.contacts} onChange={updateContacts} draft={contactDraft} onDraftChange={setContactDraft} saving={saving} />
       {errors.contacts && <p className="form-error">{errors.contacts}</p>}
       <PortalsSection portals={form.portals} onChange={updatePortals} saving={saving} />
+      <ShipmentTrackingPolicyCard key={`${form.debtorNumber}-${form.creditorNumber}-${JSON.stringify(form.dycosReferences || {})}-${JSON.stringify(form.shipmentTrackingPolicy)}-${JSON.stringify(ruleCatalog)}`} partner={form} policy={form.shipmentTrackingPolicy} ruleCatalog={ruleCatalog} readOnly={readOnly} saving={saving} onSave={(shipmentTrackingPolicy) => persistChanges({ ...form, shipmentTrackingPolicy })} />
       </fieldset>{editingSection && sectionDraft && <MasterDataEditModal section={editingSection} form={sectionDraft} errors={sectionErrors} onChange={handleSectionChange} onClose={closeSectionEditor} onApply={applySectionChanges} saving={saving} />}{showNumbers && <PartnerNumbersModal partner={form} onClose={() => setShowNumbers(false)} canViewArchivedPartner={canViewArchivedPartner} canMerge={canMerge} onSeparated={onMergeSeparated} />}</form>
     </CopyFeedbackContext.Provider>
   )

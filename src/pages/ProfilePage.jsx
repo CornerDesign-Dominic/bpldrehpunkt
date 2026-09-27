@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
-import { useTheme } from '../theme/useTheme.js'
 import Toast from '../components/ui/Toast.jsx'
 import {
   deleteCurrentUserSignature,
@@ -116,7 +115,6 @@ function SignatureSection({ user }) {
 
 export default function ProfilePage() {
   const { user, profile } = useAuth()
-  const { theme, setTheme } = useTheme()
   const personalFields = [
     ['Vorname', profile?.firstName || '—'],
     ['Nachname', profile?.lastName || '—'],
@@ -131,5 +129,5 @@ export default function ProfilePage() {
     ['Personalnummer', profile?.personnelNumber || '—'],
   ]
 
-  return <div className="profile-page"><p className="profile-page__notice">Diese Angaben werden durch die Administration gepflegt.</p><ProfileInfoSection title="Persönliche Daten" fields={personalFields} /><ProfileInfoSection title="Arbeitsprofil" fields={employmentFields} /><SignatureSection user={user} /><section className="profile-section profile-theme-section"><div><h2>Light &amp; Dark Mode</h2><p>Wähle die Darstellung, die für dich am angenehmsten ist.</p></div><label className="profile-theme-switch"><span><strong>Dunkles Design</strong><small>{theme === 'dark' ? 'Dunkel ist aktiv' : 'Hell ist aktiv'}</small></span><input type="checkbox" checked={theme === 'dark'} onChange={(event) => setTheme(event.target.checked ? 'dark' : 'light')} /><i aria-hidden="true" /></label></section></div>
+  return <div className="profile-page"><p className="profile-page__notice">Diese Angaben werden durch die Administration gepflegt.</p><ProfileInfoSection title="Persönliche Daten" fields={personalFields} /><ProfileInfoSection title="Arbeitsprofil" fields={employmentFields} /><SignatureSection user={user} /></div>
 }

@@ -24,13 +24,13 @@ test('production shows only published releases; dev previews 1.1.0 ahead of tagg
   assert.equal(releaseNotes[0].sections.length, 5)
 })
 
-test('Updates is next to News, protected only by the active-user layout and has a page title', () => {
+test('Updates is grouped with News under Weitere, protected only by the active-user layout and has a page title', () => {
   const app = read('../App.jsx')
   const sidebar = read('../components/layout/Sidebar.jsx')
   assert.match(app, /<Route element=\{<ProtectedAppLayout \/>\}>/)
   assert.match(app, /<Route path="\/updates" element=\{<UpdatesPage \/>\} \/>/)
   assert.doesNotMatch(app, /path="\/updates" element=\{<PermissionRoute/)
-  assert.match(sidebar, /label: 'News'[^\n]+\n\s*\{ label: 'Updates', to: '\/updates', icon: DocumentsIcon, group: 'overview' \}/)
+  assert.match(sidebar, /label: 'News'[^\n]+group: 'more'[^\n]+\n\s*\{ label: 'Updates', to: '\/updates', icon: DocumentsIcon, group: 'more' \}/)
   assert.equal(getPageTitle('/updates'), 'Updates')
 })
 

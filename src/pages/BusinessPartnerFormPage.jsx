@@ -6,12 +6,15 @@ import ManualPartnerMergeFlow from '../components/business-partners/ManualPartne
 import Toast from '../components/ui/Toast.jsx'
 import BackLink from '../components/ui/BackLink.jsx'
 import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, updateBusinessPartner } from '../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
 import { listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getMissingCreditorNumberNotice } from '../lib/importedPartnerStatus.js'
+import { watchShipmentTrackingRuleCatalog } from '../lib/shipmentTrackingRuleCatalog.js'
+import { fallbackShipmentTrackingRuleCatalog } from '../../shared/shipmentTrackingRuleCatalog.js'
 
 function formatImportDate(value) {
   if (value?.toDate) return new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(value.toDate())
@@ -46,6 +49,7 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [mergeMenuOpen, setMergeMenuOpen] = useState(false)
   const [mergeDirection, setMergeDirection] = useState('')
   const [partnerFormVersion, setPartnerFormVersion] = useState(0)
+  const [ruleCatalog, setRuleCatalog] = useState(fallbackShipmentTrackingRuleCatalog)
   const mergeMenuRef = useRef(null)
 
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     if (mode !== 'existing') return undefined
     let active = true
     getBusinessPartner(partnerId)
-      .then((result) => { if (active) { setPartner(result); setCurrentValues(result); if (!result) setError('Der Geschäftspartner wurde nicht gefunden.') } })
+      .then((result) => { if (active) { setPartner(result); setCurrentValues(result); setError(result ? '' : 'Der Geschäftspartner wurde nicht gefunden.') } })
       .catch(() => { if (active) setError('Die Stammdaten konnten nicht geladen werden.') })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -77,6 +81,11 @@ export default function BusinessPartnerFormPage({ mode }) {
   }, [mode, partnerId])
 
   useEffect(() => {
+    if (!canView('masterData')) return undefined
+    return watchShipmentTrackingRuleCatalog(setRuleCatalog, () => setRuleCatalog(fallbackShipmentTrackingRuleCatalog()))
+  }, [canView])
+
+  useEffect(() => {
     if (mode !== 'existing') return
     listCurrentCrmRatings([partnerId])
       .then((ratings) => setCrmRatings(ratings[partnerId] ?? {}))
@@ -87,9 +96,9 @@ export default function BusinessPartnerFormPage({ mode }) {
     setSubmitting(true)
     setError('')
     try {
-      const savedId = mode === 'create' ? await createBusinessPartner(values) : (await updateBusinessPartner(partnerId, values, getHistoryActor(authState)), partnerId)
+      const savedId = mode === 'create' ? await createBusinessPartner(values, ruleCatalog) : (await updateBusinessPartner(partnerId, values, getHistoryActor(authState)), partnerId)
       if (mode === 'create') {
-        navigate(`/kunden-unternehmer/${savedId}`, { state: { toast: 'Geschäftspartner erfolgreich angelegt.' } })
+        navigate(businessPartnerDetailPath(savedId), { state: { toast: 'Geschäftspartner erfolgreich angelegt.' } })
       } else {
         setPartner(values)
         setCurrentValues(values)
@@ -110,7 +119,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     setToast('Partner wurden zusammengeführt.')
     if (result.targetPartnerId !== partnerId) {
       setLoading(true)
-      navigate(`/kunden-unternehmer/${result.targetPartnerId}`, { state: { toast: 'Partner wurden zusammengeführt.' } })
+      navigate(businessPartnerDetailPath(result.targetPartnerId), { state: { toast: 'Partner wurden zusammengeführt.' } })
       return
     }
     try {
@@ -146,11 +155,11 @@ export default function BusinessPartnerFormPage({ mode }) {
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
       <div className="masterdata-action-row"><div><BackLink to="/kunden-unternehmer" /></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird angelegt …' : 'Anlegen'}</button>}{!isNew && !archived && canEdit('partnerMerges') && <div className="partner-merge-menu" ref={mergeMenuRef}><button className="partner-merge-menu__trigger" type="button" aria-label="Partner-Aktionen öffnen" aria-haspopup="menu" aria-expanded={mergeMenuOpen} onClick={() => setMergeMenuOpen((open) => !open)}>…</button>{mergeMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-source'); setMergeMenuOpen(false) }}>Diesen Partner in anderen zusammenführen …</button><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-target'); setMergeMenuOpen(false) }}>Anderen Partner hierher zusammenführen …</button></div>}</div>}</div>
-      {archived && <aside className="partner-archive-notice"><strong>Archiviertes Stammdatenblatt</strong><p>Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten.</p><Link to={`/kunden-unternehmer/${shownPartner.mergedIntoPartnerId}`}>Aktiven Zielpartner öffnen</Link></aside>}
+      {archived && <aside className="partner-archive-notice"><strong>Archiviertes Stammdatenblatt</strong><p>Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten.</p><Link to={businessPartnerDetailPath(shownPartner.mergedIntoPartnerId)}>Aktiven Zielpartner öffnen</Link></aside>}
       {!archived && <MissingCreditorNumberNotice notice={missingCreditorNumberNotice} />}
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={!archived && canView('crm')} canViewPallets={!archived && canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
       {error && <p className="form-error">{error}</p>}
-      <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} />
+      <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
       {mergeDirection && <ManualPartnerMergeFlow currentPartnerId={partnerId} direction={mergeDirection} onClose={() => setMergeDirection('')} onMerged={handleManualMerge} />}
     </div>
   )

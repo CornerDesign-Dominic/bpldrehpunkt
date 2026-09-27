@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import Toast from '../components/ui/Toast.jsx'
 import { functions } from '../lib/firebase.js'
@@ -55,7 +54,6 @@ export default function AiPromptsPage() {
 
   return <div className="admin-page ai-prompts-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="system-mails-page__toolbar"><Link className="button button--secondary" to="/admin">Zum Adminbereich</Link></div>
     {error && <p className="form-error">{error}</p>}
     <section className="ai-prompts-workspace">
       <aside className="ai-prompts-list"><div className="ai-prompts-list__heading"><h2>KI-Funktionen</h2></div>{prompts.map((prompt) => <button key={prompt.id} className={prompt.id === editing?.id ? 'ai-prompts-list__item ai-prompts-list__item--active' : 'ai-prompts-list__item'} type="button" onClick={() => { setEditing(clonePrompt(prompt)); setError('') }}>{prompt.displayName}</button>)}</aside>

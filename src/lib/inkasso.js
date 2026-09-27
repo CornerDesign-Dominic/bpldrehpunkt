@@ -108,6 +108,7 @@ export function createEmptyInkassoCase() {
   }
 }
 
+
 export function createEmptyInkassoMovement() {
   return { date: new Date().toISOString().slice(0, 10), type: 'collection_costs', direction: 'paid', amount: '' }
 }
@@ -126,7 +127,7 @@ export async function getInkassoCase(caseId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createInkassoCase(values) {
+export async function createInkassoCase(values, { transportOrderId = '' } = {}) {
   const invoices = normalizeInkassoInvoices(values.invoices)
 
   const result = await httpsCallable(functions, 'createInkassoCase')({
@@ -136,6 +137,7 @@ export async function createInkassoCase(values) {
     debtorPartnerId: optionalText(values.debtorPartnerId),
     debtorPartnerRole: optionalText(values.debtorPartnerRole),
     invoices,
+    transportOrderId: optionalText(transportOrderId),
   })
   return result.data.caseId
 }

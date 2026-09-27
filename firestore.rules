@@ -80,11 +80,33 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Company details feed shared document templates. Only the validated admin
+    // callable can change them; every active account may read them.
+    match /appSettings/companyMasterData {
+      allow read: if active();
+      allow write: if false;
+    }
+
     // The company holiday region is a global display setting. Every active
     // work-calendar user may read it; updates are exclusively validated by a
     // callable Cloud Function for admins and superadmins.
     match /appSettings/holidayCalendar {
       allow read: if active();
+      allow write: if false;
+    }
+
+    // Shipment-tracking operating hours are a centrally maintained automation
+    // prerequisite. Only active admins may read them; every write goes through
+    // the validated App Check callable function.
+    match /systemSettings/shipmentTrackingOperatingHours {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Partner cards read the centrally maintained rule catalog; changes remain
+    // restricted to the validated Admin/App Check callable.
+    match /systemSettings/shipmentTrackingRuleCatalog {
+      allow read: if admin() || view('masterData');
       allow write: if false;
     }
 
@@ -193,7 +215,7 @@ service cloud.firestore {
     match /businessPartners/{partnerId} {
       allow read: if view('masterData') || view('crm') || view('pallets');
       allow create, delete: if edit('masterData');
-      allow update: if (edit('masterData') && !resource.data.keys().hasAny(['mergedIntoPartnerId'])) || (edit('crm') && !resource.data.keys().hasAny(['mergedIntoPartnerId']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId);
+      allow update: if (edit('masterData') && !resource.data.keys().hasAny(['mergedIntoPartnerId'])) || (edit('crm') && !resource.data.keys().hasAny(['mergedIntoPartnerId']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'crmIndustry', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId);
       match /history/{entryId} { allow read: if view('masterData') || view('crm'); allow create: if edit('masterData') || edit('crm'); allow update, delete: if false; }
       match /activities/{entryId} { allow read: if view('crm'); allow create, update: if edit('crm'); allow delete: if false; }
       match /ratings/{ratingId} { allow read: if view('crm'); allow create: if edit('crm'); allow update, delete: if false; }
@@ -211,6 +233,72 @@ service cloud.firestore {
       allow read: if view('transportOrders');
       allow write: if false;
     }
+
+    // Own TA ratings are validated and written by the callable functions.
+    match /transportOrderRatings/{ratingId} {
+      allow read, write: if false;
+    }
+
+    // A link is deliberately a small, central relation document. It stores
+    // only stable document IDs; titles and business data stay in their source
+    // documents. Reads require access to both sides of the relation.
+    function caseTransportLinkCaseVisible(data) {
+      return (data.caseType == 'damage' && view('damages'))
+        || (data.caseType == 'inkasso' && view('inkasso'))
+        || (data.caseType == 'legalDispute' && view('legalDisputes'));
+    }
+    function caseTransportLinkCaseEditable(data) {
+      return (data.caseType == 'damage' && edit('damages'))
+        || (data.caseType == 'inkasso' && edit('inkasso'))
+        || (data.caseType == 'legalDispute' && edit('legalDisputes'));
+    }
+    function caseTransportLinkCaseExists(data) {
+      return (data.caseType == 'damage' && existsAfter(/databases/$(database)/documents/damageCases/$(data.caseId)))
+        || (data.caseType == 'inkasso' && existsAfter(/databases/$(database)/documents/inkassoCases/$(data.caseId)))
+        || (data.caseType == 'legalDispute' && existsAfter(/databases/$(database)/documents/legalDisputes/$(data.caseId)));
+    }
+    function validCaseTransportLink(data, linkId) {
+      return data.keys().hasAll(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
+        && data.keys().hasOnly(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
+        && data.caseType in ['damage', 'inkasso', 'legalDispute']
+        && data.caseId is string && data.caseId.size() > 0 && data.caseId.size() <= 240 && !data.caseId.matches('.*[/|].*')
+        && data.transportOrderId is string && data.transportOrderId.size() > 0 && data.transportOrderId.size() <= 240 && !data.transportOrderId.matches('.*[/|].*')
+        && linkId == data.caseType + '|' + data.caseId + '|' + data.transportOrderId
+        && data.createdAt == request.time && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile());
+    }
+    match /caseTransportOrderLinks/{linkId} {
+      allow read: if view('transportOrders') && caseTransportLinkCaseVisible(resource.data);
+      allow create: if view('transportOrders') && caseTransportLinkCaseEditable(request.resource.data)
+        && validCaseTransportLink(request.resource.data, linkId) && caseTransportLinkCaseExists(request.resource.data)
+        && exists(/databases/$(database)/documents/transportOrders/$(request.resource.data.transportOrderId));
+      allow update: if false;
+      allow delete: if view('transportOrders') && caseTransportLinkCaseEditable(resource.data);
+    }
+    // Manuelle Sendungsverfolgung bleibt getrennt von den importierten
+    // Auftragsdaten. Alle Änderungen und die unveränderbare Historie werden
+    // ausschließlich durch das berechtigte Callable mit Admin SDK geschrieben.
+    match /transportOrderTrackings/{transportOrderId} {
+      allow read: if view('transportOrders');
+      allow write: if false;
+      match /events/{eventId} {
+        allow read: if view('transportOrders');
+        allow write: if false;
+      }
+    }
+
+    // Grobe Ort-zu-Ort-Routen sind getrennt von den importierten Aufträgen.
+    // Berechnung, Cache und Nutzungsprotokoll bleiben serverseitig kontrolliert.
+    match /transportOrderRoutes/{transportOrderId} {
+      allow read: if view('transportOrders');
+      allow write: if false;
+      match /calculations/{calculationId} { allow read: if view('transportOrders'); allow write: if false; }
+    }
+    match /tomTomGeocodeCache/{cacheId} { allow read, write: if false; }
+    match /tomTomUsageEvents/{eventId} { allow read, write: if false; }
+    match /tomTomUsageMonths/{month} { allow read, write: if false; }
+    // Diagnostic history is written by server functions and exposed only
+    // through an admin-gated callable with bounded, filtered pagination.
+    match /diagnosticEvents/{eventId} { allow read, write: if false; }
 
     match /transportOrderImportRuns/{runId} {
       allow read, write: if false;
@@ -443,18 +531,42 @@ service cloud.firestore {
         || (data.responsibleUserId is string && data.responsibleUserName is string && activeProfile(data.responsibleUserId)
           && data.responsibleUserName == profileName(get(/databases/$(database)/documents/users/$(data.responsibleUserId)).data));
     }
+    function hasPartnerReferenceRole(partner, role) {
+      return (role == 'customer' && partner.keys().hasAll(['debtorNumber']) && partner.debtorNumber is string && partner.debtorNumber.size() > 0)
+        || (role == 'carrier' && partner.keys().hasAll(['creditorNumber']) && partner.creditorNumber is string && partner.creditorNumber.size() > 0)
+        || (partner.keys().hasAll(['dycosReferences']) && partner.dycosReferences is map
+          && ((role == 'customer' && partner.dycosReferences.keys().hasAll(['debtorNumbers']) && partner.dycosReferences.debtorNumbers is list && partner.dycosReferences.debtorNumbers.size() > 0)
+            || (role == 'carrier' && partner.dycosReferences.keys().hasAll(['creditorNumbers']) && partner.dycosReferences.creditorNumbers is list && partner.dycosReferences.creditorNumbers.size() > 0)));
+    }
+    function roleMapContains(roleMap, role) {
+      return roleMap is map && ((role == 'customer' && ((roleMap.keys().hasAll(['customer']) && roleMap.customer == true) || (roleMap.keys().hasAll(['kunde']) && roleMap.kunde == true)))
+        || (role == 'carrier' && ((roleMap.keys().hasAll(['carrier']) && roleMap.carrier == true) || (roleMap.keys().hasAll(['unternehmer']) && roleMap.unternehmer == true))));
+    }
+    function hasExplicitPartnerRole(partner, role) {
+      return (partner.keys().hasAll(['businessPartnerRoles']) && ((partner.businessPartnerRoles is list && partner.businessPartnerRoles.hasAny([role, role == 'customer' ? 'kunde' : 'unternehmer'])) || (partner.businessPartnerRoles is string && partner.businessPartnerRoles in [role, role == 'customer' ? 'kunde' : 'unternehmer']) || roleMapContains(partner.businessPartnerRoles, role)))
+        || (partner.keys().hasAll(['partnerRoles']) && ((partner.partnerRoles is list && partner.partnerRoles.hasAny([role, role == 'customer' ? 'kunde' : 'unternehmer'])) || (partner.partnerRoles is string && partner.partnerRoles in [role, role == 'customer' ? 'kunde' : 'unternehmer']) || roleMapContains(partner.partnerRoles, role)));
+    }
+    function hasProvisionalTransportCarrierRole(partner) {
+      return partner.keys().hasAll(['taImportStatus']) && partner.taImportStatus is map
+        && partner.taImportStatus.keys().hasAll(['source', 'missingRequiredFields'])
+        && partner.taImportStatus.source == 'dycosTransportOrder'
+        && partner.taImportStatus.missingRequiredFields is list
+        && partner.taImportStatus.missingRequiredFields.hasAny(['creditorNumber']);
+    }
+    function hasBusinessPartnerRole(partner, role) {
+      return hasPartnerReferenceRole(partner, role) || hasExplicitPartnerRole(partner, role)
+        || (role == 'carrier' && hasProvisionalTransportCarrierRole(partner));
+    }
     function validDamageClaimant(data) {
       return !data.keys().hasAny(['claimantPartnerId']) || data.claimantPartnerId == null
         || (data.claimantPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.debtorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.debtorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data, 'customer')
           && data.claimant == get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.companyName);
     }
     function validDamageContractor(data) {
       return !data.keys().hasAny(['contractorPartnerId']) || data.contractorPartnerId == null
         || (data.contractorPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.creditorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.creditorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data, 'carrier')
           && data.contractor == get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.companyName);
     }
     function validDamageCaseContent(data) {
@@ -968,16 +1080,14 @@ service cloud.firestore {
       return !data.keys().hasAny(['customerId', 'customerName']) || (data.customerId == null && data.customerName == null)
         || (data.customerId is string && data.customerName is string
           && exists(/databases/$(database)/documents/businessPartners/$(data.customerId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.debtorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.debtorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data, 'customer')
           && data.customerName == get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.companyName);
     }
     function validCarrierLink(data) {
       return !data.keys().hasAny(['carrierId', 'carrierName']) || (data.carrierId == null && data.carrierName == null)
         || (data.carrierId is string && data.carrierName is string
           && exists(/databases/$(database)/documents/businessPartners/$(data.carrierId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.creditorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.creditorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data, 'carrier')
           && data.carrierName == get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.companyName);
     }
     function validDamageCaseLink(data) {

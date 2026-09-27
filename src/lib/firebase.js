@@ -3,7 +3,7 @@ import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getFunctions } from 'firebase/functions'
-import { ReCaptchaEnterpriseProvider, initializeAppCheck } from 'firebase/app-check'
+import { ReCaptchaEnterpriseProvider, getToken, initializeAppCheck } from 'firebase/app-check'
 
 const firebaseEnvironment = {
   VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -52,6 +52,14 @@ export const appCheck = appCheckSiteKey
       isTokenAutoRefreshEnabled: true,
     })
   : null
+
+// A callable protected by App Check must not be sent before the initial
+// reCAPTCHA attestation has completed. This is especially relevant directly
+// after opening a page, when Firebase has not cached a token yet.
+export async function waitForAppCheckToken() {
+  if (!appCheck) return null
+  return getToken(appCheck)
+}
 
 export const auth = getAuth(firebaseApp)
 export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => undefined)

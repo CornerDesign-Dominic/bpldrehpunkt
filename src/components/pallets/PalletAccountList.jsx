@@ -7,6 +7,7 @@ import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 import { getPartnerEvaluationStatus } from '../../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../../partner-evaluation/usePartnerEvaluationSettings.js'
 import { indexPartnerClusters } from '../../lib/partnerCluster.js'
+import { palletAccountPath } from '../../lib/businessPartnerLinks.js'
 import '../../styles/businessPartnerExtensions.css'
 import '../../styles/pallets.css'
 
@@ -92,7 +93,7 @@ export default function PalletAccountList() {
   }
 
   function openAccount(partnerId) {
-    navigate(`/paletten/${partnerId}`)
+    navigate(palletAccountPath(partnerId))
   }
 
   function handleAccountRowKeyDown(event, partnerId) {

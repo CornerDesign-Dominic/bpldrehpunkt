@@ -49,6 +49,7 @@ Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enf
 
 - Direkte Fachzugriffe richten sich nach dem jeweiligen Modulrecht. Die Rules beschränken dabei zusätzlich erlaubte Datenfelder und Zustandsübergänge.
 - Zentrale Abteilungen sowie globale Einstellungen für Partnerbewertung und Feiertagsregion sind im Browser nur lesbar; ihre Änderung ist direkt in Firestore gesperrt.
+- Die eigenen Firmenstammdaten unter `appSettings/companyMasterData` sind für aktive Profile lesbar. Direkte Browser-Schreibzugriffe sind gesperrt; die Änderung erfolgt über `updateCompanyMasterData` für aktive Admins und Superadmins.
 - Systemmail-Vorlagen, KI-Prompt-Konfigurationen, Kontenmigrationen und Nutzungsprotokolle sind für Browser-Clients vollständig gesperrt.
 - Inkassofälle dürfen im Browser nicht direkt angelegt werden, damit die serverseitige Fallnummernvergabe die einzige Quelle bleibt.
 
@@ -61,13 +62,15 @@ Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enf
 
 ## Storage-Schutzgrenzen
 
-Alle erlaubten Storage-Pfade verlangen ein angemeldetes, aktives Profil und das jeweilige Modulrecht. Nicht explizit gematchte Pfade erhalten keinen Zugriff.
+Alle erlaubten direkten Storage-Pfade verlangen ein angemeldetes, aktives Profil. Fachdateien verlangen zusätzlich das jeweilige Modulrecht; persönliche Signaturen folgen der Eigentümerregel. Der gemeinsame Firmenstempel wird ausschließlich über geschützte Callables geladen und gepflegt. Nicht explizit gematchte Pfade erhalten keinen direkten Zugriff.
 
 | Speicherbereich | Lesen | Schreiben |
 | --- | --- | --- |
 | Allgemeine interne Dokumente | `documents`: `view` oder `edit` | `documents`: `edit`; PDF, höchstens 20 MiB |
 | Schadens-, Streit-, Inkasso- und Insolvenz-Dokumente | jeweiliges Fachmodul: `view` oder `edit` | jeweiliges Fachmodul: `edit`; PDF, höchstens 20 MiB; Fallpfade erlauben keine Objekt-Updates |
 | Persönliche Signatur | nur der angemeldete Eigentümer | nur der angemeldete Eigentümer am festen eigenen Pfad; JPEG, höchstens 2 MiB |
+
+Der gemeinsame Firmenstempel liegt am festen serverseitigen Pfad `company-assets/stamp`. `getCompanyStamp` erlaubt aktiven Profilen den Abruf; `saveCompanyStamp` und `deleteCompanyStamp` erlauben nur aktiven Admins und Superadmins Änderungen. JPG/JPEG und PNG sind bis 2 MiB zulässig. Direkte Browserzugriffe auf diesen Pfad bleiben gesperrt.
 
 Für Insolvenz-Dokumente muss der zugehörige Insolvenzfall existieren. Für Signaturen existiert bewusst kein administrativer Storage-Zugriffspfad.
 
@@ -78,6 +81,7 @@ Folgende Änderungen erfolgen nicht über direkte Browser-Schreibrechte:
 - Kontenanlage und Kontopflege erfolgen über `createManagedUser` und `updateManagedUser`. `admin` darf reguläre `user`-Konten verwalten; `superadmin` verwaltet zusätzlich Rollen, Modulrechte und Urlaubsmanager-Zuordnungen.
 - Abteilungen werden ausschließlich durch die superadmin-geschützten Callables `createDepartment` und `updateDepartment` gepflegt.
 - Partnerbewertungs-Einstellungen werden ausschließlich durch `updatePartnerEvaluationSettings` für Superadmins geändert. Die Feiertagsregion wird über `updateCompanyHolidayRegion` für Admins und Superadmins validiert aktualisiert.
+- Firmenstammdaten werden ausschließlich durch `updateCompanyMasterData` für aktive Admins und Superadmins validiert aktualisiert.
 - Personal-, HR-Urlaubs- und manuell erfasste Urlaubsabläufe verwenden die dafür vorgesehenen Personal-Callables; direkte HR-Datenzugriffe bleiben gesperrt.
 - Urlaubsmanager entscheiden Anträge über `processVacationRequest`; die Functions prüfen die berechtigte Abteilung serverseitig.
 - Systemmail-Vorlagen werden ausschließlich durch Superadmins über `updateSystemMailTemplate` gepflegt. Das Auslösen einer Testmail ist auf aktive Admins und Superadmins begrenzt.

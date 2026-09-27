@@ -4,6 +4,7 @@ import { db } from './firebase.js'
 import { getPartnerCluster } from './partnerClusterQueries.js'
 import { createHistoryPayload } from './partnerHistory.js'
 import { resolvePartnerInIndex } from './partnerCluster.js'
+import { businessPartnerRoles } from '../../shared/businessPartnerRoles.js'
 
 export const CUSTOMER_RATING_CRITERIA = [
   { key: 'paymentBehavior', label: 'Zahlungsmoral' },
@@ -37,9 +38,8 @@ function mapSnapshot(snapshot) {
 }
 
 export function getRatingRoles(partner) {
-  const roles = []
-  if (partner.debtorNumber?.trim()) roles.push('customer')
-  if (partner.creditorNumber?.trim()) roles.push('carrier')
+  const roleFacts = businessPartnerRoles(partner)
+  const roles = ['customer', 'carrier'].filter((role) => roleFacts[role])
   return roles.length ? roles : ['carrier']
 }
 

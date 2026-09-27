@@ -1,4 +1,5 @@
 import { paymentTermText } from './paymentTerms.js'
+import { newShipmentTrackingPartnerPolicy } from './shared/shipmentTrackingPartnerDefaults.js'
 
 const text = (value) => value === null || value === undefined ? '' : String(value).trim()
 const empty = (value) => value === '' || value === null || value === undefined
@@ -35,7 +36,7 @@ export function carrierIdentity(partners, creditorNumber, debtorNumber) {
   return { creditor, debtor, partner: creditor || debtor, merge, ambiguity, assignment: creditor ? { kind: 'creditor', number: normalizeCustomerIdentifier(creditorNumber) } : debtor ? { kind: 'debtor', number: normalizeCustomerIdentifier(debtorNumber) } : { kind: 'new' } }
 }
 
-export function carrierPayload(row, runId, now) {
+export function carrierPayload(row, runId, now, ruleCatalog = null) {
   const data = row.data || {}
   const creditorNumber = normalizeCustomerIdentifier(row.creditorNumber)
   const debtorNumber = normalizeCustomerIdentifier(data.linkedDebtorNumber)
@@ -49,6 +50,7 @@ export function carrierPayload(row, runId, now) {
     companyData: { vatId: text(data.vatId), taxNumber: text(data.taxNumber), commercialRegisterNumber: '', registerCourt: '' },
     bankData: { iban: text(data.iban), bic: text(data.bic), ibanVerifiedAt: text(data.ibanVerifiedAt) },
     creditNoteProcedure: false, creditLimit: null, palletNote: '', crmStatus: '', potential: '', language: '',
+    shipmentTrackingPolicy: newShipmentTrackingPartnerPolicy({ creditorNumber, debtorNumber }, ruleCatalog),
     importOrigin: { source: 'dycosCarrierImport', importRunId: runId, createdAt: now }, importRawValues: data.rawValues || {}, createdAt: now, updatedAt: now,
   }
 }

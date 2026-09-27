@@ -21,6 +21,8 @@ const pageTitles = [
   { path: '/agb-pruefer', title: 'AGB-Prüfer' },
   { path: '/profil', title: 'Mein Profil' },
   { path: '/admin/systemmails', title: 'Systemmails' },
+  { path: '/admin/stammdaten', title: 'Stammdaten' },
+  { path: '/admin/diagnose', title: 'Diagnose' },
   { path: '/admin', title: 'Adminbereich' },
   { path: '/urlaub', title: 'Urlaubsübersicht' },
   { path: '/kalender', title: 'Kalender' },

@@ -1,6 +1,9 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
+import { businessPartnerRoles } from './shared/businessPartnerRoles.js'
+import { newShipmentTrackingPartnerPolicy } from './shared/shipmentTrackingPartnerDefaults.js'
+import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 
 const levels = { none: 0, view: 1, edit: 2 }
 const text = (value) => typeof value === 'string' ? value.trim() : ''
@@ -77,7 +80,7 @@ export function carrierSimilarity(left, right) {
 
 function partnerEntry(entry) {
   const data = entry.data()
-  return { id: entry.id, companyName: text(data.companyName), debtorNumber: text(data.debtorNumber), creditorNumber: text(data.creditorNumber), dycosReferences: data.dycosReferences || {}, address: data.address || {}, contact: data.contact || {}, importOrigin: data.importOrigin || {}, taImportStatus: data.taImportStatus || {}, status: text(data.status), mergedIntoPartnerId: text(data.mergedIntoPartnerId) }
+  return { id: entry.id, companyName: text(data.companyName), debtorNumber: text(data.debtorNumber), creditorNumber: text(data.creditorNumber), dycosReferences: data.dycosReferences || {}, businessPartnerRoles: data.businessPartnerRoles, partnerRoles: data.partnerRoles, address: data.address || {}, contact: data.contact || {}, importOrigin: data.importOrigin || {}, taImportStatus: data.taImportStatus || {}, status: text(data.status), mergedIntoPartnerId: text(data.mergedIntoPartnerId) }
 }
 
 async function activePartnerFor(db, partner) {
@@ -129,8 +132,12 @@ async function carrierCandidatesFor(names) {
   const requested = [...new Set(names.map(text).filter(Boolean))]
   if (!requested.length) return new Map()
   const snapshot = await database().collection('businessPartners').get()
-  const partners = snapshot.docs.map(partnerEntry).filter((partner) => partner.companyName && !partner.mergedIntoPartnerId && partner.status !== 'merged' && (!partner.debtorNumber || partner.creditorNumber || (partner.dycosReferences?.creditorNumbers || []).length))
+  const partners = snapshot.docs.map(partnerEntry).filter(isCarrierCandidate)
   return new Map(requested.map((name) => [name, carrierMatchDecision(name, partners)]))
+}
+
+export function isCarrierCandidate(partner) {
+  return Boolean(partner?.companyName && !partner.mergedIntoPartnerId && partner.status !== 'merged' && businessPartnerRoles(partner).carrier)
 }
 
 export function carrierMatchDecision(name, partners) {
@@ -163,18 +170,19 @@ function previewRows(value) {
   })
 }
 
-export function customerPartnerPayload(row, { partnerId, importRunId, now }) {
+export function customerPartnerPayload(row, { partnerId, importRunId, now, ruleCatalog = null }) {
   const customer = row.imported.customer; const email = text(row.imported.contacts?.customerStandardEmail)
   return {
     id: partnerId, companyName: customer.name, debtorNumber: customer.debtorNumber, creditorNumber: '', timocomNumber: '', transeuNumber: '', dplNumber: '', pakiNumber: '', status: 'active', paymentTermDays: '', creditNoteProcedure: false, creditLimit: null, palletNote: '', crmStatus: '', potential: '',
     address: { street: text(customer.snapshot?.street), houseNumber: '', postalCode: text(customer.snapshot?.postalCode), city: text(customer.snapshot?.city), country: text(customer.snapshot?.country) },
     contact: { phone: '', fax: '', email, website: '' }, contacts: [], portals: [], companyData: { vatId: '', taxNumber: '', commercialRegisterNumber: '', registerCourt: '' },
     dycosReferences: { debtorNumbers: [customer.debtorNumber], creditorNumbers: [] },
+    shipmentTrackingPolicy: newShipmentTrackingPartnerPolicy({ debtorNumber: customer.debtorNumber }, ruleCatalog),
     importOrigin: { source: 'dycosTransportOrder', transportOrderNumber: row.externalNumber, importRunId, createdAt: now }, createdAt: now, updatedAt: now,
   }
 }
 
-export function carrierPartnerPayload(row, { partnerId, importRunId, now }) {
+export function carrierPartnerPayload(row, { partnerId, importRunId, now, ruleCatalog = null }) {
   const email = text(row.imported.contacts?.carrierStandardEmail)
   return {
     id: partnerId, companyName: row.imported.carrier.originalName, debtorNumber: '', creditorNumber: '', timocomNumber: '', transeuNumber: '', dplNumber: '', pakiNumber: '', status: 'active', paymentTermDays: '', creditNoteProcedure: false, creditLimit: null, palletNote: '', crmStatus: '', potential: '',
@@ -182,6 +190,7 @@ export function carrierPartnerPayload(row, { partnerId, importRunId, now }) {
     dycosReferences: { debtorNumbers: [], creditorNumbers: [] },
     importOrigin: { source: 'dycosTransportOrder', transportOrderNumber: row.externalNumber, importRunId, createdAt: now },
     taImportStatus: { source: 'dycosTransportOrder', missingRequiredFields: ['creditorNumber'], transportOrderNumber: row.externalNumber, importRunId, importedAt: now, partnerId },
+    shipmentTrackingPolicy: newShipmentTrackingPartnerPolicy({ taImportStatus: { source: 'dycosTransportOrder', missingRequiredFields: ['creditorNumber'] } }, ruleCatalog),
     createdAt: now, updatedAt: now,
   }
 }
@@ -239,13 +248,13 @@ export function isSafeImportedCarrierRepair(existingOrder, partner, externalNumb
   )
 }
 
-async function ensureCustomer(db, batch, row, knownCustomers, runRef, now) {
+async function ensureCustomer(db, batch, row, knownCustomers, runRef, now, ruleCatalog) {
   const number = row.imported.customer.debtorNumber; let customer = knownCustomers.get(number)
   if (!customer) {
     const ref = db.doc(`businessPartners/${importPartnerId('debtor', number)}`); const existing = await ref.get()
     if (existing.exists) customer = partnerEntry(existing)
     else {
-      const payload = customerPartnerPayload(row, { partnerId: ref.id, importRunId: runRef.id, now })
+      const payload = customerPartnerPayload(row, { partnerId: ref.id, importRunId: runRef.id, now, ruleCatalog })
       batch.set(ref, payload)
       batch.set(ref.collection('history').doc(), importHistoryPayload(row, runRef, now))
       customer = { id: ref.id, companyName: payload.companyName, debtorNumber: number, address: payload.address, contact: payload.contact, dycosReferences: payload.dycosReferences }
@@ -280,7 +289,7 @@ async function repairImportedCarrier(db, row, existingOrder) {
   return isSafeImportedCarrierRepair(existingOrder, original, row.externalNumber) ? activePartnerFor(db, original) : null
 }
 
-async function ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now) {
+async function ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog) {
   const name = row.imported.carrier.originalName; const normalized = normalizePartnerName(name)
   if (resolution?.manual && resolution.partnerId) {
     const selected = await db.doc(`businessPartners/${resolution.partnerId}`).get()
@@ -315,7 +324,7 @@ async function ensureCarrier(db, batch, row, knownCarriers, existingOrder, resol
   if (!resolution?.createNew) throw new HttpsError('failed-precondition', `Für Unternehmer ${name} muss eine Zuordnung oder Neuanlage bestätigt werden.`)
   const ref = db.doc(`businessPartners/${importPartnerId('carrier', normalized)}`); const existing = await ref.get()
   if (existing.exists) { const partner = partnerEntry(existing); knownCarriers.set(normalized, partner); return partner }
-  const payload = carrierPartnerPayload(row, { partnerId: ref.id, importRunId: runRef.id, now })
+  const payload = carrierPartnerPayload(row, { partnerId: ref.id, importRunId: runRef.id, now, ruleCatalog })
   batch.set(ref, payload)
   batch.set(ref.collection('history').doc(), importHistoryPayload(row, runRef, now))
   const partner = { id: ref.id, companyName: payload.companyName, creditorNumber: '', address: payload.address, contact: payload.contact, dycosReferences: payload.dycosReferences, importOrigin: payload.importOrigin, taImportStatus: payload.taImportStatus }
@@ -343,7 +352,8 @@ export async function importTransportOrdersHandler(request) {
   if (!fileName || fileName.length > 240 || !rows.length || rows.length > 5000) throw new HttpsError('invalid-argument', 'Bitte eine gültige CSV-Vorschau mit höchstens 5.000 importierbaren Zeilen übergeben.')
   const numbers = new Set(); rows.forEach((row) => { if (numbers.has(row.externalNumber)) throw new HttpsError('invalid-argument', `Die TA-Nummer ${row.externalNumber} kommt mehrfach vor.`); numbers.add(row.externalNumber) })
   const rowErrors = Array.isArray(request.data?.rowErrors) ? request.data.rowErrors.slice(0, 5000).map((entry) => ({ rowNumber: Number(entry?.rowNumber) || null, errors: Array.isArray(entry?.errors) ? entry.errors.map(text).filter(Boolean).slice(0, 10) : [] })) : []
-  const [existing, customers, matches] = await Promise.all([existingFor(rows.map((row) => row.externalNumber)), customersFor(rows.map((row) => row.imported.customer.debtorNumber)), carrierCandidatesFor(rows.map((row) => row.imported.carrier.originalName))])
+  const [existing, customers, matches, catalogSnapshot] = await Promise.all([existingFor(rows.map((row) => row.externalNumber)), customersFor(rows.map((row) => row.imported.customer.debtorNumber)), carrierCandidatesFor(rows.map((row) => row.imported.carrier.originalName)), db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get()])
+  const ruleCatalog = catalogSnapshot.exists ? normalizeShipmentTrackingRuleCatalog(catalogSnapshot.data()) : fallbackShipmentTrackingRuleCatalog()
   const selected = resolutions(request.data?.carrierResolutions); const runRef = db.collection('transportOrderImportRuns').doc(); const counts = { new: 0, updated: 0, unchanged: 0, review: 0, failed: rowErrors.length }; const results = []; const now = FieldValue.serverTimestamp(); const importedBy = actorName(profile); const knownCarriers = new Map()
 
   for (const row of rows) {
@@ -352,8 +362,8 @@ export async function importTransportOrdersHandler(request) {
     const decision = classification(row, existingOrder, carrierResolution)
     if (decision.status === 'review') throw new HttpsError('failed-precondition', `TA ${row.externalNumber}: ${decision.reasons[0]}`)
     const batch = db.batch()
-    const customer = await ensureCustomer(db, batch, row, customers, runRef, now)
-    const carrier = await ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now)
+    const customer = await ensureCustomer(db, batch, row, customers, runRef, now, ruleCatalog)
+    const carrier = await ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog)
     const originalCustomer = existingOrder?.customerPartnerId ? await db.doc(`businessPartners/${existingOrder.customerPartnerId}`).get() : null
     const originalCarrier = !resolution?.manual && existingOrder?.carrierPartnerId ? await db.doc(`businessPartners/${existingOrder.carrierPartnerId}`).get() : null
     const customerPartnerId = originalCustomer?.exists ? originalCustomer.id : customer.id

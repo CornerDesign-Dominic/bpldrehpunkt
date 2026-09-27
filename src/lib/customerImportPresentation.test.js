@@ -6,8 +6,16 @@ test('a new partner uses the returned Firestore ID and name rather than the CSV 
   const view = customerImportResultView({ debtorNumber: '10007', companyName: 'Name wie Partner 10689', customerId: 'dycos-debtor-10007', affectedPartner: { id: 'dycos-debtor-10007', companyName: 'Tatsächlicher Name' }, result: { actions: ['created'], assignment: { kind: 'new' } } })
   assert.deepEqual(view.labels, ['Neuer Partner angelegt'])
   assert.equal(view.partnerName, 'Tatsächlicher Name')
-  assert.equal(view.partnerPath, '/kunden-unternehmer/dycos-debtor-10007')
+  assert.equal(view.partnerPath, '/kunden-unternehmer/stammdaten/dycos-debtor-10007')
   assert.equal(view.partnerId, 'dycos-debtor-10007')
+})
+
+test('import result and history links preserve the actual partner document ID', () => {
+  const id = 'dycos-carrier-lippe%20transport+logistik#?'
+  const row = { affectedPartner: { id, companyName: 'Lippe Transport' }, result: { actions: ['created'], assignment: { kind: 'new' } } }
+  const expectedPath = '/kunden-unternehmer/stammdaten/dycos-carrier-lippe%2520transport%2Blogistik%23%3F'
+  assert.equal(customerImportResultView(row).partnerPath, expectedPath)
+  assert.equal(customerImportHistoryRowView(row).partnerPath, expectedPath)
 })
 
 test('review and merge labels show how the target partner was selected', () => {
@@ -48,7 +56,7 @@ test('history row displays the stored result and the actual affected partner wit
   const view = customerImportHistoryRowView({ debtorNumber: '10007', companyName: 'CSV-Firma', affectedPartner: { id: 'partner-10007', companyName: 'Partner aus Firestore' }, approval: { type: 'automatic' }, result: { actions: ['created'], assignment: { kind: 'new' } } })
   assert.equal(view.title, 'Neuer Partner angelegt')
   assert.equal(view.partnerName, 'Partner aus Firestore')
-  assert.equal(view.partnerPath, '/kunden-unternehmer/partner-10007')
+  assert.equal(view.partnerPath, '/kunden-unternehmer/stammdaten/partner-10007')
   assert.equal(view.match, 'Neuanlage ohne vorhandene Nummer')
   assert.equal(view.approval, 'automatisch')
   assert.equal(customerImportHistoryRowView({ result: { actions: ['updated'] } }).title, 'Stammdaten ergänzt')

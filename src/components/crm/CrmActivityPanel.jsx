@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Toast from '../ui/Toast.jsx'
+import CrmEditModal from './CrmEditModal.jsx'
 import { useAuth } from '../../auth/useAuth.js'
 import { ACTIVITY_PRIORITIES, ACTIVITY_TYPES } from '../../lib/crmActivities.js'
 import { addPartnerHistoryEntry, getHistoryActor } from '../../lib/partnerHistory.js'
@@ -35,7 +36,7 @@ export default function CrmActivityPanel({ partnerId, onSaved, canEdit }) {
   async function handleSubmit(event) {
     event.preventDefault()
     if (!form.text.trim()) {
-      setError('Bitte beschreibe die Aktivität.')
+      setError('Bitte gib eine Kurzbeschreibung ein.')
       return
     }
     setSubmitting(true)
@@ -48,27 +49,25 @@ export default function CrmActivityPanel({ partnerId, onSaved, canEdit }) {
         metadata: { date: form.date, type: form.type, priority: form.priority, text: form.text.trim(), contactPerson: form.contactPerson.trim(), reference: form.reference.trim() },
       }, getHistoryActor(authState))
       closeForm()
-      setToast('Aktivität gespeichert.')
+      setToast('Eintrag gespeichert.')
       onSaved?.()
     } catch {
-      setError('Die Aktivität konnte nicht gespeichert werden. Bitte versuche es erneut.')
+      setError('Der Eintrag konnte nicht gespeichert werden. Bitte versuche es erneut.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  return <section className="crm-activities" aria-label="Aktivität hinzufügen">
+  return <section className="crm-activities" aria-label="Kontakt & Notizen">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="crm-activities__heading"><h3>Aktivitäten</h3>{canEdit && <button className="button button--secondary" type="button" onClick={() => isOpen ? closeForm() : setOpen(true)}>{isOpen ? 'Abbrechen' : 'Aktivität hinzufügen'}</button>}</div>
-    {isOpen && <form className="crm-activity-form" onSubmit={handleSubmit}>
-      <label>Datum<input type="date" value={form.date} onChange={(event) => updateField('date', event.target.value)} required /></label>
-      <label>Art<select value={form.type} onChange={(event) => updateType(event.target.value)}>{ACTIVITY_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
-      <label>Hinweisstufe<select value={form.priority} onChange={(event) => updateField('priority', event.target.value)}>{ACTIVITY_PRIORITIES.map((priority) => <option key={priority.value} value={priority.value}>{priority.label}</option>)}</select></label>
-      <label className="crm-activity-form__text">Kurzbeschreibung<textarea value={form.text} onChange={(event) => updateField('text', event.target.value)} rows="3" required /></label>
-      {contactPersonTypes.has(form.type) && <label>Ansprechpartner (optional)<input value={form.contactPerson} onChange={(event) => updateField('contactPerson', event.target.value)} /></label>}
-      {referenceTypes.has(form.type) && <label>{form.type === 'offer' ? 'Angebotsnummer / Referenz (optional)' : 'Referenz / Tournummer (optional)'}<input value={form.reference} onChange={(event) => updateField('reference', event.target.value)} /></label>}
-      {error && <p className="form-error crm-activity-form__error">{error}</p>}
-      <div className="crm-activity-form__actions"><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : 'Aktivität speichern'}</button></div>
-    </form>}
+    <div className="crm-activities__heading"><h3>Kontakt & Notizen</h3>{canEdit && <button className="button button--secondary" type="button" onClick={() => setOpen(true)}>Kontakt oder Notiz hinzufügen</button>}</div>
+    {isOpen && <CrmEditModal title="Kontakt oder Notiz hinzufügen" description="Kontakt oder Vorgang im CRM dokumentieren" onClose={closeForm} onSubmit={handleSubmit} saving={submitting} changed={Boolean(form.text.trim())} error={error} saveLabel="Eintrag speichern" className="crm-edit-modal--activity" fieldsClassName="crm-edit-modal__fields--activity">
+      <label className="form-field"><span>Datum</span><input type="date" value={form.date} onChange={(event) => updateField('date', event.target.value)} required disabled={submitting} /></label>
+      <label className="form-field"><span>Art</span><select value={form.type} onChange={(event) => updateType(event.target.value)} disabled={submitting}>{ACTIVITY_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+      <label className="form-field"><span>Hinweisstufe</span><select value={form.priority} onChange={(event) => updateField('priority', event.target.value)} disabled={submitting}>{ACTIVITY_PRIORITIES.map((priority) => <option key={priority.value} value={priority.value}>{priority.label}</option>)}</select></label>
+      <label className="form-field crm-activity-modal__text"><span>Kurzbeschreibung</span><textarea value={form.text} onChange={(event) => updateField('text', event.target.value)} rows="4" required disabled={submitting} /></label>
+      {contactPersonTypes.has(form.type) && <label className="form-field crm-activity-modal__optional"><span>Ansprechpartner (optional)</span><input value={form.contactPerson} onChange={(event) => updateField('contactPerson', event.target.value)} disabled={submitting} /></label>}
+      {referenceTypes.has(form.type) && <label className="form-field crm-activity-modal__optional"><span>{form.type === 'offer' ? 'Angebotsnummer / Referenz (optional)' : 'Referenz / Tournummer (optional)'}</span><input value={form.reference} onChange={(event) => updateField('reference', event.target.value)} disabled={submitting} /></label>}
+    </CrmEditModal>}
   </section>
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerStatusLabel, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import Toast from '../components/ui/Toast.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
 
@@ -78,7 +79,7 @@ export default function CustomersPage() {
   }
 
   function openPartner(partner) {
-    navigate(`/kunden-unternehmer/${partner.id}`)
+    navigate(businessPartnerDetailPath(partner.id))
   }
 
   function handlePartnerKeyDown(event, partner) {

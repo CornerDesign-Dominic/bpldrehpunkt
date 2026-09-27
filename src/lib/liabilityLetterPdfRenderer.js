@@ -1,4 +1,4 @@
-import { BPL_FOOTER_COLUMNS, BPL_SENDER_LINE } from '../templates/bplDocumentDetails.js'
+import { companyFooterColumns, companySenderLine, DEFAULT_COMPANY_DATA } from './companyDataModel.js'
 import { formatDocumentDate, getLiabilitySubject } from '../templates/liabilityDocumentData.js'
 import { formatLiabilityAddressLine, liabilityRecipientLines, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
 import { documentSignature } from '../templates/documentSignature.js'
@@ -9,13 +9,13 @@ const BODY_FONT_SIZE = 10.3
 const BODY_LINE_HEIGHT = 5.45
 const CONTENT_BOTTOM = 257
 
-function writeFooter(pdf) {
+function writeFooter(pdf, company) {
   const footerTop = 263
   const columns = [16, 50, 96, 141]
   pdf.setDrawColor(170)
   pdf.setLineWidth(0.2)
   pdf.line(PAGE.footerLeft, footerTop, PAGE.footerRight, footerTop)
-  BPL_FOOTER_COLUMNS.forEach((column, columnIndex) => {
+  companyFooterColumns(company).forEach((column, columnIndex) => {
     let y = footerTop + 4.1
     column.forEach((line) => {
       pdf.setFont('helvetica', line.bold ? 'bold' : 'normal')
@@ -26,12 +26,17 @@ function writeFooter(pdf) {
   })
 }
 
-function writeLetterhead(pdf, headerImage) {
-  pdf.addImage(headerImage, 'PNG', PAGE.left, LETTERHEAD.top, LETTERHEAD.width, LETTERHEAD.height)
-  writeFooter(pdf)
+function writeLetterhead(pdf, headerImage, company) {
+  if (company.legalName === DEFAULT_COMPANY_DATA.legalName) pdf.addImage(headerImage, 'PNG', PAGE.left, LETTERHEAD.top, LETTERHEAD.width, LETTERHEAD.height)
+  else {
+    pdf.setFont('helvetica', 'bold'); pdf.setFontSize(company.legalName.length > 60 ? 11 : 18)
+    pdf.text(pdf.splitTextToSize(company.legalName, LETTERHEAD.width), PAGE.left, LETTERHEAD.top + 15)
+    pdf.setDrawColor(80); pdf.line(PAGE.left, LETTERHEAD.top + LETTERHEAD.height, PAGE.right, LETTERHEAD.top + LETTERHEAD.height)
+  }
+  writeFooter(pdf, company)
 }
 
-export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
+export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage, company }) {
   const layoutPdf = new JsPdf({ format: 'a4', orientation: 'portrait', unit: 'mm' })
   const pdf = new JsPdf({ compress: true, format: 'a4', orientation: 'portrait', unit: 'mm' })
   const pages = [[]]
@@ -83,7 +88,7 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
   }
 
   const recipientTop = LETTERHEAD.top + LETTERHEAD.height + 6
-  addText(BPL_SENDER_LINE, PAGE.left, recipientTop, { bold: true, fontSize: 7.4 })
+  addText(companySenderLine(company), PAGE.left, recipientTop, { bold: true, fontSize: 7.4 })
   const recipientY = recipientTop + 6.2
   const recipient = liabilityRecipientLines(documentData)
   recipient.forEach((line, index) => addText(line, PAGE.left, recipientY + index * 5.35))
@@ -111,17 +116,26 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage }) {
     writeParagraph(personalSignature.signerName, { bold: true, spacingAfter: 2.5 })
     addSignatureImage(personalSignature.imageData, signatureDimensions)
   } else {
-    writeParagraph(LIABILITY_LETTER_TEXT.company, { bold: true })
+    writeParagraph(company.legalName, { bold: true })
+  }
+  const stamp = documentData.attachments?.stamp?.imageData
+  if (stamp) {
+    let width = 40; let height = 20
+    try { const image = layoutPdf.getImageProperties(stamp); const scale = Math.min(width / image.width, height / image.height); width = image.width * scale; height = image.height * scale } catch { /* Keep bounded fallback. */ }
+    y += 3
+    if (y + height > CONTENT_BOTTOM) newPage()
+    pages[pageIndex].push({ type: 'image', imageData: stamp, format: stamp.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', x: PAGE.left, y, width, height })
+    y += height
   }
 
   for (let index = 1; index < pages.length; index += 1) pdf.addPage('a4', 'portrait')
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index]
     pdf.setPage(index + 1)
-    writeLetterhead(pdf, headerImage)
+    writeLetterhead(pdf, headerImage, company)
     page.forEach((entry) => {
       if (entry.type === 'image') {
-        pdf.addImage(entry.imageData, 'JPEG', entry.x, entry.y, entry.width, entry.height)
+        pdf.addImage(entry.imageData, entry.format || 'JPEG', entry.x, entry.y, entry.width, entry.height)
         return
       }
       pdf.setFont('helvetica', entry.bold ? 'bold' : 'normal')

@@ -1,15 +1,15 @@
 import { PALLET_CLOSING_TYPES, PALLET_TYPES } from '../../constants/pallets.js'
+import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 
 const currentDate = () => new Date().toISOString().slice(0, 10)
 
 export function createPalletMovementForm(partner) {
-  const isCarrier = Boolean(partner?.creditorNumber?.trim())
-  const isCustomer = Boolean(partner?.debtorNumber?.trim())
+  const roles = businessPartnerRoles(partner)
   return {
     tourNumber: '',
     date: currentDate(),
-    customerId: isCustomer && !isCarrier ? partner.id : '',
-    carrierId: isCarrier ? partner.id : '',
+    customerId: roles.customer && !roles.carrier ? partner.id : '',
+    carrierId: roles.carrier ? partner.id : '',
     palletReceiptNumber: '',
     palletType: PALLET_TYPES[0],
     note: '',

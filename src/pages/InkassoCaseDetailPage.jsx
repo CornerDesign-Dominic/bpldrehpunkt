@@ -15,12 +15,15 @@ import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
+import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { createInkassoCaseDocument, deleteInkassoCaseDocument, getInkassoCaseDocumentBlob, listInkassoCaseDocuments, updateInkassoCaseDocument } from '../lib/inkassoDocuments.js'
 import { addInkassoCaseUpdate, createInkassoCaseDeadline, createInkassoCaseInvoice, createInkassoCaseMovement, deleteInkassoCaseDeadline, deleteInkassoCaseMovement, getInkassoCase, inkassoCaseStatusLabel, listInkassoCaseDeadlines, listInkassoCaseHistory, listInkassoCaseInvoices, listInkassoCaseMovements, listInkassoCaseUpdates, updateInkassoCaseDeadline, updateInkassoCaseFields, updateInkassoCaseInvoice, updateInkassoCaseMovement, updateInkassoInvoicePayment } from '../lib/inkasso.js'
+import { inkassoTodoPartnerValues } from '../lib/inkassoPartnerLinks.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
 import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
+import CaseTransportOrdersCard from '../components/case-links/CaseTransportOrdersCard.jsx'
 
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
 function hasValue(value) { return value !== null && value !== undefined && value !== '' }
@@ -148,7 +151,7 @@ export default function InkassoCaseDetailPage() {
   if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><BackLink to="/inkasso" /></section>
   if (!inkassoCase) return null
   const effectivePartner = effectivePartnerResult.partnerId === inkassoCase.debtorPartnerId ? effectivePartnerResult.data : null
-  const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' · ') || 'Inkassofall', values: { carrierId: inkassoCase.debtorPartnerId || '', carrierName: inkassoCase.debtorName || '' } }
+  const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' · ') || 'Inkassofall', values: inkassoTodoPartnerValues(inkassoCase) }
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = [...updates.filter((update) => update.type === 'system'), ...historyEntries].sort((left, right) => (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
@@ -177,9 +180,10 @@ export default function InkassoCaseDetailPage() {
           <section className="todo-updates todo-history" aria-labelledby="inkasso-history-title"><div className="todo-updates__heading"><h3 id="inkasso-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
         <aside className="todo-detail-sidebar">
+          <CaseTransportOrdersCard caseType="inkasso" caseId={inkassoCase.id} actor={{ user, profile }} canManage={editable && canView('transportOrders')} canViewTransportOrders={canView('transportOrders')} />
           <InformationSection title="Allgemein" values={allInformationValues}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
           <InformationSection title="Inkassodaten" values={[inkassoCase.collectionAgency, inkassoCase.collectionReference, inkassoCase.createdAt]} onEdit={editable ? () => setEditing('collection') : null}><Detail label="Inkassounternehmen">{inkassoCase.collectionAgency}</Detail><Detail label="Aktenzeichen">{inkassoCase.collectionReference}</Detail><Detail label="Inkasso eröffnet am">{formatTimestamp(inkassoCase.createdAt)}</Detail></InformationSection>
-          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{canViewMasterData && effectivePartner ? <Link to={`/kunden-unternehmer/${encodeURIComponent(effectivePartner.id)}`}>{effectivePartner.companyName || inkassoCase.debtorName}</Link> : inkassoCase.debtorName}</Detail></InformationSection>
+          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{canViewMasterData && effectivePartner ? <Link to={businessPartnerDetailPath(effectivePartner.id)}>{effectivePartner.companyName || inkassoCase.debtorName}</Link> : inkassoCase.debtorName}</Detail></InformationSection>
           <InformationSection title="Systemdaten" values={[inkassoCase.createdByName, inkassoCase.createdAt, inkassoCase.updatedByName, inkassoCase.updatedAt]}><Detail label="Erstellt von">{inkassoCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail><Detail label="Zuletzt geändert von">{inkassoCase.updatedByName}</Detail><Detail label="Zuletzt geändert am">{formatTimestamp(inkassoCase.updatedAt)}</Detail></InformationSection>
         </aside>
       </div>

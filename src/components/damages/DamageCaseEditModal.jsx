@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DAMAGE_CASE_STATUSES, DAMAGE_CASE_TYPES, DAMAGE_CONTRACTOR_LIABILITY, DAMAGE_INSURANCE_RELEVANCE, DAMAGE_LEGAL_BASES } from '../../lib/damages.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
+import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 
 const sectionTitles = {
   description: 'Schadenbeschreibung bearbeiten',
@@ -35,8 +36,8 @@ export default function DamageCaseEditModal({ damageCase, onCancel, onSubmit, pa
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const responsibleUsers = useMemo(() => users.filter((entry) => entry.active !== false).sort((left, right) => getUserDisplayName(left, left).localeCompare(getUserDisplayName(right, right), 'de')), [users])
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const contractors = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => businessPartnerRoles(partner).customer), [partners])
+  const contractors = useMemo(() => partners.filter((partner) => businessPartnerRoles(partner).carrier), [partners])
 
   useEffect(() => {
     function closeOnEscape(event) { if (event.key === 'Escape' && !saving) onCancel() }

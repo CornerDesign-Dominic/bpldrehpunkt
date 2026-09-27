@@ -3,6 +3,7 @@ import { listInsolvencies, listInsolvencyDeadlines } from './insolvencies.js'
 import { listLegalDisputes } from './legalDisputes.js'
 import { listInkassoCases } from './inkasso.js'
 import { canView } from './permissions.js'
+import { insolvencyCasePath } from './businessPartnerLinks.js'
 
 // System calendars are virtual: their entries stay in the source case files.
 // That keeps the calendar current without creating a second, editable event.
@@ -71,7 +72,7 @@ async function insolvencyEvents(calendar) {
       `insolvency:${insolvency.id}:insolvency-date`,
       `${text(insolvency.partnerName) || 'Insolvenzfall'} · Insolvenzeröffnung`,
       insolvency.insolvencyDate,
-      `/insolvenzen/${insolvency.id}`,
+      insolvencyCasePath(insolvency.id),
       text(insolvency.courtReference),
     ))
   const deadlineEvents = deadlineLists.flatMap(({ insolvency, deadlines }) => deadlines
@@ -81,7 +82,7 @@ async function insolvencyEvents(calendar) {
       `insolvency:${insolvency.id}:deadline:${deadline.id}`,
       `${text(insolvency.partnerName) || 'Insolvenzfall'} · ${text(deadline.note) || 'Termin / Frist'}`,
       deadline.date,
-      `/insolvenzen/${insolvency.id}`,
+      insolvencyCasePath(insolvency.id),
       text(insolvency.courtReference),
     )))
   return [...insolvencyDateEvents, ...deadlineEvents]

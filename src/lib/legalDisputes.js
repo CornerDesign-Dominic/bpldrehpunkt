@@ -1,6 +1,7 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { setTransportOrderCaseLink } from './caseTransportLinks.js'
 
 export const LEGAL_DISPUTES_COLLECTION = 'legalDisputes'
 export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
@@ -86,7 +87,7 @@ export function createEmptyLegalDispute() {
   }
 }
 
-export async function createLegalDispute(values, actor) {
+export async function createLegalDispute(values, actor, { transportOrderId = '' } = {}) {
   const transportReference = trim(values.transportReference)
   if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
 
@@ -96,7 +97,8 @@ export async function createLegalDispute(values, actor) {
   const optionalText = (value) => trim(value) || null
   let caseRef
   await runTransaction(db, async (transaction) => {
-    const counter = await transaction.get(counterRef)
+    const [counter, transportOrder] = await Promise.all([transaction.get(counterRef), transportOrderId ? transaction.get(doc(db, 'transportOrders', transportOrderId)) : Promise.resolve(null)])
+    if (transportOrderId && !transportOrder.exists()) throw new Error('Der Transportauftrag ist nicht mehr verfügbar.')
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
 
@@ -156,6 +158,7 @@ export async function createLegalDispute(values, actor) {
       updatedByName: actorName,
     })
     transaction.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
+    if (transportOrderId) setTransportOrderCaseLink(transaction, { caseType: 'legalDispute', caseId: caseRef.id, transportOrderId, actor })
   })
   return caseRef.id
 }

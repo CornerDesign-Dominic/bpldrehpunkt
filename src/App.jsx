@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { reportTechnicalFailure } from './lib/diagnostics.js'
+import { websiteDiagnosticStage } from './lib/diagnosticClassification.js'
 import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
@@ -21,6 +24,10 @@ import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import TeamPage from './pages/TeamPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
+import ShipmentTrackingAdminPage from './pages/ShipmentTrackingAdminPage.jsx'
+import DiagnosticsPage from './pages/DiagnosticsPage.jsx'
+import CompanyMasterDataPage from './pages/CompanyMasterDataPage.jsx'
+import { CompanyDataProvider } from './company/CompanyDataProvider.jsx'
 import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
@@ -47,10 +54,23 @@ import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerE
 import { CompanyHolidaySettingsProvider } from './company-holidays/CompanyHolidaySettingsProvider.jsx'
 
 function ProtectedAppLayout() {
-  return <ProtectedRoute><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></ProtectedRoute>
+  return <ProtectedRoute><CompanyDataProvider><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></CompanyDataProvider></ProtectedRoute>
 }
 
 export default function App() {
+  useEffect(() => {
+    const report = (code) => {
+      void reportTechnicalFailure({ module: 'website', stage: websiteDiagnosticStage(window.location.pathname), code })
+    }
+    const onError = (event) => { if (event.error) report('runtime-error') }
+    const onRejection = () => report('unhandled-rejection')
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onRejection)
+    return () => {
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onRejection)
+    }
+  }, [])
   return (
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
@@ -63,6 +83,7 @@ export default function App() {
         <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/import/unternehmer" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage kind="carrier" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/stammdaten/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
         <Route path="/transportauftraege" element={<PermissionRoute module="transportOrders"><TransportOrdersPage /></PermissionRoute>} />
@@ -91,6 +112,9 @@ export default function App() {
         <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
+        <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
+        <Route path="/admin/diagnose" element={<PermissionRoute requireUserManagement><DiagnosticsPage /></PermissionRoute>} />
+        <Route path="/admin/stammdaten" element={<PermissionRoute requireUserManagement><CompanyMasterDataPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />

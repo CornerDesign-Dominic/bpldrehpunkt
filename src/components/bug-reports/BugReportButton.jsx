@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { useAuth } from '../../auth/useAuth.js'
 import { usePermissions } from '../../auth/usePermissions.js'
+import { useTheme } from '../../theme/useTheme.js'
 import { listBusinessPartners } from '../../lib/businessPartners.js'
 import { functions } from '../../lib/firebase.js'
 import { createTodo } from '../../lib/todos.js'
 import { listVisibleUserDirectory } from '../../lib/userProfiles.js'
 import TodoForm from '../todos/TodoForm.jsx'
-import { BugIcon, CloseIcon, TodoIcon } from '../icons.jsx'
+import { BugIcon, CloseIcon, MoonIcon, SunIcon, TodoIcon } from '../icons.jsx'
 import Toast from '../ui/Toast.jsx'
 
 const modules = ['Dashboard', 'Urlaub', 'Kalender', 'Urlaubsmanagement', 'Team Brennpunkt', 'Kunden & Unternehmer', 'CRM', 'Palettenmanagement', 'News', 'Dokumente', 'To-dos', 'Mein Profil', 'Adminbereich', 'Sonstiges']
@@ -98,6 +99,7 @@ function BugReportModal({ onClose, onSuccess }) {
 export default function BugReportButton() {
   const { profile, user } = useAuth()
   const { canEdit, canView } = usePermissions()
+  const { theme, setTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugReportOpen, setBugReportOpen] = useState(false)
   const [todoOpen, setTodoOpen] = useState(false)
@@ -152,6 +154,12 @@ export default function BugReportButton() {
       {menuOpen && <div className="global-action-menu__options" role="menu" aria-label="Schnellaktionen">
         <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setBugReportOpen(true) }}><BugIcon size={18} /><span>Bug melden</span></button>
         {canCreateTodos && <button type="button" role="menuitem" onClick={openTodoModal}><TodoIcon size={18} /><span>To-do anlegen</span></button>}
+        <label className="global-action-menu__theme-switch" title={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}>
+          <SunIcon size={16} />
+          <input type="checkbox" checked={theme === 'dark'} onChange={(event) => setTheme(event.target.checked ? 'dark' : 'light')} aria-label={theme === 'dark' ? 'Dunkles Design ist aktiv; helles Design aktivieren' : 'Helles Design ist aktiv; dunkles Design aktivieren'} />
+          <i aria-hidden="true" />
+          <MoonIcon size={16} />
+        </label>
       </div>}
       <button className="global-action-menu__toggle" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label={menuOpen ? 'Schnellaktionen schließen' : 'Schnellaktionen öffnen'} title={menuOpen ? 'Schließen' : 'Schnellaktionen'} aria-expanded={menuOpen}>{menuOpen ? <CloseIcon size={20} /> : <span aria-hidden="true">+</span>}</button>
     </div>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { createEmptyTodo, isSelfTodo } from '../../lib/todos.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { TodoPriorityPicker } from './TodoPriority.jsx'
+import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 
 function initialValues(todo, currentUserId, fixedLink) {
   if (!todo) return fixedLink ? { ...createEmptyTodo(), ...fixedLink.values, [fixedLink.field]: fixedLink.id } : createEmptyTodo()
@@ -38,8 +39,8 @@ export default function TodoForm({ currentUserId, fixedLink = null, initialTodo,
     else setForm((current) => ({ ...current, carrierId: partner?.id || '', carrierName: partner?.companyName || '' }))
   }
 
-  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && businessPartnerRoles(partner).customer), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && businessPartnerRoles(partner).carrier), [partners])
 
   async function submit(event) {
     event.preventDefault()

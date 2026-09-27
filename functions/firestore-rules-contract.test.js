@@ -11,6 +11,7 @@ const personnelDetailPage = await readFile(new URL('../src/pages/PersonnelDetail
 const vacationPage = await readFile(new URL('../src/pages/VacationPage.jsx', import.meta.url), 'utf8')
 const vacationBalance = await readFile(new URL('../src/lib/vacationBalance.js', import.meta.url), 'utf8')
 const functionsIndex = await readFile(new URL('./index.js', import.meta.url), 'utf8')
+const caseTransportLinksClient = await readFile(new URL('../src/lib/caseTransportLinks.js', import.meta.url), 'utf8')
 
 test('active superadmins retain elevated rights while disabled superadmins do not', () => {
   assert.match(rules, /function superadmin\(\) \{ return active\(\) && role\(\) == 'superadmin'; \}/)
@@ -27,6 +28,36 @@ test('case editors may delete the four non-live case root documents', () => {
   assert.match(damageRules, /allow delete: if edit\('damages'\);/)
   assert.match(legalRules, /allow delete: if edit\('legalDisputes'\);/)
   assert.match(inkassoRules, /allow delete: if edit\('inkasso'\);/)
+})
+
+test('TA case links allow only damage, inkasso, and legal-dispute cases with their module permissions', () => {
+  const linkRules = rules.match(/function caseTransportLinkCaseVisible\(data\) \{[\s\S]*?match \/caseTransportOrderLinks\/\{linkId\} \{[\s\S]*?\n {4}\}/)?.[0] || ''
+  assert.match(linkRules, /data\.caseType in \['damage', 'inkasso', 'legalDispute'\]/)
+  assert.match(linkRules, /view\('transportOrders'\) && caseTransportLinkCaseVisible\(resource\.data\)/)
+  assert.match(linkRules, /caseTransportLinkCaseEditable\(request\.resource\.data\)/)
+  assert.doesNotMatch(linkRules, /insolvency|insolvencies/i)
+})
+
+test('creating a new TA case link does not read the as-yet unauthorized relation document', () => {
+  const createLink = caseTransportLinksClient.match(/export async function linkTransportOrderToCase\([\s\S]*?\n\}/)?.[0] || ''
+  assert.match(createLink, /transaction\.get\(caseRef\)/)
+  assert.match(createLink, /transaction\.get\(orderRef\)/)
+  assert.doesNotMatch(createLink, /transaction\.get\(linkRef\)/)
+  assert.match(createLink, /setTransportOrderCaseLink\(transaction/)
+})
+
+test('case and to-do partner links validate canonical IDs and role facts, not mandatory accounting numbers', () => {
+  const partnerRoleRules = rules.match(/function hasPartnerReferenceRole\(partner, role\) \{[\s\S]*?function validDamageClaimant/)?.[0] || ''
+  const damageRules = rules.match(/function validDamageClaimant\(data\) \{[\s\S]*?function validDamageCaseContent/)?.[0] || ''
+  const todoRules = rules.match(/function validCustomerLink\(data\) \{[\s\S]*?function validDamageCaseLink/)?.[0] || ''
+  assert.match(partnerRoleRules, /function hasBusinessPartnerRole\(partner, role\)/)
+  assert.match(partnerRoleRules, /hasProvisionalTransportCarrierRole/)
+  assert.match(partnerRoleRules, /dycosReferences/)
+  assert.match(partnerRoleRules, /function roleMapContains\(roleMap, role\)/)
+  assert.match(damageRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.claimantPartnerId\)\)\.data, 'customer'\)/)
+  assert.match(damageRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.contractorPartnerId\)\)\.data, 'carrier'\)/)
+  assert.match(todoRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.customerId\)\)\.data, 'customer'\)/)
+  assert.match(todoRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.carrierId\)\)\.data, 'carrier'\)/)
 })
 
 test('an active user may read only their own profile; administration uses a callable projection', () => {

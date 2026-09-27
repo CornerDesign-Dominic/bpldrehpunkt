@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { carrierMatchDecision, carrierPartnerPayload, carrierResolutionForImport, customerPartnerPayload, fillEmptyCustomerFields, importPartnerId, isSafeImportedCarrierRepair, transportOrderPartnerLink } from './transportOrderImports.js'
+import { carrierMatchDecision, carrierPartnerPayload, carrierResolutionForImport, customerPartnerPayload, fillEmptyCustomerFields, importPartnerId, isCarrierCandidate, isSafeImportedCarrierRepair, transportOrderPartnerLink } from './transportOrderImports.js'
 
 const row = {
   externalNumber: '260900123',
@@ -18,6 +18,8 @@ test('missing customer produces a customer partner with debtor number, FZ data a
   assert.deepEqual(payload.address, { street: 'Importstraße 7', houseNumber: '', postalCode: '40210', city: 'Düsseldorf', country: 'DE' })
   assert.equal(payload.contact.email, 'fz@example.test')
   assert.deepEqual(payload.dycosReferences.debtorNumbers, ['10042'])
+  assert.deepEqual(payload.shipmentTrackingPolicy.customer, { licensePlateImportant: true, loadingSiteInformationImportant: true })
+  assert.deepEqual(payload.shipmentTrackingPolicy.carrier.enabledRuleIds, {})
   assert.equal(payload.importOrigin.transportOrderNumber, '260900123')
 })
 
@@ -52,6 +54,7 @@ test('missing entrepreneur produces a partner with name and standard mail but no
   assert.deepEqual(payload.dycosReferences.creditorNumbers, [])
   assert.deepEqual(payload.taImportStatus.missingRequiredFields, ['creditorNumber'])
   assert.equal(payload.taImportStatus.partnerId, 'carrier-1')
+  assert.equal(Object.keys(payload.shipmentTrackingPolicy.carrier.enabledRuleIds).every((id) => id.includes('.internal.')), true)
 })
 
 test('order-only Info-1 and Im Auftrag never enter customer master data and existing data is not overwritten', () => {
@@ -63,6 +66,12 @@ test('order-only Info-1 and Im Auftrag never enter customer master data and exis
 test('new import partners are linked through their Firestore document IDs', () => {
   const partner = { id: 'actual-firestore-id', companyName: 'Transporte Müller GmbH', creditorNumber: '', taImportStatus: { source: 'dycosTransportOrder', missingRequiredFields: ['creditorNumber'] } }
   assert.deepEqual(transportOrderPartnerLink(partner), { partnerId: 'actual-firestore-id', partnerName: 'Transporte Müller GmbH', masterDataStatus: 'creditorNumberMissing' })
+})
+
+test('carrier matching retains provisional and explicitly marked entrepreneurs without a creditor number', () => {
+  assert.equal(isCarrierCandidate({ id: 'provisional', companyName: 'Vorläufig Transport', taImportStatus: { source: 'dycosTransportOrder', missingRequiredFields: ['creditorNumber'] } }), true)
+  assert.equal(isCarrierCandidate({ id: 'explicit', companyName: 'Manuell markiert', businessPartnerRoles: ['carrier'] }), true)
+  assert.equal(isCarrierCandidate({ id: 'customer-only', companyName: 'Nur Kunde', debtorNumber: '10042' }), false)
 })
 
 test('re-import uses stable partner IDs, does not create a duplicate and repairs only a traceable broken carrier link', () => {

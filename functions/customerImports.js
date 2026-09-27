@@ -6,6 +6,8 @@ import { partnerMergePreview } from './partnerMergeDecisions.js'
 import { hasPartnerMergeAccess } from './partnerMerges.js'
 import { resolveActivePartner } from './carrierImportModel.js'
 import { paymentTermText } from './paymentTerms.js'
+import { newShipmentTrackingPartnerPolicy } from './shared/shipmentTrackingPartnerDefaults.js'
+import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 
 const text = (value) => typeof value === 'string' ? value.trim() : ''
 const fieldLabels = { companyName: 'Firma', debtorNumber: 'Debitorennummer', language: 'Sprache', dycosCreatedAt: 'Erfasst am DyCoS', paymentTermDays: 'Zahlungsziel', creditNoteProcedure: 'Gutschriftverfahren', 'address.street': 'Straße', 'address.postalCode': 'PLZ', 'address.city': 'Ort', 'address.country': 'Land', 'contact.email': 'E-Mail', 'contact.website': 'Internet', 'companyData.vatId': 'UStID', 'companyData.taxNumber': 'Steuernummer', linkedCreditorNumber: 'Zugeordneter Unternehmer' }
@@ -51,7 +53,7 @@ function partner(snapshot) {
   return { id: snapshot.id, ...data, address: data.address || {}, contact: data.contact || {}, companyData: data.companyData || {}, dycosReferences: data.dycosReferences || {}, contacts: data.contacts || [] }
 }
 
-export function customerPayload(row, runRef, now) {
+export function customerPayload(row, runRef, now, ruleCatalog = null) {
   const data = row.data
   return {
     id: importId(row.debtorNumber), companyName: row.companyName, debtorNumber: row.debtorNumber, creditorNumber: normalizeCustomerIdentifier(data.linkedCreditorNumber), timocomNumber: '', transeuNumber: '', dplNumber: '', pakiNumber: '', status: 'active',
@@ -60,6 +62,7 @@ export function customerPayload(row, runRef, now) {
     contact: { phone: '', fax: '', email: text(data.website).includes('@') ? text(data.website) : '', website: /^(?:https?:\/\/|www\.)/i.test(text(data.website)) ? text(data.website) : '' },
     contacts: data.contacts || [], portals: [], companyData: { vatId: text(data.vatId), taxNumber: text(data.taxNumber), commercialRegisterNumber: '', registerCourt: '' },
     dycosReferences: { debtorNumbers: [row.debtorNumber], creditorNumbers: normalizeCustomerIdentifier(data.linkedCreditorNumber) ? [normalizeCustomerIdentifier(data.linkedCreditorNumber)] : [] },
+    shipmentTrackingPolicy: newShipmentTrackingPartnerPolicy({ debtorNumber: row.debtorNumber, creditorNumber: normalizeCustomerIdentifier(data.linkedCreditorNumber) }, ruleCatalog),
     importOrigin: { source: 'dycosCustomerImport', importRunId: runRef.id, createdAt: now }, importRawValues: data.rawValues || {}, createdAt: now, updatedAt: now,
   }
 }
@@ -185,7 +188,7 @@ export async function processCustomerImportHandler(request) {
   const fileName = text(request.data?.fileName)
   const rows = Array.isArray(request.data?.rows) ? request.data.rows.map(cleanRow) : []
   if (!fileName || !rows.length) throw new HttpsError('invalid-argument', 'Keine CSV-Zeilen vorhanden.')
-  const db = getFirestore(); const runRef = db.collection('customerImportRuns').doc(); const validNumbers = new Set(rows.filter((row) => row.debtorNumber).map((row) => normalizeCustomerIdentifier(row.debtorNumber))); const { map, partners } = await findCustomers(validNumbers)
+  const db = getFirestore(); const [catalogSnapshot] = await Promise.all([db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get()]); const ruleCatalog = catalogSnapshot.exists ? normalizeShipmentTrackingRuleCatalog(catalogSnapshot.data()) : fallbackShipmentTrackingRuleCatalog(); const runRef = db.collection('customerImportRuns').doc(); const validNumbers = new Set(rows.filter((row) => row.debtorNumber).map((row) => normalizeCustomerIdentifier(row.debtorNumber))); const { map, partners } = await findCustomers(validNumbers)
   const seen = new Set(); const openIds = new Set(); const counts = { automaticallyAccepted: 0, open: 0, errors: 0 }; const accepted = []
   await runRef.set({ id: runRef.id, source: 'dycosCustomerImport', fileName, importedAt: FieldValue.serverTimestamp(), importedByUserId: request.auth.uid, importedByName: actorName(profile), status: 'processing' })
   for (let index = 0; index < rows.length; index += 1) {
@@ -202,7 +205,7 @@ export async function processCustomerImportHandler(request) {
       if (!openIds.has(rowRef.id)) { openIds.add(rowRef.id); counts.open += 1 }
       continue
     }
-    const existing = debtorPartner || creditorPartner; const payload = customerPayload(row, runRef, FieldValue.serverTimestamp()); const additions = existing ? customerAdditions(existing, row) : { patch: {}, conflicts: [] }; const details = customerImportDecisionDetails({ row, existing, payload, additions }); const needsReview = details.reasons.length > 0 || details.comparisons.length > 0
+    const existing = debtorPartner || creditorPartner; const payload = customerPayload(row, runRef, FieldValue.serverTimestamp(), ruleCatalog); const additions = existing ? customerAdditions(existing, row) : { patch: {}, conflicts: [] }; const details = customerImportDecisionDetails({ row, existing, payload, additions }); const needsReview = details.reasons.length > 0 || details.comparisons.length > 0
     const assignment = customerImportAssignment(debtorPartner, creditorPartner, row.debtorNumber, row.data.linkedCreditorNumber)
     let customerId = existing?.id || payload.id; let automaticAppliedValues = {}
     if (!existing) { const customerRef = db.collection('businessPartners').doc(payload.id); await customerRef.set(payload); await writePartnerHistory(customerRef, { category: 'import', action: 'created', summary: 'Aus Kundenimport erstellt', source: 'dycosCustomerImport', importRunId: runRef.id }); map.set(row.debtorNumber, { id: payload.id, ...payload }); partners.push({ id: payload.id, ...payload }); automaticAppliedValues = { created: true } }

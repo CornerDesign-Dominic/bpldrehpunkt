@@ -13,7 +13,7 @@ async function imageData(url) {
   })
 }
 
-export async function downloadBusinessDocumentPdf(documentData, fileName) {
+export async function downloadBusinessDocumentPdf(documentData, fileName, company) {
   const [{ jsPDF }, headerImage] = await Promise.all([import('jspdf'), imageData(letterheadImage)])
-  renderBusinessDocumentPdf({ JsPdf: jsPDF, documentData, headerImage }).save(fileName)
+  renderBusinessDocumentPdf({ JsPdf: jsPDF, documentData, headerImage, company }).save(fileName)
 }

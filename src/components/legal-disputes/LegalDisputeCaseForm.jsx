@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
 import { createEmptyLegalDispute } from '../../lib/legalDisputes.js'
+import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
+import { businessPartnerRoleSelectionValue, parseBusinessPartnerRoleSelection } from '../../lib/caseTransportLinks.js'
 
-export default function LegalDisputeCaseForm({ onCancel, onSubmit, partners = [] }) {
-  const [form, setForm] = useState(createEmptyLegalDispute)
-  const [counterpartySelection, setCounterpartySelection] = useState('')
+export default function LegalDisputeCaseForm({ initialValues, onCancel, onSubmit, partners = [] }) {
+  const [form, setForm] = useState(() => ({ ...createEmptyLegalDispute(), ...(initialValues || {}) }))
+  const [counterpartySelection, setCounterpartySelection] = useState(() => initialValues?.counterpartySelection || '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => businessPartnerRoles(partner).customer), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => businessPartnerRoles(partner).carrier), [partners])
 
   function update(field, value) { setForm((current) => ({ ...current, [field]: value })) }
   function selectCounterparty(value) {
-    const [, partnerId] = value.split(':')
+    const { partnerId } = parseBusinessPartnerRoleSelection(value)
     const partner = partners.find((entry) => entry.id === partnerId)
     setCounterpartySelection(value)
     update('counterparty', partner?.companyName || '')
@@ -33,7 +35,7 @@ export default function LegalDisputeCaseForm({ onCancel, onSubmit, partners = []
     <section className="damage-form__section"><h3>Grunddaten</h3><div className="damage-form__grid damage-form__grid--context">
       <label className="form-field"><span>Transportauftragsnummer *</span><input autoFocus required value={form.transportReference} maxLength="240" onChange={(event) => update('transportReference', event.target.value)} /></label>
       <label className="form-field"><span>Art</span><input value={form.caseType} maxLength="120" onChange={(event) => update('caseType', event.target.value)} placeholder="z. B. Klage, Mahnverfahren" /></label>
-      <label className="form-field"><span>Gegenseite</span><select value={counterpartySelection} onChange={(event) => selectCounterparty(event.target.value)}><option value="">Keine Gegenseite ausgewählt</option>{customers.length > 0 && <optgroup label="Kunden">{customers.map((partner) => <option key={`customer-${partner.id}`} value={`customer:${partner.id}`}>{partner.companyName}</option>)}</optgroup>}{carriers.length > 0 && <optgroup label="Unternehmer">{carriers.map((partner) => <option key={`carrier-${partner.id}`} value={`carrier:${partner.id}`}>{partner.companyName}</option>)}</optgroup>}</select></label>
+      <label className="form-field"><span>Gegenseite</span><select value={counterpartySelection} onChange={(event) => selectCounterparty(event.target.value)}><option value="">Keine Gegenseite ausgewählt</option>{counterpartySelection && !partners.some((partner) => businessPartnerRoleSelectionValue('customer', partner.id) === counterpartySelection || businessPartnerRoleSelectionValue('carrier', partner.id) === counterpartySelection) && <option value={counterpartySelection}>{form.counterparty || 'Vorgefüllte Gegenseite'}</option>}{customers.length > 0 && <optgroup label="Kunden">{customers.map((partner) => <option key={`customer-${partner.id}`} value={businessPartnerRoleSelectionValue('customer', partner.id)}>{partner.companyName}</option>)}</optgroup>}{carriers.length > 0 && <optgroup label="Unternehmer">{carriers.map((partner) => <option key={`carrier-${partner.id}`} value={businessPartnerRoleSelectionValue('carrier', partner.id)}>{partner.companyName}</option>)}</optgroup>}</select></label>
     </div></section>
     {error && <p className="form-error">{error}</p>}
     <div className="form-actions"><button className="button button--secondary" type="button" disabled={submitting} onClick={onCancel}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird angelegt …' : 'Fall anlegen'}</button></div>

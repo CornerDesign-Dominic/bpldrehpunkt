@@ -5,15 +5,15 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
-import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
+import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsSkipped } from './externalEffects.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
-const powerAutomateNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
+export const systemMailNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
 const region = 'europe-west3'
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const templateDefinitions = {
+export const systemMailTemplateDefinitions = {
   vacation_request_confirmation: {
     displayName: 'Urlaubsantrag – Bestätigung',
     subject: 'Urlaub [Antrag] - {{employeeName}}',
@@ -74,6 +74,24 @@ const templateDefinitions = {
     message: 'Dein {{requestLabel}} wurde abgelehnt.\n\n{{requestLabel}}:\n\n{{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}{{managerComment}}\n\nStatus:\nAbgelehnt',
     allowedPlaceholders: ['employeeName', 'requestLabel', 'period', 'days', 'vacationType', 'managerComment'],
   },
+  shipment_tracking_license_plate_request: {
+    displayName: 'Sendungsverfolgung – Kennzeichen anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Kennzeichen benötigt',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns das Kennzeichen des eingesetzten Fahrzeugs für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nGeplante Beladung: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_arrival_request: {
+    displayName: 'Sendungsverfolgung – LKW-Ankunft anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – LKW-Ankunft benötigt',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns die voraussichtliche Ankunftszeit des LKW für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nGeplante Beladung: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_license_plate_and_arrival_request: {
+    displayName: 'Sendungsverfolgung – Kennzeichen und LKW-Ankunft anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Kennzeichen und LKW-Ankunft benötigt',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns für den Transportauftrag {{transportOrderNumber}} mit:\n\n- das Kennzeichen des eingesetzten Fahrzeugs\n- die voraussichtliche Ankunftszeit des LKW\n\nLadestelle: {{loadingLocation}}\nGeplante Beladung: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
   system_test: {
     displayName: 'System – Testmail',
     subject: 'Drehpunkt Testmail',
@@ -81,6 +99,8 @@ const templateDefinitions = {
     allowedPlaceholders: [],
   },
 }
+
+const templateDefinitions = systemMailTemplateDefinitions
 
 function isActive(profile) { return hasActiveProfile(profile) }
 function displayName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || profile?.email || '–' }
@@ -179,18 +199,34 @@ function renderTemplate(template, values) {
   return { subject, message, messageHtml: textToHtml(message) }
 }
 
-async function sendWebhook(recipient, templateId, values) {
-  if (!externalEffectsAllowed()) {
+async function sendWebhook(recipient, templateId, values, { allowDevelopment = false, templateOverride = null } = {}) {
+  const manualDevelopmentDelivery = allowDevelopment && externalEffectsEnvironment() === 'development'
+  if (!externalEffectsAllowed() && !manualDevelopmentDelivery) {
     logExternalEffectsSkipped('system-mail-webhook')
     return false
   }
-  const url = powerAutomateNotificationUrl.value()
+  const url = systemMailNotificationUrl.value()
   if (!url) throw new Error('notification-service-not-configured')
-  const template = await loadTemplate(templateId)
+  const template = templateOverride ? { ...templateDefinitions[templateId], ...templateOverride } : await loadTemplate(templateId)
   const { subject, message, messageHtml } = renderTemplate(template, values)
   const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: recipient, subject, message, messageHtml, type: templateId }) })
   if (!response.ok) throw new Error(`notification-service-${response.status}`)
   return true
+}
+
+/** Shared delivery primitive. Callers decide which controlled template and
+ * values are permitted; this function never chooses a recipient or rule. */
+export async function sendSystemMailTemplate({ recipient, templateId, values, subject, message, allowDevelopment = false }) {
+  if (!emailPattern.test(recipient || '')) throw new HttpsError('invalid-argument', 'Die Empfänger-E-Mail-Adresse ist ungültig.')
+  if (!Object.hasOwn(templateDefinitions, templateId)) throw new HttpsError('invalid-argument', 'Die Systemmail-Vorlage ist unbekannt.')
+  const hasOverride = subject !== undefined || message !== undefined
+  if (hasOverride && !validTemplate(templateId, { subject, message })) throw new HttpsError('invalid-argument', 'Betreff oder Nachricht enthalten unzulässige Platzhalter oder sind leer.')
+  return sendWebhook(recipient, templateId, values, { allowDevelopment, templateOverride: hasOverride ? { subject: cleanText(subject, 240), message: cleanText(message, 12000) } : null })
+}
+
+export async function previewSystemMailTemplate({ templateId, values }) {
+  if (!Object.hasOwn(templateDefinitions, templateId)) throw new HttpsError('invalid-argument', 'Die Systemmail-Vorlage ist unbekannt.')
+  return renderTemplate(await loadTemplate(templateId), values)
 }
 
 async function deliverVacationMail({ requestId, deliveryId, recipientId, recipient, templateId, values }) {
@@ -264,7 +300,7 @@ async function sendCancellationWithdrawalNotifications(requestId, request) {
   ])
 }
 
-export const notifyVacationRequestCreated = onDocumentCreated({ region, document: 'vacationRequests/{requestId}', secrets: [powerAutomateNotificationUrl], retry: true }, async (event) => {
+export const notifyVacationRequestCreated = onDocumentCreated({ region, document: 'vacationRequests/{requestId}', secrets: [systemMailNotificationUrl], retry: true }, async (event) => {
   if (!externalEffectsAllowed()) {
     logExternalEffectsSkipped('vacation-request-notifications')
     return
@@ -272,7 +308,7 @@ export const notifyVacationRequestCreated = onDocumentCreated({ region, document
   await sendSubmissionNotifications(event.params.requestId, event.data.data())
 })
 
-export const notifyVacationRequestDecision = onDocumentUpdated({ region, document: 'vacationRequests/{requestId}', secrets: [powerAutomateNotificationUrl], retry: true }, async (event) => {
+export const notifyVacationRequestDecision = onDocumentUpdated({ region, document: 'vacationRequests/{requestId}', secrets: [systemMailNotificationUrl], retry: true }, async (event) => {
   if (!externalEffectsAllowed()) {
     logExternalEffectsSkipped('vacation-decision-notifications')
     return
@@ -303,7 +339,7 @@ export const updateSystemMailTemplate = onCall({ region, enforceAppCheck: true }
   return { template: templateData(id, { subject, message, updatedBy: request.auth.uid }) }
 })
 
-export const sendSystemTestMail = onCall({ region, enforceAppCheck: true, secrets: [powerAutomateNotificationUrl] }, async (request) => {
+export const sendSystemTestMail = onCall({ region, enforceAppCheck: true, secrets: [systemMailNotificationUrl] }, async (request) => {
   const profile = await assertActiveAdmin(request)
   if (!externalEffectsAllowed()) {
     logExternalEffectsSkipped('system-mail-test')

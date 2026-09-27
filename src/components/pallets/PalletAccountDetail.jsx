@@ -4,7 +4,8 @@ import ConfirmDialog from '../ui/ConfirmDialog.jsx'
 import BackLink from '../ui/BackLink.jsx'
 import { usePermissions } from '../../auth/usePermissions.js'
 import Toast from '../ui/Toast.jsx'
-import { getEffectiveBusinessPartner, getPartnerCluster, listBusinessPartners } from '../../lib/businessPartners.js'
+import { getBusinessPartnerRoles, getEffectiveBusinessPartner, getPartnerCluster, listBusinessPartners } from '../../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../../lib/businessPartnerLinks.js'
 import { calculatePalletMovement, createPalletClosing, createPalletMovement, deletePalletClosing, deletePalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletClosing, updatePalletMovement } from '../../lib/palletAccounts.js'
 import PalletAccountOverviewCard from './PalletAccountOverviewCard.jsx'
 import PalletAccountPartnerCard from './PalletAccountPartnerCard.jsx'
@@ -56,8 +57,8 @@ export default function PalletAccountDetail({ partnerId }) {
   const closingBaseBalance = editingClosing ? account.balance - (Number(editingClosing.adjustment) || 0) : account.balance
   const newClosingBalance = closingBaseBalance + closingAdjustment
   const partnersById = useMemo(() => new Map(partners.map((partner) => [partner.id, partner])), [partners])
-  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && getBusinessPartnerRoles(partner).customer), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && getBusinessPartnerRoles(partner).carrier), [partners])
   const selectedCustomer = partnersById.get(movementForm.customerId)
   const selectedCarrier = partnersById.get(movementForm.carrierId)
 
@@ -202,7 +203,7 @@ export default function PalletAccountDetail({ partnerId }) {
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(deleteTarget)} title={deleteTarget?.type === 'movement' ? 'Palettenbewegung löschen?' : 'Kontoabschluss löschen?'} message={deleteTarget?.type === 'movement' ? 'Diese Palettenbewegung wird dauerhaft gelöscht.' : 'Dieser Kontoabschluss wird dauerhaft gelöscht.'} confirmLabel="Löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
-    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={`/kunden-unternehmer/${activePartnerId}`}>Stammdaten</Link></div>
+    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={businessPartnerDetailPath(activePartnerId)}>Stammdaten</Link></div>
     <PalletAccountPartnerCard partner={partner} />
     <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={activePartnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">

@@ -9,11 +9,14 @@
   "dependencies": {
     "drehpunkt": "file:..",
     "firebase-admin": "^14.4.0",
-    "firebase-functions": "^7.3.2",
+    "firebase-functions": "^7.4.0",
     "pdfjs-dist": "^6.2.108"
   },
   "overrides": {
     "gaxios": "7.3.1",
+    "@google-cloud/storage": {
+      "gaxios": "6.7.1"
+    },
     "uuid": "11.1.0"
   }
 }

@@ -1,0 +1,89 @@
+import { FaArrowRightFromBracket, FaArrowRightToBracket, FaBoxOpen, FaCircleExclamation, FaCircleInfo, FaClipboardCheck, FaClock, FaFileCircleCheck, FaTruck, FaWarehouse } from 'react-icons/fa6'
+import { defaultShipmentTrackingUiModel, trackingStages } from './shipmentTrackingUiModel.js'
+import { shipmentTrackingStageEvents, shipmentTrackingStationSummary } from '../../lib/shipmentTrackingPresentation.js'
+import ShipmentTrackingRecipientsCard from './ShipmentTrackingRecipientsCard.jsx'
+import ShipmentTrackingAutomationPreview from './ShipmentTrackingAutomationPreview.jsx'
+import { shipmentTrackingDryRunPresentation } from '../../lib/shipmentTrackingDryRunPresentation.js'
+import { shipmentTrackingManualDispatchBundles } from '../../../shared/shipmentTrackingManualDispatch.js'
+
+const stationIcons = { preparation: FaClipboardCheck, loading: FaWarehouse, in_transit: FaTruck, unloading: FaWarehouse, afterTransport: FaFileCircleCheck }
+const rowIcons = { arrival: FaArrowRightToBracket, process: FaBoxOpen, departure: FaArrowRightFromBracket, 'license-plate': FaClipboardCheck }
+const workflowStateLabels = { pending: 'Noch nicht erreicht', active: 'Aktuell offen', completed: 'Erledigt', automationActive: 'Automatik läuft', manualEscalation: 'Manuelle Klärung erforderlich' }
+
+function fallbackStation(stage) {
+  return {
+    ...stage,
+    plan: stage.id === 'preparation' || stage.id === 'afterTransport' ? null : stage.id === 'in_transit' ? 'Planstrecke noch nicht berechnet' : 'Sollzeit fehlt',
+    actualRows: [],
+    forecastRows: [],
+    status: null,
+    emptyMessage: null,
+    workflowState: 'pending',
+    workflowLabel: workflowStateLabels.pending,
+  }
+}
+
+function StationSummary({ station, tracking }) {
+  const summary = shipmentTrackingStationSummary(station, tracking)
+  return <div className="shipment-tracking-timeline__stage-summary">{summary.rows.map((row, index) => {
+    const Icon = row.kind === 'forecast' ? FaClock : row.kind === 'missing' ? FaCircleInfo : rowIcons[row.kind] || FaCircleInfo
+    const HintIcon = row.hint?.severity === 'alert' ? FaCircleExclamation : FaCircleInfo
+    return <div className="shipment-tracking-timeline__stage-summary-item" key={`${row.label}-${index}`}><p className={`shipment-tracking-timeline__stage-summary-row shipment-tracking-timeline__stage-summary-row--${row.kind}`}><Icon aria-hidden="true" /><span>{row.label && <>{row.label}: </>}<strong>{row.value}</strong></span></p>{row.hint && <p className={`shipment-tracking-timeline__assessment shipment-tracking-timeline__assessment--${row.hint.severity}`}><HintIcon aria-hidden="true" /><span>{row.hint.text}</span></p>}</div>
+  })}</div>
+}
+
+/**
+ * Rendert ausschließlich den aus Import- und Trackingdaten abgeleiteten
+ * Zeitstrahl. Änderungen erfolgen weiterhin nur über das Tracking-Modal.
+ */
+export default function ShipmentTrackingTimeline({ model = defaultShipmentTrackingUiModel, tracking = null, events = [], dryRunPreview = null, dryRunLoading = false, dryRunError = '', canEdit = false, saving = false, onStart, onEditStage, onEditRecipients, onShowStageInfo, onManualDispatch, onOpenMailTemplate, onComplete }) {
+  const dryRun = shipmentTrackingDryRunPresentation(dryRunPreview)
+  const manualDispatchBundles = shipmentTrackingManualDispatchBundles(dryRunPreview)
+  const hints = [...(Array.isArray(model.hints) ? model.hints : []), ...dryRun.hints]
+  const stations = trackingStages.map((stage) => model.stations?.find((entry) => entry.id === stage.id) || fallbackStation(stage))
+
+  return <section className="transport-order-detail-section transport-order-detail-section--tracking" aria-labelledby="shipment-tracking-heading">
+    <div className="shipment-tracking-timeline__heading">
+      <div><h3 id="shipment-tracking-heading">Sendungsverfolgung</h3></div>
+      <div className="shipment-tracking-timeline__header-summary"><span><em>Status:</em><strong>{model.lifecycleLabel || 'Bevorstehend'}</strong></span><span><em>Art:</em><strong>{model.trackingTypeLabel || 'Manuell'}</strong></span></div>
+    </div>
+
+    <div className="shipment-tracking-timeline__timeline">
+      <ol className="shipment-tracking-timeline__stages">
+        {stations.map((station) => {
+          const Icon = stationIcons[station.id] || FaCircleInfo
+          const workflowState = workflowStateLabels[station.workflowState] ? station.workflowState : 'pending'
+          const workflowLabel = station.workflowLabel || workflowStateLabels[workflowState]
+          const stageEvents = shipmentTrackingStageEvents(events, station.id)
+          const hasStageInformation = stageEvents.length > 0 || (station.actualRows?.length || 0) > 0 || (station.forecastRows?.length || 0) > 0 || (station.id === 'preparation' && Boolean(tracking?.licensePlate)) || (station.id === 'afterTransport' && tracking?.proofStatus && tracking.proofStatus !== 'unknown')
+          return <li key={station.id}>
+            <div className={station.plan === 'Sollzeit fehlt' || station.plan === 'Planstrecke noch nicht berechnet' ? 'shipment-tracking-timeline__plan shipment-tracking-timeline__plan--missing' : 'shipment-tracking-timeline__plan'}>{station.plan && <span>{station.plan}</span>}</div>
+            <span className={`shipment-tracking-timeline__station shipment-tracking-timeline__station--${workflowState}`} role="img" aria-label={`${station.label}: ${workflowLabel}`}><Icon size={19} /></span>
+            <span className="shipment-tracking-timeline__stage-label">{station.label}</span>
+            {model.trackingExists && canEdit && <button className="button button--secondary shipment-tracking-timeline__station-action" type="button" disabled={saving} aria-label={`${station.label} aktualisieren`} onClick={() => onEditStage?.(station.id)}>+ Info</button>}
+            <div className="shipment-tracking-timeline__stage-information">
+              <StationSummary station={station} tracking={tracking} />
+              {model.trackingExists && hasStageInformation && <a className="shipment-tracking-timeline__info-link" href="#shipment-tracking-history-heading" onClick={(event) => { event.preventDefault(); onShowStageInfo?.(station.id) }}><FaCircleInfo aria-hidden="true" />Weitere Infos</a>}
+            </div>
+          </li>
+        })}
+      </ol>
+    </div>
+
+    <div className="shipment-tracking-timeline__details">
+      {model.trackingExists && <ShipmentTrackingRecipientsCard tracking={tracking} canEdit={canEdit && model.lifecycleStatus !== 'completed'} saving={saving} onEdit={onEditRecipients} />}
+      <div className="shipment-tracking-timeline__panel">
+        <div className="shipment-tracking-timeline__panel-heading"><FaCircleInfo aria-hidden="true" /><h4>Aktuelle Hinweise</h4></div>
+        {hints.length ? <ul className="shipment-tracking-timeline__hints">{hints.map((hint, index) => <li className={`shipment-tracking-timeline__hint shipment-tracking-timeline__hint--${hint.status || 'neutral'}`} key={hint.id || index}><FaCircleInfo aria-hidden="true" /><span>{hint.description}</span></li>)}</ul> : <p>Keine aktiven Hinweise.</p>}
+      </div>
+      <div className="shipment-tracking-timeline__panel">
+        <div className="shipment-tracking-timeline__panel-heading"><FaClock aria-hidden="true" /><h4>Nächste Aktion</h4></div>
+        {dryRunLoading ? <p>Automatik-Vorschau wird berechnet …</p> : dryRunError ? <p>{dryRunError}</p> : dryRun.nextAction ? <div className="shipment-tracking-timeline__next-action"><strong>{dryRun.nextAction.time} · {dryRun.nextAction.topic}</strong><span>{dryRun.nextAction.title} · {dryRun.nextAction.recipient}</span><span>{dryRun.nextAction.reason}</span>{dryRun.nextAction.adjustmentReason && <span>{dryRun.nextAction.adjustmentReason}</span>}</div> : <p>{dryRun.emptyMessage}</p>}
+      </div>
+      {canEdit && model.trackingExists && model.lifecycleStatus !== 'completed' && <div className="shipment-tracking-timeline__manual-dispatch"><div><strong>Manuelle Statusanfrage</strong><span>{manualDispatchBundles.length ? 'Fällige Regelstufen werden bei passender Vorlage automatisch zugeordnet.' : 'Kann unabhängig von einer fälligen Regelstufe versendet werden.'}</span></div><div className="shipment-tracking-timeline__manual-dispatch-actions"><button className="button button--secondary" type="button" disabled={saving} onClick={() => onOpenMailTemplate?.()}>Mail Vorlage öffnen</button><button className="button button--secondary" type="button" disabled={saving} onClick={() => onManualDispatch?.(manualDispatchBundles)}>Statusanfrage senden</button></div></div>}
+      {model.trackingExists && <ShipmentTrackingAutomationPreview preview={dryRunPreview} loading={dryRunLoading} error={dryRunError} />}
+    </div>
+    {canEdit && !model.trackingExists && <div className="shipment-tracking-timeline__actions"><button className="button" type="button" disabled={saving} onClick={onStart}>Sendungsverfolgung starten</button></div>}
+    {canEdit && model.trackingExists && model.lifecycleStatus !== 'completed' && <div className="shipment-tracking-timeline__completion"><button className="button button--secondary" type="button" disabled={saving} onClick={onComplete}>Sendungsverfolgung abschließen</button></div>}
+  </section>
+}

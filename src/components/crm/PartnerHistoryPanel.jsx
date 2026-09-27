@@ -45,7 +45,7 @@ export default function PartnerHistoryPanel({ partnerId, refreshKey }) {
     id: `legacy-${activity.originPartnerId || partnerId}/${activity.id}`,
     category: 'contact',
     action: 'created',
-    summary: `${typeLabels.get(activity.type) || 'Aktivität'}: ${activity.text || '—'}`,
+    summary: `${typeLabels.get(activity.type) || 'Eintrag'}: ${activity.text || '—'}`,
     createdAt: activity.createdAt,
     createdByName: activity.createdByName ?? null,
     metadata: { ...activity, date: activity.date },

@@ -1,5 +1,5 @@
 {
   "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
   "storage": { "rules": "storage.rules" },
-  "functions": { "source": "functions" }
+  "functions": { "source": "functions", "predeploy": "node scripts/sync-functions-shared.mjs --write" }
 }

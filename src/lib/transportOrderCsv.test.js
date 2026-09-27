@@ -13,6 +13,12 @@ test('parses UTF-8 BOM, quoted semicolon values and a time-only slot on the matc
   assert.equal(result.rows[0].imported.financial.costNet, 1234.56)
 })
 
+test('normalizes a matching time-only end to the complete start timestamp', () => {
+  const result = parseTransportOrderCsv(`${header}\n${row('260400213', '10.09.2026 12:00', '12:00', '11.09.2026 08:00', '16:00')}`)
+  assert.equal(result.rows[0].imported.loading.window.from, '2026-09-10T12:00')
+  assert.equal(result.rows[0].imported.loading.window.until, '2026-09-10T12:00')
+})
+
 test('keeps a complete slot date and time unchanged', () => {
   const result = parseTransportOrderCsv(`${header}\n${row('260400211', '10.09.2026 07:00', '12.09.2026 14:00', '11.09.2026 08:00', '11.09.2026 16:00')}`)
   assert.equal(result.rows[0].imported.loading.window.from, '2026-09-10T07:00')

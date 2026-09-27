@@ -1,20 +1,21 @@
 import { useMemo, useState } from 'react'
 import { createEmptyDamageCase, DAMAGE_CASE_TYPES } from '../../lib/damages.js'
+import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 
-function initialValues(damageCase) {
-  if (!damageCase) return createEmptyDamageCase()
+function initialValues(damageCase, defaults) {
+  if (!damageCase) return { ...createEmptyDamageCase(), ...(defaults || {}) }
   return {
     damageDate: damageCase.damageDate || '', description: damageCase.description || '', damageType: damageCase.damageType || '',
     transportReference: damageCase.transportReference || '', claimant: damageCase.claimant || '', claimantPartnerId: damageCase.claimantPartnerId || '', contractor: damageCase.contractor || '', contractorPartnerId: damageCase.contractorPartnerId || '', damageAmount: damageCase.damageAmount ?? '',
   }
 }
 
-export default function DamageCaseForm({ damageCase, onCancel, onSubmit, partners = [] }) {
-  const [form, setForm] = useState(() => initialValues(damageCase))
+export default function DamageCaseForm({ damageCase, initialValues: defaults, onCancel, onSubmit, partners = [] }) {
+  const [form, setForm] = useState(() => initialValues(damageCase, defaults))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const contractors = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => businessPartnerRoles(partner).customer), [partners])
+  const contractors = useMemo(() => partners.filter((partner) => businessPartnerRoles(partner).carrier), [partners])
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }))
   function selectPartner(kind, partnerId) {
     const partner = partners.find((entry) => entry.id === partnerId)

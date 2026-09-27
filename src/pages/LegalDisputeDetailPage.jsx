@@ -20,6 +20,7 @@ import { addLegalDisputeSystemUpdate, addLegalDisputeUpdate, createLegalDisputeD
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
+import CaseTransportOrdersCard from '../components/case-links/CaseTransportOrdersCard.jsx'
 
 function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
@@ -192,6 +193,7 @@ export default function LegalDisputeDetailPage() {
           <section className="todo-updates todo-history" aria-labelledby="legal-dispute-history-title"><div className="todo-updates__heading"><h3 id="legal-dispute-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
         <aside className="todo-detail-sidebar">
+          <CaseTransportOrdersCard caseType="legalDispute" caseId={legalDispute.id} actor={{ user, profile }} canManage={editable && canView('transportOrders')} canViewTransportOrders={canView('transportOrders')} />
           <InformationSection title="Fallinformationen" onEdit={editable ? () => setEditing('information') : null} showEmpty values={[legalDispute.caseType, legalDispute.transportReference, legalDispute.responsibleUserName, legalDispute.completedAt]}><Detail label="Art des Falls">{legalDispute.caseType}</Detail><Detail label="Transportauftragsnummer">{legalDispute.transportReference}</Detail><Detail label="Zuständig">{legalDispute.responsibleUserName}</Detail>{legalDispute.isClosed && <Detail label="Abgeschlossen am">{formatTimestamp(legalDispute.completedAt)}</Detail>}</InformationSection>
           <InformationSection title="Nächster Termin / Frist" showEmpty values={[nextSchedule]}><Detail label={nextSchedule ? `Nächste ${legalDisputeScheduleTypeLabel(nextSchedule.type)}` : 'Nächster Termin / Frist'}>{nextScheduleDisplay}</Detail></InformationSection>
           <InformationSection title="Beteiligte" onEdit={editable ? () => setEditing('parties') : null} showEmpty values={[legalDispute.counterparty, legalDispute.opposingRepresentation, legalDispute.opposingReference]}><Detail label="Verknüpfter Gegner">{legalDispute.counterparty}</Detail><Detail label="Vertretung">{opposingRepresentationLabel(legalDispute.opposingRepresentation)}</Detail><Detail label="Aktenzeichen der Gegenseite">{legalDispute.opposingReference}</Detail></InformationSection>

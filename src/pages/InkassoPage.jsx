@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import InkassoCaseForm from '../components/inkasso/InkassoCaseForm.jsx'
 import InkassoCasesTable from '../components/inkasso/InkassoCasesTable.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
@@ -7,17 +7,20 @@ import { createInkassoCase, INKASSO_CASE_STATUSES, inkassoDeadlinePresentation, 
 import { usePageHeader } from '../lib/pageHeader.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import { resolvePartnerInIndex } from '../lib/partnerCluster.js'
+import { caseCreationDefaults } from '../lib/caseTransportLinks.js'
 
 export default function InkassoPage() {
   const { canEdit, canView } = usePermissions()
   const { setTitle } = usePageHeader()
   const navigate = useNavigate()
+  const location = useLocation()
   const editable = canEdit('inkasso')
   const [cases, setCases] = useState([])
   const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  const [pendingCaseCreation] = useState(() => location.state?.caseCreation?.caseType === 'inkasso' ? location.state.caseCreation : null)
+  const [showForm, setShowForm] = useState(() => Boolean(location.state?.caseCreation?.caseType === 'inkasso'))
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
@@ -58,8 +61,10 @@ export default function InkassoPage() {
     return () => { current = false }
   }, [canView, editable])
 
+  useEffect(() => { if (pendingCaseCreation) navigate(location.pathname, { replace: true, state: null }) }, [location.pathname, navigate, pendingCaseCreation])
+
   async function save(values) {
-    const id = await createInkassoCase(values)
+    const id = await createInkassoCase(values, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId })
     setShowForm(false)
     navigate(`/inkasso/${id}`)
   }
@@ -71,15 +76,15 @@ export default function InkassoPage() {
     {loading ? <p className="page-state">Inkassofälle werden geladen …</p> :
     <div className="inkasso-lists">
       <section className="inkasso-list" aria-labelledby="current-inkasso-cases-heading">
-        <div className="inkasso-list__heading"><h2 id="current-inkasso-cases-heading">Aktuelle Inkassofälle</h2><span>{currentCases.length}</span></div>
+        <div className="inkasso-list__heading"><h2 id="current-inkasso-cases-heading">Aktuelle Inkassofälle</h2></div>
         <InkassoCasesTable cases={currentCases} emptyMessage="Keine aktuellen Inkassofälle vorhanden." onOpen={(inkassoCase) => navigate(`/inkasso/${inkassoCase.id}`)} />
       </section>
       <section className="inkasso-list" aria-labelledby="closed-inkasso-cases-heading">
-        <div className="inkasso-list__heading"><h2 id="closed-inkasso-cases-heading">Abgeschlossene Inkassofälle</h2><span>{closedCases.length}</span></div>
+        <div className="inkasso-list__heading"><h2 id="closed-inkasso-cases-heading">Abgeschlossene Inkassofälle</h2></div>
         <InkassoCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Inkassofälle vorhanden." onOpen={(inkassoCase) => navigate(`/inkasso/${inkassoCase.id}`)} />
       </section>
     </div>
     }
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Inkassofall hinzufügen"><InkassoCaseForm partners={partners.filter((partner) => !partner.mergedIntoPartnerId)} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Inkassofall hinzufügen"><InkassoCaseForm initialValues={caseCreationDefaults('inkasso', pendingCaseCreation?.prefill)} partners={partners.filter((partner) => !partner.mergedIntoPartnerId)} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
   </div>
 }

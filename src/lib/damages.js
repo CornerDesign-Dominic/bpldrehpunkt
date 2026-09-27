@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { setTransportOrderCaseLink } from './caseTransportLinks.js'
 
 export const DAMAGE_CASES_COLLECTION = 'damageCases'
 export const DAMAGE_CASE_STATUSES = [
@@ -163,12 +164,13 @@ export async function getDamageCase(damageCaseId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createDamageCase(values, actor, responsibleUsersById) {
+export async function createDamageCase(values, actor, responsibleUsersById, { transportOrderId = '' } = {}) {
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'damageCaseCounters', year)
   const caseRef = doc(damageCasesRef)
   await runTransaction(db, async (transaction) => {
-    const counter = await transaction.get(counterRef)
+    const [counter, transportOrder] = await Promise.all([transaction.get(counterRef), transportOrderId ? transaction.get(doc(db, 'transportOrders', transportOrderId)) : Promise.resolve(null)])
+    if (transportOrderId && !transportOrder.exists()) throw new Error('Der Transportauftrag ist nicht mehr verfügbar.')
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
     const caseNumber = `S-${year}-${String(sequence).padStart(4, '0')}`
@@ -187,6 +189,7 @@ export async function createDamageCase(values, actor, responsibleUsersById) {
       updatedByName: getUserDisplayName(actor.profile, actor.user),
     })
     transaction.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', 'Fall angelegt', actor))
+    if (transportOrderId) setTransportOrderCaseLink(transaction, { caseType: 'damage', caseId: caseRef.id, transportOrderId, actor })
   })
   return caseRef.id
 }
