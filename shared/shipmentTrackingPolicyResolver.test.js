@@ -95,5 +95,5 @@ test('a required topic without its customer requirement reports a diagnostic ins
   const result = resolve({ customerPolicy: importantCustomer('loadingSite'), catalog }).topics.loadingSite
   assert.deepEqual(result.enabledRuleIds, [])
   assert.deepEqual(result.forcedRuleIds, [])
-  assert.deepEqual(result.diagnostics, [{ code: 'missing-customer-requirement', topic: 'loadingSite', message: 'Für loadingSite ist keine Kundenanforderungs-Stufe im Regelkatalog vorhanden.' }])
+  assert.deepEqual(result.diagnostics, [{ code: 'missing-customer-requirement', topic: 'loadingSite', message: 'Für „Informationen zur Ladestelle wichtig“ fehlt die separate Kundenanforderungs-Stufe im Regelkatalog.' }])
 })

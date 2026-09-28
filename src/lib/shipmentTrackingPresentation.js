@@ -204,7 +204,9 @@ export function shipmentTrackingStationAssessments({ tracking, imported, custome
   const result = { preparation: {}, loading: {} }
 
   if (!hasValue(tracking?.licensePlate) && customerPolicy?.customer?.licensePlateImportant === true) result.preparation.licensePlate = assessment('notice', 'Kennzeichen wichtig für Kunde')
-  if (arrival !== null && loadingFrom !== null && loadingUntil !== null) {
+  if (arrival === null && customerPolicy?.customer?.loadingSiteInformationImportant === true) {
+    result.loading.arrival = assessment('notice', 'Ankunft wichtig für Kunde')
+  } else if (arrival !== null && loadingFrom !== null && loadingUntil !== null) {
     if (arrival > loadingUntil) result.loading.arrival = assessment('alert', `${formatElapsedMinutes((arrival - loadingUntil) / 60000)} nach Slotende`)
     else if (arrival > loadingFrom) result.loading.arrival = assessment('notice', 'Spät im Slot')
   }
@@ -366,7 +368,7 @@ export function shipmentTrackingStationSummary(station, tracking) {
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
     rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
-    if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing')]
+    if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
   } else if (station.id === 'in_transit') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Noch nicht unterwegs', 'missing')]

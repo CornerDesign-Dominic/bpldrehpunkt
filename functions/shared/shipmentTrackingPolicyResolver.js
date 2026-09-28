@@ -3,6 +3,7 @@ import { normalizeShipmentTrackingPolicy } from './shipmentTrackingPolicy.js'
 import { businessPartnerRoles } from './businessPartnerRoles.js'
 
 const customerImportanceField = Object.freeze({ licensePlate: 'licensePlateImportant', loadingSite: 'loadingSiteInformationImportant' })
+const customerRequirementLabel = Object.freeze({ licensePlate: '„Kennzeichen wichtig“', loadingSite: '„Informationen zur Ladestelle wichtig“' })
 
 function partnerPolicy(partner) {
   return normalizeShipmentTrackingPolicy(partner?.shipmentTrackingPolicy)
@@ -36,7 +37,7 @@ function topicResolution(topic, customerPolicy, carrierPolicy, catalog, activeCa
   }
 
   if (customerImportant) {
-    if (!customerRequirement) diagnostics.push({ code: 'missing-customer-requirement', topic, message: `Für ${topic} ist keine Kundenanforderungs-Stufe im Regelkatalog vorhanden.` })
+    if (!customerRequirement) diagnostics.push({ code: 'missing-customer-requirement', topic, message: `Für ${customerRequirementLabel[topic]} fehlt die separate Kundenanforderungs-Stufe im Regelkatalog.` })
     else forcedIds.push(customerRequirement.id)
   }
 

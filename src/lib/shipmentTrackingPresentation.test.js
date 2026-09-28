@@ -228,6 +228,15 @@ test('a missing license plate is only highlighted when the customer requires it'
   assert.equal(shipmentTrackingStationAssessments({ tracking: {}, customerPolicy: { customer: { licensePlateImportant: false } } }).preparation.licensePlate, undefined)
 })
 
+test('an open loading arrival is only highlighted when the customer requires loading-site information', () => {
+  const important = { customer: { loadingSiteInformationImportant: true } }
+  assert.deepEqual(shipmentTrackingStationAssessments({ tracking: {}, customerPolicy: important }).loading.arrival, { severity: 'notice', text: 'Ankunft wichtig für Kunde' })
+  assert.equal(shipmentTrackingStationAssessments({ tracking: {}, customerPolicy: { customer: { loadingSiteInformationImportant: false } } }).loading.arrival, undefined)
+
+  const loading = shipmentTrackingStations({ tracking: {}, customerPolicy: important }).find((station) => station.id === 'loading')
+  assert.deepEqual(shipmentTrackingStationSummary(loading, {}).rows, [{ label: '', value: 'Ankunft offen', kind: 'missing', key: 'arrival', hint: { severity: 'notice', text: 'Ankunft wichtig für Kunde' } }])
+})
+
 test('loading arrival is assessed only with a complete slot and only after its start', () => {
   const base = { imported }
   assert.equal(shipmentTrackingStationAssessments({ ...base, tracking: { actualArrivalLoadingAt: new Date('2026-09-25T08:00:00+02:00') } }).loading.arrival, undefined)
