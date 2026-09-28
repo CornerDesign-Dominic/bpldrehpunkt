@@ -1,6 +1,6 @@
 import { addCalendarDays, effectiveOperatingHours, normalizeShipmentTrackingOperatingHours, SHIPMENT_TRACKING_TIMEZONE } from './shipmentTrackingOperatingHours.js'
 
-export const shipmentTrackingLifecyclePhases = Object.freeze(['upcoming', 'preparation', 'in_progress', 'aftercare', 'completed'])
+export const shipmentTrackingLifecyclePhases = Object.freeze(['upcoming', 'in_progress', 'completed'])
 
 const localDateTimePattern = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?$/
 const berlinFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: SHIPMENT_TRACKING_TIMEZONE, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -30,54 +30,43 @@ export function shipmentTrackingBerlinLocal(value) {
 
 function compareLocal(left, right) { return `${left.date}T${left.time}`.localeCompare(`${right.date}T${right.time}`) }
 
-/** The start of the second preceding open BPL day. */
-export function preparationStart(settings, earliestLoading) {
-  const earliest = shipmentTrackingBerlinLocal(earliestLoading)
-  if (!earliest) return null
+function nearestOpenBusinessDay(settings, date, direction) {
   const normalized = normalizeShipmentTrackingOperatingHours(settings)
-  let candidate = earliest.date
-  let counted = 0
+  let candidate = date
   for (let offset = 1; offset <= 370; offset += 1) {
-    candidate = addCalendarDays(candidate, -1)
-    const day = effectiveOperatingHours(normalized, candidate)
-    if (!day.isOpen) continue
-    counted += 1
-    if (counted === 2) return { date: candidate, time: day.from }
+    candidate = addCalendarDays(candidate, direction)
+    if (effectiveOperatingHours(normalized, candidate).isOpen) return candidate
   }
   return null
 }
 
-/** The end of the second following open BPL day after the unloading deadline. */
-export function aftercareCompletionAt(settings, latestUnloading) {
+/** Start on the preceding open BPL day at the fixed time of 07:00. */
+export function shipmentTrackingStartAt(settings, earliestLoading) {
+  const earliest = shipmentTrackingBerlinLocal(earliestLoading)
+  const date = earliest && nearestOpenBusinessDay(settings, earliest.date, -1)
+  return date ? { date, time: '07:00' } : null
+}
+
+/** Finish on the next open BPL day after unloading at the fixed time of 07:00. */
+export function shipmentTrackingCompletionAt(settings, latestUnloading) {
   const latest = shipmentTrackingBerlinLocal(latestUnloading)
-  if (!latest) return null
-  const normalized = normalizeShipmentTrackingOperatingHours(settings)
-  let candidate = latest.date
-  let counted = 0
-  for (let offset = 1; offset <= 370; offset += 1) {
-    candidate = addCalendarDays(candidate, 1)
-    const day = effectiveOperatingHours(normalized, candidate)
-    if (!day.isOpen) continue
-    counted += 1
-    if (counted === 2) return { date: candidate, time: day.to }
-  }
-  return null
+  const date = latest && nearestOpenBusinessDay(settings, latest.date, 1)
+  return date ? { date, time: '07:00' } : null
 }
 
 /** Pure lifecycle evaluation. Planned loading/unloading times are never changed. */
 export function shipmentTrackingLifecycle({ earliestLoading, latestUnloading, operatingHours, now = new Date() } = {}) {
   const clock = shipmentTrackingBerlinLocal(now)
   const earliest = shipmentTrackingBerlinLocal(earliestLoading)
-  if (!clock || !earliest) return { phase: 'upcoming', preparationAt: null, completionAt: null, diagnostic: 'missing-earliest-loading' }
-  const preparationAt = preparationStart(operatingHours, earliest)
-  if (!preparationAt) return { phase: 'upcoming', preparationAt: null, completionAt: null, diagnostic: 'preparation-window-unavailable' }
-  if (compareLocal(clock, preparationAt) < 0) return { phase: 'upcoming', preparationAt, completionAt: null, diagnostic: null }
-  if (compareLocal(clock, earliest) < 0) return { phase: 'preparation', preparationAt, completionAt: null, diagnostic: null }
+  if (!clock || !earliest) return { phase: 'upcoming', startAt: null, completionAt: null, diagnostic: 'missing-earliest-loading' }
+  const startAt = shipmentTrackingStartAt(operatingHours, earliest)
+  if (!startAt) return { phase: 'upcoming', startAt: null, completionAt: null, diagnostic: 'start-window-unavailable' }
+  if (compareLocal(clock, startAt) < 0) return { phase: 'upcoming', startAt, completionAt: null, diagnostic: null }
   const latest = shipmentTrackingBerlinLocal(latestUnloading)
-  if (!latest || compareLocal(clock, latest) < 0) return { phase: 'in_progress', preparationAt, completionAt: null, diagnostic: latest ? null : 'missing-latest-unloading' }
-  const completionAt = aftercareCompletionAt(operatingHours, latest)
-  if (!completionAt) return { phase: 'aftercare', preparationAt, completionAt: null, diagnostic: 'aftercare-window-unavailable' }
-  return { phase: compareLocal(clock, completionAt) < 0 ? 'aftercare' : 'completed', preparationAt, completionAt, diagnostic: null }
+  if (!latest) return { phase: 'in_progress', startAt, completionAt: null, diagnostic: 'missing-latest-unloading' }
+  const completionAt = shipmentTrackingCompletionAt(operatingHours, latest)
+  if (!completionAt) return { phase: 'in_progress', startAt, completionAt: null, diagnostic: 'completion-window-unavailable' }
+  return { phase: compareLocal(clock, completionAt) < 0 ? 'in_progress' : 'completed', startAt, completionAt, diagnostic: null }
 }
 
-export function isActiveShipmentTrackingPhase(phase) { return ['preparation', 'in_progress', 'aftercare'].includes(phase) }
+export function isActiveShipmentTrackingPhase(phase) { return phase === 'in_progress' }

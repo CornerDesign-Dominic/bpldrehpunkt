@@ -14,6 +14,7 @@ import DashboardPage from './pages/DashboardPage.jsx'
 import PalletAccountDetailPage from './pages/PalletAccountDetailPage.jsx'
 import PalletsPage from './pages/PalletsPage.jsx'
 import TodosPage from './pages/TodosPage.jsx'
+import NotesPage from './pages/NotesPage.jsx'
 import TodoDetailPage from './pages/TodoDetailPage.jsx'
 import DamagesPage from './pages/DamagesPage.jsx'
 import DamageDetailPage from './pages/DamageDetailPage.jsx'
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
+        <Route path="/notizen" element={<NotesPage />} />
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />

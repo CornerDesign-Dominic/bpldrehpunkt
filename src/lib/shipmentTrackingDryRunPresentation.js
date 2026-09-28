@@ -54,7 +54,7 @@ function actionStatusText(rule, state, now) {
   const scheduledAt = asDate(rule.scheduledAt)
   if (state === 'sent') return `Versendet ${formatShipmentTrackingDryRunDateTime(rule.dispatch?.sentAt)}`
   if (state === 'missed') return `Seit ${durationText(now.getTime() - scheduledAt.getTime())} verpasst`
-  if (state === 'skipped') return 'Wegen Pausierung übersprungen'
+  if (state === 'skipped') return rule.pause?.reason === 'import-date-change' ? 'Wegen Terminänderung übersprungen' : 'Wegen Pausierung übersprungen'
   if (state === 'blocked') {
     if (!scheduledAt) return 'Blockiert – Zeitpunkt nicht berechenbar'
     return 'Blockiert – Unternehmer-Empfänger fehlt'
@@ -63,6 +63,7 @@ function actionStatusText(rule, state, now) {
 }
 
 function pauseText(pause) {
+  if (pause?.reason === 'import-date-change') return 'Durch eine Terminänderung beim Import lag die Regel bereits in der Vergangenheit.'
   const from = formatShipmentTrackingDryRunDateTime(pause?.from)
   if (pause?.active) return `Die Automatik ist seit ${from} pausiert.`
   const until = formatShipmentTrackingDryRunDateTime(pause?.until)

@@ -17,7 +17,7 @@ const fieldLabels = {
   proofStatus: 'Nachweisstatus',
 }
 
-const sourceLabels = { manual: 'Manuelle Eingabe', manual_mail: 'Manueller Mailversand', automatic: 'Sendungsverfolgungs-Automatik', phone: 'Telefon', other_mailbox: 'Anderes E-Mail-Postfach', other: 'Sonstiges' }
+const sourceLabels = { manual: 'Manuelle Eingabe', import: 'TA-Import', manual_mail: 'Manueller Mailversand', automatic: 'Sendungsverfolgungs-Automatik', phone: 'Telefon', other_mailbox: 'Anderes E-Mail-Postfach', other: 'Sonstiges' }
 const proofLabels = { unknown: 'unbekannt', open: 'offen', received: 'erhalten' }
 const timeFormatter = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' })
 const berlinDateTimeFormatter = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -430,8 +430,8 @@ export function shipmentTrackingTimelineModel(tracking, imported, route, custome
   const stations = shipmentTrackingStations({ tracking, imported, route, customerPolicy })
   if (!tracking) return { ...defaultShipmentTrackingUiModel, trackingExists: false, stations }
   const completed = tracking.lifecycleStatus === 'completed'
-  const lifecyclePhase = completed ? 'completed' : tracking.lifecyclePhase || 'in_progress'
-  const lifecycleLabels = { upcoming: 'Bevorstehend', preparation: 'Vorbereitung', in_progress: 'Laufend', aftercare: 'Abschlussphase', completed: 'Durchgeführt' }
+  const lifecyclePhase = completed ? 'completed' : tracking.lifecyclePhase === 'upcoming' ? 'upcoming' : 'in_progress'
+  const lifecycleLabels = { upcoming: 'Bevorstehend', in_progress: 'Laufend', completed: 'Durchgeführt' }
   return {
     ...defaultShipmentTrackingUiModel,
     status: completed ? 'confirmed' : 'manual',
@@ -460,10 +460,20 @@ function hasEventValue(value) {
   return value !== null && value !== undefined && value !== ''
 }
 
+function importHistoryValue(value) {
+  if (!hasEventValue(value)) return 'Nicht hinterlegt'
+  return typeof value === 'number' ? new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(value) : String(value)
+}
+
 export function shipmentTrackingEventChangeType(event) {
   if (event.eventType === 'tracking_started') return 'Neu'
   if (event.eventType === 'tracking_completed') return 'Abgeschlossen'
   if (event.eventType === 'tracking_manual_mail_sent' || event.eventType === 'tracking_automatic_mail_sent') return 'Versendet'
+  if (event.eventType === 'transport_order_import_updated') {
+    if (!hasEventValue(event.newValue)) return 'Gelöscht'
+    if (!hasEventValue(event.oldValue)) return 'Neu'
+    return 'Aktualisiert'
+  }
   const fields = Array.isArray(event.changedFields) ? event.changedFields : []
   if (!fields.length) return 'Aktualisiert'
   const changes = fields.map((field) => ({ oldValue: eventValueAtPath(event.oldValue, field), newValue: eventValueAtPath(event.newValue, field) }))
@@ -477,9 +487,10 @@ export function shipmentTrackingEventDescription(event) {
   if (event.eventType === 'tracking_completed') return 'Sendungsverfolgung abgeschlossen'
   if (event.eventType === 'tracking_automation_paused') return 'Sendungsverfolgungs-Automatik pausiert'
   if (event.eventType === 'tracking_automation_resumed') return 'Sendungsverfolgungs-Automatik fortgeführt'
+  if (event.eventType === 'transport_order_import_updated') return `${event.fieldLabel || event.field || 'Auftragsdaten'}: ${importHistoryValue(event.oldValue)} → ${importHistoryValue(event.newValue)}`
   if (event.eventType === 'tracking_phase_changed') {
-    const labels = { upcoming: 'Bevorstehend', preparation: 'Vorbereitung', in_progress: 'Laufend', aftercare: 'Abschlussphase', completed: 'Durchgeführt' }
-    return `Tracking-Phase: ${labels[event.newValue?.lifecyclePhase] || event.newValue?.lifecyclePhase || 'aktualisiert'}`
+    const labels = { upcoming: 'Bevorstehend', preparation: 'Laufend', in_progress: 'Laufend', aftercare: 'Laufend', completed: 'Durchgeführt' }
+    return `Tracking-Status: ${labels[event.newValue?.lifecyclePhase] || 'aktualisiert'}`
   }
   if (event.eventType === 'tracking_recipients_updated') {
     const labels = { customer: 'Kunde', carrier: 'Unternehmer' }

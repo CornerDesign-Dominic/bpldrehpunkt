@@ -30,6 +30,8 @@ test('history identifies newly entered, updated and cleared values', () => {
 test('recipient history makes old and new manual addresses understandable', () => {
   assert.equal(shipmentTrackingEventDescription({ eventType: 'tracking_recipients_updated', changedFields: ['recipients.customer'], oldValue: { recipients: { customer: { email: 'old@example.test' } } }, newValue: { recipients: { customer: { email: 'new@example.test' } } } }), 'Empfänger Kunde: old@example.test → new@example.test')
   assert.equal(shipmentTrackingEventDescription({ eventType: 'tracking_recipients_updated', changedFields: ['recipients.carrier'], oldValue: { recipients: { carrier: { email: 'carrier@example.test' } } }, newValue: { recipients: { carrier: null } } }), 'Empfänger Unternehmer: carrier@example.test → Nicht hinterlegt')
+  assert.equal(shipmentTrackingEventDescription({ eventType: 'transport_order_import_updated', field: 'financial.revenueNet', fieldLabel: 'Ertrag netto', oldValue: 100, newValue: 125 }), 'Ertrag netto: 100 → 125')
+  assert.equal(shipmentTrackingEventChangeType({ eventType: 'transport_order_import_updated', oldValue: null, newValue: 'Neue Bemerkung' }), 'Neu')
 })
 
 test('an active manual tracking state is labelled as running', () => {
@@ -45,11 +47,11 @@ test('timeline presentation exposes automatic tracking as a type label only', ()
   assert.equal(model.trackingTypeLabel, 'Automatisch')
 })
 
-test('an early manual start remains upcoming until the automatic preparation phase begins', () => {
-  const model = shipmentTrackingTimelineModel({ lifecycleStatus: 'active', lifecyclePhase: 'upcoming', trackingStartedEarly: true }, imported)
-  assert.equal(model.lifecycleLabel, 'Bevorstehend')
+test('an early manual start is immediately shown as running', () => {
+  const model = shipmentTrackingTimelineModel({ lifecycleStatus: 'active', lifecyclePhase: 'in_progress', trackingStartedEarly: true }, imported)
+  assert.equal(model.lifecycleLabel, 'Laufend')
   assert.equal(model.trackingTypeLabel, 'Vorzeitig gestartet')
-  assert.deepEqual(model.stations.map((station) => station.workflowState), ['pending', 'pending', 'pending', 'pending', 'pending'])
+  assert.deepEqual(model.stations.map((station) => station.workflowState), ['active', 'pending', 'pending', 'pending', 'pending'])
 })
 
 test('an actual time within a planned window is shown as on plan', () => {

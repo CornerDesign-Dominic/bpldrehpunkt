@@ -11,11 +11,15 @@ function mapSnapshot(snapshot) { return { id: snapshot.id, ...snapshot.data() } 
 export async function getShipmentTracking(orderId) {
   try {
     const trackingRef = doc(db, SHIPMENT_TRACKINGS_COLLECTION, orderId)
-    const [trackingSnapshot, eventSnapshots] = await Promise.all([
+    const orderRef = doc(db, 'transportOrders', orderId)
+    const [trackingSnapshot, eventSnapshots, importHistorySnapshots] = await Promise.all([
       getDoc(trackingRef),
       getDocs(query(collection(trackingRef, 'events'), orderBy('recordedAt', 'desc'))),
+      getDocs(query(collection(orderRef, 'history'), orderBy('recordedAt', 'desc'))),
     ])
-    return { tracking: trackingSnapshot.exists() ? mapSnapshot(trackingSnapshot) : null, events: eventSnapshots.docs.map(mapSnapshot) }
+    const events = eventSnapshots.docs.map(mapSnapshot).concat(importHistorySnapshots.docs.map((snapshot) => ({ id: `import-${snapshot.id}`, ...snapshot.data() })))
+      .sort((left, right) => (right.recordedAt?.toMillis?.() || right.recordedAt?.seconds * 1000 || 0) - (left.recordedAt?.toMillis?.() || left.recordedAt?.seconds * 1000 || 0))
+    return { tracking: trackingSnapshot.exists() ? mapSnapshot(trackingSnapshot) : null, events }
   } catch (error) {
     void reportTechnicalFailure({ module: 'shipment-tracking', stage: 'load', error, orderId })
     throw error

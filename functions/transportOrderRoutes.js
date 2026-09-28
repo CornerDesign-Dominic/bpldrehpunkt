@@ -163,6 +163,7 @@ async function saveCalculation({ db, orderId, calculationId, profile, actorId, s
     ? { ...data, latestCalculationId: calculationId }
     : { orderId, latestCalculationId: calculationId, latestCalculationStatus: status, calculatedAt: data.calculatedAt, calculatedBy: data.calculatedBy, calculatedByName: data.calculatedByName, status, errorCode, userSafeError, routeProfile }
   batch.set(routeRef, latestRoute, { merge: true })
+  if (status === 'succeeded') batch.set(db.doc(`transportOrders/${orderId}`), { routeNeedsRecalculation: false, routeRecalculatedAt: FieldValue.serverTimestamp() }, { merge: true })
   batch.set(db.doc(`tomTomUsageMonths/${month}`), { month, manualCalculations: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   if (status === 'failed') appendDiagnosticToBatch(batch, db, {
     module: 'transport-route', stage: failureStage || 'preparation', code: errorCode,

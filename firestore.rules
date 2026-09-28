@@ -59,6 +59,24 @@ service cloud.firestore {
       // Accounts are only created by the Admin SDK callable function.
       allow create, delete: if false;
       allow update: if false;
+
+      // Persönliche Notizen gehören ausschließlich ihrem Ersteller. Sie sind
+      // weder Teil des Teamprofils noch für Administratoren einsehbar.
+      match /personalNotes/{noteId} {
+        function validPersonalNote(data) {
+          return data.keys().hasAll(['title', 'text', 'createdAt', 'updatedAt'])
+            && data.keys().hasOnly(['title', 'text', 'createdAt', 'updatedAt'])
+            && data.title is string && data.title.size() > 0 && data.title.size() <= 140
+            && data.text is string && data.text.size() > 0 && data.text.size() <= 12000;
+        }
+        allow read: if active() && userId == request.auth.uid;
+        allow create: if active() && userId == request.auth.uid && validPersonalNote(request.resource.data)
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if active() && userId == request.auth.uid && validPersonalNote(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'text', 'updatedAt']);
+        allow delete: if false;
+      }
     }
 
     // Personal data is intentionally callable-only. This blocks all direct
@@ -232,6 +250,7 @@ service cloud.firestore {
     match /transportOrders/{transportOrderId} {
       allow read: if view('transportOrders');
       allow write: if false;
+      match /history/{entryId} { allow read: if view('transportOrders'); allow write: if false; }
     }
 
     // Own TA ratings are validated and written by the callable functions.

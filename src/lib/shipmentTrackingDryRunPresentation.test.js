@@ -53,3 +53,9 @@ test('the action overview combines only simultaneous internal customer and carri
   assert.equal(model.entries[0].trigger, 'Unternehmer und Kunde wichtig')
   assert.equal(model.entries[1].trigger, 'Kunde wichtig')
 })
+
+test('the action overview explains a rule skipped after an imported date change', () => {
+  const model = shipmentTrackingDryRunPresentation({ rules: [{ ruleId: 'skipped-by-import', topic: 'loadingSite', kind: 'external', recipient: { role: 'carrier', state: 'configured', email: 'test@example.test' }, scheduledAt: '2026-12-04T13:00:00.000Z', status: 'skipped', pause: { reason: 'import-date-change' } }] }, { now: '2026-12-04T16:00:00.000Z' })
+  assert.equal(model.entries[0].statusText, 'Wegen Terminänderung übersprungen')
+  assert.match(model.entries[0].pauseText, /Terminänderung beim Import/)
+})

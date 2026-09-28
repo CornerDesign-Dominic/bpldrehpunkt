@@ -89,6 +89,8 @@ export default function ShipmentTrackingTimeline({ model = defaultShipmentTracki
       </ol>
     </div>
 
+    {model.trackingExists && model.lifecycleLabel === 'Bevorstehend' && canEdit && <div className="shipment-tracking-timeline__activation"><div className="shipment-tracking-timeline__activation-timing"><FaClock aria-hidden="true" /><div><strong>Sendungsverfolgung ist bevorstehend</strong><small>Beim vorzeitigen Start wird keine E-Mail versendet. Alle Automatik-Regeln bleiben unverändert.</small></div></div><button className="button" type="button" disabled={saving} onClick={onEarlyStart}>Sendungsverfolgung vorzeitig starten</button></div>}
+
     <div className="shipment-tracking-timeline__details">
       {model.trackingExists && <ShipmentTrackingRecipientsCard tracking={tracking} canEdit={canEdit && model.lifecycleStatus !== 'completed'} canDispatch={canEdit} saving={saving} onSaveRecipient={onSaveRecipient} onOpenMailTemplate={onOpenMailTemplate} onManualDispatch={onManualDispatch} manualDispatchBundles={manualDispatchBundles} />}
       {model.trackingExists && <ShipmentTrackingActionOverview preview={dryRunPreview} loading={dryRunLoading} error={dryRunError} />}

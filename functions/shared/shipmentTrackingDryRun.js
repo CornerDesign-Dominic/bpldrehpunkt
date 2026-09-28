@@ -69,10 +69,12 @@ function pausedAutomation(tracking, scheduledAt, now) {
   if (!scheduled) return null
   const pausedAt = asDate(tracking?.automationPausedAt)
   const skippedBefore = asDate(tracking?.automationSkippedBefore)
+  const importSkippedBefore = asDate(tracking?.importScheduleSkippedBefore)
   if (tracking?.automationPaused === true && scheduled.getTime() <= now.getTime()) return { from: pausedAt, until: null, active: true }
+  if (importSkippedBefore && scheduled.getTime() <= importSkippedBefore.getTime()) return { from: importSkippedBefore, until: importSkippedBefore, active: false, reason: 'import-date-change' }
   if (skippedBefore && scheduled.getTime() <= skippedBefore.getTime()) {
     const lastPause = tracking?.lastAutomationPause
-    return { from: asDate(lastPause?.from), until: asDate(lastPause?.until) || skippedBefore, active: false }
+    return { from: asDate(lastPause?.from), until: asDate(lastPause?.until) || skippedBefore, active: false, reason: 'automation-paused' }
   }
   return null
 }

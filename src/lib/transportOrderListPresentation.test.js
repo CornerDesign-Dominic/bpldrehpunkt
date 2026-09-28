@@ -5,9 +5,7 @@ import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingStatusForLis
 test('tracking list starts without a status restriction and presents every lifecycle label', () => {
   assert.equal(defaultTrackingFilter, 'all')
   assert.equal(trackingStatusForList('upcoming').label, 'Bevorstehend')
-  assert.equal(trackingStatusForList('preparation').label, 'Vorbereitung')
   assert.equal(trackingStatusForList('in_progress').label, 'Laufend')
-  assert.equal(trackingStatusForList('aftercare').label, 'Abschlussphase')
   assert.equal(trackingStatusForList('completed').label, 'Durchgeführt')
   assert.equal(emptyTrackingFilterMessage('in_progress'), 'Keine laufenden Sendungsverfolgungen vorhanden.')
 })

@@ -50,7 +50,7 @@ export function deriveShipmentTrackingPosition(tracking) {
 /** Creates the stable tracking document shape for both manual and scheduled starts.
  * Lifecycle remains `active` until the final phase so existing permissions and
  * callables continue to work; `lifecyclePhase` is the readable lifecycle. */
-export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'preparation', trackingStartedEarly = false, carrierRecipientEmail = '' } = {}) {
+export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'in_progress', trackingStartedEarly = false, carrierRecipientEmail = '' } = {}) {
   const carrierEmail = text(carrierRecipientEmail)
   const recipients = emailPattern.test(carrierEmail)
     ? { carrier: { email: carrierEmail, source: 'transport-order-import' } }
@@ -106,7 +106,7 @@ function activationPreview(imported, operatingHours, now = new Date()) {
     operatingHours,
     now,
   })
-  return { phase: lifecycle.phase, preparationAt: lifecycle.preparationAt, diagnostic: lifecycle.diagnostic }
+  return { phase: lifecycle.phase, startAt: lifecycle.startAt, diagnostic: lifecycle.diagnostic }
 }
 
 /** Read-only start-time adapter. The opening-hours settings stay server-side. */
@@ -218,7 +218,7 @@ export async function updateManualShipmentTrackingHandler(request) {
   const profile = await assertTrackingEditAccess(request)
   const orderId = validOrderId(request.data?.orderId)
   const action = request.data?.action
-  if (!orderId || orderId.length > 240 || !['start', 'update', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
+  if (!orderId || orderId.length > 240 || !['start', 'start_early', 'update', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
   const source = normalizedSource(request.data?.source)
   const note = normalizedNote(request.data?.note)
   const changes = action === 'update' ? normalizedChanges(request.data?.changes) : {}
@@ -244,16 +244,23 @@ export async function updateManualShipmentTrackingHandler(request) {
       const activation = earlyStartRequested ? activationPreview(orderSnapshot.data()?.imported, operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS) : null
       const trackingStartedEarly = Boolean(earlyStartRequested && activation?.phase === 'upcoming')
       const tracking = createShipmentTrackingDocument(orderId, request.auth.uid, actor, {
-        lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation',
+        lifecyclePhase: 'in_progress',
         trackingStartedEarly,
         carrierRecipientEmail: orderSnapshot.data()?.imported?.dispatch?.sentTo,
       })
       transaction.create(trackingRef, tracking)
-      transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase', 'trackingStartedEarly'], newValue: { lifecycleStatus: 'active', lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation', trackingStartedEarly }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase', 'trackingStartedEarly'], newValue: { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', trackingStartedEarly }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
       return
     }
 
     if (!current) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung wurde noch nicht gestartet.')
+    if (action === 'start_early') {
+      if (current.lifecycleStatus === 'completed') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist bereits abgeschlossen.')
+      if (current.lifecyclePhase !== 'upcoming') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung läuft bereits.')
+      transaction.update(trackingRef, { lifecyclePhase: 'in_progress', trackingStartedEarly: true, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_phase_changed', changedFields: ['lifecyclePhase', 'trackingStartedEarly'], oldValue: { lifecyclePhase: current.lifecyclePhase, trackingStartedEarly: current.trackingStartedEarly === true }, newValue: { lifecyclePhase: 'in_progress', trackingStartedEarly: true }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
+      return
+    }
     if (action === 'pause_automation') {
       if (current.lifecycleStatus === 'completed') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist bereits abgeschlossen.')
       if (current.automationPaused === true) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgungs-Automatik ist bereits pausiert.')

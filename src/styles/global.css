@@ -1255,6 +1255,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .back-link:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
 .button--danger { border-color: var(--status-danger-text); color: var(--status-danger-text); background: var(--status-danger-background); }
 .button--danger:hover:not(:disabled) { filter: brightness(1.08); }
+.button--warning { border-color: var(--status-warning-text); color: var(--status-warning-text); background: var(--status-warning-background); }
+.button--warning:hover:not(:disabled) { filter: brightness(1.04); }
 .button--ai { border-color: var(--color-ai-border); color: var(--button-text); background: var(--color-ai); }
 .button--ai:hover:not(:disabled) { background: var(--color-ai-hover); }
 .button--ai:focus-visible { outline: 1px solid var(--color-ai-border); outline-offset: 2px; box-shadow: 0 0 0 3px var(--color-ai-soft); }
@@ -1745,7 +1747,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-orders-tracking-filter :is(select, input):focus { outline: none; border-color: var(--button-background); box-shadow: 0 0 0 2px var(--focus-ring); }
 .transport-orders-filters__reset { min-height: 34px; padding-inline: 9px; font-size: 12px; }
 .transport-orders-tracking-status { display: inline-flex; min-height: 25px; align-items: center; padding: 0 8px; border: 1px solid var(--border); border-radius: 99px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 11px; font-weight: 750; line-height: 1.2; white-space: nowrap; }
-.transport-orders-tracking-status--upcoming { color: #38566b; border-color: #aabdc9; background: #edf4f8; }.transport-orders-tracking-status--preparation { color: #786023; border-color: #d2bd72; background: #fbf5dc; }.transport-orders-tracking-status--in-progress { color: #1f608b; border-color: #8cbddb; background: #e2f0fa; }.transport-orders-tracking-status--aftercare { color: #665486; border-color: #b6a8d2; background: #f0ecf8; }.transport-orders-tracking-status--completed { color: #35634b; border-color: #8fbba0; background: #eaf3ed; }
+.transport-orders-tracking-status--upcoming { color: #38566b; border-color: #aabdc9; background: #edf4f8; }.transport-orders-tracking-status--in-progress { color: #1f608b; border-color: #8cbddb; background: #e2f0fa; }.transport-orders-tracking-status--completed { color: #35634b; border-color: #8fbba0; background: #eaf3ed; }
 .transport-orders-empty { display: grid; justify-items: center; gap: 10px; }.transport-orders-empty .button { min-height: 30px; font-size: 12px; }
 .transport-orders-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 11px; color: var(--text-secondary); font-size: 12px; }.transport-orders-pagination .button { min-height: 31px; font-size: 12px; }.transport-orders-pagination .button:disabled { cursor: default; opacity: .55; }
 .transport-orders-table-frame { overflow-x: auto; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }

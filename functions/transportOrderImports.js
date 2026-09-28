@@ -4,6 +4,7 @@ import { requireActiveProfile } from './access.js'
 import { businessPartnerRoles } from './shared/businessPartnerRoles.js'
 import { newShipmentTrackingPartnerPolicy } from './shared/shipmentTrackingPartnerDefaults.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
+import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
 
 const levels = { none: 0, view: 1, edit: 2 }
 const text = (value) => typeof value === 'string' ? value.trim() : ''
@@ -122,7 +123,7 @@ async function existingFor(numbers) {
     snapshots.forEach((snapshot) => {
       if (!snapshot.exists) return
       const data = snapshot.data()
-      result.set(text(data.externalNumber), { id: snapshot.id, importedFingerprint: text(data.importedFingerprint), customerPartnerId: text(data.imported?.customer?.partnerId), carrierPartnerId: text(data.imported?.carrier?.partnerId), importRunId: text(data.importMeta?.importRunId) })
+      result.set(text(data.externalNumber), { id: snapshot.id, imported: data.imported || {}, importedFingerprint: text(data.importedFingerprint), customerPartnerId: text(data.imported?.customer?.partnerId), carrierPartnerId: text(data.imported?.carrier?.partnerId), importRunId: text(data.importMeta?.importRunId) })
     })
   }
   return result
@@ -152,11 +153,10 @@ export function carrierMatchDecision(name, partners) {
   })) } : { kind: 'missing', candidates: [] }
 }
 
-function fingerprint(imported) { return JSON.stringify(imported) }
 function classification(row, existing, carrierResolution) {
   const needsReview = carrierResolution?.kind === 'candidates' && !carrierResolution?.selected
   if (!existing) return { status: needsReview ? 'review' : 'new', reasons: needsReview ? ['Unternehmerzuordnung auswählen oder Neuanlage bestätigen.'] : [] }
-  const unchanged = existing.importedFingerprint === fingerprint(row.imported) && Boolean(existing.customerPartnerId) && Boolean(existing.carrierPartnerId)
+  const unchanged = transportOrderImportFingerprint(existing.imported) === transportOrderImportFingerprint(row.imported) && Boolean(existing.customerPartnerId) && Boolean(existing.carrierPartnerId)
   return { status: needsReview ? 'review' : unchanged ? 'unchanged' : 'updated', reasons: needsReview ? ['Unternehmerzuordnung auswählen oder Neuanlage bestätigen.'] : [] }
 }
 function resultStatus(status) { return status === 'review' ? 'Prüfung erforderlich' : status === 'new' ? 'Neu' : status === 'updated' ? 'Aktualisiert' : 'Unverändert' }
@@ -362,6 +362,9 @@ export async function importTransportOrdersHandler(request) {
     const decision = classification(row, existingOrder, carrierResolution)
     if (decision.status === 'review') throw new HttpsError('failed-precondition', `TA ${row.externalNumber}: ${decision.reasons[0]}`)
     const batch = db.batch()
+    const changes = existingOrder ? transportOrderImportChanges(existingOrder.imported, row.imported) : []
+    const routeNeedsRecalculation = changes.some((change) => change.routeRelevant)
+    const skipOverdueAutomations = existingOrder && loadingScheduleMovedEarlier(existingOrder.imported, row.imported)
     const customer = await ensureCustomer(db, batch, row, customers, runRef, now, ruleCatalog)
     const carrier = await ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog)
     const originalCustomer = existingOrder?.customerPartnerId ? await db.doc(`businessPartners/${existingOrder.customerPartnerId}`).get() : null
@@ -372,7 +375,39 @@ export async function importTransportOrdersHandler(request) {
     counts[importStatus] += 1
     const imported = { ...row.imported, customer: { ...row.imported.customer, ...transportOrderPartnerLink(customer), partnerId: customerPartnerId }, carrier: { ...row.imported.carrier, ...transportOrderPartnerLink(carrier), partnerId: carrierPartnerId, matchStatus: resolution?.createNew ? 'created' : 'linked' } }
     const ref = db.doc(`transportOrders/${documentId(row.externalNumber)}`)
-    batch.set(ref, { id: ref.id, externalNumber: row.externalNumber, source: 'dycos', imported, importedFingerprint: fingerprint(row.imported), importMeta: { source: 'dycos', ...(existingOrder ? {} : { importedAt: now }), lastImportedAt: now, importRunId: runRef.id, fileName }, ...(existingOrder ? { updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy } : { manual: {}, tracking: {}, createdAt: now, createdBy: request.auth.uid, createdByName: importedBy, updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy }) }, { merge: true })
+    batch.set(ref, {
+      id: ref.id,
+      externalNumber: row.externalNumber,
+      source: 'dycos',
+      imported,
+      importedFingerprint: transportOrderImportFingerprint(row.imported),
+      importMeta: { source: 'dycos', ...(existingOrder ? {} : { importedAt: now }), lastImportedAt: now, importRunId: runRef.id, fileName },
+      ...(routeNeedsRecalculation ? { routeNeedsRecalculation: true, routeNeedsRecalculationAt: now } : {}),
+      ...(existingOrder ? { updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy } : { manual: {}, tracking: {}, createdAt: now, createdBy: request.auth.uid, createdByName: importedBy, updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy }),
+    }, { merge: true })
+    for (const change of changes) {
+      batch.set(ref.collection('history').doc(), {
+        eventType: 'transport_order_import_updated',
+        changedFields: [change.path],
+        field: change.path,
+        fieldLabel: change.label,
+        oldValue: change.oldValue,
+        newValue: change.newValue,
+        eventTime: now,
+        recordedAt: now,
+        recordedBy: request.auth.uid,
+        recordedByName: importedBy,
+        source: 'import',
+        importRunId: runRef.id,
+      })
+    }
+    if (skipOverdueAutomations) {
+      const trackingRef = db.doc(`transportOrderTrackings/${ref.id}`)
+      const trackingSnapshot = await trackingRef.get()
+      if (trackingSnapshot.exists && trackingSnapshot.data()?.lifecycleStatus === 'active') {
+        batch.set(trackingRef, { importScheduleSkippedBefore: now, lastImportScheduleChange: { reason: 'loading-moved-earlier', at: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy }, { merge: true })
+      }
+    }
     await batch.commit()
     results.push({ rowNumber: row.rowNumber, externalNumber: row.externalNumber, status: resultStatus(importStatus), reasons: decision.reasons })
   }

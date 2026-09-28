@@ -112,6 +112,13 @@ test('rules due during a pause remain skipped after tracking resumes', () => {
   assert.equal(resumed.nextAction, null)
 })
 
+test('a rule moved into the past by an import date change remains skipped', () => {
+  const result = preview({ now: '2026-12-04T18:00:00.000Z', tracking: { importScheduleSkippedBefore: '2026-12-04T17:00:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(result.rules[0].status, 'skipped')
+  assert.equal(result.rules[0].pause.reason, 'import-date-change')
+  assert.equal(result.nextAction, null)
+})
+
 test('a successfully dispatched external rule is shown as sent and is no longer due or next', () => {
   const result = preview({
     now: '2026-12-04T16:00:00.000Z',

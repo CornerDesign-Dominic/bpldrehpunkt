@@ -43,15 +43,15 @@ function localKey(value) {
   return local ? `${local.date}T${local.time}` : ''
 }
 
-/** A rule may intentionally begin before the standard two-workday preparation
- * period. Provision the tracking at that earlier point, but keep its visible
- * phase as `Bevorstehend` until the preparation date is reached. */
+/** A rule may intentionally begin before the standard lifecycle start.
+ * Provision the tracking at that earlier point, but keep its visible phase as
+ * `Bevorstehend` until the calculated start date is reached. */
 export function shouldActivateShipmentTracking(lifecycle, preview, now) {
-  if (!lifecycle?.preparationAt) return false
+  if (!lifecycle?.startAt) return false
   if (isActiveShipmentTrackingPhase(lifecycle.phase)) return true
   if (lifecycle.phase !== 'upcoming') return false
   const ruleTimes = (preview?.rules || []).map((rule) => localKey(rule?.scheduledAt)).filter(Boolean)
-  const activationAt = [localKey(lifecycle.preparationAt), ...ruleTimes].filter(Boolean).sort()[0]
+  const activationAt = [localKey(lifecycle.startAt), ...ruleTimes].filter(Boolean).sort()[0]
   const clock = localKey(now)
   return Boolean(clock && activationAt && clock >= activationAt)
 }
@@ -131,7 +131,7 @@ async function synchronizeLifecycle(db, orderSnapshot, currentTracking, operatin
       transaction.create(eventRef, eventPayload('tracking_completed', { lifecycleStatus: tracking.lifecycleStatus, lifecyclePhase: tracking.lifecyclePhase || null }, { lifecycleStatus: 'completed', lifecyclePhase: 'completed' }))
       return
     }
-    if (tracking.lifecyclePhase !== lifecycle.phase) {
+    if (tracking.lifecyclePhase !== lifecycle.phase && !(tracking.trackingStartedEarly === true && lifecycle.phase === 'upcoming')) {
       transaction.update(trackingRef, { lifecyclePhase: lifecycle.phase, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik' })
       transaction.create(eventRef, eventPayload('tracking_phase_changed', { lifecyclePhase: tracking.lifecyclePhase || 'in_progress' }, { lifecyclePhase: lifecycle.phase }))
     }
@@ -149,7 +149,7 @@ async function recordBlockedDelivery(trackingRef, bundle, reason) {
 }
 
 async function dispatchDueBundles(db, { orderId, imported, externalNumber, tracking, catalog, operatingHours, now }) {
-  if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'preparation', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
+  if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
   if (tracking.automationPaused === true) return { sent: 0, blocked: 0 }
   const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
   const preview = shipmentTrackingDryRun({ imported, tracking, customer, carrier, catalog, operatingHours, now })
@@ -228,7 +228,7 @@ export async function runShipmentTrackingAutomation(now = new Date()) {
     let activationRequired = false
     if (!existingTracking) {
       const lifecycle = shipmentTrackingLifecycle({ earliestLoading: imported?.loading?.window?.from, latestUnloading: imported?.unloading?.window?.until, operatingHours, now })
-      if (lifecycle.phase === 'upcoming' && lifecycle.preparationAt) {
+      if (lifecycle.phase === 'upcoming' && lifecycle.startAt) {
         const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
         const preview = shipmentTrackingDryRun({ imported, tracking: null, customer, carrier, catalog, operatingHours, now })
         activationRequired = shouldActivateShipmentTracking(lifecycle, preview, now)
@@ -249,4 +249,4 @@ export async function runShipmentTrackingAutomation(now = new Date()) {
   return result
 }
 
-export const scheduledShipmentTrackingAutomation = onSchedule({ region: 'europe-west3', schedule: 'every 15 minutes', timeZone: 'Europe/Berlin', secrets: [systemMailNotificationUrl] }, async () => runShipmentTrackingAutomation())
+export const scheduledShipmentTrackingAutomation = onSchedule({ region: 'europe-west3', schedule: 'every 5 minutes', timeZone: 'Europe/Berlin', secrets: [systemMailNotificationUrl] }, async () => runShipmentTrackingAutomation())

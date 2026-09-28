@@ -30,7 +30,7 @@ function duration(milliseconds) {
 }
 
 export function shipmentTrackingActivationPresentation(activation, { now = new Date() } = {}) {
-  const scheduledAt = shipmentTrackingActivationAt(activation?.preparationAt)
+  const scheduledAt = shipmentTrackingActivationAt(activation?.startAt)
   if (!scheduledAt) return { available: false, countdown: 'Automatischer Startzeitpunkt nicht berechenbar.', startAt: null }
   const reference = now instanceof Date ? now : new Date(now)
   const milliseconds = scheduledAt.getTime() - reference.getTime()

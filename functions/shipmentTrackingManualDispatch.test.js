@@ -12,7 +12,7 @@ test('manual shipment-tracking mail requires the existing transport-order edit a
 test('manual test requests are permitted after completion without reopening the tracking', () => {
   assert.equal(canManuallyDispatchShipmentTracking({ lifecycleStatus: 'active' }), true)
   assert.equal(canManuallyDispatchShipmentTracking({ lifecycleStatus: 'completed' }), true)
-  assert.equal(canManuallyDispatchShipmentTracking({ lifecycleStatus: 'preparation' }), false)
+  assert.equal(canManuallyDispatchShipmentTracking({ lifecycleStatus: 'upcoming' }), false)
   assert.equal(canManuallyDispatchShipmentTracking(null), false)
 })
 

@@ -1,25 +1,24 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shipmentTrackingOperatingHours.js'
-import { aftercareCompletionAt, preparationStart, shipmentTrackingLifecycle } from './shipmentTrackingLifecycle.js'
+import { shipmentTrackingCompletionAt, shipmentTrackingLifecycle, shipmentTrackingStartAt } from './shipmentTrackingLifecycle.js'
 
-test('preparation starts on the second preceding open BPL day', () => {
-  assert.deepEqual(preparationStart(DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, '2026-10-05 07:00'), { date: '2026-10-01', time: '07:00' })
-  assert.equal(shipmentTrackingLifecycle({ earliestLoading: '2026-10-05 07:00', latestUnloading: '2026-10-06 16:00', operatingHours: DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, now: '2026-10-01T08:00:00.000Z' }).phase, 'preparation')
+test('tracking starts on the preceding open BPL day at 07:00', () => {
+  assert.deepEqual(shipmentTrackingStartAt(DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, '2026-10-06 23:00'), { date: '2026-10-05', time: '07:00' })
+  assert.deepEqual(shipmentTrackingStartAt(DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, '2026-10-05 04:00'), { date: '2026-10-02', time: '07:00' })
 })
 
-test('closed BPL days are skipped for preparation and the aftercare end', () => {
+test('closed BPL days are skipped for both lifecycle boundaries', () => {
   const settings = structuredClone(DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS)
   settings.exceptions = { '2026-10-02': { isOpen: false, from: null, to: null, note: 'Brückentag' } }
-  assert.deepEqual(preparationStart(settings, '2026-10-05 07:00'), { date: '2026-09-30', time: '07:00' })
-  assert.deepEqual(aftercareCompletionAt(settings, '2026-09-30 16:00'), { date: '2026-10-05', time: '17:00' })
+  assert.deepEqual(shipmentTrackingStartAt(settings, '2026-10-05 07:00'), { date: '2026-10-01', time: '07:00' })
+  assert.deepEqual(shipmentTrackingCompletionAt(settings, '2026-10-01 16:00'), { date: '2026-10-05', time: '07:00' })
 })
 
-test('lifecycle moves from preparation to in progress, aftercare and completed', () => {
+test('lifecycle exposes only upcoming, in-progress and completed phases', () => {
   const input = { earliestLoading: '2026-10-05 07:00', latestUnloading: '2026-10-06 16:00', operatingHours: DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS }
-  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-09-30T06:00:00.000Z' }).phase, 'upcoming')
-  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-02T06:00:00.000Z' }).phase, 'preparation')
-  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-05T06:00:00.000Z' }).phase, 'in_progress')
-  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-06T15:30:00.000Z' }).phase, 'aftercare')
-  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-08T16:01:00.000Z' }).phase, 'completed')
+  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-02T04:00:00.000Z' }).phase, 'upcoming')
+  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-02T05:00:00.000Z' }).phase, 'in_progress')
+  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-07T04:59:00.000Z' }).phase, 'in_progress')
+  assert.equal(shipmentTrackingLifecycle({ ...input, now: '2026-10-07T06:00:00.000Z' }).phase, 'completed')
 })

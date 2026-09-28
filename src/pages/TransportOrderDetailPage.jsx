@@ -163,6 +163,10 @@ export default function TransportOrderDetailPage() {
     const currentRoute = await getTransportOrderRoute(transportOrderId)
     setRoute(currentRoute)
   }
+  async function refreshOrder() {
+    const currentOrder = await getTransportOrder(transportOrderId)
+    if (currentOrder) setOrder(currentOrder)
+  }
   useEffect(() => {
     let current = true
     getTransportOrderRoute(transportOrderId).then((result) => { if (current) { setRoute(result); setRouteError('') } }).catch(() => { if (current) setRouteError('Die gespeicherte Planungsstrecke konnte nicht geladen werden.') })
@@ -204,7 +208,7 @@ export default function TransportOrderDetailPage() {
     setTrackingCompletionConfirmationOpen(false)
   }
   async function confirmTrackingEarlyStart() {
-    await performTrackingAction('start', { earlyStart: true, note: 'Sendungsverfolgung vorzeitig gestartet.' })
+    await performTrackingAction(tracking ? 'start_early' : 'start', { earlyStart: !tracking, note: 'Sendungsverfolgung vorzeitig gestartet.' })
     setTrackingEarlyStartConfirmationOpen(false)
   }
   async function confirmTrackingPause() {
@@ -248,7 +252,7 @@ export default function TransportOrderDetailPage() {
     try {
       await calculateTransportOrderRoute(transportOrderId, countryOverrides)
       setRouteCountrySelection([])
-      await refreshRoute()
+      await Promise.all([refreshRoute(), refreshOrder()])
     } catch (caught) {
       const ambiguousProblems = ambiguousRouteCountryProblems(caught)
       if (ambiguousProblems.length) {
@@ -274,7 +278,7 @@ export default function TransportOrderDetailPage() {
     {ratingsModalOpen && <TransportOrderRatingsModal order={order} ratings={ratings} partners={ratingPartners} canEdit={canEdit('transportOrders')} onClose={() => setRatingsModalOpen(false)} onSave={saveRatings} />}
     <div className="transport-order-detail-layout">
       <aside className="transport-order-detail-actions" aria-label="Verknüpfungen">
-        <TransportOrderRoutePanel route={route} canEdit={canEdit('transportOrders')} calculating={routeCalculating} error={routeError} onCalculate={() => void calculateRoute()} />
+        <TransportOrderRoutePanel route={route} canEdit={canEdit('transportOrders')} calculating={routeCalculating} error={routeError} needsRecalculation={order?.routeNeedsRecalculation === true} onCalculate={() => void calculateRoute()} />
         <TransportOrderLinkedCasesCard transportOrderId={transportOrderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />
         <section className="transport-order-detail-section"><h3>Sendungsverfolgung</h3><div className="transport-order-detail-actions__buttons"><button type="button" className={tracking?.automationPaused === true ? 'button' : 'button button--secondary'} disabled={!tracking || tracking?.lifecycleStatus === 'completed' || trackingSaving || !canEdit('transportOrders')} title={!tracking ? 'Die Sendungsverfolgung wurde noch nicht gestartet.' : tracking?.lifecycleStatus === 'completed' ? 'Die Sendungsverfolgung ist bereits abgeschlossen.' : undefined} onClick={() => void toggleTrackingAutomation()}>{tracking?.automationPaused === true ? 'Fortführen' : 'Pausieren'}</button><button type="button" className="button button--secondary" disabled={!tracking || tracking?.lifecycleStatus === 'completed' || trackingSaving || !canEdit('transportOrders')} onClick={() => setTrackingCompletionConfirmationOpen(true)}>Abschließen</button></div></section>
       </aside>

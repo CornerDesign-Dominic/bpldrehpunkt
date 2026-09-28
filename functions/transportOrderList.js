@@ -4,7 +4,7 @@ import { requireActiveProfile } from './access.js'
 
 export const transportOrderListPageSize = 100
 const levels = { none: 0, view: 1, edit: 2 }
-const statusValues = new Set(['all', 'upcoming', 'preparation', 'in_progress', 'aftercare', 'completed'])
+const statusValues = new Set(['all', 'upcoming', 'in_progress', 'completed'])
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const sortFields = {
   externalNumber: 'externalNumber', loading: 'imported.loading.city', loadingFrom: 'imported.loading.window.from',
@@ -17,7 +17,7 @@ function hasViewAccess(profile) { return profile?.role === 'superadmin' || level
 function statusForTracking(tracking) {
   if (tracking?.lifecycleStatus === 'completed') return 'completed'
   if (tracking?.lifecycleStatus !== 'active') return 'upcoming'
-  if (tracking.lifecyclePhase === 'preparation' || tracking.lifecyclePhase === 'aftercare') return tracking.lifecyclePhase
+  if (tracking.lifecyclePhase === 'upcoming') return 'upcoming'
   return 'in_progress'
 }
 function searchableText(order) { return [order.externalNumber, order.imported?.customer?.name, order.imported?.customer?.debtorNumber, order.imported?.carrier?.originalName, order.imported?.customerReference, order.imported?.loading?.city, order.imported?.unloading?.city, order.imported?.relation].filter(Boolean).join(' ').toLocaleLowerCase('de-DE') }

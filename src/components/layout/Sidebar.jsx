@@ -11,6 +11,7 @@ import { readSidebarExpandedGroups, readSidebarFavorites, saveSidebarExpandedGro
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'general', badge: 'todos' },
+  { label: 'Notizen', to: '/notizen', icon: DocumentsIcon, group: 'general' },
   { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar', group: 'general' },
   { label: 'Feiertagskalender', to: '/feiertagskalender', icon: CalendarIcon, module: 'feiertagskalender', group: 'documents' },
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'more', badge: 'news' },

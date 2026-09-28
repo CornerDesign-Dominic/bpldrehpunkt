@@ -9,10 +9,10 @@ test('manual tracking writes require transportOrders.edit, except for superadmin
   assert.equal(hasTrackingEditAccess({ role: 'superadmin', permissions: { transportOrders: 'none' } }), true)
 })
 
-test('an early manual start is explicitly marked without changing normal manual starts', () => {
+test('an early manual start is explicitly marked and immediately shown as running', () => {
   assert.equal(createShipmentTrackingDocument('order', 'user', 'Name').trackingStartedEarly, false)
-  const early = createShipmentTrackingDocument('order', 'user', 'Name', { lifecyclePhase: 'upcoming', trackingStartedEarly: true })
-  assert.equal(early.lifecyclePhase, 'upcoming')
+  const early = createShipmentTrackingDocument('order', 'user', 'Name', { lifecyclePhase: 'in_progress', trackingStartedEarly: true })
+  assert.equal(early.lifecyclePhase, 'in_progress')
   assert.equal(early.trackingStartedEarly, true)
 })
 
