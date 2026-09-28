@@ -57,7 +57,11 @@ async function effectivePartner(db, partnerId) {
   return null
 }
 
-async function dispatchContext(db, orderId) {
+export function canManuallyDispatchShipmentTracking(tracking) {
+  return tracking?.lifecycleStatus === 'active' || tracking?.lifecycleStatus === 'completed'
+}
+
+async function dispatchContext(db, orderId, { allowCompleted = false } = {}) {
   const [orderSnapshot, trackingSnapshot, catalogSnapshot, operatingHoursSnapshot] = await Promise.all([
     db.doc(`transportOrders/${orderId}`).get(),
     db.doc(`transportOrderTrackings/${orderId}`).get(),
@@ -65,7 +69,9 @@ async function dispatchContext(db, orderId) {
     db.doc(shipmentTrackingOperatingHoursPath).get(),
   ])
   if (!orderSnapshot.exists) throw new HttpsError('not-found', 'Transportauftrag nicht gefunden.')
-  if (!trackingSnapshot.exists || trackingSnapshot.data()?.lifecycleStatus !== 'active') throw new HttpsError('failed-precondition', 'Für diesen Auftrag ist keine aktive Sendungsverfolgung vorhanden.')
+  if (!trackingSnapshot.exists || (trackingSnapshot.data()?.lifecycleStatus !== 'active' && !(allowCompleted && trackingSnapshot.data()?.lifecycleStatus === 'completed'))) {
+    throw new HttpsError('failed-precondition', allowCompleted ? 'Für diesen Auftrag ist keine Sendungsverfolgung verfügbar.' : 'Für diesen Auftrag ist keine aktive Sendungsverfolgung vorhanden.')
+  }
   const imported = orderSnapshot.data()?.imported || null
   const [customer, carrier] = await Promise.all([
     effectivePartner(db, imported?.customer?.partnerId),
@@ -136,7 +142,7 @@ export async function previewManualShipmentTrackingMailHandler(request) {
   const templateId = validTemplateId(request.data?.templateId)
   if (!orderId || !templateId) throw new HttpsError('invalid-argument', 'Die Mailvorlage ist ungültig.')
   const db = getFirestore()
-  const { imported, externalNumber } = await dispatchContext(db, orderId)
+  const { imported, externalNumber } = await dispatchContext(db, orderId, { allowCompleted: true })
   const rendered = await previewSystemMailTemplate({ templateId, values: templateValues(imported, externalNumber) })
   return { templateId, templateLabel: templateLabel(templateId), subject: rendered.subject, message: rendered.message }
 }
@@ -161,15 +167,17 @@ export async function sendManualShipmentTrackingMailHandler(request) {
   let deliveryClaimed = false
   let deliverySent = false
   try {
-    const { imported, externalNumber, tracking, preview } = await dispatchContext(db, orderId)
+    const { imported, externalNumber, tracking, preview } = await dispatchContext(db, orderId, { allowCompleted: true })
     const permittedRecipient = assertPermittedRecipient(tracking, recipient)
-    const dueBundle = matchingDueBundle(preview, requestedBundleId, templateId, permittedRecipient)
+    // A completed tracking may still be used for an explicit test request. It
+    // deliberately never settles old rule stages retroactively.
+    const dueBundle = tracking.lifecycleStatus === 'active' ? matchingDueBundle(preview, requestedBundleId, templateId, permittedRecipient) : null
     const trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
-    delivery = { recipient: permittedRecipient, templateId, templateLabel: templateLabel(templateId), ruleIds: dueBundle?.ruleIds || [], topics: dueBundle?.topics || topicsForTemplate(templateId), ...(dueBundle ? { scheduledAt: dueBundle.scheduledAt } : {}) }
+    delivery = { recipient: permittedRecipient, templateId, templateLabel: templateLabel(templateId), ruleIds: dueBundle?.ruleIds || [], topics: dueBundle?.topics || topicsForTemplate(templateId), ...(dueBundle ? { scheduledAt: dueBundle.scheduledAt } : {}), ...(tracking.lifecycleStatus === 'completed' ? { afterCompletion: true } : {}) }
     deliveryRef = dueBundle ? trackingRef.collection('manualMailDeliveries').doc(deterministicDeliveryId(dueBundle.id)) : trackingRef.collection('manualMailDeliveries').doc()
     await db.runTransaction(async (transaction) => {
       const [trackingSnapshot, deliverySnapshot] = await Promise.all([transaction.get(trackingRef), transaction.get(deliveryRef)])
-      if (!trackingSnapshot.exists || trackingSnapshot.data()?.lifecycleStatus !== 'active') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist nicht mehr aktiv.')
+      if (!trackingSnapshot.exists || !canManuallyDispatchShipmentTracking(trackingSnapshot.data())) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist nicht verfügbar.')
       assertPermittedRecipient(trackingSnapshot.data(), permittedRecipient)
       const currentDelivery = deliverySnapshot.exists ? deliverySnapshot.data() : null
       if (dueBundle && currentDelivery?.status === 'sent') throw new HttpsError('already-exists', 'Diese Anfrage wurde bereits versendet.')

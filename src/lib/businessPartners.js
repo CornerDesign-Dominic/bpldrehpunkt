@@ -15,7 +15,7 @@ import { paymentTermText } from './paymentTerms.js'
 import { crmIndustryValue } from './crmIndustry.js'
 import { normalizeShipmentTrackingPolicy } from './shipmentTrackingPolicy.js'
 import { businessPartnerRoleLabel, businessPartnerRoles } from '../../shared/businessPartnerRoles.js'
-import { newShipmentTrackingPartnerPolicy } from '../../shared/shipmentTrackingPartnerDefaults.js'
+import { newBusinessPartnerShipmentTrackingPolicy } from './newBusinessPartnerShipmentTrackingPolicy.js'
 export { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
@@ -88,8 +88,8 @@ export function normalizePartnerPortal(portal = {}) {
 }
 
 function createPayload(values, { isNew = false, ruleCatalog = null } = {}) {
-  const shipmentTrackingPolicy = isNew && values.shipmentTrackingPolicy === undefined
-    ? newShipmentTrackingPartnerPolicy(values, ruleCatalog)
+  const shipmentTrackingPolicy = isNew
+    ? newBusinessPartnerShipmentTrackingPolicy(values, ruleCatalog)
     : normalizeShipmentTrackingPolicy(values.shipmentTrackingPolicy)
   return {
     companyName: trimValue(values.companyName),

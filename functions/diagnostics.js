@@ -4,11 +4,12 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'document-templates', 'website'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
   'shipment-tracking': ['load', 'save', 'preview'],
+  'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create'],
   website: ['dashboard', 'transport-orders', 'partners', 'crm', 'administration', 'other'],
 })
@@ -17,6 +18,7 @@ const CLIENT_MESSAGES = {
   load: 'Sendungsverfolgung konnte nicht geladen werden.',
   save: 'Änderung der Sendungsverfolgung fehlgeschlagen.',
   preview: 'Tracking-Vorschau konnte nicht geladen werden.',
+  send: 'Manuelle Tracking-Anfrage konnte nicht versendet werden.',
   'personal-signature-load': 'Persönliche Unterschrift konnte nicht geladen werden.',
   'company-stamp-load': 'Firmenstempel konnte nicht geladen werden.',
   'pdf-create': 'PDF aus einer Dokumentvorlage konnte nicht erstellt werden.',
@@ -66,7 +68,7 @@ export function normalizeClientDiagnostic(data) {
 export async function reportClientDiagnosticHandler(request) {
   const profile = await requireActiveProfile(request)
   const event = normalizeClientDiagnostic(request.data)
-  if (event.module === 'shipment-tracking' && !hasTrackingViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für die Sendungsverfolgung.')
+  if (['shipment-tracking', 'shipment-tracking-manual-mail'].includes(event.module) && !hasTrackingViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für die Sendungsverfolgung.')
   const db = getFirestore()
   if (event.orderId) {
     const order = await db.doc(`transportOrders/${event.orderId}`).get()

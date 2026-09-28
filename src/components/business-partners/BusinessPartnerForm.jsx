@@ -12,6 +12,7 @@ import { paymentTermText } from '../../lib/paymentTerms.js'
 import { crmIndustryValue } from '../../lib/crmIndustry.js'
 import { shipmentTrackingPolicyCardState } from '../../lib/shipmentTrackingPolicyPresentation.js'
 import { normalizeShipmentTrackingPolicy } from '../../lib/shipmentTrackingPolicy.js'
+import { newShipmentTrackingPartnerPolicy } from '../../../shared/shipmentTrackingPartnerDefaults.js'
 import '../../styles/businessPartnerExtensions.css'
 
 const departments = ['Geschäftsführung', 'Disposition', 'Einkauf', 'Verkauf', 'Logistik', 'Lager', 'Buchhaltung', 'Finanzbuchhaltung', 'Rechnungswesen', 'Controlling', 'Personal', 'Einkauf / Beschaffung', 'Kundenservice', 'Qualität / QM', 'IT', 'Empfang / Zentrale', 'Sonstiges']
@@ -462,7 +463,19 @@ export default function BusinessPartnerForm({ initialValue, isNew = false, onSub
     const roles = new Set(form.businessPartnerRoles || [])
     if (enabled) roles.add(role)
     else roles.delete(role)
-    updateForm({ ...form, businessPartnerRoles: [...roles] })
+    const nextForm = { ...form, businessPartnerRoles: [...roles] }
+    // Show the central defaults already while a new partner is being entered.
+    // Persisting still goes through the same default helper, so imports and
+    // manual creation cannot diverge.
+    if (isNew && enabled) {
+      const defaults = newShipmentTrackingPartnerPolicy(nextForm, ruleCatalog)
+      const current = normalizeShipmentTrackingPolicy(nextForm.shipmentTrackingPolicy)
+      nextForm.shipmentTrackingPolicy = {
+        customer: role === 'customer' ? defaults.customer : current.customer,
+        carrier: role === 'carrier' ? defaults.carrier : current.carrier,
+      }
+    }
+    updateForm(nextForm)
   }
 
   async function persistChanges(nextForm) {

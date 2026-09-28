@@ -7,7 +7,7 @@ const dateFormatter = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', ti
 const initialFilters = { module: '', actorId: '', from: '', to: '' }
 const stageLabels = {
   preparation: 'Vorbereitung', configuration: 'Konfiguration', geocoding_origin: 'Geocoding Start',
-  geocoding_destination: 'Geocoding Ziel', routing: 'Routing', load: 'Laden',
+  geocoding_destination: 'Geocoding Ziel', routing: 'Routing', load: 'Laden', send: 'Versand',
   save: 'Speichern', preview: 'Vorschau', dashboard: 'Dashboard', 'transport-orders': 'Transportaufträge',
   partners: 'Partner', crm: 'CRM', administration: 'Administration', other: 'Sonstige Seite',
   'personal-signature-load': 'Persönliche Unterschrift laden', 'company-stamp-load': 'Firmenstempel laden', 'pdf-create': 'PDF erstellen',

@@ -6,6 +6,7 @@ export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
   'transport-route': 'Streckenberechnung',
   'tracking-preview': 'Tracking-Vorschau',
   'shipment-tracking': 'Sendungsverfolgung',
+  'shipment-tracking-manual-mail': 'Manuelle Tracking-Anfrage',
   'document-templates': 'Dokumentvorlagen',
   website: 'Website',
 })

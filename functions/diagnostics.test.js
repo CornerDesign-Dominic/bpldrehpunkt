@@ -15,7 +15,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'document-templates', 'website'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -38,6 +38,10 @@ test('shipment-tracking diagnostics only accept bounded technical metadata', () 
   assert.deepEqual(normalizeClientDiagnostic({ module: 'website', stage: 'transport-orders', code: 'runtime-error' }), {
     module: 'website', stage: 'transport-orders', code: 'runtime-error', orderId: '',
     message: 'Ein unerwarteter Website-Fehler ist aufgetreten.',
+  })
+  assert.deepEqual(normalizeClientDiagnostic({ module: 'shipment-tracking-manual-mail', stage: 'send', code: 'internal', orderId: 'dev-order-1' }), {
+    module: 'shipment-tracking-manual-mail', stage: 'send', code: 'internal', orderId: 'dev-order-1',
+    message: 'Manuelle Tracking-Anfrage konnte nicht versendet werden.',
   })
   assert.throws(() => normalizeClientDiagnostic({ module: 'shipment-tracking', stage: 'save', code: 'invalid-argument', orderId: 'dev-order-1' }), { code: 'invalid-argument' })
   assert.throws(() => normalizeClientDiagnostic({ module: 'website', stage: 'other', code: 'internal', orderId: 'dev-order-1' }), { code: 'invalid-argument' })
