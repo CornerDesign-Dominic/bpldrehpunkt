@@ -2,12 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingStatusForList, transportOrderListPageSize, visibleTransportOrderPage } from './transportOrderListPresentation.js'
 
-test('tracking list starts with the active filter and presents every lifecycle label', () => {
-  assert.equal(defaultTrackingFilter, 'active')
+test('tracking list starts with the running filter and presents every lifecycle label', () => {
+  assert.equal(defaultTrackingFilter, 'in_progress')
   assert.equal(trackingStatusForList('upcoming').label, 'Bevorstehend')
-  assert.equal(trackingStatusForList('active').label, 'Laufend')
-  assert.equal(trackingStatusForList('completed').label, 'Abgeschlossen')
-  assert.equal(emptyTrackingFilterMessage('active'), 'Keine laufenden Sendungsverfolgungen vorhanden.')
+  assert.equal(trackingStatusForList('preparation').label, 'Vorbereitung')
+  assert.equal(trackingStatusForList('in_progress').label, 'Laufend')
+  assert.equal(trackingStatusForList('aftercare').label, 'Abschlussphase')
+  assert.equal(trackingStatusForList('completed').label, 'Durchgeführt')
+  assert.equal(emptyTrackingFilterMessage('in_progress'), 'Keine laufenden Sendungsverfolgungen vorhanden.')
 })
 
 test('a list page never exposes more than 100 rows and preserves cursor navigation data', () => {

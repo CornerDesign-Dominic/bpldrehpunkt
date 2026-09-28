@@ -4,7 +4,7 @@ import { requireActiveProfile } from './access.js'
 
 export const transportOrderListPageSize = 100
 const levels = { none: 0, view: 1, edit: 2 }
-const statusValues = new Set(['all', 'upcoming', 'active', 'completed'])
+const statusValues = new Set(['all', 'upcoming', 'preparation', 'in_progress', 'aftercare', 'completed'])
 const sortFields = {
   externalNumber: 'externalNumber', loading: 'imported.loading.city', loadingFrom: 'imported.loading.window.from',
   unloading: 'imported.unloading.city', unloadingUntil: 'imported.unloading.window.until', customer: 'imported.customer.name',
@@ -13,7 +13,12 @@ const sortFields = {
 
 function text(value) { return typeof value === 'string' ? value.trim() : '' }
 function hasViewAccess(profile) { return profile?.role === 'superadmin' || levels[profile?.permissions?.transportOrders] >= levels.view }
-function statusForTracking(tracking) { return tracking?.lifecycleStatus === 'completed' ? 'completed' : tracking?.lifecycleStatus === 'active' ? 'active' : 'upcoming' }
+function statusForTracking(tracking) {
+  if (tracking?.lifecycleStatus === 'completed') return 'completed'
+  if (tracking?.lifecycleStatus !== 'active') return 'upcoming'
+  if (tracking.lifecyclePhase === 'preparation' || tracking.lifecyclePhase === 'aftercare') return tracking.lifecyclePhase
+  return 'in_progress'
+}
 function searchableText(order) { return [order.externalNumber, order.imported?.customer?.name, order.imported?.customer?.debtorNumber, order.imported?.carrier?.originalName, order.imported?.customerReference, order.imported?.loading?.city, order.imported?.unloading?.city].filter(Boolean).join(' ').toLocaleLowerCase('de-DE') }
 
 export function transportOrderTrackingStatus(tracking) { return statusForTracking(tracking) }
