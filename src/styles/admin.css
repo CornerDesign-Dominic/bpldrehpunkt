@@ -53,6 +53,7 @@
 .shipment-tracking-rule-catalog__remove:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
 .shipment-tracking-rule-catalog__add { margin: 1px 0 0 30px; }
 .shipment-tracking-rule-catalog__group .shipment-tracking-rule-catalog__add { height: 27px; padding: 0 7px; font-size: 11px; }
+.shipment-tracking-rule-catalog__migration-note { margin: 9px 0 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--status-warning-text) 58%, var(--border)); border-radius: 5px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 12px; line-height: 1.4; }
 .shipment-tracking-rule-catalog__actions .shipment-tracking-rule-catalog__save--changed:not(:disabled) { box-shadow: 0 0 0 2px var(--focus-ring); }
 
 @media (max-width: 520px) {

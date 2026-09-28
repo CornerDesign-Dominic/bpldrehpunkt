@@ -77,19 +77,25 @@ export const systemMailTemplateDefinitions = {
   shipment_tracking_license_plate_request: {
     displayName: 'Sendungsverfolgung – Kennzeichen anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – Kennzeichen benötigt',
-    message: 'Guten Tag,\n\nbitte teilen Sie uns das Kennzeichen des eingesetzten Fahrzeugs für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nGeplante Beladung: {{loadingTime}}\n\nVielen Dank.',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns das Kennzeichen des eingesetzten Fahrzeugs für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
   shipment_tracking_arrival_request: {
     displayName: 'Sendungsverfolgung – LKW-Ankunft anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – LKW-Ankunft benötigt',
-    message: 'Guten Tag,\n\nbitte teilen Sie uns die voraussichtliche Ankunftszeit des LKW für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nGeplante Beladung: {{loadingTime}}\n\nVielen Dank.',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns die voraussichtliche Ankunftszeit des LKW für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
   shipment_tracking_license_plate_and_arrival_request: {
     displayName: 'Sendungsverfolgung – Kennzeichen und LKW-Ankunft anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – Kennzeichen und LKW-Ankunft benötigt',
-    message: 'Guten Tag,\n\nbitte teilen Sie uns für den Transportauftrag {{transportOrderNumber}} mit:\n\n- das Kennzeichen des eingesetzten Fahrzeugs\n- die voraussichtliche Ankunftszeit des LKW\n\nLadestelle: {{loadingLocation}}\nGeplante Beladung: {{loadingTime}}\n\nVielen Dank.',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns für den Transportauftrag {{transportOrderNumber}} mit:\n\n- das Kennzeichen des eingesetzten Fahrzeugs\n- die voraussichtliche Ankunftszeit des LKW\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_general_status_update: {
+    displayName: 'Sendungsverfolgung – Allgemeines Status-Update anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Bitte um Status-Update',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns den aktuellen Status für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
   system_test: {

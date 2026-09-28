@@ -4,7 +4,7 @@ export const trackingFilterOptions = [
   { value: 'aftercare', label: 'Abschlussphase' }, { value: 'completed', label: 'Durchgeführt' },
 ]
 
-export const defaultTrackingFilter = 'in_progress'
+export const defaultTrackingFilter = 'all'
 export const transportOrderListPageSize = 100
 export const trackingStatusPresentation = {
   upcoming: { label: 'Bevorstehend', className: 'upcoming' },

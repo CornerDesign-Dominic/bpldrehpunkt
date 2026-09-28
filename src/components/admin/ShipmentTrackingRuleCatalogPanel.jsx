@@ -14,6 +14,7 @@ const editorCatalog = (catalog) => {
   const defaults = fallbackShipmentTrackingRuleCatalog()
   return { ...catalog, topics: Object.fromEntries(topics.map(({ key }) => [key, { ...catalog.topics[key], customerRequirement: catalog.topics[key].customerRequirement || defaults.topics[key].customerRequirement }])) }
 }
+const missingCustomerRequirementTopics = (catalog) => topics.filter(({ key }) => !catalog?.topics?.[key]?.customerRequirement).map(({ label }) => label)
 const validationCatalog = (catalog) => {
   const publicValue = publicCatalog(catalog)
   return {
@@ -75,6 +76,7 @@ function RuleCatalogEditor({ catalog, catalogExists, loading, error }) {
   const [feedback, setFeedback] = useState('')
   const validationError = useMemo(() => { try { validateShipmentTrackingRuleCatalog(validationCatalog(draft)); return '' } catch (validation) { return validation.message } }, [draft])
   const hasChanges = useMemo(() => JSON.stringify(publicCatalog(draft)) !== JSON.stringify(publicCatalog(catalog)), [catalog, draft])
+  const missingRequirements = useMemo(() => missingCustomerRequirementTopics(catalog), [catalog])
   const canSave = catalogExists ? hasChanges : true
   const updateTopic = (key, value) => { setFeedback(''); setDraft((current) => ({ ...current, topics: { ...current.topics, [key]: value } })) }
   async function save() {
@@ -87,9 +89,10 @@ function RuleCatalogEditor({ catalog, catalogExists, loading, error }) {
     {loading ? <p>Regelstufen werden geladen …</p> : error ? <p className="form-error">{error}</p> : <>
       <p className="shipment-tracking-rule-catalog__hint">Zeiten in Arbeitsstunden vor der frühesten Beladung</p>
       {!catalogExists && <p className="shipment-tracking-rule-catalog__setup">Der Regelkatalog ist noch nicht angelegt. Prüfe bei Bedarf die Startwerte und lege ihn anschließend einmalig an.</p>}
+      {missingRequirements.length > 0 && <p className="shipment-tracking-rule-catalog__migration-note"><strong>Aktualisierung erforderlich:</strong> Für {missingRequirements.join(' und ')} ist die Kundenanforderungs-Stufe unten bereits vorgeschlagen, aber noch nicht Teil des gespeicherten Regelwerks. Mit dem hervorgehobenen Button übernehmen.</p>}
       <div className="shipment-tracking-rule-catalog__topics">{topics.map((topic) => <TopicEditor key={topic.key} topic={topic} value={draft.topics[topic.key]} onChange={(value) => updateTopic(topic.key, value)} />)}</div>
       {(validationError || feedback) && <p className={validationError || feedback.includes('konnten') ? 'form-error' : 'shipment-tracking-rule-catalog__success'}>{validationError || feedback}</p>}
-      <div className="shipment-tracking-rule-catalog__actions"><button className={canSave ? 'button shipment-tracking-rule-catalog__save--changed' : 'button'} type="button" disabled={saving || Boolean(validationError) || !canSave} onClick={() => void save()}>{saving ? 'Wird gespeichert …' : catalogExists ? 'Regelstufen speichern' : 'Regelkatalog anlegen'}</button></div>
+      <div className="shipment-tracking-rule-catalog__actions"><button className={canSave ? 'button shipment-tracking-rule-catalog__save--changed' : 'button'} type="button" disabled={saving || Boolean(validationError) || !canSave} onClick={() => void save()}>{saving ? 'Wird gespeichert …' : catalogExists ? missingRequirements.length ? 'Regelwerk aktualisieren & speichern' : 'Regelstufen speichern' : 'Regelkatalog anlegen'}</button></div>
     </>}
   </section>
 }

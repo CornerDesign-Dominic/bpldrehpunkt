@@ -100,6 +100,16 @@ test('due and upcoming stages use the supplied reference time deterministically'
   assert.equal(upcoming.rules[0].status, 'upcoming')
 })
 
+test('rules due during a pause remain skipped after tracking resumes', () => {
+  const paused = preview({ now: '2026-12-04T16:00:00.000Z', tracking: { automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(paused.rules[0].status, 'skipped')
+  assert.equal(paused.rules[0].pause.active, true)
+  const resumed = preview({ now: '2026-12-04T18:00:00.000Z', tracking: { automationPaused: false, automationSkippedBefore: '2026-12-04T17:00:00.000Z', lastAutomationPause: { from: '2026-12-04T14:30:00.000Z', until: '2026-12-04T17:00:00.000Z' }, recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(resumed.rules[0].status, 'skipped')
+  assert.equal(resumed.rules[0].pause.active, false)
+  assert.equal(resumed.nextAction, null)
+})
+
 test('a successfully dispatched external rule is shown as sent and is no longer due or next', () => {
   const result = preview({
     now: '2026-12-04T16:00:00.000Z',

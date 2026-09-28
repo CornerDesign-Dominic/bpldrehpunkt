@@ -28,14 +28,25 @@ function dateTimeInputToIso(value) {
   return Number.isNaN(localDate.getTime()) ? null : localDate.toISOString()
 }
 
-export async function updateManualShipmentTracking({ orderId, action, values, recipientChanges, source, note }) {
+export async function updateManualShipmentTracking({ orderId, action, values, recipientChanges, source, note, earlyStart = false }) {
   const changes = values && action === 'update' ? Object.fromEntries(Object.entries(values).map(([key, value]) => [key, key.endsWith('At') ? dateTimeInputToIso(value) : value])) : undefined
   try {
-    const result = await httpsCallable(functions, 'updateManualShipmentTracking')({ orderId, action, ...(changes ? { changes } : {}), ...(recipientChanges ? { recipientChanges } : {}), source, note })
+    const result = await httpsCallable(functions, 'updateManualShipmentTracking')({ orderId, action, ...(changes ? { changes } : {}), ...(recipientChanges ? { recipientChanges } : {}), ...(earlyStart ? { earlyStart: true } : {}), source, note })
     return result.data
   } catch (error) {
     // Server-side failures are recorded by the callable itself; transport failures cannot be.
     if (diagnosticCode(error) !== 'internal') void reportTechnicalFailure({ module: 'shipment-tracking', stage: 'save', error, orderId })
+    throw error
+  }
+}
+
+export async function getShipmentTrackingActivation(orderId) {
+  try {
+    const result = await httpsCallable(functions, 'getShipmentTrackingActivation')({ orderId })
+    if (!result.data?.activation || typeof result.data.activation !== 'object') throw Object.assign(new Error('Der automatische Startzeitpunkt ist nicht verfügbar.'), { code: 'functions/internal' })
+    return result.data.activation
+  } catch (error) {
+    if (diagnosticCode(error) !== 'internal') void reportTechnicalFailure({ module: 'shipment-tracking', stage: 'activation-preview', error, orderId })
     throw error
   }
 }

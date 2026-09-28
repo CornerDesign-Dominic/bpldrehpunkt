@@ -2,6 +2,9 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
+import { shipmentTrackingLifecycle } from './shared/shipmentTrackingLifecycle.js'
+import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
+import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingHours.js'
 
 const editableLevels = { none: 0, view: 1, edit: 2 }
 const timestampFields = [
@@ -9,7 +12,8 @@ const timestampFields = [
   'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt', 'estimatedArrivalUnloadingAt',
   'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt',
 ]
-const editableFields = ['licensePlate', ...timestampFields, 'proofStatus']
+const licensePlateFields = ['licensePlate', 'tractorLicensePlate', 'trailerLicensePlate']
+const editableFields = [...licensePlateFields, ...timestampFields, 'proofStatus']
 const sources = new Set(['manual', 'phone', 'other_mailbox', 'other'])
 const recipientRoles = new Set(['customer', 'carrier'])
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -46,15 +50,18 @@ export function deriveShipmentTrackingPosition(tracking) {
 /** Creates the stable tracking document shape for both manual and scheduled starts.
  * Lifecycle remains `active` until the final phase so existing permissions and
  * callables continue to work; `lifecyclePhase` is the readable lifecycle. */
-export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'preparation' } = {}) {
+export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'preparation', trackingStartedEarly = false } = {}) {
   return {
     orderId,
     lifecycleStatus: 'active',
     lifecyclePhase,
     trackingMode,
+    trackingStartedEarly,
     stageId: 'preparation',
     progressToNextStage: 0,
     licensePlate: null,
+    tractorLicensePlate: null,
+    trailerLicensePlate: null,
     estimatedArrivalLoadingAt: null,
     actualArrivalLoadingAt: null,
     loadingStartedAt: null,
@@ -68,6 +75,10 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     proofStatus: 'unknown',
     recipients: {},
     externalRuleDispatches: {},
+    automationPaused: false,
+    automationPausedAt: null,
+    automationSkippedBefore: null,
+    lastAutomationPause: null,
     trackingStartedAt: FieldValue.serverTimestamp(),
     trackingCompletedAt: null,
     createdAt: FieldValue.serverTimestamp(),
@@ -79,6 +90,45 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
   }
 }
 
+function validOrderId(value) {
+  const id = text(value)
+  return id && id.length <= 240 && !id.includes('/') ? id : ''
+}
+
+function activationPreview(imported, operatingHours, now = new Date()) {
+  const lifecycle = shipmentTrackingLifecycle({
+    earliestLoading: imported?.loading?.window?.from,
+    latestUnloading: imported?.unloading?.window?.until,
+    operatingHours,
+    now,
+  })
+  return { phase: lifecycle.phase, preparationAt: lifecycle.preparationAt, diagnostic: lifecycle.diagnostic }
+}
+
+/** Read-only start-time adapter. The opening-hours settings stay server-side. */
+export async function getShipmentTrackingActivationHandler(request) {
+  const profile = await requireActiveProfile(request)
+  if (!hasTrackingViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Anzeige des automatischen Tracking-Starts.')
+  const orderId = validOrderId(request.data?.orderId)
+  if (!orderId) throw new HttpsError('invalid-argument', 'Die Transportauftrags-ID ist ungültig.')
+  const db = getFirestore()
+  try {
+    const [orderSnapshot, operatingHoursSnapshot] = await Promise.all([
+      db.doc(`transportOrders/${orderId}`).get(),
+      db.doc(shipmentTrackingOperatingHoursPath).get(),
+    ])
+    if (!orderSnapshot.exists) throw new HttpsError('not-found', 'Transportauftrag nicht gefunden.')
+    return { activation: activationPreview(orderSnapshot.data()?.imported, operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS) }
+  } catch (error) {
+    if (!(error instanceof HttpsError)) await recordDiagnostic({
+      module: 'shipment-tracking', stage: 'activation-preview', code: 'unexpected_error',
+      message: 'Der automatische Start der Sendungsverfolgung konnte nicht berechnet werden.',
+      actorId: request.auth.uid, actorName: actorName(profile), orderId,
+    }, db)
+    throw error
+  }
+}
+
 function normalizedChanges(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new HttpsError('invalid-argument', 'Ungültige Trackingdaten.')
   const keys = Object.keys(input)
@@ -87,7 +137,7 @@ function normalizedChanges(input) {
   for (const field of keys) {
     const value = input[field]
     if (timestampFields.includes(field)) result[field] = timestampFromInput(value, field)
-    if (field === 'licensePlate') {
+    if (licensePlateFields.includes(field)) {
       if (value !== null && (typeof value !== 'string' || text(value).length > 80)) throw new HttpsError('invalid-argument', 'Das Kennzeichen ist ungültig.')
       result[field] = value === null || !text(value) ? null : text(value)
     }
@@ -162,13 +212,14 @@ function eventPayload({ eventType, changedFields = [], oldValue = {}, newValue =
 
 export async function updateManualShipmentTrackingHandler(request) {
   const profile = await assertTrackingEditAccess(request)
-  const orderId = text(request.data?.orderId)
+  const orderId = validOrderId(request.data?.orderId)
   const action = request.data?.action
-  if (!orderId || orderId.length > 240 || !['start', 'update', 'update_recipients', 'complete'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
+  if (!orderId || orderId.length > 240 || !['start', 'update', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
   const source = normalizedSource(request.data?.source)
   const note = normalizedNote(request.data?.note)
   const changes = action === 'update' ? normalizedChanges(request.data?.changes) : {}
   const recipientChanges = action === 'update_recipients' ? normalizeRecipientChanges(request.data?.recipientChanges) : {}
+  const earlyStartRequested = action === 'start' && request.data?.earlyStart === true
   if (action === 'update' && !Object.keys(changes).length) throw new HttpsError('invalid-argument', 'Es wurden keine Änderungen übergeben.')
 
   const db = getFirestore()
@@ -178,6 +229,7 @@ export async function updateManualShipmentTrackingHandler(request) {
   const actor = actorName(profile)
 
   try {
+    const operatingHoursSnapshot = action === 'start' ? await db.doc(shipmentTrackingOperatingHoursPath).get() : null
     await db.runTransaction(async (transaction) => {
     const [orderSnapshot, trackingSnapshot] = await Promise.all([transaction.get(orderRef), transaction.get(trackingRef)])
     if (!orderSnapshot.exists) throw new HttpsError('not-found', 'Transportauftrag nicht gefunden.')
@@ -185,13 +237,32 @@ export async function updateManualShipmentTrackingHandler(request) {
 
     if (action === 'start') {
       if (current) throw new HttpsError('already-exists', 'Die Sendungsverfolgung wurde bereits gestartet.')
-      const tracking = createShipmentTrackingDocument(orderId, request.auth.uid, actor)
+      const activation = earlyStartRequested ? activationPreview(orderSnapshot.data()?.imported, operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS) : null
+      const trackingStartedEarly = Boolean(earlyStartRequested && activation?.phase === 'upcoming')
+      const tracking = createShipmentTrackingDocument(orderId, request.auth.uid, actor, { lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation', trackingStartedEarly })
       transaction.create(trackingRef, tracking)
-      transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase', 'trackingStartedEarly'], newValue: { lifecycleStatus: 'active', lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation', trackingStartedEarly }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
       return
     }
 
     if (!current) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung wurde noch nicht gestartet.')
+    if (action === 'pause_automation') {
+      if (current.lifecycleStatus === 'completed') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist bereits abgeschlossen.')
+      if (current.automationPaused === true) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgungs-Automatik ist bereits pausiert.')
+      const pausedAt = Timestamp.fromDate(new Date())
+      transaction.update(trackingRef, { automationPaused: true, automationPausedAt: pausedAt, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_automation_paused', changedFields: ['automationPaused', 'automationPausedAt'], oldValue: { automationPaused: false }, newValue: { automationPaused: true, automationPausedAt: pausedAt }, eventTime: pausedAt, actorId: request.auth.uid, actor, source: 'manual', note: '' }))
+      return
+    }
+    if (action === 'resume_automation') {
+      if (current.lifecycleStatus === 'completed') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist bereits abgeschlossen.')
+      if (current.automationPaused !== true) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgungs-Automatik ist nicht pausiert.')
+      const resumedAt = Timestamp.fromDate(new Date())
+      const pause = { from: current.automationPausedAt || resumedAt, until: resumedAt }
+      transaction.update(trackingRef, { automationPaused: false, automationPausedAt: null, automationSkippedBefore: resumedAt, lastAutomationPause: pause, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_automation_resumed', changedFields: ['automationPaused', 'automationSkippedBefore'], oldValue: { automationPaused: true, automationPausedAt: current.automationPausedAt || null }, newValue: { automationPaused: false, automationSkippedBefore: resumedAt, lastAutomationPause: pause }, eventTime: resumedAt, actorId: request.auth.uid, actor, source: 'manual', note: '' }))
+      return
+    }
     if (action === 'update_recipients') {
       if (!canEditTrackingRecipients(current)) throw new HttpsError('failed-precondition', 'Die Empfänger können nach Abschluss nicht mehr geändert werden.')
       const recipientUpdate = applyRecipientChanges(current.recipients, recipientChanges)

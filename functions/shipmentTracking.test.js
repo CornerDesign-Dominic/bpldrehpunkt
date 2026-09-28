@@ -1,12 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { applyRecipientChanges, canEditTrackingRecipients, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges } from './shipmentTracking.js'
+import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges } from './shipmentTracking.js'
 
 test('manual tracking writes require transportOrders.edit, except for superadmins', () => {
   assert.equal(hasTrackingEditAccess({ role: 'user', permissions: { transportOrders: 'view' } }), false)
   assert.equal(hasTrackingEditAccess({ role: 'user', permissions: { transportOrders: 'edit' } }), true)
   assert.equal(hasTrackingEditAccess({ role: 'superadmin', permissions: { transportOrders: 'none' } }), true)
+})
+
+test('an early manual start is explicitly marked without changing normal manual starts', () => {
+  assert.equal(createShipmentTrackingDocument('order', 'user', 'Name').trackingStartedEarly, false)
+  const early = createShipmentTrackingDocument('order', 'user', 'Name', { lifecyclePhase: 'upcoming', trackingStartedEarly: true })
+  assert.equal(early.lifecyclePhase, 'upcoming')
+  assert.equal(early.trackingStartedEarly, true)
 })
 
 test('manual tracking position only advances to in transit after an actual loading departure', () => {
@@ -60,4 +67,5 @@ test('recipient helpers do not mutate import or partner data', () => {
 test('the existing tracking callable remains App-Check protected', () => {
   const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8')
   assert.match(source, /updateManualShipmentTracking\s*=\s*onCall\(\{\s*region:\s*'europe-west3',\s*enforceAppCheck:\s*true\s*\}/)
+  assert.match(source, /getShipmentTrackingActivation\s*=\s*onCall\(\{\s*region:\s*'europe-west3',\s*enforceAppCheck:\s*true,\s*invoker:\s*'public'\s*\}/)
 })

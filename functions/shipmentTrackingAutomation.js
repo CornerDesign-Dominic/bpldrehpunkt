@@ -146,6 +146,7 @@ async function recordBlockedDelivery(trackingRef, bundle, reason) {
 
 async function dispatchDueBundles(db, { orderId, imported, externalNumber, tracking, catalog, operatingHours, now }) {
   if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'preparation', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
+  if (tracking.automationPaused === true) return { sent: 0, blocked: 0 }
   const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
   const preview = shipmentTrackingDryRun({ imported, tracking, customer, carrier, catalog, operatingHours, now })
   const bundles = shipmentTrackingManualDispatchBundles(preview)
@@ -165,7 +166,7 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
     await db.runTransaction(async (transaction) => {
       const [trackingSnapshot, deliverySnapshot] = await Promise.all([transaction.get(trackingRef), transaction.get(deliveryRef)])
       const currentTracking = trackingSnapshot.exists ? trackingSnapshot.data() : null
-      if (!currentTracking || currentTracking.lifecycleStatus !== 'active') return
+      if (!currentTracking || currentTracking.lifecycleStatus !== 'active' || currentTracking.automationPaused === true) return
       if (manualCarrierRecipient(currentTracking).toLowerCase() !== bundle.recipient.toLowerCase()) return
       if (!isDevelopmentTrackingRecipientAllowed(bundle.recipient)) return
       if (deliverySnapshot.exists && ['sending', 'sent', 'delivered'].includes(deliverySnapshot.data()?.status)) return
@@ -176,6 +177,11 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
       claimed = true
     })
     if (!claimed) continue
+    const beforeSend = await trackingRef.get()
+    if (!beforeSend.exists || beforeSend.data()?.automationPaused === true) {
+      await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'automation-paused-before-send' }, { merge: true })
+      continue
+    }
     try {
       const delivered = await sendSystemMailTemplate({ recipient: bundle.recipient, templateId: bundle.templateId, values: templateValues(imported, externalNumber), allowDevelopment: true })
       if (!delivered) throw new Error('automatic-delivery-disabled')

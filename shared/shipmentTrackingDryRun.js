@@ -57,12 +57,24 @@ function ruleTitle(group) {
 }
 function reasonFor(rule) { return rule.offsetWorkingHours === 0 ? 'Zum Beladebeginn' : `${rule.offsetWorkingHours} Arbeitsstunden vor frühester Beladung` }
 function isTopicComplete(topic, tracking) {
-  if (topic === 'licensePlate') return hasValue(tracking?.licensePlate)
+  if (topic === 'licensePlate') return hasValue(tracking?.tractorLicensePlate) || hasValue(tracking?.licensePlate)
   return Boolean(tracking?.actualArrivalLoadingAt || tracking?.loadingStartedAt || tracking?.loadingCompletedAt || tracking?.actualDepartureLoadingAt)
 }
 function externalRuleDispatch(tracking, ruleId) {
   const dispatch = tracking?.externalRuleDispatches?.[ruleId]
   return dispatch && typeof dispatch === 'object' && (dispatch.sentAt || dispatch.dispatchId) ? dispatch : null
+}
+function pausedAutomation(tracking, scheduledAt, now) {
+  const scheduled = asDate(scheduledAt)
+  if (!scheduled) return null
+  const pausedAt = asDate(tracking?.automationPausedAt)
+  const skippedBefore = asDate(tracking?.automationSkippedBefore)
+  if (tracking?.automationPaused === true && scheduled.getTime() <= now.getTime()) return { from: pausedAt, until: null, active: true }
+  if (skippedBefore && scheduled.getTime() <= skippedBefore.getTime()) {
+    const lastPause = tracking?.lastAutomationPause
+    return { from: asDate(lastPause?.from), until: asDate(lastPause?.until) || skippedBefore, active: false }
+  }
+  return null
 }
 function carrierRecipient(tracking) {
   const email = text(tracking?.recipients?.carrier?.email)
@@ -143,12 +155,13 @@ export function shipmentTrackingDryRun({ imported = null, tracking = null, custo
         }
       }
       const dispatch = kind === 'external' ? externalRuleDispatch(tracking, rule.id) : null
-      const status = completed ? 'notRequired' : dispatch ? 'sent' : scheduledAt && new Date(scheduledAt).getTime() <= clock.getTime() ? 'due' : 'upcoming'
-      rules.push({ ruleId: rule.id, topic, kind, scheduledAt, status, recipient, title: ruleTitle(rule.group), reason: reasonFor(rule), adjustmentReason: adjustment, source: effective.source, ...(dispatch ? { dispatch } : {}) })
+      const pause = pausedAutomation(tracking, scheduledAt, clock)
+      const status = completed ? 'notRequired' : dispatch ? 'sent' : pause ? 'skipped' : scheduledAt && new Date(scheduledAt).getTime() <= clock.getTime() ? 'due' : 'upcoming'
+      rules.push({ ruleId: rule.id, topic, kind, scheduledAt, status, recipient, title: ruleTitle(rule.group), reason: reasonFor(rule), adjustmentReason: adjustment, source: effective.source, ...(pause ? { pause } : {}), ...(dispatch ? { dispatch } : {}) })
     }
   }
   rules.sort((left, right) => (left.scheduledAt || '9999').localeCompare(right.scheduledAt || '9999') || left.ruleId.localeCompare(right.ruleId))
-  const relevant = rules.filter((rule) => rule.status !== 'notRequired' && rule.status !== 'sent')
+  const relevant = rules.filter((rule) => rule.status !== 'notRequired' && rule.status !== 'sent' && rule.status !== 'skipped')
   if (!rules.length && catalogState === 'available' && !diagnostics.length) diagnostics.push({ code: 'no-active-rules', topic: null, message: 'In den aktuellen Partnerregeln ist keine aktive Regelstufe vorhanden.' })
   const hints = [
     ...diagnostics.map((diagnostic) => ({ id: diagnostic.code + (diagnostic.topic || ''), status: 'pending', description: diagnostic.message })),

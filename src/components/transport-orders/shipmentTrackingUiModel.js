@@ -1,9 +1,9 @@
 export const trackingStages = [
   { id: 'preparation', label: 'Vorbereitung', subtitle: 'Kennzeichen · Anmeldung' },
   { id: 'loading', label: 'Ladestelle', subtitle: 'Ankunft · Beladung · Abfahrt' },
-  { id: 'in_transit', label: 'Unterwegs', subtitle: 'Fahrt · ETA' },
-  { id: 'unloading', label: 'Entladestelle', subtitle: 'Ankunft · Entladung' },
-  { id: 'afterTransport', label: 'Nachtransport', subtitle: 'Nachweise · Abschluss' },
+  { id: 'in_transit', label: 'Unterwegs', subtitle: 'Fahrt' },
+  { id: 'unloading', label: 'Entladestelle', subtitle: 'ETA · Ankunft · Entladung' },
+  { id: 'afterTransport', label: 'Nachtransport', subtitle: 'Abschluss' },
 ]
 
 export const trackingStatusLabels = {
@@ -23,7 +23,7 @@ export const defaultShipmentTrackingUiModel = Object.freeze({
   statusLabel: 'Sendungsverfolgung noch nicht gestartet',
   lifecycleStatus: 'upcoming',
   lifecycleLabel: 'Bevorstehend',
-  trackingTypeLabel: 'Manuell',
+  trackingTypeLabel: 'Noch nicht gestartet',
   vehiclePosition: { stageId: 'preparation', progressToNextStage: 0 },
   hints: [],
   nextAction: null,

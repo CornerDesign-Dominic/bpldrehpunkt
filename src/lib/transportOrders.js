@@ -11,10 +11,16 @@ export async function listTransportOrders() {
   return snapshots.docs.map(mapSnapshot)
 }
 
-export async function listTransportOrdersPage({ trackingStatus, search, sort, cursor = null }) {
+export async function listTransportOrdersPage({ trackingStatus, search, relation, loadingFrom, loadingUntil, sort, cursor = null }) {
   await waitForAppCheckToken()
-  const result = await httpsCallable(functions, 'listTransportOrdersPage')({ trackingStatus, search, sort, cursor })
+  const result = await httpsCallable(functions, 'listTransportOrdersPage')({ trackingStatus, search, relation, loadingFrom, loadingUntil, sort, cursor })
   return result.data
+}
+
+export async function listTransportOrderRelations() {
+  await waitForAppCheckToken()
+  const result = await httpsCallable(functions, 'listTransportOrderRelations')()
+  return Array.isArray(result.data?.relations) ? result.data.relations : []
 }
 
 export async function getTransportOrder(transportOrderId) {

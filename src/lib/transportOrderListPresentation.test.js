@@ -2,8 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingStatusForList, transportOrderListPageSize, visibleTransportOrderPage } from './transportOrderListPresentation.js'
 
-test('tracking list starts with the running filter and presents every lifecycle label', () => {
-  assert.equal(defaultTrackingFilter, 'in_progress')
+test('tracking list starts without a status restriction and presents every lifecycle label', () => {
+  assert.equal(defaultTrackingFilter, 'all')
   assert.equal(trackingStatusForList('upcoming').label, 'Bevorstehend')
   assert.equal(trackingStatusForList('preparation').label, 'Vorbereitung')
   assert.equal(trackingStatusForList('in_progress').label, 'Laufend')

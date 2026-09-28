@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, shipmentTrackingEventDescription, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
+import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
 
 const imported = {
   loading: { window: { from: '2026-09-25T08:00', until: '2026-09-25T10:00' } },
@@ -11,12 +11,20 @@ test('timeline model uses the neutral upcoming state until manual tracking exist
   const model = shipmentTrackingTimelineModel(null, imported)
   assert.equal(model.lifecycleLabel, 'Bevorstehend')
   assert.equal(model.statusLabel, 'Sendungsverfolgung noch nicht gestartet')
+  assert.equal(model.trackingTypeLabel, 'Noch nicht gestartet')
   assert.equal(model.vehiclePosition.stageId, 'preparation')
   assert.equal(model.stations.find((station) => station.id === 'loading').plan, 'Fr., 08:00–10:00')
 })
 
 test('history description remains understandable for tracked field corrections', () => {
   assert.match(shipmentTrackingEventDescription({ eventType: 'tracking_updated', changedFields: ['actualArrivalLoadingAt'], newValue: { actualArrivalLoadingAt: new Date('2026-09-25T08:07:00') } }), /Tatsächliche Ankunft Ladestelle erfasst: 08:07/)
+})
+
+test('history identifies newly entered, updated and cleared values', () => {
+  assert.equal(shipmentTrackingEventChangeType({ eventType: 'tracking_updated', changedFields: ['tractorLicensePlate'], oldValue: { tractorLicensePlate: null }, newValue: { tractorLicensePlate: 'AB-CD 123' } }), 'Neu')
+  assert.equal(shipmentTrackingEventChangeType({ eventType: 'tracking_updated', changedFields: ['tractorLicensePlate'], oldValue: { tractorLicensePlate: 'AB-CD 123' }, newValue: { tractorLicensePlate: 'EF-GH 456' } }), 'Aktualisiert')
+  assert.equal(shipmentTrackingEventChangeType({ eventType: 'tracking_updated', changedFields: ['tractorLicensePlate'], oldValue: { tractorLicensePlate: 'AB-CD 123' }, newValue: { tractorLicensePlate: null } }), 'Gelöscht')
+  assert.equal(shipmentTrackingEventChangeType({ eventType: 'tracking_recipients_updated', changedFields: ['recipients.carrier'], oldValue: { recipients: { carrier: null } }, newValue: { recipients: { carrier: { email: 'df@example.test' } } } }), 'Neu')
 })
 
 test('recipient history makes old and new manual addresses understandable', () => {
@@ -35,6 +43,13 @@ test('timeline presentation exposes automatic tracking as a type label only', ()
   const model = shipmentTrackingTimelineModel({ lifecycleStatus: 'active', trackingMode: 'automatic' }, imported)
   assert.equal(model.lifecycleLabel, 'Laufend')
   assert.equal(model.trackingTypeLabel, 'Automatisch')
+})
+
+test('an early manual start remains upcoming until the automatic preparation phase begins', () => {
+  const model = shipmentTrackingTimelineModel({ lifecycleStatus: 'active', lifecyclePhase: 'upcoming', trackingStartedEarly: true }, imported)
+  assert.equal(model.lifecycleLabel, 'Bevorstehend')
+  assert.equal(model.trackingTypeLabel, 'Vorzeitig gestartet')
+  assert.deepEqual(model.stations.map((station) => station.workflowState), ['pending', 'pending', 'pending', 'pending', 'pending'])
 })
 
 test('an actual time within a planned window is shown as on plan', () => {
@@ -73,7 +88,8 @@ test('missing data never invents a time or a positive status', () => {
 
 test('stations only expose their professionally relevant tracking information', () => {
   const stations = shipmentTrackingStations({ tracking: {
-    licensePlate: 'AB-CD 123',
+    tractorLicensePlate: 'AB-CD 123',
+    trailerLicensePlate: 'EF-GH 456',
     actualArrivalLoadingAt: new Date('2026-09-25T08:07:00'),
     actualDepartureLoadingAt: new Date('2026-09-25T09:55:00'),
     estimatedArrivalUnloadingAt: new Date('2026-09-25T14:20:00'),
@@ -82,12 +98,14 @@ test('stations only expose their professionally relevant tracking information', 
   const preparation = stations.find((station) => station.id === 'preparation')
   const loading = stations.find((station) => station.id === 'loading')
   const transit = stations.find((station) => station.id === 'in_transit')
-  const afterTransport = stations.find((station) => station.id === 'afterTransport')
-  assert.deepEqual(preparation.actualRows, [{ kind: 'license-plate', label: 'Kennzeichen', value: 'AB-CD 123' }])
+  assert.deepEqual(preparation.actualRows, [
+    { kind: 'license-plate', label: 'Zugmaschine', value: 'AB-CD 123' },
+    { kind: 'license-plate', label: 'Auflieger', value: 'EF-GH 456' },
+  ])
   assert.deepEqual(loading.forecastRows, [])
   assert.deepEqual(transit.forecastRows, [{ label: 'Prognose Ankunft', value: '14:20' }])
   assert.equal(transit.plan, '290 km\n4 Std. 9 Min.')
-  assert.equal(afterTransport.emptyMessage, 'Nachweise vorhanden')
+  assert.equal(stations.find((station) => station.id === 'afterTransport').emptyMessage, null)
 })
 
 test('manual tracking keeps its existing vehicle position in the extended timeline model', () => {
@@ -195,18 +213,18 @@ test('transit presents only the stored manual route as a plan value', () => {
 })
 
 test('every station editor is restricted to its own tracking fields', () => {
-  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['licensePlate'])
+  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['tractorLicensePlate', 'trailerLicensePlate'])
   assert.deepEqual(shipmentTrackingStageConfigurations.loading.fields, ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'])
-  assert.deepEqual(shipmentTrackingStageConfigurations.in_transit.fields, ['estimatedArrivalUnloadingAt'])
-  assert.deepEqual(shipmentTrackingStageConfigurations.unloading.fields, ['actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'])
-  assert.deepEqual(shipmentTrackingStageConfigurations.afterTransport.fields, ['proofStatus'])
+  assert.deepEqual(shipmentTrackingStageConfigurations.in_transit.fields, [])
+  assert.deepEqual(shipmentTrackingStageConfigurations.unloading.fields, ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'])
+  assert.deepEqual(shipmentTrackingStageConfigurations.afterTransport.fields, [])
 })
 
 test('station summaries keep the direct view compact and stage-specific', () => {
-  const stations = shipmentTrackingStations({ tracking: { licensePlate: 'AB-CD 123', actualArrivalLoadingAt: new Date('2026-09-25T08:07:00'), loadingStartedAt: new Date('2026-09-25T08:15:00'), loadingCompletedAt: new Date('2026-09-25T09:00:00'), actualDepartureLoadingAt: new Date('2026-09-25T09:10:00') }, imported })
-  const preparation = shipmentTrackingStationSummary(stations.find((station) => station.id === 'preparation'), { licensePlate: 'AB-CD 123' })
+  const stations = shipmentTrackingStations({ tracking: { tractorLicensePlate: 'AB-CD 123', trailerLicensePlate: 'EF-GH 456', actualArrivalLoadingAt: new Date('2026-09-25T08:07:00'), loadingStartedAt: new Date('2026-09-25T08:15:00'), loadingCompletedAt: new Date('2026-09-25T09:00:00'), actualDepartureLoadingAt: new Date('2026-09-25T09:10:00') }, imported })
+  const preparation = shipmentTrackingStationSummary(stations.find((station) => station.id === 'preparation'), { tractorLicensePlate: 'AB-CD 123', trailerLicensePlate: 'EF-GH 456' })
   const loading = shipmentTrackingStationSummary(stations.find((station) => station.id === 'loading'), {})
-  assert.deepEqual(preparation.rows, [{ label: 'KZ', value: 'AB-CD 123', kind: 'actual' }])
+  assert.deepEqual(preparation.rows, [{ label: 'ZM', value: 'AB-CD 123', kind: 'actual' }, { label: 'AL', value: 'EF-GH 456', kind: 'actual' }])
   assert.equal(preparation.actionLabel, 'Kennzeichen aktualisieren')
   assert.equal(loading.rows.length, 3)
   assert.equal(loading.actionLabel, 'Ladestelle erfassen')

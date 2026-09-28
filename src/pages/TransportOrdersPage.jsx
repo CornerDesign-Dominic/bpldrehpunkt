@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
-import { listTransportOrdersPage } from '../lib/transportOrders.js'
+import { listTransportOrderRelations, listTransportOrdersPage } from '../lib/transportOrders.js'
 import { formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
 import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingFilterOptions, trackingStatusForList, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
 
@@ -16,6 +16,10 @@ export default function TransportOrdersPage() {
   const { canEdit } = usePermissions()
   const [search, setSearch] = useState('')
   const [trackingFilter, setTrackingFilter] = useState(defaultTrackingFilter)
+  const [relationFilter, setRelationFilter] = useState('')
+  const [loadingFrom, setLoadingFrom] = useState('')
+  const [loadingUntil, setLoadingUntil] = useState('')
+  const [relations, setRelations] = useState([])
   const [sort, setSort] = useState({ key: null, direction: 'asc' })
   const [cursors, setCursors] = useState([null])
   const [pageIndex, setPageIndex] = useState(0)
@@ -27,7 +31,7 @@ export default function TransportOrdersPage() {
 
   useEffect(() => {
     let cancelled = false
-    listTransportOrdersPage({ cursor, search, sort, trackingStatus: trackingFilter })
+    listTransportOrdersPage({ cursor, search, relation: relationFilter, loadingFrom, loadingUntil, sort, trackingStatus: trackingFilter })
       .then((result) => {
         if (cancelled) return
         setPage(visibleTransportOrderPage(result))
@@ -37,7 +41,13 @@ export default function TransportOrdersPage() {
       .catch(() => { if (!cancelled) setError('Die Auftragsliste konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [cursor, pageIndex, search, sort, trackingFilter])
+  }, [cursor, pageIndex, search, sort, trackingFilter, relationFilter, loadingFrom, loadingUntil])
+
+  useEffect(() => {
+    let cancelled = false
+    listTransportOrderRelations().then((values) => { if (!cancelled) setRelations(values) }).catch(() => { if (!cancelled) setRelations([]) })
+    return () => { cancelled = true }
+  }, [])
 
   function resetList(update) {
     setLoading(true)
@@ -49,6 +59,10 @@ export default function TransportOrdersPage() {
   function toggleSort(key) { resetList(() => setSort((current) => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))) }
   function selectTrackingFilter(value) { resetList(() => setTrackingFilter(value)) }
   function updateSearch(value) { resetList(() => setSearch(value)) }
+  function updateRelation(value) { resetList(() => setRelationFilter(value)) }
+  function updateLoadingFrom(value) { resetList(() => setLoadingFrom(value)) }
+  function updateLoadingUntil(value) { resetList(() => setLoadingUntil(value)) }
+  function resetFilters() { resetList(() => { setSearch(''); setTrackingFilter(defaultTrackingFilter); setRelationFilter(''); setLoadingFrom(''); setLoadingUntil('') }) }
   function goToNextPage() {
     if (!page.hasMore || !page.nextCursor) return
     setLoading(true)
@@ -67,7 +81,7 @@ export default function TransportOrdersPage() {
   const openOrder = (orderId) => window.open(transportOrderPath(orderId), '_blank', 'noopener')
 
   return <div className="transport-orders-page">
-    <div className="list-toolbar"><div className="list-controls transport-orders-filters"><label className="search-field"><span className="sr-only">Transportaufträge suchen</span><input type="search" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="TA-Nummer, Kunde oder Unternehmer suchen" /></label><label className="transport-orders-tracking-filter"><span>Sendungsverfolgung</span><select value={trackingFilter} onChange={(event) => selectTrackingFilter(event.target.value)}>{trackingFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>{canEdit('dataImports') && <Link className="button" to="/transportauftraege/import">Transportaufträge importieren</Link>}</div>
+    <div className="list-toolbar"><div className="list-controls transport-orders-filters"><label className="search-field"><span className="sr-only">Transportaufträge suchen</span><input type="search" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="TA-Nummer, Kunde oder Unternehmer suchen" /></label><label className="transport-orders-tracking-filter"><span>Sendungsverfolgung</span><select value={trackingFilter} onChange={(event) => selectTrackingFilter(event.target.value)}>{trackingFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="transport-orders-tracking-filter"><span>Relation</span><select value={relationFilter} onChange={(event) => updateRelation(event.target.value)}><option value="">Alle Relationen</option>{relations.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</select></label><label className="transport-orders-tracking-filter"><span>Start von</span><input type="date" value={loadingFrom} max={loadingUntil || undefined} onChange={(event) => updateLoadingFrom(event.target.value)} /></label><label className="transport-orders-tracking-filter"><span>Start bis</span><input type="date" value={loadingUntil} min={loadingFrom || undefined} onChange={(event) => updateLoadingUntil(event.target.value)} /></label><button className="button button--secondary transport-orders-filters__reset" type="button" disabled={!search && trackingFilter === defaultTrackingFilter && !relationFilter && !loadingFrom && !loadingUntil} onClick={resetFilters}>Filter zurücksetzen</button></div>{canEdit('dataImports') && <Link className="button" to="/transportauftraege/import">Transportaufträge importieren</Link>}</div>
     {error && <p className="form-error">{error}</p>}
     <div className="transport-orders-table-frame" ref={tableRef}><table className="data-table transport-orders-table transport-orders-table--list"><thead><tr>{columns.map(renderSortableHeader)}</tr></thead><tbody>{loading ? <tr><td className="table-state" colSpan={columns.length}>Transportaufträge werden geladen …</td></tr> : !page.orders.length ? <tr><td className="table-state" colSpan={columns.length}><div className="transport-orders-empty"><span>{emptyTrackingFilterMessage(trackingFilter)}</span>{trackingFilter !== 'all' && <button className="button button--secondary" type="button" onClick={() => selectTrackingFilter('all')}>Filter zurücksetzen</button>}</div></td></tr> : page.orders.map((order) => <tr className="transport-orders-table__row" key={order.id} role="link" tabIndex="0" aria-label={`TA ${order.externalNumber} in neuem Tab öffnen`} onClick={() => openOrder(order.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openOrder(order.id) } }}>
       <td><strong>{order.externalNumber}</strong></td>

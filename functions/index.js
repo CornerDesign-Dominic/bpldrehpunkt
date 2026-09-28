@@ -8,11 +8,11 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { requireActiveProfile, requireRole } from './access.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
 import { importTransportOrdersHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
-import { updateManualShipmentTrackingHandler } from './shipmentTracking.js'
+import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
 import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
 import { systemMailNotificationUrl } from './systemMails.js'
-import { listTransportOrdersPageHandler } from './transportOrderList.js'
+import { listTransportOrderRelationsHandler, listTransportOrdersPageHandler } from './transportOrderList.js'
 import { calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
 import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHandler, listPartnerTransportOrderRatingsHandler, saveTransportOrderRatingHandler } from './transportOrderRatings.js'
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
@@ -994,6 +994,7 @@ export { scheduledShipmentTrackingAutomation } from './shipmentTrackingAutomatio
 export const previewTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewTransportOrderImportHandler)
 export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
 export const updateManualShipmentTracking = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateManualShipmentTrackingHandler)
+export const getShipmentTrackingActivation = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingActivationHandler)
 export const previewManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewManualShipmentTrackingMailHandler)
 export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', secrets: [systemMailNotificationUrl] }, sendManualShipmentTrackingMailHandler)
 // Callable endpoints must be invokable at the Cloud Run layer so Firebase can
@@ -1003,6 +1004,7 @@ export const getShipmentTrackingDryRun = onCall({ region: 'europe-west3', enforc
 export const listDiagnosticsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listDiagnosticsPageHandler)
 export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, reportClientDiagnosticHandler)
 export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
+export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
 export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)
 export const getTomTomUsageSummary = onCall({ region: 'europe-west3', enforceAppCheck: true }, getTomTomUsageSummaryHandler)
 export const getOwnTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnTransportOrderRatingsHandler)

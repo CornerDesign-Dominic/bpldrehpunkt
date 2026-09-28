@@ -2,6 +2,8 @@ import { defaultShipmentTrackingUiModel } from '../components/transport-orders/s
 
 const fieldLabels = {
   licensePlate: 'Kennzeichen',
+  tractorLicensePlate: 'Kennzeichen Zugmaschine',
+  trailerLicensePlate: 'Kennzeichen Auflieger',
   estimatedArrivalLoadingAt: 'Voraussichtliche Ankunft Ladestelle',
   actualArrivalLoadingAt: 'Tatsächliche Ankunft Ladestelle',
   loadingStartedAt: 'Beladung gestartet',
@@ -24,11 +26,11 @@ const germanPlanTimestamp = /^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$
 const timeOnlyTimestamp = /^(\d{1,2}):(\d{2})$/
 
 export const shipmentTrackingStageConfigurations = Object.freeze({
-  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['licensePlate'] },
+  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['tractorLicensePlate', 'trailerLicensePlate'] },
   loading: { label: 'Ladestelle', title: 'Ladestelle erfassen', fields: ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'] },
-  in_transit: { label: 'Unterwegs', title: 'Fahrtstatus aktualisieren', fields: ['estimatedArrivalUnloadingAt'] },
-  unloading: { label: 'Entladestelle', title: 'Entladestelle erfassen', fields: ['actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'] },
-  afterTransport: { label: 'Nachtransport', title: 'Nachweise erfassen', fields: ['proofStatus'] },
+  in_transit: { label: 'Unterwegs', title: 'Fahrtstatus aktualisieren', fields: [] },
+  unloading: { label: 'Entladestelle', title: 'Entladestelle erfassen', fields: ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'] },
+  afterTransport: { label: 'Nachtransport', title: 'Bewertungen', fields: [] },
 })
 
 export const shipmentTrackingStationStateDefinitions = Object.freeze({
@@ -51,6 +53,12 @@ function asDate(value) {
 
 function hasValue(value) {
   return typeof value === 'string' ? Boolean(value.trim()) : Boolean(value)
+}
+
+function licensePlates(tracking) {
+  const tractor = hasValue(tracking?.tractorLicensePlate) ? tracking.tractorLicensePlate.trim() : hasValue(tracking?.licensePlate) ? tracking.licensePlate.trim() : ''
+  const trailer = hasValue(tracking?.trailerLicensePlate) ? tracking.trailerLicensePlate.trim() : ''
+  return { tractor, trailer, hasTractor: Boolean(tractor) }
 }
 
 function formatTime(value) {
@@ -203,7 +211,7 @@ export function shipmentTrackingStationAssessments({ tracking, imported, custome
   const current = berlinWallTime(now)
   const result = { preparation: {}, loading: {} }
 
-  if (!hasValue(tracking?.licensePlate) && customerPolicy?.customer?.licensePlateImportant === true) result.preparation.licensePlate = assessment('notice', 'Kennzeichen wichtig für Kunde')
+  if (!licensePlates(tracking).hasTractor && customerPolicy?.customer?.licensePlateImportant === true) result.preparation.licensePlate = assessment('notice', 'Kennzeichen wichtig für Kunde')
   if (arrival === null && customerPolicy?.customer?.loadingSiteInformationImportant === true) {
     result.loading.arrival = assessment('notice', 'Ankunft wichtig für Kunde')
   } else if (arrival !== null && loadingFrom !== null && loadingUntil !== null) {
@@ -246,13 +254,14 @@ function unloadingWorkflowLabel(tracking, state) {
 export function shipmentTrackingWorkflowStates(tracking) {
   const started = Boolean(tracking)
   const completed = [
-    hasValue(tracking?.licensePlate),
+    licensePlates(tracking).hasTractor,
     Boolean(tracking?.actualDepartureLoadingAt),
     Boolean(tracking?.actualArrivalUnloadingAt),
     Boolean(tracking?.unloadingStartedAt && tracking?.unloadingCompletedAt),
     tracking?.lifecycleStatus === 'completed',
   ]
   if (!started) return ['pending', 'pending', 'pending', 'pending', 'pending']
+  if (tracking?.lifecyclePhase === 'upcoming') return ['pending', 'pending', 'pending', 'pending', 'pending']
   const firstOpen = completed.findIndex((value) => !value)
   return completed.map((isCompleted, index) => isCompleted ? 'completed' : index === firstOpen ? 'active' : 'pending')
 }
@@ -263,6 +272,7 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   const routePlan = formatShipmentTrackingRoutePlan(route?.roundedDistanceKm)
   const workflowStates = shipmentTrackingWorkflowStates(tracking)
   const assessments = shipmentTrackingStationAssessments({ tracking, imported, customerPolicy, now })
+  const plates = licensePlates(tracking)
   const loadingActualRows = [
     formatTime(tracking?.actualArrivalLoadingAt) && { kind: 'arrival', label: 'Ankunft', value: formatTime(tracking.actualArrivalLoadingAt) },
     ...actualRange('Beladung', tracking?.loadingStartedAt, tracking?.loadingCompletedAt, 'process'),
@@ -285,13 +295,13 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
       id: 'preparation',
       label: 'Vorbereitung',
       workflowState: workflowStates[0],
-      workflowLabel: hasValue(tracking?.licensePlate) ? 'Kennzeichen vorhanden' : 'Kennzeichen noch offen',
+      workflowLabel: plates.hasTractor ? 'Kennzeichen vorhanden' : 'Kennzeichen noch offen',
       plan: null,
-      actualRows: hasValue(tracking?.licensePlate) ? [{ kind: 'license-plate', label: 'Kennzeichen', value: tracking.licensePlate.trim() }] : [],
+      actualRows: [{ label: 'Zugmaschine', value: plates.tractor }, { label: 'Auflieger', value: plates.trailer }].filter((row) => Boolean(row.value)).map((row) => ({ kind: 'license-plate', ...row })),
       forecastRows: [],
       status: null,
       assessments: assessments.preparation,
-      emptyMessage: hasValue(tracking?.licensePlate) ? null : 'Kennzeichen noch offen',
+      emptyMessage: plates.hasTractor ? null : 'Kennzeichen noch offen',
     },
     {
       id: 'loading',
@@ -333,13 +343,13 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
       id: 'afterTransport',
       label: 'Nachtransport',
       workflowState: workflowStates[4],
-      workflowLabel: tracking?.lifecycleStatus === 'completed' ? 'Sendungsverfolgung abgeschlossen' : 'Nachweise noch offen',
+      workflowLabel: tracking?.lifecycleStatus === 'completed' ? 'Sendungsverfolgung abgeschlossen' : 'Abschluss ausstehend',
       plan: null,
       actualRows: [],
       forecastRows: [],
       status: null,
       assessments: {},
-      emptyMessage: tracking?.proofStatus === 'received' ? 'Nachweise vorhanden' : 'Nachweise noch offen',
+      emptyMessage: null,
     },
   ]
 }
@@ -352,10 +362,10 @@ function stageActionLabel(stageId, tracking) {
   const config = shipmentTrackingStageConfigurations[stageId]
   if (!config) return 'Angaben erfassen'
   const hasStageValue = config.fields.some((field) => hasValue(tracking?.[field]) && tracking?.[field] !== 'unknown')
-  if (stageId === 'preparation') return hasStageValue ? 'Kennzeichen aktualisieren' : 'Kennzeichen erfassen'
+  if (stageId === 'preparation') return licensePlates(tracking).hasTractor ? 'Kennzeichen aktualisieren' : 'Kennzeichen erfassen'
   if (stageId === 'loading') return hasStageValue ? 'Ladestelle aktualisieren' : 'Ladestelle erfassen'
   if (stageId === 'unloading') return hasStageValue ? 'Entladestelle aktualisieren' : 'Entladestelle erfassen'
-  if (stageId === 'afterTransport') return hasStageValue ? 'Nachweise aktualisieren' : 'Nachweise erfassen'
+  if (stageId === 'afterTransport') return 'Bewertungen'
   return config.title
 }
 
@@ -364,7 +374,8 @@ export function shipmentTrackingStationSummary(station, tracking) {
   const forecast = station.forecastRows || []
   let rows = []
   if (station.id === 'preparation') {
-    rows = hasValue(tracking?.licensePlate) ? [summaryRow('KZ', tracking.licensePlate.trim())] : [summaryRow('', 'Kennzeichen offen', 'missing', 'licensePlate', station.assessments?.licensePlate)]
+    const plates = licensePlates(tracking)
+    rows = plates.hasTractor ? [summaryRow('ZM', plates.tractor), ...(plates.trailer ? [summaryRow('AL', plates.trailer)] : [])] : [summaryRow('', 'Kennzeichen offen', 'missing', 'licensePlate', station.assessments?.licensePlate)]
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
     rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
@@ -375,8 +386,6 @@ export function shipmentTrackingStationSummary(station, tracking) {
   } else if (station.id === 'unloading') {
     rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value)) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing')]
-  } else if (station.id === 'afterTransport') {
-    rows = [summaryRow('', tracking?.proofStatus === 'received' ? 'Nachweise vorhanden' : 'Nachweise offen', tracking?.proofStatus === 'received' ? 'actual' : 'missing')]
   }
   return { rows: rows.slice(0, 3), actionLabel: stageActionLabel(station.id, tracking) }
 }
@@ -422,14 +431,14 @@ export function shipmentTrackingTimelineModel(tracking, imported, route, custome
   if (!tracking) return { ...defaultShipmentTrackingUiModel, trackingExists: false, stations }
   const completed = tracking.lifecycleStatus === 'completed'
   const lifecyclePhase = completed ? 'completed' : tracking.lifecyclePhase || 'in_progress'
-  const lifecycleLabels = { preparation: 'Vorbereitung', in_progress: 'Laufend', aftercare: 'Abschlussphase', completed: 'Durchgeführt' }
+  const lifecycleLabels = { upcoming: 'Bevorstehend', preparation: 'Vorbereitung', in_progress: 'Laufend', aftercare: 'Abschlussphase', completed: 'Durchgeführt' }
   return {
     ...defaultShipmentTrackingUiModel,
     status: completed ? 'confirmed' : 'manual',
     statusLabel: completed ? 'Sendungsverfolgung abgeschlossen' : 'Manuelles Tracking aktiv',
     lifecycleStatus: completed ? 'completed' : 'active',
     lifecycleLabel: lifecycleLabels[lifecyclePhase] || 'Laufend',
-    trackingTypeLabel: tracking.trackingMode === 'automatic' ? 'Automatisch' : 'Manuell',
+    trackingTypeLabel: tracking.trackingMode === 'automatic' ? 'Automatisch' : tracking.trackingStartedEarly === true ? 'Vorzeitig gestartet' : 'Manuell',
     trackingExists: true,
     vehiclePosition: { stageId: tracking.stageId || 'preparation', progressToNextStage: tracking.progressToNextStage || 0 },
     stations,
@@ -443,9 +452,31 @@ function historyValue(field, value) {
   return value
 }
 
+function eventValueAtPath(value, path) {
+  return path.split('.').reduce((current, segment) => current && typeof current === 'object' ? current[segment] : undefined, value)
+}
+
+function hasEventValue(value) {
+  return value !== null && value !== undefined && value !== ''
+}
+
+export function shipmentTrackingEventChangeType(event) {
+  if (event.eventType === 'tracking_started') return 'Neu'
+  if (event.eventType === 'tracking_completed') return 'Abgeschlossen'
+  if (event.eventType === 'tracking_manual_mail_sent' || event.eventType === 'tracking_automatic_mail_sent') return 'Versendet'
+  const fields = Array.isArray(event.changedFields) ? event.changedFields : []
+  if (!fields.length) return 'Aktualisiert'
+  const changes = fields.map((field) => ({ oldValue: eventValueAtPath(event.oldValue, field), newValue: eventValueAtPath(event.newValue, field) }))
+  if (changes.every((change) => !hasEventValue(change.newValue))) return 'Gelöscht'
+  if (changes.every((change) => !hasEventValue(change.oldValue) && hasEventValue(change.newValue))) return 'Neu'
+  return 'Aktualisiert'
+}
+
 export function shipmentTrackingEventDescription(event) {
   if (event.eventType === 'tracking_started') return 'Sendungsverfolgung gestartet'
   if (event.eventType === 'tracking_completed') return 'Sendungsverfolgung abgeschlossen'
+  if (event.eventType === 'tracking_automation_paused') return 'Sendungsverfolgungs-Automatik pausiert'
+  if (event.eventType === 'tracking_automation_resumed') return 'Sendungsverfolgungs-Automatik fortgeführt'
   if (event.eventType === 'tracking_phase_changed') {
     const labels = { upcoming: 'Bevorstehend', preparation: 'Vorbereitung', in_progress: 'Laufend', aftercare: 'Abschlussphase', completed: 'Durchgeführt' }
     return `Tracking-Phase: ${labels[event.newValue?.lifecyclePhase] || event.newValue?.lifecyclePhase || 'aktualisiert'}`

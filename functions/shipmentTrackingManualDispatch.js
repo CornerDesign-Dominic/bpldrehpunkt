@@ -89,19 +89,34 @@ async function dispatchContext(db, orderId, { allowCompleted = false } = {}) {
 }
 
 function deterministicDeliveryId(bundleId) { return `manual-${createHash('sha256').update(bundleId).digest('hex')}` }
-function loadingTime(imported) {
-  const local = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
-  if (!local) return 'Nicht hinterlegt'
+function weekday(date) { return ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(`${date}T12:00:00Z`).getUTCDay()] }
+function formatLoadingDateTime(local) {
   const [year, month, day] = local.date.split('-')
-  return `${day}.${month}.${year}, ${local.time} Uhr`
+  return `${weekday(local.date)}, ${day}.${month}.${year}, ${local.time} Uhr`
+}
+
+/** A single loading window stays compact while still spelling out dates for
+ * multi-day windows. This avoids ambiguous repeats such as 07:00–07:00. */
+export function shipmentTrackingLoadingWindow(imported) {
+  const from = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
+  const until = shipmentTrackingBerlinLocal(imported?.loading?.window?.until)
+  if (!from && !until) return 'Nicht hinterlegt'
+  if (!from) return `bis ${formatLoadingDateTime(until)}`
+  if (!until) return formatLoadingDateTime(from)
+  if (from.date !== until.date) return `${formatLoadingDateTime(from)} bis ${formatLoadingDateTime(until)}`
+  const [year, month, day] = from.date.split('-')
+  const date = `${weekday(from.date)}, ${day}.${month}.${year}`
+  if (from.time === until.time) return `${date}, ${from.time} Uhr`
+  return `${date}, ${from.time}–${until.time} Uhr`
 }
 function loadingLocation(imported) { return text(imported?.loading?.city) || text(imported?.loading?.originalText) || 'Nicht hinterlegt' }
 function orderNumber(imported, externalNumber) { return text(externalNumber) || text(imported?.externalNumber) || text(imported?.orderNumber) || 'Nicht hinterlegt' }
 function templateValues(imported, externalNumber) {
-  return { transportOrderNumber: orderNumber(imported, externalNumber), loadingLocation: loadingLocation(imported), loadingTime: loadingTime(imported) }
+  return { transportOrderNumber: orderNumber(imported, externalNumber), loadingLocation: loadingLocation(imported), loadingTime: shipmentTrackingLoadingWindow(imported) }
 }
 function topicsForTemplate(templateId) {
   if (templateId === shipmentTrackingManualDispatchTemplateIds.combined) return ['licensePlate', 'loadingSite']
+  if (templateId === shipmentTrackingManualDispatchTemplateIds.generalUpdate) return []
   return templateId === shipmentTrackingManualDispatchTemplateIds.licensePlate ? ['licensePlate'] : ['loadingSite']
 }
 function templateLabel(templateId) {
@@ -109,6 +124,7 @@ function templateLabel(templateId) {
     [shipmentTrackingManualDispatchTemplateIds.licensePlate]: 'Kennzeichen anfragen',
     [shipmentTrackingManualDispatchTemplateIds.loadingSite]: 'LKW-Ankunft anfragen',
     [shipmentTrackingManualDispatchTemplateIds.combined]: 'Kennzeichen und LKW-Ankunft anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.generalUpdate]: 'Allgemeines Status-Update anfragen',
   })[templateId] || 'Tracking-Anfrage'
 }
 function matchingDueBundle(preview, requestedBundleId, templateId, recipient) {

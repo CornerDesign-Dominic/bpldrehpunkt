@@ -2,12 +2,14 @@ const TEMPLATE_IDS = Object.freeze({
   licensePlate: 'shipment_tracking_license_plate_request',
   loadingSite: 'shipment_tracking_arrival_request',
   combined: 'shipment_tracking_license_plate_and_arrival_request',
+  generalUpdate: 'shipment_tracking_general_status_update',
 })
 
 const templateLabels = Object.freeze({
   [TEMPLATE_IDS.licensePlate]: 'Kennzeichen anfragen',
   [TEMPLATE_IDS.loadingSite]: 'LKW-Ankunft anfragen',
   [TEMPLATE_IDS.combined]: 'Kennzeichen und LKW-Ankunft anfragen',
+  [TEMPLATE_IDS.generalUpdate]: 'Allgemeines Status-Update anfragen',
 })
 
 const topicLabels = Object.freeze({ licensePlate: 'Kennzeichen', loadingSite: 'LKW-Ankunft' })
