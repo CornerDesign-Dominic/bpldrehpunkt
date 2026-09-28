@@ -78,10 +78,9 @@ function pausedAutomation(tracking, scheduledAt, now) {
 }
 function carrierRecipient(tracking) {
   const email = text(tracking?.recipients?.carrier?.email)
-  // Tracking dispatches deliberately use only a recipient manually entered in
-  // this tracking document. Import/order/master data must never become a mail
-  // target merely by being present.
-  return tracking?.recipients?.carrier?.source === 'manual' && emailPattern.test(email)
+  // The recipient is captured when tracking starts from the TA dispatch address
+  // or is later manually corrected in this tracking document.
+  return ['manual', 'transport-order-import'].includes(tracking?.recipients?.carrier?.source) && emailPattern.test(email)
     ? { role: 'carrier', email, state: 'configured' }
     : { role: 'carrier', email: null, state: 'missing' }
 }

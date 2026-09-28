@@ -31,10 +31,10 @@ function eventPayload(eventType, oldValue, newValue) {
   }
 }
 
-function manualCarrierRecipient(tracking) {
+function storedCarrierRecipient(tracking) {
   const entry = tracking?.recipients?.carrier
   const email = text(entry?.email)
-  return entry?.source === 'manual' && emailPattern.test(email) ? email : ''
+  return ['manual', 'transport-order-import'].includes(entry?.source) && emailPattern.test(email) ? email : ''
 }
 
 function localKey(value) {
@@ -113,7 +113,11 @@ async function synchronizeLifecycle(db, orderSnapshot, currentTracking, operatin
     const tracking = snapshot.exists ? snapshot.data() : null
     if (!tracking) {
       if (!isActiveShipmentTrackingPhase(lifecycle.phase) && !activationRequired) return
-      const next = createShipmentTrackingDocument(orderId, 'system', 'Sendungsverfolgungs-Automatik', { trackingMode: 'automatic', lifecyclePhase: lifecycle.phase })
+      const next = createShipmentTrackingDocument(orderId, 'system', 'Sendungsverfolgungs-Automatik', {
+        trackingMode: 'automatic',
+        lifecyclePhase: lifecycle.phase,
+        carrierRecipientEmail: imported?.dispatch?.sentTo,
+      })
       transaction.create(trackingRef, next)
       transaction.create(eventRef, eventPayload('tracking_started', {}, { lifecycleStatus: 'active', lifecyclePhase: lifecycle.phase, trackingMode: 'automatic' }))
       return
@@ -167,7 +171,7 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
       const [trackingSnapshot, deliverySnapshot] = await Promise.all([transaction.get(trackingRef), transaction.get(deliveryRef)])
       const currentTracking = trackingSnapshot.exists ? trackingSnapshot.data() : null
       if (!currentTracking || currentTracking.lifecycleStatus !== 'active' || currentTracking.automationPaused === true) return
-      if (manualCarrierRecipient(currentTracking).toLowerCase() !== bundle.recipient.toLowerCase()) return
+      if (storedCarrierRecipient(currentTracking).toLowerCase() !== bundle.recipient.toLowerCase()) return
       if (!isDevelopmentTrackingRecipientAllowed(bundle.recipient)) return
       if (deliverySnapshot.exists && ['sending', 'sent', 'delivered'].includes(deliverySnapshot.data()?.status)) return
       transaction.set(deliveryRef, {

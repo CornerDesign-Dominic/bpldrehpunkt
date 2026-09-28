@@ -50,7 +50,11 @@ export function deriveShipmentTrackingPosition(tracking) {
 /** Creates the stable tracking document shape for both manual and scheduled starts.
  * Lifecycle remains `active` until the final phase so existing permissions and
  * callables continue to work; `lifecyclePhase` is the readable lifecycle. */
-export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'preparation', trackingStartedEarly = false } = {}) {
+export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'preparation', trackingStartedEarly = false, carrierRecipientEmail = '' } = {}) {
+  const carrierEmail = text(carrierRecipientEmail)
+  const recipients = emailPattern.test(carrierEmail)
+    ? { carrier: { email: carrierEmail, source: 'transport-order-import' } }
+    : {}
   return {
     orderId,
     lifecycleStatus: 'active',
@@ -73,7 +77,7 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     unloadingStartedAt: null,
     unloadingCompletedAt: null,
     proofStatus: 'unknown',
-    recipients: {},
+    recipients,
     externalRuleDispatches: {},
     automationPaused: false,
     automationPausedAt: null,
@@ -239,7 +243,11 @@ export async function updateManualShipmentTrackingHandler(request) {
       if (current) throw new HttpsError('already-exists', 'Die Sendungsverfolgung wurde bereits gestartet.')
       const activation = earlyStartRequested ? activationPreview(orderSnapshot.data()?.imported, operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS) : null
       const trackingStartedEarly = Boolean(earlyStartRequested && activation?.phase === 'upcoming')
-      const tracking = createShipmentTrackingDocument(orderId, request.auth.uid, actor, { lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation', trackingStartedEarly })
+      const tracking = createShipmentTrackingDocument(orderId, request.auth.uid, actor, {
+        lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation',
+        trackingStartedEarly,
+        carrierRecipientEmail: orderSnapshot.data()?.imported?.dispatch?.sentTo,
+      })
       transaction.create(trackingRef, tracking)
       transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase', 'trackingStartedEarly'], newValue: { lifecycleStatus: 'active', lifecyclePhase: trackingStartedEarly ? 'upcoming' : 'preparation', trackingStartedEarly }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
       return

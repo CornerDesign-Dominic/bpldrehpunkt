@@ -22,18 +22,18 @@ function validOrderId(value) { const id = text(value); return id && id.length <=
 function validBundleId(value) { const id = text(value); return id && id.length <= 2400 ? id : '' }
 function validTemplateId(value) { const id = text(value); return allowedTemplateIds.has(id) ? id : '' }
 function validRecipient(value) { const email = text(value); return email.length <= 320 && emailPattern.test(email) ? email : '' }
-function manualCarrierRecipient(tracking) {
+function storedCarrierRecipient(tracking) {
   const entry = tracking?.recipients?.carrier
   const email = validRecipient(entry?.email)
-  return entry?.source === 'manual' ? email : ''
+  return ['manual', 'transport-order-import'].includes(entry?.source) ? email : ''
 }
 
-/** The dispatch target is never supplied by import/master/order data or trusted
- * from the browser. During Dev tests it is additionally restricted to BPL. */
+/** The stored tracking recipient is either the TA dispatch address captured on
+ * start or an explicit manual correction. During Dev it is restricted to BPL. */
 function assertPermittedRecipient(tracking, requestedRecipient) {
-  const stored = manualCarrierRecipient(tracking)
-  if (!stored) throw new HttpsError('failed-precondition', 'Für den Unternehmer ist keine manuell hinterlegte Empfängeradresse vorhanden.')
-  if (stored.toLowerCase() !== requestedRecipient.toLowerCase()) throw new HttpsError('failed-precondition', 'Die Empfängeradresse muss der manuell hinterlegten Unternehmeradresse entsprechen.')
+  const stored = storedCarrierRecipient(tracking)
+  if (!stored) throw new HttpsError('failed-precondition', 'Für den Unternehmer ist keine gültige Empfängeradresse hinterlegt.')
+  if (stored.toLowerCase() !== requestedRecipient.toLowerCase()) throw new HttpsError('failed-precondition', 'Die Empfängeradresse muss der hinterlegten Unternehmeradresse entsprechen.')
   if (externalEffectsEnvironment() === 'development' && !stored.toLowerCase().endsWith(`@${developmentRecipientDomain}`)) {
     throw new HttpsError('failed-precondition', `In der Dev-Testphase sind nur Empfänger mit @${developmentRecipientDomain} zulässig.`)
   }

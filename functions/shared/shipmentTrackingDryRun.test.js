@@ -75,9 +75,11 @@ test('external stages use only the stored carrier recipient and diagnose a missi
   assert.ok(missing.hints.some((hint) => hint.description.startsWith('Unternehmer-Empfänger fehlt')))
 })
 
-test('an address without the explicit manual source can never become a tracking-mail recipient', () => {
-  const result = preview({ tracking: { recipients: { carrier: { email: 'imported@example.test', source: 'import' } } } })
-  assert.deepEqual(result.rules[0].recipient, { role: 'carrier', email: null, state: 'missing' })
+test('the TA dispatch address is active, while unknown recipient sources remain blocked', () => {
+  const importedRecipient = preview({ tracking: { recipients: { carrier: { email: 'imported@example.test', source: 'transport-order-import' } } } })
+  assert.deepEqual(importedRecipient.rules[0].recipient, { role: 'carrier', email: 'imported@example.test', state: 'configured' })
+  const unknownRecipient = preview({ tracking: { recipients: { carrier: { email: 'unknown@example.test', source: 'import' } } } })
+  assert.deepEqual(unknownRecipient.rules[0].recipient, { role: 'carrier', email: null, state: 'missing' })
 })
 
 test('internal stages never use a customer or carrier email address', () => {

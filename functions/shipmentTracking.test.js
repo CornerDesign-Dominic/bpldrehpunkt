@@ -16,6 +16,14 @@ test('an early manual start is explicitly marked without changing normal manual 
   assert.equal(early.trackingStartedEarly, true)
 })
 
+test('a valid TA dispatch address prepopulates the carrier recipient', () => {
+  assert.deepEqual(
+    createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'dispo@example.test' }).recipients,
+    { carrier: { email: 'dispo@example.test', source: 'transport-order-import' } },
+  )
+  assert.deepEqual(createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'not-an-email' }).recipients, {})
+})
+
 test('manual tracking position only advances to in transit after an actual loading departure', () => {
   assert.deepEqual(deriveShipmentTrackingPosition({ estimatedDepartureLoadingAt: {} }), { stageId: 'preparation', progressToNextStage: 0 })
   assert.deepEqual(deriveShipmentTrackingPosition({ actualDepartureLoadingAt: {} }), { stageId: 'in_transit', progressToNextStage: 0 })
