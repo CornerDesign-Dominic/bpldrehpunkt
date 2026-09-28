@@ -135,6 +135,15 @@ export function hasShipmentTrackingManualDispatchAccess(profile) {
   return hasTrackingEditAccess(profile)
 }
 
+/** Turns transport failures into safe, actionable admin diagnostics. Secrets,
+ * URLs and the customized mail content deliberately never enter Firestore. */
+export function manualMailTechnicalDiagnostic(error) {
+  if (error?.cause?.code === 'ENOTFOUND') return { code: 'notification_endpoint_unreachable', message: 'Der Versanddienst ist nicht erreichbar.' }
+  if (error?.message === 'notification-service-not-configured') return { code: 'notification_service_missing', message: 'Der Versanddienst ist nicht konfiguriert.' }
+  if (/^notification-service-\d{3}$/.test(error?.message || '')) return { code: 'notification_service_rejected', message: 'Der Versanddienst hat die Anfrage abgelehnt.' }
+  return { code: 'unexpected_error', message: 'Die manuelle Tracking-Anfrage konnte nicht versendet werden.' }
+}
+
 export async function previewManualShipmentTrackingMailHandler(request) {
   const profile = await requireActiveProfile(request)
   if (!hasShipmentTrackingManualDispatchAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Anzeige der Tracking-Anfrage.')
@@ -212,8 +221,7 @@ export async function sendManualShipmentTrackingMailHandler(request) {
     if (deliveryRef && delivery && deliverySent) await deliveryRef.set({ status: 'delivered', deliveredAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true }).catch(() => {})
     if (deliveryRef && delivery && deliveryClaimed && !deliverySent) await deliveryRef.set({ status: 'failed', failedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: error instanceof HttpsError ? error.code : 'delivery-failed' }, { merge: true }).catch(() => {})
     if (!(error instanceof HttpsError)) await recordDiagnostic({
-      module: 'shipment-tracking-manual-mail', stage: 'send', code: 'unexpected_error',
-      message: 'Die manuelle Tracking-Anfrage konnte nicht versendet werden.',
+      module: 'shipment-tracking-manual-mail', stage: 'send', ...manualMailTechnicalDiagnostic(error),
       actorId: request.auth.uid, actorName: actor, orderId,
     }, db)
     throw error
