@@ -1402,6 +1402,11 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-toolbar > .todo-view-switcher { justify-self: start; }
 .todo-toolbar > .todo-tabs { justify-self: center; }
 .todo-toolbar > .button { justify-self: end; }
+.todo-filter-bar { display: grid; grid-template-columns: minmax(230px, 1.6fr) repeat(4, minmax(145px, 1fr)); gap: 9px; align-items: end; padding: 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.todo-filter-bar .filter-field { min-width: 0; }
+.todo-filter-bar .filter-field > span { display: block; margin-bottom: 4px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.todo-filter-bar :is(input, select) { width: 100%; min-height: 32px; }
+.todo-filter-bar__search { min-width: 0; }
 .todo-tabs { gap: 0; padding: 3px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
 .todo-tabs__tab { min-width: 76px; height: 28px; border-radius: 4px; color: var(--text-secondary); }
 .todo-tabs__tab:hover { color: var(--text-primary); background: var(--content-background); }
@@ -1410,12 +1415,15 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-view-switcher__button { display: grid; width: 28px; height: 26px; padding: 0; place-items: center; border: 0; border-radius: 3px; color: var(--text-secondary); background: transparent; cursor: pointer; }
 .todo-view-switcher__button:hover, .todo-view-switcher__button--active { color: var(--button-text); background: var(--button-background); }
 .todos-table-frame { overflow-x: auto; border: 1px solid var(--table-border); border-radius: 7px; background: var(--table-background); }.todos-list-table-frame { overflow-x: auto; overflow-y: hidden; border-radius: 6px; }
-.todos-table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 12px; }
+.todos-table { width: 100%; min-width: 1120px; border-collapse: collapse; font-size: 12px; }
 .todos-table th { padding: 0; color: var(--text-muted); background: var(--surface-secondary); font-size: 11px; text-align: left; text-transform: uppercase; }
 .todos-table th { color: var(--text-secondary); background: var(--table-header-background); box-shadow: none; }
 .todos-table th:not(:last-child) { border-right: 1px solid var(--table-border); }
 .todos-table td { padding: 9px 10px; border-top: 1px solid var(--border); color: var(--text-primary); vertical-align: middle; white-space: nowrap; }
 .todos-table__title { max-width: 280px; overflow: hidden; font-weight: 700; text-overflow: ellipsis; }
+.todos-table__transport-orders { display: inline-flex; max-width: 138px; align-items: center; gap: 5px; overflow: hidden; vertical-align: middle; font-weight: 700; }
+.todos-table__transport-orders > span { overflow: hidden; text-overflow: ellipsis; }
+.todos-table__transport-orders small { flex: 0 0 auto; color: var(--text-secondary); font-size: 11px; font-weight: 700; }
 .todos-table__due { font-weight: 700; }.todos-table__due--critical { color: var(--todo-due-overdue); }.todos-table__due--urgent { color: var(--todo-due-today); }.todos-table__due--warning { color: var(--todo-due-soon); }
 .todos-table__row--critical td:first-child { border-left: 5px solid var(--todo-due-overdue); }.todos-table__row--urgent td:first-child { border-left: 5px solid var(--todo-due-today); }.todos-table__row--warning td:first-child { border-left: 5px solid var(--todo-due-soon); }
 .todos-table__row { cursor: pointer; }
@@ -1497,6 +1505,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
   .damage-deadline-modal__fields, .damage-deadline-modal__details dl { grid-template-columns: 1fr; }
   .damage-deadline-modal__note, .damage-deadline-modal__details section:first-child dl > div:last-child { grid-column: auto; }
   .todo-toolbar { grid-template-columns: auto 1fr; }.todo-toolbar > .todo-tabs { justify-self: end; }.todo-toolbar > .button { grid-column: 1 / -1; justify-self: end; }
+  .todo-filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.todo-filter-bar__search { grid-column: 1 / -1; }
   .todo-detail-header { flex-direction: column; }
   .todo-detail-actions { justify-content: flex-start; }
   .todo-detail-list { grid-template-columns: 1fr; }
