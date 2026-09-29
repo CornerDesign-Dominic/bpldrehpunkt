@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import '../../styles/pallets.css'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../ui/ConfirmDialog.jsx'
 import BackLink from '../ui/BackLink.jsx'
 import { usePermissions } from '../../auth/usePermissions.js'
@@ -22,6 +22,8 @@ function fetchAccountData(partnerId) {
 
 export default function PalletAccountDetail({ partnerId }) {
   const { canEdit } = usePermissions()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [partnerResult, setPartnerResult] = useState(null)
   const [clusterIds, setClusterIds] = useState([partnerId])
   const [clusterMembers, setClusterMembers] = useState([])
@@ -71,6 +73,15 @@ export default function PalletAccountDetail({ partnerId }) {
     const option = palletPartnerOption(partnersById, movementForm.carrierId)
     return option?.isHistorical ? option : null
   }, [movementForm.carrierId, partnersById])
+
+  useEffect(() => {
+    const movementId = location.state?.palletMovementId
+    if (!movementId || !canEdit('pallets') || !partnerResult?.partner) return
+    const movement = movements.find((entry) => entry.id === movementId)
+    if (!movement || !clusterIds.includes(movement.customerId) && !clusterIds.includes(movement.carrierId)) return
+    openMovementEdit(movement)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [canEdit, clusterIds, location.pathname, location.state, movements, navigate, partnerResult])
 
   async function reloadAccount() {
     const loadedAccount = await fetchAccountData(partnerId)
