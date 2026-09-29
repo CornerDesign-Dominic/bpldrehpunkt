@@ -11,13 +11,12 @@ const order = {
   },
 }
 
-test('TA → neue Fälle use the same central context', () => {
+test('TA → neuer Schadenfall und Inkassofall use the same central context', () => {
   const prefill = transportOrderCasePrefill(order)
   assert.deepEqual(caseCreationDefaults('damage', prefill), {
     transportReference: 'TA-4711', description: 'TA TA-4711 · Referenz REF-99', claimantPartnerId: 'customer-1', claimant: 'Kunde GmbH', contractorPartnerId: 'carrier-1', contractor: 'Unternehmer KG',
   })
   assert.deepEqual(caseCreationDefaults('inkasso', prefill), { debtorPartnerId: 'carrier-1', debtorPartnerRole: 'carrier', debtorName: 'Unternehmer KG', debtorNumber: '200' })
-  assert.deepEqual(caseCreationDefaults('pallet', prefill), { title: 'Palettenfall zu TA TA-4711', description: 'Referenz: REF-99' })
 })
 
 test('role selections preserve canonical partner IDs with URL and delimiter characters', () => {
@@ -103,8 +102,8 @@ test('multiple TAs per case and multiple cases per TA retain independent links',
 })
 
 test('linked case types precede create actions and insolvencies are excluded from TA links', () => {
-  assert.deepEqual(CASE_TRANSPORT_CASE_TYPE_IDS, ['damage', 'pallet', 'inkasso', 'legalDispute'])
-  assert.deepEqual(transportOrderCaseTypeOrder([{ caseType: 'legalDispute' }, { caseType: 'damage' }]), ['damage', 'legalDispute', 'pallet', 'inkasso'])
+  assert.deepEqual(CASE_TRANSPORT_CASE_TYPE_IDS, ['damage', 'inkasso', 'legalDispute'])
+  assert.deepEqual(transportOrderCaseTypeOrder([{ caseType: 'legalDispute' }, { caseType: 'damage' }]), ['damage', 'legalDispute', 'inkasso'])
   assert.throws(() => caseTransportLinkId('insolvency', 'partner-1', 'dycos-4711'), /Ungültige Verknüpfung/)
   assert.deepEqual(caseCreationDefaults('insolvency', transportOrderCasePrefill(order)), {})
 })
@@ -118,6 +117,5 @@ test('removing a link leaves both source IDs intact and both directions navigate
   assert.equal(damageId, 'damage-1')
   assert.equal(transportOrderId, 'dycos-4711')
   assert.equal(caseDetailPath('damage', damageId), '/schaeden/damage-1')
-  assert.equal(caseDetailPath('pallet', 'pallet-1'), '/paletten/faelle/pallet-1')
   assert.equal(caseDetailPath('inkasso', 'inkasso-1'), '/inkasso/inkasso-1')
 })

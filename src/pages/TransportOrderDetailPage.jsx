@@ -269,7 +269,7 @@ export default function TransportOrderDetailPage() {
   }
   const imported = order?.imported
   function createCase(caseType) {
-    const route = { damage: '/schaeden', pallet: '/paletten/faelle', inkasso: '/inkasso', legalDispute: '/legal-disputes' }[caseType]
+    const route = { damage: '/schaeden', inkasso: '/inkasso', legalDispute: '/legal-disputes' }[caseType]
     if (route) navigate(route, { state: { caseCreation: { caseType, prefill: transportOrderCasePrefill(order) } } })
   }
   if (loading) return <div className="transport-order-detail-page"><p className="page-state">Transportauftrag wird geladen …</p></div>
