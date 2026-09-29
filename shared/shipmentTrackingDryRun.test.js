@@ -4,7 +4,7 @@ import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shipmentTrackingOpe
 import { fallbackShipmentTrackingRuleCatalog } from './shipmentTrackingRuleCatalog.js'
 import { shipmentTrackingDryRun } from './shipmentTrackingDryRun.js'
 
-const carrierPolicy = (ids) => ({ shipmentTrackingPolicy: { carrier: { enabledRuleIds: Object.fromEntries(ids.map((id) => [id, true])) } } })
+const carrierPolicy = (ids, actualArrivalConfirmationEnabled = false) => ({ shipmentTrackingPolicy: { carrier: { enabledRuleIds: Object.fromEntries(ids.map((id) => [id, true])), actualArrivalConfirmationEnabled } } })
 const customerPolicy = (policy) => ({ shipmentTrackingPolicy: { customer: policy } })
 const imported = (from = '2026-12-07 10:00') => ({ customer: { partnerId: 'customer-1' }, carrier: { partnerId: 'carrier-1' }, loading: { window: { from } } })
 const preview = (overrides = {}) => shipmentTrackingDryRun({
@@ -130,6 +130,39 @@ test('a successfully dispatched external rule is shown as sent and is no longer 
   assert.equal(result.rules[0].status, 'sent')
   assert.equal(result.nextAction, null)
   assert.equal(result.hints.some((hint) => hint.id.endsWith('-due')), false)
+})
+
+test('the arrival confirmation runs alongside normal carrier rules without sharing their dispatch state', () => {
+  const result = preview({
+    imported: imported('2026-12-07 08:00'),
+    carrier: carrierPolicy(['licensePlate.external.reminder.2'], true),
+    arrivalConfirmationSettings: { enabled: true, offsetWorkingHours: 2 },
+    now: '2026-12-04T15:05:00.000Z',
+  })
+  assert.deepEqual(result.rules.map((rule) => [rule.ruleId, rule.scheduledAt, rule.status]), [
+    ['licensePlate.external.reminder.2', '2026-12-04T13:00:00.000Z', 'due'],
+    ['actualArrivalConfirmation.external', '2026-12-04T15:00:00.000Z', 'due'],
+  ])
+  assert.equal(result.rules[1].arrivalConfirmation, true)
+  assert.equal(result.rules[1].withinDispatchWindow, true)
+})
+
+test('arrival confirmation is rescheduled, skipped while paused, and never repeated after a recorded send', () => {
+  const base = {
+    imported: imported('2026-12-07 08:00'),
+    carrier: carrierPolicy([], true),
+    arrivalConfirmationSettings: { enabled: true, offsetWorkingHours: 2 },
+    now: '2026-12-04T15:05:00.000Z',
+  }
+  const shifted = preview({ ...base, imported: imported('2026-12-07 12:00') })
+  assert.equal(shifted.rules[0].scheduledAt, '2026-12-07T09:00:00.000Z')
+  assert.equal(shifted.rules[0].status, 'upcoming')
+  const paused = preview({ ...base, tracking: { automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(paused.rules[0].status, 'skipped')
+  const sentThenShifted = preview({ ...base, imported: imported('2026-12-07 12:00'), tracking: { actualArrivalConfirmationDispatch: { dispatchId: 'arrival-confirmation', sentAt: '2026-12-04T15:05:00.000Z' }, recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(sentThenShifted.rules[0].status, 'sent')
+  const actualArrival = preview({ ...base, tracking: { actualArrivalLoadingAt: '2026-12-07T09:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(actualArrival.rules[0].status, 'notRequired')
 })
 
 test('a policy saved after tracking started is used by the next dry-run calculation', () => {

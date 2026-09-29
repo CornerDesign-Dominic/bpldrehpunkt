@@ -3,31 +3,18 @@ import { doc, onSnapshot } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { useAuth } from '../../auth/useAuth.js'
 import { db, functions } from '../../lib/firebase.js'
+import { DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION, normalizeShipmentTrackingArrivalConfirmation, validateShipmentTrackingArrivalConfirmation } from '../../../shared/shipmentTrackingArrivalConfirmation.js'
 
 const settingsRef = doc(db, 'systemSettings', 'shipmentTrackingArrivalConfirmation')
-const defaults = Object.freeze({
-  enabled: true,
-  offsetWorkingHours: 2,
-  subject: 'Transportauftrag {{transportOrderNumber}} – Bitte aktuellen Stand bestätigen',
-  message: 'Guten Tag,\n\nbitte bestätigen Sie kurz, ob für den Transportauftrag {{transportOrderNumber}} alles wie geplant ist oder ob es Änderungen gibt.\n\nLadestelle: {{loadingLocation}}\nGeplanter Beginn: {{loadingTime}}\n\nBitte teilen Sie uns insbesondere die aktuelle voraussichtliche Ankunftszeit mit.\n\nVielen Dank.',
-})
-const normalize = (value) => ({
-  enabled: value?.enabled !== false,
-  offsetWorkingHours: Number.isInteger(Number(value?.offsetWorkingHours)) && Number(value.offsetWorkingHours) >= 1 && Number(value.offsetWorkingHours) <= 48 ? Number(value.offsetWorkingHours) : defaults.offsetWorkingHours,
-  subject: typeof value?.subject === 'string' && value.subject.trim() ? value.subject.trim() : defaults.subject,
-  message: typeof value?.message === 'string' && value.message.trim() ? value.message.trim() : defaults.message,
-})
-const validPlaceholders = new Set(['transportOrderNumber', 'loadingLocation', 'loadingTime'])
-const unknownPlaceholder = (value) => [...String(value || '').matchAll(/{{\s*([^{}\s]+)\s*}}/g)].some((match) => !validPlaceholders.has(match[1]))
 
 export default function ShipmentTrackingArrivalConfirmationPanel() {
   const { user } = useAuth()
-  const [settings, setSettings] = useState(defaults)
+  const [settings, setSettings] = useState(DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION)
   const [loading, setLoading] = useState(Boolean(user))
   const [readError, setReadError] = useState('')
   useEffect(() => {
     if (!user) return undefined
-    return onSnapshot(settingsRef, (snapshot) => { setSettings(normalize(snapshot.exists() ? snapshot.data() : defaults)); setLoading(false); setReadError('') }, () => { setLoading(false); setReadError('Die Kurz-vor-Ladung-Anfrage konnte nicht geladen werden.') })
+    return onSnapshot(settingsRef, (snapshot) => { setSettings(normalizeShipmentTrackingArrivalConfirmation(snapshot.exists() ? snapshot.data() : DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION)); setLoading(false); setReadError('') }, () => { setLoading(false); setReadError('Die Kurz-vor-Ladung-Anfrage konnte nicht geladen werden.') })
   }, [user])
   return <ShipmentTrackingArrivalConfirmationEditor key={JSON.stringify(settings)} settings={settings} loading={loading} readError={readError} />
 }
@@ -36,12 +23,7 @@ function ShipmentTrackingArrivalConfirmationEditor({ settings, loading, readErro
   const [draft, setDraft] = useState(settings)
   const [saving, setSaving] = useState(false)
   const [feedback, setFeedback] = useState('')
-  const validationError = useMemo(() => {
-    if (!Number.isInteger(Number(draft.offsetWorkingHours)) || Number(draft.offsetWorkingHours) < 1 || Number(draft.offsetWorkingHours) > 48) return 'Der Zeitpunkt muss zwischen 1 und 48 Arbeitsstunden liegen.'
-    if (!String(draft.subject).trim() || !String(draft.message).trim()) return 'Betreff und Nachricht dürfen nicht leer sein.'
-    if (unknownPlaceholder(draft.subject) || unknownPlaceholder(draft.message)) return 'Erlaubt sind nur {{transportOrderNumber}}, {{loadingLocation}} und {{loadingTime}}.'
-    return ''
-  }, [draft])
+  const validationError = useMemo(() => { try { validateShipmentTrackingArrivalConfirmation({ ...draft, offsetWorkingHours: Number(draft.offsetWorkingHours) }); return '' } catch (error) { return error.message } }, [draft])
   async function save() {
     if (validationError) return
     setSaving(true); setFeedback('')

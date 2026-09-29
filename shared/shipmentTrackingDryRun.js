@@ -1,6 +1,7 @@
 import { subtractWorkingMinutes, normalizeShipmentTrackingOperatingHours, SHIPMENT_TRACKING_TIMEZONE } from './shipmentTrackingOperatingHours.js'
 import { normalizeShipmentTrackingRuleCatalog, shipmentTrackingCatalogRules, validateShipmentTrackingRuleCatalog } from './shipmentTrackingRuleCatalog.js'
 import { resolveShipmentTrackingPolicy } from './shipmentTrackingPolicyResolver.js'
+import { ARRIVAL_CONFIRMATION_RULE_ID, normalizeShipmentTrackingArrivalConfirmation } from './shipmentTrackingArrivalConfirmation.js'
 
 const topicLabels = Object.freeze({ licensePlate: 'Kennzeichen', loadingSite: 'Ladestelle' })
 const weekdayLabels = Object.freeze(['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'])
@@ -64,6 +65,10 @@ function externalRuleDispatch(tracking, ruleId) {
   const dispatch = tracking?.externalRuleDispatches?.[ruleId]
   return dispatch && typeof dispatch === 'object' && (dispatch.sentAt || dispatch.dispatchId) ? dispatch : null
 }
+function arrivalConfirmationDispatch(tracking) {
+  const dispatch = tracking?.actualArrivalConfirmationDispatch
+  return dispatch && typeof dispatch === 'object' && (dispatch.sentAt || dispatch.dispatchId) ? dispatch : null
+}
 function pausedAutomation(tracking, scheduledAt, now) {
   const scheduled = asDate(scheduledAt)
   if (!scheduled) return null
@@ -111,11 +116,42 @@ function catalogAvailability(catalog) {
   try { validateShipmentTrackingRuleCatalog(catalog); return 'available' } catch { return 'invalid' }
 }
 
+/** The near-loading confirmation intentionally has no connection to the
+ * editable rule catalogue. It nevertheless uses the same recipient,
+ * pause/import-shift and sent-state semantics as every carrier rule. */
+export function shipmentTrackingArrivalConfirmationRule({ imported = null, tracking = null, carrier = null, settings = null, operatingHours = null, now = new Date() } = {}) {
+  const configured = normalizeShipmentTrackingArrivalConfirmation(settings)
+  if (!configured.enabled || carrier?.shipmentTrackingPolicy?.carrier?.actualArrivalConfirmationEnabled !== true) return null
+  const reference = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
+  const clock = asDate(now) || new Date()
+  let scheduledAt = null
+  let adjustment = null
+  if (reference) {
+    try {
+      const result = subtractWorkingMinutes(normalizeShipmentTrackingOperatingHours(operatingHours), reference, configured.offsetWorkingHours * 60)
+      scheduledAt = shipmentTrackingBerlinIso(result.local)
+      adjustment = adjustmentReason(result)
+    } catch { /* The read-only preview exposes the unavailable timestamp. */ }
+  }
+  const dispatch = arrivalConfirmationDispatch(tracking)
+  const pause = pausedAutomation(tracking, scheduledAt, clock)
+  const completed = Boolean(tracking?.actualArrivalLoadingAt)
+  const status = completed ? 'notRequired' : dispatch ? 'sent' : pause ? 'skipped' : scheduledAt && new Date(scheduledAt).getTime() <= clock.getTime() ? 'due' : 'upcoming'
+  const delayMs = scheduledAt ? clock.getTime() - new Date(scheduledAt).getTime() : null
+  return {
+    ruleId: ARRIVAL_CONFIRMATION_RULE_ID, topic: 'loadingSite', kind: 'external', title: 'Aktuellen Stand anfragen',
+    reason: `${configured.offsetWorkingHours} Arbeitsstunden vor frühester Beladung`, source: 'arrival-confirmation',
+    recipient: carrierRecipient(tracking), scheduledAt, status, adjustmentReason: adjustment, arrivalConfirmation: true,
+    withinDispatchWindow: status === 'due' && delayMs >= 0 && delayMs <= 10 * 60 * 1000,
+    ...(pause ? { pause } : {}), ...(dispatch ? { dispatch } : {}),
+  }
+}
+
 /**
  * Pure, read-only shipment-tracking preview. I/O, access checks and rendering
  * intentionally live outside this helper.
  */
-export function shipmentTrackingDryRun({ imported = null, tracking = null, customer = null, carrier = null, catalog = null, operatingHours = null, now = new Date() } = {}) {
+export function shipmentTrackingDryRun({ imported = null, tracking = null, customer = null, carrier = null, catalog = null, operatingHours = null, arrivalConfirmationSettings = null, now = new Date() } = {}) {
   const catalogState = catalogAvailability(catalog)
   const resolvedCatalog = normalizeShipmentTrackingRuleCatalog(catalog)
   const resolvedHours = normalizeShipmentTrackingOperatingHours(operatingHours)
@@ -160,6 +196,10 @@ export function shipmentTrackingDryRun({ imported = null, tracking = null, custo
       const status = completed ? 'notRequired' : dispatch ? 'sent' : pause ? 'skipped' : scheduledAt && new Date(scheduledAt).getTime() <= clock.getTime() ? 'due' : 'upcoming'
       rules.push({ ruleId: rule.id, topic, kind, scheduledAt, status, recipient, title: ruleTitle(rule.group), reason: reasonFor(rule), adjustmentReason: adjustment, source: effective.source, ...(pause ? { pause } : {}), ...(dispatch ? { dispatch } : {}) })
     }
+  }
+  if (carrierLinked) {
+    const arrivalConfirmation = shipmentTrackingArrivalConfirmationRule({ imported, tracking, carrier, settings: arrivalConfirmationSettings, operatingHours: resolvedHours, now: clock })
+    if (arrivalConfirmation) rules.push(arrivalConfirmation)
   }
   rules.sort((left, right) => (left.scheduledAt || '9999').localeCompare(right.scheduledAt || '9999') || left.ruleId.localeCompare(right.ruleId))
   const relevant = rules.filter((rule) => rule.status !== 'notRequired' && rule.status !== 'sent' && rule.status !== 'skipped')

@@ -7,6 +7,7 @@ import { shipmentTrackingDryRun } from './shared/shipmentTrackingDryRun.js'
 import { SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingHours.js'
+import { DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION, normalizeShipmentTrackingArrivalConfirmation, shipmentTrackingArrivalConfirmationPath } from './shipmentTrackingArrivalConfirmation.js'
 
 function orderId(value) {
   return typeof value === 'string' && value.trim() && value.trim().length <= 240 && !value.includes('/') ? value.trim() : ''
@@ -42,11 +43,12 @@ export async function getShipmentTrackingDryRunHandler(request) {
 
   const db = getFirestore()
   try {
-    const [orderSnapshot, trackingSnapshot, catalogSnapshot, operatingHoursSnapshot] = await Promise.all([
+    const [orderSnapshot, trackingSnapshot, catalogSnapshot, operatingHoursSnapshot, arrivalConfirmationSnapshot] = await Promise.all([
       db.doc(`transportOrders/${id}`).get(),
       db.doc(`transportOrderTrackings/${id}`).get(),
       db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get(),
       db.doc(shipmentTrackingOperatingHoursPath).get(),
+      db.doc(shipmentTrackingArrivalConfirmationPath).get(),
     ])
     if (!orderSnapshot.exists) throw new HttpsError('not-found', 'Transportauftrag nicht gefunden.')
     const tracking = trackingSnapshot.exists ? trackingSnapshot.data() : null
@@ -67,6 +69,7 @@ export async function getShipmentTrackingDryRunHandler(request) {
         // safe fallback is appropriate for scheduling.
         catalog: catalogSnapshot.exists ? catalogSnapshot.data() : null,
         operatingHours: operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS,
+        arrivalConfirmationSettings: normalizeShipmentTrackingArrivalConfirmation(arrivalConfirmationSnapshot.exists ? arrivalConfirmationSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION),
       }),
     }
   } catch (error) {

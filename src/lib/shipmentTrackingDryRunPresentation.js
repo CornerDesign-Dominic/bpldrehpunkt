@@ -72,6 +72,7 @@ function pauseText(pause) {
 
 function triggerLabel(sources) {
   const sourceSet = new Set(sources)
+  if (sourceSet.has('arrival-confirmation')) return 'Kurz vor Ladung'
   if (sourceSet.has('carrier') && sourceSet.has('customer-required')) return 'Unternehmer und Kunde wichtig'
   if (sourceSet.has('customer-required')) return 'Kunde wichtig'
   if (sourceSet.has('carrier')) return 'Unternehmer'
@@ -114,6 +115,7 @@ export function shipmentTrackingDryRunPresentation(preview, { now = new Date() }
       kind: rule.kind || 'external',
       scheduledAt: rule.scheduledAt || null,
       source: rule.source || null,
+      arrivalConfirmation: rule.arrivalConfirmation === true,
       pauseText: rule.pause ? pauseText(rule.pause) : '',
       state,
       statusText: actionStatusText(rule, state, referenceTime),

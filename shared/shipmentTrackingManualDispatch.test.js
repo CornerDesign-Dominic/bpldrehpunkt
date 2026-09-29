@@ -46,3 +46,8 @@ test('manual dispatch ignores upcoming, internal, already sent and recipient-les
 
   assert.deepEqual(bundles, [])
 })
+
+test('manual dispatch never bundles the independent short-notice arrival confirmation', () => {
+  const bundles = shipmentTrackingManualDispatchBundles({ rules: [{ ...rule({ ruleId: 'actualArrivalConfirmation.external', topic: 'loadingSite' }), arrivalConfirmation: true }, { ...rule({ ruleId: 'license.external.reminder', topic: 'licensePlate' }), arrivalConfirmation: true }] })
+  assert.deepEqual(bundles, [])
+})

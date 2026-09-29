@@ -4,9 +4,9 @@ import { logger } from 'firebase-functions'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { externalEffectsEnvironment } from './externalEffects.js'
 import { createShipmentTrackingDocument } from './shipmentTracking.js'
-import { shipmentTrackingDryRun, shipmentTrackingBerlinIso, shipmentTrackingBerlinLocal } from './shared/shipmentTrackingDryRun.js'
+import { shipmentTrackingDryRun, shipmentTrackingBerlinLocal, shipmentTrackingArrivalConfirmationRule } from './shared/shipmentTrackingDryRun.js'
 import { shipmentTrackingManualDispatchBundles } from './shared/shipmentTrackingManualDispatch.js'
-import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, subtractWorkingMinutes } from './shared/shipmentTrackingOperatingHours.js'
+import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 import { SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 import { isActiveShipmentTrackingPhase, shipmentTrackingLifecycle } from './shared/shipmentTrackingLifecycle.js'
 import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingHours.js'
@@ -69,18 +69,9 @@ export function automaticTrackingDeliveryId(bundleId) {
  * existing rule-catalogue steps. A small scheduler tolerance avoids sending a
  * stale mail when an order is first seen long after the intended point. */
 export function shipmentTrackingArrivalConfirmationPlan({ imported, tracking, carrier, settings, operatingHours, now }) {
-  const normalizedSettings = normalizeShipmentTrackingArrivalConfirmation(settings)
-  if (!normalizedSettings.enabled || carrier?.shipmentTrackingPolicy?.carrier?.actualArrivalConfirmationEnabled !== true) return null
-  if (tracking?.actualArrivalLoadingAt) return null
-  const loading = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
-  const current = shipmentTrackingBerlinLocal(now)
-  if (!loading || !current) return null
-  const scheduled = subtractWorkingMinutes(operatingHours, loading, normalizedSettings.offsetWorkingHours * 60).local
-  const scheduledAt = shipmentTrackingBerlinIso(scheduled)
-  if (!scheduledAt) return null
-  const delayMs = new Date(now).getTime() - new Date(scheduledAt).getTime()
-  if (delayMs < 0 || delayMs > 10 * 60 * 1000) return null
-  return { scheduledAt, scheduled, offsetWorkingHours: normalizedSettings.offsetWorkingHours }
+  const rule = shipmentTrackingArrivalConfirmationRule({ imported, tracking, carrier, settings, operatingHours, now })
+  if (!rule || rule.status !== 'due' || rule.withinDispatchWindow !== true) return null
+  return { scheduledAt: rule.scheduledAt, scheduled: shipmentTrackingBerlinLocal(rule.scheduledAt), offsetWorkingHours: normalizeShipmentTrackingArrivalConfirmation(settings).offsetWorkingHours }
 }
 
 async function effectivePartner(db, partnerId) {
@@ -191,7 +182,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
   await db.runTransaction(async (transaction) => {
     const [trackingSnapshot, deliverySnapshot] = await Promise.all([transaction.get(trackingRef), transaction.get(deliveryRef)])
     const currentTracking = trackingSnapshot.exists ? trackingSnapshot.data() : null
-    if (!currentTracking || currentTracking.lifecycleStatus !== 'active' || currentTracking.automationPaused === true || currentTracking.actualArrivalLoadingAt) return
+    if (!currentTracking || currentTracking.lifecycleStatus !== 'active' || currentTracking.automationPaused === true || currentTracking.actualArrivalLoadingAt || currentTracking.actualArrivalConfirmationDispatch?.dispatchId) return
     if (storedCarrierRecipient(currentTracking).toLowerCase() !== recipient.toLowerCase()) return
     if (deliverySnapshot.exists && ['sending', 'sent', 'delivered'].includes(deliverySnapshot.data()?.status)) return
     transaction.set(deliveryRef, { ...deliveryData, status: 'sending', attempts: (deliverySnapshot.data()?.attempts || 0) + 1, lockedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
@@ -199,7 +190,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
   })
   if (!claimed) return { sent: 0, blocked: 0 }
   const beforeSend = await trackingRef.get()
-  if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || beforeSend.data()?.actualArrivalLoadingAt) {
+  if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || beforeSend.data()?.actualArrivalLoadingAt || beforeSend.data()?.actualArrivalConfirmationDispatch?.dispatchId) {
     await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'arrival-recorded-or-automation-paused-before-send' }, { merge: true })
     return { sent: 0, blocked: 0 }
   }
@@ -210,7 +201,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
     await db.runTransaction(async (transaction) => {
       const fresh = await transaction.get(trackingRef)
       if (!fresh.exists || fresh.data()?.lifecycleStatus !== 'active') return
-      transaction.update(trackingRef, { updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik' })
+      transaction.update(trackingRef, { actualArrivalConfirmationDispatch: { dispatchId: deliveryRef.id, templateId: shipmentTrackingArrivalConfirmationTemplateId, recipient, sentAt: FieldValue.serverTimestamp() }, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik' })
       transaction.set(deliveryRef, { status: 'sent', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: FieldValue.delete() }, { merge: true })
       transaction.create(eventRef, eventPayload('tracking_actual_arrival_confirmation_sent', {}, { delivery: deliveryData }))
     })
@@ -222,11 +213,11 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
   }
 }
 
-async function dispatchDueBundles(db, { orderId, imported, externalNumber, tracking, catalog, operatingHours, now }) {
+async function dispatchDueBundles(db, { orderId, imported, externalNumber, tracking, catalog, operatingHours, arrivalConfirmationSettings, now }) {
   if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
   if (tracking.automationPaused === true) return { sent: 0, blocked: 0 }
   const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
-  const preview = shipmentTrackingDryRun({ imported, tracking, customer, carrier, catalog, operatingHours, now })
+  const preview = shipmentTrackingDryRun({ imported, tracking, customer, carrier, catalog, operatingHours, arrivalConfirmationSettings, now })
   const bundles = shipmentTrackingManualDispatchBundles(preview)
   const trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
   let sent = 0
@@ -306,7 +297,7 @@ export async function runShipmentTrackingAutomation(now = new Date()) {
       const lifecycle = shipmentTrackingLifecycle({ earliestLoading: imported?.loading?.window?.from, latestUnloading: imported?.unloading?.window?.until, operatingHours, now })
       if (lifecycle.phase === 'upcoming' && lifecycle.startAt) {
         const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
-        const preview = shipmentTrackingDryRun({ imported, tracking: null, customer, carrier, catalog, operatingHours, now })
+        const preview = shipmentTrackingDryRun({ imported, tracking: null, customer, carrier, catalog, operatingHours, arrivalConfirmationSettings, now })
         activationRequired = shouldActivateShipmentTracking(lifecycle, preview, now)
       }
     }
@@ -316,7 +307,7 @@ export async function runShipmentTrackingAutomation(now = new Date()) {
     if (synchronized.lifecycle.phase !== 'upcoming') result.createdOrChanged += 1
     const dispatched = await dispatchDueBundles(db, {
       orderId: order.id, imported, externalNumber: text(order.data()?.externalNumber), tracking: synchronized.tracking,
-      catalog, operatingHours, now,
+      catalog, operatingHours, arrivalConfirmationSettings, now,
     })
     result.mailsSent += dispatched.sent
     result.mailsBlocked += dispatched.blocked

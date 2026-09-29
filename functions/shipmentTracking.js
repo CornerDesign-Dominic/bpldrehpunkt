@@ -82,6 +82,7 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     proofStatus: 'unknown',
     recipients,
     externalRuleDispatches: {},
+    actualArrivalConfirmationDispatch: null,
     automationPaused: false,
     automationPausedAt: null,
     automationSkippedBefore: null,

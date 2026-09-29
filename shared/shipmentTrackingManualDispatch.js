@@ -37,7 +37,7 @@ export function shipmentTrackingManualDispatchBundles(preview) {
   for (const rule of Array.isArray(preview?.rules) ? preview.rules : []) {
     const recipient = text(rule?.recipient?.email)
     const scheduledAt = text(rule?.scheduledAt)
-    if (rule?.status !== 'due' || rule?.kind !== 'external' || rule?.recipient?.state !== 'configured' || !recipient || !scheduledAt) continue
+    if (rule?.arrivalConfirmation === true || rule?.status !== 'due' || rule?.kind !== 'external' || rule?.recipient?.state !== 'configured' || !recipient || !scheduledAt) continue
     const key = `${recipient}\u0000${scheduledAt}`
     const group = groups.get(key) || { recipient, scheduledAt, rules: [] }
     group.rules.push(rule)

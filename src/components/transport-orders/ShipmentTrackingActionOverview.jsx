@@ -11,6 +11,7 @@ function ruleQualifier(entry) {
     const reminder = entry.id.match(/\.reminder\.(\d+)$/)
     return reminder ? `${reminder[1]}. Erinnerung` : 'Erinnerung'
   }
+  if (entry.arrivalConfirmation === true) return 'Kurz vor Ladung'
   return entry.title
 }
 
