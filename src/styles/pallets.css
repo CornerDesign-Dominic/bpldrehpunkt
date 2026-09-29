@@ -26,9 +26,14 @@
   .pallet-movement-modal { max-height: none; }
 }
 
-.transport-order-pallet-movements__list { display: grid; gap: 8px; }
-.transport-order-pallet-movements__list article { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
-.transport-order-pallet-movements__list article > div:first-child { display: grid; gap: 2px; min-width: 0; }
-.transport-order-pallet-movements__list article span { color: var(--text-muted); font-size: 11px; }
-.transport-order-pallet-movements__list .transport-order-detail-actions__buttons { justify-content: flex-end; }
-@media (max-width: 720px) { .transport-order-pallet-movements__list article { align-items: stretch; flex-direction: column; } .transport-order-pallet-movements__list .transport-order-detail-actions__buttons { justify-content: flex-start; } }
+.transport-order-pallet-movements__status { margin: 0 0 10px; color: var(--text-secondary); }
+.transport-order-pallet-movements__picker { width: min(100%, 560px); padding: 20px; }
+.transport-order-pallet-movements__picker-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.transport-order-pallet-movements__picker-header h2 { margin: 0; color: var(--text-primary); font-size: 17px; }
+.transport-order-pallet-movements__picker-header p { margin: 5px 0 0; color: var(--text-secondary); font-size: 13px; }
+.transport-order-pallet-movements__picker-list { display: grid; gap: 8px; margin-top: 16px; }
+.transport-order-pallet-movements__picker-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); background: var(--surface-secondary); cursor: pointer; text-align: left; }
+.transport-order-pallet-movements__picker-item:hover { border-color: var(--button-background); background: var(--surface-active); }
+.transport-order-pallet-movements__picker-item strong { display: block; }
+.transport-order-pallet-movements__picker-item span { color: var(--text-secondary); font-size: 12px; }
+.transport-order-pallet-movements__picker-item::after { content: 'Öffnen'; color: var(--button-background); font-size: 12px; font-weight: 700; white-space: nowrap; }
