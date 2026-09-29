@@ -4,6 +4,8 @@ const fieldLabels = {
   licensePlate: 'Kennzeichen',
   tractorLicensePlate: 'Kennzeichen Zugmaschine',
   trailerLicensePlate: 'Kennzeichen Auflieger',
+  driverName: 'Name vom LKW-Fahrer',
+  driverPhone: 'Handynummer vom Fahrer',
   estimatedArrivalLoadingAt: 'Voraussichtliche Ankunft Ladestelle',
   actualArrivalLoadingAt: 'Tatsächliche Ankunft Ladestelle',
   loadingStartedAt: 'Beladung gestartet',
@@ -26,7 +28,7 @@ const germanPlanTimestamp = /^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$
 const timeOnlyTimestamp = /^(\d{1,2}):(\d{2})$/
 
 export const shipmentTrackingStageConfigurations = Object.freeze({
-  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['tractorLicensePlate', 'trailerLicensePlate'] },
+  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['tractorLicensePlate', 'trailerLicensePlate', 'driverName', 'driverPhone'] },
   loading: { label: 'Ladestelle', title: 'Ladestelle erfassen', fields: ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'] },
   in_transit: { label: 'Unterwegs', title: 'Fahrtstatus aktualisieren', fields: [] },
   unloading: { label: 'Entladestelle', title: 'Entladestelle erfassen', fields: ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'] },

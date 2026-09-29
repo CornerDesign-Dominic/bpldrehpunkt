@@ -51,6 +51,7 @@ export default function TodosPage() {
   const [view, setView] = useState(() => window.localStorage.getItem('todos-view') === 'grid' ? 'grid' : 'table')
   const editable = canEdit('todos')
   const canViewMasterData = canView('masterData')
+  const canViewTransportOrders = canView('transportOrders')
   const activeUsers = useMemo(() => users.filter((item) => item.active !== false).sort((left, right) => getUserDisplayName(left, left).localeCompare(getUserDisplayName(right, right), 'de')), [users])
   const usersById = useMemo(() => new Map(activeUsers.map((item) => [item.id, item])), [activeUsers])
 
@@ -127,8 +128,8 @@ export default function TodosPage() {
     <div className="todos-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(confirmation)} title={confirmation?.title || ''} message={confirmation?.message || ''} confirmLabel="Bestätigen" onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
-    {showForm && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen"><TodoForm key="new" currentUserId={user.uid} partners={partners} users={activeUsers} onCancel={() => setShowForm(false)} onSubmit={addTodo} /></section></div>}
-    {editing && <TodoForm key={editing.todo.id} currentUserId={user.uid} initialTodo={editing.todo} partners={partners} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
+    {showForm && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen"><TodoForm key="new" canViewTransportOrders={canViewTransportOrders} currentUserId={user.uid} partners={partners} users={activeUsers} onCancel={() => setShowForm(false)} onSubmit={addTodo} /></section></div>}
+    {editing && <TodoForm key={editing.todo.id} canViewTransportOrders={canViewTransportOrders} currentUserId={user.uid} initialTodo={editing.todo} partners={partners} users={activeUsers} onCancel={() => setEditing(null)} onSubmit={saveEdit} />}
     {error && <p className="form-error">{error}</p>}
     {loading ? <p className="todos-gallery__state">To-dos werden geladen …</p> : <div className={`todo-sections${view === 'table' ? ' todo-sections--table' : ''}`}>{[['mine', 'Meine Aufgaben'], ['created', 'Von mir erstellt'], ['pool', 'Aufgabenpool']].map(([key, title]) => <section className={`todo-section${view === 'table' ? ' todo-section--table' : ''}`} key={key}><div className="todo-section__heading"><h2>{title}</h2><span>{todoGroups[key].length}</span></div>{view === 'grid' ? <TodosGallery todos={todoGroups[key]} formatDate={formatDate} getDueClass={dueClass} onOpen={(todo) => navigate(`/todos/${todo.id}`)} /> : <TodosTable todos={todoGroups[key]} formatDate={formatDate} onOpen={(todo) => navigate(`/todos/${todo.id}`)} />}</section>)}</div>}
     </div>

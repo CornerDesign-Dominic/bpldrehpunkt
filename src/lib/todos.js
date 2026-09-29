@@ -28,6 +28,14 @@ function systemUpdate(text, actor) { return { text, type: 'system', createdByUse
 function uniqueIds(ids) { return [...new Set((ids || []).filter(Boolean))] }
 function optionalId(value) { return trim(value) || null }
 function optionalName(value) { return trim(value) || null }
+function transportOrderLinks(value) {
+  const links = Array.isArray(value) ? value : []
+  return [...new Map(links.map((link) => [trim(link?.id), { id: trim(link?.id), number: trim(link?.number) }]).filter(([id]) => Boolean(id))).values()].slice(0, 20)
+}
+function storedTransportOrderLinks(todo) {
+  const links = transportOrderLinks(todo?.transportOrderLinks)
+  return links.length || !todo?.transportOrderId ? links : transportOrderLinks([{ id: todo.transportOrderId, number: todo.transportOrderNumber || todo.reference || todo.transportOrderId }])
+}
 function priorityValue(value) { return ['low', 'medium', 'high'].includes(value) ? value : 'medium' }
 function localDayNumber(value = new Date()) { return Math.floor(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / 86400000) }
 function dateDayNumber(value) {
@@ -44,6 +52,7 @@ function terminalRank(todo) { return todo.status === 'completed' ? 0 : 1 }
 function terminalTimestamp(todo) { return timestampValue(todo.completedAt || todo.withdrawnAt || todo.updatedAt) }
 
 function todoFields(values) {
+  const links = transportOrderLinks(values.transportOrderLinks)
   return {
     title: trim(values.title),
     description: trim(values.description),
@@ -54,7 +63,10 @@ function todoFields(values) {
     customerName: optionalName(values.customerName),
     carrierId: optionalId(values.carrierId),
     carrierName: optionalName(values.carrierName),
-    reference: optionalName(values.reference),
+    reference: optionalName(values.reference || links[0]?.number),
+    transportOrderId: optionalId(links[0]?.id),
+    transportOrderNumber: optionalName(links[0]?.number),
+    transportOrderLinks: links,
     damageCaseId: optionalId(values.damageCaseId),
     insolvencyId: optionalId(values.insolvencyId),
     legalDisputeId: optionalId(values.legalDisputeId),
@@ -78,7 +90,7 @@ function audienceValues(values, usersById, actor) {
 function sortTodos(todos) { return [...todos].sort((left, right) => timestampValue(right.createdAt) - timestampValue(left.createdAt)) }
 async function queryTodos(...constraints) { return (await getDocs(query(todosRef, ...constraints))).docs.map(mapSnapshot) }
 
-export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
+export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', transportOrderLinks: [], damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
 export function todoStatus(todo) { return !todo.assignedUserId && todo.status !== 'withdrawn' ? 'open' : TODO_STATUS[todo.status] ? todo.status : 'open' }
@@ -268,7 +280,15 @@ function changedFieldMessages(todo, fields, resetAssignment) {
   if ((todo.reminderDate || null) !== fields.reminderDate) changed('die Erinnerung', formatHistoryDate(todo.reminderDate), formatHistoryDate(fields.reminderDate))
   if ((todo.customerId || null) !== fields.customerId) changed('den Kunden', todo.customerName, fields.customerName, 'kein Kunde', 'kein Kunde')
   if ((todo.carrierId || null) !== fields.carrierId) changed('den Unternehmer', todo.carrierName, fields.carrierName, 'kein Unternehmer', 'kein Unternehmer')
-  if ((todo.reference || null) !== fields.reference) changed('die TA-Nummer', todo.reference, fields.reference, 'keine TA-Nummer', 'keine TA-Nummer')
+  const previousLinks = storedTransportOrderLinks(todo)
+  const previousTransportOrderIds = previousLinks.map((link) => link.id)
+  const nextTransportOrderIds = transportOrderLinks(fields.transportOrderLinks).map((link) => link.id)
+  const transportOrderChanged = previousTransportOrderIds.join('|') !== nextTransportOrderIds.join('|')
+  const addedTransportOrders = transportOrderLinks(fields.transportOrderLinks).filter((link) => !previousTransportOrderIds.includes(link.id))
+  const removedTransportOrders = previousLinks.filter((link) => !nextTransportOrderIds.includes(link.id))
+  if (addedTransportOrders.length) messages.push(`hat ${addedTransportOrders.map((link) => `TA ${link.number || link.id}`).join(', ')} verknüpft.`)
+  if (removedTransportOrders.length) messages.push(`hat ${removedTransportOrders.map((link) => `TA ${link.number || link.id}`).join(', ')} entfernt.`)
+  if ((todo.reference || null) !== fields.reference && !transportOrderChanged) changed('die TA-Nummer', todo.reference, fields.reference, 'keine TA-Nummer', 'keine TA-Nummer')
   if ((todo.damageCaseId || null) !== fields.damageCaseId) messages.push(fields.damageCaseId ? 'hat den Schadenfall verknüpft.' : 'hat die Schadenfall-Verknüpfung entfernt.')
   if ((todo.insolvencyId || null) !== fields.insolvencyId) messages.push(fields.insolvencyId ? 'hat den Insolvenzfall verknüpft.' : 'hat die Insolvenzfall-Verknüpfung entfernt.')
   if ((todo.legalDisputeId || null) !== fields.legalDisputeId) messages.push(fields.legalDisputeId ? 'hat den Gerichtsfall verknüpft.' : 'hat die Gerichtsfall-Verknüpfung entfernt.')

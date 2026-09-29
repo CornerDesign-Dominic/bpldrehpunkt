@@ -16,6 +16,12 @@ test('an early manual start is explicitly marked and immediately shown as runnin
   assert.equal(early.trackingStartedEarly, true)
 })
 
+test('new shipment tracking documents keep dedicated driver details', () => {
+  const tracking = createShipmentTrackingDocument('order', 'user', 'Name')
+  assert.equal(tracking.driverName, null)
+  assert.equal(tracking.driverPhone, null)
+})
+
 test('a valid TA dispatch address prepopulates the carrier recipient', () => {
   assert.deepEqual(
     createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'dispo@example.test' }).recipients,

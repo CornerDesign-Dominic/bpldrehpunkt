@@ -13,7 +13,8 @@ const timestampFields = [
   'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt',
 ]
 const licensePlateFields = ['licensePlate', 'tractorLicensePlate', 'trailerLicensePlate']
-const editableFields = [...licensePlateFields, ...timestampFields, 'proofStatus']
+const driverFields = ['driverName', 'driverPhone']
+const editableFields = [...licensePlateFields, ...driverFields, ...timestampFields, 'proofStatus']
 const sources = new Set(['manual', 'phone', 'other_mailbox', 'other'])
 const recipientRoles = new Set(['customer', 'carrier'])
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -66,6 +67,8 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     licensePlate: null,
     tractorLicensePlate: null,
     trailerLicensePlate: null,
+    driverName: null,
+    driverPhone: null,
     estimatedArrivalLoadingAt: null,
     actualArrivalLoadingAt: null,
     loadingStartedAt: null,
@@ -143,6 +146,10 @@ function normalizedChanges(input) {
     if (timestampFields.includes(field)) result[field] = timestampFromInput(value, field)
     if (licensePlateFields.includes(field)) {
       if (value !== null && (typeof value !== 'string' || text(value).length > 80)) throw new HttpsError('invalid-argument', 'Das Kennzeichen ist ungültig.')
+      result[field] = value === null || !text(value) ? null : text(value)
+    }
+    if (driverFields.includes(field)) {
+      if (value !== null && (typeof value !== 'string' || text(value).length > (field === 'driverName' ? 140 : 60))) throw new HttpsError('invalid-argument', 'Die Fahrerangabe ist ungültig.')
       result[field] = value === null || !text(value) ? null : text(value)
     }
     if (field === 'proofStatus') {

@@ -1291,6 +1291,18 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .todo-form__section-grid--schedule { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .todo-form__section-grid--assignment { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .todo-form__section-grid--links { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.todo-transport-order-picker { position: relative; display: grid; gap: 6px; min-width: 0; }
+.todo-transport-order-picker .form-field input { font-size: 12px; }
+.todo-transport-order-picker__selected { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 29px; padding: 5px 7px 5px 9px; border: 1px solid color-mix(in srgb, var(--status-success-text) 45%, var(--border)); border-radius: 4px; color: var(--text-primary); background: var(--status-success-background); font-size: 12px; }
+.todo-transport-order-picker__tag { display: inline-flex; align-items: center; gap: 2px; }
+.todo-transport-order-picker__selected button { display: inline-grid; width: 17px; height: 17px; padding: 0; place-items: center; border: 0; border-radius: 3px; color: var(--text-secondary); background: transparent; font-size: 15px; line-height: 1; cursor: pointer; }
+.todo-transport-order-picker__selected button:hover { color: var(--status-danger-text); background: color-mix(in srgb, var(--status-danger-text) 12%, transparent); }
+.todo-transport-order-picker__results { position: fixed; z-index: 120; display: grid; overflow: auto; padding: 4px; border: 1px solid var(--border-strong); border-radius: 5px; background: var(--content-background); box-shadow: 0 9px 20px var(--shadow); }
+.todo-transport-order-picker__results button { display: grid; gap: 1px; width: 100%; padding: 4px 7px; border: 0; border-radius: 3px; color: var(--text-primary); background: transparent; text-align: left; cursor: pointer; font: inherit; }
+.todo-transport-order-picker__results button strong { font-size: 11px; line-height: 1.15; white-space: nowrap; }
+.todo-transport-order-picker__results button:hover, .todo-transport-order-picker__results button:focus-visible { background: var(--surface-active); outline: none; }
+.todo-transport-order-picker__results button span, .todo-transport-order-picker__results > p { margin: 0; padding: 4px 7px; color: var(--text-secondary); font-size: 9px; line-height: 1.2; }
+.todo-transport-order-picker__results .form-error { color: var(--status-danger-text); }
 .todo-form__wide, .todo-form__section .todo-form__people { grid-column: 1 / -1; }
 .todo-form__selection-hint { align-self: end; margin: 0; padding: 8px 9px; border-left: 2px solid var(--border-strong); color: var(--text-secondary); background: var(--surface-secondary); font-size: 12px; line-height: 1.4; }
 .todo-form__people { min-width: 0; margin: 0; padding: 0; border: 0; }

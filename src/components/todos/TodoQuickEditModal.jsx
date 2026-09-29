@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { isSelfTodo } from '../../lib/todos.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { TodoPriorityPicker } from './TodoPriority.jsx'
+import TodoTransportOrderPicker from './TodoTransportOrderPicker.jsx'
 import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 
 function initialValues(todo, currentUserId) {
   const isSelf = isSelfTodo(todo, currentUserId)
   return {
     title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '', reminderDate: todo.reminderDate || '', priority: todo.priority || 'medium',
-    customerId: todo.customerId || '', customerName: todo.customerName || '', carrierId: todo.carrierId || '', carrierName: todo.carrierName || '', reference: todo.reference || '',
+    customerId: todo.customerId || '', customerName: todo.customerName || '', carrierId: todo.carrierId || '', carrierName: todo.carrierName || '', reference: todo.reference || '', transportOrderLinks: Array.isArray(todo.transportOrderLinks) ? todo.transportOrderLinks : todo.transportOrderId ? [{ id: todo.transportOrderId, number: todo.transportOrderNumber || todo.reference || todo.transportOrderId }] : [],
     damageCaseId: todo.damageCaseId || '', insolvencyId: todo.insolvencyId || '', legalDisputeId: todo.legalDisputeId || '', inkassoCaseId: todo.inkassoCaseId || '',
     audienceType: isSelf ? 'self' : todo.audienceType === 'department' ? 'department' : todo.audienceType === 'all' ? 'all' : 'people',
     audienceId: todo.audienceType === 'department' ? todo.audienceId || '' : '',
@@ -21,7 +22,7 @@ const sectionTitles = { content: 'Inhalt bearbeiten', schedule: 'Priorität & Te
 function damageCaseLabel(damageCase) { return [damageCase.caseNumber, damageCase.title].filter(Boolean).join(' · ') || 'Schadenfall' }
 function insolvencyLabel(insolvency) { return [insolvency.partnerName, insolvency.courtReference].filter(Boolean).join(' · ') || 'Insolvenzfall' }
 
-export default function TodoQuickEditModal({ canViewDamageCases = false, canViewInsolvencies = false, currentUserId, damageCases = [], insolvencies = [], onCancel, onSubmit, partners = [], section, todo, users = [] }) {
+export default function TodoQuickEditModal({ canViewDamageCases = false, canViewInsolvencies = false, canViewTransportOrders = false, currentUserId, damageCases = [], insolvencies = [], onCancel, onSubmit, partners = [], section, todo, users = [] }) {
   const [form, setForm] = useState(() => initialValues(todo, currentUserId))
   const [damageCaseSearch, setDamageCaseSearch] = useState('')
   const [insolvencySearch, setInsolvencySearch] = useState('')
@@ -53,6 +54,8 @@ export default function TodoQuickEditModal({ canViewDamageCases = false, canView
     if (kind === 'customer') setForm((current) => ({ ...current, customerId: partner?.id || '', customerName: partner?.companyName || '' }))
     else setForm((current) => ({ ...current, carrierId: partner?.id || '', carrierName: partner?.companyName || '' }))
   }
+  function selectTransportOrder(order) { setForm((current) => current.transportOrderLinks.some((link) => link.id === order.id) ? current : { ...current, transportOrderLinks: [...current.transportOrderLinks, order], reference: current.reference || order.number }) }
+  function removeTransportOrder(orderId) { setForm((current) => ({ ...current, transportOrderLinks: current.transportOrderLinks.filter((link) => link.id !== orderId), reference: current.transportOrderLinks.filter((link) => link.id !== orderId)[0]?.number || '' })) }
 
   async function save(event) {
     event.preventDefault()
@@ -75,7 +78,7 @@ export default function TodoQuickEditModal({ canViewDamageCases = false, canView
         {section === 'links' && <div className="todo-quick-editor__grid">
           <label className="form-field"><span>Kunde</span><select value={form.customerId} onChange={(event) => changePartner('customer', event)}><option value="">Kein Kunde verknüpft</option>{form.customerId && !customers.some((partner) => partner.id === form.customerId) && <option value={form.customerId}>{form.customerName || 'Verknüpfter Kunde'}</option>}{customers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
           <label className="form-field"><span>Unternehmer</span><select value={form.carrierId} onChange={(event) => changePartner('carrier', event)}><option value="">Kein Unternehmer verknüpft</option>{form.carrierId && !carriers.some((partner) => partner.id === form.carrierId) && <option value={form.carrierId}>{form.carrierName || 'Verknüpfter Unternehmer'}</option>}{carriers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
-          <label className="form-field"><span>TA-Nummer</span><input value={form.reference} maxLength="240" onChange={(event) => update('reference', event.target.value)} placeholder="Auftrags-, Tour- oder Rechnungsnummer" /></label>
+          <TodoTransportOrderPicker canViewTransportOrders={canViewTransportOrders} transportOrderLinks={form.transportOrderLinks} onRemove={removeTransportOrder} onSelect={selectTransportOrder} />
           {canViewDamageCases && <label className="form-field"><span>Schadenfall suchen</span><input value={damageCaseSearch} onChange={(event) => setDamageCaseSearch(event.target.value)} placeholder="Nummer, Titel oder Referenz" /></label>}
           <label className="form-field"><span>Schadenfall</span><select value={form.damageCaseId} onChange={(event) => update('damageCaseId', event.target.value)}><option value="">Kein Schadenfall verknüpft</option>{form.damageCaseId && !damageCases.some((damageCase) => damageCase.id === form.damageCaseId) && <option value={form.damageCaseId}>Schadenfall nicht verfügbar</option>}{canViewDamageCases && form.damageCaseId && !matchingDamageCases.some((damageCase) => damageCase.id === form.damageCaseId) && damageCases.find((damageCase) => damageCase.id === form.damageCaseId) && <option value={form.damageCaseId}>{damageCaseLabel(damageCases.find((damageCase) => damageCase.id === form.damageCaseId))}</option>}{canViewDamageCases && matchingDamageCases.map((damageCase) => <option key={damageCase.id} value={damageCase.id}>{damageCaseLabel(damageCase)}{damageCase.transportReference ? ` · ${damageCase.transportReference}` : ''}</option>)}</select></label>
           {canViewDamageCases && damageCaseSearch.trim() && !matchingDamageCases.length && <p className="todo-quick-editor__hint">Kein passender Schadenfall gefunden.</p>}

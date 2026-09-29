@@ -111,6 +111,7 @@ export default function BugReportButton() {
   const menuRef = useRef(null)
   const canCreateTodos = canEdit('todos')
   const canViewMasterData = canView('masterData')
+  const canViewTransportOrders = canView('transportOrders')
   const todoUsersById = useMemo(() => new Map(todoUsers.filter((item) => item.active !== false).map((item) => [item.id, item])), [todoUsers])
 
   useEffect(() => {
@@ -164,7 +165,7 @@ export default function BugReportButton() {
       <button className="global-action-menu__toggle" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label={menuOpen ? 'Schnellaktionen schließen' : 'Schnellaktionen öffnen'} title={menuOpen ? 'Schließen' : 'Schnellaktionen'} aria-expanded={menuOpen}>{menuOpen ? <CloseIcon size={20} /> : <span aria-hidden="true">+</span>}</button>
     </div>
     {bugReportOpen && <BugReportModal onClose={() => setBugReportOpen(false)} onSuccess={() => { setBugReportOpen(false); setToast('Danke, deine Meldung wurde versendet.') }} />}
-    {todoOpen && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !todoSetupLoading) setTodoOpen(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen">{todoSetupLoading ? <p className="page-state">To-do wird vorbereitet …</p> : todoSetupError ? <div className="global-action-menu__todo-error"><p className="form-error">{todoSetupError}</p><button className="button button--secondary" type="button" onClick={() => setTodoOpen(false)}>Schließen</button></div> : <TodoForm key="global-new-todo" currentUserId={user.uid} partners={todoPartners} users={todoUsers.filter((item) => item.active !== false)} onCancel={() => setTodoOpen(false)} onSubmit={createGlobalTodo} />}</section></div>}
+    {todoOpen && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !todoSetupLoading) setTodoOpen(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen">{todoSetupLoading ? <p className="page-state">To-do wird vorbereitet …</p> : todoSetupError ? <div className="global-action-menu__todo-error"><p className="form-error">{todoSetupError}</p><button className="button button--secondary" type="button" onClick={() => setTodoOpen(false)}>Schließen</button></div> : <TodoForm key="global-new-todo" canViewTransportOrders={canViewTransportOrders} currentUserId={user.uid} partners={todoPartners} users={todoUsers.filter((item) => item.active !== false)} onCancel={() => setTodoOpen(false)} onSubmit={createGlobalTodo} />}</section></div>}
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
   </>
 }

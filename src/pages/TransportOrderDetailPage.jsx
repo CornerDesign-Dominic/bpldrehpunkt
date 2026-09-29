@@ -65,6 +65,10 @@ function formatPartnerAddress(partner) {
   const address = partner?.address || {}
   return [[address.street, address.houseNumber].filter(Boolean).join(' '), [address.postalCode, address.city].filter(Boolean).join(' '), address.country].filter(Boolean).join(', ')
 }
+function trackingCarrierRecipient(tracking) {
+  const carrier = tracking?.recipients?.carrier
+  return ['manual', 'transport-order-import'].includes(carrier?.source) && typeof carrier?.email === 'string' ? carrier.email.trim() : ''
+}
 function usePartnerMasterData(partnerId) {
   const [entry, setEntry] = useState({ partnerId: '', data: null })
   useEffect(() => {
@@ -231,8 +235,8 @@ export default function TransportOrderDetailPage() {
     } finally { setTrackingSaving(false) }
   }
   async function openTrackingMailDraft(templateId) {
-    const recipient = tracking?.recipients?.carrier?.source === 'manual' ? tracking.recipients.carrier.email || '' : ''
-    if (!recipient) { setTrackingError('Für den Unternehmer ist keine manuell hinterlegte Empfängeradresse vorhanden.'); return }
+    const recipient = trackingCarrierRecipient(tracking)
+    if (!recipient) { setTrackingError('Für den Unternehmer ist keine gültige Empfängeradresse hinterlegt.'); return }
     if (!recipient.trim().toLowerCase().endsWith('@brennpunkt-logistik.de')) { setTrackingError('In der Testphase sind nur Empfänger mit @brennpunkt-logistik.de zulässig.'); return }
     setTrackingSaving(true); setTrackingError('')
     try {
@@ -301,6 +305,6 @@ export default function TransportOrderDetailPage() {
     </div>
     {trackingEditorStage && <ShipmentTrackingEditorModal tracking={tracking} stageId={trackingEditorStage} saving={trackingSaving} onClose={() => setTrackingEditorStage(null)} onSave={(payload) => performTrackingAction('update', payload)} />}
     {trackingInfoStage && <ShipmentTrackingStageInfoModal stageId={trackingInfoStage} events={trackingEvents} onClose={() => setTrackingInfoStage(null)} />}
-    {trackingManualMailOpen && <ShipmentTrackingManualMailModal orderId={transportOrderId} bundles={trackingManualMailBundles} initialTemplateId={trackingManualMailTemplateId} defaultRecipient={tracking?.recipients?.carrier?.source === 'manual' ? tracking.recipients.carrier.email || '' : ''} saving={trackingSaving} onClose={() => { setTrackingManualMailOpen(false); setTrackingManualMailBundles([]); setTrackingManualMailTemplateId('') }} onSend={(payload) => void sendTrackingManualMail(payload)} />}
+    {trackingManualMailOpen && <ShipmentTrackingManualMailModal orderId={transportOrderId} bundles={trackingManualMailBundles} initialTemplateId={trackingManualMailTemplateId} defaultRecipient={trackingCarrierRecipient(tracking)} saving={trackingSaving} onClose={() => { setTrackingManualMailOpen(false); setTrackingManualMailBundles([]); setTrackingManualMailTemplateId('') }} onSend={(payload) => void sendTrackingManualMail(payload)} />}
   </div>
 }
