@@ -3,6 +3,11 @@
 .pallet-account-row:hover td { background: var(--table-hover-background); }
 .pallet-account-row:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
 .pallet-account-row:focus-visible td { background: var(--surface-active); }
+.pallet-journal__row--interactive { cursor: pointer; }
+.pallet-journal__row--interactive td { transition: background-color 120ms ease; }
+.pallet-journal__row--interactive:hover td { background: var(--table-hover-background); }
+.pallet-journal__row--interactive:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
+.pallet-journal__row--interactive:focus-visible td { background: var(--surface-active); }
 
 .pallet-movement-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--app-background) 62%, transparent); backdrop-filter: blur(2px); }
 .pallet-movement-modal { width: min(100%, 1040px); max-height: min(90vh, 760px); overflow: auto; border: 1px solid var(--border); border-radius: 9px; background: var(--content-background); box-shadow: 0 18px 52px var(--shadow); }

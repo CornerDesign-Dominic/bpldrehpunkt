@@ -1,14 +1,15 @@
 import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 import { PALLET_TYPES } from '../../constants/pallets.js'
-import { EditIcon } from '../icons.jsx'
 
 export default function PalletJournal({ account, accountError, isEntryFormActive, onAddClosing, onAddMovement, onEditClosing, onEditMovement, canEdit }) {
   return <section className="pallet-journal">
     <div className="pallet-journal__header"><h3>Kontoliste</h3>{canEdit && <div className="pallet-journal__actions"><button className="button" type="button" onClick={onAddMovement} disabled={isEntryFormActive}>Bewegung hinzufügen</button><button className="button button--secondary" type="button" onClick={onAddClosing} disabled={isEntryFormActive}>Abschluss hinzufügen</button></div>}</div>
-    <div className="table-frame"><table className="data-table"><thead><tr><th>Datum</th><th>Art</th><th>Tournummer</th><th>Palettentyp</th><th>Lade-Zug.</th><th>Lade-Abg.</th><th>Entl.-Zug.</th><th>Entl.-Abg.</th><th>Veränderung</th><th>Palettenschein</th><th><span className="sr-only">Aktion</span></th></tr></thead><tbody>
-      {accountError ? <tr><td colSpan="11" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => {
+    <div className="table-frame"><table className="data-table"><thead><tr><th>Datum</th><th>Art</th><th>Tournummer</th><th>Palettentyp</th><th>Lade-Zug.</th><th>Lade-Abg.</th><th>Entl.-Zug.</th><th>Entl.-Abg.</th><th>Veränderung</th><th>Palettenschein</th></tr></thead><tbody>
+      {accountError ? <tr><td colSpan="10" className="table-state">Keine Palettenbuchungen verfügbar.</td></tr> : account.entries.length ? account.entries.map((entry) => {
         const isMovement = entry.entryType === 'movement'
-        return <tr className={entry.entryType === 'closing' ? 'pallet-journal__closing' : ''} key={`${entry.entryType}-${entry.id}`}>
+        const editable = canEdit && !isEntryFormActive
+        const edit = () => isMovement ? onEditMovement(entry) : onEditClosing(entry)
+        return <tr className={`${entry.entryType === 'closing' ? 'pallet-journal__closing' : ''}${editable ? ' pallet-journal__row--interactive' : ''}`} key={`${entry.entryType}-${entry.id}`} tabIndex={editable ? 0 : undefined} aria-label={editable ? `${isMovement ? 'Palettenbewegung' : 'Kontoabschluss'} vom ${formatPalletDate(entry.date)} bearbeiten` : undefined} onClick={editable ? edit : undefined} onKeyDown={editable ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); edit() } } : undefined}>
           <td>{formatPalletDate(entry.date)}</td>
           <td><span className={`pallet-entry-badge pallet-entry-badge--${isMovement ? 'movement' : 'closing'}`}>{isMovement ? 'Bewegung' : 'Abschluss'}</span></td>
           <td>{isMovement ? <strong className="pallet-tour">{entry.tourNumber || '—'}</strong> : '—'}</td>
@@ -19,9 +20,8 @@ export default function PalletJournal({ account, accountError, isEntryFormActive
           <td className="pallet-quantity">{isMovement && entry.unloadingPoint ? formatPalletNumber(entry.unloadingPoint.delivered) : '—'}</td>
           <td className="pallet-quantity"><strong>{formatPalletNumber(entry.change, true)}{entry.entryType === 'closing' ? ' Paletten' : ''}</strong></td>
           <td>{isMovement ? entry.palletReceiptNumber || '—' : '—'}</td>
-          <td className="pallet-journal__action">{canEdit && <button type="button" onClick={() => isMovement ? onEditMovement(entry) : onEditClosing(entry)} disabled={isEntryFormActive} title="Bearbeiten" aria-label={isMovement ? 'Palettenbewegung bearbeiten' : 'Kontoabschluss bearbeiten'}><EditIcon /></button>}</td>
         </tr>
-      }) : <tr><td colSpan="11" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
+      }) : <tr><td colSpan="10" className="table-state">Noch keine Palettenbuchungen vorhanden.</td></tr>}
     </tbody></table></div>
   </section>
 }
