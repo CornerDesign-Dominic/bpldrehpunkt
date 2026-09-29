@@ -215,7 +215,7 @@ test('transit presents only the stored manual route as a plan value', () => {
 })
 
 test('every station editor is restricted to its own tracking fields', () => {
-  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['tractorLicensePlate', 'trailerLicensePlate'])
+  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['tractorLicensePlate', 'trailerLicensePlate', 'driverName', 'driverPhone'])
   assert.deepEqual(shipmentTrackingStageConfigurations.loading.fields, ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'])
   assert.deepEqual(shipmentTrackingStageConfigurations.in_transit.fields, [])
   assert.deepEqual(shipmentTrackingStageConfigurations.unloading.fields, ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'])

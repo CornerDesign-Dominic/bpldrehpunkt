@@ -122,6 +122,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The short-notice arrival confirmation is administered separately from
+    // the regular rule catalogue. Writes are validated by its callable.
+    match /systemSettings/shipmentTrackingArrivalConfirmation {
+      allow read: if admin();
+      allow write: if false;
+    }
+
     // Partner cards read the centrally maintained rule catalog; changes remain
     // restricted to the validated Admin/App Check callable.
     match /systemSettings/shipmentTrackingRuleCatalog {

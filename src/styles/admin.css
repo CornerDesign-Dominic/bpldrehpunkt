@@ -65,6 +65,11 @@
 }
 
 .shipment-tracking-hours__preview-help { margin: 10px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.shipment-tracking-arrival-confirmation { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.shipment-tracking-arrival-confirmation__controls { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(220px, 280px); align-items: end; gap: 12px; }
+.shipment-tracking-arrival-confirmation__hint, .shipment-tracking-arrival-confirmation__variables { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.shipment-tracking-arrival-confirmation__message textarea { min-height: 170px; resize: vertical; }
+.shipment-tracking-arrival-confirmation code { padding: 1px 4px; border-radius: 3px; color: var(--text-secondary); background: var(--content-background); font-size: 11px; }
 .shipment-tracking-hours__preview-result h3 { margin: 0; color: var(--text-primary); font-size: 13px; }
 
 .admin-holiday-sync-log { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }

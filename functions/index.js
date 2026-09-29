@@ -16,6 +16,7 @@ import { listTransportOrderRelationsHandler, listTransportOrdersPageHandler } fr
 import { calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
 import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHandler, listPartnerTransportOrderRatingsHandler, saveTransportOrderRatingHandler } from './transportOrderRatings.js'
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
+import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
 import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
 import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
@@ -1015,6 +1016,7 @@ export const listPartnerTransportOrderRatings = onCall({ region: 'europe-west3',
 export const listCrmTransportRatingSummaries = onCall({ region: 'europe-west3', enforceAppCheck: true }, listCrmTransportRatingSummariesHandler)
 export const updateShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingOperatingHoursHandler)
 export const previewShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewShipmentTrackingOperatingHoursHandler)
+export const updateShipmentTrackingArrivalConfirmation = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingArrivalConfirmationHandler)
 export const updateShipmentTrackingRuleCatalog = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingRuleCatalogHandler)
 export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
 export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)

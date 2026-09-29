@@ -2,7 +2,7 @@ const customerDefaults = Object.freeze({ licensePlateImportant: false, loadingSi
 
 export const DEFAULT_SHIPMENT_TRACKING_POLICY = Object.freeze({
   customer: customerDefaults,
-  carrier: Object.freeze({ enabledRuleIds: Object.freeze({}) }),
+  carrier: Object.freeze({ enabledRuleIds: Object.freeze({}), actualArrivalConfirmationEnabled: false }),
 })
 
 const booleanMap = (value) => Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {}).filter(([id, enabled]) => typeof id === 'string' && enabled === true))
@@ -17,6 +17,6 @@ export function normalizeShipmentTrackingPolicy(value) {
   for (const [topic, fields] of Object.entries(legacyRuleIds)) for (const [field, id] of Object.entries(fields)) if (value?.carrier?.[topic]?.[field] === true && enabledRuleIds[id] === undefined) enabledRuleIds[id] = true
   return {
     customer: { licensePlateImportant: value?.customer?.licensePlateImportant === true, loadingSiteInformationImportant: value?.customer?.loadingSiteInformationImportant === true },
-    carrier: { enabledRuleIds },
+    carrier: { enabledRuleIds, actualArrivalConfirmationEnabled: value?.carrier?.actualArrivalConfirmationEnabled === true },
   }
 }

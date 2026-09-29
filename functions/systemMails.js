@@ -98,6 +98,13 @@ export const systemMailTemplateDefinitions = {
     message: 'Guten Tag,\n\nbitte teilen Sie uns den aktuellen Status für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
+  shipment_tracking_actual_arrival_confirmation: {
+    displayName: 'Sendungsverfolgung – Kurz vor Beladung bestätigen',
+    adminVisible: false,
+    subject: 'Transportauftrag {{transportOrderNumber}} – Bitte aktuellen Stand bestätigen',
+    message: 'Guten Tag,\n\nbitte bestätigen Sie kurz, ob für den Transportauftrag {{transportOrderNumber}} alles wie geplant ist oder ob es Änderungen gibt.\n\nLadestelle: {{loadingLocation}}\nGeplanter Beginn: {{loadingTime}}\n\nBitte teilen Sie uns insbesondere die aktuelle voraussichtliche Ankunftszeit mit.\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
   case_deadline_reminder: {
     displayName: 'Fälle – Termin- und Fristerinnerung',
     subject: '{{caseType}} {{caseNumber}} – Erinnerung',
@@ -343,14 +350,14 @@ async function assertActiveAdmin(request) { return requireRole(await requireActi
 
 export const listSystemMailTemplates = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
-  const snapshots = await Promise.all(Object.keys(templateDefinitions).map((id) => db.doc(`systemMailTemplates/${id}`).get()))
+  const snapshots = await Promise.all(Object.entries(templateDefinitions).filter(([, definition]) => definition.adminVisible !== false).map(([id]) => db.doc(`systemMailTemplates/${id}`).get()))
   return { templates: snapshots.map((snapshot) => templateData(snapshot.id, snapshot.exists ? snapshot.data() : null)) }
 })
 
 export const updateSystemMailTemplate = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
   const { id, subject, message } = request.data || {}
-  if (typeof id !== 'string' || !Object.hasOwn(templateDefinitions, id)) throw new HttpsError('invalid-argument', 'Unbekannte Systemmail-Vorlage.')
+  if (typeof id !== 'string' || !Object.hasOwn(templateDefinitions, id) || templateDefinitions[id].adminVisible === false) throw new HttpsError('invalid-argument', 'Unbekannte Systemmail-Vorlage.')
   if (!validTemplate(id, { subject, message })) throw new HttpsError('invalid-argument', 'Betreff oder Nachricht enthalten unzulässige Platzhalter oder sind leer.')
   const definition = templateDefinitions[id]
   await db.doc(`systemMailTemplates/${id}`).set({ id, displayName: definition.displayName, subject: cleanText(subject, 240), message: cleanText(message, 12000), allowedPlaceholders: definition.allowedPlaceholders, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid })

@@ -10,6 +10,7 @@ test('shipment-tracking templates cover the individual and bundled carrier reque
     'shipment_tracking_arrival_request',
     'shipment_tracking_license_plate_and_arrival_request',
     'shipment_tracking_general_status_update',
+    'shipment_tracking_actual_arrival_confirmation',
   ])
 
   for (const id of Object.keys(definitions).filter((key) => key.startsWith('shipment_tracking_'))) {

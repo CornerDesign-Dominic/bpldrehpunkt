@@ -470,7 +470,7 @@ function importHistoryValue(value) {
 export function shipmentTrackingEventChangeType(event) {
   if (event.eventType === 'tracking_started') return 'Neu'
   if (event.eventType === 'tracking_completed') return 'Abgeschlossen'
-  if (event.eventType === 'tracking_manual_mail_sent' || event.eventType === 'tracking_automatic_mail_sent') return 'Versendet'
+  if (event.eventType === 'tracking_manual_mail_sent' || event.eventType === 'tracking_automatic_mail_sent' || event.eventType === 'tracking_actual_arrival_confirmation_sent') return 'Versendet'
   if (event.eventType === 'transport_order_import_updated') {
     if (!hasEventValue(event.newValue)) return 'Gelöscht'
     if (!hasEventValue(event.oldValue)) return 'Neu'
@@ -515,6 +515,7 @@ export function shipmentTrackingEventDescription(event) {
     const labels = { licensePlate: 'Kennzeichen', loadingSite: 'LKW-Ankunft' }
     return `${topics.map((topic) => labels[topic] || topic).join(' und ') || 'Tracking-Anfrage'} automatisch versendet`
   }
+  if (event.eventType === 'tracking_actual_arrival_confirmation_sent') return 'Aktuellen Stand kurz vor Ladung automatisch angefragt'
   const fields = Array.isArray(event.changedFields) ? event.changedFields : []
   if (!fields.length) return 'Tracking aktualisiert'
   return fields.map((field) => `${fieldLabels[field] || field} erfasst: ${historyValue(field, event.newValue?.[field])}`).join(' · ')
