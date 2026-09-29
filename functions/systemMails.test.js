@@ -26,4 +26,5 @@ test('existing vacation and test-mail templates remain part of the system mail c
   assert.ok(systemMailTemplateDefinitions.vacation_approved)
   assert.ok(systemMailTemplateDefinitions.system_test)
   assert.ok(systemMailTemplateDefinitions.case_deadline_reminder)
+  assert.ok(systemMailTemplateDefinitions.todo_deadline_reminder)
 })

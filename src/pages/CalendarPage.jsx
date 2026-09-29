@@ -8,6 +8,7 @@ import CalendarNavigation from '../components/ui/CalendarNavigation.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createCalendarEvent, deleteCalendarEvent, listCalendarEvents, listUserCalendars, updateCalendarEvent } from '../lib/calendars.js'
 import { listSystemCalendarEvents, listSystemCalendars } from '../lib/systemCalendars.js'
+import { listTodoCalendarEntries } from '../lib/todos.js'
 import { canView } from '../lib/permissions.js'
 import '../styles/calendar.css'
 
@@ -41,13 +42,32 @@ async function loadCalendarData(userId, isSuperadmin, profile) {
   const canUseCalendar = canView(profile, 'calendar')
   const regularCalendars = canUseCalendar ? await listUserCalendars(userId, isSuperadmin) : []
   const systemCalendars = listSystemCalendars(profile)
-  const [regularEvents, systemEvents] = await Promise.all([
+  const [regularEvents, systemEvents, todoEntries] = await Promise.all([
     regularCalendars.length ? listCalendarEvents(regularCalendars) : [],
     listSystemCalendarEvents(systemCalendars),
+    canUseCalendar ? listTodoCalendarEntries(userId) : [],
   ])
   const ownCalendars = regularCalendars.filter((calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId)
   const assignedCalendars = regularCalendars.filter((calendar) => !ownCalendars.some((ownCalendar) => ownCalendar.id === calendar.id))
-  return { availableCalendars: [...ownCalendars, ...systemCalendars, ...assignedCalendars], calendarEvents: [...regularEvents, ...systemEvents] }
+  const personalCalendar = ownCalendars[0]
+  const todoEvents = personalCalendar ? todoEntries.map((entry) => ({
+    id: `todo-deadline:${entry.id}`,
+    calendarId: personalCalendar.id,
+    calendarName: personalCalendar.name,
+    calendarColor: personalCalendar.color,
+    title: entry.title,
+    description: entry.description,
+    startDate: entry.startDate,
+    endDate: entry.endDate,
+    allDay: entry.allDay !== false,
+    startTime: entry.startTime || '',
+    endTime: entry.endTime || '',
+    reminderEnabled: entry.reminderEnabled === true,
+    hasReminder: true,
+    todoDeadline: true,
+    targetPath: `/todos/${entry.todoId}`,
+  })) : []
+  return { availableCalendars: [...ownCalendars, ...systemCalendars, ...assignedCalendars], calendarEvents: [...regularEvents, ...systemEvents, ...todoEvents] }
 }
 
 function resolvedVisibleCalendarIds(availableCalendars, current, storageKey) {
@@ -241,7 +261,7 @@ export default function CalendarPage() {
   }
 
   function openEvent(event) {
-    if (event.systemCalendar && event.targetPath) {
+    if ((event.systemCalendar || event.todoDeadline) && event.targetPath) {
       navigate(event.targetPath)
       return
     }

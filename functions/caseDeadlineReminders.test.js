@@ -28,6 +28,16 @@ test('case deadline reminder rejects all-day, disabled and malformed deadlines',
   assert.equal(deadlineReminderMetadata(ref, { date: '2026-09-28', time: '14:30', reminderEnabled: true, reminderRecipientEmail: 'not-an-email' }), null)
 })
 
+test('to-do deadline reminder uses its own template and the creator address', () => {
+  const ref = deadlineRef('todos', 'T-1', 'D-1')
+  const metadata = deadlineReminderMetadata(ref, {
+    date: '2026-09-28', time: '09:15', reminderEnabled: true, reminderRecipientEmail: 'df@brennpunkt-logistik.de',
+  })
+  assert.equal(metadata.type, 'To-do')
+  assert.equal(metadata.templateId, 'todo_deadline_reminder')
+  assert.equal(metadata.recipient, 'df@brennpunkt-logistik.de')
+})
+
 test('case deadline reminder delivery identity is stable but changes for a rescheduled deadline', () => {
   const ref = deadlineRef('legalDisputes', 'G-1', 'D-1')
   const original = deadlineReminderMetadata(ref, { date: '2026-09-28', time: '14:30', reminderEnabled: true, reminderRecipientEmail: 'df@example.test' })

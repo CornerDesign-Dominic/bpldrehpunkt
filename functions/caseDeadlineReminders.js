@@ -12,6 +12,7 @@ const deadlineCollections = Object.freeze({
   inkassoCases: { type: 'Inkassofall', templateId: 'case_deadline_reminder' },
   legalDisputes: { type: 'Gericht-/Streitfall', templateId: 'case_deadline_reminder' },
   insolvencies: { type: 'Insolvenzfall', templateId: 'case_deadline_reminder' },
+  todos: { type: 'To-do', templateId: 'todo_deadline_reminder' },
 })
 
 function text(value) { return typeof value === 'string' ? value.trim() : '' }
@@ -78,12 +79,9 @@ async function dispatchReminder(db, deadlineSnapshot, now) {
   if (!metadata || !isDeadlineReminderDue(metadata, now)) return { skipped: true }
   const claimed = await claimDelivery(db, deadlineSnapshot.ref, metadata, now)
   if (!claimed) return { skipped: true }
-  const values = {
-    caseType: metadata.type,
-    caseNumber: caseLabel(claimed.caseData),
-    dueDateTime: germanDateTime(metadata.date, metadata.time),
-    note: text(deadlineSnapshot.data()?.note) || '–',
-  }
+  const values = metadata.templateId === 'todo_deadline_reminder'
+    ? { todoTitle: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
+    : { caseType: metadata.type, caseNumber: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
   try {
     const delivered = await sendSystemMailTemplate({ recipient: metadata.recipient, templateId: metadata.templateId, values })
     if (!delivered) throw new Error('delivery-disabled')

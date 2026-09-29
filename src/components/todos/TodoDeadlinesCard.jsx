@@ -1,0 +1,33 @@
+import { useState } from 'react'
+import { shortReminderRecipient } from '../../lib/caseDeadline.js'
+import { TODO_SCHEDULE_TYPES, createEmptyTodoDeadline, todoDeadlinePresentation, todoScheduleTypeLabel } from '../../lib/todos.js'
+
+function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').format(new Date(`${value}T12:00:00`)) : '—' }
+
+function deadlineClass(deadline) {
+  const kind = todoDeadlinePresentation(deadline).kind
+  return kind === 'overdue' ? 'damage-deadlines__date damage-deadlines__date--overdue' : kind === 'today' ? 'damage-deadlines__date damage-deadlines__date--today' : kind === 'urgent' ? 'damage-deadlines__date damage-deadlines__date--urgent' : kind === 'warning' ? 'damage-deadlines__date damage-deadlines__date--warning' : 'damage-deadlines__date'
+}
+
+function deadlineDisplay(deadline) {
+  const time = deadline.time ? ` · ${deadline.time}` : ''
+  return `${todoDeadlinePresentation(deadline).label} · ${formatDate(deadline.date)}${time}`
+}
+
+function DeadlineModal({ deadline, onClose, onDelete, onSave }) {
+  const [values, setValues] = useState(() => ({ type: deadline?.type || createEmptyTodoDeadline().type, date: deadline?.date || createEmptyTodoDeadline().date, time: deadline?.time || '', reminderEnabled: Boolean(deadline?.reminderEnabled), note: deadline?.note || '' }))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const isNew = !deadline
+  function update(field, value) { setValues((current) => ({ ...current, [field]: value })) }
+  async function submit(event) { event.preventDefault(); setSaving(true); setError(''); try { await onSave(deadline, values); onClose() } catch (saveError) { setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.') } finally { setSaving(false) } }
+  async function remove() { if (!deadline || !window.confirm('Termin oder Frist wirklich löschen?')) return; setSaving(true); setError(''); try { await onDelete(deadline); onClose() } catch (deleteError) { setError(deleteError.message || 'Der Termin oder die Frist konnte nicht gelöscht werden.') } finally { setSaving(false) } }
+  return <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}><section className="todo-quick-edit-modal damage-deadline-modal" role="dialog" aria-modal="true" aria-labelledby="todo-deadline-modal-title"><form className="todo-quick-editor" onSubmit={submit} noValidate><div className="todo-quick-editor__heading"><h2 id="todo-deadline-modal-title">{isNew ? 'Termin / Frist hinzufügen' : 'Termin / Frist bearbeiten'}</h2></div><div className="todo-quick-editor__grid damage-deadline-modal__fields"><label className="form-field"><span>Art *</span><select value={values.type} onChange={(event) => update('type', event.target.value)}>{TODO_SCHEDULE_TYPES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className="form-field"><span>Datum *</span><input autoFocus type="date" value={values.date} required onChange={(event) => update('date', event.target.value)} /></label><label className="form-field"><span>Uhrzeit</span><input type="time" value={values.time} onChange={(event) => update('time', event.target.value)} /></label><label className="form-field"><span>Erinnerung</span><select value={values.reminderEnabled ? 'on' : 'off'} onChange={(event) => update('reminderEnabled', event.target.value === 'on')}><option value="off">Aus</option><option value="on">An</option></select></label><label className="form-field damage-deadline-modal__note"><span>Hinweis</span><textarea rows="5" value={values.note} maxLength="4000" onChange={(event) => update('note', event.target.value)} /></label></div>{error && <p className="form-error">{error}</p>}<div className="form-actions">{!isNew && <button className="button button--danger" type="button" disabled={saving} onClick={remove}>Löschen</button>}<button className="button button--secondary" type="button" disabled={saving} onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div></form></section></div>
+}
+
+export default function TodoDeadlinesCard({ canEdit, deadlines, loading, onDelete, onSave }) {
+  const [editing, setEditing] = useState(null)
+  function openDeadline(deadline) { if (canEdit) setEditing(deadline) }
+  function handleRowKeyDown(event, deadline) { if (canEdit && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openDeadline(deadline) } }
+  return <section className="todo-detail-content damage-deadlines" aria-labelledby="todo-deadlines-title">{editing !== null && <DeadlineModal deadline={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onDelete={onDelete} onSave={onSave} />}<div className="todo-detail-section-heading"><h3 id="todo-deadlines-title">Termine &amp; Fristen</h3>{canEdit && <button className="button damage-deadlines__add" type="button" onClick={() => setEditing('new')}>Termin / Frist hinzufügen</button>}</div><div className="todos-table-frame damage-deadlines__table-frame"><table className="data-table todos-table damage-deadlines__table"><thead><tr><th>Art</th><th>Datum / Uhrzeit</th><th>Erinnerung</th><th>An</th><th>Hinweis</th></tr></thead><tbody>{loading ? <tr><td className="table-state" colSpan="5">Termine und Fristen werden geladen …</td></tr> : !deadlines.length ? <tr><td className="table-state" colSpan="5">Noch keine Termine oder Fristen hinterlegt.</td></tr> : deadlines.map((deadline) => <tr key={deadline.id} className={canEdit ? 'damage-deadlines__row' : ''} tabIndex={canEdit ? 0 : undefined} role={canEdit ? 'button' : undefined} onClick={() => openDeadline(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={canEdit ? `${todoScheduleTypeLabel(deadline.type)} vom ${formatDate(deadline.date)} bearbeiten` : undefined}><td>{todoScheduleTypeLabel(deadline.type)}</td><td><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></td><td><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{deadline.reminderEnabled ? 'An' : 'Aus'}</span></td><td className="damage-deadlines__recipient" title={deadline.reminderRecipientEmail || ''}>{shortReminderRecipient(deadline)}</td><td className="damage-deadlines__note" title={deadline.note || ''}>{deadline.note || '—'}</td></tr>)}</tbody></table></div></section>
+}

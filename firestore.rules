@@ -1260,6 +1260,23 @@ service cloud.firestore {
         && data.type in ['note', 'system'] && data.createdByUserId == request.auth.uid
         && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
     }
+    function validTodoDeadline(data) {
+      return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!data.keys().hasAny(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
+        && data.reminderEnabled is bool && (data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
+        && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.calendarEntryId is string && data.calendarEntryId.size() > 0
+        && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+    }
+    function todoDeadlineEditor(todoId) {
+      return edit('todos') && (superadmin() || todoDocument(todoId).creatorUserId == request.auth.uid)
+        && todoDocument(todoId).status in ['open', 'in_progress'];
+    }
+    function todoDeadlineParentWasUpdated(todoId) { return todoAfter(todoId).updatedAt == request.time; }
+    function validNewTodoReminder(data) {
+      return !data.reminderEnabled || (data.time is string && data.reminderRecipientEmail is string && data.reminderRecipientEmail == ownProfile().email);
+    }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if edit('todos') && isCreatedTodo();
@@ -1273,6 +1290,38 @@ service cloud.firestore {
           && (request.resource.data.type == 'note' || (request.resource.data.type == 'system' && edit('todos')));
         allow update, delete: if false;
       }
+
+      match /deadlines/{deadlineId} {
+        allow read: if view('todos') && canReadTodo(todoDocument(id));
+        allow create: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id) && validTodoDeadline(request.resource.data)
+          && validNewTodoReminder(request.resource.data) && request.resource.data.createdAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id) && validTodoDeadline(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+          && (request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail || (!resource.data.reminderEnabled && request.resource.data.reminderEnabled && request.resource.data.reminderRecipientEmail == ownProfile().email))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+        allow delete: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id);
+      }
+    }
+    function validTodoCalendarEntry(data, entryId) {
+      return data.keys().hasAll(['todoId', 'deadlineId', 'ownerUserId', 'title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'reminderEnabled', 'calendarEntryId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['todoId', 'deadlineId', 'ownerUserId', 'title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'reminderEnabled', 'calendarEntryId', 'createdAt', 'updatedAt'])
+        && data.todoId is string && data.deadlineId is string && data.ownerUserId is string
+        && data.calendarEntryId is string && data.calendarEntryId == entryId
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 160 && data.description is string && data.description.size() <= 4000
+        && data.startDate is string && data.endDate is string && data.startDate == data.endDate && data.allDay is bool
+        && data.startTime is string && data.endTime is string && data.reminderEnabled is bool;
+    }
+    match /todoCalendarEntries/{entryId} {
+      allow read: if view('calendar') && resource.data.ownerUserId == request.auth.uid;
+      allow create: if edit('todos') && validTodoCalendarEntry(request.resource.data, entryId) && request.resource.data.ownerUserId == request.auth.uid && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/todos/$(request.resource.data.todoId)/deadlines/$(request.resource.data.deadlineId))
+        && getAfter(/databases/$(database)/documents/todos/$(request.resource.data.todoId)/deadlines/$(request.resource.data.deadlineId)).data.createdBy == request.auth.uid;
+      allow update: if edit('todos') && validTodoCalendarEntry(request.resource.data, entryId) && request.resource.data.ownerUserId == resource.data.ownerUserId && request.resource.data.todoId == resource.data.todoId && request.resource.data.deadlineId == resource.data.deadlineId && request.resource.data.calendarEntryId == resource.data.calendarEntryId && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+        && (superadmin() || resource.data.ownerUserId == request.auth.uid);
+      allow delete: if edit('todos') && (superadmin() || resource.data.ownerUserId == request.auth.uid);
     }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'

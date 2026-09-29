@@ -104,6 +104,12 @@ export const systemMailTemplateDefinitions = {
     message: 'Erinnerung zu {{caseType}} {{caseNumber}}.\n\nTermin / Frist: {{dueDateTime}}\nBemerkung: {{note}}\n\nBitte im Drehpunkt prüfen.',
     allowedPlaceholders: ['caseType', 'caseNumber', 'dueDateTime', 'note'],
   },
+  todo_deadline_reminder: {
+    displayName: 'To-dos – Termin- und Fristerinnerung',
+    subject: 'To-do {{todoTitle}} – Erinnerung',
+    message: 'Erinnerung zu deinem To-do „{{todoTitle}}“.\n\nTermin / Frist: {{dueDateTime}}\nBemerkung: {{note}}\n\nBitte im Drehpunkt prüfen.',
+    allowedPlaceholders: ['todoTitle', 'dueDateTime', 'note'],
+  },
   system_test: {
     displayName: 'System – Testmail',
     subject: 'Drehpunkt Testmail',
