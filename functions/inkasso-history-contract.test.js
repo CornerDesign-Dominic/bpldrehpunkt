@@ -41,7 +41,7 @@ test('invoice creation, editing, and payment changes keep the case totals atomic
 test('inkasso deadlines require an atomic parent update and retain creation metadata', () => {
   assert.match(deadlinesRule, /allow create: if edit\('inkasso'\) && validInkassoDeadline\(request\.resource\.data\) && deadlineParentWasUpdated\(\)/)
   assert.match(deadlinesRule, /request\.resource\.data\.createdAt == request\.time/)
-  assert.match(deadlinesRule, /affectedKeys\(\)\.hasOnly\(\['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName'\]\)/)
+  assert.match(deadlinesRule, /affectedKeys\(\)\.hasOnly\(\['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName'\]\)/)
   assert.match(deadlinesRule, /allow delete: if edit\('inkasso'\) && deadlineParentWasUpdated\(\);/)
 })
 

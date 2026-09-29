@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serve
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 import { setTransportOrderCaseLink } from './caseTransportLinks.js'
+import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const LEGAL_DISPUTES_COLLECTION = 'legalDisputes'
 export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
@@ -59,12 +60,11 @@ function financialEntryLabel(entry) {
 function legalDisputeDeadlinePayload(values) {
   const type = values.type
   const date = trim(values.date)
-  const time = trim(values.time)
+  const time = reminderDeadlineTime(values)
   const note = trim(values.note)
   if (!LEGAL_DISPUTE_SCHEDULE_TYPES.some((item) => item.value === type)) throw new Error('Bitte auswählen, ob es sich um eine Frist oder einen Termin handelt.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
-  if (time && !/^\d{2}:\d{2}$/.test(time)) throw new Error('Bitte eine gültige Uhrzeit erfassen.')
-  return { type, date, time: time || null, reminderEnabled: values.reminderEnabled === true, note: note || null }
+  return { type, date, time, reminderEnabled: values.reminderEnabled === true, note: note || null }
 }
 
 function legalDisputeDeadlineLabel(deadline) {
@@ -212,7 +212,7 @@ export async function createLegalDisputeDeadline(legalDispute, values, actor) {
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} hinzugefügt.`, actor))
   await batch.commit()
 }

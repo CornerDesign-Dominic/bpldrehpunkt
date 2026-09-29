@@ -161,6 +161,37 @@ function classification(row, existing, carrierResolution) {
 }
 function resultStatus(status) { return status === 'review' ? 'Prüfung erforderlich' : status === 'new' ? 'Neu' : status === 'updated' ? 'Aktualisiert' : 'Unverändert' }
 
+function importedRowError(value) {
+  return {
+    rowNumber: Number(value?.rowNumber) || null,
+    externalNumber: text(value?.externalNumber),
+    customerName: text(value?.customerName),
+    carrierName: text(value?.carrierName),
+    errors: Array.isArray(value?.errors) ? value.errors.map(text).filter(Boolean).slice(0, 10) : [],
+  }
+}
+
+function importRunCounts(counts) {
+  return {
+    Neu: counts.new,
+    Aktualisiert: counts.updated,
+    Unverändert: counts.unchanged,
+    'Prüfung erforderlich': counts.review,
+    Fehlerhaft: counts.failed,
+  }
+}
+
+function importRunSummary(snapshot) {
+  const data = snapshot.data() || {}
+  return {
+    id: snapshot.id,
+    fileName: text(data.fileName),
+    importedAt: data.importedAt?.toMillis?.() || null,
+    importedByName: text(data.importedByName),
+    counts: data.counts || {},
+  }
+}
+
 function previewRows(value) {
   if (!Array.isArray(value) || value.length > 5000) throw new HttpsError('invalid-argument', 'Ungültige Importvorschau.')
   return value.map((entry, index) => {
@@ -349,9 +380,10 @@ export async function previewTransportOrderImportHandler(request) {
 export async function importTransportOrdersHandler(request) {
   const profile = await assertImportAccess(request); const db = database(); const fileName = text(request.data?.fileName)
   const rows = Array.isArray(request.data?.rows) ? request.data.rows.map(validatedRow) : []
-  if (!fileName || fileName.length > 240 || !rows.length || rows.length > 5000) throw new HttpsError('invalid-argument', 'Bitte eine gültige CSV-Vorschau mit höchstens 5.000 importierbaren Zeilen übergeben.')
+  if (!fileName || fileName.length > 240 || rows.length > 5000) throw new HttpsError('invalid-argument', 'Bitte eine gültige CSV-Vorschau mit höchstens 5.000 importierbaren Zeilen übergeben.')
   const numbers = new Set(); rows.forEach((row) => { if (numbers.has(row.externalNumber)) throw new HttpsError('invalid-argument', `Die TA-Nummer ${row.externalNumber} kommt mehrfach vor.`); numbers.add(row.externalNumber) })
-  const rowErrors = Array.isArray(request.data?.rowErrors) ? request.data.rowErrors.slice(0, 5000).map((entry) => ({ rowNumber: Number(entry?.rowNumber) || null, errors: Array.isArray(entry?.errors) ? entry.errors.map(text).filter(Boolean).slice(0, 10) : [] })) : []
+  const rowErrors = Array.isArray(request.data?.rowErrors) ? request.data.rowErrors.slice(0, 5000).map(importedRowError) : []
+  if (!rows.length && !rowErrors.length) throw new HttpsError('invalid-argument', 'Die CSV-Datei enthält keine importierbaren Zeilen.')
   const [existing, customers, matches, catalogSnapshot] = await Promise.all([existingFor(rows.map((row) => row.externalNumber)), customersFor(rows.map((row) => row.imported.customer.debtorNumber)), carrierCandidatesFor(rows.map((row) => row.imported.carrier.originalName)), db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get()])
   const ruleCatalog = catalogSnapshot.exists ? normalizeShipmentTrackingRuleCatalog(catalogSnapshot.data()) : fallbackShipmentTrackingRuleCatalog()
   const selected = resolutions(request.data?.carrierResolutions); const runRef = db.collection('transportOrderImportRuns').doc(); const counts = { new: 0, updated: 0, unchanged: 0, review: 0, failed: rowErrors.length }; const results = []; const now = FieldValue.serverTimestamp(); const importedBy = actorName(profile); const knownCarriers = new Map()
@@ -365,6 +397,12 @@ export async function importTransportOrdersHandler(request) {
     const changes = existingOrder ? transportOrderImportChanges(existingOrder.imported, row.imported) : []
     const routeNeedsRecalculation = changes.some((change) => change.routeRelevant)
     const skipOverdueAutomations = existingOrder && loadingScheduleMovedEarlier(existingOrder.imported, row.imported)
+    const [knownCustomerSnapshot, knownCarrierSnapshot] = await Promise.all([
+      db.doc(`businessPartners/${importPartnerId('debtor', row.imported.customer.debtorNumber)}`).get(),
+      db.doc(`businessPartners/${importPartnerId('carrier', normalizePartnerName(row.imported.carrier.originalName))}`).get(),
+    ])
+    const customerWasKnown = customers.has(row.imported.customer.debtorNumber) || knownCustomerSnapshot.exists
+    const carrierWasKnown = match?.kind === 'exact' || Boolean(existingOrder?.carrierPartnerId) || knownCarrierSnapshot.exists
     const customer = await ensureCustomer(db, batch, row, customers, runRef, now, ruleCatalog)
     const carrier = await ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog)
     const originalCustomer = existingOrder?.customerPartnerId ? await db.doc(`businessPartners/${existingOrder.customerPartnerId}`).get() : null
@@ -408,9 +446,38 @@ export async function importTransportOrdersHandler(request) {
         batch.set(trackingRef, { importScheduleSkippedBefore: now, lastImportScheduleChange: { reason: 'loading-moved-earlier', at: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy }, { merge: true })
       }
     }
+    const result = {
+      rowNumber: row.rowNumber,
+      externalNumber: row.externalNumber,
+      customerName: row.imported.customer.name,
+      carrierName: row.imported.carrier.originalName,
+      status: resultStatus(importStatus),
+      changedFields: changes.map((change) => change.label),
+      customerAction: customerWasKnown ? 'verwendet' : 'neu angelegt',
+      carrierAction: carrierWasKnown ? 'verwendet' : 'neu angelegt',
+      createdAt: now,
+    }
+    batch.set(runRef.collection('rows').doc(), { ...result, createdAt: now })
     await batch.commit()
-    results.push({ rowNumber: row.rowNumber, externalNumber: row.externalNumber, status: resultStatus(importStatus), reasons: decision.reasons })
+    results.push(result)
   }
-  await runRef.set({ id: runRef.id, source: 'dycos', fileName, importedAt: now, importedByUserId: request.auth.uid, importedByName: importedBy, counts: { Neu: counts.new, Aktualisiert: counts.updated, Unverändert: counts.unchanged, 'Prüfung erforderlich': counts.review, Fehlerhaft: counts.failed }, rowErrors })
-  return { runId: runRef.id, counts: { Neu: counts.new, Aktualisiert: counts.updated, Unverändert: counts.unchanged, 'Prüfung erforderlich': counts.review, Fehlerhaft: counts.failed }, results }
+  for (const rowError of rowErrors) {
+    await runRef.collection('rows').doc().set({ ...rowError, status: 'Fehlerhaft', createdAt: now })
+  }
+  const summaryCounts = importRunCounts(counts)
+  await runRef.set({ id: runRef.id, source: 'dycos', fileName, importedAt: now, importedByUserId: request.auth.uid, importedByName: importedBy, counts: summaryCounts })
+  return { runId: runRef.id, counts: summaryCounts, results }
+}
+
+export async function listTransportOrderImportRunsHandler(request) {
+  await assertImportAccess(request)
+  const db = database(); const runId = text(request.data?.runId)
+  if (runId) {
+    const snapshot = await db.doc(`transportOrderImportRuns/${runId}`).get()
+    if (!snapshot.exists) throw new HttpsError('not-found', 'Dieser Importlauf wurde nicht gefunden.')
+    const rows = await snapshot.ref.collection('rows').orderBy('rowNumber', 'asc').get()
+    return { run: importRunSummary(snapshot), rows: rows.docs.map((entry) => ({ id: entry.id, ...entry.data() })) }
+  }
+  const snapshots = await db.collection('transportOrderImportRuns').orderBy('importedAt', 'desc').limit(100).get()
+  return { runs: snapshots.docs.map(importRunSummary) }
 }

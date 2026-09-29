@@ -58,3 +58,9 @@ export async function importTransportOrderRows({ fileName, rows, rowErrors, carr
   const result = await httpsCallable(functions, 'importTransportOrders')({ fileName, rows, rowErrors, carrierResolutions })
   return result.data
 }
+
+export async function listTransportOrderImportRuns(runId = '') {
+  await waitForAppCheckToken()
+  const result = await httpsCallable(functions, 'listTransportOrderImportRuns')({ runId })
+  return result.data
+}

@@ -98,6 +98,12 @@ export const systemMailTemplateDefinitions = {
     message: 'Guten Tag,\n\nbitte teilen Sie uns den aktuellen Status für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
+  case_deadline_reminder: {
+    displayName: 'Fälle – Termin- und Fristerinnerung',
+    subject: '{{caseType}} {{caseNumber}} – Erinnerung',
+    message: 'Erinnerung zu {{caseType}} {{caseNumber}}.\n\nTermin / Frist: {{dueDateTime}}\nBemerkung: {{note}}\n\nBitte im Drehpunkt prüfen.',
+    allowedPlaceholders: ['caseType', 'caseNumber', 'dueDateTime', 'note'],
+  },
   system_test: {
     displayName: 'System – Testmail',
     subject: 'Drehpunkt Testmail',

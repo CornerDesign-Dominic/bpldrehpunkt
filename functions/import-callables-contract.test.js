@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8')
 const importAndMergeCallables = [
-  'previewTransportOrderImport', 'importTransportOrders',
+  'previewTransportOrderImport', 'importTransportOrders', 'listTransportOrderImportRuns',
   'processCustomerImport', 'listCustomerImportQueue', 'claimCustomerImportRow', 'releaseCustomerImportRow', 'approveCustomerImportRow', 'mergeCustomerImportPartners',
   'processCarrierImport', 'listCarrierImportQueue', 'claimCarrierImportRow', 'releaseCarrierImportRow', 'approveCarrierImportRow', 'mergeCarrierImportPartners',
   'prepareManualPartnerMerge', 'mergeManualPartners', 'previewPartnerMergeReversal', 'separatePartnerMerge',

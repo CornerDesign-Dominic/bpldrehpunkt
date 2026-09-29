@@ -2,6 +2,7 @@ import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTi
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const INKASSO_CASES_COLLECTION = 'inkassoCases'
 export const INKASSO_CASE_STATUSES = [
@@ -227,14 +228,15 @@ export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, 
 
 function deadlinePayload(values) {
   const date = trim(values.date)
+  const time = reminderDeadlineTime(values)
   const note = optionalText(values.note)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   if (note && note.length > 4000) throw new Error('Die Bemerkung ist zu lang.')
-  return { date, reminderEnabled: values.reminderEnabled === true, note }
+  return { date, time, reminderEnabled: values.reminderEnabled === true, note }
 }
 
 export function createEmptyInkassoDeadline() {
-  return { date: new Date().toISOString().slice(0, 10), reminderEnabled: false, note: '' }
+  return { date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
 }
 
 export function inkassoDeadlinePresentation(deadline, now = new Date()) {
@@ -263,7 +265,7 @@ export async function createInkassoCaseDeadline(inkassoCase, values, actor) {
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   await batch.commit()
 }
 

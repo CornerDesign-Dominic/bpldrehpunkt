@@ -1,7 +1,7 @@
 import { listDamageCaseDeadlines, listDamageCases } from './damages.js'
 import { listInsolvencies, listInsolvencyDeadlines } from './insolvencies.js'
-import { listLegalDisputes } from './legalDisputes.js'
-import { listInkassoCases } from './inkasso.js'
+import { listLegalDisputeDeadlines, listLegalDisputes } from './legalDisputes.js'
+import { listInkassoCaseDeadlines, listInkassoCases } from './inkasso.js'
 import { canView } from './permissions.js'
 import { insolvencyCasePath } from './businessPartnerLinks.js'
 
@@ -17,7 +17,7 @@ export const SYSTEM_CALENDARS = [
 const validDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
 const text = (value) => typeof value === 'string' ? value.trim() : ''
 
-function systemEvent(calendar, id, title, date, targetPath, description = '') {
+function systemEvent(calendar, id, title, date, targetPath, description = '', { time = '', reminderEnabled = false, hasReminder = false } = {}) {
   return {
     id,
     calendarId: calendar.id,
@@ -27,12 +27,19 @@ function systemEvent(calendar, id, title, date, targetPath, description = '') {
     description,
     startDate: date,
     endDate: date,
-    allDay: true,
-    startTime: '',
-    endTime: '',
+    allDay: !time,
+    startTime: time || '',
+    endTime: time || '',
+    reminderEnabled: reminderEnabled === true,
+    hasReminder: hasReminder === true,
     systemCalendar: true,
     targetPath,
   }
+}
+
+function deadlineDescription(description, deadline) {
+  const reminder = deadline?.reminderEnabled === true ? 'Erinnerung: An' : 'Erinnerung: Aus'
+  return [description, reminder].filter(Boolean).join('\n')
 }
 
 export function listSystemCalendars(profile) {
@@ -55,7 +62,8 @@ async function damageEvents(calendar) {
       `${damageCase.caseNumber || 'Schadenfall'} · ${text(deadline.note) || 'Termin / Frist'}`,
       deadline.date,
       `/schaeden/${damageCase.id}`,
-      text(damageCase.title),
+      deadlineDescription(text(damageCase.title), deadline),
+      { time: text(deadline.time), reminderEnabled: deadline.reminderEnabled, hasReminder: true },
     )))
 }
 
@@ -83,33 +91,31 @@ async function insolvencyEvents(calendar) {
       `${text(insolvency.partnerName) || 'Insolvenzfall'} · ${text(deadline.note) || 'Termin / Frist'}`,
       deadline.date,
       insolvencyCasePath(insolvency.id),
-      text(insolvency.courtReference),
+      deadlineDescription(text(insolvency.courtReference), deadline),
+      { time: text(deadline.time), reminderEnabled: deadline.reminderEnabled, hasReminder: true },
     )))
   return [...insolvencyDateEvents, ...deadlineEvents]
 }
 
 async function legalDisputeEvents(calendar) {
   const legalDisputes = await listLegalDisputes()
-  return legalDisputes.flatMap((legalDispute) => {
+  const deadlineLists = await Promise.all(legalDisputes.map(async (legalDispute) => ({
+    legalDispute,
+    deadlines: await listLegalDisputeDeadlines(legalDispute.id),
+  })))
+  return deadlineLists.flatMap(({ legalDispute, deadlines }) => {
     const title = text(legalDispute.caseNumber) || text(legalDispute.title) || 'Gericht / Streit'
     const targetPath = `/legal-disputes/${legalDispute.id}`
     const events = []
-    if (validDate(legalDispute.nextDeadline)) events.push(systemEvent(
+    deadlines.filter((deadline) => validDate(deadline.date)).forEach((deadline) => events.push(systemEvent(
       calendar,
-      `legal-dispute:${legalDispute.id}:deadline`,
-      `${title} · ${text(legalDispute.nextDeadlineLabel) || 'Frist'}`,
-      legalDispute.nextDeadline,
+      `legal-dispute:${legalDispute.id}:deadline:${deadline.id}`,
+      `${title} · ${deadline.type === 'appointment' ? 'Termin' : 'Frist'}${text(deadline.note) ? ` · ${text(deadline.note)}` : ''}`,
+      deadline.date,
       targetPath,
-      text(legalDispute.title),
-    ))
-    if (validDate(legalDispute.nextHearing)) events.push(systemEvent(
-      calendar,
-      `legal-dispute:${legalDispute.id}:hearing`,
-      `${title} · Termin`,
-      legalDispute.nextHearing,
-      targetPath,
-      text(legalDispute.title),
-    ))
+      deadlineDescription(text(legalDispute.title), deadline),
+      { time: text(deadline.time), reminderEnabled: deadline.reminderEnabled, hasReminder: true },
+    )))
     return events
   })
 }
@@ -123,7 +129,11 @@ async function inkassoEvents(calendar) {
     ['paymentOrderDate', 'Mahnbescheid'],
     ['enforcementOrderDate', 'Vollstreckungsbescheid'],
   ]
-  return cases.flatMap((inkassoCase) => dateFields
+  const deadlineLists = await Promise.all(cases.map(async (inkassoCase) => ({
+    inkassoCase,
+    deadlines: await listInkassoCaseDeadlines(inkassoCase.id),
+  })))
+  const fieldEvents = cases.flatMap((inkassoCase) => dateFields
     .filter(([field]) => validDate(inkassoCase[field]))
     .map(([field, label]) => systemEvent(
       calendar,
@@ -133,6 +143,18 @@ async function inkassoEvents(calendar) {
       `/inkasso/${inkassoCase.id}`,
       text(inkassoCase.title) || text(inkassoCase.debtorName),
     )))
+  const deadlineEvents = deadlineLists.flatMap(({ inkassoCase, deadlines }) => deadlines
+    .filter((deadline) => validDate(deadline.date))
+    .map((deadline) => systemEvent(
+      calendar,
+      `inkasso:${inkassoCase.id}:deadline:${deadline.id}`,
+      `${text(inkassoCase.caseNumber) || text(inkassoCase.debtorName) || 'Inkassofall'} · ${text(deadline.note) || 'Termin / Frist'}`,
+      deadline.date,
+      `/inkasso/${inkassoCase.id}`,
+      deadlineDescription(text(inkassoCase.title) || text(inkassoCase.debtorName), deadline),
+      { time: text(deadline.time), reminderEnabled: deadline.reminderEnabled, hasReminder: true },
+    )))
+  return [...fieldEvents, ...deadlineEvents]
 }
 
 export async function listSystemCalendarEvents(calendars) {
