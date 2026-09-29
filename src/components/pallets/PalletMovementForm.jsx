@@ -1,7 +1,7 @@
 import { formatPalletNumber } from './palletFormatters.js'
 import { PALLET_TYPES } from '../../constants/pallets.js'
 
-export default function PalletMovementForm({ carriers, customers, editingMovement, formError, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onDelete, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
+export default function PalletMovementForm({ carriers, customers, editingMovement, formError, historicalCarrier, historicalCustomer, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onDelete, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
   return <form className="pallet-entry-form pallet-movement-form" onSubmit={onSubmit}>
     <div className="pallet-entry-form__header"><h3>{editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'}</h3></div>
     <div className="pallet-movement-reference-grid">
@@ -11,9 +11,9 @@ export default function PalletMovementForm({ carriers, customers, editingMovemen
       <label className="form-field"><span>Palettenart</span><select value={movementForm.palletType} onChange={(event) => onChange('palletType', event.target.value)}>{PALLET_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
     </div>
     <section className="pallet-movement-partner-grid">
-      <label className="form-field pallet-movement-partner"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => onChange('customerId', event.target.value)}><option value="">Kunde auswählen</option>{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · {item.debtorNumber ? `Debitor ${item.debtorNumber}` : 'ohne Debitorennummer'}</option>)}</select></label>
+      <label className="form-field pallet-movement-partner"><span>Kunde</span><select value={movementForm.customerId} onChange={(event) => onChange('customerId', event.target.value)}><option value="">Kunde auswählen</option>{historicalCustomer && <option value={historicalCustomer.id}>{historicalCustomer.label}</option>}{customers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · {item.debtorNumber ? `Debitor ${item.debtorNumber}` : 'ohne Debitorennummer'}</option>)}</select></label>
       <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCustomer ? `${formatPalletNumber(movementCalculation.customerBalance, true)} Paletten` : '0 Paletten'}</strong></output>
-      <label className="form-field pallet-movement-partner"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => onChange('carrierId', event.target.value)}><option value="">Unternehmer auswählen</option>{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · {item.creditorNumber ? `Kreditor ${item.creditorNumber}` : 'ohne Kreditorennummer'}</option>)}</select></label>
+      <label className="form-field pallet-movement-partner"><span>Unternehmer</span><select value={movementForm.carrierId} onChange={(event) => onChange('carrierId', event.target.value)}><option value="">Unternehmer auswählen</option>{historicalCarrier && <option value={historicalCarrier.id}>{historicalCarrier.label}</option>}{carriers.map((item) => <option key={item.id} value={item.id}>{item.companyName} · {item.creditorNumber ? `Kreditor ${item.creditorNumber}` : 'ohne Kreditorennummer'}</option>)}</select></label>
       <output className="pallet-movement-change"><span>Palettenveränderung</span><strong>{selectedCarrier ? `${formatPalletNumber(movementCalculation.carrierBalance, true)} Paletten` : '0 Paletten'}</strong></output>
     </section>
     <section className="pallet-movement-matrix">

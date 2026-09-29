@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
 import BusinessPartnerHeader from '../components/business-partners/BusinessPartnerHeader.jsx'
@@ -9,7 +9,7 @@ import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, 
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { listCurrentCrmRatings } from '../lib/crmRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
-import { listPalletClosings, listPalletMovements, summarizePalletAccount } from '../lib/palletAccounts.js'
+import { loadPalletAccount } from '../lib/palletAccounts.js'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getMissingCreditorNumberNotice } from '../lib/importedPartnerStatus.js'
@@ -44,8 +44,7 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [isSubmitting, setSubmitting] = useState(false)
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [crmRatings, setCrmRatings] = useState({})
-  const [palletMovements, setPalletMovements] = useState(null)
-  const [palletClosings, setPalletClosings] = useState(null)
+  const [palletAccount, setPalletAccount] = useState(null)
   const [mergeMenuOpen, setMergeMenuOpen] = useState(false)
   const [mergeDirection, setMergeDirection] = useState('')
   const [partnerFormVersion, setPartnerFormVersion] = useState(0)
@@ -71,12 +70,17 @@ export default function BusinessPartnerFormPage({ mode }) {
     return () => { active = false }
   }, [mode, partnerId])
 
+  async function refreshPalletAccount() {
+    const result = await loadPalletAccount(partnerId)
+    setPalletAccount(result?.account || null)
+  }
+
   useEffect(() => {
     if (mode !== 'existing') return
     let isCurrent = true
-    Promise.all([listPalletMovements(partnerId), listPalletClosings(partnerId)])
-      .then(([movements, closings]) => { if (isCurrent) { setPalletMovements(movements); setPalletClosings(closings) } })
-      .catch(() => { if (isCurrent) { setPalletMovements([]); setPalletClosings([]) } })
+    loadPalletAccount(partnerId)
+      .then((result) => { if (isCurrent) setPalletAccount(result?.account || null) })
+      .catch(() => { if (isCurrent) setPalletAccount(null) })
     return () => { isCurrent = false }
   }, [mode, partnerId])
 
@@ -126,6 +130,7 @@ export default function BusinessPartnerFormPage({ mode }) {
       const refreshed = await getBusinessPartner(partnerId)
       setPartner(refreshed)
       setCurrentValues(refreshed)
+      await refreshPalletAccount()
       setPartnerFormVersion((value) => value + 1)
     } catch { setError('Die Zusammenführung war erfolgreich. Bitte die Stammdatenseite neu laden.') }
   }
@@ -135,12 +140,11 @@ export default function BusinessPartnerFormPage({ mode }) {
       const refreshed = await getBusinessPartner(partnerId)
       setPartner(refreshed)
       setCurrentValues(refreshed)
+      await refreshPalletAccount()
       setPartnerFormVersion((value) => value + 1)
       setToast(result.warnings?.length ? 'Zusammenführung getrennt. Einige später geänderte Werte benötigen manuelle Prüfung.' : 'Zusammenführung sicher getrennt.')
     } catch { setToast('Zusammenführung getrennt. Bitte das Stammdatenblatt neu laden.') }
   }
-
-  const palletAccount = useMemo(() => (palletMovements && palletClosings ? summarizePalletAccount(palletMovements, palletClosings, partnerId) : null), [palletClosings, palletMovements, partnerId])
 
   if (loading) return <p className="page-state">Stammdaten werden geladen …</p>
   if (error && !partner) return <section className="page-state page-state--error"><p>{error}</p><BackLink to="/kunden-unternehmer" /></section>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createPalletMovementForm, createPalletMovementFormFromEntry } from './palletFormState.js'
+import { createPalletMovementForm, createPalletMovementFormFromEntry, palletPartnerOption } from './palletFormState.js'
 
 test('pallet movement forms keep the internal ID for customers and carriers, regardless of DyCoS numbers', () => {
   const customer = { id: 'customer-10007', debtorNumber: '10007' }
@@ -25,4 +25,13 @@ test('aliases and a later creditor number never change the pallet account partne
   const existingAccountEntry = createPalletMovementFormFromEntry({ customerId: 'customer-10007', carrierId: partnerId })
   assert.equal(existingAccountEntry.customerId, 'customer-10007')
   assert.equal(existingAccountEntry.carrierId, partnerId)
+})
+
+test('a merged pallet movement keeps its original ID while showing the active partner', () => {
+  const source = { id: 'carrier-original', companyName: 'Spedition Alt', status: 'merged', mergedIntoPartnerId: 'carrier-main' }
+  const target = { id: 'carrier-main', companyName: 'Spedition Neu', status: 'active' }
+  const option = palletPartnerOption(new Map([[source.id, source], [target.id, target]]), source.id)
+
+  assert.deepEqual(option, { id: source.id, isHistorical: true, label: 'Spedition Neu · Ursprung: Spedition Alt' })
+  assert.equal(createPalletMovementFormFromEntry({ carrierId: source.id }).carrierId, source.id)
 })

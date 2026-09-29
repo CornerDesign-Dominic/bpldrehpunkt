@@ -761,6 +761,7 @@ button, a { font: inherit; }
 .pallet-account-partner-card { padding: 14px 20px; border: 1px solid var(--legacy-e0e5ea); border-radius: 8px; background: var(--legacy-fff); }
 .pallet-account-partner-card h2 { margin: 0; color: var(--legacy-293341); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); letter-spacing: -0.2px; }
 .pallet-account-partner-card__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 14px; margin-top: 7px; color: var(--legacy-6f7a87); font-size: 12px; }
+.pallet-account-partner-card__merge-note { margin: 10px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
 .pallet-account-navigation { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
 .pallet-account-navigation > :first-child { justify-self: start; }
 .pallet-account-overview-card { display: grid; grid-template-columns: minmax(210px, 0.28fr) minmax(0, 1fr); gap: 18px; padding: 13px 16px; border: 1px solid var(--legacy-e0e5ea); border-radius: 8px; background: var(--legacy-fff); }
@@ -1790,8 +1791,9 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .masterdata-upload-modal { width: min(100%, 480px); }
 .masterdata-upload-modal__dropzone { min-height: 140px; }
 .masterdata-upload-modal__dropzone--active { border-color: var(--button-background); background: var(--surface-active); }
+.masterdata-upload-modal__dropzone--selected { border-color: #67a77b; color: #35634b; background: #eaf5ed; }.masterdata-upload-modal__dropzone--selected strong { color: #28543a; }.masterdata-upload-modal__dropzone--selected:hover:not(:disabled) { border-color: #4d9164; background: #e1f1e5; }
 .masterdata-upload-modal__progress { margin: 14px 0 0; color: var(--text-secondary); font-size: 13px; }
-.transport-order-import-page__actions { display: flex; justify-content: flex-end; }
+.transport-order-import-page__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.transport-order-import-page__actions { display: flex; justify-content: flex-end; }
 .transport-order-import-history__list { display: grid; overflow: hidden; margin-top: 12px; border: 1px solid var(--border); border-radius: 7px; }
 .transport-order-import-history__row { display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(104px, auto)) 18px; align-items: center; gap: 18px; width: 100%; padding: 13px 14px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); background: var(--content-background); cursor: pointer; font: inherit; text-align: left; }
 .transport-order-import-history__row:last-child { border-bottom: 0; }.transport-order-import-history__row:hover { background: var(--surface-hover); }.transport-order-import-history__row:focus-visible { position: relative; outline: 2px solid var(--focus-ring); outline-offset: -2px; }
