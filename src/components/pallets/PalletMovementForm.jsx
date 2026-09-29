@@ -1,9 +1,10 @@
 import { formatPalletNumber } from './palletFormatters.js'
 import { PALLET_TYPES } from '../../constants/pallets.js'
 
-export default function PalletMovementForm({ carriers, customers, editingMovement, formError, historicalCarrier, historicalCustomer, isSubmitting, movementCalculation, movementForm, onCancel, onChange, onDelete, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
-  return <form className="pallet-entry-form pallet-movement-form" onSubmit={onSubmit}>
-    <div className="pallet-entry-form__header"><h3>{editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'}</h3></div>
+export default function PalletMovementForm({ carriers, customers, editingMovement, formError, historicalCarrier, historicalCustomer, isSubmitting, modal = false, movementCalculation, movementForm, onCancel, onChange, onDelete, onStationChange, onSubmit, selectedCarrier, selectedCustomer }) {
+  const title = editingMovement ? 'Palettenbewegung bearbeiten' : 'Bewegung hinzufügen'
+  return <form className={`pallet-entry-form pallet-movement-form${modal ? ' pallet-movement-form--modal' : ''}`} onSubmit={onSubmit}>
+    <div className="pallet-entry-form__header">{modal ? <h2 id="pallet-movement-modal-title">{title}</h2> : <h3>{title}</h3>}{modal && <button className="pallet-movement-modal__close" type="button" onClick={onCancel} disabled={isSubmitting} aria-label="Dialog schließen" title="Schließen">×</button>}</div>
     <div className="pallet-movement-reference-grid">
       <label className="form-field"><span>Tournummer / unsere Nummer</span><input value={movementForm.tourNumber} onChange={(event) => onChange('tourNumber', event.target.value)} /></label>
       <label className="form-field"><span>Datum</span><input type="date" value={movementForm.date} onChange={(event) => onChange('date', event.target.value)} /></label>
