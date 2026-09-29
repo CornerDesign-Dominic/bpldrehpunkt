@@ -64,8 +64,12 @@ function todoFields(values) {
     carrierId: optionalId(values.carrierId),
     carrierName: optionalName(values.carrierName),
     reference: optionalName(values.reference || links[0]?.number),
-    transportOrderId: optionalId(links[0]?.id),
-    transportOrderNumber: optionalName(links[0]?.number),
+    // Die Mehrfachverknüpfung ist das führende Datenmodell. Die beiden
+    // Einzelfelder bleiben ausschließlich für alte To-dos lesbar und werden
+    // bei jeder neuen Speicherung geleert. Dadurch kann eine Verknüpfung
+    // nicht an einer veralteten Einzel-Referenz scheitern.
+    transportOrderId: null,
+    transportOrderNumber: null,
     transportOrderLinks: links,
     damageCaseId: optionalId(values.damageCaseId),
     insolvencyId: optionalId(values.insolvencyId),
