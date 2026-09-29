@@ -13,6 +13,8 @@ import CrmPage from './pages/CrmPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
 import PalletAccountDetailPage from './pages/PalletAccountDetailPage.jsx'
 import PalletsPage from './pages/PalletsPage.jsx'
+import PalletCasesPage from './pages/PalletCasesPage.jsx'
+import PalletCaseDetailPage from './pages/PalletCaseDetailPage.jsx'
 import TodosPage from './pages/TodosPage.jsx'
 import NotesPage from './pages/NotesPage.jsx'
 import TodoDetailPage from './pages/TodoDetailPage.jsx'
@@ -93,6 +95,8 @@ export default function App() {
         <Route path="/crm" element={<PermissionRoute module="crm"><CrmPage /></PermissionRoute>} />
         <Route path="/crm/:partnerId" element={<PermissionRoute module="crm"><CrmDetailPage /></PermissionRoute>} />
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
+        <Route path="/paletten/faelle" element={<PermissionRoute module="pallets"><PalletCasesPage /></PermissionRoute>} />
+        <Route path="/paletten/faelle/:palletCaseId" element={<PermissionRoute module="pallets"><PalletCaseDetailPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
         <Route path="/updates" element={<UpdatesPage />} />

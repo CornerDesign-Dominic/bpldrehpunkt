@@ -11,6 +11,20 @@
 .pallet-transport-link { color: var(--button-background); font-weight: 700; text-decoration: none; }
 .pallet-transport-link:hover { color: var(--text-primary); text-decoration: underline; }
 .pallet-transport-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
+.pallets-toolbar__actions { display: flex; align-items: center; gap: 8px; }
+.pallet-case-page, .pallet-case-detail { display: grid; gap: 14px; }
+.pallet-case-page__header, .pallet-case-detail__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--content-background); }
+.pallet-case-page__header h2, .pallet-case-detail__header h2 { margin: 10px 0 0; color: var(--text-primary); font-size: 20px; }
+.pallet-case-detail__header span, .pallet-case-detail__header p { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; font-weight: 700; }
+.pallet-case-detail__grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .7fr); gap: 14px; align-items: start; }
+.pallet-case-detail__grid .detail-section { margin: 0; }
+.pallet-case-detail__grid .detail-section p { margin: 0; white-space: pre-wrap; }
+.pallet-case-modal { width: min(100%, 620px); }
+.pallet-case-form { display: grid; gap: 13px; padding: 16px; }
+.pallet-case-form .pallet-entry-form__header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.pallet-case-form .pallet-entry-form__header h2 { margin: 0; color: var(--text-primary); font-size: 17px; }
+.pallet-case-form textarea { width: 100%; box-sizing: border-box; resize: vertical; padding: 8px; border: 1px solid var(--input-border); border-radius: 5px; color: var(--text-primary); background: var(--input-background); font: inherit; }
+@media (max-width: 720px) { .pallets-toolbar__actions { width: 100%; justify-content: space-between; } .pallet-case-page__header, .pallet-case-detail__header { align-items: stretch; flex-direction: column; } .pallet-case-detail__grid { grid-template-columns: 1fr; } }
 
 .pallet-movement-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--app-background) 62%, transparent); backdrop-filter: blur(2px); }
 .pallet-movement-modal { width: min(100%, 1040px); max-height: min(90vh, 760px); overflow: auto; border: 1px solid var(--border); border-radius: 9px; background: var(--content-background); box-shadow: 0 18px 52px var(--shadow); }

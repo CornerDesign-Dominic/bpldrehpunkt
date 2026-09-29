@@ -4,12 +4,14 @@ import { CASE_TRANSPORT_CASE_TYPES, listCaseLinksForTransportOrder, transportOrd
 
 const ACTIONS = Object.freeze({
   damage: { open: 'Zum Schaden', create: 'Schadenfall eröffnen', add: '+ Weiteren Schadenfall hinzufügen' },
+  pallet: { open: 'Zum Palettenfall', create: 'Palettenfall eröffnen', add: '+ Weiteren Palettenfall hinzufügen' },
   inkasso: { open: 'Zum Inkasso', create: 'Inkassofall eröffnen', add: '+ Weiteren Inkassofall hinzufügen' },
   legalDispute: { open: 'Zum Gericht-/Streitfall', create: 'Gericht-/Streitfall eröffnen', add: '+ Weiteren Gericht-/Streitfall hinzufügen' },
 })
 
 const STATUS_LABELS = Object.freeze({
   damage: { documents_missing: 'Unterlagen fehlen', in_progress: 'In Bearbeitung', rejected: 'Abgelehnt', settled: 'Reguliert', economically_closed: 'Wirtschaftlich geschlossen' },
+  pallet: { open: 'Offen', in_progress: 'In Bearbeitung', resolved: 'Geklärt', closed: 'Geschlossen' },
   inkasso: { open: 'Offen', in_progress: 'In Bearbeitung', settled: 'Erledigt', closed: 'Geschlossen' },
   legalDispute: { open: 'Offen', in_progress: 'In Bearbeitung', closed: 'Geschlossen', settled: 'Erledigt' },
 })
@@ -17,6 +19,8 @@ const STATUS_LABELS = Object.freeze({
 function caseDescription(caseType, caseItem = {}) {
   const values = caseType === 'damage'
     ? [caseItem.title, caseItem.claimant, caseItem.contractor]
+    : caseType === 'pallet'
+      ? [caseItem.title, caseItem.description]
     : caseType === 'inkasso'
       ? [caseItem.debtorName, caseItem.title]
       : [caseItem.title, caseItem.counterparty]

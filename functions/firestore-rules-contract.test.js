@@ -30,9 +30,9 @@ test('case editors may delete the four non-live case root documents', () => {
   assert.match(inkassoRules, /allow delete: if edit\('inkasso'\);/)
 })
 
-test('TA case links allow only damage, inkasso, and legal-dispute cases with their module permissions', () => {
+test('TA case links allow only approved case types with their module permissions', () => {
   const linkRules = rules.match(/function caseTransportLinkCaseVisible\(data\) \{[\s\S]*?match \/caseTransportOrderLinks\/\{linkId\} \{[\s\S]*?\n {4}\}/)?.[0] || ''
-  assert.match(linkRules, /data\.caseType in \['damage', 'inkasso', 'legalDispute'\]/)
+  assert.match(linkRules, /data\.caseType in \['damage', 'pallet', 'inkasso', 'legalDispute'\]/)
   assert.match(linkRules, /view\('transportOrders'\) && caseTransportLinkCaseVisible\(resource\.data\)/)
   assert.match(linkRules, /caseTransportLinkCaseEditable\(request\.resource\.data\)/)
   assert.doesNotMatch(linkRules, /insolvency|insolvencies/i)

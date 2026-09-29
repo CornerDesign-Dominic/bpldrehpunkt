@@ -271,23 +271,26 @@ service cloud.firestore {
     // documents. Reads require access to both sides of the relation.
     function caseTransportLinkCaseVisible(data) {
       return (data.caseType == 'damage' && view('damages'))
+        || (data.caseType == 'pallet' && view('pallets'))
         || (data.caseType == 'inkasso' && view('inkasso'))
         || (data.caseType == 'legalDispute' && view('legalDisputes'));
     }
     function caseTransportLinkCaseEditable(data) {
       return (data.caseType == 'damage' && edit('damages'))
+        || (data.caseType == 'pallet' && edit('pallets'))
         || (data.caseType == 'inkasso' && edit('inkasso'))
         || (data.caseType == 'legalDispute' && edit('legalDisputes'));
     }
     function caseTransportLinkCaseExists(data) {
       return (data.caseType == 'damage' && existsAfter(/databases/$(database)/documents/damageCases/$(data.caseId)))
+        || (data.caseType == 'pallet' && existsAfter(/databases/$(database)/documents/palletCases/$(data.caseId)))
         || (data.caseType == 'inkasso' && existsAfter(/databases/$(database)/documents/inkassoCases/$(data.caseId)))
         || (data.caseType == 'legalDispute' && existsAfter(/databases/$(database)/documents/legalDisputes/$(data.caseId)));
     }
     function validCaseTransportLink(data, linkId) {
       return data.keys().hasAll(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
         && data.keys().hasOnly(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
-        && data.caseType in ['damage', 'inkasso', 'legalDispute']
+          && data.caseType in ['damage', 'pallet', 'inkasso', 'legalDispute']
         && data.caseId is string && data.caseId.size() > 0 && data.caseId.size() <= 240 && !data.caseId.matches('.*[/|].*')
         && data.transportOrderId is string && data.transportOrderId.size() > 0 && data.transportOrderId.size() <= 240 && !data.transportOrderId.matches('.*[/|].*')
         && linkId == data.caseType + '|' + data.caseId + '|' + data.transportOrderId
@@ -496,6 +499,29 @@ service cloud.firestore {
 
     match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
     match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
+    function validPalletCase(data) {
+      return data.keys().hasAll(['caseNumber', 'title', 'description', 'status', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['caseNumber', 'title', 'description', 'status', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.caseNumber is string && data.caseNumber.matches('^P-[0-9]{4}-[A-Z0-9]{6}$')
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 240
+        && (data.description == null || (data.description is string && data.description.size() <= 4000))
+        && data.status in ['open', 'in_progress', 'resolved', 'closed'];
+    }
+    match /palletCases/{id} {
+      allow read: if view('pallets');
+      allow create: if edit('pallets') && validPalletCase(request.resource.data)
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      allow update: if edit('pallets') && validPalletCase(request.resource.data)
+        && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'status', 'updatedAt', 'updatedBy', 'updatedByName']);
+      allow delete: if edit('pallets');
+      match /updates/{updateId} { allow read: if view('pallets'); allow write: if false; }
+    }
     match /newsItems/{id} {
       allow read: if view('news');
       allow create, update, delete: if edit('news');

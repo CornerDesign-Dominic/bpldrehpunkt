@@ -1,5 +1,6 @@
 export const CASE_TRANSPORT_CASE_TYPES = Object.freeze({
   damage: { module: 'damages', collection: 'damageCases', label: 'Schaden', route: '/schaeden' },
+  pallet: { module: 'pallets', collection: 'palletCases', label: 'Palettenfall', route: '/paletten/faelle' },
   inkasso: { module: 'inkasso', collection: 'inkassoCases', label: 'Inkasso', route: '/inkasso' },
   legalDispute: { module: 'legalDisputes', collection: 'legalDisputes', label: 'Gericht / Streit', route: '/legal-disputes' },
 })
@@ -132,6 +133,10 @@ export function caseCreationDefaults(caseType, prefill) {
     description: context.reference ? `TA ${context.transportReference} · Referenz ${context.reference}` : '',
     claimantPartnerId: context.customer?.id || '', claimant: context.customer?.name || '',
     contractorPartnerId: context.carrier?.id || '', contractor: context.carrier?.name || '',
+  }
+  if (caseType === 'pallet') return {
+    title: context.transportReference ? `Palettenfall zu TA ${context.transportReference}` : '',
+    description: context.reference ? `Referenz: ${context.reference}` : '',
   }
   if (caseType === 'inkasso') return {
     debtorPartnerId: preferredDebtor.id || '', debtorPartnerRole: preferredDebtor.role || '', debtorName: preferredDebtor.name || '', debtorNumber: preferredDebtor.number || '',
