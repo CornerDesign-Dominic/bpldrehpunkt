@@ -3,10 +3,10 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
 import { canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../../lib/permissions.js'
-import { CalendarIcon, ChevronDownIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, ShieldIcon, SignOutIcon, StarIcon, TemplatesIcon, TodoIcon, TruckTrailerIcon, UsersIcon, VacationIcon } from '../icons.jsx'
+import { CalendarIcon, ChevronDownIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, SettingsIcon, ShieldIcon, ShieldOutlineIcon, SignOutIcon, StarIcon, TemplatesIcon, TodoIcon, TruckTrailerIcon, UserPlusIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { SIDEBAR_BADGE_DEFINITIONS } from '../../lib/sidebarBadges.js'
-import { readSidebarExpandedGroups, readSidebarFavorites, saveSidebarExpandedGroups, saveSidebarFavorites } from '../../lib/sidebarPreferences.js'
+import { readSidebarExpandedGroups, readSidebarFavorites, readSidebarFavoritesExpanded, saveSidebarExpandedGroups, saveSidebarFavorites, saveSidebarFavoritesExpanded } from '../../lib/sidebarPreferences.js'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
@@ -39,15 +39,15 @@ const navigationItems = [
 ]
 
 const navigationGroups = [
-  { key: 'general', label: 'Allgemein' },
-  { key: 'people', label: 'Team' },
-  { key: 'humanResources', label: 'Personalwesen' },
-  { key: 'operations', label: 'Disposition' },
-  { key: 'partnerSales', label: 'Partner & Vertrieb' },
-  { key: 'cases', label: 'Fallmanagement' },
-  { key: 'documents', label: 'Dokumente & Werkzeuge' },
-  { key: 'more', label: 'Weiteres' },
-  { key: 'administration', label: 'Administration' },
+  { key: 'general', label: 'Allgemein', icon: DashboardIcon },
+  { key: 'people', label: 'Team', icon: UsersIcon },
+  { key: 'humanResources', label: 'Personalwesen', icon: VacationIcon },
+  { key: 'operations', label: 'Disposition', icon: TruckTrailerIcon },
+  { key: 'partnerSales', label: 'Partner & Vertrieb', icon: UserPlusIcon },
+  { key: 'cases', label: 'Fallmanagement', icon: ShieldOutlineIcon },
+  { key: 'documents', label: 'Dokumente & Werkzeuge', icon: DocumentsIcon },
+  { key: 'more', label: 'Weiteres', icon: NewsIcon },
+  { key: 'administration', label: 'System', icon: SettingsIcon },
 ]
 
 function itemIsActive(item, pathname) {
@@ -62,7 +62,7 @@ function NavigationItem({ item, badgeCounts, collapsed, favorite, onToggleFavori
 
   return <div className="nav-item-row">
     <NavLink to={to} end={to === '/admin'} className={({ isActive }) => `nav-item ${isActive && !suppressActive ? 'nav-item--active' : ''}`} title={collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
-      <Icon />
+      {collapsed && <Icon />}
       {!collapsed && <><span className="nav-item__label">{label}</span>{count > 0 && <span className={`nav-item__badge nav-item__badge--${variant}`}>{count > 9 ? '9+' : count}</span>}</>}
     </NavLink>
     {showFavoriteControl && !collapsed && <button className={`nav-item-favorite${favorite ? ' nav-item-favorite--active' : ''}`} type="button" aria-label={favorite ? `${label} aus Favoriten entfernen` : `${label} zu Favoriten hinzufügen`} aria-pressed={favorite} title={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggleFavorite(item.id) }}><StarIcon filled={favorite} /></button>}
@@ -78,16 +78,17 @@ export default function Sidebar({ collapsed, onToggle }) {
   const visibleItems = navigationItems.map((item) => ({ ...item, id: item.to })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module))
   const visibleItemIds = visibleItems.map((item) => item.id)
   const groupIds = navigationGroups.map((group) => group.key)
-  const [favoriteIds, setFavoriteIds] = useState(() => readSidebarFavorites(user?.uid, visibleItemIds))
-  const [expandedGroupIds, setExpandedGroupIds] = useState(() => readSidebarExpandedGroups(user?.uid, groupIds))
-  const [activeFavoriteItemId, setActiveFavoriteItemId] = useState(null)
   const activeGroupIds = [...new Set(visibleItems.filter((item) => itemIsActive(item, location.pathname)).map((item) => item.group))]
+  const activeGroupId = activeGroupIds[0] || null
+  const [favoriteIds, setFavoriteIds] = useState(() => readSidebarFavorites(user?.uid, visibleItemIds))
+  const [expandedSection, setExpandedSection] = useState(() => {
+    const saved = readSidebarExpandedGroups(user?.uid, groupIds).slice(-1)
+    if (readSidebarFavoritesExpanded(user?.uid)) return 'favorites'
+    return saved[0] || activeGroupId || null
+  })
+  const [activeFavoriteItemId, setActiveFavoriteItemId] = useState(null)
   const activeFavoriteItem = visibleItems.find((item) => item.id === activeFavoriteItemId)
   const isFavoriteSelectionActive = activeFavoriteItem && itemIsActive(activeFavoriteItem, location.pathname)
-  const activeGroupIdsWithoutFavorite = isFavoriteSelectionActive
-    ? activeGroupIds.filter((groupId) => groupId !== activeFavoriteItem.group)
-    : activeGroupIds
-  const additionalExpandedGroupId = [...expandedGroupIds].reverse().find((groupId) => !activeGroupIdsWithoutFavorite.includes(groupId)) || null
   const visibleBadgeKeys = [...new Set(visibleItems.map((item) => item.badge).filter(Boolean))].sort().join(',')
   const profileName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || profile?.name || getUserDisplayName(profile, user)
   const initials = profileName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?'
@@ -135,27 +136,29 @@ export default function Sidebar({ collapsed, onToggle }) {
     })
   }
 
+  function selectSection(sectionId) {
+    setExpandedSection(sectionId)
+    saveSidebarFavoritesExpanded(user?.uid, sectionId === 'favorites')
+    saveSidebarExpandedGroups(user?.uid, sectionId && sectionId !== 'favorites' ? [sectionId] : [])
+  }
+
   function toggleGroup(groupId) {
-    if (activeGroupIdsWithoutFavorite.includes(groupId)) return
-    setExpandedGroupIds((current) => {
-      const currentAdditionalGroupId = [...current].reverse().find((id) => !activeGroupIdsWithoutFavorite.includes(id)) || null
-      // Besides the active module's group, exactly one group can be opened
-      // for choosing the next destination.
-      const next = currentAdditionalGroupId === groupId ? [] : [groupId]
-      saveSidebarExpandedGroups(user?.uid, next)
-      return next
-    })
+    selectSection(expandedSection === groupId ? null : groupId)
+  }
+
+  function openGroup(groupId) {
+    selectSection(groupId)
+  }
+
+  function toggleFavorites() {
+    selectSection(expandedSection === 'favorites' ? null : 'favorites')
   }
 
   const favoriteItems = favoriteIds.map((id) => visibleItems.find((item) => item.id === id)).filter(Boolean)
 
   function selectFavorite(item) {
     setActiveFavoriteItemId(item.id)
-    setExpandedGroupIds((current) => {
-      const next = current.filter((groupId) => groupId !== item.group)
-      saveSidebarExpandedGroups(user?.uid, next)
-      return next
-    })
+    selectSection('favorites')
   }
 
   return (
@@ -171,21 +174,22 @@ export default function Sidebar({ collapsed, onToggle }) {
       </NavLink>
 
       <nav className="sidebar__nav" aria-label="Hauptnavigation">
-        {!collapsed && favoriteItems.length > 0 && <section className="sidebar__nav-group sidebar__favorites" aria-labelledby="sidebar-favorites-heading">
-          <span className="sidebar__nav-group-label" id="sidebar-favorites-heading"><StarIcon size={12} /> Favoriten</span>
-          <div className="sidebar__nav-group-items"><div className="sidebar__nav-group-items-inner">
+        {!collapsed && favoriteItems.length > 0 && <section className={`sidebar__nav-group sidebar__favorites${expandedSection === 'favorites' ? ' sidebar__nav-group--expanded' : ''}`}>
+          <button className="sidebar__nav-group-toggle" type="button" aria-expanded={expandedSection === 'favorites'} aria-controls="sidebar-group-favorites" onClick={toggleFavorites}><span className="sidebar__nav-group-title"><StarIcon size={18} /><span>Favoriten</span></span><ChevronDownIcon /></button>
+          <div className={`sidebar__nav-group-items${expandedSection === 'favorites' ? '' : ' sidebar__nav-group-items--collapsed'}`} id="sidebar-group-favorites"><div className="sidebar__nav-group-items-inner">
             {favoriteItems.map((item) => <NavigationItem key={`favorite-${item.id}`} item={item} badgeCounts={badgeCounts} collapsed={collapsed} onSelect={selectFavorite} />)}
           </div></div>
         </section>}
         {navigationGroups.map((group) => {
           const groupItems = visibleItems.filter((item) => item.group === group.key)
           if (!groupItems.length) return null
-          const isActiveGroup = activeGroupIdsWithoutFavorite.includes(group.key)
-          const isExpanded = collapsed || isActiveGroup || additionalExpandedGroupId === group.key
-          return <section className="sidebar__nav-group" key={group.key}>
-            {!collapsed && <button className="sidebar__nav-group-toggle" type="button" aria-expanded={isExpanded} aria-controls={`sidebar-group-${group.key}`} onClick={() => toggleGroup(group.key)} disabled={isActiveGroup} title={isActiveGroup ? 'Der Bereich bleibt geöffnet, damit der aktive Menüpunkt sichtbar ist.' : undefined}><span>{group.label}</span><ChevronDownIcon /></button>}
+          const isActiveGroup = activeGroupId === group.key
+          const isExpanded = collapsed || expandedSection === group.key
+          const GroupIcon = group.icon
+          return <section className={`sidebar__nav-group${isExpanded ? ' sidebar__nav-group--expanded' : ''}${isActiveGroup ? ' sidebar__nav-group--current' : ''}`} key={group.key}>
+            {!collapsed && <button className="sidebar__nav-group-toggle" type="button" aria-expanded={isExpanded} aria-controls={`sidebar-group-${group.key}`} onClick={() => toggleGroup(group.key)}><span className="sidebar__nav-group-title"><GroupIcon size={18} /><span>{group.label}</span></span><ChevronDownIcon /></button>}
             <div className={`sidebar__nav-group-items${isExpanded ? '' : ' sidebar__nav-group-items--collapsed'}`} id={`sidebar-group-${group.key}`}><div className="sidebar__nav-group-items-inner">
-              {groupItems.map((item) => <NavigationItem key={item.id} item={item} badgeCounts={badgeCounts} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => setActiveFavoriteItemId(null)} />)}
+              {groupItems.map((item) => <NavigationItem key={item.id} item={item} badgeCounts={badgeCounts} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
             </div></div>
           </section>
         })}

@@ -30,6 +30,10 @@ export function UsersIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
 }
 
+export function UserPlusIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="7" r="4" /><path d="M2 21a7 7 0 0 1 14 0" /><path d="M19 8v6m-3-3h6" /></svg>
+}
+
 export function CrmIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M8 5V3m8 2V3M3 10h18" /><path d="M8 14h3m2 0h3" /></svg>
 }
@@ -92,6 +96,14 @@ export function ShieldIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3 20 6v5c0 5.1-3.2 8.4-8 10-4.8-1.6-8-4.9-8-10V6l8-3Z" /><path d="M9 12h6m-3-3v6" /></svg>
 }
 
+export function ShieldOutlineIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M12 3 20 6v5c0 5.1-3.2 8.4-8 10-4.8-1.6-8-4.9-8-10V6l8-3Z" /></svg>
+}
+
+export function SettingsIcon({ size = 20 }) {
+  return <FaGear size={size} aria-hidden="true" focusable="false" />
+}
+
 export function VacationIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18" /><path d="M8 14h3m2 0h3m-8 3h3" /></svg>
 }
@@ -140,7 +152,7 @@ export function EyeOffIcon({ size = 17 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a17 17 0 0 1-2.5 3.1M6.5 6.5A17.2 17.2 0 0 0 2.5 12s3.5 6 9.5 6a10.7 10.7 0 0 0 3.2-.5" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></svg>
 }
 // Font Awesome Free (CC BY 4.0), provided through react-icons.
-import { FaFileInvoiceDollar, FaGavel, FaScaleBalanced, FaTruck } from 'react-icons/fa6'
+import { FaFileInvoiceDollar, FaGavel, FaGear, FaScaleBalanced, FaTruck } from 'react-icons/fa6'
 
 export function InsolvenciesIcon({ size = 20 }) {
   return <FaScaleBalanced size={size} aria-hidden="true" focusable="false" />
