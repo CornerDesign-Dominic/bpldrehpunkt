@@ -226,6 +226,7 @@ export async function sendManualShipmentTrackingMailHandler(request) {
       const delivered = await sendSystemMailTemplate({
         recipient: permittedRecipient, templateId, values: templateValues(imported, externalNumber), subject, message,
         allowDevelopment: true,
+        automatic: false,
       })
       if (!delivered) throw new HttpsError('failed-precondition', 'Der Versand ist in dieser Umgebung deaktiviert.')
       deliverySent = true

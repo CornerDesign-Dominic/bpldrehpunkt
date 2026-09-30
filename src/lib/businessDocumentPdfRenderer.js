@@ -9,7 +9,9 @@ const BODY_LINE_HEIGHT = 5.45
 const CONTENT_BOTTOM = 257
 
 function writeFooter(pdf, company) {
-  const footerTop = 263
+  // Matches the fixed bottom spacing of the browser preview. The former
+  // position left an unnecessarily large gap below the generated PDF footer.
+  const footerTop = 270
   const columns = [16, 50, 96, 141]
   pdf.setDrawColor(170)
   pdf.setLineWidth(0.2)
@@ -57,10 +59,16 @@ export function renderBusinessDocumentPdf({ JsPdf, documentData, headerImage, co
     return { width, height }
   }
 
-  function addSignatureImage(imageData, { width, height } = signatureImageDimensions(imageData)) {
-    if (y + height > CONTENT_BOTTOM) newPage()
-    pages[pageIndex].push({ type: 'image', imageData, x: PAGE.left, y, width, height })
-    y += height
+  function stampImageDimensions(imageData) {
+    let width = 40
+    let height = 20
+    try {
+      const image = layoutPdf.getImageProperties(imageData)
+      const scale = Math.min(width / image.width, height / image.height)
+      width = image.width * scale
+      height = image.height * scale
+    } catch { /* Keep bounded fallback. */ }
+    return { width, height }
   }
 
   function writeParagraph(text, { bold = false, fontSize = BODY_FONT_SIZE, lineHeight = BODY_LINE_HEIGHT, spacingAfter = 0 } = {}) {
@@ -87,22 +95,26 @@ export function renderBusinessDocumentPdf({ JsPdf, documentData, headerImage, co
   writeParagraph(documentData.subject.trim(), { bold: true, fontSize: 13, lineHeight: 5.7, spacingAfter: 10 })
   writeParagraph(documentData.content.trim(), { spacingAfter: 12 })
   const personalSignature = documentSignature(documentData)
+  const stamp = documentData.attachments?.stamp?.imageData
   if (personalSignature) {
     const signatureDimensions = signatureImageDimensions(personalSignature.imageData)
-    if (y + BODY_LINE_HEIGHT + 2.5 + signatureDimensions.height > CONTENT_BOTTOM) newPage()
+    const stampDimensions = stamp ? stampImageDimensions(stamp) : null
+    const imageHeight = Math.max(signatureDimensions.height, stampDimensions?.height || 0)
+    if (y + BODY_LINE_HEIGHT + 2.5 + imageHeight > CONTENT_BOTTOM) newPage()
     writeParagraph(personalSignature.signerName, { bold: true, spacingAfter: 2.5 })
-    addSignatureImage(personalSignature.imageData, signatureDimensions)
+    const imageY = y
+    pages[pageIndex].push({ type: 'image', imageData: personalSignature.imageData, x: PAGE.left, y: imageY, ...signatureDimensions })
+    if (stampDimensions) pages[pageIndex].push({ type: 'image', imageData: stamp, format: stamp.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', x: PAGE.left + signatureDimensions.width + 9, y: imageY, ...stampDimensions })
+    y += imageHeight
   } else {
     writeParagraph(company.legalName, { bold: true })
-  }
-  const stamp = documentData.attachments?.stamp?.imageData
-  if (stamp) {
-    let width = 40; let height = 20
-    try { const image = layoutPdf.getImageProperties(stamp); const scale = Math.min(width / image.width, height / image.height); width = image.width * scale; height = image.height * scale } catch { /* Keep bounded fallback. */ }
-    y += 3
-    if (y + height > CONTENT_BOTTOM) newPage()
-    pages[pageIndex].push({ type: 'image', imageData: stamp, format: stamp.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', x: PAGE.left, y, width, height })
-    y += height
+    if (stamp) {
+      const stampDimensions = stampImageDimensions(stamp)
+      y += 3
+      if (y + stampDimensions.height > CONTENT_BOTTOM) newPage()
+      pages[pageIndex].push({ type: 'image', imageData: stamp, format: stamp.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG', x: PAGE.left, y, ...stampDimensions })
+      y += stampDimensions.height
+    }
   }
 
   for (let index = 1; index < pages.length; index += 1) pdf.addPage('a4', 'portrait')

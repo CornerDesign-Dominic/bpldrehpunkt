@@ -136,6 +136,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The automatic-mail emergency switch is visible only to the people who
+    // may operate it. Updates are exclusively validated by a superadmin
+    // callable function.
+    match /systemSettings/automaticMailDelivery {
+      allow read: if superadmin();
+      allow write: if false;
+    }
+
     // The client only reads the server-maintained public holiday projection.
     // Nager.Date access and every write remain exclusively in Cloud Functions.
     match /publicHolidays/{holidayId} {

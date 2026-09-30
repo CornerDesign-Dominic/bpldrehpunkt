@@ -47,7 +47,7 @@ test('manual shipment-tracking mail is App-Check protected and only matching due
     readFile(new URL('./index.js', import.meta.url), 'utf8'),
     readFile(new URL('./shipmentTrackingManualDispatch.js', import.meta.url), 'utf8'),
   ])
-  assert.match(index, /sendManualShipmentTrackingMail = onCall\(\{ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', secrets: \[systemMailNotificationUrl\] \}, sendManualShipmentTrackingMailHandler\)/)
+  assert.match(index, /sendManualShipmentTrackingMail = onCall\(\{ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', secrets: \[shipmentTrackingMailNotificationUrl, systemMailNotificationUrl\] \}, sendManualShipmentTrackingMailHandler\)/)
   assert.match(index, /previewManualShipmentTrackingMail = onCall\(\{ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' \}, previewManualShipmentTrackingMailHandler\)/)
   assert.match(handler, /matchingDueBundle\(preview, requestedBundleId, templateId, recipient\)/)
   assert.match(handler, /dispatchContext\(db, orderId, \{ allowCompleted: true \}\)/)

@@ -1,15 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { requestPasswordReset, signInWithEmail } from '../auth/authService.js'
+import { loginErrorMessage } from '../auth/loginFeedback.js'
 import { passwordResetErrorMessage, passwordResetSuccessMessage } from '../auth/passwordResetFeedback.js'
 import { useAuth } from '../auth/useAuth.js'
-
-function getLoginErrorMessage(error) {
-  if (error?.code === 'auth/permission-denied') return 'Dieses Benutzerkonto ist nicht für den Zugriff freigegeben.'
-  if (error?.code === 'auth/too-many-requests') return 'Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.'
-  if (error?.code === 'auth/network-request-failed') return 'Die Anmeldung konnte wegen eines Netzwerkfehlers nicht abgeschlossen werden.'
-  return 'E-Mail oder Passwort sind nicht korrekt.'
-}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -36,7 +30,7 @@ export default function LoginPage() {
       await signInWithEmail(email.trim(), password)
       navigate('/dashboard', { replace: true })
     } catch (authError) {
-      setError(getLoginErrorMessage(authError))
+      setError(loginErrorMessage(authError))
     } finally {
       setIsSubmitting(false)
     }

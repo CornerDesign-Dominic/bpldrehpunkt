@@ -1,15 +1,18 @@
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions/logger'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
 import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsSkipped } from './externalEffects.js'
+import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
 export const systemMailNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
+export const shipmentTrackingMailNotificationUrl = defineSecret('POWER_AUTOMATE_TRACKING_NOTIFICATION_URL')
 const region = 'europe-west3'
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -224,13 +227,20 @@ function renderTemplate(template, values) {
   return { subject, message, messageHtml: textToHtml(message) }
 }
 
-async function sendWebhook(recipient, templateId, values, { allowDevelopment = false, templateOverride = null } = {}) {
+async function sendWebhook(recipient, templateId, values, { allowDevelopment = false, templateOverride = null, automatic = true } = {}) {
+  if (automatic && await areAutomaticMailsPaused()) {
+    logger.info('Automatische Systemmail ist global pausiert.', { templateId })
+    return false
+  }
   const manualDevelopmentDelivery = allowDevelopment && externalEffectsEnvironment() === 'development'
   if (!externalEffectsAllowed() && !manualDevelopmentDelivery) {
     logExternalEffectsSkipped('system-mail-webhook')
     return false
   }
-  const url = systemMailNotificationUrl.value()
+  // Every external shipment-tracking request, scheduled or sent explicitly
+  // by an authorized user, is sent from the dedicated status mailbox.
+  const useShipmentTrackingSender = templateId.startsWith('shipment_tracking_')
+  const url = (useShipmentTrackingSender ? shipmentTrackingMailNotificationUrl : systemMailNotificationUrl).value()
   if (!url) throw new Error('notification-service-not-configured')
   const template = templateOverride ? { ...templateDefinitions[templateId], ...templateOverride } : await loadTemplate(templateId)
   const { subject, message, messageHtml } = renderTemplate(template, values)
@@ -241,12 +251,12 @@ async function sendWebhook(recipient, templateId, values, { allowDevelopment = f
 
 /** Shared delivery primitive. Callers decide which controlled template and
  * values are permitted; this function never chooses a recipient or rule. */
-export async function sendSystemMailTemplate({ recipient, templateId, values, subject, message, allowDevelopment = false }) {
+export async function sendSystemMailTemplate({ recipient, templateId, values, subject, message, allowDevelopment = false, automatic = true }) {
   if (!emailPattern.test(recipient || '')) throw new HttpsError('invalid-argument', 'Die Empfänger-E-Mail-Adresse ist ungültig.')
   if (!Object.hasOwn(templateDefinitions, templateId)) throw new HttpsError('invalid-argument', 'Die Systemmail-Vorlage ist unbekannt.')
   const hasOverride = subject !== undefined || message !== undefined
   if (hasOverride && !validTemplate(templateId, { subject, message })) throw new HttpsError('invalid-argument', 'Betreff oder Nachricht enthalten unzulässige Platzhalter oder sind leer.')
-  return sendWebhook(recipient, templateId, values, { allowDevelopment, templateOverride: hasOverride ? { subject: cleanText(subject, 240), message: cleanText(message, 12000) } : null })
+  return sendWebhook(recipient, templateId, values, { allowDevelopment, automatic, templateOverride: hasOverride ? { subject: cleanText(subject, 240), message: cleanText(message, 12000) } : null })
 }
 
 export async function previewSystemMailTemplate({ templateId, values }) {
@@ -268,7 +278,11 @@ async function deliverVacationMail({ requestId, deliveryId, recipientId, recipie
   })
   if (!claimed) return
   try {
-    await sendWebhook(recipient, templateId, values)
+    const delivered = await sendWebhook(recipient, templateId, values)
+    if (!delivered) {
+      await deliveryRef.set({ status: 'paused', pausedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: 'automatic-mail-delivery-paused' }, { merge: true })
+      return
+    }
     await deliveryRef.set({ status: 'sent', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: FieldValue.delete() }, { merge: true })
   } catch (error) {
     await deliveryRef.set({ status: 'failed', failedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: 'delivery-failed' }, { merge: true })
@@ -374,7 +388,7 @@ export const sendSystemTestMail = onCall({ region, enforceAppCheck: true, secret
   const recipient = emailPattern.test(profile.email || '') ? profile.email.trim() : authUser.email
   if (!emailPattern.test(recipient || '')) throw new HttpsError('failed-precondition', 'Für das aktive Benutzerprofil ist keine gültige E-Mail-Adresse vorhanden.')
   try {
-    await sendWebhook(recipient, 'system_test', {})
+    await sendWebhook(recipient, 'system_test', {}, { automatic: false })
   } catch {
     throw new HttpsError('unavailable', 'Die Testmail konnte nicht versendet werden.')
   }

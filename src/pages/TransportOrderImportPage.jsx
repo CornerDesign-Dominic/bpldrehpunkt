@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import BackLink from '../components/ui/BackLink.jsx'
 import { parseTransportOrderCsv } from '../lib/transportOrderCsv.js'
 import { importTransportOrderRows, listTransportOrderImportRuns, previewTransportOrderImport } from '../lib/transportOrders.js'
+import { readCsvFile } from '../lib/csvEncoding.js'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
 const resultSections = [
@@ -61,7 +62,7 @@ export default function TransportOrderImportPage() {
     if (!file || uploading) return
     setUploading(true); setUploadDialog((current) => ({ ...current, error: '' })); setError('')
     try {
-      const parsed = parseTransportOrderCsv(await file.text())
+      const parsed = parseTransportOrderCsv(await readCsvFile(file))
       const initialRows = parsed.rows.map((row) => ({ ...row, errors: [...row.errors, ...(parsed.missingHeaders.length ? [`CSV-Struktur unvollständig: ${parsed.missingHeaders.join(', ')}.`] : [])] }))
       const locallyValidRows = initialRows.filter((row) => !row.errors.length)
       const preview = locallyValidRows.length ? await previewTransportOrderImport(locallyValidRows) : null
@@ -95,7 +96,7 @@ export default function TransportOrderImportPage() {
       <section className="customer-import-modal masterdata-upload-modal" role="dialog" aria-modal="true" aria-labelledby="transport-order-upload-title" aria-busy={uploading}>
         <div className="customer-import-modal__heading"><div><h2 id="transport-order-upload-title">Transportaufträge importieren</h2><p>DyCoS-CSV mit Semikolon oder Komma auswählen.</p></div><button type="button" aria-label="Import schließen" disabled={uploading} onClick={() => setUploadDialog(null)}>×</button></div>
         <input ref={inputRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={uploading} onChange={(event) => { chooseUploadFile(event.target.files?.[0]); event.target.value = '' }} />
-        <button className={`import-dropzone import-dropzone--button masterdata-upload-modal__dropzone${dragOver ? ' masterdata-upload-modal__dropzone--active' : ''}${uploadDialog.file ? ' masterdata-upload-modal__dropzone--selected' : ''}`} type="button" disabled={uploading} onClick={() => inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!uploading) setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); chooseUploadFile(event.dataTransfer.files?.[0]) }}><strong>{uploadDialog.file?.name || 'CSV hierher ziehen oder zur Auswahl klicken'}</strong><span>{uploadDialog.file ? 'Datei ausgewählt. Mit „Import starten“ bestätigen.' : 'UTF-8-CSV auswählen; gültige Zeilen werden direkt übernommen.'}</span></button>
+        <button className={`import-dropzone import-dropzone--button masterdata-upload-modal__dropzone${dragOver ? ' masterdata-upload-modal__dropzone--active' : ''}${uploadDialog.file ? ' masterdata-upload-modal__dropzone--selected' : ''}`} type="button" disabled={uploading} onClick={() => inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!uploading) setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); chooseUploadFile(event.dataTransfer.files?.[0]) }}><strong>{uploadDialog.file?.name || 'CSV hierher ziehen oder zur Auswahl klicken'}</strong><span>{uploadDialog.file ? 'Datei ausgewählt. Mit „Import starten“ bestätigen.' : 'CSV auswählen; UTF-8- und Windows-CSV werden unterstützt.'}</span></button>
         {uploadDialog.error && <p className="form-error" role="alert">{uploadDialog.error}</p>}{uploading && <p className="masterdata-upload-modal__progress" role="status">Datei wird geprüft und verarbeitet … Bitte warten.</p>}
         <div className="customer-import-modal__actions"><button className="button button--secondary" type="button" disabled={uploading} onClick={() => setUploadDialog(null)}>Abbrechen</button><button className="button" type="button" disabled={uploading || !uploadDialog.file} onClick={() => void startImport()}>{uploading ? 'Import läuft …' : 'Import starten'}</button></div>
       </section>

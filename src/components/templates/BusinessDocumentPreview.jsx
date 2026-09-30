@@ -17,7 +17,7 @@ export default function BusinessDocumentPreview({ documentData, paperRef }) {
     <main className="business-document__content">
       <h2>{subject || <span className="business-document__empty">Betreff</span>}</h2>
       <p className={content ? '' : 'business-document__empty'}>{content || 'Der Inhalt Ihres Geschäftsdokuments erscheint hier.'}</p>
-      <div className="document-signature-block">{personalSignature ? <><strong>{personalSignature.signerName}</strong><img src={personalSignature.imageUrl} alt={`Persönliche Unterschrift von ${personalSignature.signerName}`} /></> : <strong>{company.legalName}</strong>}{documentData.attachments?.stamp?.imageUrl && <img className="document-signature-block__stamp" src={documentData.attachments.stamp.imageUrl} alt="Firmenstempel" />}</div>
+      <div className="document-signature-block">{personalSignature ? <div className="document-signature-block__personal"><strong>{personalSignature.signerName}</strong><img src={personalSignature.imageUrl} alt={`Persönliche Unterschrift von ${personalSignature.signerName}`} /></div> : <strong>{company.legalName}</strong>}{documentData.attachments?.stamp?.imageUrl && <img className="document-signature-block__stamp" src={documentData.attachments.stamp.imageUrl} alt="Firmenstempel" />}</div>
     </main>
   </DocumentShell>
 }

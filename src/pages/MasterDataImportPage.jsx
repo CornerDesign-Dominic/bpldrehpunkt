@@ -10,6 +10,7 @@ import { customerImportResultView } from '../lib/customerImportPresentation.js'
 import { mergeComparison, mergeDecisionSummary } from '../lib/partnerMergeDecisions.js'
 import PartnerMergeReview from '../components/business-partners/PartnerMergeReview.jsx'
 import CustomerImportHistory from '../components/imports/CustomerImportHistory.jsx'
+import { readCsvFile } from '../lib/csvEncoding.js'
 
 const statusLabel = (row) => row.kind === 'error' ? 'Fehlerhaft' : row.kind === 'merge' ? 'Zusammenführung erforderlich' : 'Prüfung erforderlich'
 const approvalLabel = (row) => row.approval?.type === 'reviewed' ? 'geprüft übernommen' : 'automatisch übernommen'
@@ -82,7 +83,7 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
     setUploading(true)
     setUploadDialog((current) => ({ ...current, error: '' }))
     try {
-      const parsed = uploadApi.parse(await file.text())
+      const parsed = uploadApi.parse(await readCsvFile(file))
       const rows = parsed.rows.map((row) => ({ ...row, errors: [...row.errors, ...(parsed.missingHeaders.length ? [`CSV-Struktur unvollständig: ${parsed.missingHeaders.join(', ')}.`] : [])] }))
       const result = await uploadApi.process({ fileName: file.name, rows })
       setUploadDialog(null)
@@ -171,7 +172,7 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
       <section className="customer-import-modal masterdata-upload-modal" role="dialog" aria-modal="true" aria-labelledby="masterdata-upload-title" aria-busy={uploading} onKeyDown={(event) => { if (event.key === 'Escape' && !uploading) setUploadDialog(null) }}>
         <div className="customer-import-modal__heading"><div><h2 id="masterdata-upload-title">{uploadDialog.kind === 'carrier' ? 'UTN Daten importieren' : 'KU Daten importieren'}</h2><p>DyCoS-CSV mit Semikolon oder Komma auswählen.</p></div><button type="button" aria-label="Import schließen" disabled={uploading} onClick={() => setUploadDialog(null)}>×</button></div>
         <input ref={inputRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={uploading} onChange={(event) => { chooseUploadFile(event.target.files?.[0]); event.target.value = '' }} />
-        <button className={`import-dropzone import-dropzone--button masterdata-upload-modal__dropzone${dragOver ? ' masterdata-upload-modal__dropzone--active' : ''}`} type="button" disabled={uploading} onClick={() => inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!uploading) setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); chooseUploadFile(event.dataTransfer.files?.[0]) }}><strong>{uploadDialog.file?.name || 'CSV hierher ziehen oder zur Auswahl klicken'}</strong><span>{uploadDialog.file ? 'Datei ausgewählt. Mit „Import starten“ bestätigen.' : 'UTF-8-CSV auswählen; der Import startet erst nach Bestätigung.'}</span></button>
+        <button className={`import-dropzone import-dropzone--button masterdata-upload-modal__dropzone${dragOver ? ' masterdata-upload-modal__dropzone--active' : ''}`} type="button" disabled={uploading} onClick={() => inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!uploading) setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); chooseUploadFile(event.dataTransfer.files?.[0]) }}><strong>{uploadDialog.file?.name || 'CSV hierher ziehen oder zur Auswahl klicken'}</strong><span>{uploadDialog.file ? 'Datei ausgewählt. Mit „Import starten“ bestätigen.' : 'CSV auswählen; UTF-8- und Windows-CSV werden unterstützt.'}</span></button>
         {uploadDialog.error && <p className="form-error" role="alert">{uploadDialog.error}</p>}
         {uploading && <p className="masterdata-upload-modal__progress" role="status">Datei wird geprüft und verarbeitet … Bitte warten.</p>}
         <div className="customer-import-modal__actions"><button className="button button--secondary" type="button" disabled={uploading} onClick={() => setUploadDialog(null)}>Abbrechen</button><button className="button" type="button" disabled={uploading || !uploadDialog.file} onClick={() => void confirmUpload()}>{uploading ? 'Import läuft …' : 'Import starten'}</button></div>
