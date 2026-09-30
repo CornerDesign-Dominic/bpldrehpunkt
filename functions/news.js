@@ -4,6 +4,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
+import { adminCallableOptions } from './adminCallableOptions.js'
 import { getPublishedAiPromptInstructions } from './aiPrompts.js'
 import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
 
@@ -439,8 +440,7 @@ export const scheduledNewsResearch = onSchedule({
 })
 
 export const runAutomatedNewsResearch = onCall({
-  region: 'europe-west3',
-  enforceAppCheck: true,
+  ...adminCallableOptions,
   timeoutSeconds: 540,
   secrets: [openAiApiKey],
 }, async (request) => {

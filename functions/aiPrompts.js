@@ -1,8 +1,8 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
+import { adminCallableOptions } from './adminCallableOptions.js'
 
-const region = 'europe-west3'
 const collection = 'aiPromptConfigs'
 const maximumInstructionsLength = 5000
 
@@ -55,14 +55,14 @@ export async function getPublishedAiPromptInstructions(id) {
   return validStoredInstructions(snapshot.data()?.published?.instructions, definition.defaultInstructions)
 }
 
-export const listAiPromptConfigs = onCall({ region, enforceAppCheck: true }, async (request) => {
+export const listAiPromptConfigs = onCall(adminCallableOptions, async (request) => {
   await assertSuperadmin(request)
   const database = getFirestore()
   const snapshots = await Promise.all(Object.keys(definitions).map((id) => database.doc(`${collection}/${id}`).get()))
   return { prompts: snapshots.map((snapshot) => promptData(snapshot.id, snapshot.exists ? snapshot.data() : {})) }
 })
 
-export const saveAiPromptDraft = onCall({ region, enforceAppCheck: true }, async (request) => {
+export const saveAiPromptDraft = onCall(adminCallableOptions, async (request) => {
   await assertSuperadmin(request)
   const { id, instructions } = request.data || {}
   if (typeof id !== 'string' || !Object.hasOwn(definitions, id)) throw new HttpsError('invalid-argument', 'Unbekanntes KI-Feature.')
@@ -73,7 +73,7 @@ export const saveAiPromptDraft = onCall({ region, enforceAppCheck: true }, async
   return { prompt: promptData(id, saved.data()) }
 })
 
-export const publishAiPromptDraft = onCall({ region, enforceAppCheck: true }, async (request) => {
+export const publishAiPromptDraft = onCall(adminCallableOptions, async (request) => {
   await assertSuperadmin(request)
   const id = request.data?.id
   if (typeof id !== 'string' || !Object.hasOwn(definitions, id)) throw new HttpsError('invalid-argument', 'Unbekanntes KI-Feature.')
@@ -85,7 +85,7 @@ export const publishAiPromptDraft = onCall({ region, enforceAppCheck: true }, as
   return { prompt: promptData(id, saved.data()) }
 })
 
-export const resetAiPromptDraft = onCall({ region, enforceAppCheck: true }, async (request) => {
+export const resetAiPromptDraft = onCall(adminCallableOptions, async (request) => {
   await assertSuperadmin(request)
   const id = request.data?.id
   if (typeof id !== 'string' || !Object.hasOwn(definitions, id)) throw new HttpsError('invalid-argument', 'Unbekanntes KI-Feature.')

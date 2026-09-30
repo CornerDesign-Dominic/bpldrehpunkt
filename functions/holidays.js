@@ -5,6 +5,7 @@ import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
+import { adminCallableOptions } from './adminCallableOptions.js'
 import { getHolidayDisplayNameDe } from './holidayTranslations.js'
 import { runSchoolHolidaySync } from './schoolHolidays.js'
 import { externalEffectsAllowed, logExternalEffectsSkipped, publicDataSynchronizationAllowed } from './externalEffects.js'
@@ -263,7 +264,7 @@ async function runHolidaySync({ trigger, actorName = null }) {
   return result
 }
 
-export const refreshHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540 }, async (request) => {
+export const refreshHolidayData = onCall({ ...adminCallableOptions, timeoutSeconds: 540 }, async (request) => {
   const profile = await requireActiveProfile(request)
   requireRole(profile, ['admin', 'superadmin'], 'Nur Administratoren können Feiertage aktualisieren.')
   if (!publicDataSynchronizationAllowed()) {
