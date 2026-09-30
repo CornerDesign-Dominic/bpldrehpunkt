@@ -149,7 +149,9 @@ Nutzer, Secrets und andere Ressourcen werden dabei weder gelöscht noch
 
 ## Grenzen dieses Schritts
 
-Dieser Schritt ändert weder Firestore- oder Storage-Regeln noch Functions,
-Anwendungslogik, Secrets oder produktive Konfigurationen. Er erstellt keinen
-Cloud- oder Hosting-Account, führt kein Firebase- oder Vercel-Deployment aus
-und erzeugt weder Commit noch Tag.
+Der Release-Kandidat enthält versionierte Änderungen an Frontend, Functions,
+Firestore- und Storage-Regeln, Indizes sowie Release-Dokumentation und wird
+als Git-Commit auf einem eigenen Release-Branch geführt. Er ändert keine Werte
+von Secrets oder Client-Umgebungsvariablen und führt keinen Firebase- oder
+Vercel-Production-Deploy aus. Ein Preview-Deployment darf ausschließlich die
+Dev-/Preview-Konfiguration verwenden.
