@@ -131,8 +131,9 @@ Nutzer, Secrets und andere Ressourcen werden dabei weder gelöscht noch
    produktiv laufen:
    `firebase deploy --only firestore:indexes --project db-bpl-drehpunkt`.
 4. Die geprüften Firestore- und Storage-Regeln nach `db-bpl-drehpunkt`
-   bereitstellen:
-   `firebase deploy --only firestore:rules,storage --project db-bpl-drehpunkt`.
+   getrennt bereitstellen:
+   `firebase deploy --only firestore:rules --project db-bpl-drehpunkt` und
+   `firebase deploy --only storage --project db-bpl-drehpunkt`.
 5. Die Functions einschließlich Scheduler nach `db-bpl-drehpunkt`
    bereitstellen:
    `firebase deploy --only functions --project db-bpl-drehpunkt`. Danach nur
