@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { automaticTrackingDeliveryId, isDevelopmentTrackingRecipientAllowed, shipmentTrackingArrivalConfirmationPlan, shouldActivateShipmentTracking } from './shipmentTrackingAutomation.js'
+import { automaticTrackingDeliveryAllowed, automaticTrackingDeliveryId, isTrackingRecipientAllowed, shipmentTrackingArrivalConfirmationPlan, shouldActivateShipmentTracking } from './shipmentTrackingAutomation.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 
-test('automatic tracking mail delivery is limited to the BPL test domain and has stable deduplication ids', () => {
-  assert.equal(isDevelopmentTrackingRecipientAllowed('test@brennpunkt-logistik.de'), true)
-  assert.equal(isDevelopmentTrackingRecipientAllowed('test@external.example'), false)
+test('automatic tracking mails are production-only, accept every valid recipient and retain stable deduplication ids', () => {
+  assert.equal(automaticTrackingDeliveryAllowed({ GCLOUD_PROJECT: 'db-bpl-drehpunkt' }), true)
+  assert.equal(automaticTrackingDeliveryAllowed({ GCLOUD_PROJECT: 'db-bpl-drehpunkt-dev' }), false)
+  assert.equal(automaticTrackingDeliveryAllowed({ GCLOUD_PROJECT: 'unknown-project' }), false)
+  assert.equal(isTrackingRecipientAllowed('test@brennpunkt-logistik.de'), true)
+  assert.equal(isTrackingRecipientAllowed('test@external.example'), true)
+  assert.equal(isTrackingRecipientAllowed('not-an-email'), false)
   assert.equal(automaticTrackingDeliveryId('same-due-bundle'), automaticTrackingDeliveryId('same-due-bundle'))
   assert.notEqual(automaticTrackingDeliveryId('first'), automaticTrackingDeliveryId('second'))
 })
@@ -34,7 +38,7 @@ test('the short-notice arrival confirmation is due two working hours before load
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, now: '2026-12-08T08:20:00.000Z' }), null)
 })
 
-test('scheduled tracking automation creates lifecycle states and permits Dev-only dispatches', async () => {
+test('scheduled tracking automation creates lifecycle states and permits production-only dispatches', async () => {
   const [source, index] = await Promise.all([
     readFile(new URL('./shipmentTrackingAutomation.js', import.meta.url), 'utf8'),
     readFile(new URL('./index.js', import.meta.url), 'utf8'),
@@ -42,8 +46,10 @@ test('scheduled tracking automation creates lifecycle states and permits Dev-onl
   assert.match(source, /shipmentTrackingLifecycle/)
   assert.match(source, /createShipmentTrackingDocument/)
   assert.match(source, /lifecyclePhase: 'completed'/)
-  assert.match(source, /externalEffectsEnvironment\(\) !== 'development'/)
-  assert.match(source, /isDevelopmentTrackingRecipientAllowed/)
+  assert.match(source, /automaticTrackingDeliveryAllowed/)
+  assert.match(source, /isTrackingRecipientAllowed/)
+  assert.doesNotMatch(source, /brennpunkt-logistik\.de/)
+  assert.doesNotMatch(source, /allowDevelopment: true/)
   assert.match(source, /dispatchArrivalConfirmation/)
   assert.match(source, /onSchedule\(\{ region: 'europe-west3', schedule: 'every 5 minutes'/)
   assert.match(index, /scheduledShipmentTrackingAutomation/)

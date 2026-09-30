@@ -101,8 +101,7 @@ test('stations only expose their professionally relevant tracking information', 
   const loading = stations.find((station) => station.id === 'loading')
   const transit = stations.find((station) => station.id === 'in_transit')
   assert.deepEqual(preparation.actualRows, [
-    { kind: 'license-plate', label: 'Zugmaschine', value: 'AB-CD 123' },
-    { kind: 'license-plate', label: 'Auflieger', value: 'EF-GH 456' },
+    { kind: 'license-plate', label: 'Kennzeichen', value: 'AB-CD 123 / EF-GH 456' },
   ])
   assert.deepEqual(loading.forecastRows, [])
   assert.deepEqual(transit.forecastRows, [{ label: 'Prognose Ankunft', value: '14:20' }])
@@ -215,7 +214,7 @@ test('transit presents only the stored manual route as a plan value', () => {
 })
 
 test('every station editor is restricted to its own tracking fields', () => {
-  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['tractorLicensePlate', 'trailerLicensePlate', 'driverName', 'driverPhone'])
+  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['licensePlate', 'driverName', 'driverPhone'])
   assert.deepEqual(shipmentTrackingStageConfigurations.loading.fields, ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'])
   assert.deepEqual(shipmentTrackingStageConfigurations.in_transit.fields, [])
   assert.deepEqual(shipmentTrackingStageConfigurations.unloading.fields, ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'])
@@ -226,7 +225,7 @@ test('station summaries keep the direct view compact and stage-specific', () => 
   const stations = shipmentTrackingStations({ tracking: { tractorLicensePlate: 'AB-CD 123', trailerLicensePlate: 'EF-GH 456', actualArrivalLoadingAt: new Date('2026-09-25T08:07:00'), loadingStartedAt: new Date('2026-09-25T08:15:00'), loadingCompletedAt: new Date('2026-09-25T09:00:00'), actualDepartureLoadingAt: new Date('2026-09-25T09:10:00') }, imported })
   const preparation = shipmentTrackingStationSummary(stations.find((station) => station.id === 'preparation'), { tractorLicensePlate: 'AB-CD 123', trailerLicensePlate: 'EF-GH 456' })
   const loading = shipmentTrackingStationSummary(stations.find((station) => station.id === 'loading'), {})
-  assert.deepEqual(preparation.rows, [{ label: 'ZM', value: 'AB-CD 123', kind: 'actual' }, { label: 'AL', value: 'EF-GH 456', kind: 'actual' }])
+  assert.deepEqual(preparation.rows, [{ label: '', value: 'AB-CD 123 / EF-GH 456', kind: 'actual' }])
   assert.equal(preparation.actionLabel, 'Kennzeichen aktualisieren')
   assert.equal(loading.rows.length, 3)
   assert.equal(loading.actionLabel, 'Ladestelle erfassen')

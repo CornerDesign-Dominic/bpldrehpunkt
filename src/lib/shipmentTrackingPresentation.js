@@ -28,7 +28,7 @@ const germanPlanTimestamp = /^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$
 const timeOnlyTimestamp = /^(\d{1,2}):(\d{2})$/
 
 export const shipmentTrackingStageConfigurations = Object.freeze({
-  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['tractorLicensePlate', 'trailerLicensePlate', 'driverName', 'driverPhone'] },
+  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['licensePlate', 'driverName', 'driverPhone'] },
   loading: { label: 'Ladestelle', title: 'Ladestelle erfassen', fields: ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'] },
   in_transit: { label: 'Unterwegs', title: 'Fahrtstatus aktualisieren', fields: [] },
   unloading: { label: 'Entladestelle', title: 'Entladestelle erfassen', fields: ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'] },
@@ -57,10 +57,12 @@ function hasValue(value) {
   return typeof value === 'string' ? Boolean(value.trim()) : Boolean(value)
 }
 
-function licensePlates(tracking) {
-  const tractor = hasValue(tracking?.tractorLicensePlate) ? tracking.tractorLicensePlate.trim() : hasValue(tracking?.licensePlate) ? tracking.licensePlate.trim() : ''
-  const trailer = hasValue(tracking?.trailerLicensePlate) ? tracking.trailerLicensePlate.trim() : ''
-  return { tractor, trailer, hasTractor: Boolean(tractor) }
+function licensePlate(tracking) {
+  if (hasValue(tracking?.licensePlate)) return tracking.licensePlate.trim()
+  return [tracking?.tractorLicensePlate, tracking?.trailerLicensePlate]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => value.trim())
+    .join(' / ')
 }
 
 function formatTime(value) {
@@ -213,7 +215,7 @@ export function shipmentTrackingStationAssessments({ tracking, imported, custome
   const current = berlinWallTime(now)
   const result = { preparation: {}, loading: {} }
 
-  if (!licensePlates(tracking).hasTractor && customerPolicy?.customer?.licensePlateImportant === true) result.preparation.licensePlate = assessment('notice', 'Kennzeichen wichtig für Kunde')
+  if (!licensePlate(tracking) && customerPolicy?.customer?.licensePlateImportant === true) result.preparation.licensePlate = assessment('notice', 'Kennzeichen wichtig für Kunde')
   if (arrival === null && customerPolicy?.customer?.loadingSiteInformationImportant === true) {
     result.loading.arrival = assessment('notice', 'Ankunft wichtig für Kunde')
   } else if (arrival !== null && loadingFrom !== null && loadingUntil !== null) {
@@ -256,7 +258,7 @@ function unloadingWorkflowLabel(tracking, state) {
 export function shipmentTrackingWorkflowStates(tracking) {
   const started = Boolean(tracking)
   const completed = [
-    licensePlates(tracking).hasTractor,
+    Boolean(licensePlate(tracking)),
     Boolean(tracking?.actualDepartureLoadingAt),
     Boolean(tracking?.actualArrivalUnloadingAt),
     Boolean(tracking?.unloadingStartedAt && tracking?.unloadingCompletedAt),
@@ -274,7 +276,7 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   const routePlan = formatShipmentTrackingRoutePlan(route?.roundedDistanceKm)
   const workflowStates = shipmentTrackingWorkflowStates(tracking)
   const assessments = shipmentTrackingStationAssessments({ tracking, imported, customerPolicy, now })
-  const plates = licensePlates(tracking)
+  const plate = licensePlate(tracking)
   const loadingActualRows = [
     formatTime(tracking?.actualArrivalLoadingAt) && { kind: 'arrival', label: 'Ankunft', value: formatTime(tracking.actualArrivalLoadingAt) },
     ...actualRange('Beladung', tracking?.loadingStartedAt, tracking?.loadingCompletedAt, 'process'),
@@ -297,13 +299,13 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
       id: 'preparation',
       label: 'Vorbereitung',
       workflowState: workflowStates[0],
-      workflowLabel: plates.hasTractor ? 'Kennzeichen vorhanden' : 'Kennzeichen noch offen',
+      workflowLabel: plate ? 'Kennzeichen vorhanden' : 'Kennzeichen noch offen',
       plan: null,
-      actualRows: [{ label: 'Zugmaschine', value: plates.tractor }, { label: 'Auflieger', value: plates.trailer }].filter((row) => Boolean(row.value)).map((row) => ({ kind: 'license-plate', ...row })),
+      actualRows: plate ? [{ kind: 'license-plate', label: 'Kennzeichen', value: plate }] : [],
       forecastRows: [],
       status: null,
       assessments: assessments.preparation,
-      emptyMessage: plates.hasTractor ? null : 'Kennzeichen noch offen',
+      emptyMessage: plate ? null : 'Kennzeichen noch offen',
     },
     {
       id: 'loading',
@@ -364,7 +366,7 @@ function stageActionLabel(stageId, tracking) {
   const config = shipmentTrackingStageConfigurations[stageId]
   if (!config) return 'Angaben erfassen'
   const hasStageValue = config.fields.some((field) => hasValue(tracking?.[field]) && tracking?.[field] !== 'unknown')
-  if (stageId === 'preparation') return licensePlates(tracking).hasTractor ? 'Kennzeichen aktualisieren' : 'Kennzeichen erfassen'
+  if (stageId === 'preparation') return licensePlate(tracking) ? 'Kennzeichen aktualisieren' : 'Kennzeichen erfassen'
   if (stageId === 'loading') return hasStageValue ? 'Ladestelle aktualisieren' : 'Ladestelle erfassen'
   if (stageId === 'unloading') return hasStageValue ? 'Entladestelle aktualisieren' : 'Entladestelle erfassen'
   if (stageId === 'afterTransport') return 'Bewertungen'
@@ -376,8 +378,8 @@ export function shipmentTrackingStationSummary(station, tracking) {
   const forecast = station.forecastRows || []
   let rows = []
   if (station.id === 'preparation') {
-    const plates = licensePlates(tracking)
-    rows = plates.hasTractor ? [summaryRow('ZM', plates.tractor), ...(plates.trailer ? [summaryRow('AL', plates.trailer)] : [])] : [summaryRow('', 'Kennzeichen offen', 'missing', 'licensePlate', station.assessments?.licensePlate)]
+    const plate = licensePlate(tracking)
+    rows = plate ? [summaryRow('', plate)] : [summaryRow('', 'Kennzeichen offen', 'missing', 'licensePlate', station.assessments?.licensePlate)]
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
     rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
@@ -425,7 +427,7 @@ export function timestampToDateTimeInput(value) {
 }
 
 export function shipmentTrackingFormValues(tracking) {
-  return Object.fromEntries(Object.keys(fieldLabels).map((field) => [field, field.endsWith('At') ? timestampToDateTimeInput(tracking?.[field]) : tracking?.[field] ?? (field === 'proofStatus' ? 'unknown' : '')]))
+  return Object.fromEntries(Object.keys(fieldLabels).map((field) => [field, field === 'licensePlate' ? licensePlate(tracking) : field.endsWith('At') ? timestampToDateTimeInput(tracking?.[field]) : tracking?.[field] ?? (field === 'proofStatus' ? 'unknown' : '')]))
 }
 
 export function shipmentTrackingTimelineModel(tracking, imported, route, customerPolicy) {

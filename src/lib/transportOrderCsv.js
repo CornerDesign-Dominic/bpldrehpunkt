@@ -70,6 +70,17 @@ function toNumber(value, label, errors, integer = false) {
   return number
 }
 
+function licensePlatePart(value) {
+  const cleanValue = field(value)
+  return /[\p{L}\p{N}]/u.test(cleanValue) ? cleanValue : null
+}
+
+function combinedLicensePlate(...values) {
+  const parts = values.map(licensePlatePart).filter(Boolean)
+  const uniqueParts = parts.filter((part, index) => !parts.slice(0, index).some((previous) => previous.localeCompare(part, 'de-DE', { sensitivity: 'accent' }) === 0))
+  return uniqueParts.length ? uniqueParts.join(' / ') : null
+}
+
 function importData(row, rowNumber) {
   const errors = []
   const externalNumber = field(row.Nummer)
@@ -85,7 +96,7 @@ function importData(row, rowNumber) {
     loading: { city: text(row.Ladestellenort), originalText: text(row.Ladestelle), window: loading, note: text(row['Bemerkung 1.LD']), reference: text(row['L/E Referenz erste LD']) },
     unloading: { city: text(row.Entladestellenort), originalText: text(row.Entladestelle), window: unloading, note: text(row['Bemerkung letzte ED']), reference: text(row['L/E Referenz letzte ED']) },
     financial: { costNet: toNumber(row.Kosten, 'Kosten', errors), revenueNet: toNumber(row.Ertrag, 'Ertrag', errors) },
-    shipment: { licensePlate: field(row['LKW-Kennz.']) === '.' ? null : text(row['LKW-Kennz.']), weightKg: toNumber(row.Gewicht, 'Gewicht', errors), loadingMeters: toNumber(row.LDM, 'LDM', errors), vehicleType: text(row.Fahrzeugart), packages: toNumber(row.Kolli, 'Kolli', errors, true) },
+    shipment: { licensePlate: combinedLicensePlate(row['LKW-Kennz.'], row.Trailer), weightKg: toNumber(row.Gewicht, 'Gewicht', errors), loadingMeters: toNumber(row.LDM, 'LDM', errors), vehicleType: text(row.Fahrzeugart), packages: toNumber(row.Kolli, 'Kolli', errors, true) },
     contacts: { carrierForOrder: text(row['Info-1']), carrierStandardEmail: text(row['Standard E-Mailadresse UTN']), customerForOrder: text(row['Im Auftrag']), customerStandardEmail: text(row['Standard E-Mailadresse Frachtzahler']) },
     dispatch: { sentAt: toIsoDateTime(row['Mailversanddatum der TA'], 'Mailversanddatum der TA', errors), sentTo: text(row['Mail TA zuletzt versendet an']) },
   }

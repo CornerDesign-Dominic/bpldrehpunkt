@@ -22,6 +22,13 @@ test('new shipment tracking documents keep dedicated driver details', () => {
   assert.equal(tracking.driverPhone, null)
 })
 
+test('new shipment tracking documents initialize an imported combined license plate', () => {
+  const tracking = createShipmentTrackingDocument('order', 'user', 'Name', { importedLicensePlate: 'AB-CD 123 / EF-GH 456' })
+  assert.equal(tracking.licensePlate, 'AB-CD 123 / EF-GH 456')
+  assert.equal('tractorLicensePlate' in tracking, false)
+  assert.equal('trailerLicensePlate' in tracking, false)
+})
+
 test('a valid TA dispatch address prepopulates the carrier recipient', () => {
   assert.deepEqual(
     createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'dispo@example.test' }).recipients,

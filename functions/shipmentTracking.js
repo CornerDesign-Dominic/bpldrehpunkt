@@ -51,8 +51,9 @@ export function deriveShipmentTrackingPosition(tracking) {
 /** Creates the stable tracking document shape for both manual and scheduled starts.
  * Lifecycle remains `active` until the final phase so existing permissions and
  * callables continue to work; `lifecyclePhase` is the readable lifecycle. */
-export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'in_progress', trackingStartedEarly = false, carrierRecipientEmail = '' } = {}) {
+export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'in_progress', trackingStartedEarly = false, carrierRecipientEmail = '', importedLicensePlate = '' } = {}) {
   const carrierEmail = text(carrierRecipientEmail)
+  const licensePlate = text(importedLicensePlate)
   const recipients = emailPattern.test(carrierEmail)
     ? { carrier: { email: carrierEmail, source: 'transport-order-import' } }
     : {}
@@ -64,9 +65,7 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     trackingStartedEarly,
     stageId: 'preparation',
     progressToNextStage: 0,
-    licensePlate: null,
-    tractorLicensePlate: null,
-    trailerLicensePlate: null,
+    licensePlate: licensePlate && licensePlate.length <= 180 ? licensePlate : null,
     driverName: null,
     driverPhone: null,
     estimatedArrivalLoadingAt: null,
@@ -146,7 +145,8 @@ function normalizedChanges(input) {
     const value = input[field]
     if (timestampFields.includes(field)) result[field] = timestampFromInput(value, field)
     if (licensePlateFields.includes(field)) {
-      if (value !== null && (typeof value !== 'string' || text(value).length > 80)) throw new HttpsError('invalid-argument', 'Das Kennzeichen ist ungültig.')
+      const maximumLength = field === 'licensePlate' ? 180 : 80
+      if (value !== null && (typeof value !== 'string' || text(value).length > maximumLength)) throw new HttpsError('invalid-argument', 'Das Kennzeichen ist ungültig.')
       result[field] = value === null || !text(value) ? null : text(value)
     }
     if (driverFields.includes(field)) {
@@ -255,9 +255,10 @@ export async function updateManualShipmentTrackingHandler(request) {
         lifecyclePhase: 'in_progress',
         trackingStartedEarly,
         carrierRecipientEmail: orderSnapshot.data()?.imported?.dispatch?.sentTo,
+        importedLicensePlate: orderSnapshot.data()?.imported?.shipment?.licensePlate,
       })
       transaction.create(trackingRef, tracking)
-      transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase', 'trackingStartedEarly'], newValue: { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', trackingStartedEarly }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase', 'trackingStartedEarly', ...(tracking.licensePlate ? ['licensePlate'] : [])], newValue: { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', trackingStartedEarly, ...(tracking.licensePlate ? { licensePlate: tracking.licensePlate } : {}) }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source, note }))
       return
     }
 

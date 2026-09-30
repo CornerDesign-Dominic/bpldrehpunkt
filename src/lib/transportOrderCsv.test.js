@@ -31,3 +31,16 @@ test('marks invalid time values and duplicate DyCoS numbers as row errors', () =
   assert.match(result.rows[0].errors.join(' '), /mehrfach vor/)
   assert.match(result.rows[1].errors.join(' '), /mehrfach vor/)
 })
+
+test('combines truck and trailer license plate columns while treating punctuation placeholders as empty', () => {
+  const csv = [
+    'Nummer;KundenNr.;FZ Name;Unternehmer;LKW-Kennz.;Trailer',
+    '260400220;10000;Kunde GmbH;Unternehmer GmbH;KZ 123;KZ 456',
+    '260400221;10000;Kunde GmbH;Unternehmer GmbH;.;-',
+    '260400222;10000;Kunde GmbH;Unternehmer GmbH;;KZ 456',
+    '260400223;10000;Kunde GmbH;Unternehmer GmbH;KZ 123 / KZ 456;',
+  ].join('\n')
+  const result = parseTransportOrderCsv(csv)
+
+  assert.deepEqual(result.rows.map((entry) => entry.imported.shipment.licensePlate), ['KZ 123 / KZ 456', null, 'KZ 456', 'KZ 123 / KZ 456'])
+})

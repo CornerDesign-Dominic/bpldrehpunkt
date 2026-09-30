@@ -58,7 +58,7 @@ function ruleTitle(group) {
 }
 function reasonFor(rule) { return rule.offsetWorkingHours === 0 ? 'Zum Beladebeginn' : `${formatShipmentTrackingWorkingDuration(rule.offsetWorkingHours)} vor frühester Beladung` }
 function isTopicComplete(topic, tracking) {
-  if (topic === 'licensePlate') return hasValue(tracking?.tractorLicensePlate) || hasValue(tracking?.licensePlate)
+  if (topic === 'licensePlate') return hasValue(tracking?.licensePlate) || hasValue(tracking?.tractorLicensePlate) || hasValue(tracking?.trailerLicensePlate)
   return Boolean(tracking?.actualArrivalLoadingAt || tracking?.loadingStartedAt || tracking?.loadingCompletedAt || tracking?.actualDepartureLoadingAt)
 }
 function externalRuleDispatch(tracking, ruleId) {

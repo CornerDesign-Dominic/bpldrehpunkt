@@ -13,7 +13,6 @@ import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingH
 import { DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION, normalizeShipmentTrackingArrivalConfirmation, shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shipmentTrackingArrivalConfirmation.js'
 import { sendSystemMailTemplate, systemMailNotificationUrl } from './systemMails.js'
 
-const DEVELOPMENT_RECIPIENT_DOMAIN = 'brennpunkt-logistik.de'
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function text(value) { return typeof value === 'string' ? value.trim() : '' }
@@ -57,8 +56,14 @@ export function shouldActivateShipmentTracking(lifecycle, preview, now) {
   return Boolean(clock && activationAt && clock >= activationAt)
 }
 
-export function isDevelopmentTrackingRecipientAllowed(recipient) {
-  return typeof recipient === 'string' && recipient.trim().toLowerCase().endsWith(`@${DEVELOPMENT_RECIPIENT_DOMAIN}`)
+export function isTrackingRecipientAllowed(recipient) {
+  return emailPattern.test(text(recipient))
+}
+
+/** Automatic mails are a production feature. The development project keeps
+ * lifecycle synchronization available without permitting external delivery. */
+export function automaticTrackingDeliveryAllowed(environment) {
+  return externalEffectsEnvironment(environment) === 'production'
 }
 
 export function automaticTrackingDeliveryId(bundleId) {
@@ -127,9 +132,10 @@ async function synchronizeLifecycle(db, orderSnapshot, currentTracking, operatin
         trackingMode: 'automatic',
         lifecyclePhase: lifecycle.phase,
         carrierRecipientEmail: imported?.dispatch?.sentTo,
+        importedLicensePlate: imported?.shipment?.licensePlate,
       })
       transaction.create(trackingRef, next)
-      transaction.create(eventRef, eventPayload('tracking_started', {}, { lifecycleStatus: 'active', lifecyclePhase: lifecycle.phase, trackingMode: 'automatic' }))
+      transaction.create(eventRef, eventPayload('tracking_started', {}, { lifecycleStatus: 'active', lifecyclePhase: lifecycle.phase, trackingMode: 'automatic', ...(next.licensePlate ? { licensePlate: next.licensePlate } : {}) }))
       return
     }
     if (tracking.lifecycleStatus === 'completed') return
@@ -172,10 +178,8 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
     kind: 'actual-arrival-confirmation', recipient, templateId: shipmentTrackingArrivalConfirmationTemplateId,
     ruleIds: ['actualArrivalConfirmation'], topics: ['loadingSite'], scheduledAt: plan.scheduledAt,
   }
-  // Automatic transport-mail dispatch is deliberately available only in Dev
-  // during the test phase. Production cannot send until explicitly enabled.
-  if (externalEffectsEnvironment() !== 'development' || !isDevelopmentTrackingRecipientAllowed(recipient)) {
-    await deliveryRef.set({ ...deliveryData, status: 'blocked', lastError: externalEffectsEnvironment() === 'development' ? 'recipient-domain-not-allowed' : 'automatic-delivery-disabled', updatedAt: FieldValue.serverTimestamp(), blockedAt: FieldValue.serverTimestamp() }, { merge: true })
+  if (!automaticTrackingDeliveryAllowed() || !isTrackingRecipientAllowed(recipient)) {
+    await deliveryRef.set({ ...deliveryData, status: 'blocked', lastError: automaticTrackingDeliveryAllowed() ? 'recipient-invalid' : 'automatic-delivery-disabled', updatedAt: FieldValue.serverTimestamp(), blockedAt: FieldValue.serverTimestamp() }, { merge: true })
     return { sent: 0, blocked: 1 }
   }
   let claimed = false
@@ -195,7 +199,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
     return { sent: 0, blocked: 0 }
   }
   try {
-    const delivered = await sendSystemMailTemplate({ recipient, templateId: shipmentTrackingArrivalConfirmationTemplateId, values: templateValues(imported, externalNumber), subject: normalizedSettings.subject, message: normalizedSettings.message, allowDevelopment: true })
+    const delivered = await sendSystemMailTemplate({ recipient, templateId: shipmentTrackingArrivalConfirmationTemplateId, values: templateValues(imported, externalNumber), subject: normalizedSettings.subject, message: normalizedSettings.message })
     if (!delivered) throw new Error('automatic-delivery-disabled')
     const eventRef = trackingRef.collection('events').doc()
     await db.runTransaction(async (transaction) => {
@@ -223,10 +227,8 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
   let sent = 0
   let blocked = 0
   for (const bundle of bundles) {
-    // Automatic transport-mail dispatch is deliberately available only in Dev
-    // during the test phase. Production cannot send until explicitly enabled.
-    if (externalEffectsEnvironment() !== 'development' || !isDevelopmentTrackingRecipientAllowed(bundle.recipient)) {
-      await recordBlockedDelivery(trackingRef, bundle, externalEffectsEnvironment() === 'development' ? 'recipient-domain-not-allowed' : 'automatic-delivery-disabled')
+    if (!automaticTrackingDeliveryAllowed() || !isTrackingRecipientAllowed(bundle.recipient)) {
+      await recordBlockedDelivery(trackingRef, bundle, automaticTrackingDeliveryAllowed() ? 'recipient-invalid' : 'automatic-delivery-disabled')
       blocked += 1
       continue
     }
@@ -237,7 +239,7 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
       const currentTracking = trackingSnapshot.exists ? trackingSnapshot.data() : null
       if (!currentTracking || currentTracking.lifecycleStatus !== 'active' || currentTracking.automationPaused === true) return
       if (storedCarrierRecipient(currentTracking).toLowerCase() !== bundle.recipient.toLowerCase()) return
-      if (!isDevelopmentTrackingRecipientAllowed(bundle.recipient)) return
+      if (!isTrackingRecipientAllowed(bundle.recipient)) return
       if (deliverySnapshot.exists && ['sending', 'sent', 'delivered'].includes(deliverySnapshot.data()?.status)) return
       transaction.set(deliveryRef, {
         status: 'sending', recipient: bundle.recipient, templateId: bundle.templateId, ruleIds: bundle.ruleIds, topics: bundle.topics,
@@ -252,7 +254,7 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
       continue
     }
     try {
-      const delivered = await sendSystemMailTemplate({ recipient: bundle.recipient, templateId: bundle.templateId, values: templateValues(imported, externalNumber), allowDevelopment: true })
+      const delivered = await sendSystemMailTemplate({ recipient: bundle.recipient, templateId: bundle.templateId, values: templateValues(imported, externalNumber) })
       if (!delivered) throw new Error('automatic-delivery-disabled')
       const eventRef = trackingRef.collection('events').doc()
       await db.runTransaction(async (transaction) => {
@@ -273,7 +275,7 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
   return { sent, blocked }
 }
 
-/** Runs lifecycle creation/changes and Dev-only automatic carrier mails.
+/** Runs lifecycle creation/changes and production automatic carrier mails.
  * It does not alter imported orders, master data or unconfigured recipients. */
 export async function runShipmentTrackingAutomation(now = new Date()) {
   const db = getFirestore()
