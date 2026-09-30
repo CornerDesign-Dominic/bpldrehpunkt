@@ -11,7 +11,7 @@ import TodoForm from '../todos/TodoForm.jsx'
 import { BugIcon, CloseIcon, MoonIcon, SunIcon, TodoIcon } from '../icons.jsx'
 import Toast from '../ui/Toast.jsx'
 
-const modules = ['Dashboard', 'Urlaub', 'Kalender', 'Urlaubsmanagement', 'Team Brennpunkt', 'Kunden & Unternehmer', 'CRM', 'Palettenmanagement', 'News', 'Dokumente', 'To-dos', 'Mein Profil', 'Adminbereich', 'Sonstiges']
+const modules = ['Dashboard', 'Mein Urlaub', 'Kalender', 'Urlaubsmanagement', 'Team Brennpunkt', 'Kunden & Unternehmer', 'CRM', 'Palettenmanagement', 'News', 'Dokumente', 'To-dos', 'Mein Profil', 'Adminbereich', 'Sonstiges']
 const emptyForm = () => ({ module: '', description: '' })
 
 function submissionErrorMessage(error) {

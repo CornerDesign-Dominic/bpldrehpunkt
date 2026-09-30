@@ -16,7 +16,7 @@ const navigationItems = [
   { label: 'Feiertagskalender', to: '/feiertagskalender', icon: CalendarIcon, module: 'feiertagskalender', group: 'documents' },
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'more', badge: 'news' },
   { label: 'Das Team', to: '/team', icon: UsersIcon, module: 'team', group: 'people' },
-  { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation', group: 'people' },
+  { label: 'Mein Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation', group: 'people' },
   { label: 'Personal', to: '/personal', icon: UsersIcon, module: 'personnel', group: 'humanResources' },
   { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true, group: 'people', badge: 'vacationManagement' },
   { label: 'Auftragsliste', to: '/transportauftraege', icon: TruckTrailerIcon, module: 'transportOrders', group: 'operations' },
