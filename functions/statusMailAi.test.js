@@ -30,6 +30,22 @@ test('rejects future actual events and time values without a time in evidence', 
   assert.deepEqual(updates, [])
 })
 
+test('accepts whole-hour ETA and actual arrival on the uniquely planned loading day', () => {
+  const statusMail = {
+    ...mail,
+    bodyText: 'ETA war am 30.09 um 12 uhr. Tatsächlich angekommen um 14 Uhr',
+    receivedAt: Timestamp.fromDate(new Date('2026-09-30T22:32:59Z')),
+  }
+  const result = validateStatusMailAiResult({ isStatusUpdate: true, updates: [
+    { field: 'estimatedArrivalLoadingAt', value: '2026-09-30T12:00:00+02:00', evidence: 'ETA war am 30.09 um 12 uhr', confidence: 'high' },
+    { field: 'actualArrivalLoadingAt', value: '2026-09-30T14:00:00+02:00', evidence: 'ETA war am 30.09 um 12 uhr. Tatsächlich angekommen um 14 Uhr', confidence: 'high' },
+  ] }, statusMail)
+  assert.deepEqual(result.map(({ field, value }) => ({ field, value })), [
+    { field: 'estimatedArrivalLoadingAt', value: '2026-09-30T10:00:00.000Z' },
+    { field: 'actualArrivalLoadingAt', value: '2026-09-30T12:00:00.000Z' },
+  ])
+})
+
 test('manual values take priority and newer AI mail can replace older AI ETA', () => {
   const updates = [
     { field: 'licensePlate', value: 'HH-AB 123' },
@@ -67,5 +83,29 @@ test('applies an assigned status mail once and records its AI source', async () 
   assert.equal(tracking.fieldSources.estimatedArrivalUnloadingAt.source, 'ai_mail')
   assert.equal(stored.get('transportOrders/order-1/receivedMails/mail-1').ai.status, 'applied')
   assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-1', infer }), 'applied')
+  assert.equal(calls, 1)
+})
+
+test('an existing no-change mail can be retried while an applied mail stays idempotent', async () => {
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: {} }],
+    ['transportOrders/order-1/receivedMails/mail-2', { ...mail, ai: { status: 'no_change', updates: [] } }],
+  ])
+  const ref = (path) => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }) })
+  const db = {
+    doc: ref,
+    runTransaction: async (callback) => callback({
+      get: async (reference) => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+      create: (reference, data) => documents.set(reference.path, data),
+      update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+    }),
+  }
+  let calls = 0
+  const infer = async () => { calls += 1; return { isStatusUpdate: true, updates: [{ field: 'licensePlate', value: 'HH-AB 123', evidence: 'Kennzeichen: HH-AB 123', confidence: 'high' }] } }
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-2', infer }), 'no_change')
+  assert.equal(calls, 0)
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-2', infer, retry: true }), 'applied')
+  assert.equal(calls, 1)
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-2', infer, retry: true }), 'applied')
   assert.equal(calls, 1)
 })

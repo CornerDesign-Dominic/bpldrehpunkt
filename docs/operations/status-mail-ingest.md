@@ -104,6 +104,11 @@ Bereits vor dem Deploy gespeicherte Mails werden durch den Erstellungs-Trigger
 nicht nachträglich ausgewertet. Für einen End-to-End-Test nach dem Deploy eine
 neue zuordenbare Status-Mail an das Postfach senden und im Auftrag die
 KI-Markierung sowie den Verlauf prüfen.
+Für Mails mit `Keine eindeutige Statusangabe` oder `KI-Auswertung fehlgeschlagen`
+können Nutzer mit Bearbeitungsrecht die KI im Mail-Dialog erneut ausführen.
+Jede erneute Auswertung erzeugt eine weitere OpenAI-Anfrage und wird in
+`aiUsage` erfasst. Das Modell darf einen nicht genannten Ort nur aus dem
+geplanten Stopptag ableiten, wenn das Datum zu genau einem Stopp passt.
 
 ## Prüffälle
 

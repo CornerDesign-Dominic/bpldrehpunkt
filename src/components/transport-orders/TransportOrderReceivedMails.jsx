@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore'
-import { db } from '../../lib/firebase.js'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions, waitForAppCheckToken } from '../../lib/firebase.js'
 import { CloseIcon } from '../icons.jsx'
 
 function receivedLabel(value) {
@@ -11,12 +12,28 @@ function receivedLabel(value) {
 
 const aiLabels = { applied: 'KI-Status übernommen', no_change: 'Keine eindeutige Statusangabe', skipped: 'KI-Auswertung übersprungen', error: 'KI-Auswertung fehlgeschlagen' }
 
-export default function TransportOrderReceivedMails({ transportOrderId }) {
+export default function TransportOrderReceivedMails({ transportOrderId, canEdit = false }) {
   const [mails, setMails] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [retryingId, setRetryingId] = useState(null)
+  const [retryError, setRetryError] = useState('')
   const selected = mails.find((mail) => mail.id === selectedId)
+
+  async function retryAi(mailId) {
+    setRetryingId(mailId)
+    setRetryError('')
+    try {
+      await waitForAppCheckToken()
+      const { data } = await httpsCallable(functions, 'retryStatusMailAi', { timeout: 120000 })({ orderId: transportOrderId, mailId })
+      if (!['applied', 'no_change', 'skipped'].includes(data?.status)) setRetryError('Die KI-Auswertung konnte nicht abgeschlossen werden.')
+    } catch {
+      setRetryError('Die KI-Auswertung konnte nicht gestartet werden. Bitte erneut versuchen.')
+    } finally {
+      setRetryingId(null)
+    }
+  }
 
   useEffect(() => {
     const mailsQuery = query(collection(db, 'transportOrders', transportOrderId, 'receivedMails'), orderBy('receivedAt', 'desc'), limit(50))
@@ -36,7 +53,8 @@ export default function TransportOrderReceivedMails({ transportOrderId }) {
       <section className="shipment-tracking-editor transport-order-received-mail-modal" role="dialog" aria-modal="true" aria-labelledby="received-mail-title">
         <div className="shipment-tracking-editor__heading"><div><h2 id="received-mail-title">{selected.subject}</h2><p>Von {selected.sender} · {receivedLabel(selected.receivedAt)}</p>{aiLabels[selected.ai?.status] && <p className={selected.ai.status === 'applied' ? 'transport-order-received-mails__ai' : ''}>{aiLabels[selected.ai.status]}</p>}</div><button type="button" onClick={() => setSelectedId(null)} aria-label="Dialog schließen"><CloseIcon /></button></div>
         <pre className="transport-order-received-mail-modal__body">{selected.bodyText || 'Kein Textinhalt vorhanden.'}</pre>
-        <div className="shipment-tracking-editor__actions"><button className="button button--secondary" type="button" onClick={() => setSelectedId(null)}>Schließen</button></div>
+        {retryError && <p className="form-error">{retryError}</p>}
+        <div className="shipment-tracking-editor__actions">{canEdit && ['no_change', 'error'].includes(selected.ai?.status) && <button className="button" type="button" disabled={retryingId === selected.id} onClick={() => void retryAi(selected.id)}>{retryingId === selected.id ? 'KI wertet aus …' : 'KI erneut auswerten'}</button>}<button className="button button--secondary" type="button" onClick={() => setSelectedId(null)}>Schließen</button></div>
       </section>
     </div>, document.body)}
   </>

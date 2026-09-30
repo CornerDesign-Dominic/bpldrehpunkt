@@ -25,7 +25,7 @@ import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, 
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
 import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } from './statusMailIngest.js'
-import { processStatusMailAi, statusMailAiApiKey } from './statusMailAi.js'
+import { processStatusMailAi, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
 if (!getApps().length) initializeApp()
 export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
@@ -33,6 +33,7 @@ export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-w
   if (!event.data) return
   await processStatusMailAi({ orderId: event.params.orderId, mailId: event.params.mailId })
 })
+export const retryStatusMailAi = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, retryStatusMailAiHandler)
 export const updateCompanyMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateCompanyMasterDataHandler)
 export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, getCompanyStampHandler)
 export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)
