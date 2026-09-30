@@ -8,7 +8,10 @@ genau eine TA-Nummer im Format `TA 260900123` oder `Transportauftrag 260900123`
 enthält und `transportOrders.externalNumber` genau einen Auftrag liefert.
 Nicht zuordenbare Mails werden mit HTTP 200 (`unmatched`) quittiert und nicht
 gespeichert. Gleiche Nachrichten werden nur einmal gespeichert (`duplicate`).
-Die KI-Auswertung und Statusänderungen sind noch kein Teil dieses Schritts.
+Zugeordnete Mails aus diesem Postfach werden anschließend in Dev auf eindeutige
+Statusangaben geprüft. Angaben zu ETA, Ist-Zeiten und Kennzeichen mit hoher
+Sicherheit werden automatisch in die Sendungsverfolgung übernommen. Die Quelle
+wird am Wert und im Verlauf als **KI · Status-Postfach** sichtbar.
 
 ## Firebase Dev vorbereiten
 
@@ -33,9 +36,12 @@ kein funktionsfähiger Ausgangs-Webhook; der Dev-Versandpfad bleibt geschlossen.
 
 ## Flow anlegen
 
-Dev-Entwurf in Power Automate: **DEV | Status-Postfach → Firebase TA-Mails**
+Veröffentlichter Flow in Power Automate: **DEV | Status-Postfach → Firebase TA-Mails**
 ([Flow öffnen](https://make.powerautomate.com/environments/Default-b829bbdc-c0b7-4128-a341-6715a67b451b/flows/13d4cc0a-19bd-f111-aaae-6045bd93bcb8?v3=true)).
-Er ist erst nach Eintragen des Dev-Tokens und Veröffentlichung aktiv.
+Der Dev-Token wurde eingetragen, der Flow am 1. Oktober 2026 veröffentlicht
+und auf der Detailseite mit Status **Ein** bestätigt. Ein echter Maildurchlauf
+mit `TA 260900257` lief erfolgreich durch; die Mail wurde dem Auftrag
+zugeordnet und vom Nutzer in der Auftragsansicht bestätigt.
 
 1. **Automatisierter Cloud-Flow** mit Office 365 Outlook →
    **When a new email arrives in a shared mailbox (V2)** erstellen.
@@ -49,8 +55,8 @@ Er ist erst nach Eintragen des Dev-Tokens und Veröffentlichung aktiv.
    Header `Content-Type: application/json` und
    `Authorization: Bearer <Dev-Token>`. Für die HTTP-Aktion sichere Eingaben
    und Ausgaben aktivieren sowie **Inhaltsübertragung/Segmentierung** ausschalten.
-   Im bestehenden Entwurf steht im Authorization-Header noch
-   `Bearer DEVTOKEN_HIER_EINTRAGEN`; vor Veröffentlichung ersetzen.
+   Im veröffentlichten Flow ist der Dev-Token im Authorization-Header
+   hinterlegt. Den Wert nicht in Dokumentation oder Chat kopieren.
 5. Den HTTP-Body als **einen Ausdruck** eingeben, damit Sonderzeichen und
    Zeilenumbrüche im Mailtext korrekt als JSON übertragen werden:
 
@@ -72,6 +78,32 @@ Er ist erst nach Eintragen des Dev-Tokens und Veröffentlichung aktiv.
 Der **HTTP**-Connector kann eine Power-Automate-Premium-Lizenz erfordern.
 Falls die Aktion im Tenant nicht verfügbar ist, vor Aktivierung eine
 freigegebene Alternative für den HTTPS-Aufruf festlegen.
+
+## KI-Auswertung im Dev-Projekt
+
+Für die KI-Auswertung wird ein eigener OpenAI API-Schlüssel verwendet. Er
+gehört ausschließlich in das Firebase Secret `STATUS_MAIL_OPENAI_API_KEY` im
+Dev-Projekt. Im Terminal setzen (den Schlüssel erst bei der Eingabeaufforderung
+einfügen):
+
+```powershell
+firebase functions:secrets:set STATUS_MAIL_OPENAI_API_KEY --project db-bpl-drehpunkt-dev
+```
+
+Die Funktion `processStatusMailAiOnCreate` wird bei **neu gespeicherten**
+zugeordneten Status-Mails ausgelöst. Sie sendet Betreff, Mailtext und wenige
+Auftragsdaten an OpenAI, fordert strukturierte Statuswerte an und speichert nur
+Angaben mit hoher Modell-Sicherheit und belegender Originalstelle. Bestehende
+manuelle Werte haben Vorrang. Neuere KI-Mails können ältere KI-Werte
+aktualisieren. Ohne eindeutige Angabe bleibt die Sendungsverfolgung unverändert.
+Auswertung und Ergebnis stehen im `ai`-Feld der zugeordneten Mail; Tokenverbrauch
+und geschätzte Kosten werden als `status_mail_tracking` in `aiUsage` erfasst.
+Die API-Anfrage verwendet `store: false`.
+
+Bereits vor dem Deploy gespeicherte Mails werden durch den Erstellungs-Trigger
+nicht nachträglich ausgewertet. Für einen End-to-End-Test nach dem Deploy eine
+neue zuordenbare Status-Mail an das Postfach senden und im Auftrag die
+KI-Markierung sowie den Verlauf prüfen.
 
 ## Prüffälle
 

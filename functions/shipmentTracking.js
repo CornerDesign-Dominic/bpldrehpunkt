@@ -304,7 +304,9 @@ export async function updateManualShipmentTrackingHandler(request) {
     const oldValue = Object.fromEntries(Object.keys(changes).map((field) => [field, current[field] ?? null]))
     const merged = { ...current, ...changes }
     const position = deriveShipmentTrackingPosition(merged)
-    transaction.update(trackingRef, { ...changes, ...position, trackingMode: 'manual', updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+    const fieldSources = { ...(current.fieldSources || {}) }
+    for (const field of Object.keys(changes)) delete fieldSources[field]
+    transaction.update(trackingRef, { ...changes, ...position, fieldSources, trackingMode: 'manual', updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
     transaction.create(eventRef, eventPayload({ eventType: 'tracking_updated', changedFields: Object.keys(changes), oldValue, newValue: changes, eventTime: eventTimeFor(changes), actorId: request.auth.uid, actor, source, note }))
     })
   } catch (error) {

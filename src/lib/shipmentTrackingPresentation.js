@@ -19,7 +19,7 @@ const fieldLabels = {
   proofStatus: 'Nachweisstatus',
 }
 
-const sourceLabels = { manual: 'Manuelle Eingabe', import: 'TA-Import', manual_mail: 'Manueller Mailversand', automatic: 'Sendungsverfolgungs-Automatik', phone: 'Telefon', other_mailbox: 'Anderes E-Mail-Postfach', other: 'Sonstiges' }
+const sourceLabels = { manual: 'Manuelle Eingabe', import: 'TA-Import', manual_mail: 'Manueller Mailversand', automatic: 'Sendungsverfolgungs-Automatik', ai_mail: 'KI · Status-Postfach', phone: 'Telefon', other_mailbox: 'Anderes E-Mail-Postfach', other: 'Sonstiges' }
 const proofLabels = { unknown: 'unbekannt', open: 'offen', received: 'erhalten' }
 const timeFormatter = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' })
 const berlinDateTimeFormatter = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -362,6 +362,31 @@ function summaryRow(label, value, kind = 'actual', key = null, hint = null) {
   return { label, value, kind, ...(key ? { key } : {}), ...(hint ? { hint } : {}) }
 }
 
+function aiSourceFields(stationId, row, tracking) {
+  if (stationId === 'preparation') return tracking?.licensePlate ? ['licensePlate'] : ['tractorLicensePlate', 'trailerLicensePlate']
+  if (stationId === 'loading') {
+    if (row.kind === 'forecast') return row.label === 'Voraussichtliche Abfahrt' ? ['estimatedDepartureLoadingAt'] : ['estimatedArrivalLoadingAt']
+    if (row.label === 'Ankunft') return ['actualArrivalLoadingAt']
+    if (row.label === 'Abfahrt') return ['actualDepartureLoadingAt']
+    if (row.label === 'Beladung begonnen') return ['loadingStartedAt']
+    if (row.label === 'Beladung beendet') return ['loadingCompletedAt']
+    return ['loadingStartedAt', 'loadingCompletedAt']
+  }
+  if (stationId === 'in_transit') return row.kind === 'forecast' ? ['estimatedArrivalUnloadingAt'] : ['actualDepartureLoadingAt']
+  if (stationId === 'unloading') {
+    if (row.kind === 'forecast') return ['estimatedArrivalUnloadingAt']
+    if (row.label === 'Ankunft') return ['actualArrivalUnloadingAt']
+    if (row.label === 'Entladung begonnen') return ['unloadingStartedAt']
+    if (row.label === 'Entladung beendet') return ['unloadingCompletedAt']
+    return ['unloadingStartedAt', 'unloadingCompletedAt']
+  }
+  return []
+}
+
+function markAiSources(rows, stationId, tracking) {
+  return rows.map((row) => row.kind !== 'missing' && aiSourceFields(stationId, row, tracking).some((field) => tracking?.fieldSources?.[field]?.source === 'ai_mail') ? { ...row, ai: true } : row)
+}
+
 function stageActionLabel(stageId, tracking) {
   const config = shipmentTrackingStageConfigurations[stageId]
   if (!config) return 'Angaben erfassen'
@@ -391,7 +416,7 @@ export function shipmentTrackingStationSummary(station, tracking) {
     rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value)) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing')]
   }
-  return { rows: rows.slice(0, 3), actionLabel: stageActionLabel(station.id, tracking) }
+  return { rows: markAiSources(rows.slice(0, 3), station.id, tracking), actionLabel: stageActionLabel(station.id, tracking) }
 }
 
 function eventDateValue(value) {

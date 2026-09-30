@@ -79,6 +79,17 @@ test('forecasts are never used as actuals or planned times', () => {
   assert.equal(loading.status.label, 'Noch nicht beurteilbar')
 })
 
+test('timeline marks only values currently supplied by status mail AI', () => {
+  const tracking = {
+    estimatedArrivalUnloadingAt: new Date('2026-10-01T13:30:00Z'),
+    actualArrivalLoadingAt: new Date('2026-10-01T08:00:00Z'),
+    fieldSources: { estimatedArrivalUnloadingAt: { source: 'ai_mail' } },
+  }
+  const stations = shipmentTrackingStations({ tracking, imported })
+  assert.equal(shipmentTrackingStationSummary(stations.find((station) => station.id === 'in_transit'), tracking).rows[0].ai, true)
+  assert.equal(shipmentTrackingStationSummary(stations.find((station) => station.id === 'loading'), tracking).rows[0].ai, undefined)
+})
+
 test('missing data never invents a time or a positive status', () => {
   const stations = shipmentTrackingStations({ imported: {} })
   const loading = stations.find((station) => station.id === 'loading')
