@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import process from 'node:process'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -30,11 +31,20 @@ function storedCarrierRecipient(tracking) {
 
 /** The stored tracking recipient is either the TA dispatch address captured on
  * start or an explicit manual correction. During Dev it is restricted to BPL. */
+export function isManualTrackingRecipientAllowed(recipient, environment = process.env) {
+  const email = validRecipient(recipient)
+  if (!email) return false
+  const currentEnvironment = externalEffectsEnvironment(environment)
+  if (currentEnvironment === 'production') return true
+  return currentEnvironment === 'development' && email.toLowerCase().endsWith(`@${developmentRecipientDomain}`)
+}
+
 function assertPermittedRecipient(tracking, requestedRecipient) {
   const stored = storedCarrierRecipient(tracking)
   if (!stored) throw new HttpsError('failed-precondition', 'Für den Unternehmer ist keine gültige Empfängeradresse hinterlegt.')
   if (stored.toLowerCase() !== requestedRecipient.toLowerCase()) throw new HttpsError('failed-precondition', 'Die Empfängeradresse muss der hinterlegten Unternehmeradresse entsprechen.')
-  if (externalEffectsEnvironment() === 'development' && !stored.toLowerCase().endsWith(`@${developmentRecipientDomain}`)) {
+  if (!isManualTrackingRecipientAllowed(stored)) {
+    if (externalEffectsEnvironment() !== 'development') throw new HttpsError('failed-precondition', 'Der manuelle Versand ist in dieser Umgebung deaktiviert.')
     throw new HttpsError('failed-precondition', `In der Dev-Testphase sind nur Empfänger mit @${developmentRecipientDomain} zulässig.`)
   }
   return stored

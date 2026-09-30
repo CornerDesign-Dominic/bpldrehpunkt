@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { deadlineReminderDeliveryId, deadlineReminderMetadata, isDeadlineReminderDue } from './caseDeadlineReminders.js'
+import { readFile } from 'node:fs/promises'
+import { deadlineReminderDeliveryId, deadlineReminderMetadata, deadlineReminderQuery, isDeadlineReminderDue } from './caseDeadlineReminders.js'
 
 function deadlineRef(root, caseId, deadlineId) {
   return {
@@ -44,4 +45,31 @@ test('case deadline reminder delivery identity is stable but changes for a resch
   const rescheduled = deadlineReminderMetadata(ref, { date: '2026-09-28', time: '15:30', reminderEnabled: true, reminderRecipientEmail: 'df@example.test' })
   assert.equal(deadlineReminderDeliveryId(ref, original), deadlineReminderDeliveryId(ref, original))
   assert.notEqual(deadlineReminderDeliveryId(ref, original), deadlineReminderDeliveryId(ref, rescheduled))
+})
+
+test('the reminder query filters up to the Berlin-local date and has deterministic paging order', () => {
+  const calls = []
+  const query = {
+    where(...args) { calls.push(['where', ...args]); return this },
+    orderBy(...args) { calls.push(['orderBy', ...args]); return this },
+  }
+  deadlineReminderQuery({ collectionGroup: (name) => { calls.push(['collectionGroup', name]); return query } }, new Date('2026-09-30T10:00:00.000Z'))
+  assert.deepEqual(calls, [
+    ['collectionGroup', 'deadlines'],
+    ['where', 'reminderEnabled', '==', true],
+    ['where', 'date', '<=', '2026-09-30'],
+    ['orderBy', 'date', 'asc'],
+    ['orderBy', 'time', 'asc'],
+  ])
+})
+
+test('the required collection-group index stays versioned with the scheduler query', async () => {
+  const indexes = JSON.parse(await readFile(new URL('../firestore.indexes.json', import.meta.url), 'utf8'))
+  assert(indexes.indexes.some((index) => index.collectionGroup === 'deadlines'
+    && index.queryScope === 'COLLECTION_GROUP'
+    && JSON.stringify(index.fields) === JSON.stringify([
+      { fieldPath: 'reminderEnabled', order: 'ASCENDING' },
+      { fieldPath: 'date', order: 'ASCENDING' },
+      { fieldPath: 'time', order: 'ASCENDING' },
+    ])))
 })

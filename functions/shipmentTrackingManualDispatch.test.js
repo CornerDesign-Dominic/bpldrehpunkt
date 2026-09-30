@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { canManuallyDispatchShipmentTracking, hasShipmentTrackingManualDispatchAccess, manualMailTechnicalDiagnostic, shipmentTrackingLoadingWindow } from './shipmentTrackingManualDispatch.js'
+import { canManuallyDispatchShipmentTracking, hasShipmentTrackingManualDispatchAccess, isManualTrackingRecipientAllowed, manualMailTechnicalDiagnostic, shipmentTrackingLoadingWindow } from './shipmentTrackingManualDispatch.js'
 
 test('manual shipment-tracking mail requires the existing transport-order edit access', () => {
   assert.equal(hasShipmentTrackingManualDispatchAccess({ role: 'user', permissions: { transportOrders: 'view' } }), false)
@@ -14,6 +14,14 @@ test('manual test requests are permitted after completion without reopening the 
   assert.equal(canManuallyDispatchShipmentTracking({ lifecycleStatus: 'completed' }), true)
   assert.equal(canManuallyDispatchShipmentTracking({ lifecycleStatus: 'upcoming' }), false)
   assert.equal(canManuallyDispatchShipmentTracking(null), false)
+})
+
+test('manual tracking mail permits arbitrary stored recipients only in production', () => {
+  assert.equal(isManualTrackingRecipientAllowed('carrier@example.test', { GCLOUD_PROJECT: 'db-bpl-drehpunkt' }), true)
+  assert.equal(isManualTrackingRecipientAllowed('carrier@example.test', { GCLOUD_PROJECT: 'db-bpl-drehpunkt-dev' }), false)
+  assert.equal(isManualTrackingRecipientAllowed('status@brennpunkt-logistik.de', { GCLOUD_PROJECT: 'db-bpl-drehpunkt-dev' }), true)
+  assert.equal(isManualTrackingRecipientAllowed('status@brennpunkt-logistik.de', { GCLOUD_PROJECT: 'unknown-project' }), false)
+  assert.equal(isManualTrackingRecipientAllowed('not-an-email', { GCLOUD_PROJECT: 'db-bpl-drehpunkt' }), false)
 })
 
 test('loading windows omit redundant dates and repeated times in system mails', () => {

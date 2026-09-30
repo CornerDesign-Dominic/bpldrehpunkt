@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "collectionGroup": "deadlines",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "reminderEnabled", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "time", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "diagnosticEvents",
       "queryScope": "COLLECTION",
       "fields": [

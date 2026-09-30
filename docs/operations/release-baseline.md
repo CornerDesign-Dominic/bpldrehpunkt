@@ -107,6 +107,46 @@ und Storage bleibt in diesem Schritt unverändert und wird nicht aktiviert.
 Eine spätere Aktivierung erfolgt ausschließlich nach der in
 `APP_CHECK_ROLLOUT.md` beschriebenen Metrik- und Ablaufprüfung.
 
+## Release 2.0.0 – geplanter Produktionsablauf
+
+Dieser Ablauf ist erst nach einer ausdrücklichen Freigabe auszuführen. Die
+Produktionsdatenbank wird für Release 2.0.0 nicht migriert oder gesichert, weil
+sie laut Freigabe keine zu erhaltenden Daten enthält. Firebase-Projekte,
+Nutzer, Secrets und andere Ressourcen werden dabei weder gelöscht noch
+übernommen.
+
+1. Den Release-Branch prüfen und freigeben. Ein Push eines nicht-
+   `main`-Branches oder das Öffnen eines Pull Requests kann über die bestehende
+   Vercel-Git-Integration ein Preview-Deployment auslösen. Dieses Preview muss
+   bei `db-bpl-drehpunkt-dev` bleiben und vor dem Merge geprüft werden.
+2. Vor jedem produktiven Functions-Deploy die **Namen und aktiven Versionen**
+   der benötigten Secrets im Projekt `db-bpl-drehpunkt` prüfen. Fehlende
+   Secrets werden dort über einen separaten, kontrollierten Set-Vorgang gesetzt;
+   Dev-Werte werden nie kopiert oder ausgegeben. Für den aktuellen Stand fehlt
+   insbesondere der produktive Routing-API-Secret-Eintrag und muss vor dem
+   Functions-Deploy bereitgestellt werden.
+3. Den neuen Firestore-Collection-Group-Index zuerst aus dem freigegebenen
+   `firestore.indexes.json` nach `db-bpl-drehpunkt` bereitstellen und den
+   Abschluss des Indexaufbaus abwarten. Erst danach darf der Frist-Scheduler
+   produktiv laufen:
+   `firebase deploy --only firestore:indexes --project db-bpl-drehpunkt`.
+4. Die geprüften Firestore- und Storage-Regeln nach `db-bpl-drehpunkt`
+   bereitstellen:
+   `firebase deploy --only firestore:rules,storage --project db-bpl-drehpunkt`.
+5. Die Functions einschließlich Scheduler nach `db-bpl-drehpunkt`
+   bereitstellen:
+   `firebase deploy --only functions --project db-bpl-drehpunkt`. Danach nur
+   Zustände, Scheduler-Logs und Testdaten prüfen; keine reale Mail zum Testen
+   auslösen. Automatische Tracking-Mails werden ausschließlich bei erkannter
+   Produktions-Runtime an gültige hinterlegte Empfänger gesendet.
+6. Erst wenn Index, Regeln und Functions gesund sind, den freigegebenen Stand
+   nach `main` mergen und den Vercel-Production-Deploy mit dessen sieben
+   produktiven `VITE_`-Variablennamen und der Produktions-Web-App ausführen
+   beziehungsweise den durch den `main`-Merge ausgelösten Deploy überwachen.
+7. Nach dem Rollout Login, App Check, eine lesende Sendungsverfolgung,
+   To-do-Fristen und die Aktionsübersicht prüfen. Externe E-Mails nur über den
+   vorgesehenen fachlichen Betrieb auslösen, nicht als technisches Smoke-Test.
+
 ## Grenzen dieses Schritts
 
 Dieser Schritt ändert weder Firestore- oder Storage-Regeln noch Functions,

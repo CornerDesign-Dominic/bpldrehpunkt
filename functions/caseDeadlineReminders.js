@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { shipmentTrackingBerlinIso } from './shared/shipmentTrackingDryRun.js'
+import { shipmentTrackingBerlinIso, shipmentTrackingBerlinLocal } from './shared/shipmentTrackingDryRun.js'
 import { sendSystemMailTemplate, systemMailNotificationUrl } from './systemMails.js'
 
 const region = 'europe-west3'
+const reminderPageSize = 500
+const reminderDispatchConcurrency = 10
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const deadlineCollections = Object.freeze({
   damageCases: { type: 'Schadenfall', templateId: 'case_deadline_reminder' },
@@ -74,7 +76,7 @@ async function claimDelivery(db, deadlineRef, metadata, now) {
   return claimed ? { deliveryRef, caseData } : null
 }
 
-async function dispatchReminder(db, deadlineSnapshot, now) {
+async function dispatchReminder(db, deadlineSnapshot, now, sendMail) {
   const metadata = deadlineReminderMetadata(deadlineSnapshot.ref, deadlineSnapshot.data())
   if (!metadata || !isDeadlineReminderDue(metadata, now)) return { skipped: true }
   const claimed = await claimDelivery(db, deadlineSnapshot.ref, metadata, now)
@@ -83,7 +85,7 @@ async function dispatchReminder(db, deadlineSnapshot, now) {
     ? { todoTitle: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
     : { caseType: metadata.type, caseNumber: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
   try {
-    const delivered = await sendSystemMailTemplate({ recipient: metadata.recipient, templateId: metadata.templateId, values })
+    const delivered = await sendMail({ recipient: metadata.recipient, templateId: metadata.templateId, values })
     if (!delivered) throw new Error('delivery-disabled')
     await claimed.deliveryRef.set({ status: 'sent', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: FieldValue.delete() }, { merge: true })
     return { sent: true }
@@ -94,17 +96,44 @@ async function dispatchReminder(db, deadlineSnapshot, now) {
   }
 }
 
-/** Scans only reminder-enabled deadline subcollections. A deterministic
- * delivery record provides at-most-once semantics across scheduler retries. */
-export async function runCaseDeadlineReminderDispatch(now = new Date()) {
-  const db = getFirestore()
-  const deadlines = await db.collectionGroup('deadlines').where('reminderEnabled', '==', true).limit(500).get()
-  const result = { scanned: deadlines.size, sent: 0, failed: 0 }
-  for (const deadline of deadlines.docs) {
-    const dispatched = await dispatchReminder(db, deadline, now)
-    if (dispatched.sent) result.sent += 1
-    if (dispatched.failed) result.failed += 1
+/** Returns the versioned collection-group query used by the scheduler.
+ * Date-only filtering retains all already overdue entries, while excluding
+ * future dates. `startAfter` below makes every due entry reachable even when
+ * an individual scheduler run crosses the page size. */
+export function deadlineReminderQuery(db, now = new Date()) {
+  const today = shipmentTrackingBerlinLocal(now)?.date
+  if (!today) throw new Error('deadline-reminder-clock-invalid')
+  return db.collectionGroup('deadlines')
+    .where('reminderEnabled', '==', true)
+    .where('date', '<=', today)
+    .orderBy('date', 'asc')
+    .orderBy('time', 'asc')
+}
+
+/** Scans reminder-enabled, due deadline subcollections in deterministic pages.
+ * A deterministic delivery record provides at-most-once semantics across
+ * scheduler retries and later pages cannot be hidden behind the first 500. */
+export async function runCaseDeadlineReminderDispatch(now = new Date(), { db = getFirestore(), sendMail = sendSystemMailTemplate } = {}) {
+  const result = { scanned: 0, sent: 0, failed: 0 }
+  let cursor = null
+  while (true) {
+    let query = deadlineReminderQuery(db, now).limit(reminderPageSize)
+    if (cursor) query = query.startAfter(cursor)
+    const deadlines = await query.get()
+    result.scanned += deadlines.size
+    for (let offset = 0; offset < deadlines.docs.length; offset += reminderDispatchConcurrency) {
+      const pageResults = await Promise.all(deadlines.docs
+        .slice(offset, offset + reminderDispatchConcurrency)
+        .map((deadline) => dispatchReminder(db, deadline, now, sendMail)))
+      for (const dispatched of pageResults) {
+        if (dispatched.sent) result.sent += 1
+        if (dispatched.failed) result.failed += 1
+      }
+    }
+    cursor = deadlines.docs.at(-1) || null
+    if (!cursor || deadlines.size < reminderPageSize) break
   }
+
   logger.info('Fallfrist-Erinnerungen verarbeitet.', result)
   return result
 }

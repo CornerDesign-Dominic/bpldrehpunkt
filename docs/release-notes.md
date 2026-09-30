@@ -1,45 +1,43 @@
 # Drehpunkt – Release-Historie
 
-Die kurze, für alle aktiven Nutzer sichtbare Fassung liegt versioniert in
-`src/lib/releaseNotes.js`. Diese Datei hält ergänzend den Release-Kontext für
-Entwicklung und Fehlersuche fest. Patchnotes werden ohne Firestore-Editor im
-jeweiligen Release-Commit gepflegt. Ein Vorschau-Eintrag wird erst nach dem
-tatsächlichen Release mit Veröffentlichungsdatum, Release-ID und Commit als
-`published` markiert. Im Produktionsprojekt zeigt die App ausschließlich so
-markierte Versionen.
+Release-Notizen werden mit dem jeweiligen Release-Commit gepflegt. Das frühere
+Nutzer-Updates-Modul ist entfernt und wird durch diese technische Historie nicht
+ersetzt oder wieder eingeführt.
 
-## 1.1.0 – Import & vernetzte Stammdaten (Vorschau, nicht veröffentlicht)
+## 2.0.0 – Vernetzte Auftragsbearbeitung & Sendungsverfolgung (Release Candidate)
 
-Veröffentlichungsdatum: noch offen. Release-ID und Git-Commit: noch offen.
+Veröffentlichungsdatum: noch offen. Release-ID und Git-Commit werden erst nach
+der Freigabe und dem Merge nach `main` ergänzt.
 
 ### Neu
 
-- **Stammdatenimport:** Kunden und Unternehmer können aus DyCoS-CSV importiert,
-  geprüft und einzeln übernommen werden. Sichere Ergänzungen werden automatisch
-  übernommen; fachliche Entscheidungen bleiben in einer gemeinsamen
-  Prüfwarteschlange.
-- **Transportaufträge:** CSV-Import, Auftragsliste und Detailansicht verbinden
-  Aufträge mit Partnern und weiteren Arbeitsbereichen. Die Sonderbehandlung
-  unklarer Unternehmerzuordnungen bleibt auf den TA-Import begrenzt.
-- **Partner zusammenführen:** Mehrere Debitoren- und Kreditorennummern können
-  einem Partner zugeordnet werden. Merge-Historie, archivierte Stammdatenblätter,
-  direkte Weiterleitungen und die kontrollierte Trennung machen Änderungen
-  nachvollziehbar.
+- **Auftragsimport:** Importierte Aufträge werden direkt als neu, aktualisiert
+  oder fehlerhaft protokolliert. Kennzeichen aus Zugmaschine und Trailer werden
+  dabei zu einem einheitlichen Auftragswert zusammengeführt.
+- **Sendungsverfolgung:** Regelstufen unterstützen Stunden und Minuten. Die
+  automatische Kurz-vor-Ladung-Anfrage, Frist-Erinnerungen und die bestehende
+  Tracking-Automation sind getrennte, nachvollziehbare Abläufe.
+- **Verknüpfungen:** To-dos und Fallmanager können mehrere Transportaufträge
+  verknüpfen; Auftragsdetailseiten zeigen passende To-dos und
+  Palettenbewegungen direkt an.
+- **Palettenmanagement:** Bewegungen und Abschlüsse werden in Modalen erfasst
+  und aus verknüpften Transportaufträgen direkt erreichbar gemacht.
 
 ### Verbessert
 
-- Importergebnisse zeigen die tatsächlich betroffenen Partner und den
-  Zuordnungsweg; Prüfentscheidungen und zusätzliche Nummern sind sichtbar.
-- Rechteprüfung, Datenintegrität, Importprüfung und Tests für Merge/Trennung
-  wurden ausgebaut.
+- To-do-Fristen können den Ersteller erinnern und erscheinen in dessen
+  persönlichem Kalender. Listen sind nach Transportnummer, Aufgabe und
+  Zuständigkeiten durchsuchbar und filterbar.
+- Partner-Stammdaten zeigen Palettensaldo, Bewertungsranking und die
+  überarbeitete Kreditlimit-Einstufung klarer an.
+- Rechteprüfung, Datenintegrität, Import- und Automatisierungstests wurden
+  erweitert.
 
 ### Technischer Hinweis zur Freigabe
 
-Dieser Abschnitt beschreibt den geplanten Umfang auf `dev`, nicht einen
-bereits veröffentlichten Produktionsstand. Vor einer Freigabe sind die
-Patchnotes mit dem finalen Release-Commit abzugleichen. Veröffentlichungsdatum,
-Release-ID und Commit dürfen erst dann eingetragen und der Status in
-`src/lib/releaseNotes.js` auf `published` gesetzt werden.
+Dieser Abschnitt beschreibt den freizugebenden Umfang auf `release/2.0.0`,
+nicht einen bereits veröffentlichten Produktionsstand. Vor einer Freigabe sind
+Veröffentlichungsdatum, Release-ID und finaler Merge-Commit nachzutragen.
 
 ## 1.0.0 – Erstveröffentlichung von Drehpunkt
 

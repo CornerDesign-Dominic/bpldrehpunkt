@@ -13,6 +13,12 @@ Vercel und werden weder in Git noch in dieser Dokumentation gespeichert. Für
 lokale Entwicklung werden sie in einer lokalen, ignorierten `.env.local`-Datei
 gesetzt.
 
+Für den Release-Kandidaten 2.0.0 wurde geprüft, dass Production und Preview
+jeweils genau diese sieben Namen besitzen. Die Production-Konfiguration verweist
+auf die Produktions-Web-App, Preview auf die Entwicklungs-Web-App; beide
+besitzen unterschiedliche, passende App-Check-Site-Keys. Werte, Schlüssel und
+Tokens wurden dabei nicht ausgegeben oder versioniert.
+
 ## Umgebungsbasierte Client-Konfiguration
 
 `src/lib/firebase.js` bezieht die Firebase-Web-App-Zuordnung ausschließlich aus
