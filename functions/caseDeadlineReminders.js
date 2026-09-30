@@ -4,6 +4,7 @@ import { logger } from 'firebase-functions'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { shipmentTrackingBerlinIso, shipmentTrackingBerlinLocal } from './shared/shipmentTrackingDryRun.js'
 import { sendSystemMailTemplate, systemMailNotificationUrl } from './systemMails.js'
+import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 
 const region = 'europe-west3'
 const reminderPageSize = 500
@@ -85,8 +86,11 @@ async function dispatchReminder(db, deadlineSnapshot, now, sendMail) {
     ? { todoTitle: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
     : { caseType: metadata.type, caseNumber: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
   try {
-    const delivered = await sendMail({ recipient: metadata.recipient, templateId: metadata.templateId, values })
-    if (!delivered) throw new Error('delivery-disabled')
+    const delivered = await sendMail({ recipient: metadata.recipient, templateId: metadata.templateId, values, automatic: true })
+    if (!delivered) {
+      await claimed.deliveryRef.set({ status: 'paused', pausedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: 'automatic-mail-delivery-paused' }, { merge: true })
+      return { paused: true }
+    }
     await claimed.deliveryRef.set({ status: 'sent', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: FieldValue.delete() }, { merge: true })
     return { sent: true }
   } catch (error) {
@@ -114,7 +118,12 @@ export function deadlineReminderQuery(db, now = new Date()) {
  * A deterministic delivery record provides at-most-once semantics across
  * scheduler retries and later pages cannot be hidden behind the first 500. */
 export async function runCaseDeadlineReminderDispatch(now = new Date(), { db = getFirestore(), sendMail = sendSystemMailTemplate } = {}) {
-  const result = { scanned: 0, sent: 0, failed: 0 }
+  const paused = await areAutomaticMailsPaused(db)
+  const result = { scanned: 0, sent: 0, failed: 0, paused }
+  if (paused) {
+    logger.info('Fallfrist-Erinnerungen sind durch den globalen Mail-Stopp pausiert.', result)
+    return result
+  }
   let cursor = null
   while (true) {
     let query = deadlineReminderQuery(db, now).limit(reminderPageSize)

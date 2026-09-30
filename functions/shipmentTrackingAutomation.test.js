@@ -48,6 +48,7 @@ test('scheduled tracking automation creates lifecycle states and permits product
   assert.match(source, /lifecyclePhase: 'completed'/)
   assert.match(source, /automaticTrackingDeliveryAllowed/)
   assert.match(source, /isTrackingRecipientAllowed/)
+  assert.match(source, /shipmentTrackingMailNotificationUrl/)
   assert.doesNotMatch(source, /brennpunkt-logistik\.de/)
   assert.doesNotMatch(source, /allowDevelopment: true/)
   assert.match(source, /dispatchArrivalConfirmation/)

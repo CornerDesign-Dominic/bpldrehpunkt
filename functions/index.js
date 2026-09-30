@@ -18,6 +18,7 @@ import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHand
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
+import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
 import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
 import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
@@ -1018,6 +1019,7 @@ export const updateShipmentTrackingOperatingHours = onCall({ region: 'europe-wes
 export const previewShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewShipmentTrackingOperatingHoursHandler)
 export const updateShipmentTrackingArrivalConfirmation = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingArrivalConfirmationHandler)
 export const updateShipmentTrackingRuleCatalog = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingRuleCatalogHandler)
+export const updateAutomaticMailDelivery = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateAutomaticMailDeliveryHandler)
 export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
 export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)
 export const processCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCustomerImportHandler)
