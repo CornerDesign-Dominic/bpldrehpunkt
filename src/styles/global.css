@@ -1163,10 +1163,47 @@ tbody tr:hover { background: var(--table-hover-background); }
 
 @media print {
   @page { size: A4 portrait; margin: 0; }
-  body { background: #fff !important; }
+  html, body, #root {
+    width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+  body { margin: 0 !important; background: #fff !important; }
   body * { visibility: hidden !important; }
   .document-shell, .document-shell * { visibility: visible !important; }
-  .document-shell { position: absolute !important; inset: 0 !important; display: block !important; padding: 0 !important; overflow: visible !important; border: 0 !important; border-radius: 0 !important; background: #fff !important; }
+  /*
+   * Do not merely hide the application chrome: hidden elements still occupy
+   * their layout space in Chromium and can result in a blank trailing page.
+   * A document print therefore consists solely of the paper component.
+   */
+  .app-shell, .app-shell.sidebar-collapsed, .app-main, .app-content, .liability-page {
+    display: block !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+  .sidebar, .app-header, .liability-page__toolbar, .liability-page > :not(.document-shell) {
+    display: none !important;
+  }
+  .document-shell {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
   /* Chromium can round an exact 297mm content box beyond the printable page
      and create a blank trailing page. Keep one sub-pixel below A4 instead. */
   .document-shell__paper { width: 210mm !important; height: calc(297mm - 1px) !important; min-height: calc(297mm - 1px) !important; margin: 0 !important; box-shadow: none !important; break-after: avoid-page !important; page-break-after: avoid !important; }
