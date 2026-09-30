@@ -39,6 +39,7 @@ export async function calculateTransportOrderRoute(orderId, countryOverrides = u
 }
 
 export async function getTomTomUsageSummary(month) {
+  await waitForAppCheckToken()
   const result = await httpsCallable(functions, 'getTomTomUsageSummary')({ month })
   return result.data
 }

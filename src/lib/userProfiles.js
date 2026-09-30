@@ -1,6 +1,6 @@
 import { doc, getDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { db, functions } from './firebase.js'
+import { db, functions, waitForAppCheckToken } from './firebase.js'
 import { USER_ROLES, getSafeProfileDefaults } from './permissions.js'
 
 export const USER_PROFILES_COLLECTION = 'users'
@@ -23,6 +23,7 @@ export async function getUserProfile(uid) {
 }
 
 export async function listManagedUserProfiles() {
+  await waitForAppCheckToken()
   const result = await httpsCallable(functions, 'listManagedUsers')()
   return Array.isArray(result.data?.profiles) ? result.data.profiles.map(getSafeProfileDefaults) : []
 }
