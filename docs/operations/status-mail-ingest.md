@@ -33,6 +33,10 @@ kein funktionsfähiger Ausgangs-Webhook; der Dev-Versandpfad bleibt geschlossen.
 
 ## Flow anlegen
 
+Dev-Entwurf in Power Automate: **DEV | Status-Postfach → Firebase TA-Mails**
+([Flow öffnen](https://make.powerautomate.com/environments/Default-b829bbdc-c0b7-4128-a341-6715a67b451b/flows/13d4cc0a-19bd-f111-aaae-6045bd93bcb8?v3=true)).
+Er ist erst nach Eintragen des Dev-Tokens und Veröffentlichung aktiv.
+
 1. **Automatisierter Cloud-Flow** mit Office 365 Outlook →
    **When a new email arrives in a shared mailbox (V2)** erstellen.
 2. **Original Mailbox Address:** `status@brennpunkt-logistik.de`.
@@ -44,30 +48,26 @@ kein funktionsfähiger Ausgangs-Webhook; der Dev-Versandpfad bleibt geschlossen.
 4. Aktion **HTTP** hinzufügen. Methode `POST`, URI: Dev-Endpunkt,
    Header `Content-Type: application/json` und
    `Authorization: Bearer <Dev-Token>`. Für die HTTP-Aktion sichere Eingaben
-   und Ausgaben aktivieren.
-5. JSON-Body mit den dynamischen Feldern befüllen:
+   und Ausgaben aktivieren sowie **Inhaltsübertragung/Segmentierung** ausschalten.
+   Im bestehenden Entwurf steht im Authorization-Header noch
+   `Bearer DEVTOKEN_HIER_EINTRAGEN`; vor Veröffentlichung ersetzen.
+5. Den HTTP-Body als **einen Ausdruck** eingeben, damit Sonderzeichen und
+   Zeilenumbrüche im Mailtext korrekt als JSON übertragen werden:
+
+   ```text
+   addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(json('{}'),'mailbox','status@brennpunkt-logistik.de'),'messageId',if(empty(triggerOutputs()?['body/internetMessageId']),triggerOutputs()?['body/id'],triggerOutputs()?['body/internetMessageId'])),'subject',triggerOutputs()?['body/subject']),'sender',triggerOutputs()?['body/from']),'bodyText',body('HTML_zu_Text')),'receivedAt',triggerOutputs()?['body/receivedDateTime'])
+   ```
+
+   Im bestehenden Entwurf ist dieser Ausdruck bereits hinterlegt. Er verwendet:
 
    | JSON-Feld | Power-Automate-Wert |
    | --- | --- |
    | `mailbox` | `status@brennpunkt-logistik.de` (fester Wert) |
    | `messageId` | **Internet Message Id**; falls im Trigger leer: **Message Id** |
    | `subject` | **Subject** |
-   | `sender` | **From (Address)** |
+   | `sender` | **Von** (`body/from`) |
    | `bodyText` | Ausgabe von **Html to text** |
    | `receivedAt` | **Received Time** (ISO-Zeitstempel) |
-
-   Beispielstruktur (die spitzen Klammern durch dynamische Inhalte ersetzen):
-
-   ```json
-   {
-     "mailbox": "status@brennpunkt-logistik.de",
-     "messageId": "<Internet Message Id>",
-     "subject": "<Subject>",
-     "sender": "<From (Address)>",
-     "bodyText": "<Html to text output>",
-     "receivedAt": "<Received Time>"
-   }
-   ```
 
 Der **HTTP**-Connector kann eine Power-Automate-Premium-Lizenz erfordern.
 Falls die Aktion im Tenant nicht verfügbar ist, vor Aktivierung eine
