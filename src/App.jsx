@@ -19,7 +19,6 @@ import TodoDetailPage from './pages/TodoDetailPage.jsx'
 import DamagesPage from './pages/DamagesPage.jsx'
 import DamageDetailPage from './pages/DamageDetailPage.jsx'
 import NewsPage from './pages/NewsPage.jsx'
-import UpdatesPage from './pages/UpdatesPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
@@ -95,7 +94,6 @@ export default function App() {
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
-        <Route path="/updates" element={<UpdatesPage />} />
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />

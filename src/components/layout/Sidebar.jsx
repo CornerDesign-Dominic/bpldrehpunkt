@@ -15,7 +15,6 @@ const navigationItems = [
   { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar', group: 'general' },
   { label: 'Feiertagskalender', to: '/feiertagskalender', icon: CalendarIcon, module: 'feiertagskalender', group: 'documents' },
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'more', badge: 'news' },
-  { label: 'Updates', to: '/updates', icon: DocumentsIcon, group: 'more' },
   { label: 'Das Team', to: '/team', icon: UsersIcon, module: 'team', group: 'people' },
   { label: 'Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation', group: 'people' },
   { label: 'Personal', to: '/personal', icon: UsersIcon, module: 'personnel', group: 'humanResources' },
