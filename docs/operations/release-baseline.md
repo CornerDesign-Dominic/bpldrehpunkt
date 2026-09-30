@@ -122,9 +122,9 @@ Nutzer, Secrets und andere Ressourcen werden dabei weder gelöscht noch
 2. Vor jedem produktiven Functions-Deploy die **Namen und aktiven Versionen**
    der benötigten Secrets im Projekt `db-bpl-drehpunkt` prüfen. Fehlende
    Secrets werden dort über einen separaten, kontrollierten Set-Vorgang gesetzt;
-   Dev-Werte werden nie kopiert oder ausgegeben. Für den aktuellen Stand fehlt
-   insbesondere der produktive Routing-API-Secret-Eintrag und muss vor dem
-   Functions-Deploy bereitgestellt werden.
+   Dev-Werte werden nie kopiert oder ausgegeben. Der produktive
+   `TOMTOM_ROUTING_API_KEY` ist mit aktiver Version vorhanden; sein Wert wird
+   weder ausgelesen noch dokumentiert.
 3. Den neuen Firestore-Collection-Group-Index zuerst aus dem freigegebenen
    `firestore.indexes.json` nach `db-bpl-drehpunkt` bereitstellen und den
    Abschluss des Indexaufbaus abwarten. Erst danach darf der Frist-Scheduler
