@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions/logger'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore'
@@ -236,10 +237,9 @@ async function sendWebhook(recipient, templateId, values, { allowDevelopment = f
     logExternalEffectsSkipped('system-mail-webhook')
     return false
   }
-  // Only scheduler-driven, external shipment-tracking requests use the
-  // dedicated status mailbox. Explicit manual requests remain on the regular
-  // internal sender path.
-  const useShipmentTrackingSender = automatic && templateId.startsWith('shipment_tracking_')
+  // Every external shipment-tracking request, scheduled or sent explicitly
+  // by an authorized user, is sent from the dedicated status mailbox.
+  const useShipmentTrackingSender = templateId.startsWith('shipment_tracking_')
   const url = (useShipmentTrackingSender ? shipmentTrackingMailNotificationUrl : systemMailNotificationUrl).value()
   if (!url) throw new Error('notification-service-not-configured')
   const template = templateOverride ? { ...templateDefinitions[templateId], ...templateOverride } : await loadTemplate(templateId)

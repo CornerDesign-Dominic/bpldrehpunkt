@@ -11,7 +11,7 @@ import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, prev
 import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
 import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
-import { systemMailNotificationUrl } from './systemMails.js'
+import { shipmentTrackingMailNotificationUrl, systemMailNotificationUrl } from './systemMails.js'
 import { listTransportOrderRelationsHandler, listTransportOrdersPageHandler } from './transportOrderList.js'
 import { calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
 import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHandler, listPartnerTransportOrderRatingsHandler, saveTransportOrderRatingHandler } from './transportOrderRatings.js'
@@ -1000,7 +1000,7 @@ export const listTransportOrderImportRuns = onCall({ region: 'europe-west3', enf
 export const updateManualShipmentTracking = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateManualShipmentTrackingHandler)
 export const getShipmentTrackingActivation = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingActivationHandler)
 export const previewManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewManualShipmentTrackingMailHandler)
-export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', secrets: [systemMailNotificationUrl] }, sendManualShipmentTrackingMailHandler)
+export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', secrets: [shipmentTrackingMailNotificationUrl, systemMailNotificationUrl] }, sendManualShipmentTrackingMailHandler)
 // Callable endpoints must be invokable at the Cloud Run layer so Firebase can
 // verify App Check and the signed-in profile inside the handler. Data access
 // remains protected by requireActiveProfile and transportOrders view access.
