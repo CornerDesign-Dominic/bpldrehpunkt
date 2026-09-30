@@ -16,6 +16,18 @@ function readArray(name, userId) {
   }
 }
 
+function readBoolean(name, userId, fallback) {
+  const key = storageKey(name, userId)
+  if (!key || typeof window === 'undefined') return fallback
+
+  try {
+    const value = window.localStorage.getItem(key)
+    return value === 'true' ? true : value === 'false' ? false : fallback
+  } catch {
+    return fallback
+  }
+}
+
 function writeArray(name, userId, values) {
   const key = storageKey(name, userId)
   if (!key || typeof window === 'undefined') return
@@ -38,6 +50,21 @@ export function readSidebarFavorites(userId, visibleItemIds) {
 
 export function saveSidebarFavorites(userId, favoriteIds) {
   writeArray('favorites', userId, favoriteIds)
+}
+
+export function readSidebarFavoritesExpanded(userId) {
+  return readBoolean('favoritesExpanded', userId, true)
+}
+
+export function saveSidebarFavoritesExpanded(userId, expanded) {
+  const key = storageKey('favoritesExpanded', userId)
+  if (!key || typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(key, String(expanded === true))
+  } catch {
+    // Navigation remains usable when browser storage is unavailable.
+  }
 }
 
 export function readSidebarExpandedGroups(userId, groupIds) {
