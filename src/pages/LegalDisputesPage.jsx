@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import LegalDisputeCaseForm from '../components/legal-disputes/LegalDisputeCaseForm.jsx'
 import LegalDisputeCasesTable from '../components/legal-disputes/LegalDisputeCasesTable.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -7,6 +7,7 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { createLegalDispute, LEGAL_DISPUTE_STATUSES, listLegalDisputes } from '../lib/legalDisputes.js'
+import { caseCreationDefaults } from '../lib/caseTransportLinks.js'
 
 function isCriticalDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false
@@ -22,13 +23,15 @@ export default function LegalDisputesPage() {
   const { canEdit, canView } = usePermissions()
   const { setTitle } = usePageHeader()
   const navigate = useNavigate()
+  const location = useLocation()
   const editable = canEdit('legalDisputes')
   const canViewMasterData = canView('masterData')
   const [cases, setCases] = useState([])
   const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  const [pendingCaseCreation] = useState(() => location.state?.caseCreation?.caseType === 'legalDispute' ? location.state.caseCreation : null)
+  const [showForm, setShowForm] = useState(() => Boolean(location.state?.caseCreation?.caseType === 'legalDispute'))
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
@@ -59,8 +62,10 @@ export default function LegalDisputesPage() {
     return () => { current = false }
   }, [canViewMasterData, editable])
 
+  useEffect(() => { if (pendingCaseCreation) navigate(location.pathname, { replace: true, state: null }) }, [location.pathname, navigate, pendingCaseCreation])
+
   async function save(values) {
-    const id = await createLegalDispute(values, { user, profile })
+    const id = await createLegalDispute(values, { user, profile }, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
     navigate(`/legal-disputes/${id}`)
   }
@@ -71,14 +76,14 @@ export default function LegalDisputesPage() {
     {error && <p className="form-error">{error}</p>}
     {loading ? <p className="page-state">Fälle werden geladen …</p> : <div className="legal-disputes-lists">
       <section className="legal-disputes-list" aria-labelledby="current-legal-disputes-heading">
-        <div className="legal-disputes-list__heading"><h2 id="current-legal-disputes-heading">Aktuelle Fälle</h2><span>{currentCases.length}</span></div>
+        <div className="legal-disputes-list__heading"><h2 id="current-legal-disputes-heading">Aktuelle Fälle</h2></div>
         <LegalDisputeCasesTable cases={currentCases} emptyMessage="Keine aktuellen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
       <section className="legal-disputes-list" aria-labelledby="closed-legal-disputes-heading">
-        <div className="legal-disputes-list__heading"><h2 id="closed-legal-disputes-heading">Abgeschlossene Fälle</h2><span>{closedCases.length}</span></div>
+        <div className="legal-disputes-list__heading"><h2 id="closed-legal-disputes-heading">Abgeschlossene Fälle</h2></div>
         <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
     </div>}
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></div>}
   </div>
 }

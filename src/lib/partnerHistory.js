@@ -1,5 +1,7 @@
-import { addDoc, collection, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore'
 import { db } from './firebase.js'
+import { mergedPartnerHistoryEntry } from './partnerReferencePresentation.js'
+import { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const PARTNER_HISTORY_CATEGORIES = [
   { value: 'all', label: 'Alle' },
@@ -40,6 +42,18 @@ export async function addPartnerHistoryEntry(partnerId, entry, actor) {
 }
 
 export async function listPartnerHistory(partnerId) {
-  const snapshot = await getDocs(query(historyRef(partnerId), orderBy('createdAt', 'desc')))
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))
+  const cluster = await getPartnerCluster(partnerId)
+  const snapshots = await Promise.all(cluster.members.map((partner) => getDocs(query(historyRef(partner.id), orderBy('createdAt', 'desc')))))
+  return snapshots.flatMap((snapshot, index) => snapshot.docs.map((item) => ({ id: `${cluster.members[index].id}/${item.id}`, originPartnerId: cluster.members[index].id, ...item.data() })))
+    .sort((left, right) => (right.createdAt?.toMillis?.() || 0) - (left.createdAt?.toMillis?.() || 0))
+}
+
+export async function listMergedPartnerSources(partnerId) {
+  const history = await listPartnerHistory(partnerId)
+  const separated = new Set(history.filter((entry) => entry.category === 'merge' && entry.action === 'separated').map((entry) => entry.mergeId))
+  const merges = history.filter((entry) => entry.category === 'merge' && entry.action === 'merged' && entry.sourcePartnerId && !separated.has(entry.mergeId))
+  return Promise.all(merges.map(async (entry) => {
+    const snapshot = await getDoc(doc(db, 'businessPartners', entry.sourcePartnerId))
+    return mergedPartnerHistoryEntry(entry, snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null)
+  }))
 }

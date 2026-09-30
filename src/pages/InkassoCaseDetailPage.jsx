@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import InkassoCaseEditModal from '../components/inkasso/InkassoCaseEditModal.jsx'
 import InkassoDeadlinesCard from '../components/inkasso/InkassoDeadlinesCard.jsx'
 import InkassoInvoicesCard from '../components/inkasso/InkassoInvoicesCard.jsx'
@@ -15,11 +15,15 @@ import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
+import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { createInkassoCaseDocument, deleteInkassoCaseDocument, getInkassoCaseDocumentBlob, listInkassoCaseDocuments, updateInkassoCaseDocument } from '../lib/inkassoDocuments.js'
 import { addInkassoCaseUpdate, createInkassoCaseDeadline, createInkassoCaseInvoice, createInkassoCaseMovement, deleteInkassoCaseDeadline, deleteInkassoCaseMovement, getInkassoCase, inkassoCaseStatusLabel, listInkassoCaseDeadlines, listInkassoCaseHistory, listInkassoCaseInvoices, listInkassoCaseMovements, listInkassoCaseUpdates, updateInkassoCaseDeadline, updateInkassoCaseFields, updateInkassoCaseInvoice, updateInkassoCaseMovement, updateInkassoInvoicePayment } from '../lib/inkasso.js'
+import { inkassoTodoPartnerValues } from '../lib/inkassoPartnerLinks.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { getUserDisplayName } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
+import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
+import CaseTransportOrdersCard from '../components/case-links/CaseTransportOrdersCard.jsx'
 
 function formatTimestamp(value) { const date = value?.toDate?.(); return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(date) : '—' }
 function hasValue(value) { return value !== null && value !== undefined && value !== '' }
@@ -40,6 +44,7 @@ export default function InkassoCaseDetailPage() {
   const canViewTodos = canView('todos')
   const canViewMasterData = canView('masterData')
   const [inkassoCase, setInkassoCase] = useState(null)
+  const [effectivePartnerResult, setEffectivePartnerResult] = useState({ partnerId: '', data: null })
   const [updates, setUpdates] = useState([])
   const [historyEntries, setHistoryEntries] = useState([])
   const [documents, setDocuments] = useState([])
@@ -64,6 +69,13 @@ export default function InkassoCaseDetailPage() {
   const [toast, setToast] = useState('')
   const [showTodoCreate, setShowTodoCreate] = useState(false)
   const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'inkassoCaseId', caseId, profile, user })
+
+  useEffect(() => {
+    let current = true
+    if (!canViewMasterData || !inkassoCase?.debtorPartnerId) return undefined
+    getEffectiveBusinessPartner(inkassoCase.debtorPartnerId).then((partner) => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: partner }) }).catch(() => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: null }) })
+    return () => { current = false }
+  }, [canViewMasterData, inkassoCase?.debtorPartnerId])
 
   async function load() {
     const [entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseDeadlines, caseMovements] = await Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseDeadlines(caseId), listInkassoCaseMovements(caseId)])
@@ -138,7 +150,8 @@ export default function InkassoCaseDetailPage() {
   if (loading) return <p className="page-state">Inkassofall wird geladen …</p>
   if (error && !inkassoCase) return <section className="damage-detail-empty"><h2>Inkassofall nicht verfügbar</h2><p>{error}</p><BackLink to="/inkasso" /></section>
   if (!inkassoCase) return null
-  const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' · ') || 'Inkassofall', values: { carrierId: inkassoCase.debtorPartnerId || '', carrierName: inkassoCase.debtorName || '' } }
+  const effectivePartner = effectivePartnerResult.partnerId === inkassoCase.debtorPartnerId ? effectivePartnerResult.data : null
+  const todoFixedLink = { field: 'inkassoCaseId', id: inkassoCase.id, label: 'Inkassofall', value: [inkassoCase.caseNumber, inkassoCase.debtorName].filter(Boolean).join(' · ') || 'Inkassofall', values: inkassoTodoPartnerValues(inkassoCase) }
 
   const manualUpdates = updates.filter((update) => update.type === 'note')
   const history = [...updates.filter((update) => update.type === 'system'), ...historyEntries].sort((left, right) => (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
@@ -150,7 +163,7 @@ export default function InkassoCaseDetailPage() {
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
-    {showTodoCreate && <LinkedTodoCreateModal currentUserId={user.uid} fixedLink={todoFixedLink} partners={todoPartners} users={todoUsers} onCancel={() => setShowTodoCreate(false)} onSubmit={async (values) => { await createLinkedTodo(values); setShowTodoCreate(false); setToast('To-do angelegt.') }} />}
+    {showTodoCreate && <LinkedTodoCreateModal canViewTransportOrders={canView('transportOrders')} currentUserId={user.uid} fixedLink={todoFixedLink} partners={todoPartners} users={todoUsers} onCancel={() => setShowTodoCreate(false)} onSubmit={async (values) => { await createLinkedTodo(values); setShowTodoCreate(false); setToast('To-do angelegt.') }} />}
     {editing && <InkassoCaseEditModal inkassoCase={inkassoCase} mode={editing} onCancel={() => setEditing(null)} onSubmit={saveCase} />}
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/inkasso" /></div>
     <div className="todo-detail-page damage-detail-page inkasso-detail-page">
@@ -167,9 +180,10 @@ export default function InkassoCaseDetailPage() {
           <section className="todo-updates todo-history" aria-labelledby="inkasso-history-title"><div className="todo-updates__heading"><h3 id="inkasso-history-title">Historie</h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty">Historie wird geladen …</p> : !history.length ? <p className="todo-updates__empty">Noch keine Historieneinträge.</p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>
         <aside className="todo-detail-sidebar">
+          <CaseTransportOrdersCard caseType="inkasso" caseId={inkassoCase.id} actor={{ user, profile }} canManage={editable && canView('transportOrders')} canViewTransportOrders={canView('transportOrders')} />
           <InformationSection title="Allgemein" values={allInformationValues}><Detail label="Interne Fallnummer">{inkassoCase.caseNumber}</Detail>{inkassoCase.completedAt && <Detail label="Abgeschlossen am">{formatTimestamp(inkassoCase.completedAt)}</Detail>}</InformationSection>
           <InformationSection title="Inkassodaten" values={[inkassoCase.collectionAgency, inkassoCase.collectionReference, inkassoCase.createdAt]} onEdit={editable ? () => setEditing('collection') : null}><Detail label="Inkassounternehmen">{inkassoCase.collectionAgency}</Detail><Detail label="Aktenzeichen">{inkassoCase.collectionReference}</Detail><Detail label="Inkasso eröffnet am">{formatTimestamp(inkassoCase.createdAt)}</Detail></InformationSection>
-          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{inkassoCase.debtorName}</Detail></InformationSection>
+          <InformationSection title="Unternehmer" values={[inkassoCase.debtorName]}><Detail label="Unternehmen">{canViewMasterData && effectivePartner ? <Link to={businessPartnerDetailPath(effectivePartner.id)}>{effectivePartner.companyName || inkassoCase.debtorName}</Link> : inkassoCase.debtorName}</Detail></InformationSection>
           <InformationSection title="Systemdaten" values={[inkassoCase.createdByName, inkassoCase.createdAt, inkassoCase.updatedByName, inkassoCase.updatedAt]}><Detail label="Erstellt von">{inkassoCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(inkassoCase.createdAt)}</Detail><Detail label="Zuletzt geändert von">{inkassoCase.updatedByName}</Detail><Detail label="Zuletzt geändert am">{formatTimestamp(inkassoCase.updatedAt)}</Detail></InformationSection>
         </aside>
       </div>

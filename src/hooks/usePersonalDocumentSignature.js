@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/useAuth.js'
-import { loadCurrentUserSignature, signatureBlobToDataUrl } from '../lib/userSignature.js'
+import { loadCurrentUserSignature, signatureBlobToDataUrl, signatureErrorMessage } from '../lib/userSignature.js'
+import { documentAssetDiagnosticCode } from '../lib/diagnosticClassification.js'
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
 
 function signerName(profile) {
   return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim()
@@ -12,6 +14,7 @@ export function usePersonalDocumentSignature(setDocumentData) {
   const [signatureLoading, setSignatureLoading] = useState(false)
   const [signatureMissing, setSignatureMissing] = useState(false)
   const [signatureNoticeVisible, setSignatureNoticeVisible] = useState(false)
+  const [signatureNoticeMessage, setSignatureNoticeMessage] = useState('')
   const signaturePreviewUrlRef = useRef('')
   const signatureLoadRequestRef = useRef(0)
 
@@ -50,10 +53,17 @@ export function usePersonalDocumentSignature(setDocumentData) {
       }))
       setSignatureMissing(false)
       return true
-    } catch {
+    } catch (error) {
       if (requestId === signatureLoadRequestRef.current) {
+        const diagnostic = documentAssetDiagnosticCode(error)
+        if (diagnostic) void reportTechnicalFailure({ module: 'document-templates', stage: 'personal-signature-load', code: diagnostic })
         setDocumentData((current) => ({ ...current, attachments: { ...current.attachments, signature: null } }))
-        setSignatureMissing(true)
+        const missing = ['storage/object-not-found', 'signature/not-uploaded'].includes(error?.code)
+        setSignatureMissing(missing)
+        setSignatureNoticeMessage(missing
+          ? 'Du hast noch keine persönliche Unterschrift hinterlegt. Bitte hinterlege deine Unterschrift zuerst unter „Mein Profil“.'
+          : signatureErrorMessage(error, 'load'))
+        setUsePersonalSignature(false)
       }
       return false
     } finally {
@@ -64,6 +74,7 @@ export function usePersonalDocumentSignature(setDocumentData) {
   async function togglePersonalSignature(checked) {
     setUsePersonalSignature(checked)
     setSignatureNoticeVisible(false)
+    setSignatureNoticeMessage('')
     setSignatureMissing(false)
     if (!checked) {
       clearPersonalSignature()
@@ -90,12 +101,15 @@ export function usePersonalDocumentSignature(setDocumentData) {
     setUsePersonalSignature(false)
     setSignatureMissing(false)
     setSignatureNoticeVisible(false)
+    setSignatureNoticeMessage('')
   }
 
   return {
     usePersonalSignature,
     signatureLoading,
     signatureNoticeVisible,
+    signatureNoticeMessage,
+    signatureMissing,
     togglePersonalSignature,
     ensurePersonalSignature,
     resetPersonalSignature,

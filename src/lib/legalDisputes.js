@@ -1,6 +1,8 @@
 import { collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { setTransportOrderCaseLink } from './caseTransportLinks.js'
+import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const LEGAL_DISPUTES_COLLECTION = 'legalDisputes'
 export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
@@ -58,12 +60,11 @@ function financialEntryLabel(entry) {
 function legalDisputeDeadlinePayload(values) {
   const type = values.type
   const date = trim(values.date)
-  const time = trim(values.time)
+  const time = reminderDeadlineTime(values)
   const note = trim(values.note)
   if (!LEGAL_DISPUTE_SCHEDULE_TYPES.some((item) => item.value === type)) throw new Error('Bitte auswählen, ob es sich um eine Frist oder einen Termin handelt.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
-  if (time && !/^\d{2}:\d{2}$/.test(time)) throw new Error('Bitte eine gültige Uhrzeit erfassen.')
-  return { type, date, time: time || null, reminderEnabled: values.reminderEnabled === true, note: note || null }
+  return { type, date, time, reminderEnabled: values.reminderEnabled === true, note: note || null }
 }
 
 function legalDisputeDeadlineLabel(deadline) {
@@ -86,9 +87,10 @@ export function createEmptyLegalDispute() {
   }
 }
 
-export async function createLegalDispute(values, actor) {
+export async function createLegalDispute(values, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
   const transportReference = trim(values.transportReference)
   if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
 
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'legalDisputeCaseCounters', year)
@@ -96,7 +98,8 @@ export async function createLegalDispute(values, actor) {
   const optionalText = (value) => trim(value) || null
   let caseRef
   await runTransaction(db, async (transaction) => {
-    const counter = await transaction.get(counterRef)
+    const [counter, ...transportOrders] = await Promise.all([transaction.get(counterRef), ...linkedTransportOrderIds.map((transportOrderId) => transaction.get(doc(db, 'transportOrders', transportOrderId)))])
+    if (transportOrders.some((transportOrder) => !transportOrder.exists())) throw new Error('Mindestens ein Transportauftrag ist nicht mehr verfügbar.')
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
 
@@ -156,6 +159,7 @@ export async function createLegalDispute(values, actor) {
       updatedByName: actorName,
     })
     transaction.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
+    linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(transaction, { caseType: 'legalDispute', caseId: caseRef.id, transportOrderId, actor }))
   })
   return caseRef.id
 }
@@ -209,7 +213,7 @@ export async function createLegalDisputeDeadline(legalDispute, values, actor) {
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} hinzugefügt.`, actor))
   await batch.commit()
 }

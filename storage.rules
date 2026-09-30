@@ -77,5 +77,7 @@ service firebase.storage {
       allow create, update: if ownsSignature(uid) && isJpegSignature();
       allow delete: if ownsSignature(uid);
     }
+
+
   }
 }

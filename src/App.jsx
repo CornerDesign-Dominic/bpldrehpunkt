@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { reportTechnicalFailure } from './lib/diagnostics.js'
+import { websiteDiagnosticStage } from './lib/diagnosticClassification.js'
 import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
@@ -11,6 +14,7 @@ import DashboardPage from './pages/DashboardPage.jsx'
 import PalletAccountDetailPage from './pages/PalletAccountDetailPage.jsx'
 import PalletsPage from './pages/PalletsPage.jsx'
 import TodosPage from './pages/TodosPage.jsx'
+import NotesPage from './pages/NotesPage.jsx'
 import TodoDetailPage from './pages/TodoDetailPage.jsx'
 import DamagesPage from './pages/DamagesPage.jsx'
 import DamageDetailPage from './pages/DamageDetailPage.jsx'
@@ -20,6 +24,10 @@ import LoginPage from './pages/LoginPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import TeamPage from './pages/TeamPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
+import ShipmentTrackingAdminPage from './pages/ShipmentTrackingAdminPage.jsx'
+import DiagnosticsPage from './pages/DiagnosticsPage.jsx'
+import CompanyMasterDataPage from './pages/CompanyMasterDataPage.jsx'
+import { CompanyDataProvider } from './company/CompanyDataProvider.jsx'
 import VacationPage from './pages/VacationPage.jsx'
 import VacationManagementPage from './pages/VacationManagementPage.jsx'
 import CalendarPage from './pages/CalendarPage.jsx'
@@ -38,14 +46,31 @@ import LegalDisputeDetailPage from './pages/LegalDisputeDetailPage.jsx'
 import InkassoPage from './pages/InkassoPage.jsx'
 import InkassoCaseDetailPage from './pages/InkassoCaseDetailPage.jsx'
 import AgbCheckerPage from './pages/AgbCheckerPage.jsx'
+import TransportOrdersPage from './pages/TransportOrdersPage.jsx'
+import TransportOrderImportPage from './pages/TransportOrderImportPage.jsx'
+import TransportOrderDetailPage from './pages/TransportOrderDetailPage.jsx'
+import MasterDataImportPage from './pages/MasterDataImportPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 import { CompanyHolidaySettingsProvider } from './company-holidays/CompanyHolidaySettingsProvider.jsx'
 
 function ProtectedAppLayout() {
-  return <ProtectedRoute><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></ProtectedRoute>
+  return <ProtectedRoute><CompanyDataProvider><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></CompanyDataProvider></ProtectedRoute>
 }
 
 export default function App() {
+  useEffect(() => {
+    const report = (code) => {
+      void reportTechnicalFailure({ module: 'website', stage: websiteDiagnosticStage(window.location.pathname), code })
+    }
+    const onError = (event) => { if (event.error) report('runtime-error') }
+    const onRejection = () => report('unhandled-rejection')
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onRejection)
+    return () => {
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onRejection)
+    }
+  }, [])
   return (
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
@@ -55,9 +80,15 @@ export default function App() {
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
         <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/import/unternehmer" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage kind="carrier" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/stammdaten/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
+        <Route path="/transportauftraege" element={<PermissionRoute module="transportOrders"><TransportOrdersPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/import" element={<PermissionRoute module="dataImports" minimum="edit"><TransportOrderImportPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/:transportOrderId" element={<PermissionRoute module="transportOrders"><TransportOrderDetailPage /></PermissionRoute>} />
         <Route path="/crm" element={<PermissionRoute module="crm"><CrmPage /></PermissionRoute>} />
         <Route path="/crm/:partnerId" element={<PermissionRoute module="crm"><CrmDetailPage /></PermissionRoute>} />
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
@@ -69,6 +100,7 @@ export default function App() {
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
+        <Route path="/notizen" element={<NotesPage />} />
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
@@ -80,6 +112,9 @@ export default function App() {
         <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
+        <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
+        <Route path="/admin/diagnose" element={<PermissionRoute requireUserManagement><DiagnosticsPage /></PermissionRoute>} />
+        <Route path="/admin/stammdaten" element={<PermissionRoute requireUserManagement><CompanyMasterDataPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />

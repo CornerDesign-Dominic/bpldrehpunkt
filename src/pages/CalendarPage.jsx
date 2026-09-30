@@ -8,6 +8,7 @@ import CalendarNavigation from '../components/ui/CalendarNavigation.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createCalendarEvent, deleteCalendarEvent, listCalendarEvents, listUserCalendars, updateCalendarEvent } from '../lib/calendars.js'
 import { listSystemCalendarEvents, listSystemCalendars } from '../lib/systemCalendars.js'
+import { listTodoCalendarEntries } from '../lib/todos.js'
 import { canView } from '../lib/permissions.js'
 import '../styles/calendar.css'
 
@@ -41,13 +42,32 @@ async function loadCalendarData(userId, isSuperadmin, profile) {
   const canUseCalendar = canView(profile, 'calendar')
   const regularCalendars = canUseCalendar ? await listUserCalendars(userId, isSuperadmin) : []
   const systemCalendars = listSystemCalendars(profile)
-  const [regularEvents, systemEvents] = await Promise.all([
+  const [regularEvents, systemEvents, todoEntries] = await Promise.all([
     regularCalendars.length ? listCalendarEvents(regularCalendars) : [],
     listSystemCalendarEvents(systemCalendars),
+    canUseCalendar ? listTodoCalendarEntries(userId) : [],
   ])
   const ownCalendars = regularCalendars.filter((calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId)
   const assignedCalendars = regularCalendars.filter((calendar) => !ownCalendars.some((ownCalendar) => ownCalendar.id === calendar.id))
-  return { availableCalendars: [...ownCalendars, ...systemCalendars, ...assignedCalendars], calendarEvents: [...regularEvents, ...systemEvents] }
+  const personalCalendar = ownCalendars[0]
+  const todoEvents = personalCalendar ? todoEntries.map((entry) => ({
+    id: `todo-deadline:${entry.id}`,
+    calendarId: personalCalendar.id,
+    calendarName: personalCalendar.name,
+    calendarColor: personalCalendar.color,
+    title: entry.title,
+    description: entry.description,
+    startDate: entry.startDate,
+    endDate: entry.endDate,
+    allDay: entry.allDay !== false,
+    startTime: entry.startTime || '',
+    endTime: entry.endTime || '',
+    reminderEnabled: entry.reminderEnabled === true,
+    hasReminder: true,
+    todoDeadline: true,
+    targetPath: `/todos/${entry.todoId}`,
+  })) : []
+  return { availableCalendars: [...ownCalendars, ...systemCalendars, ...assignedCalendars], calendarEvents: [...regularEvents, ...systemEvents, ...todoEvents] }
 }
 
 function resolvedVisibleCalendarIds(availableCalendars, current, storageKey) {
@@ -106,7 +126,7 @@ function EventModal({ event, calendars, initialDate, editable, onClose, onSave, 
 
   if (deleteConfirmationOpen) return <ConfirmDialog open title="Termin wirklich löschen?" message="Dieser Termin wird endgültig gelöscht." confirmLabel="Termin löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={submitting} onCancel={() => setDeleteConfirmationOpen(false)} onConfirm={confirmRemove} />
 
-  return <div className="calendar-modal-backdrop" role="presentation" onMouseDown={(eventMouse) => { if (eventMouse.target === eventMouse.currentTarget) onClose() }}><section className="calendar-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title"><div className="calendar-modal__heading"><div><h2 id="calendar-event-title">{isExisting ? editable ? 'Termin bearbeiten' : 'Termin' : 'Neuer Termin'}</h2>{isExisting && <p>{event.calendarName} · {formatPeriod(event)}</p>}</div><button type="button" className="calendar-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></div>{!editable ? <><dl className="calendar-event-detail"><div><dt>Zeitraum</dt><dd>{formatPeriod(event)}</dd></div><div><dt>Kalender</dt><dd><span className="calendar-color-dot" style={{ background: event.calendarColor }} />{event.calendarName}</dd></div>{event.description && <div className="calendar-event-detail__wide"><dt>Beschreibung</dt><dd>{event.description}</dd></div>}</dl><div className="calendar-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></> : <form onSubmit={submit} noValidate><div className="calendar-modal__fields"><label className="form-field calendar-modal__title"><span>Titel *</span><input required autoFocus value={form.title} onChange={(input) => setForm((current) => ({ ...current, title: input.target.value }))} /></label>{!isExisting && <label className="form-field"><span>Kalender</span><select value={form.calendarId} onChange={(input) => setForm((current) => ({ ...current, calendarId: input.target.value }))}>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}</select></label>}<label className="form-field"><span>Von</span><input type="date" required value={form.startDate} onChange={(input) => setForm((current) => ({ ...current, startDate: input.target.value, endDate: input.target.value > current.endDate ? input.target.value : current.endDate }))} /></label><label className="form-field"><span>Bis</span><input type="date" required min={form.startDate} value={form.endDate} onChange={(input) => setForm((current) => ({ ...current, endDate: input.target.value }))} /></label><label className="calendar-checkbox"><input type="checkbox" checked={form.allDay} onChange={(input) => setForm((current) => ({ ...current, allDay: input.target.checked }))} />Ganztägig</label>{!form.allDay && <><label className="form-field"><span>Von</span><input type="time" value={form.startTime} onChange={(input) => setForm((current) => ({ ...current, startTime: input.target.value }))} /></label><label className="form-field"><span>Bis</span><input type="time" value={form.endTime} onChange={(input) => setForm((current) => ({ ...current, endTime: input.target.value }))} /></label></>}<label className="form-field calendar-modal__description"><span>Beschreibung (optional)</span><textarea rows="4" value={form.description} onChange={(input) => setForm((current) => ({ ...current, description: input.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="calendar-modal__actions">{isExisting && <button className="button button--danger" type="button" disabled={submitting} onClick={remove}>Löschen</button>}<span /><button className="button button--secondary" type="button" disabled={submitting} onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : 'Speichern'}</button></div></form>}</section></div>
+  return <div className="calendar-modal-backdrop" role="presentation" onMouseDown={(eventMouse) => { if (eventMouse.target === eventMouse.currentTarget) onClose() }}><section className="calendar-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title"><div className="calendar-modal__heading"><div><h2 id="calendar-event-title">{isExisting ? editable ? 'Termin bearbeiten' : 'Termin' : 'Neuer Termin'}</h2>{isExisting && <p>{event.calendarName} · {formatPeriod(event)}</p>}</div><button type="button" className="calendar-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></div>{!editable ? <><dl className="calendar-event-detail"><div><dt>Zeitraum</dt><dd>{formatPeriod(event)}</dd></div><div><dt>Kalender</dt><dd><span className="calendar-color-dot" style={{ background: event.calendarColor }} />{event.calendarName}</dd></div>{event.systemCalendar && event.hasReminder && <div><dt>Erinnerung</dt><dd>{event.reminderEnabled ? 'An' : 'Aus'}</dd></div>}{event.description && <div className="calendar-event-detail__wide"><dt>Beschreibung</dt><dd>{event.description}</dd></div>}</dl><div className="calendar-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Schließen</button></div></> : <form onSubmit={submit} noValidate><div className="calendar-modal__fields"><label className="form-field calendar-modal__title"><span>Titel *</span><input required autoFocus value={form.title} onChange={(input) => setForm((current) => ({ ...current, title: input.target.value }))} /></label>{!isExisting && <label className="form-field"><span>Kalender</span><select value={form.calendarId} onChange={(input) => setForm((current) => ({ ...current, calendarId: input.target.value }))}>{calendars.map((calendar) => <option key={calendar.id} value={calendar.id}>{calendar.name}</option>)}</select></label>}<label className="form-field"><span>Von</span><input type="date" required value={form.startDate} onChange={(input) => setForm((current) => ({ ...current, startDate: input.target.value, endDate: input.target.value > current.endDate ? input.target.value : current.endDate }))} /></label><label className="form-field"><span>Bis</span><input type="date" required min={form.startDate} value={form.endDate} onChange={(input) => setForm((current) => ({ ...current, endDate: input.target.value }))} /></label><label className="calendar-checkbox"><input type="checkbox" checked={form.allDay} onChange={(input) => setForm((current) => ({ ...current, allDay: input.target.checked }))} />Ganztägig</label>{!form.allDay && <><label className="form-field"><span>Von</span><input type="time" value={form.startTime} onChange={(input) => setForm((current) => ({ ...current, startTime: input.target.value }))} /></label><label className="form-field"><span>Bis</span><input type="time" value={form.endTime} onChange={(input) => setForm((current) => ({ ...current, endTime: input.target.value }))} /></label></>}<label className="form-field calendar-modal__description"><span>Beschreibung (optional)</span><textarea rows="4" value={form.description} onChange={(input) => setForm((current) => ({ ...current, description: input.target.value }))} /></label></div>{error && <p className="form-error">{error}</p>}<div className="calendar-modal__actions">{isExisting && <button className="button button--danger" type="button" disabled={submitting} onClick={remove}>Löschen</button>}<span /><button className="button button--secondary" type="button" disabled={submitting} onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : 'Speichern'}</button></div></form>}</section></div>
 }
 
 function weekBars(events, week, weekIndex) {
@@ -145,7 +165,7 @@ function MonthGrid({ year, month, events, onDayClick, onEventClick }) {
       <div className="calendar-month__week-days">{week.map((cell) => <div className={`calendar-day${cell.outside ? ' calendar-day--outside' : ''}${companyHolidayDates.has(cell.date) ? ' calendar-day--company-holiday' : ''}${cell.date === today ? ' calendar-day--today' : ''}`} key={cell.date} role={companyHolidayDates.has(cell.date) ? 'button' : undefined} tabIndex={companyHolidayDates.has(cell.date) ? 0 : undefined} aria-label={companyHolidayDates.has(cell.date) ? `Feiertag am ${cell.date}. Details öffnen` : undefined} onClick={companyHolidayDates.has(cell.date) ? () => onDayClick(cell.date) : undefined} onKeyDown={companyHolidayDates.has(cell.date) ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onDayClick(cell.date) } } : undefined}>
         <button type="button" className="calendar-day__number" onClick={(event) => { event.stopPropagation(); onDayClick(cell.date) }} aria-label={companyHolidayDates.has(cell.date) ? `Feiertag am ${cell.date}. Details öffnen` : `Termin am ${cell.date} anlegen`}>{cell.day}</button>
       </div>)}</div>
-      <div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className={`calendar-event-bar${event.kind === 'company-holiday' ? ' calendar-event-bar--company-holiday' : ''}`} key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div>
+      <div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className={`calendar-event-bar${event.kind === 'company-holiday' ? ' calendar-event-bar--company-holiday' : ''}`} key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}${event.hasReminder ? ` · Erinnerung: ${event.reminderEnabled ? 'An' : 'Aus'}` : ''}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div>
     </div>)}</div>
   </div>
 }
@@ -241,7 +261,7 @@ export default function CalendarPage() {
   }
 
   function openEvent(event) {
-    if (event.systemCalendar && event.targetPath) {
+    if ((event.systemCalendar || event.todoDeadline) && event.targetPath) {
       navigate(event.targetPath)
       return
     }

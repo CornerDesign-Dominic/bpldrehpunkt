@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
 import HolidayDetailModal from '../components/holidays/HolidayDetailModal.jsx'
 import CalendarNavigation from '../components/ui/CalendarNavigation.jsx'
@@ -11,6 +11,18 @@ import '../styles/holidayCalendar.css'
 function localTodayValue() {
   const today = new Date()
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+function AllGermanStatesToggle({ disabled, selectedStates, onToggle }) {
+  const inputRef = useRef(null)
+  const allSelected = GERMAN_STATES.every((state) => selectedStates.includes(state.code))
+  const partlySelected = !allSelected && GERMAN_STATES.some((state) => selectedStates.includes(state.code))
+
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = partlySelected
+  }, [partlySelected])
+
+  return <label className="holiday-state holiday-state-list__all"><input ref={inputRef} type="checkbox" checked={allSelected} disabled={disabled} onChange={(event) => onToggle(event.target.checked)} /><span>Alle Bundesländer</span></label>
 }
 
 export default function HolidayCalendarPage() {
@@ -86,6 +98,10 @@ export default function HolidayCalendarPage() {
     setSelectedStates((current) => checked ? [...new Set([...current, code])] : current.filter((stateCode) => stateCode !== code))
   }
 
+  function toggleAllGermanStates(checked) {
+    setSelectedStates(checked ? GERMAN_STATES.map((state) => state.code) : [])
+  }
+
   function toggleCountryExpansion(code) {
     setExpandedCountries((current) => {
       const next = new Set(current)
@@ -120,7 +136,7 @@ export default function HolidayCalendarPage() {
             <label><input type="checkbox" checked={country.code === 'DE' ? germanyEnabled : selectedCountryCodes.includes(country.code)} disabled={!country.available} onChange={(event) => toggleCountry(country.code, event.target.checked)} /><span>{country.name}</span></label>
             {!country.available && <small>Feiertage folgen</small>}
           </div>
-          {country.code === 'DE' && isExpanded && <div className="holiday-state-list">{country.regions.map((state) => <label className="holiday-state" key={state.code}><input type="checkbox" checked={selectedStates.includes(state.code)} disabled={!germanyEnabled} onChange={(event) => toggleState(state.code, event.target.checked)} /><span>{state.name}</span></label>)}</div>}
+          {country.code === 'DE' && isExpanded && <div className="holiday-state-list"><AllGermanStatesToggle disabled={!germanyEnabled} selectedStates={selectedStates} onToggle={toggleAllGermanStates} />{country.regions.map((state) => <label className="holiday-state" key={state.code}><input type="checkbox" checked={selectedStates.includes(state.code)} disabled={!germanyEnabled} onChange={(event) => toggleState(state.code, event.target.checked)} /><span>{state.name}</span></label>)}</div>}
         </div>
       })}</div>
       </aside>

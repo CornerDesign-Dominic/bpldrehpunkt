@@ -22,3 +22,17 @@ test('the callable uses one annual counter transaction and preserves existing ye
   assert.match(callable, /highestIssuedNumber\(currentYearCases, year\)/)
   assert.match(callable, /profile\?\.role === 'superadmin' \|\| profile\?\.permissions\?\.inkasso === 'edit'/)
 })
+
+test('inkasso validates the selected canonical partner role without requiring an accounting number', () => {
+  assert.match(callable, /import \{ businessPartnerRoles \} from '\.\/shared\/businessPartnerRoles\.js'/)
+  assert.match(callable, /export function inkassoPartnerSnapshot\(partner, role\)/)
+  assert.match(callable, /businessPartnerRoles\(partner\)\[role\]/)
+  assert.doesNotMatch(callable, /typeof partnerNumber !== 'string' \|\| !partnerNumber\.trim\(\)/)
+})
+
+test('inkasso persists every selected transport order as an independent case link', () => {
+  assert.match(client, /transportOrderIds: linkedTransportOrderIds/)
+  assert.match(callable, /function transportOrderIdsFrom\(data\)/)
+  assert.match(callable, /transportOrderIds\.forEach\(\(transportOrderId\) =>/)
+  assert.match(callable, /caseTransportLinkId\('inkasso', caseRef\.id, transportOrderId\)/)
+})

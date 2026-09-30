@@ -6,8 +6,13 @@ import BackLink from '../components/ui/BackLink.jsx'
 import CrmActivityPanel from '../components/crm/CrmActivityPanel.jsx'
 import PartnerHistoryPanel from '../components/crm/PartnerHistoryPanel.jsx'
 import CrmRatingPanel from '../components/crm/CrmRatingPanel.jsx'
-import { getBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartnerCreditLimit, updateBusinessPartnerCrmFields } from '../lib/businessPartners.js'
+import CrmEditModal from '../components/crm/CrmEditModal.jsx'
+import { EditIcon } from '../components/icons.jsx'
+import { getEffectiveBusinessPartner, getBusinessPartnerStatusLabel, getBusinessPartnerType, updateBusinessPartnerCrmFields } from '../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
+import { paymentTermText } from '../lib/paymentTerms.js'
+import { crmIndustryValue } from '../lib/crmIndustry.js'
 import { getPartnerEvaluationStatus, PARTNER_EVALUATION_STATUS_LABELS } from '../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../partner-evaluation/usePartnerEvaluationSettings.js'
 import '../styles/businessPartnerExtensions.css'
@@ -16,40 +21,122 @@ function formatCreditLimit(value) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
-function CreditLimitEditor({ partnerId, value, actor, onSaved, canEdit, settings }) {
-  const [creditLimit, setCreditLimit] = useState(value ?? '')
+function formatPartnerAddress(address = {}) {
+  return [
+    [address?.street, address?.houseNumber].filter(Boolean).join(' '),
+    [[address?.postalCode, address?.city].filter(Boolean).join(' '), address?.country].filter(Boolean).join(' · '),
+  ].filter(Boolean)
+}
+
+function CrmIndustryEditor({ partnerId, companyName, industry, actor, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(industry)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  async function save() {
+  function close() {
+    setDraft(industry)
+    setError('')
+    setEditing(false)
+  }
+
+  async function save(event) {
+    event.preventDefault()
+    const crmIndustry = draft.trim()
+    if (crmIndustry === industry || saving) return
     setSaving(true)
     setError('')
     try {
-      await updateBusinessPartnerCreditLimit(partnerId, creditLimit, actor)
-      onSaved(creditLimit === '' ? null : Number(creditLimit))
+      await updateBusinessPartnerCrmFields(partnerId, { crmIndustry }, actor)
+      onSaved(crmIndustry)
+      setEditing(false)
     } catch {
-      setError('Kreditlimit konnte nicht gespeichert werden.')
+      setError('Die Branche konnte nicht gespeichert werden.')
     } finally {
       setSaving(false)
     }
   }
 
+  return <>
+    <button type="button" className="crm-current-card__edit crm-detail-header__edit" onClick={() => { setDraft(industry); setEditing(true) }} aria-label="Branche bearbeiten" title="Branche bearbeiten"><EditIcon size={15} /></button>
+    {editing && <CrmEditModal title="Branche bearbeiten" description={companyName} onClose={close} onSubmit={save} saving={saving} changed={draft.trim() !== industry} error={error}>
+      <label className="form-field"><span>Branche</span><input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={120} placeholder="z. B. Transport und Logistik" disabled={saving} /></label>
+    </CrmEditModal>}
+  </>
+}
+
+function CreditLimitEditor({ partnerId, partner, actor, onSaved, canEditCredit, canEditPayment, settings }) {
+  const value = partner.creditLimit
   const status = getPartnerEvaluationStatus('creditLimit', value, settings)
-  return <section className="crm-current-card crm-credit-limit-editor"><div><h3>Kreditlimit / Bonität</h3><p>Aktuelles Kreditlimit: <strong data-status={status}>{formatCreditLimit(value)}</strong> <span className="partner-evaluation-label" data-status={status}>{PARTNER_EVALUATION_STATUS_LABELS[status]}</span></p></div>{canEdit && <div className="crm-credit-limit-editor__control"><label className="form-field"><span>Kreditlimit in €</span><input type="number" min="0" step="0.01" value={creditLimit} onChange={(event) => setCreditLimit(event.target.value)} /></label><button className="button" type="button" onClick={save} disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div>}{error && <p className="form-error">{error}</p>}</section>
+  const [creditLimit, setCreditLimit] = useState(value ?? '')
+  const [paymentTerm, setPaymentTerm] = useState(paymentTermText(partner))
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const creditChanged = canEditCredit && (creditLimit === '' ? null : Number(creditLimit)) !== (value ?? null)
+  const paymentChanged = canEditPayment && paymentTerm.trim() !== paymentTermText(partner)
+  const changed = creditChanged || paymentChanged
+
+  function close() {
+    setCreditLimit(value ?? '')
+    setPaymentTerm(paymentTermText(partner))
+    setError('')
+    setEditing(false)
+  }
+
+  async function save(event) {
+    event.preventDefault()
+    if (!changed || saving) return
+    setSaving(true)
+    setError('')
+    try {
+      const changes = {}
+      if (creditChanged) changes.creditLimit = creditLimit === '' ? null : Number(creditLimit)
+      if (paymentChanged) changes.paymentTermDays = paymentTerm.trim()
+      await updateBusinessPartnerCrmFields(partnerId, changes, actor)
+      onSaved(changes)
+      setEditing(false)
+    } catch {
+      setError('Finanzangaben konnten nicht gespeichert werden.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <section className="crm-current-card crm-credit-limit-editor" aria-label="Finanzen">
+    <div className="crm-current-card__heading"><h4>Finanzen</h4>{(canEditCredit || canEditPayment) && <button type="button" className="crm-current-card__edit" onClick={() => setEditing(true)} aria-label="Finanzangaben bearbeiten" title="Finanzangaben bearbeiten"><EditIcon size={16} /></button>}</div>
+    <dl className="crm-current-card__values"><div><dt>Kreditlimit</dt><dd data-empty={value == null} data-status={status}>{value == null ? 'Nicht hinterlegt' : formatCreditLimit(value)}</dd>{value != null && <small className="partner-evaluation-label" data-status={status}>{PARTNER_EVALUATION_STATUS_LABELS[status]}</small>}</div><div><dt>Zahlungsziel</dt><dd data-empty={!paymentTermText(partner)}>{paymentTermText(partner) || 'Nicht hinterlegt'}</dd></div></dl>
+    {editing && <CrmEditModal title="Finanzen bearbeiten" description={partner.companyName} onClose={close} onSubmit={save} saving={saving} changed={changed} error={error}>
+      {canEditCredit ? <label className="form-field"><span>Kreditlimit in €</span><input type="number" min="0" step="0.01" inputMode="decimal" value={creditLimit} onChange={(event) => setCreditLimit(event.target.value)} disabled={saving} /></label> : <div className="crm-edit-modal__readonly"><span>Kreditlimit</span><strong>{value == null ? 'Nicht hinterlegt' : formatCreditLimit(value)}</strong></div>}
+      {canEditPayment ? <label className="form-field"><span>Zahlungsziel</span><input value={paymentTerm} onChange={(event) => setPaymentTerm(event.target.value)} placeholder="z. B. 30 Tage netto" disabled={saving} /></label> : <div className="crm-edit-modal__readonly"><span>Zahlungsziel</span><strong>{paymentTermText(partner) || 'Nicht hinterlegt'}</strong><small>Änderungen erfordern die Berechtigung für Stammdaten.</small></div>}
+    </CrmEditModal>}
+  </section>
 }
 
 function CrmStatusEditor({ partnerId, partner, actor, onSaved, canEdit }) {
   const [crmStatus, setCrmStatus] = useState(partner.crmStatus ?? '')
   const [potential, setPotential] = useState(partner.potential ?? '')
+  const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const changed = crmStatus !== (partner.crmStatus ?? '') || potential !== (partner.potential ?? '')
 
-  async function save() {
+  function close() {
+    setCrmStatus(partner.crmStatus ?? '')
+    setPotential(partner.potential ?? '')
+    setError('')
+    setEditing(false)
+  }
+
+  async function save(event) {
+    event.preventDefault()
+    if (!changed || saving) return
     setSaving(true)
     setError('')
     try {
       await updateBusinessPartnerCrmFields(partnerId, { crmStatus, potential }, actor)
       onSaved({ crmStatus, potential })
+      setEditing(false)
     } catch {
       setError('CRM-Informationen konnten nicht gespeichert werden.')
     } finally {
@@ -57,7 +144,14 @@ function CrmStatusEditor({ partnerId, partner, actor, onSaved, canEdit }) {
     }
   }
 
-  return <section className="crm-current-card crm-status-editor"><div><h3>CRM-Status &amp; Potenzial</h3><p>Aktueller Vertriebsstand dieses Geschäftspartners.</p></div>{canEdit && <div className="crm-status-editor__control"><label className="form-field"><span>CRM-Status</span><select value={crmStatus} onChange={(event) => setCrmStatus(event.target.value)}><option value="">Nicht festgelegt</option><option value="Neu">Neu</option><option value="In Betreuung">In Betreuung</option><option value="Aktiv">Aktiv</option><option value="Ruht">Ruht</option></select></label><label className="form-field"><span>Potenzial</span><select value={potential} onChange={(event) => setPotential(event.target.value)}><option value="">Nicht festgelegt</option><option value="Niedrig">Niedrig</option><option value="Mittel">Mittel</option><option value="Hoch">Hoch</option></select></label><button className="button" type="button" onClick={save} disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div>}{error && <p className="form-error">{error}</p>}</section>
+  return <section className="crm-current-card crm-status-editor" aria-label="Vertrieb">
+    <div className="crm-current-card__heading"><h4>Vertrieb</h4>{canEdit && <button type="button" className="crm-current-card__edit" onClick={() => setEditing(true)} aria-label="Vertriebsangaben bearbeiten" title="Vertriebsangaben bearbeiten"><EditIcon size={16} /></button>}</div>
+    <dl className="crm-current-card__values"><div><dt>Vertriebsphase</dt><dd data-empty={!partner.crmStatus}>{partner.crmStatus || 'Nicht festgelegt'}</dd></div><div><dt>Potenzial</dt><dd data-empty={!partner.potential}>{partner.potential || 'Nicht festgelegt'}</dd></div></dl>
+    {editing && <CrmEditModal title="Vertrieb bearbeiten" description={partner.companyName} onClose={close} onSubmit={save} saving={saving} changed={changed} error={error}>
+      <label className="form-field"><span>Vertriebsphase</span><select value={crmStatus} onChange={(event) => setCrmStatus(event.target.value)} disabled={saving}><option value="">Nicht festgelegt</option><option value="Neu">Neu</option><option value="In Betreuung">In Betreuung</option><option value="Aktiv">Aktiv</option><option value="Ruht">Ruht</option></select></label>
+      <label className="form-field"><span>Potenzial</span><select value={potential} onChange={(event) => setPotential(event.target.value)} disabled={saving}><option value="">Nicht festgelegt</option><option value="Niedrig">Niedrig</option><option value="Mittel">Mittel</option><option value="Hoch">Hoch</option></select></label>
+    </CrmEditModal>}
+  </section>
 }
 
 export default function CrmDetailPage() {
@@ -70,7 +164,7 @@ export default function CrmDetailPage() {
 
   useEffect(() => {
     let isCurrent = true
-    getBusinessPartner(partnerId)
+    getEffectiveBusinessPartner(partnerId)
       .then((partner) => { if (isCurrent) setResult({ partner, error: partner ? '' : 'Geschäftspartner nicht gefunden.' }) })
       .catch(() => { if (isCurrent) setResult({ partner: null, error: 'Geschäftspartner nicht gefunden.' }) })
     return () => { isCurrent = false }
@@ -80,19 +174,33 @@ export default function CrmDetailPage() {
   if (result.error) return <section className="crm-empty-state crm-empty-state--error"><h3>{result.error}</h3><BackLink to="/crm" /></section>
 
   const { partner } = result
+  const industry = crmIndustryValue(partner)
+  const addressLines = formatPartnerAddress(partner.address)
+  const hasPartnerNumbers = Boolean(partner.debtorNumber || partner.creditorNumber)
   const actor = getHistoryActor(authState)
   const refreshHistory = () => setHistoryVersion((current) => current + 1)
 
-  return <div className="crm-detail-page">
-    <header className="crm-detail-header"><div><h2>{partner.companyName}</h2><div className="crm-detail-header__meta"><span>{getBusinessPartnerType(partner)}</span><span>{partner.address?.city || '—'}</span><span>DyCoS-Debitor: {partner.debtorNumber || '—'}</span><span>DyCoS-Kreditor: {partner.creditorNumber || '—'}</span><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div></div><div className="crm-detail-header__actions"><BackLink to="/crm" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Zu den Stammdaten</Link></div></header>
-    <section className="crm-current-overview" aria-label="Aktueller Stand">
-      <div className="crm-current-overview__heading"><h3>Aktueller Stand</h3><span>Historische Änderungen stehen ausschließlich in der Partner-Historie.</span></div>
-      <div className="crm-current-metrics"><div><span>Kennzahlen</span><strong>—</strong></div><div><span>Zahlungsziel</span><strong>{partner.paymentTermDays ?? '—'}{partner.paymentTermDays === null || partner.paymentTermDays === undefined ? '' : ' Tage'}</strong></div><div><span>Bonität</span><strong>—</strong></div></div>
-      <CreditLimitEditor key={`credit-${partner.creditLimit}`} partnerId={partnerId} value={partner.creditLimit} actor={actor} canEdit={canEdit('crm')} settings={settings} onSaved={(creditLimit) => { setResult((current) => ({ ...current, partner: { ...current.partner, creditLimit } })); refreshHistory() }} />
-      <CrmStatusEditor key={`crm-${partner.crmStatus}-${partner.potential}`} partnerId={partnerId} partner={partner} actor={actor} canEdit={canEdit('crm')} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} />
-    </section>
-    <CrmRatingPanel partner={partner} partnerId={partnerId} onSaved={refreshHistory} canEdit={canEdit('crm')} />
-    <CrmActivityPanel partnerId={partnerId} onSaved={refreshHistory} canEdit={canEdit('crm')} />
-    <PartnerHistoryPanel partnerId={partnerId} refreshKey={historyVersion} />
+  return <div className="crm-detail-layout">
+    <nav className="crm-detail-navigation" aria-label="CRM-Navigation"><BackLink to="/crm" /><Link className="button button--secondary" to={businessPartnerDetailPath(partner.id)}>Zum Stammdatenblatt</Link></nav>
+    <div className="crm-detail-page">
+      <header className="crm-detail-header">
+        <div className="crm-detail-header__identity">
+          <div className="crm-detail-header__title"><h2>{partner.companyName}</h2><span className={`status-badge status-badge--${partner.status}`} aria-label={`Partnerstatus: ${getBusinessPartnerStatusLabel(partner.status)}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></div>
+          <p className="crm-detail-header__subtitle">{getBusinessPartnerType(partner)}</p>
+        </div>
+        <dl className={`crm-detail-header__facts${hasPartnerNumbers ? '' : ' crm-detail-header__facts--two'}`}>
+          <div className="crm-detail-header__fact"><dt>Adresse</dt><dd><address>{addressLines.length ? addressLines.map((line, index) => <span key={index}>{line}</span>) : '—'}</address></dd></div>
+          <div className="crm-detail-header__fact"><dt>Branche</dt><dd className="crm-detail-header__editable-value"><span>{industry || '—'}</span>{canEdit('crm') && <CrmIndustryEditor partnerId={partner.id} companyName={partner.companyName} industry={industry} actor={actor} onSaved={(crmIndustry) => { setResult((current) => ({ ...current, partner: { ...current.partner, crmIndustry } })); refreshHistory() }} />}</dd></div>
+          {hasPartnerNumbers && <div className="crm-detail-header__fact"><dt>Partnernummern</dt><dd className="crm-detail-header__numbers">{partner.debtorNumber && <span><small>Debitor</small><strong>{partner.debtorNumber}</strong></span>}{partner.creditorNumber && <span><small>Kreditor</small><strong>{partner.creditorNumber}</strong></span>}</dd></div>}
+        </dl>
+      </header>
+      <section className="crm-current-overview" aria-label="Aktueller Stand">
+        <div className="crm-current-overview__heading"><h3>Aktueller Stand</h3></div>
+        <div className="crm-current-overview__cards"><CrmStatusEditor key={`crm-${partner.id}-${partner.crmStatus}-${partner.potential}`} partnerId={partner.id} partner={partner} actor={actor} canEdit={canEdit('crm')} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} /><CreditLimitEditor key={`credit-${partner.id}-${partner.creditLimit}-${partner.paymentTermDays}`} partnerId={partner.id} partner={partner} actor={actor} canEditCredit={canEdit('crm')} canEditPayment={canEdit('masterData')} settings={settings} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} /></div>
+      </section>
+      <CrmRatingPanel partnerId={partner.id} />
+      <CrmActivityPanel partnerId={partner.id} onSaved={refreshHistory} canEdit={canEdit('crm')} />
+      <PartnerHistoryPanel partnerId={partner.id} refreshKey={historyVersion} />
+    </div>
   </div>
 }

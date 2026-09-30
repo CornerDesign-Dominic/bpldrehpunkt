@@ -13,7 +13,16 @@ const PLACEHOLDER_DESCRIPTIONS = {
   comment: 'Kommentar des Antragstellers',
   requestLabel: 'Bezeichnung des Antrags',
   managerComment: 'Kommentar der genehmigenden Person',
+  transportOrderNumber: 'TA-Nummer des Transportauftrags',
+  loadingLocation: 'Ladestelle des Transportauftrags',
+  loadingTime: 'Geplante früheste Beladung',
 }
+
+const templateCategories = [
+  { id: 'vacation', label: 'Urlaub', matches: (template) => template.id.startsWith('vacation_') },
+  { id: 'shipmentTracking', label: 'Sendungsverfolgung', matches: (template) => template.id.startsWith('shipment_tracking_') },
+  { id: 'system', label: 'System', matches: (template) => template.id === 'system_test' },
+]
 
 const cloneTemplate = (template) => ({ ...template, allowedPlaceholders: [...(template.allowedPlaceholders || [])] })
 
@@ -98,6 +107,10 @@ export default function SystemMailPanel() {
     if (savedTemplate) selectTemplate(savedTemplate)
   }
 
+  function renderTemplateButton(template) {
+    return <button key={template.id} className={template.id === editing?.id ? 'system-mail-template system-mail-template--active' : 'system-mail-template'} type="button" aria-pressed={template.id === editing?.id} onClick={() => selectTemplate(template)}>{template.displayName}</button>
+  }
+
   if (loading) return <section className="system-mail-panel"><p>Vorlagen werden geladen …</p></section>
 
   return <section className="system-mail-panel" aria-label="Systemmail-Vorlagen">
@@ -105,7 +118,11 @@ export default function SystemMailPanel() {
     <div className="system-mail-workspace">
       <aside className="system-mail-templates" aria-label="Systemmail-Vorlagen">
         <div className="system-mail-workspace__heading"><h2>Vorlagen</h2><span>{templates.length}</span></div>
-        <div className="system-mail-templates__list">{templates.map((template) => <button key={template.id} className={template.id === editing?.id ? 'system-mail-template system-mail-template--active' : 'system-mail-template'} type="button" aria-pressed={template.id === editing?.id} onClick={() => selectTemplate(template)}>{template.displayName}</button>)}</div>
+        <div className="system-mail-templates__list">{templateCategories.map((category) => {
+          const categoryTemplates = templates.filter(category.matches)
+          if (!categoryTemplates.length) return null
+          return <section className="system-mail-template-group" key={category.id} aria-label={`${category.label}-Vorlagen`}><h3>{category.label}</h3>{categoryTemplates.map(renderTemplateButton)}</section>
+        })}</div>
       </aside>
 
       {editing ? <form className="system-mail-editor" onSubmit={save}>

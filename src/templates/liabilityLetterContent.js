@@ -4,7 +4,6 @@ export const LIABILITY_LETTER_TEXT = {
   reservation: 'Wir behalten uns vor, die uns entstandenen sowie noch entstehenden Schäden, Kosten und Aufwendungen geltend zu machen.',
   insuranceNotice: 'Bitte informieren Sie vorsorglich Ihre Versicherung über den vorliegenden Sachverhalt.',
   closing: 'Mit freundlichen Grüßen',
-  company: 'Brennpunkt Logistik GmbH',
 }
 
 export function formatLiabilityAddressLine({ company, street, zip, city, country }) {

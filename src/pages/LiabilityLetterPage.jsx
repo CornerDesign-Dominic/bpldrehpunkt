@@ -4,12 +4,16 @@ import LiabilityLetterPreview from '../components/templates/LiabilityLetterPrevi
 import LiabilityAiInputModal from '../components/templates/LiabilityAiInputModal.jsx'
 import LiabilityAiResultModal from '../components/templates/LiabilityAiResultModal.jsx'
 import PersonalSignatureOption from '../components/templates/PersonalSignatureOption.jsx'
+import CompanyStampOption from '../components/templates/CompanyStampOption.jsx'
+import { useCompanyData } from '../company/companyDataContext.js'
 import BackLink from '../components/ui/BackLink.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import { usePersonalDocumentSignature } from '../hooks/usePersonalDocumentSignature.js'
+import { useCompanyStamp } from '../hooks/useCompanyStamp.js'
 import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
 import { documentPdfFileName } from '../lib/documentExport.js'
 import { downloadLiabilityLetterPdf } from '../lib/liabilityLetterPdf.js'
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { analyzeLiabilityTransportOrderWithAi, liabilityAnalysisToDocumentData } from '../lib/liabilityAi.js'
 
 const liabilityFormFields = [
@@ -29,8 +33,10 @@ function hasLiabilityFormValues(data) {
 }
 
 export default function LiabilityLetterPage() {
+  const { company, loading: companyLoading, error: companyError } = useCompanyData()
   const [documentData, setDocumentData] = useState(createLiabilityDocumentData)
   const [isCreatingPdf, setCreatingPdf] = useState(false)
+  const [pdfError, setPdfError] = useState('')
   const [aiStep, setAiStep] = useState(null)
   const [aiDraftData, setAiDraftData] = useState(null)
   const [fieldsNeedingReview, setFieldsNeedingReview] = useState(() => new Set())
@@ -38,7 +44,8 @@ export default function LiabilityLetterPage() {
   const [newDocumentConfirmationOpen, setNewDocumentConfirmationOpen] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const documentPaperRef = useRef(null)
-  const { usePersonalSignature, signatureLoading, signatureNoticeVisible, togglePersonalSignature, ensurePersonalSignature, resetPersonalSignature } = usePersonalDocumentSignature(setDocumentData)
+  const { usePersonalSignature, signatureLoading, signatureNoticeVisible, signatureNoticeMessage, signatureMissing, togglePersonalSignature, ensurePersonalSignature, resetPersonalSignature } = usePersonalDocumentSignature(setDocumentData)
+  const stamp = useCompanyStamp(setDocumentData)
 
   function updateDocumentData(field, value) {
     setDocumentData((current) => ({ ...current, [field]: value }))
@@ -49,6 +56,7 @@ export default function LiabilityLetterPage() {
   }
 
   async function requestPdfAction(action) {
+    if (companyLoading || companyError || stamp.loading) return
     if (!await ensurePersonalSignature(documentData)) return
     const emptyFields = emptyAiReviewFields(documentData)
     setFieldsNeedingReview(emptyFields)
@@ -70,6 +78,7 @@ export default function LiabilityLetterPage() {
 
   function resetDocument() {
     resetPersonalSignature()
+    stamp.reset()
     setDocumentData(createLiabilityDocumentData())
     setFieldsNeedingReview(new Set())
     setAiStep(null)
@@ -91,8 +100,12 @@ export default function LiabilityLetterPage() {
 
   async function createPdf() {
     setCreatingPdf(true)
+    setPdfError('')
     try {
-      await downloadLiabilityLetterPdf(documentData, documentPdfFileName('Haftbarhaltung_Transportauftrag', documentData.orderNumber))
+      await downloadLiabilityLetterPdf(documentData, documentPdfFileName('Haftbarhaltung_Transportauftrag', documentData.orderNumber), company)
+    } catch (error) {
+      setPdfError('Die PDF konnte nicht erstellt werden. Bitte versuche es erneut.')
+      void reportTechnicalFailure({ module: 'document-templates', stage: 'pdf-create', error })
     } finally {
       setCreatingPdf(false)
     }
@@ -136,10 +149,15 @@ export default function LiabilityLetterPage() {
       <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
       <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={requestNewDocument} />
       <div className="liability-page__document-actions">
-        <PersonalSignatureOption usePersonalSignature={usePersonalSignature} signatureLoading={signatureLoading} signatureNoticeVisible={signatureNoticeVisible} onToggle={togglePersonalSignature} />
+        <div className="document-signature-settings">
+          <PersonalSignatureOption usePersonalSignature={usePersonalSignature} signatureLoading={signatureLoading} signatureNoticeVisible={signatureNoticeVisible} signatureNoticeMessage={signatureNoticeMessage} signatureMissing={signatureMissing} onToggle={togglePersonalSignature} />
+          <CompanyStampOption stamp={stamp} />
+        </div>
+        {companyError && <p className="form-error" role="alert">{companyError}</p>}
+        {pdfError && <p className="form-error" role="alert">{pdfError}</p>}
         <div className="liability-page__actions">
-          <button className="button button--secondary" type="button" disabled={signatureLoading} onClick={() => { void requestPdfAction('print') }}>PDF drucken</button>
-          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}>PDF erstellen</button>
+          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}>PDF drucken</button>
+          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}>PDF erstellen</button>
         </div>
       </div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />

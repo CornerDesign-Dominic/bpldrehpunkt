@@ -1,0 +1,18 @@
+.company-master-data { display: grid; gap: 14px; max-width: 1000px; margin: 0 auto; color: var(--text-primary); }
+.company-master-data__intro h2, .company-master-data__section h3, .company-master-data__stamp h3 { margin: 0; }
+.company-master-data__intro p, .company-master-data__section p, .company-master-data__stamp > p:not(.form-error) { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; }
+.company-master-data form { display: grid; gap: 12px; }
+.company-master-data__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.company-master-data__section { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.company-master-data__section h3, .company-master-data__stamp h3 { font-size: 14px; }
+.company-master-data__fields { display: grid; gap: 12px; }
+.company-master-data__fields .form-field { display: grid; gap: 5px; min-width: 0; }
+.company-master-data__fields input { width: 100%; box-sizing: border-box; }
+.company-master-data__actions, .company-master-data__stamp-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.company-master-data__stamp-actions { justify-content: flex-start; }
+.company-master-data__stamp-actions label { cursor: pointer; }
+.company-master-data__stamp-actions input { display: none; }
+.company-master-data__stamp { display: grid; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+.company-master-data__stamp img { display: block; max-width: 260px; max-height: 120px; object-fit: contain; background: #fff; }
+.company-master-data__notice { margin: 0; color: var(--status-success-text); font-size: 12px; }
+@media (max-width: 700px) { .company-master-data__cards { grid-template-columns: 1fr; } }

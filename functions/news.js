@@ -5,6 +5,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { logger } from 'firebase-functions'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
 import { getPublishedAiPromptInstructions } from './aiPrompts.js'
+import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
 
 function database() { return getFirestore() }
 const openAiApiKey = defineSecret('OPENAI_API_KEY')
@@ -364,6 +365,10 @@ async function saveNewItems(candidates) {
 }
 
 async function executeNewsResearch() {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('news-research')
+    return { skipped: true }
+  }
   const migrated = await migrateLegacyNewsCategories()
   const candidates = await researchWithOpenAi()
   const result = await saveNewItems(candidates)
@@ -377,6 +382,10 @@ function formatFailureTime() {
 }
 
 async function notifySuperadminsAboutResearchFailure(error) {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('news-research-failure-notification')
+    return
+  }
   const notificationUrl = powerAutomateNotificationUrl.value()
   if (!notificationUrl) {
     logger.error('Keine E-Mail-Benachrichtigung zur News-Recherche möglich: POWER_AUTOMATE_NOTIFICATION_URL fehlt.')
@@ -416,6 +425,10 @@ export const scheduledNewsResearch = onSchedule({
   timeoutSeconds: 540,
   secrets: [openAiApiKey, powerAutomateNotificationUrl],
 }, async () => {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('scheduled-news-research')
+    return { skipped: true }
+  }
   try {
     await executeNewsResearch()
   } catch (error) {
@@ -432,6 +445,10 @@ export const runAutomatedNewsResearch = onCall({
   secrets: [openAiApiKey],
 }, async (request) => {
   requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen die Recherche manuell starten.')
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('manual-news-research')
+    throw new HttpsError('failed-precondition', 'Die automatisierte News-Recherche ist außerhalb der Produktionsumgebung deaktiviert.')
+  }
   return executeNewsResearch()
 })
 

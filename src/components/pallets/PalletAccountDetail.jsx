@@ -1,25 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import '../../styles/pallets.css'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../ui/ConfirmDialog.jsx'
 import BackLink from '../ui/BackLink.jsx'
 import { usePermissions } from '../../auth/usePermissions.js'
 import Toast from '../ui/Toast.jsx'
-import { getBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
-import { calculatePalletMovement, createPalletClosing, createPalletMovement, deletePalletClosing, deletePalletMovement, listPalletClosings, listPalletMovements, summarizePalletAccount, updatePalletClosing, updatePalletMovement } from '../../lib/palletAccounts.js'
+import { getBusinessPartnerRoles, getEffectiveBusinessPartner, listBusinessPartners } from '../../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../../lib/businessPartnerLinks.js'
+import { calculatePalletMovement, createPalletClosing, createPalletMovement, deletePalletClosing, deletePalletMovement, loadPalletAccount, summarizePalletAccount, updatePalletClosing, updatePalletMovement } from '../../lib/palletAccounts.js'
 import PalletAccountOverviewCard from './PalletAccountOverviewCard.jsx'
 import PalletAccountPartnerCard from './PalletAccountPartnerCard.jsx'
 import PalletClosingForm from './PalletClosingForm.jsx'
 import PalletJournal from './PalletJournal.jsx'
 import PalletMovementForm from './PalletMovementForm.jsx'
-import { createPalletClosingForm, createPalletClosingFormFromEntry, createPalletMovementForm, createPalletMovementFormFromEntry, isNonNegativePalletQuantity, isPalletQuantityInput } from './palletFormState.js'
+import { createPalletClosingForm, createPalletClosingFormFromEntry, createPalletMovementForm, createPalletMovementFormFromEntry, isNonNegativePalletQuantity, isPalletQuantityInput, palletPartnerOption } from './palletFormState.js'
 
 function fetchAccountData(partnerId) {
-  return Promise.all([listPalletMovements(partnerId), listPalletClosings(partnerId)])
+  return loadPalletAccount(partnerId)
 }
 
 export default function PalletAccountDetail({ partnerId }) {
   const { canEdit } = usePermissions()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [partnerResult, setPartnerResult] = useState(null)
+  const [clusterIds, setClusterIds] = useState([partnerId])
+  const [clusterMembers, setClusterMembers] = useState([])
   const [partners, setPartners] = useState([])
   const [movements, setMovements] = useState([])
   const [closings, setClosings] = useState([])
@@ -36,32 +43,53 @@ export default function PalletAccountDetail({ partnerId }) {
 
   useEffect(() => {
     let isCurrent = true
-    getBusinessPartner(partnerId)
+    getEffectiveBusinessPartner(partnerId)
       .then((partner) => { if (isCurrent) setPartnerResult({ partner, error: partner ? '' : 'Geschäftspartner nicht gefunden.' }) })
       .catch(() => { if (isCurrent) setPartnerResult({ partner: null, error: 'Geschäftspartner nicht gefunden.' }) })
     listBusinessPartners().then((loadedPartners) => { if (isCurrent) setPartners(loadedPartners) }).catch(() => { if (isCurrent) setAccountError('Geschäftspartner für die Bewegungsauswahl konnten nicht geladen werden.') })
     fetchAccountData(partnerId)
-      .then(([loadedMovements, loadedClosings]) => { if (isCurrent) { setMovements(loadedMovements); setClosings(loadedClosings) } })
+      .then((loadedAccount) => { if (isCurrent && loadedAccount) { setClusterIds(loadedAccount.memberIds); setClusterMembers(loadedAccount.members); setMovements(loadedAccount.movements); setClosings(loadedAccount.closings) } })
       .catch(() => { if (isCurrent) setAccountError('Palettenbuchungen konnten nicht geladen werden.') })
     return () => { isCurrent = false }
   }, [partnerId])
 
-  const account = useMemo(() => summarizePalletAccount(movements, closings, partnerId), [closings, movements, partnerId])
+  const activePartnerId = partnerResult?.partner?.id || partnerId
+  const account = useMemo(() => summarizePalletAccount(movements, closings, activePartnerId, clusterIds), [activePartnerId, closings, clusterIds, movements])
   const movementCalculation = useMemo(() => calculatePalletMovement(movementForm), [movementForm])
   const closingQuantity = Number(closingForm.quantity) || 0
   const closingAdjustment = closingForm.direction === 'add' ? closingQuantity : closingForm.direction === 'subtract' ? closingQuantity * -1 : 0
   const closingBaseBalance = editingClosing ? account.balance - (Number(editingClosing.adjustment) || 0) : account.balance
   const newClosingBalance = closingBaseBalance + closingAdjustment
   const partnersById = useMemo(() => new Map(partners.map((partner) => [partner.id, partner])), [partners])
-  const customers = useMemo(() => partners.filter((partner) => partner.debtorNumber?.trim()), [partners])
-  const carriers = useMemo(() => partners.filter((partner) => partner.creditorNumber?.trim()), [partners])
+  const customers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && getBusinessPartnerRoles(partner).customer), [partners])
+  const carriers = useMemo(() => partners.filter((partner) => !partner.mergedIntoPartnerId && getBusinessPartnerRoles(partner).carrier), [partners])
   const selectedCustomer = partnersById.get(movementForm.customerId)
   const selectedCarrier = partnersById.get(movementForm.carrierId)
+  const historicalCustomer = useMemo(() => {
+    const option = palletPartnerOption(partnersById, movementForm.customerId)
+    return option?.isHistorical ? option : null
+  }, [movementForm.customerId, partnersById])
+  const historicalCarrier = useMemo(() => {
+    const option = palletPartnerOption(partnersById, movementForm.carrierId)
+    return option?.isHistorical ? option : null
+  }, [movementForm.carrierId, partnersById])
+
+  useEffect(() => {
+    const movementId = location.state?.palletMovementId
+    if (!movementId || !canEdit('pallets') || !partnerResult?.partner) return
+    const movement = movements.find((entry) => entry.id === movementId)
+    if (!movement || !clusterIds.includes(movement.customerId) && !clusterIds.includes(movement.carrierId)) return
+    openMovementEdit(movement)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [canEdit, clusterIds, location.pathname, location.state, movements, navigate, partnerResult])
 
   async function reloadAccount() {
-    const [loadedMovements, loadedClosings] = await fetchAccountData(partnerId)
-    setMovements(loadedMovements)
-    setClosings(loadedClosings)
+    const loadedAccount = await fetchAccountData(partnerId)
+    if (!loadedAccount) throw new Error('Palettenkonto nicht gefunden.')
+    setClusterIds(loadedAccount.memberIds)
+    setClusterMembers(loadedAccount.members)
+    setMovements(loadedAccount.movements)
+    setClosings(loadedAccount.closings)
   }
 
   function closeActiveForm() {
@@ -158,7 +186,7 @@ export default function PalletAccountDetail({ partnerId }) {
     try {
       const values = { ...closingForm, adjustment: closingAdjustment, previousBalance: closingBaseBalance, newBalance: newClosingBalance }
       if (editingClosing) await updatePalletClosing(editingClosing.id, values)
-      else await createPalletClosing(partnerId, values)
+      else await createPalletClosing(activePartnerId, values)
       await reloadAccount()
       closeActiveForm()
       setToast(editingClosing ? 'Kontoabschluss aktualisiert.' : 'Kontoabschluss gespeichert.')
@@ -199,13 +227,21 @@ export default function PalletAccountDetail({ partnerId }) {
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <ConfirmDialog open={Boolean(deleteTarget)} title={deleteTarget?.type === 'movement' ? 'Palettenbewegung löschen?' : 'Kontoabschluss löschen?'} message={deleteTarget?.type === 'movement' ? 'Diese Palettenbewegung wird dauerhaft gelöscht.' : 'Dieser Kontoabschluss wird dauerhaft gelöscht.'} confirmLabel="Löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} />
-    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={`/kunden-unternehmer/${partnerId}`}>Stammdaten</Link></div>
-    <PalletAccountPartnerCard partner={partner} />
-    <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={partnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
+    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={businessPartnerDetailPath(activePartnerId)}>Stammdaten</Link></div>
+    <PalletAccountPartnerCard partner={partner} mergedPartners={clusterMembers.filter((member) => member.id !== partner.id)} />
+    <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={activePartnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">
       {accountError && <p className="form-error">{accountError}</p>}
-      {canEdit('pallets') && activeForm === 'movement' && <PalletMovementForm carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onDelete={requestMovementDelete} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />}
-      {canEdit('pallets') && activeForm === 'closing' && <PalletClosingForm accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onDelete={requestClosingDelete} onSubmit={handleClosingSubmit} />}
+      {canEdit('pallets') && activeForm === 'movement' && createPortal(<div className="pallet-movement-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSubmitting) closeActiveForm() }} onKeyDown={(event) => { if (event.key === 'Escape' && !isSubmitting) closeActiveForm() }}>
+        <section className="pallet-movement-modal" role="dialog" aria-modal="true" aria-labelledby="pallet-movement-modal-title">
+          <PalletMovementForm modal carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} historicalCarrier={historicalCarrier} historicalCustomer={historicalCustomer} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onDelete={requestMovementDelete} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />
+        </section>
+      </div>, document.body)}
+      {canEdit('pallets') && activeForm === 'closing' && createPortal(<div className="pallet-movement-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSubmitting) closeActiveForm() }} onKeyDown={(event) => { if (event.key === 'Escape' && !isSubmitting) closeActiveForm() }}>
+        <section className="pallet-movement-modal pallet-closing-modal" role="dialog" aria-modal="true" aria-labelledby="pallet-closing-modal-title">
+          <PalletClosingForm modal accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onDelete={requestClosingDelete} onSubmit={handleClosingSubmit} />
+        </section>
+      </div>, document.body)}
       <PalletJournal account={account} accountError={accountError} isEntryFormActive={Boolean(activeForm)} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} onEditClosing={openClosingEdit} onEditMovement={openMovementEdit} canEdit={canEdit('pallets')} />
     </section>
   </div>

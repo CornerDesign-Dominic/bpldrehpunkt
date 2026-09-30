@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { httpsCallable } from 'firebase/functions'
 import SystemMailPanel from '../components/admin/SystemMailPanel.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -24,7 +23,7 @@ export default function SystemMailsPage() {
 
   return <div className="admin-page system-mails-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="system-mails-page__toolbar"><Link className="button button--secondary" to="/admin">Zum Adminbereich</Link><Link className="button button--secondary" to="/admin/ki-prompts">KI-Prompts</Link><button className="button button--secondary" type="button" onClick={sendTestMail} disabled={sending}>{sending ? 'Wird gesendet …' : 'Testmail senden'}</button></div>
+    <section className="system-mails-page__test-card" aria-labelledby="system-mail-test-heading"><div><h2 id="system-mail-test-heading">Testmail</h2><p>Sendet die aktuelle Testvorlage an die E-Mail-Adresse deines Benutzerprofils.</p></div><div className="system-mails-page__test-actions"><button className="button button--secondary" type="button" onClick={sendTestMail} disabled={sending}>{sending ? 'Wird gesendet …' : 'Testmail senden'}</button></div></section>
     <SystemMailPanel />
   </div>
 }

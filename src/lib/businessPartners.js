@@ -11,6 +11,12 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { createHistoryPayload } from './partnerHistory.js'
+import { paymentTermText } from './paymentTerms.js'
+import { crmIndustryValue } from './crmIndustry.js'
+import { normalizeShipmentTrackingPolicy } from './shipmentTrackingPolicy.js'
+import { businessPartnerRoleLabel, businessPartnerRoles } from '../../shared/businessPartnerRoles.js'
+import { newBusinessPartnerShipmentTrackingPolicy } from './newBusinessPartnerShipmentTrackingPolicy.js'
+export { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
 export const BUSINESS_PARTNER_STATUSES = [
@@ -31,19 +37,16 @@ function normalizeOptionalNonNegativeNumber(value, fieldName) {
   return number
 }
 
-function normalizeOptionalNonNegativeInteger(value, fieldName) {
-  const number = normalizeOptionalNonNegativeNumber(value, fieldName)
-  if (number !== null && !Number.isInteger(number)) throw new Error(`Ungültiger Wert für ${fieldName}`)
-  return number
+function explicitBusinessPartnerRoles(value) {
+  return [...new Set((Array.isArray(value) ? value : []).filter((role) => role === 'customer' || role === 'carrier'))]
 }
 
-export function getBusinessPartnerType({ debtorNumber, creditorNumber }) {
-  const hasDebtorNumber = Boolean(debtorNumber?.trim())
-  const hasCreditorNumber = Boolean(creditorNumber?.trim())
+export function getBusinessPartnerType(partner = {}) {
+  return businessPartnerRoleLabel(partner)
+}
 
-  if (hasDebtorNumber && hasCreditorNumber) return 'Kunde & Unternehmer'
-  if (hasDebtorNumber) return 'Kunde'
-  return 'Unternehmer'
+export function getBusinessPartnerRoles(partner = {}) {
+  return businessPartnerRoles(partner)
 }
 
 export function getBusinessPartnerStatusLabel(status) {
@@ -65,7 +68,9 @@ export function createEmptyBusinessPartner() {
     creditLimit: null,
     palletNote: '',
     crmStatus: '',
+    crmIndustry: '',
     potential: '',
+    businessPartnerRoles: [],
     address: { street: '', houseNumber: '', postalCode: '', city: '', country: '' },
     contact: { phone: '', fax: '', email: '', website: '' },
     contacts: [],
@@ -82,7 +87,10 @@ export function normalizePartnerPortal(portal = {}) {
   }
 }
 
-function createPayload(values) {
+function createPayload(values, { isNew = false, ruleCatalog = null } = {}) {
+  const shipmentTrackingPolicy = isNew
+    ? newBusinessPartnerShipmentTrackingPolicy(values, ruleCatalog)
+    : normalizeShipmentTrackingPolicy(values.shipmentTrackingPolicy)
   return {
     companyName: trimValue(values.companyName),
     debtorNumber: trimValue(values.debtorNumber),
@@ -92,12 +100,15 @@ function createPayload(values) {
     dplNumber: trimValue(values.dplNumber),
     pakiNumber: trimValue(values.pakiNumber),
     status: values.status,
-    paymentTermDays: normalizeOptionalNonNegativeInteger(values.paymentTermDays, 'Zahlungsziel'),
+    paymentTermDays: paymentTermText(values),
     creditNoteProcedure: Boolean(values.creditNoteProcedure),
     creditLimit: normalizeOptionalNonNegativeNumber(values.creditLimit, 'Kreditlimit'),
     palletNote: trimValue(values.palletNote),
     crmStatus: trimValue(values.crmStatus),
+    crmIndustry: trimValue(crmIndustryValue(values)),
     potential: trimValue(values.potential),
+    ...(isNew ? { businessPartnerRoles: explicitBusinessPartnerRoles(values.businessPartnerRoles) } : {}),
+    shipmentTrackingPolicy,
     address: Object.fromEntries(Object.entries(values.address).map(([key, value]) => [key, trimValue(value)])),
     contact: Object.fromEntries(Object.entries(values.contact).map(([key, value]) => [key, trimValue(value)])),
     contacts: (values.contacts ?? []).map((contact) => ({ id: contact.id, name: trimValue(contact.name), department: contact.department, departmentOther: trimValue(contact.departmentOther), phone: trimValue(contact.phone), mobile: trimValue(contact.mobile), email: trimValue(contact.email) })),
@@ -123,11 +134,26 @@ export async function getBusinessPartner(partnerId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createBusinessPartner(values) {
+export async function getEffectiveBusinessPartner(partnerId) {
+  if (!partnerId) return null
+  const visited = new Set()
+  let current = await getBusinessPartner(partnerId)
+  while (current?.mergedIntoPartnerId) {
+    if (visited.has(current.id) || current.mergedIntoPartnerId === current.id) throw new Error('Zyklische Partner-Weiterleitung.')
+    visited.add(current.id)
+    current = await getBusinessPartner(current.mergedIntoPartnerId)
+    if (!current) throw new Error('Weiterleitungsziel nicht vorhanden.')
+  }
+  if (current?.status === 'merged') throw new Error('Archivierter Partner ohne Zielpartner.')
+  return current
+}
+
+
+export async function createBusinessPartner(values, ruleCatalog = null) {
   const partnerRef = doc(businessPartnersRef)
   await setDoc(partnerRef, {
     id: partnerRef.id,
-    ...createPayload(values),
+    ...createPayload(values, { isNew: true, ruleCatalog }),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -148,11 +174,13 @@ function createBusinessPartnerHistoryEntries(previous, next, actor) {
 
   if (changed(previous.creditLimit, next.creditLimit)) entry('creditLimit', `Kreditlimit von ${formatCurrency(previous.creditLimit)} auf ${formatCurrency(next.creditLimit)} geändert`, { oldValue: previous.creditLimit ?? null, newValue: next.creditLimit ?? null })
   if (changed(previous.crmStatus, next.crmStatus)) entry('crm', `CRM-Status von ${previous.crmStatus || '—'} auf ${next.crmStatus || '—'} geändert`, { field: 'crmStatus', oldValue: previous.crmStatus || null, newValue: next.crmStatus || null })
+  if (changed(crmIndustryValue(previous), next.crmIndustry || '')) entry('crm', `Branche von ${crmIndustryValue(previous) || '—'} auf ${next.crmIndustry || '—'} geändert`, { field: 'crmIndustry', oldValue: crmIndustryValue(previous) || null, newValue: next.crmIndustry || null })
   if (changed(previous.potential, next.potential)) entry('crm', `Potenzial von ${previous.potential || '—'} auf ${next.potential || '—'} geändert`, { field: 'potential', oldValue: previous.potential || null, newValue: next.potential || null })
   if (changed(previous.address, next.address)) entry('masterData', 'Adresse geändert', { field: 'address' })
   if (changed(previous.contacts, next.contacts)) entry('contactPerson', 'Ansprechpartner geändert', { field: 'contacts' })
-  if (changed(previous.paymentTermDays, next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${previous.paymentTermDays ?? '—'} auf ${next.paymentTermDays ?? '—'} Tage geändert`, { field: 'paymentTermDays', oldValue: previous.paymentTermDays ?? null, newValue: next.paymentTermDays ?? null })
+  if (changed(paymentTermText(previous), next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${paymentTermText(previous) || '—'} auf ${next.paymentTermDays || '—'} geändert`, { field: 'paymentTermDays', oldValue: paymentTermText(previous) || null, newValue: next.paymentTermDays || null })
   if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
+  if (changed(normalizeShipmentTrackingPolicy(previous.shipmentTrackingPolicy), next.shipmentTrackingPolicy)) entry('shipmentTrackingPolicy', 'Sendungsverfolgung-Einstellungen geändert')
 
   const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'dplNumber', 'pakiNumber', 'status', 'contact', 'companyData', 'portals', 'palletNote']
   if (masterDataFields.some((field) => changed(previous[field], next[field]))) entry('masterData', 'Stammdaten geändert', { fields: masterDataFields.filter((field) => changed(previous[field], next[field])) })

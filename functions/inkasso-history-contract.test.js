@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 
-const rules = await readFile(new URL('../firestore.rules', import.meta.url), 'utf8')
+const rules = (await readFile(new URL('../firestore.rules', import.meta.url), 'utf8')).replace(/\r\n/g, '\n')
 const client = await readFile(new URL('../src/lib/inkasso.js', import.meta.url), 'utf8')
 const historyFunction = await readFile(new URL('./inkassoHistory.js', import.meta.url), 'utf8')
 
@@ -41,7 +41,7 @@ test('invoice creation, editing, and payment changes keep the case totals atomic
 test('inkasso deadlines require an atomic parent update and retain creation metadata', () => {
   assert.match(deadlinesRule, /allow create: if edit\('inkasso'\) && validInkassoDeadline\(request\.resource\.data\) && deadlineParentWasUpdated\(\)/)
   assert.match(deadlinesRule, /request\.resource\.data\.createdAt == request\.time/)
-  assert.match(deadlinesRule, /affectedKeys\(\)\.hasOnly\(\['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName'\]\)/)
+  assert.match(deadlinesRule, /affectedKeys\(\)\.hasOnly\(\['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName'\]\)/)
   assert.match(deadlinesRule, /allow delete: if edit\('inkasso'\) && deadlineParentWasUpdated\(\);/)
 })
 

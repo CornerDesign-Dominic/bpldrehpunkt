@@ -3,6 +3,7 @@ import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
+import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
 
 const powerAutomateNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
 const emailPattern = /^\S+@\S+\.\S+$/
@@ -26,6 +27,11 @@ export const submitBugReport = onCall({ region: 'europe-west3', enforceAppCheck:
   const module = cleanText(request.data?.module, 100)
   const description = cleanText(request.data?.description, 4000)
   if (!reportModules.has(module) || !description) throw new HttpsError('invalid-argument', 'Modul und Beschreibung müssen gültig angegeben werden.')
+
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('bug-report-notification')
+    return { success: true, notificationSkipped: true }
+  }
 
   const database = getFirestore()
   const superadminsSnapshot = await database.collection('users').where('role', '==', 'superadmin').get()

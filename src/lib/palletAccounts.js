@@ -1,6 +1,9 @@
 import { Timestamp, addDoc, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { PALLET_TYPES } from '../constants/pallets.js'
+import { getPartnerCluster } from './partnerClusterQueries.js'
+import { summarizePalletAccount } from './palletAccountCalculations.js'
+export { getPalletAccountEntries, getPalletMovementChangeForPartner, getPalletMovementCounterpartyId, isPalletMovementForPartner, summarizePalletAccount } from './palletAccountCalculations.js'
 
 export const PALLET_MOVEMENTS_COLLECTION = 'palletMovements'
 export const PALLET_CLOSINGS_COLLECTION = 'palletClosings'
@@ -21,23 +24,20 @@ function getMovementSnapshots(partnerId) {
   ])
 }
 
-export function isPalletMovementForPartner(movement, partnerId) {
-  return movement.customerId === partnerId || movement.carrierId === partnerId || movement.partnerId === partnerId
+async function loadClusterMovements(cluster) {
+  const memberIds = cluster.members.map((partner) => partner.id)
+  const movementSnapshots = await Promise.all(memberIds.map(getMovementSnapshots))
+  const movements = movementSnapshots.flatMap((group) => group.flatMap((snapshot) => snapshot.docs.map(mapSnapshot)))
+  return {
+    memberIds,
+    movements: [...new Map(movements.map((movement) => [movement.id, movement])).values()],
+  }
 }
 
-export function getPalletMovementChangeForPartner(movement, partnerId) {
-  if (movement.partnerId === partnerId) return toNumber(movement.incoming) - toNumber(movement.outgoing)
-
-  let change = 0
-  if (movement.carrierId === partnerId) change += toNumber(movement.carrierBalance)
-  if (movement.customerId === partnerId) change += toNumber(movement.customerBalance)
-  return change
-}
-
-export function getPalletMovementCounterpartyId(movement, partnerId) {
-  if (movement.carrierId === partnerId && movement.customerId !== partnerId) return movement.customerId
-  if (movement.customerId === partnerId && movement.carrierId !== partnerId) return movement.carrierId
-  return ''
+async function loadClusterClosings(cluster) {
+  const memberIds = cluster.members.map((partner) => partner.id)
+  const snapshots = await Promise.all(memberIds.map((id) => getDocs(query(palletClosingsRef, where('partnerId', '==', id)))))
+  return snapshots.flatMap((snapshot) => snapshot.docs.map(mapSnapshot))
 }
 
 export function calculatePalletMovement(values) {
@@ -63,14 +63,29 @@ export function calculatePalletMovement(values) {
 }
 
 export async function listPalletMovements(partnerId) {
-  const snapshots = await getMovementSnapshots(partnerId)
-  const movements = snapshots.flatMap((snapshot) => snapshot.docs.map(mapSnapshot))
-  return [...new Map(movements.map((movement) => [movement.id, movement])).values()]
+  const cluster = await getPartnerCluster(partnerId)
+  return (await loadClusterMovements(cluster)).movements
 }
 
 export async function listPalletClosings(partnerId) {
-  const snapshot = await getDocs(query(palletClosingsRef, where('partnerId', '==', partnerId)))
-  return snapshot.docs.map(mapSnapshot)
+  const cluster = await getPartnerCluster(partnerId)
+  return loadClusterClosings(cluster)
+}
+
+/** Returns one consolidated pallet account for the active merge target. The
+ * underlying movements and closings deliberately keep their original IDs. */
+export async function loadPalletAccount(partnerId) {
+  const cluster = await getPartnerCluster(partnerId)
+  if (!cluster.root) return null
+  const [{ memberIds, movements }, closings] = await Promise.all([loadClusterMovements(cluster), loadClusterClosings(cluster)])
+  return {
+    partner: cluster.root,
+    members: cluster.members,
+    memberIds,
+    movements,
+    closings,
+    account: summarizePalletAccount(movements, closings, cluster.root.id, memberIds),
+  }
 }
 
 export async function listAllPalletMovements() {
@@ -190,40 +205,4 @@ export async function updatePalletClosing(closingId, values) {
 
 export async function deletePalletClosing(closingId) {
   await deleteDoc(doc(db, PALLET_CLOSINGS_COLLECTION, closingId))
-}
-
-function timestampValue(value) {
-  return value?.toMillis?.() ?? 0
-}
-
-export function getPalletAccountEntries(movements, closings, partnerId) {
-  const entries = [
-    ...movements.map((movement) => ({
-      ...movement,
-      entryType: 'movement',
-      change: getPalletMovementChangeForPartner(movement, partnerId),
-      counterpartyId: getPalletMovementCounterpartyId(movement, partnerId),
-    })),
-    ...closings.map((closing) => ({ ...closing, entryType: 'closing', change: toNumber(closing.adjustment) })),
-  ].sort((first, second) => first.date.localeCompare(second.date) || timestampValue(first.createdAt) - timestampValue(second.createdAt))
-
-  let balance = 0
-  return entries.map((entry) => {
-    balance += entry.change
-    return { ...entry, balance }
-  })
-}
-
-export function summarizePalletAccount(movements, closings, partnerId) {
-  const entries = getPalletAccountEntries(movements, closings, partnerId)
-  const movementChanges = movements.map((movement) => getPalletMovementChangeForPartner(movement, partnerId))
-  const latestClosing = entries.filter((entry) => entry.entryType === 'closing').at(-1) ?? null
-
-  return {
-    totalIncoming: movementChanges.filter((change) => change > 0).reduce((sum, change) => sum + change, 0),
-    totalOutgoing: movementChanges.filter((change) => change < 0).reduce((sum, change) => sum + Math.abs(change), 0),
-    balance: entries.at(-1)?.balance ?? 0,
-    latestClosing,
-    entries,
-  }
 }

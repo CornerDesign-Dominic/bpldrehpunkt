@@ -1,32 +1,33 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import DamageCaseForm from '../components/damages/DamageCaseForm.jsx'
 import DamageCasesTable from '../components/damages/DamageCasesTable.jsx'
 import Toast from '../components/ui/Toast.jsx'
-import { ChevronDownIcon } from '../components/icons.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import { usePageHeader } from '../lib/pageHeader.js'
 import { createDamageCase, DAMAGE_CASE_STATUSES, damageDeadlinePresentation, isClosedDamageCase, listDamageCases, sortDamageCases } from '../lib/damages.js'
+import { caseCreationDefaults } from '../lib/caseTransportLinks.js'
 
 export default function DamagesPage() {
   const { user, profile } = useAuth()
   const { canEdit, canView } = usePermissions()
   const { setTitle } = usePageHeader()
   const navigate = useNavigate()
+  const location = useLocation()
   const editable = canEdit('damages')
   const canViewMasterData = canView('masterData')
   const [cases, setCases] = useState([])
   const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showForm, setShowForm] = useState(false)
+  const [pendingCaseCreation] = useState(() => location.state?.caseCreation?.caseType === 'damage' ? location.state.caseCreation : null)
+  const [showForm, setShowForm] = useState(() => Boolean(location.state?.caseCreation?.caseType === 'damage'))
   const [toast, setToast] = useState('')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
-  const [closedOpen, setClosedOpen] = useState(false)
 
   useEffect(() => { setTitle(''); return () => setTitle('') }, [setTitle])
   useEffect(() => {
@@ -50,11 +51,11 @@ export default function DamagesPage() {
   }, [cases, criticalOnly, search, status])
   const currentCases = useMemo(() => sortDamageCases(filteredCases.filter((damageCase) => !isClosedDamageCase(damageCase))), [filteredCases])
   const closedCases = useMemo(() => sortDamageCases(filteredCases.filter(isClosedDamageCase)), [filteredCases])
-  const hasActiveFilter = Boolean(search.trim() || status || criticalOnly)
-  const showClosedCases = closedOpen || (hasActiveFilter && currentCases.length === 0 && closedCases.length > 0)
+
+  useEffect(() => { if (pendingCaseCreation) navigate(location.pathname, { replace: true, state: null }) }, [location.pathname, navigate, pendingCaseCreation])
 
   async function save(values) {
-    const id = await createDamageCase(values, { user, profile }, new Map())
+    const id = await createDamageCase(values, { user, profile }, new Map(), { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
     navigate(`/schaeden/${id}`)
   }
@@ -64,7 +65,7 @@ export default function DamagesPage() {
     {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}>Neuen Fall anlegen</button></div>}
     <section className="damages-filter-area" aria-labelledby="damages-filter-heading"><h2 id="damages-filter-heading">Filter</h2><div className="damage-filters"><label className="search-field"><span className="sr-only">Schäden durchsuchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Fallnummer, Referenz, Kunde oder Unternehmer" /></label><label className="filter-field"><span className="sr-only">Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Alle Status</option>{DAMAGE_CASE_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className={`damage-filter-toggle${criticalOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={criticalOnly} onChange={(event) => setCriticalOnly(event.target.checked)} />Frist kritisch</label></div></section>
     {error && <p className="form-error">{error}</p>}
-    {loading ? <p className="page-state">Schäden werden geladen …</p> : <div className="damages-lists"><section className="damage-case-list"><div className="damage-case-list__heading"><h2>Aktuelle Fälle</h2><span>{currentCases.length}</span></div><DamageCasesTable cases={currentCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} /></section><section className={`damage-case-list damage-case-list--closed${showClosedCases ? ' damage-case-list--open' : ''}`}><button className="damage-case-list__heading damage-section__toggle" type="button" aria-expanded={showClosedCases} onClick={() => setClosedOpen((value) => !value)}><h2>Abgeschlossene Fälle</h2><span>{closedCases.length}<ChevronDownIcon /></span></button>{showClosedCases && <DamageCasesTable cases={closedCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} />}</section></div>}
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Schaden anlegen"><DamageCaseForm partners={partners} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
+    {loading ? <p className="page-state">Schäden werden geladen …</p> : <div className="damages-lists"><section className="damage-case-list"><div className="damage-case-list__heading"><h2>Aktuelle Fälle</h2></div><DamageCasesTable cases={currentCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} /></section><section className="damage-case-list"><div className="damage-case-list__heading"><h2>Abgeschlossene Fälle</h2></div><DamageCasesTable cases={closedCases} onOpen={(damageCase) => navigate(`/schaeden/${damageCase.id}`)} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Schaden anlegen"><DamageCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('damage', pendingCaseCreation?.prefill)} partners={partners} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
   </div>
 }

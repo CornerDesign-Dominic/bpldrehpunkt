@@ -11,12 +11,18 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './firebase.js'
+import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 import { getUserDisplayName } from './userProfiles.js'
 
 export const TODOS_COLLECTION = 'todos'
 export const TODO_STATUS = { open: 'Keine Bearbeitung', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
 export const TODO_PRIORITY = { low: 'Gering', medium: 'Mittel', high: 'Hoch' }
+export const TODO_SCHEDULE_TYPES = [
+  { value: 'deadline', label: 'Frist' },
+  { value: 'appointment', label: 'Termin' },
+]
 const todosRef = collection(db, TODOS_COLLECTION)
+const todoCalendarEntriesRef = collection(db, 'todoCalendarEntries')
 const activePoolStatuses = ['open', 'in_progress', 'completed']
 const trim = (value) => (value ?? '').trim()
 const timestampValue = (value) => value?.toMillis?.() ?? 0
@@ -24,10 +30,19 @@ const mapSnapshot = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 
 function actorName(actor) { return getUserDisplayName(actor.profile, actor.user) }
 function updateCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'updates') }
+function deadlineCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'deadlines') }
 function systemUpdate(text, actor) { return { text, type: 'system', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() } }
 function uniqueIds(ids) { return [...new Set((ids || []).filter(Boolean))] }
 function optionalId(value) { return trim(value) || null }
 function optionalName(value) { return trim(value) || null }
+function transportOrderLinks(value) {
+  const links = Array.isArray(value) ? value : []
+  return [...new Map(links.map((link) => [trim(link?.id), { id: trim(link?.id), number: trim(link?.number) }]).filter(([id]) => Boolean(id))).values()].slice(0, 20)
+}
+function storedTransportOrderLinks(todo) {
+  const links = transportOrderLinks(todo?.transportOrderLinks)
+  return links.length || !todo?.transportOrderId ? links : transportOrderLinks([{ id: todo.transportOrderId, number: todo.transportOrderNumber || todo.reference || todo.transportOrderId }])
+}
 function priorityValue(value) { return ['low', 'medium', 'high'].includes(value) ? value : 'medium' }
 function localDayNumber(value = new Date()) { return Math.floor(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()) / 86400000) }
 function dateDayNumber(value) {
@@ -44,6 +59,7 @@ function terminalRank(todo) { return todo.status === 'completed' ? 0 : 1 }
 function terminalTimestamp(todo) { return timestampValue(todo.completedAt || todo.withdrawnAt || todo.updatedAt) }
 
 function todoFields(values) {
+  const links = transportOrderLinks(values.transportOrderLinks)
   return {
     title: trim(values.title),
     description: trim(values.description),
@@ -54,7 +70,14 @@ function todoFields(values) {
     customerName: optionalName(values.customerName),
     carrierId: optionalId(values.carrierId),
     carrierName: optionalName(values.carrierName),
-    reference: optionalName(values.reference),
+    reference: optionalName(values.reference || links[0]?.number),
+    // Die Mehrfachverknüpfung ist das führende Datenmodell. Die beiden
+    // Einzelfelder bleiben ausschließlich für alte To-dos lesbar und werden
+    // bei jeder neuen Speicherung geleert. Dadurch kann eine Verknüpfung
+    // nicht an einer veralteten Einzel-Referenz scheitern.
+    transportOrderId: null,
+    transportOrderNumber: null,
+    transportOrderLinks: links,
     damageCaseId: optionalId(values.damageCaseId),
     insolvencyId: optionalId(values.insolvencyId),
     legalDisputeId: optionalId(values.legalDisputeId),
@@ -78,7 +101,7 @@ function audienceValues(values, usersById, actor) {
 function sortTodos(todos) { return [...todos].sort((left, right) => timestampValue(right.createdAt) - timestampValue(left.createdAt)) }
 async function queryTodos(...constraints) { return (await getDocs(query(todosRef, ...constraints))).docs.map(mapSnapshot) }
 
-export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
+export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', transportOrderLinks: [], damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
 export function todoStatus(todo) { return !todo.assignedUserId && todo.status !== 'withdrawn' ? 'open' : TODO_STATUS[todo.status] ? todo.status : 'open' }
@@ -91,6 +114,52 @@ export function todoDuePresentation(todo, now = new Date()) {
   if (days === 0) return { kind: 'today', label: 'Heute fällig', days }
   if (days <= 3) return { kind: 'soon', label: `Fällig in ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
   return { kind: 'none', label: 'Fällig später', days }
+}
+
+function validScheduleDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value || '') }
+function cleanScheduleNote(value) { return trim(value).slice(0, 4000) }
+function todoDeadlinePayload(values) {
+  const type = values?.type === 'appointment' ? 'appointment' : 'deadline'
+  const date = trim(values?.date)
+  if (!validScheduleDate(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
+  const time = reminderDeadlineTime(values)
+  return { type, date, time, reminderEnabled: values?.reminderEnabled === true, note: cleanScheduleNote(values?.note) || null }
+}
+
+function todoCalendarEntry(todo, deadline, entryId, ownerUserId) {
+  const time = deadline.time || ''
+  const type = todoScheduleTypeLabel(deadline.type)
+  return {
+    todoId: todo.id,
+    deadlineId: deadline.id,
+    ownerUserId,
+    title: `${todo.title} · ${type}`.slice(0, 160),
+    description: deadline.note || '',
+    startDate: deadline.date,
+    endDate: deadline.date,
+    allDay: !time,
+    startTime: time,
+    endTime: time,
+    reminderEnabled: deadline.reminderEnabled === true,
+    calendarEntryId: entryId,
+    updatedAt: serverTimestamp(),
+  }
+}
+
+export function todoScheduleTypeLabel(type) { return TODO_SCHEDULE_TYPES.find((item) => item.value === type)?.label || 'Frist' }
+
+export function createEmptyTodoDeadline() { return { type: 'deadline', date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' } }
+
+export function todoDeadlinePresentation(deadline, now = new Date()) {
+  if (!validScheduleDate(deadline?.date)) return { kind: 'none', label: 'Kein Termin', days: null }
+  const today = new Date(now); today.setHours(0, 0, 0, 0)
+  const date = new Date(`${deadline.date}T12:00:00`)
+  const days = Math.round((date - today) / 86400000)
+  if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
+  if (days === 0) return { kind: 'today', label: 'Heute', days }
+  if (days <= 3) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
+  if (days <= 7) return { kind: 'warning', label: `In ${days} Tagen`, days }
+  return { kind: 'none', label: 'Später', days }
 }
 
 function compareStandard(left, right, now) {
@@ -155,6 +224,63 @@ export async function getTodoById(todoId) {
 
 export async function listTodoUpdates(todoId) {
   return (await getDocs(query(updateCollection(todoId), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+}
+
+export async function listTodoDeadlines(todoId) {
+  return (await getDocs(query(deadlineCollection(todoId), orderBy('date', 'asc')))).docs.map(mapSnapshot)
+}
+
+export async function listTodoCalendarEntries(userId) {
+  return (await getDocs(query(todoCalendarEntriesRef, where('ownerUserId', '==', userId)))).docs
+    .map(mapSnapshot)
+    .filter((entry) => validScheduleDate(entry.startDate))
+}
+
+export async function createTodoDeadline(todo, values, actor) {
+  const deadline = todoDeadlinePayload(values)
+  const todoRef = doc(db, TODOS_COLLECTION, todo.id)
+  const deadlineRef = doc(deadlineCollection(todo.id))
+  const calendarEntryRef = doc(todoCalendarEntriesRef)
+  const reminderRecipientEmail = deadline.reminderEnabled ? deadlineCreatorEmail(actor) : null
+  const storedDeadline = { ...deadline, id: deadlineRef.id, calendarEntryId: calendarEntryRef.id }
+  const batch = writeBatch(db)
+  batch.update(todoRef, { updatedAt: serverTimestamp() })
+  batch.set(deadlineRef, {
+    ...deadline,
+    calendarEntryId: calendarEntryRef.id,
+    reminderRecipientEmail,
+    createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName(actor),
+    updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor),
+  })
+  batch.set(calendarEntryRef, { ...todoCalendarEntry(todo, storedDeadline, calendarEntryRef.id, actor.user.uid), createdAt: serverTimestamp() })
+  batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(deadline.type).toLocaleLowerCase('de-DE')} für ${deadline.date} hinzugefügt.`, actor))
+  await batch.commit()
+}
+
+export async function updateTodoDeadline(todo, deadline, values, actor) {
+  const next = todoDeadlinePayload(values)
+  const reminderRecipientEmail = !deadline.reminderEnabled && next.reminderEnabled ? deadlineCreatorEmail(actor) : deadline.reminderRecipientEmail || null
+  const unchanged = Object.entries(next).every(([field, value]) => value === (deadline[field] ?? null))
+  if (unchanged && reminderRecipientEmail === (deadline.reminderRecipientEmail || null)) return false
+  const todoRef = doc(db, TODOS_COLLECTION, todo.id)
+  const calendarEntryRef = doc(db, 'todoCalendarEntries', deadline.calendarEntryId)
+  const storedDeadline = { ...deadline, ...next, reminderRecipientEmail }
+  const batch = writeBatch(db)
+  batch.update(todoRef, { updatedAt: serverTimestamp() })
+  batch.update(doc(deadlineCollection(todo.id), deadline.id), { ...next, reminderRecipientEmail, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor) })
+  batch.update(calendarEntryRef, todoCalendarEntry(todo, storedDeadline, deadline.calendarEntryId, deadline.createdBy))
+  batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(next.type).toLocaleLowerCase('de-DE')} vom ${next.date} aktualisiert.`, actor))
+  await batch.commit()
+  return true
+}
+
+export async function deleteTodoDeadline(todo, deadline, actor) {
+  const batch = writeBatch(db)
+  batch.update(doc(db, TODOS_COLLECTION, todo.id), { updatedAt: serverTimestamp() })
+  batch.delete(doc(deadlineCollection(todo.id), deadline.id))
+  if (deadline.calendarEntryId) batch.delete(doc(db, 'todoCalendarEntries', deadline.calendarEntryId))
+  batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(deadline.type).toLocaleLowerCase('de-DE')} vom ${deadline.date} gelöscht.`, actor))
+  await batch.commit()
 }
 
 export async function listTodosForActor(actor) {
@@ -268,7 +394,15 @@ function changedFieldMessages(todo, fields, resetAssignment) {
   if ((todo.reminderDate || null) !== fields.reminderDate) changed('die Erinnerung', formatHistoryDate(todo.reminderDate), formatHistoryDate(fields.reminderDate))
   if ((todo.customerId || null) !== fields.customerId) changed('den Kunden', todo.customerName, fields.customerName, 'kein Kunde', 'kein Kunde')
   if ((todo.carrierId || null) !== fields.carrierId) changed('den Unternehmer', todo.carrierName, fields.carrierName, 'kein Unternehmer', 'kein Unternehmer')
-  if ((todo.reference || null) !== fields.reference) changed('die TA-Nummer', todo.reference, fields.reference, 'keine TA-Nummer', 'keine TA-Nummer')
+  const previousLinks = storedTransportOrderLinks(todo)
+  const previousTransportOrderIds = previousLinks.map((link) => link.id)
+  const nextTransportOrderIds = transportOrderLinks(fields.transportOrderLinks).map((link) => link.id)
+  const transportOrderChanged = previousTransportOrderIds.join('|') !== nextTransportOrderIds.join('|')
+  const addedTransportOrders = transportOrderLinks(fields.transportOrderLinks).filter((link) => !previousTransportOrderIds.includes(link.id))
+  const removedTransportOrders = previousLinks.filter((link) => !nextTransportOrderIds.includes(link.id))
+  if (addedTransportOrders.length) messages.push(`hat ${addedTransportOrders.map((link) => `TA ${link.number || link.id}`).join(', ')} verknüpft.`)
+  if (removedTransportOrders.length) messages.push(`hat ${removedTransportOrders.map((link) => `TA ${link.number || link.id}`).join(', ')} entfernt.`)
+  if ((todo.reference || null) !== fields.reference && !transportOrderChanged) changed('die TA-Nummer', todo.reference, fields.reference, 'keine TA-Nummer', 'keine TA-Nummer')
   if ((todo.damageCaseId || null) !== fields.damageCaseId) messages.push(fields.damageCaseId ? 'hat den Schadenfall verknüpft.' : 'hat die Schadenfall-Verknüpfung entfernt.')
   if ((todo.insolvencyId || null) !== fields.insolvencyId) messages.push(fields.insolvencyId ? 'hat den Insolvenzfall verknüpft.' : 'hat die Insolvenzfall-Verknüpfung entfernt.')
   if ((todo.legalDisputeId || null) !== fields.legalDisputeId) messages.push(fields.legalDisputeId ? 'hat den Gerichtsfall verknüpft.' : 'hat die Gerichtsfall-Verknüpfung entfernt.')

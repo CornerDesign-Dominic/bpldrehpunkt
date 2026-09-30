@@ -15,6 +15,7 @@ import Toast from '../components/ui/Toast.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
+import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { getDocumentErrorMessage } from '../lib/documents.js'
 import { createDamageCaseDocument, deleteDamageCaseDocument, listDamageCaseDocuments, updateDamageCaseDocument } from '../lib/damageDocuments.js'
 import { usePageHeader } from '../lib/pageHeader.js'
@@ -23,6 +24,8 @@ import { listVisibleUserDirectory } from '../lib/userProfiles.js'
 import { useLinkedTodos } from '../components/todos/useLinkedTodos.js'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import { resolvePartnerInIndex } from '../lib/partnerCluster.js'
+import CaseTransportOrdersCard from '../components/case-links/CaseTransportOrdersCard.jsx'
 
 GlobalWorkerOptions.workerSrc = pdfWorker
 
@@ -118,13 +121,13 @@ export default function DamageDetailPage() {
   const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'damageCaseId', caseId: damageCaseId, profile, user })
 
   async function load() {
-    const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
     setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setDeadlines(damageDeadlines); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false)
   }
 
   useEffect(() => {
     let current = true
-    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
       .then(([entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners]) => { if (current) { setDamageCase(entry); setUpdates(history); setDocuments(damageDocuments); setMovements(damageMovements); setDeadlines(damageDeadlines); setUsers(directory); setPartners(businessPartners); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false) } })
       .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setMovementsLoading(false); setDeadlinesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
@@ -132,6 +135,10 @@ export default function DamageDetailPage() {
   }, [canViewMasterData, damageCaseId, editable, setTitle])
 
   const usersById = useMemo(() => new Map(users.map((entry) => [entry.id, entry])), [users])
+  const partnersById = useMemo(() => new Map(partners.map((entry) => [entry.id, entry])), [partners])
+  const effectivePartner = (id) => {
+    try { return resolvePartnerInIndex(partnersById, id) } catch { return null }
+  }
 
   async function saveSection(section, changes) {
     setError('')
@@ -274,7 +281,7 @@ export default function DamageDetailPage() {
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
     <ConfirmDialog open={Boolean(documentConfirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={documentSaving} onCancel={() => setDocumentConfirmation(null)} onConfirm={() => deleteDocument(documentConfirmation)} />
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !documentSaving) setEditingDocument(null) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={editingDocument === 'new' ? 'Dokument hochladen' : 'Dokument bearbeiten'}><DocumentForm key={editingDocument === 'new' ? 'new' : editingDocument.id} documentItem={editingDocument === 'new' ? null : editingDocument} hideExpirationDate onCancel={() => setEditingDocument(null)} onSubmit={saveDocument} /></section></div>}
-    {showTodoCreate && <LinkedTodoCreateModal currentUserId={user.uid} fixedLink={todoFixedLink} partners={todoPartners} users={todoUsers} onCancel={() => setShowTodoCreate(false)} onSubmit={async (values) => { await createLinkedTodo(values); setShowTodoCreate(false); setToast('To-do angelegt.') }} />}
+    {showTodoCreate && <LinkedTodoCreateModal canViewTransportOrders={canView('transportOrders')} currentUserId={user.uid} fixedLink={todoFixedLink} partners={todoPartners} users={todoUsers} onCancel={() => setShowTodoCreate(false)} onSubmit={async (values) => { await createLinkedTodo(values); setShowTodoCreate(false); setToast('To-do angelegt.') }} />}
     {editing && <DamageCaseEditModal key={editing} damageCase={damageCase} partners={partners} section={editing} users={users} onCancel={() => setEditing(null)} onSubmit={saveSection} />}
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/schaeden" /></div>
     <div className="todo-detail-page damage-detail-page">
@@ -292,9 +299,9 @@ export default function DamageDetailPage() {
         </main>
         <aside className="todo-detail-sidebar">
           <CollapsibleDetailCard title="Allgemein" onEdit={editable ? () => setEditing('general') : null} primaryDetails={<><Detail label="Schadenhöhe">{formatCurrency(damageCase.damageAmount)}</Detail><Detail label="Nächste Frist"><span className={dueClass(nextDeadline)}>{dueValue}</span></Detail><Detail label="Verantwortliche Person">{damageCase.responsibleUserName}</Detail></>} secondaryDetails={<><Detail label="Schadenart">{damageCase.damageType}</Detail><Detail label="Schadendatum">{formatDate(damageCase.damageDate)}</Detail><Detail label="Aktennummer BPL-Versicherung">{damageCase.bplInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.damageType, damageCase.damageDate, damageCase.bplInsuranceCaseNumber]} />
-          <section><DetailSectionHeading onEdit={editable ? () => setEditing('links') : null}>Verknüpfungen</DetailSectionHeading><dl><Detail label="TA-Nummer">{damageCase.transportReference}</Detail></dl></section>
-          <CollapsibleDetailCard title="Kunde & Anspruch" onEdit={editable ? () => setEditing('claimant') : null} primaryDetails={<Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.claimantPartnerId}`}>{damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail>} secondaryDetails={<><Detail label="Versicherung Kunde">{damageCase.customerInsurance}</Detail><Detail label="Vorgangsnummer Kunde">{damageCase.customerInsuranceNumber}</Detail></>} secondaryValues={[damageCase.customerInsurance, damageCase.customerInsuranceNumber]} />
-          <CollapsibleDetailCard title="Unternehmer & Versicherung" onEdit={editable ? () => setEditing('contractor') : null} primaryDetails={<><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={`/kunden-unternehmer/${damageCase.contractorPartnerId}`}>{damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail></>} secondaryDetails={<><Detail label="Versicherer UTN">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.contractorInsurance, damageCase.contractorInsuranceCaseNumber]} />
+          <CaseTransportOrdersCard caseType="damage" caseId={damageCase.id} actor={{ user, profile }} canManage={editable && canView('transportOrders')} canViewTransportOrders={canView('transportOrders')} />
+          <CollapsibleDetailCard title="Kunde & Anspruch" onEdit={editable ? () => setEditing('claimant') : null} primaryDetails={<Detail label="Kunde / Anspruchsteller">{damageCase.claimantPartnerId && canViewMasterData ? <Link to={businessPartnerDetailPath(effectivePartner(damageCase.claimantPartnerId)?.id || damageCase.claimantPartnerId)}>{effectivePartner(damageCase.claimantPartnerId)?.companyName || damageCase.claimant || 'Kunde öffnen'}</Link> : damageCase.claimant}</Detail>} secondaryDetails={<><Detail label="Versicherung Kunde">{damageCase.customerInsurance}</Detail><Detail label="Vorgangsnummer Kunde">{damageCase.customerInsuranceNumber}</Detail></>} secondaryValues={[damageCase.customerInsurance, damageCase.customerInsuranceNumber]} />
+          <CollapsibleDetailCard title="Unternehmer & Versicherung" onEdit={editable ? () => setEditing('contractor') : null} primaryDetails={<><Detail label="Unternehmer">{damageCase.contractorPartnerId && canViewMasterData ? <Link to={businessPartnerDetailPath(effectivePartner(damageCase.contractorPartnerId)?.id || damageCase.contractorPartnerId)}>{effectivePartner(damageCase.contractorPartnerId)?.companyName || damageCase.contractor || 'Unternehmer öffnen'}</Link> : damageCase.contractor}</Detail><Detail label="Haftung Unternehmer">{labelFor(DAMAGE_CONTRACTOR_LIABILITY, damageCase.contractorLiability)}</Detail></>} secondaryDetails={<><Detail label="Versicherer UTN">{damageCase.contractorInsurance}</Detail><Detail label="Vorgangsnummer Unternehmer">{damageCase.contractorInsuranceCaseNumber}</Detail></>} secondaryValues={[damageCase.contractorInsurance, damageCase.contractorInsuranceCaseNumber]} />
           <CollapsibleDetailCard title="Haftungsgrundlage" onEdit={editable ? () => setEditing('liability') : null} primaryDetails={<><Detail label="Rechtsgrundlage">{labelFor(DAMAGE_LEGAL_BASES, damageCase.legalBasis)}</Detail><Detail label="Bemessungs-/Haftungsgrenze">{formatCurrency(damageCase.liabilityLimit)}</Detail></>} secondaryDetails={<><Detail label="Gewicht der Ware">{formatNumber(damageCase.cargoWeightKg, ' kg')}</Detail><Detail label="Versicherungsrelevanz">{labelFor(DAMAGE_INSURANCE_RELEVANCE, damageCase.insuranceRelevance)}</Detail></>} secondaryValues={[damageCase.cargoWeightKg, damageCase.insuranceRelevance]} />
           <section className="todo-detail-system"><h3>Systemdaten</h3><dl><Detail label="Erstellt von">{damageCase.createdByName}</Detail><Detail label="Erstellt am">{formatTimestamp(damageCase.createdAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(damageCase.updatedAt)}</Detail></dl></section>
         </aside>

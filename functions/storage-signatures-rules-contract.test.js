@@ -21,5 +21,5 @@ test('the browser client derives the fixed signature path from Firebase Auth onl
   assert.match(signatureClient, /const uid = auth\.currentUser\?\.uid/)
   assert.match(signatureClient, /`user-signatures\/\$\{uid\}\/signature\.jpg`/)
   assert.doesNotMatch(signatureClient, /getDownloadURL/)
-  assert.match(signatureClient, /getBlob\(currentUserSignatureRef\(\)\)/)
+  assert.match(signatureClient, /httpsCallable\(functions, 'getOwnSignature'\)\(\)/)
 })

@@ -6,6 +6,7 @@ export function signInWithEmail(email, password) {
 }
 
 export function requestPasswordReset(email) {
+  auth.languageCode = 'de'
   return sendPasswordResetEmail(auth, email)
 }
 

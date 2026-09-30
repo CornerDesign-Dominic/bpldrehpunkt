@@ -5,6 +5,7 @@ import InsolvenciesTable from '../components/insolvencies/InsolvenciesTable.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { createInsolvency, listInsolvenciesWithLossNet, listInsolvencyPartners } from '../lib/insolvencies.js'
+import { insolvencyCasePath } from '../lib/businessPartnerLinks.js'
 
 export default function InsolvenciesPage() {
   const { user, profile } = useAuth()
@@ -46,13 +47,13 @@ export default function InsolvenciesPage() {
   async function save(values, partner) {
     const id = await createInsolvency(values, partner, { user, profile })
     setShowForm(false)
-    navigate(`/insolvenzen/${id}`)
+    navigate(insolvencyCasePath(id))
   }
 
   return <div className="damages-page insolvencies-page">
     {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => { void openForm() }}>Insolvenz hinzufügen</button></div>}
     {error && <p className="form-error">{error}</p>}
-    {loading ? <p className="page-state">Insolvenzfälle werden geladen …</p> : <div className="insolvencies-layout"><section className="insolvencies-filter-area" aria-labelledby="insolvencies-filter-heading"><h2 id="insolvencies-filter-heading">Filter</h2><div className="damage-filters insolvencies-filters"><label className="search-field"><span className="sr-only">Insolvenzfälle durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Unternehmen, Aktenzeichen oder Gerichtsstand" /></label><label className="filter-field"><span className="sr-only">Eröffnungsjahr</span><select value={year} onChange={(event) => setYear(event.target.value)}><option value="">Alle Eröffnungsjahre</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div></section><section className="insolvencies-list" aria-labelledby="insolvencies-heading"><div className="insolvencies-list__heading"><h2 id="insolvencies-heading">Insolvenzfälle</h2><span>{visibleInsolvencies.length}</span></div><InsolvenciesTable insolvencies={visibleInsolvencies} emptyMessage={insolvencies.length ? 'Keine Insolvenzfälle für diese Filter gefunden.' : undefined} onOpen={(insolvency) => navigate(`/insolvenzen/${insolvency.id}`)} /></section></div>}
+    {loading ? <p className="page-state">Insolvenzfälle werden geladen …</p> : <div className="insolvencies-layout"><section className="insolvencies-filter-area" aria-labelledby="insolvencies-filter-heading"><h2 id="insolvencies-filter-heading">Filter</h2><div className="damage-filters insolvencies-filters"><label className="search-field"><span className="sr-only">Insolvenzfälle durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Unternehmen, Aktenzeichen oder Gerichtsstand" /></label><label className="filter-field"><span className="sr-only">Eröffnungsjahr</span><select value={year} onChange={(event) => setYear(event.target.value)}><option value="">Alle Eröffnungsjahre</option>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div></section><section className="insolvencies-list" aria-labelledby="insolvencies-heading"><div className="insolvencies-list__heading"><h2 id="insolvencies-heading">Insolvenzfälle</h2></div><InsolvenciesTable insolvencies={visibleInsolvencies} emptyMessage={insolvencies.length ? 'Keine Insolvenzfälle für diese Filter gefunden.' : undefined} onOpen={(insolvency) => navigate(insolvencyCasePath(insolvency.id))} /></section></div>}
     {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Insolvenz hinzufügen"><InsolvencyCaseForm onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} loadingPartners={loadingPartners} partnerError={partnerError} /></section></div>}
   </div>
 }

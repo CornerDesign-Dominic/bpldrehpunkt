@@ -2,6 +2,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writ
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const INSOLVENCIES_COLLECTION = 'insolvencies'
 
@@ -52,10 +53,11 @@ function formatDate(value) {
 
 function insolvencyDeadlinePayload(values) {
   const date = trim(values.date)
+  const time = reminderDeadlineTime(values)
   const note = optionalText(values.note)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   if (note && note.length > 4000) throw new Error('Die Bemerkung darf maximal 4.000 Zeichen enthalten.')
-  return { date, reminderEnabled: values.reminderEnabled === true, note }
+  return { date, time, reminderEnabled: values.reminderEnabled === true, note }
 }
 
 function insolvencyDeadlineLabel(value) {
@@ -67,7 +69,7 @@ export function createEmptyInsolvency() {
 }
 
 export async function listInsolvencies() {
-  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot)
+  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt && !entry.mergedIntoPartnerId)
 }
 
 export function insolvencyLossNet(claims, quotaPayments) {
@@ -85,7 +87,7 @@ export async function listInsolvenciesWithLossNet() {
 
 export async function getInsolvency(partnerId) {
   const snapshot = await getDoc(doc(db, INSOLVENCIES_COLLECTION, partnerId))
-  return snapshot.exists() ? mapSnapshot(snapshot) : null
+  return snapshot.exists() && !snapshot.data().splitArchivedAt && !snapshot.data().mergedIntoPartnerId ? mapSnapshot(snapshot) : null
 }
 
 export async function listInsolvencyPartners() {
@@ -148,7 +150,7 @@ export function createEmptyInsolvencyQuotaPayment() {
 }
 
 export function createEmptyInsolvencyDeadline() {
-  return { date: new Date().toISOString().slice(0, 10), reminderEnabled: false, note: '' }
+  return { date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
 }
 
 export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
@@ -166,23 +168,26 @@ export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
 export async function listInsolvencyClaims(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'claims'))).docs
     .map(mapSnapshot)
+    .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => left.invoiceNumber.localeCompare(right.invoiceNumber, 'de') || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyQuotaPayments(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'quotaPayments'))).docs
     .map(mapSnapshot)
+    .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyDeadlines(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'deadlines'))).docs
     .map(mapSnapshot)
+    .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
 }
 
 export async function listInsolvencyUpdates(partnerId) {
-  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
+  return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt)
 }
 
 export async function createInsolvencyClaim(insolvency, values, actor) {
@@ -256,7 +261,7 @@ export async function createInsolvencyDeadline(insolvency, values, actor) {
   const actorName = getUserDisplayName(actor.profile, actor.user)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
-  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin für ${insolvencyDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
   await batch.commit()
 }

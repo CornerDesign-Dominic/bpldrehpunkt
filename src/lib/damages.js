@@ -11,6 +11,8 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { setTransportOrderCaseLink } from './caseTransportLinks.js'
+import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const DAMAGE_CASES_COLLECTION = 'damageCases'
 export const DAMAGE_CASE_STATUSES = [
@@ -163,12 +165,14 @@ export async function getDamageCase(damageCaseId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createDamageCase(values, actor, responsibleUsersById) {
+export async function createDamageCase(values, actor, responsibleUsersById, { transportOrderId = '', transportOrderIds = [] } = {}) {
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'damageCaseCounters', year)
   const caseRef = doc(damageCasesRef)
   await runTransaction(db, async (transaction) => {
-    const counter = await transaction.get(counterRef)
+    const [counter, ...transportOrders] = await Promise.all([transaction.get(counterRef), ...linkedTransportOrderIds.map((transportOrderId) => transaction.get(doc(db, 'transportOrders', transportOrderId)))])
+    if (transportOrders.some((transportOrder) => !transportOrder.exists())) throw new Error('Mindestens ein Transportauftrag ist nicht mehr verfügbar.')
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
     const caseNumber = `S-${year}-${String(sequence).padStart(4, '0')}`
@@ -187,6 +191,7 @@ export async function createDamageCase(values, actor, responsibleUsersById) {
       updatedByName: getUserDisplayName(actor.profile, actor.user),
     })
     transaction.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', 'Fall angelegt', actor))
+    linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(transaction, { caseType: 'damage', caseId: caseRef.id, transportOrderId, actor }))
   })
   return caseRef.id
 }
@@ -237,10 +242,11 @@ function damageMovementLabel(movement) {
 
 function damageDeadlinePayload(values) {
   const date = trim(values.date)
+  const time = reminderDeadlineTime(values)
   const note = optionalText(values.note)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   if (note && note.length > 4000) throw new Error('Die Bemerkung ist zu lang.')
-  return { date, reminderEnabled: values.reminderEnabled === true, note }
+  return { date, time, reminderEnabled: values.reminderEnabled === true, note }
 }
 
 function damageDeadlineLabel(date) {
@@ -248,7 +254,7 @@ function damageDeadlineLabel(date) {
 }
 
 export function createEmptyDamageDeadline() {
-  return { date: new Date().toISOString().slice(0, 10), reminderEnabled: false, note: '' }
+  return { date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
 }
 
 export function damageDeadlinePresentation(deadline, now = new Date()) {
@@ -281,7 +287,7 @@ export async function createDamageCaseDeadline(damageCase, values, actor) {
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin für ${damageDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
   await batch.commit()
 }

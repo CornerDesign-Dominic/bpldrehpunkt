@@ -6,8 +6,8 @@ function partnerLabel(partner) {
   return numbers.length ? `${partner.companyName} · ${numbers.join(' · ')}` : partner.companyName
 }
 
-export default function InsolvencyCaseForm({ onCancel, onSubmit, partners, loadingPartners, partnerError }) {
-  const [form, setForm] = useState(createEmptyInsolvency)
+export default function InsolvencyCaseForm({ initialValues, onCancel, onSubmit, partners, loadingPartners, partnerError }) {
+  const [form, setForm] = useState(() => ({ ...createEmptyInsolvency(), ...(initialValues || {}) }))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const update = (field, value) => setForm((current) => ({ ...current, [field]: value }))

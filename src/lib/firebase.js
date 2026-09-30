@@ -3,16 +3,32 @@ import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getFunctions } from 'firebase/functions'
-import { ReCaptchaEnterpriseProvider, initializeAppCheck } from 'firebase/app-check'
+import { ReCaptchaEnterpriseProvider, getToken, initializeAppCheck } from 'firebase/app-check'
+
+const firebaseEnvironment = {
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
+}
+
+const missingFirebaseEnvironment = Object.entries(firebaseEnvironment)
+  .filter(([, value]) => !value)
+  .map(([name]) => name)
+
+if (missingFirebaseEnvironment.length) {
+  throw new Error(`Firebase client configuration is incomplete. Set: ${missingFirebaseEnvironment.join(', ')}`)
+}
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBYklJVALDla-I1xfJODOUkuw_oHpIOfDY',
-  authDomain: 'db-bpl-drehpunkt.firebaseapp.com',
-  projectId: 'db-bpl-drehpunkt',
-  storageBucket: 'db-bpl-drehpunkt.firebasestorage.app',
-  messagingSenderId: '878536841109',
-  appId: '1:878536841109:web:6c198e6df38fbc8b7ac89c',
-  measurementId: 'G-41Q2BFPRY1',
+  apiKey: firebaseEnvironment.VITE_FIREBASE_API_KEY,
+  authDomain: firebaseEnvironment.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: firebaseEnvironment.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: firebaseEnvironment.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: firebaseEnvironment.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: firebaseEnvironment.VITE_FIREBASE_APP_ID,
 }
 
 // Reuses the initialized app during hot module reloads in local development.
@@ -36,6 +52,14 @@ export const appCheck = appCheckSiteKey
       isTokenAutoRefreshEnabled: true,
     })
   : null
+
+// A callable protected by App Check must not be sent before the initial
+// reCAPTCHA attestation has completed. This is especially relevant directly
+// after opening a page, when Firebase has not cached a token yet.
+export async function waitForAppCheckToken() {
+  if (!appCheck) return null
+  return getToken(appCheck)
+}
 
 export const auth = getAuth(firebaseApp)
 export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => undefined)

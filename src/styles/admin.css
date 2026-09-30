@@ -1,4 +1,14 @@
 .admin-page { display: grid; gap: 14px; max-width: var(--list-content-max-width); margin: 0 auto; }
+.diagnostics-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; }
+.diagnostics-filters label { display: grid; gap: 4px; min-width: 140px; color: var(--text-secondary); font-size: 11px; font-weight: 650; }
+.diagnostics-filters :is(input, select) { box-sizing: border-box; min-height: 34px; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 5px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }
+.diagnostics-filters .button { min-height: 34px; }
+.diagnostics-table-frame { overflow-x: auto; }
+.diagnostics-table { min-width: 960px; }
+.diagnostics-table__message { white-space: normal !important; min-width: 220px !important; }
+.diagnostics-table__message span { display: block; margin-top: 2px; color: var(--text-secondary); font-size: 11px; }
+.diagnostics-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-secondary); font-size: 12px; }
+@media (max-width: 640px) { .diagnostics-filters label { flex: 1 1 140px; } .diagnostics-filters .button { width: 100%; } }
 .admin-tabs { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
 .admin-tabs > div { display: flex; gap: 3px; }
 .admin-tabs__tab { height: 30px; padding: 0 10px; border: 0; border-radius: 4px; color: var(--text-muted); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; }
@@ -12,10 +22,58 @@
 .admin-departments { padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-manual-triggers { gap: 9px; padding-top: 16px; border-top: 1px solid var(--border); }
 .admin-holiday-sync { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.tomtom-usage-panel { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }.tomtom-usage-panel__month { display: grid; gap: 4px; color: var(--text-secondary); font-size: 11px; font-weight: 700; }.tomtom-usage-panel__month select { min-height: 32px; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }.tomtom-usage-panel__metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0; }.tomtom-usage-panel__metrics div { display: grid; gap: 3px; min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--content-background); }.tomtom-usage-panel__metrics dt { color: var(--text-muted); font-size: 10px; font-weight: 700; }.tomtom-usage-panel__metrics dd { margin: 0; color: var(--text-primary); font-size: 15px; font-variant-numeric: tabular-nums; }.tomtom-usage-panel__note { color: var(--text-muted); font-size: 11px; }
 .company-holiday-settings { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
 .company-holiday-settings__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 12px; }
 .company-holiday-settings__actions { display: flex; justify-content: flex-end; margin-top: 12px; }
 .company-holiday-settings__success { margin: 10px 0 0; color: var(--status-success-text); font-size: 12px; }
+.shipment-tracking-hours { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }.shipment-tracking-hours__week { overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }.shipment-tracking-hours__week-header, .shipment-tracking-hours__week-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(100px, .8fr) minmax(92px, .6fr) minmax(92px, .6fr); align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border-top: 1px solid var(--border); }.shipment-tracking-hours__week-header { min-height: 32px; border-top: 0; color: var(--text-muted); background: var(--surface-secondary); font-size: 10px; font-weight: 700; text-transform: uppercase; }.shipment-tracking-hours__week-row strong { color: var(--text-primary); font-size: 12px; }.shipment-tracking-hours__week-row input[type='time'], .shipment-tracking-hours__exception-row input, .shipment-tracking-hours__preview-inputs input, .shipment-tracking-hours__preview-inputs select { min-width: 0; height: 31px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }.shipment-tracking-hours__week-row input:disabled, .shipment-tracking-hours__exception-row input:disabled { color: var(--text-muted); background: var(--surface-secondary); }.shipment-tracking-hours__exceptions { display: grid; gap: 10px; padding-top: 4px; }.shipment-tracking-hours__exceptions h3 { margin: 0; color: var(--text-primary); font-size: 13px; }.shipment-tracking-hours__exceptions p { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; }.shipment-tracking-hours__exception-list { display: grid; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }.shipment-tracking-hours__exception-row { display: grid; grid-template-columns: 130px minmax(170px, 1fr) 100px 92px 92px auto; align-items: center; gap: 8px; padding: 7px 9px; border-top: 1px solid var(--border); }.shipment-tracking-hours__exception-row:first-child { border-top: 0; }.shipment-tracking-hours__exception-row .button { height: 29px; padding: 0 8px; font-size: 11px; }.shipment-tracking-hours__empty { padding: 10px; border: 1px dashed var(--border-strong); border-radius: 5px; background: var(--content-background); }.shipment-tracking-hours__actions { display: flex; justify-content: flex-end; padding-top: 2px; }.shipment-tracking-hours__success { margin: 0; color: var(--status-success-text); font-size: 12px; }.shipment-tracking-hours--preview { margin-top: 14px; }.shipment-tracking-hours__preview-inputs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }.shipment-tracking-hours__preview-inputs .form-field { min-width: 0; }.shipment-tracking-hours__actions { display: flex; justify-content: flex-end; }.shipment-tracking-hours__preview-result { display: grid; gap: 8px; padding: 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }.shipment-tracking-hours__preview-result dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }.shipment-tracking-hours__preview-result dt { color: var(--text-muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }.shipment-tracking-hours__preview-result dd { margin: 3px 0 0; color: var(--text-primary); font-size: 12px; font-weight: 700; }.shipment-tracking-hours__preview-result p, .shipment-tracking-hours__preview-result ul { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }.shipment-tracking-hours__preview-result ul { padding-left: 18px; }
+.shipment-tracking-rule-catalog { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }.shipment-tracking-rule-catalog__topics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.shipment-tracking-rule-catalog__topic { display: grid; gap: 10px; padding: 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }.shipment-tracking-rule-catalog__topic h3, .shipment-tracking-rule-catalog__group h4 { margin: 0; color: var(--text-primary); }.shipment-tracking-rule-catalog__topic h3 { font-size: 13px; }.shipment-tracking-rule-catalog__group { display: grid; gap: 7px; }.shipment-tracking-rule-catalog__group h4 { color: var(--text-muted); font-size: 10px; text-transform: uppercase; }.shipment-tracking-rule-catalog__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 7px; }.shipment-tracking-rule-catalog__row small { grid-column: 1 / -1; color: var(--text-muted); font-size: 11px; }.shipment-tracking-rule-catalog__offset { display: grid; gap: 3px; color: var(--text-secondary); font-size: 11px; font-weight: 700; }.shipment-tracking-rule-catalog__offset input { width: 100%; min-width: 0; height: 31px; box-sizing: border-box; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 12px; }.shipment-tracking-rule-catalog__offset > span:last-child { color: var(--text-muted); font-size: 10px; font-weight: 500; }.shipment-tracking-rule-catalog__group .button { justify-self: start; height: 29px; padding: 0 8px; font-size: 11px; }.shipment-tracking-rule-catalog__actions { display: flex; justify-content: flex-end; }.shipment-tracking-rule-catalog__success { margin: 0; color: var(--status-success-text); font-size: 12px; }
+.shipment-tracking-rule-catalog__hint { margin: -3px 0 0; color: var(--text-muted); font-size: 12px; }
+.shipment-tracking-rule-catalog__setup { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.shipment-tracking-admin-page { display: grid; gap: 14px; }
+.shipment-tracking-admin-page__intro h2, .shipment-tracking-admin-page__workflow strong { margin: 0; color: var(--text-primary); }
+.shipment-tracking-admin-page__intro p { margin: 5px 0 0; color: var(--text-secondary); }
+.shipment-tracking-admin-page__workflow { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); color: var(--text-secondary); font-size: 12px; }
+.shipment-tracking-admin-page__workflow ol { display: grid; gap: 2px; margin: 0; padding-left: 18px; }
+.shipment-tracking-rule-catalog__topic { position: relative; gap: 8px; padding: 12px; }
+.shipment-tracking-rule-catalog__topic::before { position: absolute; top: 43px; bottom: 13px; left: 22px; width: 1px; background: var(--border); content: ''; }
+.shipment-tracking-rule-catalog__group { position: relative; gap: 5px; }
+.shipment-tracking-rule-catalog__group h4 { padding-left: 30px; font-size: 10px; letter-spacing: .04em; }
+.shipment-tracking-rule-catalog__group--internal { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--border); }
+.shipment-tracking-rule-catalog__row { grid-template-columns: 20px minmax(0, 1fr) minmax(145px, 165px) 26px; align-items: center; gap: 7px; min-height: 32px; }
+.shipment-tracking-rule-catalog__step { position: relative; z-index: 1; display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid var(--border-strong); border-radius: 50%; color: var(--text-secondary); background: var(--content-background); font-size: 10px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.shipment-tracking-rule-catalog__label { min-width: 0; color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.shipment-tracking-rule-catalog__offset { display: grid; grid-template-columns: 38px 31px 38px minmax(0, 1fr); gap: 0; align-items: stretch; color: var(--text-muted); font-size: 10px; font-weight: 500; }
+.shipment-tracking-rule-catalog__offset input { width: 100%; height: 29px; padding: 0 6px; border-right: 0; border-radius: 0; font-variant-numeric: tabular-nums; }
+.shipment-tracking-rule-catalog__offset input:first-child { border-radius: 4px 0 0 4px; }
+.shipment-tracking-rule-catalog__offset > span { display: grid; min-height: 29px; align-items: center; padding: 0 5px; border: 1px solid var(--input-border); border-right: 0; border-radius: 0; background: var(--surface-secondary); white-space: nowrap; }
+.shipment-tracking-rule-catalog__offset > span:last-child { border-right: 1px solid var(--input-border); border-radius: 0 4px 4px 0; }
+.shipment-tracking-rule-catalog__loading-start { display: grid; min-height: 29px; align-items: center; padding: 0 8px; border: 1px solid var(--input-border); border-radius: 4px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 11px; font-weight: 650; }
+.shipment-tracking-rule-catalog__remove { display: grid; width: 26px; height: 26px; padding: 0; place-items: center; border: 0; border-radius: 4px; color: var(--text-muted); background: transparent; cursor: pointer; }
+.shipment-tracking-rule-catalog__remove:hover { color: var(--text-primary); background: var(--surface-active); }
+.shipment-tracking-rule-catalog__remove:focus-visible { outline: 2px solid var(--button-background); outline-offset: 1px; }
+.shipment-tracking-rule-catalog__add { margin: 1px 0 0 30px; }
+.shipment-tracking-rule-catalog__group .shipment-tracking-rule-catalog__add { height: 27px; padding: 0 7px; font-size: 11px; }
+.shipment-tracking-rule-catalog__migration-note { margin: 9px 0 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--status-warning-text) 58%, var(--border)); border-radius: 5px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 12px; line-height: 1.4; }
+.shipment-tracking-rule-catalog__actions .shipment-tracking-rule-catalog__save--changed:not(:disabled) { box-shadow: 0 0 0 2px var(--focus-ring); }
+
+@media (max-width: 520px) {
+  .shipment-tracking-rule-catalog__row { grid-template-columns: 20px minmax(0, 1fr) 26px; align-items: start; padding: 2px 0; }
+  .shipment-tracking-rule-catalog__step { grid-row: 1 / span 2; margin-top: 4px; }
+  .shipment-tracking-rule-catalog__label { align-self: center; min-height: 29px; }
+  .shipment-tracking-rule-catalog__offset, .shipment-tracking-rule-catalog__loading-start { grid-column: 2; }
+  .shipment-tracking-rule-catalog__remove { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+}
+
+.shipment-tracking-hours__preview-help { margin: 10px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.45; }
+.shipment-tracking-arrival-confirmation { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.shipment-tracking-arrival-confirmation__controls { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(220px, 280px); align-items: end; gap: 12px; }
+.shipment-tracking-arrival-confirmation__hint, .shipment-tracking-arrival-confirmation__variables { margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.shipment-tracking-arrival-confirmation__message textarea { min-height: 170px; resize: vertical; }
+.shipment-tracking-arrival-confirmation code { padding: 1px 4px; border-radius: 3px; color: var(--text-secondary); background: var(--content-background); font-size: 11px; }
+.shipment-tracking-hours__preview-result h3 { margin: 0; color: var(--text-primary); font-size: 13px; }
+
 .admin-holiday-sync-log { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
 .admin-holiday-sync-log__entries { display: grid; border-top: 1px solid var(--border); }
 .admin-holiday-sync-log__entry { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(260px, 1.2fr); gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; }
@@ -62,7 +120,10 @@
 .legacy-account-review__item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .legacy-account-review__complete { margin: 0; color: var(--text-muted); font-size: 12px; }
 .system-mails-page { gap: 16px; }
-.system-mails-page__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.system-mails-page__test-card { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.system-mails-page__test-card h2 { margin: 0; color: var(--text-primary); font-size: 14px; }
+.system-mails-page__test-card p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; }
+.system-mails-page__test-actions { display: flex; justify-content: flex-start; }
 .partner-evaluation-settings { padding-top: 16px; border-top: 1px solid var(--border); }
 .partner-evaluation-settings__legend { display: flex; flex-wrap: wrap; gap: 6px; }
 .partner-evaluation-settings__legend span { padding: 4px 7px; border: 1px solid currentColor; border-radius: 999px; font-size: 11px; font-weight: 650; }
@@ -179,7 +240,11 @@
 .system-mail-workspace__heading h2, .system-mail-editor h2 { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 700; }
 .system-mail-workspace__heading span { display: inline-grid; min-width: 20px; height: 20px; place-items: center; border-radius: 999px; color: var(--text-muted); background: var(--content-background); font-size: 11px; font-weight: 700; }
 .system-mail-templates__list { display: grid; max-height: calc(min(650px, 100vh - 188px) - 49px); overflow-y: auto; }
+.system-mail-template-group { display: grid; border-bottom: 1px solid var(--border); }
+.system-mail-template-group:last-child { border-bottom: 0; }
+.system-mail-template-group h3 { margin: 0; padding: 11px 12px 6px; color: var(--text-muted); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
 .system-mail-template { min-height: 43px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; text-align: left; }
+.system-mail-template-group .system-mail-template:last-child { border-bottom: 0; }
 .system-mail-template:hover { color: var(--text-primary); background: var(--surface-active); }
 .system-mail-template--active { color: var(--text-primary); background: var(--content-background); box-shadow: inset 3px 0 0 var(--button-background); }
 .system-mail-template:focus-visible, .system-mail-variable .button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
@@ -217,6 +282,13 @@
   .admin-holiday-sync-log__translation, .admin-holiday-sync-log__error { grid-column: 1 / -1; }
   .admin-holiday-sync-log__countries ul { grid-template-columns: 1fr; }
   .company-holiday-settings__fields { grid-template-columns: 1fr; }
+  .shipment-tracking-hours__week { overflow-x: auto; }
+  .shipment-tracking-hours__week-header, .shipment-tracking-hours__week-row { min-width: 500px; }
+  .shipment-tracking-hours__exception-row { grid-template-columns: 1fr 1fr; }
+  .shipment-tracking-hours__exception-row input:nth-child(2) { grid-column: 1 / -1; }
+  .shipment-tracking-hours__exception-row .button { justify-self: start; }
+  .shipment-tracking-hours__preview-inputs, .shipment-tracking-hours__preview-result dl { grid-template-columns: 1fr; }
+  .shipment-tracking-rule-catalog__topics { grid-template-columns: 1fr; }
   .admin-departments__create { max-width: none; }
   .admin-departments__row { grid-template-columns: 1fr auto; }
   .admin-departments__actions { grid-column: 1 / -1; justify-content: flex-start; }

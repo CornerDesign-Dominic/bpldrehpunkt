@@ -10,7 +10,10 @@ export default function LiabilityLetterForm({ documentData, onChange, aiReviewFi
   return <section className="template-form-section" aria-labelledby={headingId}>
     <div className="template-section-heading"><div><h2 id={headingId}>{title}</h2>{description && <p>{description}</p>}</div>{onNew && <button className="button button--secondary" type="button" onClick={onNew}>Neu</button>}</div>
     <div className="template-form-grid">
-      <label className="form-field template-order-field"><span>Auftragsnummer</span><input value={documentData.orderNumber} onChange={(event) => onChange('orderNumber', event.target.value)} aria-invalid={needsAiReview('orderNumber')} /></label>
+      <div className="template-document-details">
+        <label className="form-field template-order-field"><span>Auftragsnummer</span><input value={documentData.orderNumber} onChange={(event) => onChange('orderNumber', event.target.value)} aria-invalid={needsAiReview('orderNumber')} /></label>
+        <label className="form-field template-document-date-field"><span>Belegdatum</span><input type="date" value={documentData.date} onChange={(event) => onChange('date', event.target.value)} /></label>
+      </div>
       <div className="template-address-grid">
         {addressSections.map(({ title, description, prefix, dateLabel }) => <section className="template-address-section" key={prefix} aria-labelledby={`${prefix}-address-heading`}>
           <div className="template-address-section__heading"><h3 id={`${prefix}-address-heading`}>{title}</h3>{description && <p>{description}</p>}</div>

@@ -1,97 +1,69 @@
-import { useEffect, useMemo, useState } from 'react'
-import Toast from '../ui/Toast.jsx'
-import { useAuth } from '../../auth/useAuth.js'
-import {
-  calculateOverallScore,
-  createCrmRating,
-  createEmptyRating,
-  formatRatingScore,
-  getRatingCriteria,
-  getRatingRoles,
-  listCrmRatings,
-} from '../../lib/crmRatings.js'
-import { getHistoryActor } from '../../lib/partnerHistory.js'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { usePermissions } from '../../auth/usePermissions.js'
+import { listPartnerTransportOrderRatings } from '../../lib/transportOrderRatings.js'
+import { formatTransportRatingScore, transportRatingSummary } from '../../lib/transportOrderRatingPresentation.js'
+import { transportOrderPath } from '../../lib/transportOrderPresentation.js'
 import { getPartnerEvaluationStatus } from '../../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../../partner-evaluation/usePartnerEvaluationSettings.js'
+import { TRANSPORT_RATING_CRITERIA } from '../../../shared/transportOrderRatings.js'
 
-const roleLabels = { customer: 'Kundenbewertung', carrier: 'Unternehmerbewertung' }
-const initialDrafts = (roles) => Object.fromEntries(roles.map((role) => [role, createEmptyRating(role)]))
+const roles = [{ key: 'customer', label: 'Als Kunde' }, { key: 'carrier', label: 'Als Unternehmer' }]
+const ratingsPerPage = 6
 
-export default function CrmRatingPanel({ partner, partnerId, onSaved, canEdit }) {
-  const authState = useAuth()
+function formatDate(milliseconds) {
+  return milliseconds ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium' }).format(new Date(milliseconds)) : '—'
+}
+
+function RatingEntry({ rating, role, canViewTransportOrders }) {
+  const orderLabel = `TA ${rating.transportOrderNumber || '—'}`
+  return <li className="crm-transport-rating__entry">
+    <div className="crm-transport-rating__entry-heading"><div className="crm-transport-rating__entry-meta"><span className="crm-transport-rating__role-tag">{role === 'customer' ? 'Kunde' : 'Unternehmer'}</span>{canViewTransportOrders && rating.transportOrderId ? <Link to={transportOrderPath(rating.transportOrderId)}>{orderLabel}</Link> : <strong>{orderLabel}</strong>}<time dateTime={rating.createdAtMs ? new Date(rating.createdAtMs).toISOString() : undefined}>{formatDate(rating.createdAtMs)}</time></div><strong className="crm-transport-rating__entry-score">{formatTransportRatingScore(rating.averageScore)} <span>/ 5 ★</span></strong></div>
+    <dl className="crm-transport-rating__scores">{TRANSPORT_RATING_CRITERIA[role].filter(({ key }) => Number.isInteger(rating.scores?.[key])).map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{rating.scores[key]} ★</dd></div>)}</dl>
+    {rating.comment && <p className="crm-transport-rating__comment">{rating.comment}</p>}
+  </li>
+}
+
+export default function CrmRatingPanel({ partnerId }) {
+  const { canView } = usePermissions()
   const { settings } = usePartnerEvaluationSettings()
-  const roles = useMemo(() => getRatingRoles(partner), [partner])
-  const [ratings, setRatings] = useState(() => Object.fromEntries(roles.map((role) => [role, []])))
-  const [drafts, setDrafts] = useState(() => initialDrafts(roles))
-  const [openRole, setOpenRole] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [savingRole, setSavingRole] = useState('')
-  const [errors, setErrors] = useState({})
-  const [toast, setToast] = useState('')
-
+  const [result, setResult] = useState({ partnerId: '', ratings: [], error: '' })
+  const [pagination, setPagination] = useState({ partnerId, page: 0 })
   useEffect(() => {
     let current = true
-    Promise.all(roles.map(async (role) => [role, await listCrmRatings(partnerId, role)]))
-      .then((entries) => { if (current) setRatings(Object.fromEntries(entries)) })
-      .catch(() => { if (current) setErrors({ load: 'Die Bewertungen konnten nicht geladen werden.' }) })
-      .finally(() => { if (current) setLoading(false) })
+    listPartnerTransportOrderRatings(partnerId)
+      .then((ratings) => { if (current) setResult({ partnerId, ratings, error: '' }) })
+      .catch(() => { if (current) setResult({ partnerId, ratings: [], error: 'Die Transportbewertungen konnten nicht geladen werden.' }) })
     return () => { current = false }
-  }, [partnerId, roles])
+  }, [partnerId])
+  const loading = result.partnerId !== partnerId
+  const ratings = loading ? [] : result.ratings
+  const pageCount = Math.max(1, Math.ceil(ratings.length / ratingsPerPage))
+  const page = Math.min(pagination.partnerId === partnerId ? pagination.page : 0, pageCount - 1)
+  const pageStart = page * ratingsPerPage
+  const visibleRatings = ratings.slice(pageStart, pageStart + ratingsPerPage)
+  const canViewTransportOrders = canView('transportOrders')
 
-  function updateDraft(role, field, value) {
-    setDrafts((current) => ({ ...current, [role]: { ...current[role], [field]: value } }))
-  }
-
-  function updateScore(role, key, value) {
-    setDrafts((current) => ({ ...current, [role]: { ...current[role], scores: { ...current[role].scores, [key]: value } } }))
-  }
-
-  async function saveRating(role) {
-    const draft = drafts[role]
-    const missingScores = getRatingCriteria(role).some(({ key }) => !draft.scores[key])
-    if (!draft.date || missingScores) {
-      setErrors((current) => ({ ...current, [role]: 'Bitte Datum und alle Bewertungskriterien erfassen.' }))
-      return
-    }
-    setSavingRole(role)
-    setErrors((current) => ({ ...current, [role]: undefined }))
-    try {
-      await createCrmRating(partnerId, draft, getHistoryActor(authState))
-      const nextRatings = await listCrmRatings(partnerId, role)
-      setRatings((current) => ({ ...current, [role]: nextRatings }))
-      setDrafts((current) => ({ ...current, [role]: createEmptyRating(role) }))
-      setOpenRole('')
-      setToast('Bewertung gespeichert.')
-      onSaved?.()
-    } catch {
-      setErrors((current) => ({ ...current, [role]: 'Die Bewertung konnte nicht gespeichert werden.' }))
-    } finally {
-      setSavingRole('')
-    }
-  }
-
-  return <section className="crm-ratings" aria-label="Bewertung">
-    {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <div className="crm-ratings__heading"><h3>Aktuelle Bewertungen</h3><span>1 = sehr schlecht, 5 = sehr gut</span></div>
-    {errors.load && <p className="form-error">{errors.load}</p>}
-    <div className={`crm-ratings__roles crm-ratings__roles--${roles.length}`}>
-      {roles.map((role) => {
-        const criteria = getRatingCriteria(role)
-        const draft = drafts[role]
-        const currentRating = ratings[role]?.[0]
-        const average = calculateOverallScore(role, draft.scores)
-        const isOpen = openRole === role
-        return <section className="crm-rating-role" key={role}>
-          <div className="crm-rating-role__heading"><div><h4>{roleLabels[role]}</h4><span>{loading ? 'Wird geladen …' : <><span className="partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', currentRating?.overallScore, settings)}>{currentRating ? `${formatRatingScore(currentRating.overallScore)} / 5` : 'Noch nicht bewertet'}</span> · {ratings[role]?.length ?? 0} Bewertungen</>}</span></div>{canEdit && <button className="button button--secondary" type="button" onClick={() => isOpen ? setOpenRole('') : setOpenRole(role)}>{isOpen ? 'Abbrechen' : `${roleLabels[role]} hinzufügen`}</button>}</div>
-          {isOpen && <div className="crm-rating-form">
-            <label className="form-field"><span>Datum</span><input type="date" value={draft.date} onChange={(event) => updateDraft(role, 'date', event.target.value)} required /></label>
-            <div className="crm-rating-form__scores">{criteria.map(({ key, label }) => <label key={key}><span>{label}</span><select value={draft.scores[key]} onChange={(event) => updateScore(role, key, event.target.value)}><option value="">—</option>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>)}</div>
-            <label className="form-field crm-rating-form__comment"><span>Kommentar / Begründung (optional)</span><textarea value={draft.comment} onChange={(event) => updateDraft(role, 'comment', event.target.value)} rows="2" /></label>
-            {errors[role] && <p className="form-error">{errors[role]}</p>}
-            <div className="crm-rating-form__actions"><span>{average === null ? 'Gesamtschnitt wird nach vollständiger Eingabe berechnet.' : `Gesamtschnitt: ${formatRatingScore(average)} / 5`}</span><button className="button" type="button" onClick={() => saveRating(role)} disabled={savingRole === role}>{savingRole === role ? 'Wird gespeichert …' : 'Bewertung speichern'}</button></div>
-          </div>}
+  return <section className="crm-ratings" aria-label="Transportbewertungen">
+    <div className="crm-ratings__heading"><div><h3>Transportbewertungen</h3><p>Bewertungen zu konkreten Transportaufträgen</p></div>{!loading && !result.error && <span>{ratings.length} {ratings.length === 1 ? 'Bewertung' : 'Bewertungen'}</span>}</div>
+    {loading && <p className="page-state">Bewertungen werden geladen …</p>}
+    {!loading && result.error && <p className="form-error" role="alert">{result.error}</p>}
+    {!loading && !result.error && <>
+      <div className="crm-ratings__roles crm-ratings__roles--2">{roles.map(({ key: role, label }) => {
+        const summary = transportRatingSummary(ratings, role)
+        return <section className="crm-rating-role crm-transport-rating" key={role} aria-label={label}>
+          <div className="crm-rating-role__heading"><div><h4>{label}</h4><span>{summary.count} {summary.count === 1 ? 'Bewertung' : 'Bewertungen'}</span></div>{summary.averageScore !== null && <strong className="crm-rating-role__score partner-evaluation-value" data-status={getPartnerEvaluationStatus('ranking', summary.averageScore, settings)}>{formatTransportRatingScore(summary.averageScore)} <small>/ 5 ★</small></strong>}</div>
+          {summary.count > 0 && <dl className="crm-transport-rating__summary">{summary.criteria.map(({ key, label: criterion, averageScore, count }) => <div key={key}><dt>{criterion}</dt><dd>{averageScore === null ? '—' : `${formatTransportRatingScore(averageScore)} ★`}<small>{count} {count === 1 ? 'Wertung' : 'Wertungen'}</small></dd></div>)}</dl>}
         </section>
-      })}
-    </div>
+      })}</div>
+      {ratings.length > 0 && <details className="crm-transport-rating__history" key={partnerId}>
+        <summary className="crm-transport-rating__history-heading"><span>Einzelbewertungen <small>({ratings.length})</small></span><span className="crm-transport-rating__history-toggle"><span className="crm-transport-rating__show-label">Anzeigen</span><span className="crm-transport-rating__hide-label">Schließen</span><span className="crm-transport-rating__chevron" aria-hidden="true" /></span></summary>
+        <div className="crm-transport-rating__history-content">
+          <p className="crm-transport-rating__history-order">Neueste zuerst</p>
+          <ol className="crm-transport-rating__list" start={pageStart + 1}>{visibleRatings.map((rating) => <RatingEntry key={rating.id} rating={rating} role={rating.partnerRole} canViewTransportOrders={canViewTransportOrders} />)}</ol>
+          {pageCount > 1 && <nav className="crm-transport-rating__pagination" aria-label="Seiten der Einzelbewertungen"><span>{pageStart + 1}–{Math.min(pageStart + ratingsPerPage, ratings.length)} von {ratings.length}</span><div><button type="button" disabled={page === 0} onClick={() => setPagination({ partnerId, page: page - 1 })}>Zurück</button><span aria-live="polite">Seite {page + 1} von {pageCount}</span><button type="button" disabled={page === pageCount - 1} onClick={() => setPagination({ partnerId, page: page + 1 })}>Weiter</button></div></nav>}
+        </div>
+      </details>}
+    </>}
   </section>
 }

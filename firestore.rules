@@ -59,6 +59,25 @@ service cloud.firestore {
       // Accounts are only created by the Admin SDK callable function.
       allow create, delete: if false;
       allow update: if false;
+
+      // Persönliche Notizen gehören ausschließlich ihrem Ersteller. Sie sind
+      // weder Teil des Teamprofils noch für Administratoren einsehbar.
+      match /personalNotes/{noteId} {
+        function validPersonalNote(data) {
+          return data.keys().hasAll(['title', 'text', 'importance', 'urgency', 'createdAt', 'updatedAt'])
+            && data.keys().hasOnly(['title', 'text', 'importance', 'urgency', 'createdAt', 'updatedAt'])
+            && data.title is string && data.title.size() > 0 && data.title.size() <= 140
+            && data.text is string && data.text.size() > 0 && data.text.size() <= 12000
+            && data.importance in ['low', 'high'] && data.urgency in ['low', 'high'];
+        }
+        allow read: if active() && userId == request.auth.uid;
+        allow create: if active() && userId == request.auth.uid && validPersonalNote(request.resource.data)
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if active() && userId == request.auth.uid && validPersonalNote(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'text', 'importance', 'urgency', 'updatedAt']);
+        allow delete: if active() && userId == request.auth.uid;
+      }
     }
 
     // Personal data is intentionally callable-only. This blocks all direct
@@ -80,11 +99,40 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Company details feed shared document templates. Only the validated admin
+    // callable can change them; every active account may read them.
+    match /appSettings/companyMasterData {
+      allow read: if active();
+      allow write: if false;
+    }
+
     // The company holiday region is a global display setting. Every active
     // work-calendar user may read it; updates are exclusively validated by a
     // callable Cloud Function for admins and superadmins.
     match /appSettings/holidayCalendar {
       allow read: if active();
+      allow write: if false;
+    }
+
+    // Shipment-tracking operating hours are a centrally maintained automation
+    // prerequisite. Only active admins may read them; every write goes through
+    // the validated App Check callable function.
+    match /systemSettings/shipmentTrackingOperatingHours {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // The short-notice arrival confirmation is administered separately from
+    // the regular rule catalogue. Writes are validated by its callable.
+    match /systemSettings/shipmentTrackingArrivalConfirmation {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Partner cards read the centrally maintained rule catalog; changes remain
+    // restricted to the validated Admin/App Check callable.
+    match /systemSettings/shipmentTrackingRuleCatalog {
+      allow read: if admin() || view('masterData');
       allow write: if false;
     }
 
@@ -193,10 +241,94 @@ service cloud.firestore {
     match /businessPartners/{partnerId} {
       allow read: if view('masterData') || view('crm') || view('pallets');
       allow create, delete: if edit('masterData');
-      allow update: if edit('masterData') || (edit('crm') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId);
+      allow update: if (edit('masterData') && !resource.data.keys().hasAny(['mergedIntoPartnerId'])) || (edit('crm') && !resource.data.keys().hasAny(['mergedIntoPartnerId']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'crmIndustry', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId);
       match /history/{entryId} { allow read: if view('masterData') || view('crm'); allow create: if edit('masterData') || edit('crm'); allow update, delete: if false; }
       match /activities/{entryId} { allow read: if view('crm'); allow create, update: if edit('crm'); allow delete: if false; }
       match /ratings/{ratingId} { allow read: if view('crm'); allow create: if edit('crm'); allow update, delete: if false; }
+    }
+
+    // Merge snapshots and reference journals contain sensitive data and are callable-only.
+    match /partnerMergeOperations/{mergeId} {
+      allow read, write: if false;
+      match /{subcollection}/{entryId} { allow read, write: if false; }
+    }
+
+    // Transportaufträge are written exclusively by the import callable. This
+    // keeps import authorization and idempotent updates server-controlled.
+    match /transportOrders/{transportOrderId} {
+      allow read: if view('transportOrders');
+      allow write: if false;
+      match /history/{entryId} { allow read: if view('transportOrders'); allow write: if false; }
+    }
+
+    // Own TA ratings are validated and written by the callable functions.
+    match /transportOrderRatings/{ratingId} {
+      allow read, write: if false;
+    }
+
+    // A link is deliberately a small, central relation document. It stores
+    // only stable document IDs; titles and business data stay in their source
+    // documents. Reads require access to both sides of the relation.
+    function caseTransportLinkCaseVisible(data) {
+      return (data.caseType == 'damage' && view('damages'))
+        || (data.caseType == 'inkasso' && view('inkasso'))
+        || (data.caseType == 'legalDispute' && view('legalDisputes'));
+    }
+    function caseTransportLinkCaseEditable(data) {
+      return (data.caseType == 'damage' && edit('damages'))
+        || (data.caseType == 'inkasso' && edit('inkasso'))
+        || (data.caseType == 'legalDispute' && edit('legalDisputes'));
+    }
+    function caseTransportLinkCaseExists(data) {
+      return (data.caseType == 'damage' && existsAfter(/databases/$(database)/documents/damageCases/$(data.caseId)))
+        || (data.caseType == 'inkasso' && existsAfter(/databases/$(database)/documents/inkassoCases/$(data.caseId)))
+        || (data.caseType == 'legalDispute' && existsAfter(/databases/$(database)/documents/legalDisputes/$(data.caseId)));
+    }
+    function validCaseTransportLink(data, linkId) {
+      return data.keys().hasAll(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
+        && data.keys().hasOnly(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
+        && data.caseType in ['damage', 'inkasso', 'legalDispute']
+        && data.caseId is string && data.caseId.size() > 0 && data.caseId.size() <= 240 && !data.caseId.matches('.*[/|].*')
+        && data.transportOrderId is string && data.transportOrderId.size() > 0 && data.transportOrderId.size() <= 240 && !data.transportOrderId.matches('.*[/|].*')
+        && linkId == data.caseType + '|' + data.caseId + '|' + data.transportOrderId
+        && data.createdAt == request.time && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile());
+    }
+    match /caseTransportOrderLinks/{linkId} {
+      allow read: if view('transportOrders') && caseTransportLinkCaseVisible(resource.data);
+      allow create: if view('transportOrders') && caseTransportLinkCaseEditable(request.resource.data)
+        && validCaseTransportLink(request.resource.data, linkId) && caseTransportLinkCaseExists(request.resource.data)
+        && exists(/databases/$(database)/documents/transportOrders/$(request.resource.data.transportOrderId));
+      allow update: if false;
+      allow delete: if view('transportOrders') && caseTransportLinkCaseEditable(resource.data);
+    }
+    // Manuelle Sendungsverfolgung bleibt getrennt von den importierten
+    // Auftragsdaten. Alle Änderungen und die unveränderbare Historie werden
+    // ausschließlich durch das berechtigte Callable mit Admin SDK geschrieben.
+    match /transportOrderTrackings/{transportOrderId} {
+      allow read: if view('transportOrders');
+      allow write: if false;
+      match /events/{eventId} {
+        allow read: if view('transportOrders');
+        allow write: if false;
+      }
+    }
+
+    // Grobe Ort-zu-Ort-Routen sind getrennt von den importierten Aufträgen.
+    // Berechnung, Cache und Nutzungsprotokoll bleiben serverseitig kontrolliert.
+    match /transportOrderRoutes/{transportOrderId} {
+      allow read: if view('transportOrders');
+      allow write: if false;
+      match /calculations/{calculationId} { allow read: if view('transportOrders'); allow write: if false; }
+    }
+    match /tomTomGeocodeCache/{cacheId} { allow read, write: if false; }
+    match /tomTomUsageEvents/{eventId} { allow read, write: if false; }
+    match /tomTomUsageMonths/{month} { allow read, write: if false; }
+    // Diagnostic history is written by server functions and exposed only
+    // through an admin-gated callable with bounded, filtered pagination.
+    match /diagnosticEvents/{eventId} { allow read, write: if false; }
+
+    match /transportOrderImportRuns/{runId} {
+      allow read, write: if false;
     }
 
     function insolvencyText(value, limit) { return value == null || (value is string && value.size() <= limit); }
@@ -311,9 +443,10 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validInsolvencyDeadline(data) {
           return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-            && data.reminderEnabled is bool && (data.note == null || (data.note is string && data.note.size() <= 4000))
+            && (!data.keys().hasAll(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
+            && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320)) && (data.note == null || (data.note is string && data.note.size() <= 4000))
             && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
         function deadlineParentWasUpdated() {
@@ -325,11 +458,16 @@ service cloud.firestore {
         allow create: if edit('insolvencies') && validInsolvencyDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
+          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('insolvencies') && validInsolvencyDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
+            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
+            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('insolvencies') && deadlineParentWasUpdated();
       }
 
@@ -426,18 +564,42 @@ service cloud.firestore {
         || (data.responsibleUserId is string && data.responsibleUserName is string && activeProfile(data.responsibleUserId)
           && data.responsibleUserName == profileName(get(/databases/$(database)/documents/users/$(data.responsibleUserId)).data));
     }
+    function hasPartnerReferenceRole(partner, role) {
+      return (role == 'customer' && partner.keys().hasAll(['debtorNumber']) && partner.debtorNumber is string && partner.debtorNumber.size() > 0)
+        || (role == 'carrier' && partner.keys().hasAll(['creditorNumber']) && partner.creditorNumber is string && partner.creditorNumber.size() > 0)
+        || (partner.keys().hasAll(['dycosReferences']) && partner.dycosReferences is map
+          && ((role == 'customer' && partner.dycosReferences.keys().hasAll(['debtorNumbers']) && partner.dycosReferences.debtorNumbers is list && partner.dycosReferences.debtorNumbers.size() > 0)
+            || (role == 'carrier' && partner.dycosReferences.keys().hasAll(['creditorNumbers']) && partner.dycosReferences.creditorNumbers is list && partner.dycosReferences.creditorNumbers.size() > 0)));
+    }
+    function roleMapContains(roleMap, role) {
+      return roleMap is map && ((role == 'customer' && ((roleMap.keys().hasAll(['customer']) && roleMap.customer == true) || (roleMap.keys().hasAll(['kunde']) && roleMap.kunde == true)))
+        || (role == 'carrier' && ((roleMap.keys().hasAll(['carrier']) && roleMap.carrier == true) || (roleMap.keys().hasAll(['unternehmer']) && roleMap.unternehmer == true))));
+    }
+    function hasExplicitPartnerRole(partner, role) {
+      return (partner.keys().hasAll(['businessPartnerRoles']) && ((partner.businessPartnerRoles is list && partner.businessPartnerRoles.hasAny([role, role == 'customer' ? 'kunde' : 'unternehmer'])) || (partner.businessPartnerRoles is string && partner.businessPartnerRoles in [role, role == 'customer' ? 'kunde' : 'unternehmer']) || roleMapContains(partner.businessPartnerRoles, role)))
+        || (partner.keys().hasAll(['partnerRoles']) && ((partner.partnerRoles is list && partner.partnerRoles.hasAny([role, role == 'customer' ? 'kunde' : 'unternehmer'])) || (partner.partnerRoles is string && partner.partnerRoles in [role, role == 'customer' ? 'kunde' : 'unternehmer']) || roleMapContains(partner.partnerRoles, role)));
+    }
+    function hasProvisionalTransportCarrierRole(partner) {
+      return partner.keys().hasAll(['taImportStatus']) && partner.taImportStatus is map
+        && partner.taImportStatus.keys().hasAll(['source', 'missingRequiredFields'])
+        && partner.taImportStatus.source == 'dycosTransportOrder'
+        && partner.taImportStatus.missingRequiredFields is list
+        && partner.taImportStatus.missingRequiredFields.hasAny(['creditorNumber']);
+    }
+    function hasBusinessPartnerRole(partner, role) {
+      return hasPartnerReferenceRole(partner, role) || hasExplicitPartnerRole(partner, role)
+        || (role == 'carrier' && hasProvisionalTransportCarrierRole(partner));
+    }
     function validDamageClaimant(data) {
       return !data.keys().hasAny(['claimantPartnerId']) || data.claimantPartnerId == null
         || (data.claimantPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.debtorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.debtorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data, 'customer')
           && data.claimant == get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.companyName);
     }
     function validDamageContractor(data) {
       return !data.keys().hasAny(['contractorPartnerId']) || data.contractorPartnerId == null
         || (data.contractorPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.creditorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.creditorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data, 'carrier')
           && data.contractor == get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.companyName);
     }
     function validDamageCaseContent(data) {
@@ -541,9 +703,10 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validDamageDeadline(data) {
           return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-            && data.reminderEnabled is bool && (data.note == null || (data.note is string && data.note.size() <= 4000))
+            && (!data.keys().hasAll(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
+            && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320)) && (data.note == null || (data.note is string && data.note.size() <= 4000))
             && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
         function deadlineParentWasUpdated() {
@@ -555,11 +718,16 @@ service cloud.firestore {
         allow create: if edit('damages') && validDamageDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
+          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('damages') && validDamageDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
+            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
+            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('damages') && deadlineParentWasUpdated();
       }
 
@@ -662,9 +830,9 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validLegalDisputeDeadline(data) {
           return data.keys().hasAll(['type', 'date', 'time', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-            && (data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$'))) && data.reminderEnabled is bool
+            && (data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$'))) && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
             && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
         function deadlineParentWasUpdated() {
@@ -676,10 +844,15 @@ service cloud.firestore {
         allow create: if edit('legalDisputes') && validLegalDisputeDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
+          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('legalDisputes') && validLegalDisputeDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
+            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
+            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('legalDisputes') && deadlineParentWasUpdated();
       }
@@ -850,9 +1023,10 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validInkassoDeadline(data) {
           return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-            && data.reminderEnabled is bool && (data.note == null || (data.note is string && data.note.size() <= 4000))
+            && (!data.keys().hasAll(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
+            && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320)) && (data.note == null || (data.note is string && data.note.size() <= 4000))
             && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
         }
         function deadlineParentWasUpdated() {
@@ -864,11 +1038,16 @@ service cloud.firestore {
         allow create: if edit('inkasso') && validInkassoDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
+          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('inkasso') && validInkassoDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
+            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
+            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('inkasso') && deadlineParentWasUpdated();
       }
 
@@ -921,7 +1100,7 @@ service cloud.firestore {
     }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
     }
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
@@ -944,24 +1123,32 @@ service cloud.firestore {
     function validTodoExtras(data) {
       return (!data.keys().hasAny(['priority']) || data.priority in ['low', 'medium', 'high'])
         && (!data.keys().hasAny(['reminderDate']) || data.reminderDate == null || (data.reminderDate is string && data.reminderDate.size() == 10))
-        && validCustomerLink(data) && validCarrierLink(data) && validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)
+        && validCustomerLink(data) && validCarrierLink(data) && validTransportOrderLink(data) && validTransportOrderLinks(data) && validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)
         && (!data.keys().hasAny(['reference']) || data.reference == null || (data.reference is string && data.reference.size() <= 240));
     }
     function validCustomerLink(data) {
       return !data.keys().hasAny(['customerId', 'customerName']) || (data.customerId == null && data.customerName == null)
         || (data.customerId is string && data.customerName is string
           && exists(/databases/$(database)/documents/businessPartners/$(data.customerId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.debtorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.debtorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data, 'customer')
           && data.customerName == get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.companyName);
     }
     function validCarrierLink(data) {
       return !data.keys().hasAny(['carrierId', 'carrierName']) || (data.carrierId == null && data.carrierName == null)
         || (data.carrierId is string && data.carrierName is string
           && exists(/databases/$(database)/documents/businessPartners/$(data.carrierId))
-          && get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.creditorNumber is string
-          && get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.creditorNumber.size() > 0
+          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data, 'carrier')
           && data.carrierName == get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.companyName);
+    }
+    function validTransportOrderLink(data) {
+      return !data.keys().hasAny(['transportOrderId', 'transportOrderNumber']) || (data.transportOrderId == null && data.transportOrderNumber == null)
+        || (data.transportOrderId is string && data.transportOrderNumber is string
+          && exists(/databases/$(database)/documents/transportOrders/$(data.transportOrderId))
+          && data.transportOrderNumber == get(/databases/$(database)/documents/transportOrders/$(data.transportOrderId)).data.externalNumber);
+    }
+    function validTransportOrderLinks(data) {
+      return !data.keys().hasAny(['transportOrderLinks']) || data.transportOrderLinks == null
+        || (data.transportOrderLinks is list && data.transportOrderLinks.size() <= 20);
     }
     function validDamageCaseLink(data) {
       return !data.keys().hasAny(['damageCaseId']) || data.damageCaseId == null
@@ -1053,12 +1240,12 @@ service cloud.firestore {
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
@@ -1080,6 +1267,23 @@ service cloud.firestore {
         && data.type in ['note', 'system'] && data.createdByUserId == request.auth.uid
         && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
     }
+    function validTodoDeadline(data) {
+      return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!data.keys().hasAny(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
+        && data.reminderEnabled is bool && (data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
+        && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.calendarEntryId is string && data.calendarEntryId.size() > 0
+        && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+    }
+    function todoDeadlineEditor(todoId) {
+      return edit('todos') && (superadmin() || todoDocument(todoId).creatorUserId == request.auth.uid)
+        && todoDocument(todoId).status in ['open', 'in_progress'];
+    }
+    function todoDeadlineParentWasUpdated(todoId) { return todoAfter(todoId).updatedAt == request.time; }
+    function validNewTodoReminder(data) {
+      return !data.reminderEnabled || (data.time is string && data.reminderRecipientEmail is string && data.reminderRecipientEmail == ownProfile().email);
+    }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if edit('todos') && isCreatedTodo();
@@ -1093,6 +1297,38 @@ service cloud.firestore {
           && (request.resource.data.type == 'note' || (request.resource.data.type == 'system' && edit('todos')));
         allow update, delete: if false;
       }
+
+      match /deadlines/{deadlineId} {
+        allow read: if view('todos') && canReadTodo(todoDocument(id));
+        allow create: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id) && validTodoDeadline(request.resource.data)
+          && validNewTodoReminder(request.resource.data) && request.resource.data.createdAt == request.time
+          && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+        allow update: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id) && validTodoDeadline(request.resource.data)
+          && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
+          && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+          && (request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail || (!resource.data.reminderEnabled && request.resource.data.reminderEnabled && request.resource.data.reminderRecipientEmail == ownProfile().email))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+        allow delete: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id);
+      }
+    }
+    function validTodoCalendarEntry(data, entryId) {
+      return data.keys().hasAll(['todoId', 'deadlineId', 'ownerUserId', 'title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'reminderEnabled', 'calendarEntryId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['todoId', 'deadlineId', 'ownerUserId', 'title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'reminderEnabled', 'calendarEntryId', 'createdAt', 'updatedAt'])
+        && data.todoId is string && data.deadlineId is string && data.ownerUserId is string
+        && data.calendarEntryId is string && data.calendarEntryId == entryId
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 160 && data.description is string && data.description.size() <= 4000
+        && data.startDate is string && data.endDate is string && data.startDate == data.endDate && data.allDay is bool
+        && data.startTime is string && data.endTime is string && data.reminderEnabled is bool;
+    }
+    match /todoCalendarEntries/{entryId} {
+      allow read: if view('calendar') && resource.data.ownerUserId == request.auth.uid;
+      allow create: if edit('todos') && validTodoCalendarEntry(request.resource.data, entryId) && request.resource.data.ownerUserId == request.auth.uid && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/todos/$(request.resource.data.todoId)/deadlines/$(request.resource.data.deadlineId))
+        && getAfter(/databases/$(database)/documents/todos/$(request.resource.data.todoId)/deadlines/$(request.resource.data.deadlineId)).data.createdBy == request.auth.uid;
+      allow update: if edit('todos') && validTodoCalendarEntry(request.resource.data, entryId) && request.resource.data.ownerUserId == resource.data.ownerUserId && request.resource.data.todoId == resource.data.todoId && request.resource.data.deadlineId == resource.data.deadlineId && request.resource.data.calendarEntryId == resource.data.calendarEntryId && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
+        && (superadmin() || resource.data.ownerUserId == request.auth.uid);
+      allow delete: if edit('todos') && (superadmin() || resource.data.ownerUserId == request.auth.uid);
     }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'

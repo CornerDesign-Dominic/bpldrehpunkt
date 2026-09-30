@@ -6,6 +6,7 @@ import { requireActiveProfile } from './access.js'
 import { executeAiOperation } from './aiUsage.js'
 import { getPublishedAiPromptInstructions } from './aiPrompts.js'
 import { extractTransportOrderFromPdf, isDeliveryNoteReference, sanitizeTransportAddress } from './transportOrderExtraction.js'
+import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
 
 const openAiApiKey = defineSecret('OPENAI_API_KEY_HAFTBARHALTUNG')
 const feature = 'haftbarhaltung'
@@ -71,6 +72,10 @@ function liabilityPrompt({ rawAddressBlocks, incidentSummary, editableInstructio
 }
 
 async function callOpenAi({ rawAddressBlocks, incidentSummary, editableInstructions }) {
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('liability-letter-openai')
+    throw errorWithType('Die Haftbarhaltungsanalyse ist außerhalb der Produktionsumgebung deaktiviert.', 'external-effects-disabled')
+  }
   const apiKey = openAiApiKey.value()
   if (!apiKey) throw errorWithType('OpenAI-Key für Haftbarhaltung ist nicht konfiguriert.', 'configuration_error')
   const response = await fetch('https://api.openai.com/v1/responses', {
@@ -97,6 +102,10 @@ async function callOpenAi({ rawAddressBlocks, incidentSummary, editableInstructi
 export const analyzeLiabilityTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
   const profile = await requireActiveProfile(request)
   if (!hasTemplateAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Vorlagen.')
+  if (!externalEffectsAllowed()) {
+    logExternalEffectsSkipped('liability-letter')
+    throw new HttpsError('failed-precondition', 'Die Haftbarhaltungsanalyse ist außerhalb der Produktionsumgebung deaktiviert.')
+  }
   const pdfBytes = decodePdf(request.data?.pdfBase64)
   const incidentSummary = cleanText(request.data?.incidentSummary, 4000)
   try {

@@ -6,6 +6,21 @@ Systemmails werden ausschließlich serverseitig durch Firebase Functions in `eur
 
 Webhook-Adresse und weitere Integrationswerte sind ausschließlich als Functions-Secrets verwaltet. Sie gehören weder in Client-Konfigurationen noch in dieses Repository oder in Betriebsdokumente.
 
+## Umgebungs-Schutz
+
+Externe Wirkungen der Functions sind zentral auf das Firebase-Projekt
+`db-bpl-drehpunkt` begrenzt. Nur dort dürfen die Functions den serverseitig
+verwalteten Power-Automate-Webhook oder OpenAI verwenden. Im Entwicklungsprojekt
+`db-bpl-drehpunkt-dev` sowie bei einer fehlenden oder unbekannten Runtime-
+Projekt-ID werden externe Wirkungen fail-closed übersprungen.
+
+Damit lösen Abwesenheits-Trigger in Dev keine Empfängerbenachrichtigungen und
+keine wiederholbaren Zustellfehler aus. Bug-Reports schließen dort erfolgreich
+mit dem Hinweis auf die übersprungene Benachrichtigung ab. Der Systemmail-Test
+lehnt in Dev klar ab und bestätigt nie einen Versand. Die übersprungenen
+Wirkungen werden ohne Secret- oder Empfängerdaten in den Function-Logs
+protokolliert.
+
 ## Belegte Versandpfade
 
 | Auslöser | Function / technische Bedingung | Empfängerkreis |
@@ -28,6 +43,11 @@ Die Urlaubs-Trigger sind mit Wiederholung bei Fehlern konfiguriert. Für jede ei
 | Systemmail-Verwaltung im vorhandenen Browserbereich | Der aktuelle Routen-Schutz verlangt `superadmin` |
 | Fehlermeldung absenden | Aktives Benutzerprofil; die Callable erzwingt App Check |
 | News-Recherche manuell starten | Aktives Profil mit Rolle `superadmin`; eine Mail entsteht nur bei einem Recherchefehler |
+
+Im Entwicklungsprojekt sind Systemmail-Test und externe Benachrichtigungen
+bewusst deaktiviert. Ein Test der tatsächlichen Power-Automate-Auslieferung ist
+deshalb ausschließlich im Produktionsprojekt mit kontrollierter Testadresse und
+nach Betriebsfreigabe zulässig.
 
 Vorlagen werden über die geschützten Callables gepflegt. Der Browser erhält weder Zugriff auf den Webhook noch eine Berechtigung, E-Mails direkt zu versenden.
 
@@ -52,3 +72,5 @@ Die Ursache zuerst beheben und die Wirkung mit einem einzelnen kontrollierten Te
 - Versandberechtigung wird in den Functions über aktives Profil, Rolle und – bei Callables – App Check durchgesetzt; sie darf nicht allein über die Browseroberfläche angenommen werden.
 - Urlaubsbenachrichtigungen gehen nur an aktive Profile und die für die Abteilung ermittelten Urlaubsmanager; administrative Fehlermeldungen und News-Fehler nur an aktive Superadmins mit gültiger E-Mail-Adresse.
 - Der Betrieb legt fest, wer kontrollierte Testkonten, die Überwachung der Function- und Power-Automate-Fehler sowie eine autorisierte Wiederholung verantwortet. Diese Zuständigkeiten sind nicht im Code festgelegt.
+- Der Umgebungs-Schutz bewertet ausschließlich die serverseitige Runtime-
+  Projekt-ID; Client-`VITE_`-Variablen können ihn nicht beeinflussen.

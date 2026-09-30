@@ -1,6 +1,56 @@
 {
   "indexes": [
     {
+      "collectionGroup": "deadlines",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "reminderEnabled", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "time", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diagnosticEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "module", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diagnosticEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "actorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "diagnosticEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "module", "order": "ASCENDING" },
+        { "fieldPath": "actorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "caseTransportOrderLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "transportOrderId", "order": "ASCENDING" },
+        { "fieldPath": "caseType", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "caseTransportOrderLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "caseType", "order": "ASCENDING" },
+        { "fieldPath": "caseId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "todos",
       "queryScope": "COLLECTION",
       "fields": [

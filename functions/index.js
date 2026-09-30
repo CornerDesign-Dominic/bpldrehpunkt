@@ -6,12 +6,34 @@ import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { requireActiveProfile, requireRole } from './access.js'
+import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
+import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
+import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
+import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
+import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
+import { systemMailNotificationUrl } from './systemMails.js'
+import { listTransportOrderRelationsHandler, listTransportOrdersPageHandler } from './transportOrderList.js'
+import { calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
+import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHandler, listPartnerTransportOrderRatingsHandler, saveTransportOrderRatingHandler } from './transportOrderRatings.js'
+import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
+import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
+import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
+import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
+import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
+import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
+import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
+import { getOwnSignatureHandler } from './userSignature.js'
 
 if (!getApps().length) initializeApp()
+export const updateCompanyMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateCompanyMasterDataHandler)
+export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, getCompanyStampHandler)
+export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)
+export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
+export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
+const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -968,6 +990,52 @@ export { refreshSchoolHolidayData } from './schoolHolidays.js'
 export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPromptDraft } from './aiPrompts.js'
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export { createInkassoCase } from './inkassoCases.js'
+export { recordCaseTransportOrderLinkCreated, recordCaseTransportOrderLinkDeleted } from './caseTransportLinks.js'
+export { scheduledShipmentTrackingAutomation } from './shipmentTrackingAutomation.js'
+export { scheduledCaseDeadlineReminderDispatch } from './caseDeadlineReminders.js'
+export const previewTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewTransportOrderImportHandler)
+export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
+export const listTransportOrderImportRuns = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderImportRunsHandler)
+export const updateManualShipmentTracking = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateManualShipmentTrackingHandler)
+export const getShipmentTrackingActivation = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingActivationHandler)
+export const previewManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewManualShipmentTrackingMailHandler)
+export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', secrets: [systemMailNotificationUrl] }, sendManualShipmentTrackingMailHandler)
+// Callable endpoints must be invokable at the Cloud Run layer so Firebase can
+// verify App Check and the signed-in profile inside the handler. Data access
+// remains protected by requireActiveProfile and transportOrders view access.
+export const getShipmentTrackingDryRun = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingDryRunHandler)
+export const listDiagnosticsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listDiagnosticsPageHandler)
+export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, reportClientDiagnosticHandler)
+export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
+export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
+export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)
+export const getTomTomUsageSummary = onCall({ region: 'europe-west3', enforceAppCheck: true }, getTomTomUsageSummaryHandler)
+export const getOwnTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnTransportOrderRatingsHandler)
+export const saveTransportOrderRating = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveTransportOrderRatingHandler)
+export const listPartnerTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, listPartnerTransportOrderRatingsHandler)
+export const listCrmTransportRatingSummaries = onCall({ region: 'europe-west3', enforceAppCheck: true }, listCrmTransportRatingSummariesHandler)
+export const updateShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingOperatingHoursHandler)
+export const previewShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewShipmentTrackingOperatingHoursHandler)
+export const updateShipmentTrackingArrivalConfirmation = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingArrivalConfirmationHandler)
+export const updateShipmentTrackingRuleCatalog = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingRuleCatalogHandler)
+export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
+export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)
+export const processCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCustomerImportHandler)
+export const listCustomerImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCustomerImportQueueHandler)
+export const claimCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCustomerImportRowHandler)
+export const releaseCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCustomerImportRowHandler)
+export const approveCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, approveCustomerImportRowHandler)
+export const mergeCustomerImportPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeCustomerImportPartnersHandler)
+export const processCarrierImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCarrierImportHandler)
+export const listCarrierImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCarrierImportQueueHandler)
+export const claimCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCarrierImportRowHandler)
+export const releaseCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCarrierImportRowHandler)
+export const approveCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, approveCarrierImportRowHandler)
+export const mergeCarrierImportPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeCarrierImportPartnersHandler)
+export const prepareManualPartnerMerge = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, prepareManualPartnerMergeHandler)
+export const mergeManualPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeManualPartnersHandler)
+export const previewPartnerMergeReversal = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewPartnerMergeReversalHandler)
+export const separatePartnerMerge = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, separatePartnerMergeHandler)
 export {
   recordInkassoCaseCreated,
   recordInkassoCaseUpdated,

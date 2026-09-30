@@ -3,3 +3,41 @@
 .pallet-account-row:hover td { background: var(--table-hover-background); }
 .pallet-account-row:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
 .pallet-account-row:focus-visible td { background: var(--surface-active); }
+.pallet-journal__row--interactive { cursor: pointer; }
+.pallet-journal__row--interactive td { transition: background-color 120ms ease; }
+.pallet-journal__row--interactive:hover td { background: var(--table-hover-background); }
+.pallet-journal__row--interactive:focus-visible { outline: 2px solid var(--button-background); outline-offset: -2px; }
+.pallet-journal__row--interactive:focus-visible td { background: var(--surface-active); }
+.pallet-transport-link { color: var(--button-background); font-weight: 700; text-decoration: none; }
+.pallet-transport-link:hover { color: var(--text-primary); text-decoration: underline; }
+.pallet-transport-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
+
+.pallet-movement-modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, var(--app-background) 62%, transparent); backdrop-filter: blur(2px); }
+.pallet-movement-modal { width: min(100%, 1040px); max-height: min(90vh, 760px); overflow: auto; border: 1px solid var(--border); border-radius: 9px; background: var(--content-background); box-shadow: 0 18px 52px var(--shadow); }
+.pallet-movement-form--modal { margin: 0; border: 0; border-radius: 0; background: transparent; }
+.pallet-closing-modal { width: min(100%, 840px); }
+.pallet-closing-form--modal { margin: 0; border: 0; border-radius: 0; background: transparent; }
+.pallet-movement-form--modal .pallet-entry-form__header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.pallet-closing-form--modal .pallet-entry-form__header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.pallet-movement-form--modal .pallet-entry-form__header h2 { margin: 0; color: var(--text-primary); font-size: 17px; }
+.pallet-closing-form--modal .pallet-entry-form__header h2 { margin: 0; color: var(--text-primary); font-size: 17px; }
+.pallet-movement-modal__close { display: grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-secondary); background: var(--content-background); cursor: pointer; font-size: 21px; font-weight: 300; line-height: 1; }
+.pallet-movement-modal__close:hover:not(:disabled) { color: var(--text-primary); background: var(--surface-secondary); }
+.pallet-movement-modal__close:disabled { cursor: wait; opacity: .55; }
+
+@media (max-width: 720px) {
+  .pallet-movement-modal-backdrop { align-items: start; padding: 10px; overflow: auto; }
+  .pallet-movement-modal { max-height: none; }
+}
+
+.transport-order-pallet-movements__status { margin: 0 0 10px; color: var(--text-secondary); }
+.transport-order-pallet-movements__picker { width: min(100%, 560px); padding: 20px; }
+.transport-order-pallet-movements__picker-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.transport-order-pallet-movements__picker-header h2 { margin: 0; color: var(--text-primary); font-size: 17px; }
+.transport-order-pallet-movements__picker-header p { margin: 5px 0 0; color: var(--text-secondary); font-size: 13px; }
+.transport-order-pallet-movements__picker-list { display: grid; gap: 8px; margin-top: 16px; }
+.transport-order-pallet-movements__picker-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); background: var(--surface-secondary); cursor: pointer; text-align: left; }
+.transport-order-pallet-movements__picker-item:hover { border-color: var(--button-background); background: var(--surface-active); }
+.transport-order-pallet-movements__picker-item strong { display: block; }
+.transport-order-pallet-movements__picker-item span { color: var(--text-secondary); font-size: 12px; }
+.transport-order-pallet-movements__picker-item::after { content: 'Öffnen'; color: var(--button-background); font-size: 12px; font-weight: 700; white-space: nowrap; }

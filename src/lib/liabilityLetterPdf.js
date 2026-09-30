@@ -13,8 +13,8 @@ async function imageData(url) {
   })
 }
 
-export async function downloadLiabilityLetterPdf(documentData, fileName) {
+export async function downloadLiabilityLetterPdf(documentData, fileName, company) {
   const [{ jsPDF }, headerImage] = await Promise.all([import('jspdf'), imageData(letterheadImage)])
-  const pdf = renderLiabilityLetterPdf({ JsPdf: jsPDF, documentData, headerImage })
+  const pdf = renderLiabilityLetterPdf({ JsPdf: jsPDF, documentData, headerImage, company })
   pdf.save(fileName)
 }

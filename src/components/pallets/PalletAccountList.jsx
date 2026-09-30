@@ -6,6 +6,8 @@ import { isPalletMovementForPartner, listAllPalletClosings, listAllPalletMovemen
 import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 import { getPartnerEvaluationStatus } from '../../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../../partner-evaluation/usePartnerEvaluationSettings.js'
+import { indexPartnerClusters } from '../../lib/partnerCluster.js'
+import { palletAccountPath } from '../../lib/businessPartnerLinks.js'
 import '../../styles/businessPartnerExtensions.css'
 import '../../styles/pallets.css'
 
@@ -63,10 +65,17 @@ export default function PalletAccountList() {
     Promise.all([listAllPalletMovements(), listAllPalletClosings()]).then(([loadedMovements, loadedClosings]) => { setMovements(loadedMovements); setClosings(loadedClosings) }).catch(() => setAccountError('Palettenbuchungen konnten nicht geladen werden.'))
   }, [])
 
-  const accountsByPartner = useMemo(() => partners.map((partner) => ({
-    partner,
-    account: summarizePalletAccount(movements.filter((movement) => isPalletMovementForPartner(movement, partner.id)), closings.filter((closing) => closing.partnerId === partner.id), partner.id),
-  })), [closings, movements, partners])
+  const accountsByPartner = useMemo(() => {
+    const clusters = indexPartnerClusters(partners)
+    return partners.filter((partner) => !partner.mergedIntoPartnerId).map((partner) => {
+      const memberIds = (clusters.get(partner.id) || []).map((member) => member.id)
+      const ids = new Set(memberIds)
+      return {
+        partner,
+        account: summarizePalletAccount(movements.filter((movement) => isPalletMovementForPartner(movement, partner.id, memberIds)), closings.filter((closing) => ids.has(closing.partnerId)), partner.id, memberIds),
+      }
+    })
+  }, [closings, movements, partners])
 
   const visibleAccounts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
@@ -84,7 +93,7 @@ export default function PalletAccountList() {
   }
 
   function openAccount(partnerId) {
-    navigate(`/paletten/${partnerId}`)
+    navigate(palletAccountPath(partnerId))
   }
 
   function handleAccountRowKeyDown(event, partnerId) {
