@@ -4,7 +4,6 @@ import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
-import { adminCallableOptions } from './adminCallableOptions.js'
 import { logExternalEffectsSkipped, publicDataSynchronizationAllowed } from './externalEffects.js'
 
 if (!getApps().length) initializeApp()
@@ -224,7 +223,7 @@ export async function runSchoolHolidaySync({ trigger, actorName = null }) {
   return result
 }
 
-export const refreshSchoolHolidayData = onCall({ ...adminCallableOptions, timeoutSeconds: 540 }, async (request) => {
+export const refreshSchoolHolidayData = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540 }, async (request) => {
   const profile = await requireActiveProfile(request)
   requireRole(profile, ['admin', 'superadmin'], 'Nur Administratoren können Ferien aktualisieren.')
   if (!publicDataSynchronizationAllowed()) {

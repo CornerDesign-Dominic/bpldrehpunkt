@@ -23,14 +23,13 @@ import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarri
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
-import { adminCallableOptions, adminPublicCallableOptions } from './adminCallableOptions.js'
 
 if (!getApps().length) initializeApp()
-export const updateCompanyMasterData = onCall(adminCallableOptions, updateCompanyMasterDataHandler)
-export const getCompanyStamp = onCall(adminCallableOptions, getCompanyStampHandler)
+export const updateCompanyMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateCompanyMasterDataHandler)
+export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, getCompanyStampHandler)
 export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)
-export const saveCompanyStamp = onCall(adminCallableOptions, saveCompanyStampHandler)
-export const deleteCompanyStamp = onCall(adminCallableOptions, deleteCompanyStampHandler)
+export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
+export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
@@ -239,7 +238,7 @@ export const listVisibleUserDirectory = onCall({ region: 'europe-west3', enforce
 // The administration needs central account and employment fields, but never
 // HR-only data. Returning this explicit projection also permits us to deny
 // direct client reads of arbitrary user documents.
-export const listManagedUsers = onCall(adminCallableOptions, async (request) => {
+export const listManagedUsers = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertManager(request)
   const users = await db.collection('users').get()
   return { profiles: users.docs.map(managedUserEntry) }
@@ -360,7 +359,7 @@ export const migrateLegacyBirthDatesToPersonnel = onCall({ region: 'europe-west3
   return { migrated }
 })
 
-export const createManagedUser = onCall(adminCallableOptions, async (request) => {
+export const createManagedUser = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const actor = await assertManager(request)
   const data = request.data ?? {}
   if (!data.email || !data.password || !data.firstName || !data.lastName) throw new HttpsError('invalid-argument', 'Name, E-Mail und Initialpasswort sind erforderlich.')
@@ -377,7 +376,7 @@ export const createManagedUser = onCall(adminCallableOptions, async (request) =>
   return { uid: user.uid }
 })
 
-export const updateManagedUser = onCall(adminCallableOptions, async (request) => {
+export const updateManagedUser = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   const actor = await assertManager(request)
   const { uid, ...data } = request.data ?? {}
   if (!uid) throw new HttpsError('invalid-argument', 'Benutzer-ID fehlt.')
@@ -399,7 +398,7 @@ export const updateManagedUser = onCall(adminCallableOptions, async (request) =>
 // Moves legacy damage attachments out of the general document collection. The
 // Admin SDK move operation keeps exactly one copy of each PDF at every
 // completed step; a retry safely resumes after an interrupted migration.
-export const migrateLegacyDamageDocuments = onCall(adminCallableOptions, async (request) => {
+export const migrateLegacyDamageDocuments = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Migration ist nur für Superadmins erlaubt.')
   const legacyDocuments = await db.collection('internalDocuments').get()
   const bucket = getStorage().bucket()
@@ -486,13 +485,13 @@ function legacyProfileSummary(snapshot) {
 }
 function profileDisplayName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || '—' }
 
-export const listLegacyAccountProfiles = onCall(adminCallableOptions, async (request) => {
+export const listLegacyAccountProfiles = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const users = await db.collection('users').get()
   return { profiles: users.docs.filter((snapshot) => isLegacyProfile(snapshot.data())).map(legacyProfileSummary) }
 })
 
-export const confirmLegacyAccountProfile = onCall(adminCallableOptions, async (request) => {
+export const confirmLegacyAccountProfile = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const uid = request.data?.uid
   if (typeof uid !== 'string' || !uid || uid.includes('/')) throw new HttpsError('invalid-argument', 'Ungültiges Benutzerkonto.')
@@ -508,7 +507,7 @@ export const confirmLegacyAccountProfile = onCall(adminCallableOptions, async (r
   return { uid }
 })
 
-export const listLegacyAccountMigrationHistory = onCall(adminCallableOptions, async (request) => {
+export const listLegacyAccountMigrationHistory = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const migrations = await db.collection('legacyAccountMigrations').orderBy('confirmedAt', 'desc').limit(12).get()
   const userIds = [...new Set(migrations.docs.flatMap((snapshot) => {
@@ -549,7 +548,7 @@ function partnerEvaluationSettings(value) {
   return settings
 }
 
-export const updatePartnerEvaluationSettings = onCall(adminCallableOptions, async (request) => {
+export const updatePartnerEvaluationSettings = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const settings = partnerEvaluationSettings(request.data?.settings)
   await db.doc('appSettings/partnerEvaluation').set({ ...settings, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid }, { merge: true })
@@ -558,7 +557,7 @@ export const updatePartnerEvaluationSettings = onCall(adminCallableOptions, asyn
 
 const companyHolidaySubdivisionCodes = new Set(['DE-BW', 'DE-BY', 'DE-BE', 'DE-BB', 'DE-HB', 'DE-HH', 'DE-HE', 'DE-MV', 'DE-NI', 'DE-NW', 'DE-RP', 'DE-SL', 'DE-SN', 'DE-ST', 'DE-SH', 'DE-TH'])
 
-export const updateCompanyHolidayRegion = onCall(adminCallableOptions, async (request) => {
+export const updateCompanyHolidayRegion = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertManager(request)
   const value = request.data?.companyHolidayRegion
   const countryCode = typeof value?.countryCode === 'string' ? value.countryCode.trim().toUpperCase() : ''
@@ -569,7 +568,7 @@ export const updateCompanyHolidayRegion = onCall(adminCallableOptions, async (re
   return { companyHolidayRegion }
 })
 
-export const migrateLegacyDepartments = onCall(adminCallableOptions, async (request) => {
+export const migrateLegacyDepartments = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const users = await db.collection('users').get()
   let migratedUsers = 0
@@ -601,7 +600,7 @@ export const migrateLegacyDepartments = onCall(adminCallableOptions, async (requ
   return { migratedUsers }
 })
 
-export const createDepartment = onCall(adminCallableOptions, async (request) => {
+export const createDepartment = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const name = departmentName(request.data?.name)
   if (!name) throw new HttpsError('invalid-argument', 'Der Abteilungsname ist erforderlich.')
@@ -612,7 +611,7 @@ export const createDepartment = onCall(adminCallableOptions, async (request) => 
   return { id: reference.id }
 })
 
-export const updateDepartment = onCall(adminCallableOptions, async (request) => {
+export const updateDepartment = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
   await assertSuperadmin(request)
   const { id, name, active } = request.data ?? {}
   if (typeof id !== 'string' || id.includes('/')) throw new HttpsError('invalid-argument', 'Abteilungs-ID fehlt.')
@@ -1005,20 +1004,20 @@ export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', e
 // verify App Check and the signed-in profile inside the handler. Data access
 // remains protected by requireActiveProfile and transportOrders view access.
 export const getShipmentTrackingDryRun = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingDryRunHandler)
-export const listDiagnosticsPage = onCall(adminPublicCallableOptions, listDiagnosticsPageHandler)
+export const listDiagnosticsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listDiagnosticsPageHandler)
 export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, reportClientDiagnosticHandler)
 export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
 export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
 export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)
-export const getTomTomUsageSummary = onCall(adminCallableOptions, getTomTomUsageSummaryHandler)
+export const getTomTomUsageSummary = onCall({ region: 'europe-west3', enforceAppCheck: true }, getTomTomUsageSummaryHandler)
 export const getOwnTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnTransportOrderRatingsHandler)
 export const saveTransportOrderRating = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveTransportOrderRatingHandler)
 export const listPartnerTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, listPartnerTransportOrderRatingsHandler)
 export const listCrmTransportRatingSummaries = onCall({ region: 'europe-west3', enforceAppCheck: true }, listCrmTransportRatingSummariesHandler)
-export const updateShipmentTrackingOperatingHours = onCall(adminCallableOptions, updateShipmentTrackingOperatingHoursHandler)
-export const previewShipmentTrackingOperatingHours = onCall(adminCallableOptions, previewShipmentTrackingOperatingHoursHandler)
-export const updateShipmentTrackingArrivalConfirmation = onCall(adminCallableOptions, updateShipmentTrackingArrivalConfirmationHandler)
-export const updateShipmentTrackingRuleCatalog = onCall(adminCallableOptions, updateShipmentTrackingRuleCatalogHandler)
+export const updateShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingOperatingHoursHandler)
+export const previewShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewShipmentTrackingOperatingHoursHandler)
+export const updateShipmentTrackingArrivalConfirmation = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingArrivalConfirmationHandler)
+export const updateShipmentTrackingRuleCatalog = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingRuleCatalogHandler)
 export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
 export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)
 export const processCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCustomerImportHandler)

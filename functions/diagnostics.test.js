@@ -85,7 +85,7 @@ test('diagnosis is admin-only through App Check and Firestore denies direct clie
     readFile(new URL('./diagnostics.js', import.meta.url), 'utf8'),
     readFile(new URL('../firestore.indexes.json', import.meta.url), 'utf8'),
   ])
-  assert.match(index, /export const listDiagnosticsPage = onCall\(adminPublicCallableOptions, listDiagnosticsPageHandler\)/)
+  assert.match(index, /export const listDiagnosticsPage = onCall\(\{ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' \}, listDiagnosticsPageHandler\)/)
   assert.match(index, /export const reportClientDiagnostic = onCall\(\{ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' \}, reportClientDiagnosticHandler\)/)
   assert.match(source, /requireActiveProfile\(request\)/)
   assert.match(source, /requireRole\(profile, \['admin', 'superadmin'\]/)

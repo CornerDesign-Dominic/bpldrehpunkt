@@ -5,7 +5,6 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore'
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
-import { adminCallableOptions } from './adminCallableOptions.js'
 import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsSkipped } from './externalEffects.js'
 
 if (!getApps().length) initializeApp()
@@ -349,13 +348,13 @@ export const notifyVacationRequestDecision = onDocumentUpdated({ region, documen
 async function assertActiveSuperadmin(request) { return requireRole(await requireActiveProfile(request), ['superadmin'], 'Diese Aktion ist nur für Superadmins erlaubt.') }
 async function assertActiveAdmin(request) { return requireRole(await requireActiveProfile(request), ['admin', 'superadmin'], 'Diese Aktion ist nur für Admins erlaubt.') }
 
-export const listSystemMailTemplates = onCall(adminCallableOptions, async (request) => {
+export const listSystemMailTemplates = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
   const snapshots = await Promise.all(Object.entries(templateDefinitions).filter(([, definition]) => definition.adminVisible !== false).map(([id]) => db.doc(`systemMailTemplates/${id}`).get()))
   return { templates: snapshots.map((snapshot) => templateData(snapshot.id, snapshot.exists ? snapshot.data() : null)) }
 })
 
-export const updateSystemMailTemplate = onCall(adminCallableOptions, async (request) => {
+export const updateSystemMailTemplate = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
   const { id, subject, message } = request.data || {}
   if (typeof id !== 'string' || !Object.hasOwn(templateDefinitions, id) || templateDefinitions[id].adminVisible === false) throw new HttpsError('invalid-argument', 'Unbekannte Systemmail-Vorlage.')
@@ -365,7 +364,7 @@ export const updateSystemMailTemplate = onCall(adminCallableOptions, async (requ
   return { template: templateData(id, { subject, message, updatedBy: request.auth.uid }) }
 })
 
-export const sendSystemTestMail = onCall({ ...adminCallableOptions, secrets: [systemMailNotificationUrl] }, async (request) => {
+export const sendSystemTestMail = onCall({ region, enforceAppCheck: true, secrets: [systemMailNotificationUrl] }, async (request) => {
   const profile = await assertActiveAdmin(request)
   if (!externalEffectsAllowed()) {
     logExternalEffectsSkipped('system-mail-test')
