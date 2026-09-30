@@ -76,6 +76,12 @@ function optionalTransportOrderId(value) {
   return id || null
 }
 
+function transportOrderIdsFrom(data) {
+  const values = Array.isArray(data?.transportOrderIds) ? data.transportOrderIds : [data?.transportOrderId]
+  if (values.length > 50) throw new HttpsError('invalid-argument', 'Es können höchstens 50 Transportaufträge verknüpft werden.')
+  return [...new Set(values.map(optionalTransportOrderId).filter(Boolean))]
+}
+
 export function inkassoPartnerSnapshot(partner, role) {
   if (!businessPartnerRoles(partner)[role] || typeof partner?.companyName !== 'string' || !partner.companyName.trim()) return null
   const primaryNumber = role === 'customer' ? partner.debtorNumber : partner.creditorNumber
@@ -94,9 +100,9 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
   const collectionReference = optionalText(data.collectionReference, 240, 'Das Aktenzeichen des Inkassounternehmens')
   const debtorPartnerId = optionalPartnerId(data.debtorPartnerId)
   const debtorPartnerRole = optionalPartnerRole(data.debtorPartnerRole)
-  const transportOrderId = optionalTransportOrderId(data.transportOrderId)
+  const transportOrderIds = transportOrderIdsFrom(data)
   if (!debtorPartnerId || !debtorPartnerRole) throw new HttpsError('invalid-argument', 'Bitte ein Unternehmen auswählen.')
-  if (transportOrderId && !canViewTransportOrders(currentActor.profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den Transportauftrag.')
+  if (transportOrderIds.length && !canViewTransportOrders(currentActor.profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den Transportauftrag.')
   const invoices = invoicesFrom(data.invoices)
   const year = berlinYear()
   const database = getFirestore()
@@ -104,8 +110,8 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
   const caseRef = database.collection('inkassoCases').doc()
 
   await database.runTransaction(async (transaction) => {
-    const transportOrder = transportOrderId ? await transaction.get(database.doc(`transportOrders/${transportOrderId}`)) : null
-    if (transportOrderId && !transportOrder.exists) throw new HttpsError('not-found', 'Der Transportauftrag ist nicht mehr verfügbar.')
+    const transportOrders = await Promise.all(transportOrderIds.map((transportOrderId) => transaction.get(database.doc(`transportOrders/${transportOrderId}`))))
+    if (transportOrders.some((transportOrder) => !transportOrder.exists)) throw new HttpsError('not-found', 'Mindestens ein Transportauftrag ist nicht mehr verfügbar.')
     const counter = await transaction.get(counterRef)
     let lastNumber
     if (counter.exists) {
@@ -205,12 +211,12 @@ export const createInkassoCase = onCall({ region, enforceAppCheck: true }, async
       lastNumber: nextNumber,
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true })
-    if (transportOrderId) {
+    transportOrderIds.forEach((transportOrderId) => {
       transaction.set(database.doc(`caseTransportOrderLinks/${caseTransportLinkId('inkasso', caseRef.id, transportOrderId)}`), {
         caseType: 'inkasso', caseId: caseRef.id, transportOrderId,
         createdAt: FieldValue.serverTimestamp(), createdByUserId: currentActor.id, createdByName: currentActor.name,
       })
-    }
+    })
   })
 
   return { caseId: caseRef.id }

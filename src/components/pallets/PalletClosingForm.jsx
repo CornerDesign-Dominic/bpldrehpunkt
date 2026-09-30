@@ -1,12 +1,13 @@
 import { PALLET_CLOSING_TYPES } from '../../constants/pallets.js'
 import { formatPalletNumber } from './palletFormatters.js'
 
-export default function PalletClosingForm({ accountBalance, closingForm, editingClosing, formError, isSubmitting, newClosingBalance, onCancel, onChange, onDelete, onSubmit }) {
+export default function PalletClosingForm({ accountBalance, closingForm, editingClosing, formError, isSubmitting, modal = false, newClosingBalance, onCancel, onChange, onDelete, onSubmit }) {
   const formatAmount = (value) => `${formatPalletNumber(value)} Paletten`
   const hasDirection = Boolean(closingForm.direction)
+  const title = editingClosing ? 'Abschluss bearbeiten' : 'Abschluss hinzufügen'
 
-  return <form className="pallet-entry-form pallet-closing-form" onSubmit={onSubmit}>
-    <div className="pallet-entry-form__header"><h3>{editingClosing ? 'Abschluss bearbeiten' : 'Abschluss hinzufügen'}</h3></div>
+  return <form className={`pallet-entry-form pallet-closing-form${modal ? ' pallet-closing-form--modal' : ''}`} onSubmit={onSubmit}>
+    <div className="pallet-entry-form__header">{modal ? <h2 id="pallet-closing-modal-title">{title}</h2> : <h3>{title}</h3>}{modal && <button className="pallet-movement-modal__close" type="button" onClick={onCancel} disabled={isSubmitting} aria-label="Dialog schließen" title="Schließen">×</button>}</div>
     <div className="pallet-closing-reference-grid">
       <label className="form-field"><span>Datum</span><input type="date" value={closingForm.date} onChange={(event) => onChange('date', event.target.value)} /></label>
       <label className="form-field"><span>Art des Abschlusses</span><select value={closingForm.type} onChange={(event) => onChange('type', event.target.value)}>{PALLET_CLOSING_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>

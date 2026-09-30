@@ -87,9 +87,10 @@ export function createEmptyLegalDispute() {
   }
 }
 
-export async function createLegalDispute(values, actor, { transportOrderId = '' } = {}) {
+export async function createLegalDispute(values, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
   const transportReference = trim(values.transportReference)
   if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
 
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'legalDisputeCaseCounters', year)
@@ -97,8 +98,8 @@ export async function createLegalDispute(values, actor, { transportOrderId = '' 
   const optionalText = (value) => trim(value) || null
   let caseRef
   await runTransaction(db, async (transaction) => {
-    const [counter, transportOrder] = await Promise.all([transaction.get(counterRef), transportOrderId ? transaction.get(doc(db, 'transportOrders', transportOrderId)) : Promise.resolve(null)])
-    if (transportOrderId && !transportOrder.exists()) throw new Error('Der Transportauftrag ist nicht mehr verfügbar.')
+    const [counter, ...transportOrders] = await Promise.all([transaction.get(counterRef), ...linkedTransportOrderIds.map((transportOrderId) => transaction.get(doc(db, 'transportOrders', transportOrderId)))])
+    if (transportOrders.some((transportOrder) => !transportOrder.exists())) throw new Error('Mindestens ein Transportauftrag ist nicht mehr verfügbar.')
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
 
@@ -158,7 +159,7 @@ export async function createLegalDispute(values, actor, { transportOrderId = '' 
       updatedByName: actorName,
     })
     transaction.set(doc(collection(caseRef, 'updates')), updatePayload('system', 'Fall angelegt', actor))
-    if (transportOrderId) setTransportOrderCaseLink(transaction, { caseType: 'legalDispute', caseId: caseRef.id, transportOrderId, actor })
+    linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(transaction, { caseType: 'legalDispute', caseId: caseRef.id, transportOrderId, actor }))
   })
   return caseRef.id
 }

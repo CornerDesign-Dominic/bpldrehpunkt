@@ -65,7 +65,7 @@ export default function LegalDisputesPage() {
   useEffect(() => { if (pendingCaseCreation) navigate(location.pathname, { replace: true, state: null }) }, [location.pathname, navigate, pendingCaseCreation])
 
   async function save(values) {
-    const id = await createLegalDispute(values, { user, profile }, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId })
+    const id = await createLegalDispute(values, { user, profile }, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
     navigate(`/legal-disputes/${id}`)
   }
@@ -84,6 +84,6 @@ export default function LegalDisputesPage() {
         <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
     </div>}
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></div>}
   </div>
 }

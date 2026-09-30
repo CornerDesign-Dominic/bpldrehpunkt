@@ -127,17 +127,21 @@ export function transportOrderCasePrefill(order = {}) {
 export function caseCreationDefaults(caseType, prefill) {
   const context = prefill || {}
   const preferredDebtor = context.carrier?.id ? { ...context.carrier, role: 'carrier' } : { ...context.customer, role: 'customer' }
+  const transportOrderLinks = context.transportOrderId ? [{ id: context.transportOrderId, number: context.transportReference || context.transportOrderId }] : []
   if (caseType === 'damage') return {
     transportReference: context.transportReference,
+    transportOrderLinks,
     description: context.reference ? `TA ${context.transportReference} · Referenz ${context.reference}` : '',
     claimantPartnerId: context.customer?.id || '', claimant: context.customer?.name || '',
     contractorPartnerId: context.carrier?.id || '', contractor: context.carrier?.name || '',
   }
   if (caseType === 'inkasso') return {
     debtorPartnerId: preferredDebtor.id || '', debtorPartnerRole: preferredDebtor.role || '', debtorName: preferredDebtor.name || '', debtorNumber: preferredDebtor.number || '',
+    transportOrderLinks,
   }
   if (caseType === 'legalDispute') return {
     transportReference: context.transportReference || '', counterparty: preferredDebtor.name || '', counterpartySelection: businessPartnerRoleSelectionValue(preferredDebtor.role, preferredDebtor.id),
+    transportOrderLinks,
   }
   return {}
 }

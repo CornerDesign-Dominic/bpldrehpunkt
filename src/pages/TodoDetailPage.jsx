@@ -439,12 +439,12 @@ export default function TodoDetailPage() {
         .filter(Boolean)
         .join(" · ")
     : "";
-  const linkedInsolvency =
+  const associatedInsolvency =
     canViewInsolvencies && todo.insolvencyId
       ? insolvencies.find((insolvency) => insolvency.id === todo.insolvencyId)
       : null;
-  const linkedInsolvencyLabel = linkedInsolvency
-    ? [linkedInsolvency.partnerName, linkedInsolvency.courtReference]
+  const associatedInsolvencyLabel = associatedInsolvency
+    ? [associatedInsolvency.partnerName, associatedInsolvency.courtReference]
         .filter(Boolean)
         .join(" · ")
     : "";
@@ -724,9 +724,9 @@ export default function TodoDetailPage() {
                   ) : null}
                 </Detail>
                 <Detail label="Insolvenz">
-                  {linkedInsolvency ? (
-                    <Link to={insolvencyCasePath(linkedInsolvency.id)}>
-                      {linkedInsolvencyLabel}
+                  {associatedInsolvency ? (
+                    <Link to={insolvencyCasePath(associatedInsolvency.id)}>
+                      {associatedInsolvencyLabel}
                     </Link>
                   ) : todo.insolvencyId ? (
                     "Insolvenz nicht verfügbar"

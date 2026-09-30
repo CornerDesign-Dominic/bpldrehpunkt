@@ -29,11 +29,20 @@ test('catalog validation rejects non-descending, duplicate and invalid offsets',
   const duplicate = fallbackShipmentTrackingRuleCatalog(); duplicate.topics.loadingSite.internalEscalations[1].offsetWorkingHours = 2
   assert.throws(() => validateShipmentTrackingRuleCatalog(duplicate), /streng absteigender/)
   const zeroExternal = fallbackShipmentTrackingRuleCatalog(); zeroExternal.topics.loadingSite.reminders[0].offsetWorkingHours = 0
-  assert.throws(() => validateShipmentTrackingRuleCatalog(zeroExternal), /positive ganze Zahl/)
+  assert.throws(() => validateShipmentTrackingRuleCatalog(zeroExternal), /positive Zeitangabe/)
   const zeroInternal = fallbackShipmentTrackingRuleCatalog(); zeroInternal.topics.licensePlate.internalEscalations[0].offsetWorkingHours = 0
   assert.doesNotThrow(() => validateShipmentTrackingRuleCatalog(zeroInternal))
   const zeroCustomerRequirement = fallbackShipmentTrackingRuleCatalog(); zeroCustomerRequirement.topics.licensePlate.customerRequirement.offsetWorkingHours = 0
   assert.doesNotThrow(() => validateShipmentTrackingRuleCatalog(zeroCustomerRequirement))
+})
+
+test('catalog offsets accept exact minute increments without allowing arbitrary decimal hours', () => {
+  const quarterHour = fallbackShipmentTrackingRuleCatalog()
+  quarterHour.topics.licensePlate.initialRequest.offsetWorkingHours = 16.25
+  assert.doesNotThrow(() => validateShipmentTrackingRuleCatalog(quarterHour))
+  const nonMinuteValue = fallbackShipmentTrackingRuleCatalog()
+  nonMinuteValue.topics.licensePlate.initialRequest.offsetWorkingHours = 16.01
+  assert.throws(() => validateShipmentTrackingRuleCatalog(nonMinuteValue), /Stunden und Minuten/)
 })
 
 test('saving an existing catalog adds the dedicated customer requirement with the safe two-hour starting value', () => {

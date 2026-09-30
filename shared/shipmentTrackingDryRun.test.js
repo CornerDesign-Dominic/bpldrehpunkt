@@ -30,6 +30,15 @@ test('working hours are subtracted backwards across an evening and a closed week
   assert.equal(rule.adjustmentReason, 'Vorverlegt, da Samstag und Sonntag geschlossen sind.')
 })
 
+test('a one-hour-fifteen-minute stage is scheduled to the exact working minute', () => {
+  const catalog = fallbackShipmentTrackingRuleCatalog()
+  catalog.topics.licensePlate.reminders[1].offsetWorkingHours = 1.25
+  catalog.topics.licensePlate.internalEscalations[0].offsetWorkingHours = 1
+  const result = preview({ imported: imported('2026-12-08 10:00'), catalog })
+  assert.equal(result.rules[0].scheduledAt, '2026-12-08T07:45:00.000Z')
+  assert.equal(result.rules[0].reason, '1 Std. 15 Min. vor frühester Beladung')
+})
+
 test('the customer requirement uses its own configurable offset instead of a carrier escalation offset', () => {
   const catalog = fallbackShipmentTrackingRuleCatalog()
   catalog.topics.licensePlate.customerRequirement.offsetWorkingHours = 6

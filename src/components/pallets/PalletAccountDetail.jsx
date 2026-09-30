@@ -237,7 +237,11 @@ export default function PalletAccountDetail({ partnerId }) {
           <PalletMovementForm modal carriers={carriers} customers={customers} editingMovement={editingMovement} formError={formError} historicalCarrier={historicalCarrier} historicalCustomer={historicalCustomer} isSubmitting={isSubmitting} movementCalculation={movementCalculation} movementForm={movementForm} onCancel={closeActiveForm} onChange={updateMovementField} onDelete={requestMovementDelete} onStationChange={updateStation} onSubmit={handleMovementSubmit} selectedCarrier={selectedCarrier} selectedCustomer={selectedCustomer} />
         </section>
       </div>, document.body)}
-      {canEdit('pallets') && activeForm === 'closing' && <PalletClosingForm accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onDelete={requestClosingDelete} onSubmit={handleClosingSubmit} />}
+      {canEdit('pallets') && activeForm === 'closing' && createPortal(<div className="pallet-movement-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !isSubmitting) closeActiveForm() }} onKeyDown={(event) => { if (event.key === 'Escape' && !isSubmitting) closeActiveForm() }}>
+        <section className="pallet-movement-modal pallet-closing-modal" role="dialog" aria-modal="true" aria-labelledby="pallet-closing-modal-title">
+          <PalletClosingForm modal accountBalance={closingBaseBalance} closingForm={closingForm} editingClosing={editingClosing} formError={formError} isSubmitting={isSubmitting} newClosingBalance={newClosingBalance} onCancel={closeActiveForm} onChange={updateClosingField} onDelete={requestClosingDelete} onSubmit={handleClosingSubmit} />
+        </section>
+      </div>, document.body)}
       <PalletJournal account={account} accountError={accountError} isEntryFormActive={Boolean(activeForm)} onAddClosing={openClosingForm} onAddMovement={() => openMovementForm(partner)} onEditClosing={openClosingEdit} onEditMovement={openMovementEdit} canEdit={canEdit('pallets')} />
     </section>
   </div>

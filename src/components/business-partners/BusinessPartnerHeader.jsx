@@ -1,18 +1,20 @@
 import { Link } from 'react-router-dom'
 import { ChevronIcon } from '../icons.jsx'
 import { getBusinessPartnerType } from '../../lib/businessPartners.js'
-import { getCurrentCrmRatingPresentation } from '../../lib/crmRatings.js'
+import { formatTransportRatingScore } from '../../lib/transportOrderRatingPresentation.js'
 import { formatPalletNumber } from '../pallets/palletFormatters.js'
 import { getPartnerEvaluationStatus, PARTNER_EVALUATION_STATUS_LABELS } from '../../lib/partnerEvaluation.js'
 import { usePartnerEvaluationSettings } from '../../partner-evaluation/usePartnerEvaluationSettings.js'
 import { crmPartnerPath, palletAccountPath } from '../../lib/businessPartnerLinks.js'
+
+const CREDIT_LIMIT_STATUS_LABELS = { green: 'Hoch', yellow: 'Mittel', red: 'Gering', neutral: 'Noch nicht bewertet' }
 
 function formatCreditLimit(value) {
   return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
 }
 
 function formatRankingValue(rating) {
-  return rating?.score === null || rating?.score === undefined ? '-' : rating.value
+  return rating?.averageScore === null || rating?.averageScore === undefined ? '-' : `${formatTransportRatingScore(rating.averageScore)} / 5`
 }
 
 function formatPartnerSince(value) {
@@ -35,10 +37,8 @@ function PartnerHeaderTile({ ariaLabel, children, title, to, tone }) {
 
 export default function BusinessPartnerHeader({ account, canViewCrm, canViewPallets, partner, partnerId, ratings }) {
   const { settings } = usePartnerEvaluationSettings()
-  const ratingItems = getCurrentCrmRatingPresentation(partner, ratings)
-  const ratingsByRole = Object.fromEntries(ratingItems.map((rating) => [rating.role, rating]))
-  const customerRating = ratingsByRole.customer
-  const carrierRating = ratingsByRole.carrier
+  const customerRating = ratings?.customer
+  const carrierRating = ratings?.carrier
   const palletStatus = getPartnerEvaluationStatus('pallets', account?.balance, settings)
   const creditStatus = getPartnerEvaluationStatus('creditLimit', partner.creditLimit, settings)
 
@@ -56,12 +56,12 @@ export default function BusinessPartnerHeader({ account, canViewCrm, canViewPall
       </PartnerHeaderTile>
 
       <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" title="Ranking" tone="ranking" to={canViewCrm ? crmPartnerPath(partnerId) : undefined}>
-        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', customerRating?.score, settings)}>{formatRankingValue(customerRating)}</strong><span className="partner-header__rating-label">KU</span></span>
-        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', carrierRating?.score, settings)}>{formatRankingValue(carrierRating)}</strong><span className="partner-header__rating-label">UTN</span></span>
+        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', customerRating?.averageScore, settings)}>{formatRankingValue(customerRating)}</strong><span className="partner-header__rating-label">KU</span></span>
+        <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', carrierRating?.averageScore, settings)}>{formatRankingValue(carrierRating)}</strong><span className="partner-header__rating-label">UTN</span></span>
       </PartnerHeaderTile>
 
       <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" title="Kreditlimit" to={canViewCrm ? crmPartnerPath(partnerId) : undefined} tone="credit-limit">
-        <strong className="partner-header__tile-value" data-status={creditStatus}>{formatCreditLimit(partner.creditLimit)}</strong><span className="partner-evaluation-label" data-status={creditStatus}>{PARTNER_EVALUATION_STATUS_LABELS[creditStatus]}</span>
+        <strong className="partner-header__tile-value" data-status={creditStatus}>{formatCreditLimit(partner.creditLimit)}</strong><span className="partner-evaluation-label" data-status={creditStatus}>{CREDIT_LIMIT_STATUS_LABELS[creditStatus]}</span>
       </PartnerHeaderTile>
     </div>
   </section>

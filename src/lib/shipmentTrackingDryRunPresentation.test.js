@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { shipmentTrackingDryRunPresentation } from './shipmentTrackingDryRunPresentation.js'
+import { shipmentTrackingDryRun } from '../../functions/shared/shipmentTrackingDryRun.js'
+import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from '../../functions/shared/shipmentTrackingOperatingHours.js'
+import { fallbackShipmentTrackingRuleCatalog } from '../../functions/shared/shipmentTrackingRuleCatalog.js'
 
 test('the dry-run presentation formats the shared result without deriving another policy', () => {
   const model = shipmentTrackingDryRunPresentation({
@@ -12,6 +15,28 @@ test('the dry-run presentation formats the shared result without deriving anothe
   assert.equal(model.nextAction.recipient, 'test@…')
   assert.equal(model.entries[0].time, 'Fr., 16:00')
   assert.deepEqual(model.hints, [{ id: 'missing', description: 'Unternehmer-Empfänger fehlt' }])
+})
+
+test('the action overview preserves a one-hour-fifteen-minute rule from the effective catalog', () => {
+  const catalog = fallbackShipmentTrackingRuleCatalog()
+  catalog.topics.licensePlate.reminders[1].offsetWorkingHours = 1.25
+  catalog.topics.licensePlate.internalEscalations[0].offsetWorkingHours = 1
+  const ruleId = catalog.topics.licensePlate.reminders[1].id
+  const preview = shipmentTrackingDryRun({
+    imported: { customer: { partnerId: 'customer-1' }, carrier: { partnerId: 'carrier-1' }, loading: { window: { from: '2026-12-08 10:00' } } },
+    customer: {},
+    carrier: { shipmentTrackingPolicy: { carrier: { enabledRuleIds: { [ruleId]: true }, actualArrivalConfirmationEnabled: false } } },
+    catalog,
+    operatingHours: DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS,
+    tracking: { recipients: { carrier: { source: 'manual', email: 'carrier@example.test' } } },
+    now: '2026-12-08T07:00:00.000Z',
+  })
+  const model = shipmentTrackingDryRunPresentation(preview, { now: '2026-12-08T07:00:00.000Z' })
+
+  assert.equal(model.entries.length, 1)
+  assert.equal(model.entries[0].scheduledAt, '2026-12-08T07:45:00.000Z')
+  assert.equal(model.entries[0].reason, '1 Std. 15 Min. vor frühester Beladung')
+  assert.equal(model.entries[0].state, 'planned')
 })
 
 test('an empty preview keeps its concrete dry-run diagnostic for the UI', () => {

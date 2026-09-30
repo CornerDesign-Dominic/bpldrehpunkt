@@ -14,9 +14,9 @@ const order = {
 test('TA → neuer Schadenfall und Inkassofall use the same central context', () => {
   const prefill = transportOrderCasePrefill(order)
   assert.deepEqual(caseCreationDefaults('damage', prefill), {
-    transportReference: 'TA-4711', description: 'TA TA-4711 · Referenz REF-99', claimantPartnerId: 'customer-1', claimant: 'Kunde GmbH', contractorPartnerId: 'carrier-1', contractor: 'Unternehmer KG',
+    transportReference: 'TA-4711', transportOrderLinks: [{ id: 'dycos-4711', number: 'TA-4711' }], description: 'TA TA-4711 · Referenz REF-99', claimantPartnerId: 'customer-1', claimant: 'Kunde GmbH', contractorPartnerId: 'carrier-1', contractor: 'Unternehmer KG',
   })
-  assert.deepEqual(caseCreationDefaults('inkasso', prefill), { debtorPartnerId: 'carrier-1', debtorPartnerRole: 'carrier', debtorName: 'Unternehmer KG', debtorNumber: '200' })
+  assert.deepEqual(caseCreationDefaults('inkasso', prefill), { debtorPartnerId: 'carrier-1', debtorPartnerRole: 'carrier', debtorName: 'Unternehmer KG', debtorNumber: '200', transportOrderLinks: [{ id: 'dycos-4711', number: 'TA-4711' }] })
 })
 
 test('role selections preserve canonical partner IDs with URL and delimiter characters', () => {

@@ -1,5 +1,5 @@
 import { subtractWorkingMinutes, normalizeShipmentTrackingOperatingHours, SHIPMENT_TRACKING_TIMEZONE } from './shipmentTrackingOperatingHours.js'
-import { normalizeShipmentTrackingRuleCatalog, shipmentTrackingCatalogRules, validateShipmentTrackingRuleCatalog } from './shipmentTrackingRuleCatalog.js'
+import { formatShipmentTrackingWorkingDuration, normalizeShipmentTrackingRuleCatalog, shipmentTrackingCatalogRules, validateShipmentTrackingRuleCatalog } from './shipmentTrackingRuleCatalog.js'
 import { resolveShipmentTrackingPolicy } from './shipmentTrackingPolicyResolver.js'
 import { ARRIVAL_CONFIRMATION_RULE_ID, normalizeShipmentTrackingArrivalConfirmation } from './shipmentTrackingArrivalConfirmation.js'
 
@@ -56,7 +56,7 @@ function ruleTitle(group) {
   if (group === 'reminder') return 'Erinnerung an Unternehmer'
   return 'Interne Eskalation'
 }
-function reasonFor(rule) { return rule.offsetWorkingHours === 0 ? 'Zum Beladebeginn' : `${rule.offsetWorkingHours} Arbeitsstunden vor frühester Beladung` }
+function reasonFor(rule) { return rule.offsetWorkingHours === 0 ? 'Zum Beladebeginn' : `${formatShipmentTrackingWorkingDuration(rule.offsetWorkingHours)} vor frühester Beladung` }
 function isTopicComplete(topic, tracking) {
   if (topic === 'licensePlate') return hasValue(tracking?.tractorLicensePlate) || hasValue(tracking?.licensePlate)
   return Boolean(tracking?.actualArrivalLoadingAt || tracking?.loadingStartedAt || tracking?.loadingCompletedAt || tracking?.actualDepartureLoadingAt)

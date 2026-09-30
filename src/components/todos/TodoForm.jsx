@@ -5,8 +5,11 @@ import { TodoPriorityPicker } from './TodoPriority.jsx'
 import TodoTransportOrderPicker from './TodoTransportOrderPicker.jsx'
 import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 
-function initialValues(todo, currentUserId, fixedLink) {
-  if (!todo) return fixedLink ? { ...createEmptyTodo(), ...fixedLink.values, [fixedLink.field]: fixedLink.id } : createEmptyTodo()
+function initialFormValues(todo, currentUserId, fixedLink, providedInitialValues) {
+  if (!todo) {
+    const values = { ...createEmptyTodo(), ...(providedInitialValues || {}) }
+    return fixedLink ? { ...values, ...fixedLink.values, [fixedLink.field]: fixedLink.id } : values
+  }
   const isSelf = isSelfTodo(todo, currentUserId)
   const values = {
     title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '', reminderDate: todo.reminderDate || '', priority: todo.priority || 'medium',
@@ -15,11 +18,12 @@ function initialValues(todo, currentUserId, fixedLink) {
     audienceId: todo.audienceType === 'department' ? todo.audienceId || '' : '',
     audienceIds: todo.audienceType === 'people' ? todo.audienceIds || [] : todo.audienceType === 'person' && !isSelf ? [todo.audienceId] : [],
   }
-  return fixedLink ? { ...values, ...fixedLink.values, [fixedLink.field]: fixedLink.id } : values
+  const mergedValues = { ...values, ...(providedInitialValues || {}) }
+  return fixedLink ? { ...mergedValues, ...fixedLink.values, [fixedLink.field]: fixedLink.id } : mergedValues
 }
 
-export default function TodoForm({ canViewTransportOrders = false, currentUserId, fixedLink = null, initialTodo, onCancel, onSubmit, partners = [], users }) {
-  const [form, setForm] = useState(() => initialValues(initialTodo, currentUserId, fixedLink))
+export default function TodoForm({ canViewTransportOrders = false, currentUserId, fixedLink = null, initialTodo, initialValues: providedInitialValues = null, onCancel, onSubmit, partners = [], users }) {
+  const [form, setForm] = useState(() => initialFormValues(initialTodo, currentUserId, fixedLink, providedInitialValues))
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const departments = useMemo(() => [...new Set(users.map((user) => user.department?.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'de')), [users])

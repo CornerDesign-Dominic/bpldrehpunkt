@@ -22,6 +22,7 @@ import TransportOrderRoutePanel from '../components/transport-orders/TransportOr
 import TransportOrderRouteCountrySelectionModal from '../components/transport-orders/TransportOrderRouteCountrySelectionModal.jsx'
 import TransportOrderLinkedCasesCard from '../components/case-links/TransportOrderLinkedCasesCard.jsx'
 import TransportOrderPalletMovementsCard from '../components/transport-orders/TransportOrderPalletMovementsCard.jsx'
+import TransportOrderTodosCard from '../components/transport-orders/TransportOrderTodosCard.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
 
@@ -121,7 +122,7 @@ export default function TransportOrderDetailPage() {
   const [ratingsModalOpen, setRatingsModalOpen] = useState(false)
   const { setTitle } = usePageHeader()
   const { canEdit, canView } = usePermissions()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   useEffect(() => { getTransportOrder(transportOrderId).then((entry) => { setOrder(entry); if (!entry) setError('Transportauftrag nicht gefunden.') }).catch(() => setError('Der Transportauftrag konnte nicht geladen werden.')).finally(() => setLoading(false)) }, [transportOrderId])
   async function refreshTracking() {
     setTrackingLoading(true)
@@ -286,6 +287,7 @@ export default function TransportOrderDetailPage() {
         <TransportOrderRoutePanel route={route} canEdit={canEdit('transportOrders')} calculating={routeCalculating} error={routeError} needsRecalculation={order?.routeNeedsRecalculation === true} onCalculate={() => void calculateRoute()} />
         <TransportOrderLinkedCasesCard transportOrderId={transportOrderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />
         {canView('pallets') && <TransportOrderPalletMovementsCard transportOrder={order} canEdit={canEdit('pallets')} />}
+        {(canView('todos') || canEdit('todos')) && <TransportOrderTodosCard canCreate={canEdit('todos')} canView={canView('todos')} canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}
         <section className="transport-order-detail-section"><h3>Sendungsverfolgung</h3><div className="transport-order-detail-actions__buttons"><button type="button" className={tracking?.automationPaused === true ? 'button' : 'button button--secondary'} disabled={!tracking || tracking?.lifecycleStatus === 'completed' || trackingSaving || !canEdit('transportOrders')} title={!tracking ? 'Die Sendungsverfolgung wurde noch nicht gestartet.' : tracking?.lifecycleStatus === 'completed' ? 'Die Sendungsverfolgung ist bereits abgeschlossen.' : undefined} onClick={() => void toggleTrackingAutomation()}>{tracking?.automationPaused === true ? 'Fortführen' : 'Pausieren'}</button><button type="button" className="button button--secondary" disabled={!tracking || tracking?.lifecycleStatus === 'completed' || trackingSaving || !canEdit('transportOrders')} onClick={() => setTrackingCompletionConfirmationOpen(true)}>Abschließen</button></div></section>
       </aside>
       <main className="transport-order-detail-main">

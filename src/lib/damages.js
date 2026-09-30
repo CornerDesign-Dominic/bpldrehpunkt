@@ -165,13 +165,14 @@ export async function getDamageCase(damageCaseId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createDamageCase(values, actor, responsibleUsersById, { transportOrderId = '' } = {}) {
+export async function createDamageCase(values, actor, responsibleUsersById, { transportOrderId = '', transportOrderIds = [] } = {}) {
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'damageCaseCounters', year)
   const caseRef = doc(damageCasesRef)
   await runTransaction(db, async (transaction) => {
-    const [counter, transportOrder] = await Promise.all([transaction.get(counterRef), transportOrderId ? transaction.get(doc(db, 'transportOrders', transportOrderId)) : Promise.resolve(null)])
-    if (transportOrderId && !transportOrder.exists()) throw new Error('Der Transportauftrag ist nicht mehr verfügbar.')
+    const [counter, ...transportOrders] = await Promise.all([transaction.get(counterRef), ...linkedTransportOrderIds.map((transportOrderId) => transaction.get(doc(db, 'transportOrders', transportOrderId)))])
+    if (transportOrders.some((transportOrder) => !transportOrder.exists())) throw new Error('Mindestens ein Transportauftrag ist nicht mehr verfügbar.')
     const sequence = (counter.exists() ? Number(counter.data().nextNumber) || 0 : 0) + 1
     if (sequence > 9999) throw new Error(`Für ${year} können keine weiteren Fallnummern vergeben werden.`)
     const caseNumber = `S-${year}-${String(sequence).padStart(4, '0')}`
@@ -190,7 +191,7 @@ export async function createDamageCase(values, actor, responsibleUsersById, { tr
       updatedByName: getUserDisplayName(actor.profile, actor.user),
     })
     transaction.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', 'Fall angelegt', actor))
-    if (transportOrderId) setTransportOrderCaseLink(transaction, { caseType: 'damage', caseId: caseRef.id, transportOrderId, actor })
+    linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(transaction, { caseType: 'damage', caseId: caseRef.id, transportOrderId, actor }))
   })
   return caseRef.id
 }

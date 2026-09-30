@@ -8,7 +8,11 @@ import { fallbackShipmentTrackingRuleCatalog, validateShipmentTrackingRuleCatalo
 const catalogRef = doc(db, 'systemSettings', 'shipmentTrackingRuleCatalog')
 const topics = [{ key: 'licensePlate', label: 'Kennzeichen' }, { key: 'loadingSite', label: 'Ladestelle' }]
 const localKey = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-const numericValue = (value) => value === '' ? null : Number(value)
+const wholeNumber = (value) => value === '' ? 0 : Number(value)
+const offsetParts = (value) => {
+  const totalMinutes = Math.max(0, Math.round(Number(value || 0) * 60))
+  return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 }
+}
 const publicCatalog = (catalog) => ({ version: catalog.version, topics: Object.fromEntries(topics.map(({ key }) => [key, { initialRequest: { id: catalog.topics[key].initialRequest.id, offsetWorkingHours: catalog.topics[key].initialRequest.offsetWorkingHours }, reminders: catalog.topics[key].reminders.map(({ id, offsetWorkingHours }) => id ? { id, offsetWorkingHours } : { offsetWorkingHours }), internalEscalations: catalog.topics[key].internalEscalations.map(({ id, offsetWorkingHours }) => id ? { id, offsetWorkingHours } : { offsetWorkingHours }), ...(catalog.topics[key].customerRequirement ? { customerRequirement: { id: catalog.topics[key].customerRequirement.id, offsetWorkingHours: catalog.topics[key].customerRequirement.offsetWorkingHours } } : {}) }])), retiredRuleIds: catalog.retiredRuleIds || [] })
 const editorCatalog = (catalog) => {
   const defaults = fallbackShipmentTrackingRuleCatalog()
@@ -28,16 +32,17 @@ const validationCatalog = (catalog) => {
   }
 }
 
-function OffsetInput({ value, label, onChange, displayLoadingStart }) {
-  if (displayLoadingStart && value === 0) return <span className="shipment-tracking-rule-catalog__loading-start" aria-label={`${label}: Zum Beladebeginn`}>Zum Beladebeginn</span>
-  return <label className="shipment-tracking-rule-catalog__offset"><input type="number" min="0" step="1" value={value ?? ''} aria-label={label} onChange={(event) => onChange(numericValue(event.target.value))} /><span>Std. vorher</span></label>
+function OffsetInput({ value, label, onChange }) {
+  const { hours, minutes } = offsetParts(value)
+  const update = (nextHours, nextMinutes) => onChange(Math.max(0, nextHours) + Math.max(0, nextMinutes) / 60)
+  return <label className="shipment-tracking-rule-catalog__offset"><input type="number" min="0" step="1" value={hours} aria-label={`${label}: Stunden`} onChange={(event) => { const next = wholeNumber(event.target.value); if (Number.isInteger(next) && next >= 0) update(next, minutes) }} /><span>Std.</span><input type="number" min="0" max="59" step="1" value={minutes} aria-label={`${label}: Minuten`} onChange={(event) => { const next = wholeNumber(event.target.value); if (Number.isInteger(next) && next >= 0 && next < 60) update(hours, next) }} /><span>Min. vorher</span></label>
 }
 
-function RuleRow({ step, label, rule, onChange, onRemove, displayLoadingStart = false }) {
+function RuleRow({ step, label, rule, onChange, onRemove }) {
   return <div className="shipment-tracking-rule-catalog__row">
     <span className="shipment-tracking-rule-catalog__step" aria-hidden="true">{step}</span>
     <span className="shipment-tracking-rule-catalog__label">{label}</span>
-    <OffsetInput label={`${label}, Stufe ${step}`} value={rule.offsetWorkingHours} onChange={onChange} displayLoadingStart={displayLoadingStart} />
+    <OffsetInput label={`${label}, Stufe ${step}`} value={rule.offsetWorkingHours} onChange={onChange} />
     {onRemove && <button className="shipment-tracking-rule-catalog__remove" type="button" onClick={onRemove} title={`${label} entfernen`} aria-label={`${label} entfernen`}><TrashIcon size={15} /></button>}
   </div>
 }
@@ -60,12 +65,12 @@ function TopicEditor({ topic, value, onChange }) {
     </div>
     <div className="shipment-tracking-rule-catalog__group shipment-tracking-rule-catalog__group--internal">
       <h4>Intern</h4>
-      {value.internalEscalations.map((rule, index) => <RuleRow key={rule.id || rule.clientKey} step={internalStart + index} label="BPL intern informieren" rule={rule} displayLoadingStart onChange={(offsetWorkingHours) => update('internalEscalations', index, offsetWorkingHours)} onRemove={value.internalEscalations.length > 1 ? () => remove('internalEscalations', index) : null} />)}
+      {value.internalEscalations.map((rule, index) => <RuleRow key={rule.id || rule.clientKey} step={internalStart + index} label="BPL intern informieren" rule={rule} onChange={(offsetWorkingHours) => update('internalEscalations', index, offsetWorkingHours)} onRemove={value.internalEscalations.length > 1 ? () => remove('internalEscalations', index) : null} />)}
       <button className="button button--secondary shipment-tracking-rule-catalog__add" type="button" disabled={value.internalEscalations.length >= 5} onClick={() => add('internalEscalations', escalationSuggestion)}>+ Eskalation</button>
     </div>
     <div className="shipment-tracking-rule-catalog__group shipment-tracking-rule-catalog__group--customer-requirement">
       <h4>Kundenanforderung</h4>
-      <RuleRow step="K" label="Kunde wichtig: BPL intern informieren" rule={value.customerRequirement} displayLoadingStart onChange={(offsetWorkingHours) => onChange({ ...value, customerRequirement: { ...value.customerRequirement, offsetWorkingHours } })} />
+      <RuleRow step="K" label="Kunde wichtig: BPL intern informieren" rule={value.customerRequirement} onChange={(offsetWorkingHours) => onChange({ ...value, customerRequirement: { ...value.customerRequirement, offsetWorkingHours } })} />
     </div>
   </section>
 }

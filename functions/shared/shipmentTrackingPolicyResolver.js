@@ -1,4 +1,4 @@
-import { fallbackShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_TOPICS } from './shipmentTrackingRuleCatalog.js'
+import { fallbackShipmentTrackingRuleCatalog, shipmentTrackingWorkingMinutes, SHIPMENT_TRACKING_TOPICS } from './shipmentTrackingRuleCatalog.js'
 import { normalizeShipmentTrackingPolicy } from './shipmentTrackingPolicy.js'
 import { businessPartnerRoles } from './businessPartnerRoles.js'
 
@@ -19,7 +19,7 @@ function activeTopicRules(catalog, topic) {
     ...(current?.customerRequirement ? [{ ...current.customerRequirement, group: 'customerRequirement' }] : []),
   ]
   const seen = new Set()
-  return candidates.filter((rule) => typeof rule?.id === 'string' && rule.id && Number.isInteger(rule.offsetWorkingHours) && rule.offsetWorkingHours >= 0 && !retired.has(rule.id) && !seen.has(rule.id) && (seen.add(rule.id) || true))
+  return candidates.filter((rule) => typeof rule?.id === 'string' && rule.id && shipmentTrackingWorkingMinutes(rule.offsetWorkingHours) !== null && !retired.has(rule.id) && !seen.has(rule.id) && (seen.add(rule.id) || true))
 }
 
 function topicResolution(topic, customerPolicy, carrierPolicy, catalog, activeCarrierRuleIds) {

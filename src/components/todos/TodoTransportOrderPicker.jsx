@@ -7,7 +7,7 @@ function orderContext(order) {
   return [order?.imported?.customer?.name, order?.imported?.carrier?.originalName].filter(Boolean).join(' · ')
 }
 
-export default function TodoTransportOrderPicker({ canViewTransportOrders = false, disabled = false, onRemove, onSelect, transportOrderLinks = [] }) {
+export default function TodoTransportOrderPicker({ autoFocus = false, canViewTransportOrders = false, disabled = false, onRemove, onSelect, transportOrderLinks = [] }) {
   const [search, setSearch] = useState('')
   const [matches, setMatches] = useState([])
   const [loading, setLoading] = useState(false)
@@ -63,7 +63,7 @@ export default function TodoTransportOrderPicker({ canViewTransportOrders = fals
   }
 
   return <div className="todo-transport-order-picker">
-    <label className="form-field"><span>TA-Nummer</span><input ref={inputRef} type="search" value={search} disabled={disabled} onChange={(event) => setSearch(event.target.value)} placeholder="TA-Nummer eingeben" autoComplete="off" aria-autocomplete="list" aria-controls="todo-transport-order-results" aria-expanded={Boolean(search.trim())} /></label>
+    <label className="form-field"><span>TA-Nummer</span><input ref={inputRef} type="search" value={search} disabled={disabled} onChange={(event) => setSearch(event.target.value)} placeholder="TA-Nummer eingeben" autoFocus={autoFocus} autoComplete="off" aria-autocomplete="list" aria-controls="todo-transport-order-results" aria-expanded={Boolean(search.trim())} /></label>
     {transportOrderLinks.length > 0 && <div className="todo-transport-order-picker__selected"><span>Verknüpft: {transportOrderLinks.map((link, index) => <span className="todo-transport-order-picker__tag" key={link.id}><strong>TA {link.number || link.id}</strong><button type="button" disabled={disabled} onClick={() => onRemove(link.id)} aria-label={`TA ${link.number || link.id} entfernen`} title="Verknüpfung entfernen">×</button>{index < transportOrderLinks.length - 1 && ', '}</span>)}</span></div>}
     {search.trim() && resultPosition && createPortal(<div id="todo-transport-order-results" className="todo-transport-order-picker__results" style={resultPosition} role="listbox" aria-label="Passende Transportaufträge">{loading && <p>Passende Transportaufträge werden gesucht …</p>}{!loading && error && <p className="form-error">{error}</p>}{!loading && !error && matches.filter((order) => !selectedIds.has(order.id)).map((order) => <button key={order.id} type="button" role="option" onClick={() => select(order)}><strong>TA {orderNumber(order)}</strong>{orderContext(order) && <span>{orderContext(order)}</span>}</button>)}{!loading && !error && !matches.some((order) => !selectedIds.has(order.id)) && <p>Keine weiteren passenden Transportaufträge gefunden.</p>}</div>, document.body)}
   </div>

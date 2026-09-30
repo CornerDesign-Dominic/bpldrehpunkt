@@ -128,8 +128,9 @@ export async function getInkassoCase(caseId) {
   return snapshot.exists() ? mapSnapshot(snapshot) : null
 }
 
-export async function createInkassoCase(values, { transportOrderId = '' } = {}) {
+export async function createInkassoCase(values, { transportOrderId = '', transportOrderIds = [] } = {}) {
   const invoices = normalizeInkassoInvoices(values.invoices)
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
 
   const result = await httpsCallable(functions, 'createInkassoCase')({
     description: optionalText(values.description),
@@ -138,7 +139,7 @@ export async function createInkassoCase(values, { transportOrderId = '' } = {}) 
     debtorPartnerId: optionalText(values.debtorPartnerId),
     debtorPartnerRole: optionalText(values.debtorPartnerRole),
     invoices,
-    transportOrderId: optionalText(transportOrderId),
+    transportOrderIds: linkedTransportOrderIds,
   })
   return result.data.caseId
 }

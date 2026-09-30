@@ -24,13 +24,26 @@ export function fallbackShipmentTrackingRuleCatalog() {
 }
 
 const ruleId = (value) => typeof value === 'string' && /^[a-z][a-zA-Z0-9._-]{2,160}$/.test(value)
-const integerHours = (value) => Number.isInteger(value) && value >= 0
+export function shipmentTrackingWorkingMinutes(value) {
+  const hours = Number(value)
+  const minutes = Math.round(hours * 60)
+  return Number.isFinite(hours) && hours >= 0 && Math.abs(hours * 60 - minutes) < 0.000001 ? minutes : null
+}
+
+export function formatShipmentTrackingWorkingDuration(value) {
+  const totalMinutes = shipmentTrackingWorkingMinutes(value)
+  if (totalMinutes === null) return '—'
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return `${hours ? `${hours} Std.` : ''}${hours && minutes ? ' ' : ''}${minutes ? `${minutes} Min.` : ''}` || '0 Min.'
+}
 const topicLabel = (topic) => topic === 'licensePlate' ? 'Kennzeichen' : 'Ladestelle'
 
 function assertRule(rule, { allowZero, label, requireId = true }) {
   if (!rule || typeof rule !== 'object') throw new Error(`${label} fehlt.`)
   if (requireId && !ruleId(rule.id)) throw new Error(`${label} hat keine gültige Regel-ID.`)
-  if (!integerHours(rule.offsetWorkingHours) || (!allowZero && rule.offsetWorkingHours === 0)) throw new Error(`${label} benötigt eine ${allowZero ? 'nicht negative' : 'positive'} ganze Zahl von Arbeitsstunden.`)
+  const minutes = shipmentTrackingWorkingMinutes(rule.offsetWorkingHours)
+  if (minutes === null || (!allowZero && minutes === 0)) throw new Error(`${label} benötigt eine ${allowZero ? 'nicht negative' : 'positive'} Zeitangabe in Stunden und Minuten.`)
 }
 
 function assertOrdered(topic, rules) {

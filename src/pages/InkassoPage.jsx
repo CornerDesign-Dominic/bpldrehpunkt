@@ -64,7 +64,7 @@ export default function InkassoPage() {
   useEffect(() => { if (pendingCaseCreation) navigate(location.pathname, { replace: true, state: null }) }, [location.pathname, navigate, pendingCaseCreation])
 
   async function save(values) {
-    const id = await createInkassoCase(values, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId })
+    const id = await createInkassoCase(values, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
     navigate(`/inkasso/${id}`)
   }
@@ -85,6 +85,6 @@ export default function InkassoPage() {
       </section>
     </div>
     }
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Inkassofall hinzufügen"><InkassoCaseForm initialValues={caseCreationDefaults('inkasso', pendingCaseCreation?.prefill)} partners={partners.filter((partner) => !partner.mergedIntoPartnerId)} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Inkassofall hinzufügen"><InkassoCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('inkasso', pendingCaseCreation?.prefill)} partners={partners.filter((partner) => !partner.mergedIntoPartnerId)} onCancel={() => setShowForm(false)} onSubmit={save} /></section></div>}
   </div>
 }

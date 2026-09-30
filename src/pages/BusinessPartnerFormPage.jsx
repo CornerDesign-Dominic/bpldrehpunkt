@@ -7,7 +7,7 @@ import Toast from '../components/ui/Toast.jsx'
 import BackLink from '../components/ui/BackLink.jsx'
 import { createBusinessPartner, createEmptyBusinessPartner, getBusinessPartner, updateBusinessPartner } from '../lib/businessPartners.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
-import { listCurrentCrmRatings } from '../lib/crmRatings.js'
+import { listCrmTransportRatingSummaries } from '../lib/transportOrderRatings.js'
 import { getHistoryActor } from '../lib/partnerHistory.js'
 import { loadPalletAccount } from '../lib/palletAccounts.js'
 import { useAuth } from '../auth/useAuth.js'
@@ -90,11 +90,11 @@ export default function BusinessPartnerFormPage({ mode }) {
   }, [canView])
 
   useEffect(() => {
-    if (mode !== 'existing') return
-    listCurrentCrmRatings([partnerId])
+    if (mode !== 'existing' || !canView('crm')) return
+    listCrmTransportRatingSummaries()
       .then((ratings) => setCrmRatings(ratings[partnerId] ?? {}))
       .catch(() => setCrmRatings({}))
-  }, [mode, partnerId])
+  }, [canView, mode, partnerId])
 
   async function handleSubmit(values) {
     setSubmitting(true)

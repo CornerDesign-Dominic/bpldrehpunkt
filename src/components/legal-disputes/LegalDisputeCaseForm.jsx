@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react'
 import { createEmptyLegalDispute } from '../../lib/legalDisputes.js'
 import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 import { businessPartnerRoleSelectionValue, parseBusinessPartnerRoleSelection } from '../../lib/caseTransportLinks.js'
+import TodoTransportOrderPicker from '../todos/TodoTransportOrderPicker.jsx'
 
-export default function LegalDisputeCaseForm({ initialValues, onCancel, onSubmit, partners = [] }) {
+export default function LegalDisputeCaseForm({ canViewTransportOrders = false, initialValues, onCancel, onSubmit, partners = [] }) {
   const [form, setForm] = useState(() => ({ ...createEmptyLegalDispute(), ...(initialValues || {}) }))
+  const [transportOrderLinks, setTransportOrderLinks] = useState(() => initialValues?.transportOrderLinks || [])
   const [counterpartySelection, setCounterpartySelection] = useState(() => initialValues?.counterpartySelection || '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -18,22 +20,29 @@ export default function LegalDisputeCaseForm({ initialValues, onCancel, onSubmit
     setCounterpartySelection(value)
     update('counterparty', partner?.companyName || '')
   }
+  function selectTransportOrder(order) {
+    setTransportOrderLinks((current) => current.some((link) => link.id === order.id) ? current : [...current, order])
+    setForm((current) => ({ ...current, transportReference: current.transportReference || order.number }))
+  }
+  function removeTransportOrder(transportOrderId) {
+    setTransportOrderLinks((current) => current.filter((link) => link.id !== transportOrderId))
+  }
 
   async function submit(event) {
     event.preventDefault()
-    if (!form.transportReference.trim()) {
-      setError('Bitte die Transportauftragsnummer eingeben.')
+    if (!transportOrderLinks.length) {
+      setError('Bitte mindestens einen Transportauftrag verknüpfen.')
       return
     }
     setSubmitting(true)
     setError('')
-    try { await onSubmit(form) } catch (submitError) { setError(submitError.message || 'Der Fall konnte nicht angelegt werden.') } finally { setSubmitting(false) }
+    try { await onSubmit({ ...form, transportReference: transportOrderLinks.map((link) => link.number || link.id).join(', '), transportOrderLinks }) } catch (submitError) { setError(submitError.message || 'Der Fall konnte nicht angelegt werden.') } finally { setSubmitting(false) }
   }
 
   return <form className="damage-form legal-dispute-case-form" onSubmit={submit} noValidate>
     <div className="damage-form__heading"><h2>Neuen Fall anlegen</h2></div>
     <section className="damage-form__section"><h3>Grunddaten</h3><div className="damage-form__grid damage-form__grid--context">
-      <label className="form-field"><span>Transportauftragsnummer *</span><input autoFocus required value={form.transportReference} maxLength="240" onChange={(event) => update('transportReference', event.target.value)} /></label>
+      <TodoTransportOrderPicker autoFocus canViewTransportOrders={canViewTransportOrders} disabled={submitting} transportOrderLinks={transportOrderLinks} onRemove={removeTransportOrder} onSelect={selectTransportOrder} />
       <label className="form-field"><span>Art</span><input value={form.caseType} maxLength="120" onChange={(event) => update('caseType', event.target.value)} placeholder="z. B. Klage, Mahnverfahren" /></label>
       <label className="form-field"><span>Gegenseite</span><select value={counterpartySelection} onChange={(event) => selectCounterparty(event.target.value)}><option value="">Keine Gegenseite ausgewählt</option>{counterpartySelection && !partners.some((partner) => businessPartnerRoleSelectionValue('customer', partner.id) === counterpartySelection || businessPartnerRoleSelectionValue('carrier', partner.id) === counterpartySelection) && <option value={counterpartySelection}>{form.counterparty || 'Vorgefüllte Gegenseite'}</option>}{customers.length > 0 && <optgroup label="Kunden">{customers.map((partner) => <option key={`customer-${partner.id}`} value={businessPartnerRoleSelectionValue('customer', partner.id)}>{partner.companyName}</option>)}</optgroup>}{carriers.length > 0 && <optgroup label="Unternehmer">{carriers.map((partner) => <option key={`carrier-${partner.id}`} value={businessPartnerRoleSelectionValue('carrier', partner.id)}>{partner.companyName}</option>)}</optgroup>}</select></label>
     </div></section>
