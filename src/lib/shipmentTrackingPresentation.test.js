@@ -90,6 +90,20 @@ test('timeline marks only values currently supplied by status mail AI', () => {
   assert.equal(shipmentTrackingStationSummary(stations.find((station) => station.id === 'loading'), tracking).rows[0].ai, undefined)
 })
 
+test('loading summary shows actual arrival and its prior ETA together', () => {
+  const tracking = {
+    estimatedArrivalLoadingAt: new Date('2026-09-30T10:00:00Z'),
+    actualArrivalLoadingAt: new Date('2026-09-30T12:00:00Z'),
+    fieldSources: { estimatedArrivalLoadingAt: { source: 'ai_mail' }, actualArrivalLoadingAt: { source: 'ai_mail' } },
+  }
+  const loading = shipmentTrackingStations({ tracking, imported }).find((station) => station.id === 'loading')
+  const rows = shipmentTrackingStationSummary(loading, tracking).rows
+  assert.deepEqual(rows.map(({ label, ai }) => ({ label, ai })), [
+    { label: 'Ankunft', ai: true },
+    { label: 'Voraussichtliche Ankunft', ai: true },
+  ])
+})
+
 test('missing data never invents a time or a positive status', () => {
   const stations = shipmentTrackingStations({ imported: {} })
   const loading = stations.find((station) => station.id === 'loading')

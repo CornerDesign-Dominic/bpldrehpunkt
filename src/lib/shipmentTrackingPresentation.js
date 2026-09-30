@@ -407,13 +407,13 @@ export function shipmentTrackingStationSummary(station, tracking) {
     rows = plate ? [summaryRow('', plate)] : [summaryRow('', 'Kennzeichen offen', 'missing', 'licensePlate', station.assessments?.licensePlate)]
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
-    rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
+    rows = [...actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
   } else if (station.id === 'in_transit') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Noch nicht unterwegs', 'missing')]
   } else if (station.id === 'unloading') {
-    rows = actual.length ? actual.map((row) => summaryRow(row.label, row.value)) : forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))
+    rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing')]
   }
   return { rows: markAiSources(rows.slice(0, 3), station.id, tracking), actionLabel: stageActionLabel(station.id, tracking) }

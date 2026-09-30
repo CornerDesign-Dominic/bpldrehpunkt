@@ -120,6 +120,12 @@ export function planStatusMailAiChanges(tracking, updates, receivedAt) {
   return { changes, applied }
 }
 
+export function statusMailTrackingEventTime(applied, changes, receivedAt) {
+  return applied.filter((item) => actualFields.has(item.field) && timeFields.has(item.field))
+    .map((item) => changes[item.field])
+    .sort((left, right) => right.toMillis() - left.toMillis())[0] || receivedAt
+}
+
 function prompt({ mail, order, tracking }) {
   const imported = order.imported || {}
   return [
@@ -218,7 +224,8 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     transaction.create(trackingRef.collection('events').doc(`ai-${mailId}`), {
       eventType: 'tracking_updated', changedFields: Object.keys(changes),
       oldValue: Object.fromEntries(Object.keys(changes).map((field) => [field, base[field] ?? null])), newValue: changes,
-      eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',
+      eventTime: statusMailTrackingEventTime(applied, changes, freshMail.data().receivedAt),
+      recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',
     })
     return status
   })

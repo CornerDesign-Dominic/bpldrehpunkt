@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Timestamp } from 'firebase-admin/firestore'
-import { planStatusMailAiChanges, processStatusMailAi, validateStatusMailAiResult } from './statusMailAi.js'
+import { planStatusMailAiChanges, processStatusMailAi, statusMailTrackingEventTime, validateStatusMailAiResult } from './statusMailAi.js'
 
 const receivedAt = Timestamp.fromDate(new Date('2026-10-01T10:00:00Z'))
 const mail = {
@@ -44,6 +44,17 @@ test('accepts whole-hour ETA and actual arrival on the uniquely planned loading 
     { field: 'estimatedArrivalLoadingAt', value: '2026-09-30T10:00:00.000Z' },
     { field: 'actualArrivalLoadingAt', value: '2026-09-30T12:00:00.000Z' },
   ])
+})
+
+test('history uses actual arrival time instead of mail receipt time', () => {
+  const changes = {
+    estimatedArrivalLoadingAt: Timestamp.fromDate(new Date('2026-09-30T10:00:00Z')),
+    actualArrivalLoadingAt: Timestamp.fromDate(new Date('2026-09-30T12:00:00Z')),
+  }
+  assert.equal(statusMailTrackingEventTime([
+    { field: 'estimatedArrivalLoadingAt' }, { field: 'actualArrivalLoadingAt' },
+  ], changes, receivedAt).toDate().toISOString(), '2026-09-30T12:00:00.000Z')
+  assert.equal(statusMailTrackingEventTime([{ field: 'estimatedArrivalLoadingAt' }], changes, receivedAt), receivedAt)
 })
 
 test('manual values take priority and newer AI mail can replace older AI ETA', () => {
