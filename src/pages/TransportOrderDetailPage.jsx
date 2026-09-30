@@ -23,6 +23,7 @@ import TransportOrderRouteCountrySelectionModal from '../components/transport-or
 import TransportOrderLinkedCasesCard from '../components/case-links/TransportOrderLinkedCasesCard.jsx'
 import TransportOrderPalletMovementsCard from '../components/transport-orders/TransportOrderPalletMovementsCard.jsx'
 import TransportOrderTodosCard from '../components/transport-orders/TransportOrderTodosCard.jsx'
+import TransportOrderReceivedMails from '../components/transport-orders/TransportOrderReceivedMails.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
 
@@ -303,6 +304,7 @@ export default function TransportOrderDetailPage() {
         <ShipmentTrackingHistory events={trackingEvents} loading={trackingLoading} error={trackingError} />
       </main>
       <aside className="transport-order-detail-system" aria-label="System und Kontext">
+        <TransportOrderReceivedMails key={transportOrderId} transportOrderId={transportOrderId} />
         <section className="transport-order-detail-section transport-order-detail-section--contacts"><h3>Kontakte</h3><div className="transport-order-detail-contact-group"><h4>Kunde</h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.customerStandardEmail} /><CopyDetail label="Info-1" value={imported.contacts?.customerForOrder} /></dl></div><div className="transport-order-detail-contact-group"><h4>Unternehmer</h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.carrierStandardEmail} /><CopyDetail label="Im Auftrag" value={imported.contacts?.carrierForOrder} /></dl></div></section>
         <details className="transport-order-detail-section transport-order-detail-section--import-info"><summary>Importinfos</summary><dl className="transport-order-detail-list transport-order-detail-list--single"><Detail label="Importiert am">{formatTimestamp(order.importMeta?.importedAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(order.updatedAt || order.importMeta?.lastImportedAt)}</Detail><Detail label="Importdatei">{order.importMeta?.fileName}</Detail><Detail label="Importlauf">{order.importMeta?.importRunId}</Detail></dl></details>
       </aside>

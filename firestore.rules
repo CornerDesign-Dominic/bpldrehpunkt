@@ -267,6 +267,7 @@ service cloud.firestore {
       allow read: if view('transportOrders');
       allow write: if false;
       match /history/{entryId} { allow read: if view('transportOrders'); allow write: if false; }
+      match /receivedMails/{mailId} { allow read: if view('transportOrders'); allow write: if false; }
     }
 
     // Own TA ratings are validated and written by the callable functions.

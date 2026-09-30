@@ -3,7 +3,7 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { logger } from 'firebase-functions'
-import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { requireActiveProfile, requireRole } from './access.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
@@ -24,8 +24,10 @@ import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarri
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
+import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } from './statusMailIngest.js'
 
 if (!getApps().length) initializeApp()
+export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
 export const updateCompanyMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateCompanyMasterDataHandler)
 export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, getCompanyStampHandler)
 export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)

@@ -1878,6 +1878,13 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-detail-main { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .transport-order-detail-actions, .transport-order-detail-system { display: grid; align-content: start; gap: 12px; min-width: 0; }
 .transport-order-detail-actions { grid-column: 1; }.transport-order-detail-main { grid-column: 3; }.transport-order-detail-system { grid-column: 5; }
+.transport-order-received-mails__list { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+.transport-order-received-mails__list button { display: grid; width: 100%; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); text-align: left; cursor: pointer; }
+.transport-order-received-mails__list button:hover { border-color: var(--button-background); }
+.transport-order-received-mails__list span { overflow-wrap: anywhere; font-size: 12px; font-weight: 650; }
+.transport-order-received-mails__list small { overflow-wrap: anywhere; color: var(--text-secondary); font-size: 10px; }
+.transport-order-received-mail-modal { width: min(100%, 760px); }
+.transport-order-received-mail-modal__body { max-height: 55vh; overflow: auto; margin: 16px 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media (min-width: 1241px) {
   .transport-order-detail-actions, .transport-order-detail-system {
