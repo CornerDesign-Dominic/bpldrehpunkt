@@ -4,10 +4,10 @@ Release-Notizen werden mit dem jeweiligen Release-Commit gepflegt. Das frühere
 Nutzer-Updates-Modul ist entfernt und wird durch diese technische Historie nicht
 ersetzt oder wieder eingeführt.
 
-## 2.0.0 – Vernetzte Auftragsbearbeitung & Sendungsverfolgung (Release Candidate)
+## 2.0.0 – Vernetzte Auftragsbearbeitung & Sendungsverfolgung
 
-Veröffentlichungsdatum: noch offen. Release-ID und Git-Commit werden erst nach
-der Freigabe und dem Merge nach `main` ergänzt.
+Veröffentlicht am **30.09.2026**. Release-ID: `v2.0.0`.
+Git-Merge-Commit: `a18543a6324d8de834734297376cb84e9946f76e`.
 
 ### Neu
 
@@ -33,11 +33,12 @@ der Freigabe und dem Merge nach `main` ergänzt.
 - Rechteprüfung, Datenintegrität, Import- und Automatisierungstests wurden
   erweitert.
 
-### Technischer Hinweis zur Freigabe
+### Freigabe
 
-Dieser Abschnitt beschreibt den freizugebenden Umfang auf `release/2.0.0`,
-nicht einen bereits veröffentlichten Produktionsstand. Vor einer Freigabe sind
-Veröffentlichungsdatum, Release-ID und finaler Merge-Commit nachzutragen.
+Der Release-Branch wurde über PR #2 nach `main` übernommen. Firestore-Indizes,
+Firestore- und Storage-Regeln sowie Functions wurden zuvor im produktiven
+Firebase-Projekt bereitgestellt. Die Rollenprüfung mit Standard-, Admin- und
+Super-Admin-Konten erfolgt anschließend durch die Nutzer im Livebetrieb.
 
 ## 1.0.0 – Erstveröffentlichung von Drehpunkt
 

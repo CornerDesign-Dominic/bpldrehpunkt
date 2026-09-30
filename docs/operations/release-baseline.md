@@ -107,13 +107,13 @@ und Storage bleibt in diesem Schritt unverändert und wird nicht aktiviert.
 Eine spätere Aktivierung erfolgt ausschließlich nach der in
 `APP_CHECK_ROLLOUT.md` beschriebenen Metrik- und Ablaufprüfung.
 
-## Release 2.0.0 – geplanter Produktionsablauf
+## Release 2.0.0 – Produktionsablauf und Status
 
-Dieser Ablauf ist erst nach einer ausdrücklichen Freigabe auszuführen. Die
-Produktionsdatenbank wird für Release 2.0.0 nicht migriert oder gesichert, weil
-sie laut Freigabe keine zu erhaltenden Daten enthält. Firebase-Projekte,
-Nutzer, Secrets und andere Ressourcen werden dabei weder gelöscht noch
-übernommen.
+Der folgende Ablauf wurde nach ausdrücklicher Freigabe am 30.09.2026
+ausgeführt. Die Produktionsdatenbank wurde für Release 2.0.0 nicht migriert
+oder gesichert, weil sie laut Freigabe keine zu erhaltenden Aufträge enthielt.
+Firebase-Projekte, Nutzer, Secrets und andere Ressourcen wurden weder gelöscht
+noch übernommen.
 
 1. Den Release-Branch prüfen und freigeben. Ein Push eines nicht-
    `main`-Branches oder das Öffnen eines Pull Requests kann über die bestehende
@@ -148,11 +148,18 @@ Nutzer, Secrets und andere Ressourcen werden dabei weder gelöscht noch
    To-do-Fristen und die Aktionsübersicht prüfen. Externe E-Mails nur über den
    vorgesehenen fachlichen Betrieb auslösen, nicht als technisches Smoke-Test.
 
-## Grenzen dieses Schritts
+**Ausführungsstand:** Alle benötigten Produktions-Secrets hatten aktive
+Versionen. Die Firestore-Indizes erreichten `READY`; Firestore- und
+Storage-Regeln sowie 110 aktive Functions wurden bereitgestellt. PR #2 wurde
+mit Merge-Commit `a18543a6324d8de834734297376cb84e9946f76e` gemergt.
+Der Vercel-Production-Build war erfolgreich und die Produktionsseite lieferte
+HTTP 200. Die Anmeldung und Rollenprüfung aus Schritt 7 stehen für die
+fachlichen Tests mit Standard-, Admin- und Super-Admin-Konten noch aus.
 
-Der Release-Kandidat enthält versionierte Änderungen an Frontend, Functions,
-Firestore- und Storage-Regeln, Indizes sowie Release-Dokumentation und wird
-als Git-Commit auf einem eigenen Release-Branch geführt. Er ändert keine Werte
-von Secrets oder Client-Umgebungsvariablen und führt keinen Firebase- oder
-Vercel-Production-Deploy aus. Ein Preview-Deployment darf ausschließlich die
-Dev-/Preview-Konfiguration verwenden.
+## Grenzen des Release-Branches
+
+Der Release-Branch enthielt versionierte Änderungen an Frontend, Functions,
+Firestore- und Storage-Regeln, Indizes sowie Release-Dokumentation. Er änderte
+keine Werte von Secrets oder Client-Umgebungsvariablen. Das Preview-Deployment
+verwendete die Dev-/Preview-Konfiguration; das Production-Deployment verwendet
+die Produktions-Konfiguration.
