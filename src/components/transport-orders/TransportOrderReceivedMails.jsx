@@ -10,7 +10,7 @@ function receivedLabel(value) {
   return date ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(date) : '—'
 }
 
-const aiLabels = { applied: 'KI-Status übernommen', no_change: 'Keine Statusangabe erkannt', needs_review: 'Statusangabe manuell prüfen', skipped: 'KI-Auswertung übersprungen', error: 'KI-Auswertung fehlgeschlagen' }
+const aiLabels = { pending: 'KI-Auswertung läuft', applied: 'KI-Status übernommen', no_change: 'Keine Statusangabe erkannt', needs_review: 'Statusangabe manuell prüfen', skipped: 'KI-Auswertung übersprungen', error: 'KI-Auswertung fehlgeschlagen' }
 
 export default function TransportOrderReceivedMails({ transportOrderId, canEdit = false }) {
   const [mails, setMails] = useState([])

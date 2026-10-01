@@ -16,6 +16,17 @@ test('timeline model uses the neutral upcoming state until manual tracking exist
   assert.equal(model.stations.find((station) => station.id === 'loading').plan, 'Fr., 08:00–10:00')
 })
 
+test('a reported loading duration appears at the loading station with its AI source', () => {
+  const event = { eventType: 'loading_duration_reported', eventTime: new Date('2026-10-01T15:46:33Z'), recordedAt: new Date('2026-10-01T15:47:00Z'), source: 'ai_mail', newValue: { loadingDurationMinutes: 90 } }
+  const tracking = { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', stageId: 'in_transit' }
+  const station = shipmentTrackingStations({ tracking, imported, events: [event] }).find((item) => item.id === 'loading')
+  const summary = shipmentTrackingStationSummary(station, tracking)
+  assert.deepEqual(summary.rows.map((row) => ({ label: row.label, value: row.value, ai: row.ai })), [{ label: 'Beladung dauerte', value: '1 Std. 30 Min.', ai: true }])
+  assert.deepEqual(shipmentTrackingStageEvents([event], 'loading'), [event])
+  assert.deepEqual(shipmentTrackingStageEventDetails(event, 'loading'), [{ label: 'Beladedauer', value: '1 Std. 30 Min.' }])
+  assert.equal(shipmentTrackingEventDescription(event), 'Beladung dauerte 1 Std. 30 Min.')
+})
+
 test('history description remains understandable for tracked field corrections', () => {
   assert.match(shipmentTrackingEventDescription({ eventType: 'tracking_updated', changedFields: ['actualArrivalLoadingAt'], newValue: { actualArrivalLoadingAt: new Date('2026-09-25T08:07:00') } }), /Tatsächliche Ankunft Ladestelle erfasst: 08:07/)
 })

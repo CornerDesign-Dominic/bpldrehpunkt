@@ -75,6 +75,7 @@ export async function ingestStatusMailHandler(request, response, { db = getFires
       toRecipients: mail.toRecipients, ccRecipients: mail.ccRecipients,
       ...(mail.sentAt ? { sentAt: mail.sentAt } : {}),
       receivedAt: mail.receivedAt, createdAt: FieldValue.serverTimestamp(),
+      ai: { status: 'pending', queuedAt: FieldValue.serverTimestamp() },
     })
     return 'stored'
   })

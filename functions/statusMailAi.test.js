@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Timestamp } from 'firebase-admin/firestore'
-import { planStatusMailAiChanges, processStatusMailAi, statusMailPromptContext, statusMailTrackingEventTime, validateStatusMailAiResult, validateStatusMailTransitUpdates, validateStatusMailPauseUpdates } from './statusMailAi.js'
+import { explicitLoadingDuration, explicitRemainingDistance, planStatusMailAiChanges, processStatusMailAi, statusMailPromptContext, statusMailTrackingEventTime, validateStatusMailAiResult, validateStatusMailTransitUpdates, validateStatusMailPauseUpdates } from './statusMailAi.js'
 
 const receivedAt = Timestamp.fromDate(new Date('2026-10-01T10:00:00Z'))
 const mail = {
@@ -17,6 +17,38 @@ test('converts an explicit remaining drive time using the route planning speed',
   const located = { ...mail, bodyText: 'Der LKW ist bei Kassel und hat noch 45 min zur Entladestelle.' }
   assert.equal(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, location: 'Kassel', evidence: 'bei Kassel und hat noch 45 min zur Entladestelle', confidence: 'high' }] }, located, 290)[0].location, 'Kassel')
   assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, location: 'Hamburg', evidence: 'bei Kassel und hat noch 45 min zur Entladestelle', confidence: 'high' }] }, located, 290), [])
+})
+
+test('keeps a literal remaining-distance report when the model misses it', () => {
+  const first = { ...mail, bodyText: 'Hallo,\nDer LKW hat noch 850km bis zu entladestelle, beladung hat 1,5h gedauert.\n\nMit freundlichen Grüßen\n850 km' }
+  const second = { ...mail, bodyText: 'Hallo,\nDer LKW hat noch etwa 850km zur Entladestelle. Also voraussichtlich pünktlich.' }
+  assert.equal(explicitRemainingDistance(first, 1400)[0]?.kilometersToDestination, 850)
+  assert.equal(explicitRemainingDistance(second, 1400)[0]?.kilometersToDestination, 850)
+  assert.deepEqual(explicitRemainingDistance({ ...mail, bodyText: 'Hallo,\nKein Status.\n\nVon: Spedition\nDer LKW hat noch 850km zur Entladestelle.' }, 1400), [])
+  assert.deepEqual(explicitRemainingDistance(second, 400), [])
+  assert.equal(explicitLoadingDuration(first)?.durationMinutes, 90)
+  assert.equal(explicitLoadingDuration(second), null)
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'kilometers_to_unloading', value: 850, location: '', evidence: 'noch 850km bis zu entladestelle', confidence: 'high' }] }, first, 1400).map((entry) => entry.kilometersToDestination), [850])
+})
+
+test('an explicit distance and loading duration reach both tracking sections despite empty model updates', async () => {
+  const current = { ...mail, bodyText: 'Hallo,\nDer LKW hat noch 850km bis zu entladestelle, beladung hat 1,5h gedauert.' }
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: {} }],
+    ['transportOrders/order-1/receivedMails/mail-distance', current],
+    ['transportOrderRoutes/order-1', { roundedDistanceKm: 1400 }],
+  ])
+  const ref = (path) => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }) })
+  const db = { doc: ref, runTransaction: async (callback) => callback({
+    get: async (reference) => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+    create: (reference, data) => { assert.equal(documents.has(reference.path), false); documents.set(reference.path, data) },
+    update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+  }) }
+  const infer = async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [], transitUpdates: [], pauseUpdates: [] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-distance', infer }), 'applied')
+  assert.equal(documents.get('transportOrderTrackings/order-1/events/ai-position-mail-distance').newValue.transitEntry.kilometersToDestination, 850)
+  assert.equal(documents.get('transportOrderTrackings/order-1/events/ai-loading-duration-mail-distance').newValue.loadingDurationMinutes, 90)
+  assert.equal(documents.get('transportOrders/order-1/receivedMails/mail-distance').ai.reviewRequired, false)
 })
 
 test('requires a grounded pause start and duration', () => {
