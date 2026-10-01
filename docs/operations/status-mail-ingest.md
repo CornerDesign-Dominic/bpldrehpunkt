@@ -120,6 +120,14 @@ umgerechnet. Beispielsweise ergeben 45 Minuten etwa 53 km. Eindeutige Pausen
 mit Beginn und Dauer werden ebenfalls im Verlauf erfasst. Angaben mit unklarer
 Station, fehlendem Pausenbeginn, widersprüchlichem Kontext oder verworfenen Werten werden
 mit `ai.reviewRequired` gekennzeichnet und im Auftrag gelb umrandet.
+Die KI schreibt nur belegte Werte in die normalen Eingabefelder der
+Sendungsverfolgung. Reine Angaben zur Be- oder Entladedauer erzeugen keine
+erfundenen Start- oder Endzeiten und erscheinen nicht als Statusereignis.
+Übernommene Felder erhalten im Eingabedialog einen violetten Rahmen. Bei einer
+manuellen Änderung wird die KI-Herkunft für das Feld entfernt. Vorhandene
+Standortmeldungen und Pausen können im Dialog „Unterwegs“ korrigiert werden;
+die Korrektur wird als manuell protokolliert. Im Zeitstrahl zeigt nur die Farbe
+des Symbols vor einem Wert dessen KI-Herkunft an.
 Auswertung und Ergebnis stehen im `ai`-Feld der zugeordneten Mail; Tokenverbrauch
 und geschätzte Kosten werden als `status_mail_tracking` in `aiUsage` erfasst.
 Die API-Anfrage verwendet `store: false`.

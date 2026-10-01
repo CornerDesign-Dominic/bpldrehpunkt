@@ -222,6 +222,17 @@ export function normalizeTransitEntries(input) {
   })
 }
 
+export function normalizeTransitCorrections(input) {
+  if (!Array.isArray(input) || input.length > 20) throw new HttpsError('invalid-argument', 'Ungültige Korrekturen der Fahrtmeldungen.')
+  const ids = new Set()
+  return input.map((correction) => {
+    const id = correction?.id
+    if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,200}$/.test(id) || ids.has(id)) throw new HttpsError('invalid-argument', 'Ungültige Fahrtmeldung zur Korrektur.')
+    ids.add(id)
+    return { id, entry: normalizeTransitEntries([correction.entry])[0] }
+  })
+}
+
 function eventTimeFor(changes) { return timestampFields.map((field) => changes[field]).find(valueIsSet) || FieldValue.serverTimestamp() }
 function eventPayload({ eventType, changedFields = [], oldValue = {}, newValue = {}, eventTime, actorId, actor, source, note }) {
   return {
@@ -242,14 +253,16 @@ export async function updateManualShipmentTrackingHandler(request) {
   const profile = await assertTrackingEditAccess(request)
   const orderId = validOrderId(request.data?.orderId)
   const action = request.data?.action
-  if (!orderId || orderId.length > 240 || !['start', 'start_early', 'update', 'add_transit_entries', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
+  if (!orderId || orderId.length > 240 || !['start', 'start_early', 'update', 'add_transit_entries', 'save_transit_entries', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
   const source = normalizedSource(request.data?.source)
   const note = normalizedNote(request.data?.note)
   const changes = action === 'update' ? normalizedChanges(request.data?.changes) : {}
-  const transitEntries = action === 'add_transit_entries' ? normalizeTransitEntries(request.data?.transitEntries) : []
+  const transitEntries = action === 'add_transit_entries' ? normalizeTransitEntries(request.data?.transitEntries) : action === 'save_transit_entries' && request.data?.transitEntries?.length ? normalizeTransitEntries(request.data.transitEntries) : []
+  const transitCorrections = action === 'save_transit_entries' ? normalizeTransitCorrections(request.data?.transitCorrections) : []
   const recipientChanges = action === 'update_recipients' ? normalizeRecipientChanges(request.data?.recipientChanges) : {}
   const earlyStartRequested = action === 'start' && request.data?.earlyStart === true
   if (action === 'update' && !Object.keys(changes).length) throw new HttpsError('invalid-argument', 'Es wurden keine Änderungen übergeben.')
+  if (action === 'save_transit_entries' && !transitEntries.length && !transitCorrections.length) throw new HttpsError('invalid-argument', 'Es wurden keine Fahrtmeldungen übergeben.')
 
   const db = getFirestore()
   const orderRef = db.doc(`transportOrders/${orderId}`)
@@ -280,7 +293,17 @@ export async function updateManualShipmentTrackingHandler(request) {
     }
 
     if (!current) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung wurde noch nicht gestartet.')
-    if (action === 'add_transit_entries') {
+    if (action === 'add_transit_entries' || action === 'save_transit_entries') {
+      const correctionSnapshots = await Promise.all(transitCorrections.map(({ id }) => transaction.get(trackingRef.collection('events').doc(id))))
+      for (let index = 0; index < transitCorrections.length; index += 1) {
+        const { id, entry } = transitCorrections[index]
+        const snapshot = correctionSnapshots[index]
+        const previous = snapshot.exists ? snapshot.data() : null
+        if (!previous || !['transit_position_reported', 'transit_pause_reported'].includes(previous.eventType) || previous.newValue?.transitEntry?.kind !== entry.kind) throw new HttpsError('failed-precondition', 'Die Fahrtmeldung zur Korrektur wurde nicht gefunden.')
+        const correctedRef = trackingRef.collection('events').doc(id)
+        transaction.update(correctedRef, { newValue: { transitEntry: entry }, eventTime: entry.at, source: 'manual', recordedBy: request.auth.uid, recordedByName: actor, note: '', correctedAt: FieldValue.serverTimestamp(), originalAiValue: previous.originalAiValue || (previous.source === 'ai_mail' ? previous.newValue : null) })
+        transaction.create(trackingRef.collection('events').doc(), eventPayload({ eventType: 'transit_entry_corrected', changedFields: ['transitEntry'], oldValue: previous.newValue, newValue: { transitEntry: entry, correctedEventId: id }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source: 'manual', note: '' }))
+      }
       transaction.update(trackingRef, { updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
       for (const entry of transitEntries) transaction.create(trackingRef.collection('events').doc(), eventPayload({ eventType: entry.kind === 'position' ? 'transit_position_reported' : 'transit_pause_reported', changedFields: ['transitEntry'], newValue: { transitEntry: entry }, eventTime: entry.at, actorId: request.auth.uid, actor, source: 'manual', note: '' }))
       return
