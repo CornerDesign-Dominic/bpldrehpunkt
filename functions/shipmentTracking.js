@@ -206,6 +206,22 @@ function normalizedNote(value) {
   return value.trim()
 }
 
+export function normalizeTransitEntries(input) {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 20) throw new HttpsError('invalid-argument', 'Bitte 1 bis 20 Fahrtmeldungen angeben.')
+  return input.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) || !['position', 'pause'].includes(entry.kind)) throw new HttpsError('invalid-argument', 'Die Fahrtmeldung ist ungültig.')
+    const at = timestampFromInput(entry.at, 'Zeitpunkt')
+    if (!at) throw new HttpsError('invalid-argument', 'Der Zeitpunkt ist erforderlich.')
+    if (entry.kind === 'position') {
+      if (typeof entry.kilometersToDestination !== 'number' || !Number.isFinite(entry.kilometersToDestination) || entry.kilometersToDestination < 0 || entry.kilometersToDestination > 100000) throw new HttpsError('invalid-argument', 'Die Kilometer bis zur Entladestelle sind ungültig.')
+      if (entry.location !== undefined && (typeof entry.location !== 'string' || entry.location.trim().length > 160)) throw new HttpsError('invalid-argument', 'Der Ort ist ungültig.')
+      return { kind: 'position', at, kilometersToDestination: entry.kilometersToDestination, location: text(entry.location) }
+    }
+    if (!Number.isInteger(entry.durationMinutes) || entry.durationMinutes < 1 || entry.durationMinutes > 10080) throw new HttpsError('invalid-argument', 'Die Pausendauer ist ungültig.')
+    return { kind: 'pause', at, durationMinutes: entry.durationMinutes }
+  })
+}
+
 function eventTimeFor(changes) { return timestampFields.map((field) => changes[field]).find(valueIsSet) || FieldValue.serverTimestamp() }
 function eventPayload({ eventType, changedFields = [], oldValue = {}, newValue = {}, eventTime, actorId, actor, source, note }) {
   return {
@@ -226,10 +242,11 @@ export async function updateManualShipmentTrackingHandler(request) {
   const profile = await assertTrackingEditAccess(request)
   const orderId = validOrderId(request.data?.orderId)
   const action = request.data?.action
-  if (!orderId || orderId.length > 240 || !['start', 'start_early', 'update', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
+  if (!orderId || orderId.length > 240 || !['start', 'start_early', 'update', 'add_transit_entries', 'update_recipients', 'complete', 'pause_automation', 'resume_automation'].includes(action)) throw new HttpsError('invalid-argument', 'Ungültige Tracking-Aktion.')
   const source = normalizedSource(request.data?.source)
   const note = normalizedNote(request.data?.note)
   const changes = action === 'update' ? normalizedChanges(request.data?.changes) : {}
+  const transitEntries = action === 'add_transit_entries' ? normalizeTransitEntries(request.data?.transitEntries) : []
   const recipientChanges = action === 'update_recipients' ? normalizeRecipientChanges(request.data?.recipientChanges) : {}
   const earlyStartRequested = action === 'start' && request.data?.earlyStart === true
   if (action === 'update' && !Object.keys(changes).length) throw new HttpsError('invalid-argument', 'Es wurden keine Änderungen übergeben.')
@@ -263,6 +280,11 @@ export async function updateManualShipmentTrackingHandler(request) {
     }
 
     if (!current) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung wurde noch nicht gestartet.')
+    if (action === 'add_transit_entries') {
+      transaction.update(trackingRef, { updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+      for (const entry of transitEntries) transaction.create(trackingRef.collection('events').doc(), eventPayload({ eventType: entry.kind === 'position' ? 'transit_position_reported' : 'transit_pause_reported', changedFields: ['transitEntry'], newValue: { transitEntry: entry }, eventTime: entry.at, actorId: request.auth.uid, actor, source: 'manual', note: '' }))
+      return
+    }
     if (action === 'start_early') {
       if (current.lifecycleStatus === 'completed') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist bereits abgeschlossen.')
       if (current.lifecyclePhase !== 'upcoming') throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung läuft bereits.')

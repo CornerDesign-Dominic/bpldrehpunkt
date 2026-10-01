@@ -238,6 +238,23 @@ test('transit presents only the stored manual route as a plan value', () => {
   assert.equal(formatShipmentTrackingRoutePlan(null), 'Planstrecke noch nicht berechnet')
 })
 
+test('transit shows the latest manual position and pause and keeps every report in its stage history', () => {
+  const events = [
+    { id: 'older', eventType: 'transit_position_reported', eventTime: new Date('2026-10-01T08:00:00Z'), recordedAt: new Date('2026-10-01T08:01:00Z'), newValue: { transitEntry: { kind: 'position', at: new Date('2026-10-01T08:00:00Z'), location: 'A2', kilometersToDestination: 300 } } },
+    { id: 'latest', eventType: 'transit_position_reported', eventTime: new Date('2026-10-01T10:00:00Z'), recordedAt: new Date('2026-10-01T10:01:00Z'), newValue: { transitEntry: { kind: 'position', at: new Date('2026-10-01T10:00:00Z'), location: 'Hannover', kilometersToDestination: 210 } } },
+    { id: 'pause', eventType: 'transit_pause_reported', eventTime: new Date('2026-10-01T11:00:00Z'), recordedAt: new Date('2026-10-01T11:01:00Z'), newValue: { transitEntry: { kind: 'pause', at: new Date('2026-10-01T11:00:00Z'), durationMinutes: 45 } } },
+  ]
+  const station = shipmentTrackingStations({ tracking: {}, events }).find((entry) => entry.id === 'in_transit')
+  const summary = shipmentTrackingStationSummary(station, {})
+  assert.equal(station.workflowLabel, 'Fahrtmeldung vorhanden')
+  assert.match(summary.rows[0].value, /210 km bis Ziel/)
+  assert.match(summary.rows[1].value, /45 Min/)
+  assert.deepEqual(shipmentTrackingStageEvents(events, 'in_transit').map((event) => event.id), ['older', 'latest', 'pause'])
+  assert.deepEqual(shipmentTrackingStageEventDetails(events[1], 'in_transit'), [{ label: 'Standortmeldung', value: 'Hannover · 210 km bis Entladestelle' }])
+  assert.match(shipmentTrackingEventDescription(events[2]), /Pause erfasst: 45 Min/)
+  assert.equal(shipmentTrackingEventChangeType(events[2]), 'Neu')
+})
+
 test('every station editor is restricted to its own tracking fields', () => {
   assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['licensePlate', 'driverName', 'driverPhone'])
   assert.deepEqual(shipmentTrackingStageConfigurations.loading.fields, ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'])

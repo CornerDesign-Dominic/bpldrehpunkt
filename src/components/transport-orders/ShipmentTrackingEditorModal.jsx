@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from '../icons.jsx'
 import { fieldLabels, proofLabels, shipmentTrackingFormValues, shipmentTrackingStageConfigurations, timestampToDateTimeInput } from '../../lib/shipmentTrackingPresentation.js'
+import ShipmentTrackingTransitFields from './ShipmentTrackingTransitFields.jsx'
 
 const actualTimeFields = new Set(['actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'actualDepartureLoadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'])
 
@@ -24,11 +25,32 @@ export default function ShipmentTrackingEditorModal({ tracking, stageId, saving,
   const stage = shipmentTrackingStageConfigurations[stageId] || shipmentTrackingStageConfigurations.preparation
   const [initialValues] = useState(() => shipmentTrackingFormValues(tracking))
   const [values, setValues] = useState(initialValues)
+  const [transitEntries, setTransitEntries] = useState([])
   const [error, setError] = useState('')
 
   function update(field, value) { setValues((current) => ({ ...current, [field]: value })) }
   async function submit(event) {
     event.preventDefault()
+    if (stageId === 'in_transit') {
+      if (!transitEntries.length) { setError('Bitte füge eine Standortmeldung oder Pause hinzu.'); return }
+      const entries = []
+      for (const entry of transitEntries) {
+        if (!entry.at || Number.isNaN(new Date(entry.at).getTime())) { setError('Bitte gib für jede Meldung Tag und Uhrzeit an.'); return }
+        if (entry.kind === 'position') {
+          const kilometers = Number(entry.kilometersToDestination)
+          if (entry.kilometersToDestination === '' || !Number.isFinite(kilometers) || kilometers < 0 || kilometers > 100000) { setError('Bitte gib gültige Kilometer bis zur Entladestelle an.'); return }
+          entries.push({ kind: 'position', at: entry.at, kilometersToDestination: kilometers, location: entry.location.trim() })
+        } else {
+          const duration = Number(entry.durationMinutes)
+          if (!Number.isInteger(duration) || duration < 1 || duration > 10080) { setError('Bitte gib eine gültige Pausendauer an.'); return }
+          entries.push({ kind: 'pause', at: entry.at, durationMinutes: duration })
+        }
+      }
+      setError('')
+      const saved = await onSave({ transitEntries: entries })
+      if (saved === false) setError('Die Fahrtmeldungen konnten nicht gespeichert werden. Bitte versuche es erneut.')
+      return
+    }
     const changes = Object.fromEntries(stage.fields.filter((field) => values[field] !== initialValues[field]).map((field) => [field, values[field]]))
     if (!Object.keys(changes).length) { setError('Bitte ändere mindestens eine Angabe, bevor du speicherst.'); return }
     setError('')
@@ -40,7 +62,7 @@ export default function ShipmentTrackingEditorModal({ tracking, stageId, saving,
       <div className="shipment-tracking-editor__heading"><div><h2 id="shipment-tracking-editor-title">{stage.title}</h2>{stageId !== 'preparation' && stageId !== 'loading' && stageId !== 'unloading' && <p>Die Angabe wird getrennt vom Import gespeichert und im Verlauf protokolliert.</p>}</div><button type="button" onClick={onClose} aria-label="Dialog schließen" disabled={saving}><CloseIcon /></button></div>
       <form onSubmit={(event) => void submit(event)} noValidate>
         <div className="shipment-tracking-editor__groups">
-          <section><StageFields stage={{ ...stage, id: stageId }} values={values} onChange={update} /></section>
+          <section>{stageId === 'in_transit' ? <ShipmentTrackingTransitFields entries={transitEntries} onChange={setTransitEntries} /> : <StageFields stage={{ ...stage, id: stageId }} values={values} onChange={update} />}</section>
         </div>
         {error && <p className="form-error">{error}</p>}
         <div className="shipment-tracking-editor__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={onClose}>Abbrechen</button><button className="button" type="submit" disabled={saving}>{saving ? 'Update wird gespeichert …' : 'Speichern'}</button></div>

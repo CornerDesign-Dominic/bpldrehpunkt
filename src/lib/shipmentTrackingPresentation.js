@@ -35,6 +35,20 @@ export const shipmentTrackingStageConfigurations = Object.freeze({
   afterTransport: { label: 'Nachtransport', title: 'Bewertungen', fields: [] },
 })
 
+const transitEventTypes = new Set(['transit_position_reported', 'transit_pause_reported'])
+function transitEntry(event) { return event?.newValue?.transitEntry || null }
+function transitEvents(events, kind) {
+  return (Array.isArray(events) ? events : [])
+    .filter((event) => transitEntry(event)?.kind === kind && transitEventTypes.has(event.eventType))
+    .sort((left, right) => eventDateValue(right.eventTime) - eventDateValue(left.eventTime))
+}
+export function formatTransitDuration(minutes) {
+  if (!Number.isFinite(minutes) || minutes < 1) return '—'
+  const hours = Math.floor(minutes / 60)
+  const remainder = minutes % 60
+  return [hours && `${hours} Std.`, remainder && `${remainder} Min.`].filter(Boolean).join(' ')
+}
+
 export const shipmentTrackingStationStateDefinitions = Object.freeze({
   pending: { label: 'Noch nicht erreicht' },
   active: { label: 'Aktuell offen' },
@@ -242,9 +256,10 @@ function loadingWorkflowLabel(tracking, state) {
   return 'Ankunft noch offen'
 }
 
-function transitWorkflowLabel(tracking, state) {
+function transitWorkflowLabel(tracking, state, hasReport = false) {
   if (state === 'completed') return 'Ankunft erfolgt'
   if (state === 'active' && formatTime(tracking?.actualDepartureLoadingAt)) return `Unterwegs seit ${formatTime(tracking.actualDepartureLoadingAt)}`
+  if (hasReport) return 'Fahrtmeldung vorhanden'
   return 'Noch nicht unterwegs'
 }
 
@@ -270,7 +285,7 @@ export function shipmentTrackingWorkflowStates(tracking) {
   return completed.map((isCompleted, index) => isCompleted ? 'completed' : index === firstOpen ? 'active' : 'pending')
 }
 
-export function shipmentTrackingStations({ tracking, imported, route, customerPolicy, now } = {}) {
+export function shipmentTrackingStations({ tracking, imported, route, customerPolicy, now, events } = {}) {
   const loadingPlan = scheduleWindow(imported?.loading?.window?.from, imported?.loading?.window?.until)
   const unloadingPlan = scheduleWindow(imported?.unloading?.window?.from, imported?.unloading?.window?.until)
   const routePlan = formatShipmentTrackingRoutePlan(route?.roundedDistanceKm)
@@ -292,6 +307,12 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   ].filter(Boolean)
   const unloadingForecastRows = [
     formatTime(tracking?.estimatedArrivalUnloadingAt) && { label: 'Voraussichtliche Ankunft', value: formatTime(tracking.estimatedArrivalUnloadingAt) },
+  ].filter(Boolean)
+  const latestPosition = transitEntry(transitEvents(events, 'position')[0])
+  const latestPause = transitEntry(transitEvents(events, 'pause')[0])
+  const transitRows = [
+    latestPosition && { kind: 'position', label: latestPosition.location || 'Letzter Standort', value: `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(latestPosition.kilometersToDestination)} km bis Ziel · ${formatShipmentTrackingTimestamp(latestPosition.at)}` },
+    latestPause && { kind: 'pause', label: 'Letzte Pause', value: `${formatShipmentTrackingTimestamp(latestPause.at)} · ${formatTransitDuration(latestPause.durationMinutes)}` },
   ].filter(Boolean)
 
   return [
@@ -323,9 +344,9 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
       id: 'in_transit',
       label: 'Unterwegs',
       workflowState: workflowStates[2],
-      workflowLabel: transitWorkflowLabel(tracking, workflowStates[2]),
+      workflowLabel: transitWorkflowLabel(tracking, workflowStates[2], transitRows.length > 0),
       plan: routePlan,
-      actualRows: formatTime(tracking?.actualDepartureLoadingAt) ? [{ kind: 'departure', label: 'Unterwegs seit', value: formatTime(tracking.actualDepartureLoadingAt) }] : [],
+      actualRows: [...transitRows, ...(formatTime(tracking?.actualDepartureLoadingAt) ? [{ kind: 'departure', label: 'Unterwegs seit', value: formatTime(tracking.actualDepartureLoadingAt) }] : [])],
       forecastRows: formatTime(tracking?.estimatedArrivalUnloadingAt) ? [{ label: 'Prognose Ankunft', value: formatTime(tracking.estimatedArrivalUnloadingAt) }] : [],
       status: null,
       assessments: {},
@@ -372,7 +393,7 @@ function aiSourceFields(stationId, row, tracking) {
     if (row.label === 'Beladung beendet') return ['loadingCompletedAt']
     return ['loadingStartedAt', 'loadingCompletedAt']
   }
-  if (stationId === 'in_transit') return row.kind === 'forecast' ? ['estimatedArrivalUnloadingAt'] : ['actualDepartureLoadingAt']
+  if (stationId === 'in_transit') return row.kind === 'position' || row.kind === 'pause' ? [] : row.kind === 'forecast' ? ['estimatedArrivalUnloadingAt'] : ['actualDepartureLoadingAt']
   if (stationId === 'unloading') {
     if (row.kind === 'forecast') return ['estimatedArrivalUnloadingAt']
     if (row.label === 'Ankunft') return ['actualArrivalUnloadingAt']
@@ -410,7 +431,7 @@ export function shipmentTrackingStationSummary(station, tracking) {
     rows = [...actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
   } else if (station.id === 'in_transit') {
-    rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
+    rows = [...actual.map((row) => summaryRow(row.label, row.value, row.kind === 'position' || row.kind === 'pause' ? row.kind : 'actual')), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Noch nicht unterwegs', 'missing')]
   } else if (station.id === 'unloading') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
@@ -427,11 +448,18 @@ function eventDateValue(value) {
 export function shipmentTrackingStageEvents(events, stageId) {
   const fields = shipmentTrackingStageConfigurations[stageId]?.fields || []
   return (Array.isArray(events) ? events : [])
-    .filter((event) => (event.eventType === 'tracking_completed' && stageId === 'afterTransport') || (event.changedFields || []).some((field) => fields.includes(field)))
+    .filter((event) => (event.eventType === 'tracking_completed' && stageId === 'afterTransport') || (stageId === 'in_transit' && transitEventTypes.has(event.eventType)) || (event.changedFields || []).some((field) => fields.includes(field)))
     .sort((left, right) => eventDateValue(left.recordedAt) - eventDateValue(right.recordedAt))
 }
 
 export function shipmentTrackingStageEventDetails(event, stageId) {
+  if (stageId === 'in_transit' && transitEventTypes.has(event.eventType)) {
+    const entry = transitEntry(event)
+    if (!entry) return []
+    return entry.kind === 'position'
+      ? [{ label: 'Standortmeldung', value: `${entry.location ? `${entry.location} · ` : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(entry.kilometersToDestination)} km bis Entladestelle` }]
+      : [{ label: 'Pause', value: formatTransitDuration(entry.durationMinutes) }]
+  }
   const fields = shipmentTrackingStageConfigurations[stageId]?.fields || []
   return (event.changedFields || []).filter((field) => fields.includes(field)).map((field) => ({
     label: fieldLabels[field] || field,
@@ -455,8 +483,8 @@ export function shipmentTrackingFormValues(tracking) {
   return Object.fromEntries(Object.keys(fieldLabels).map((field) => [field, field === 'licensePlate' ? licensePlate(tracking) : field.endsWith('At') ? timestampToDateTimeInput(tracking?.[field]) : tracking?.[field] ?? (field === 'proofStatus' ? 'unknown' : '')]))
 }
 
-export function shipmentTrackingTimelineModel(tracking, imported, route, customerPolicy) {
-  const stations = shipmentTrackingStations({ tracking, imported, route, customerPolicy })
+export function shipmentTrackingTimelineModel(tracking, imported, route, customerPolicy, events) {
+  const stations = shipmentTrackingStations({ tracking, imported, route, customerPolicy, events })
   if (!tracking) return { ...defaultShipmentTrackingUiModel, trackingExists: false, stations }
   const completed = tracking.lifecycleStatus === 'completed'
   const lifecyclePhase = completed ? 'completed' : tracking.lifecyclePhase === 'upcoming' ? 'upcoming' : 'in_progress'
@@ -495,6 +523,7 @@ function importHistoryValue(value) {
 }
 
 export function shipmentTrackingEventChangeType(event) {
+  if (transitEventTypes.has(event.eventType)) return 'Neu'
   if (event.eventType === 'tracking_started') return 'Neu'
   if (event.eventType === 'tracking_completed') return 'Abgeschlossen'
   if (event.eventType === 'tracking_manual_mail_sent' || event.eventType === 'tracking_automatic_mail_sent' || event.eventType === 'tracking_actual_arrival_confirmation_sent') return 'Versendet'
@@ -512,6 +541,11 @@ export function shipmentTrackingEventChangeType(event) {
 }
 
 export function shipmentTrackingEventDescription(event) {
+  if (event.eventType === 'transit_position_reported') {
+    const entry = transitEntry(event)
+    return entry ? `Standortmeldung: ${entry.location ? `${entry.location} · ` : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(entry.kilometersToDestination)} km bis Entladestelle` : 'Standortmeldung'
+  }
+  if (event.eventType === 'transit_pause_reported') return `Pause erfasst: ${formatTransitDuration(transitEntry(event)?.durationMinutes)}`
   if (event.eventType === 'tracking_started') return 'Sendungsverfolgung gestartet'
   if (event.eventType === 'tracking_completed') return 'Sendungsverfolgung abgeschlossen'
   if (event.eventType === 'tracking_automation_paused') return 'Sendungsverfolgungs-Automatik pausiert'

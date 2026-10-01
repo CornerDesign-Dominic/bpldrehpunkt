@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FaArrowRightFromBracket, FaArrowRightToBracket, FaBoxOpen, FaCircleExclamation, FaCircleInfo, FaClipboardCheck, FaClock, FaFileCircleCheck, FaTruck, FaWarehouse } from 'react-icons/fa6'
+import { FaArrowRightFromBracket, FaArrowRightToBracket, FaBoxOpen, FaCircleExclamation, FaCircleInfo, FaClipboardCheck, FaClock, FaFileCircleCheck, FaLocationDot, FaPause, FaTruck, FaWarehouse } from 'react-icons/fa6'
 import { defaultShipmentTrackingUiModel, trackingStages } from './shipmentTrackingUiModel.js'
 import { shipmentTrackingStageEvents, shipmentTrackingStationSummary } from '../../lib/shipmentTrackingPresentation.js'
 import ShipmentTrackingRecipientsCard from './ShipmentTrackingRecipientsCard.jsx'
@@ -8,7 +8,7 @@ import { shipmentTrackingManualDispatchBundles } from '../../../shared/shipmentT
 import { shipmentTrackingActivationPresentation } from '../../lib/shipmentTrackingActivationPresentation.js'
 
 const stationIcons = { preparation: FaClipboardCheck, loading: FaWarehouse, in_transit: FaTruck, unloading: FaWarehouse, afterTransport: FaFileCircleCheck }
-const rowIcons = { arrival: FaArrowRightToBracket, process: FaBoxOpen, departure: FaArrowRightFromBracket, 'license-plate': FaClipboardCheck }
+const rowIcons = { arrival: FaArrowRightToBracket, process: FaBoxOpen, departure: FaArrowRightFromBracket, position: FaLocationDot, pause: FaPause, 'license-plate': FaClipboardCheck }
 const workflowStateLabels = { pending: 'Noch nicht erreicht', active: 'Aktuell offen', completed: 'Erledigt', automationActive: 'Automatik läuft', manualEscalation: 'Manuelle Klärung erforderlich' }
 
 function fallbackStation(stage) {
@@ -71,10 +71,9 @@ export default function ShipmentTrackingTimeline({ model = defaultShipmentTracki
           const stageEvents = shipmentTrackingStageEvents(events, station.id)
           const hasStageInformation = stageEvents.length > 0 || (station.actualRows?.length || 0) > 0 || (station.forecastRows?.length || 0) > 0 || (station.id === 'preparation' && Boolean(tracking?.licensePlate))
           const isRatingsAction = station.id === 'afterTransport'
-          const isDisabledTransitAction = station.id === 'in_transit'
-          const actionDisabled = saving || isDisabledTransitAction || (isRatingsAction && (ratingsLoading || Boolean(ratingsError)))
+          const actionDisabled = saving || (isRatingsAction && (ratingsLoading || Boolean(ratingsError)))
           const actionLabel = isRatingsAction ? 'Bewertungen' : '+ Info'
-          const actionTitle = isDisabledTransitAction ? 'Für Unterwegs sind derzeit keine Angaben vorgesehen.' : isRatingsAction && ratingsError ? ratingsError : undefined
+          const actionTitle = isRatingsAction && ratingsError ? ratingsError : undefined
           return <li key={station.id}>
             <div className={station.plan === 'Sollzeit fehlt' || station.plan === 'Planstrecke noch nicht berechnet' ? 'shipment-tracking-timeline__plan shipment-tracking-timeline__plan--missing' : 'shipment-tracking-timeline__plan'}>{station.plan && <span>{station.plan}</span>}</div>
             <span className={`shipment-tracking-timeline__station shipment-tracking-timeline__station--${workflowState}`} role="img" aria-label={`${station.label}: ${workflowLabel}`}><Icon size={19} /></span>

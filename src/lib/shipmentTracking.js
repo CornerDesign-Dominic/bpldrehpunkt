@@ -32,10 +32,11 @@ function dateTimeInputToIso(value) {
   return Number.isNaN(localDate.getTime()) ? null : localDate.toISOString()
 }
 
-export async function updateManualShipmentTracking({ orderId, action, values, recipientChanges, source, note, earlyStart = false }) {
+export async function updateManualShipmentTracking({ orderId, action, values, transitEntries, recipientChanges, source, note, earlyStart = false }) {
   const changes = values && action === 'update' ? Object.fromEntries(Object.entries(values).map(([key, value]) => [key, key.endsWith('At') ? dateTimeInputToIso(value) : value])) : undefined
+  const normalizedTransitEntries = action === 'add_transit_entries' ? transitEntries?.map((entry) => ({ ...entry, at: dateTimeInputToIso(entry.at) })) : undefined
   try {
-    const result = await httpsCallable(functions, 'updateManualShipmentTracking')({ orderId, action, ...(changes ? { changes } : {}), ...(recipientChanges ? { recipientChanges } : {}), ...(earlyStart ? { earlyStart: true } : {}), source, note })
+    const result = await httpsCallable(functions, 'updateManualShipmentTracking')({ orderId, action, ...(changes ? { changes } : {}), ...(normalizedTransitEntries ? { transitEntries: normalizedTransitEntries } : {}), ...(recipientChanges ? { recipientChanges } : {}), ...(earlyStart ? { earlyStart: true } : {}), source, note })
     return result.data
   } catch (error) {
     // Server-side failures are recorded by the callable itself; transport failures cannot be.
