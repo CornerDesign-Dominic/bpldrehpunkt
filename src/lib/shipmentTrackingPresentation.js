@@ -317,7 +317,7 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   const latestPauseEvent = transitEvents(events, 'pause')[0]
   const latestPause = transitEntry(latestPauseEvent)
   const transitRows = [
-    latestPosition && { kind: 'position', label: latestPosition.location || 'Letzter Standort', value: `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(latestPosition.kilometersToDestination)} km bis Ziel · ${formatShipmentTrackingTimestamp(latestPosition.at)}`, ai: latestPositionEvent?.source === 'ai_mail' },
+    latestPosition && { kind: 'position', label: '', value: `${formatShipmentTrackingTimestamp(latestPosition.at)} · ${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(latestPosition.kilometersToDestination)} km bis Ziel`, ai: latestPositionEvent?.source === 'ai_mail' },
     latestPause && { kind: 'pause', label: 'Letzte Pause', value: `${formatShipmentTrackingTimestamp(latestPause.at)} · ${formatTransitDuration(latestPause.durationMinutes)}`, ai: latestPauseEvent?.source === 'ai_mail' },
   ].filter(Boolean)
 

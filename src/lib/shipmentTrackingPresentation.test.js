@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
+import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, formatShipmentTrackingTimestamp, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
 
 const imported = {
   loading: { window: { from: '2026-09-25T08:00', until: '2026-09-25T10:00' } },
@@ -258,7 +258,8 @@ test('transit shows the latest manual position and pause and keeps every report 
   const station = shipmentTrackingStations({ tracking: {}, events }).find((entry) => entry.id === 'in_transit')
   const summary = shipmentTrackingStationSummary(station, {})
   assert.equal(station.workflowLabel, 'Fahrtmeldung vorhanden')
-  assert.match(summary.rows[0].value, /210 km bis Ziel/)
+  assert.equal(summary.rows[0].label, '')
+  assert.equal(summary.rows[0].value, `${formatShipmentTrackingTimestamp(events[1].eventTime)} · 210 km bis Ziel`)
   assert.match(summary.rows[1].value, /45 Min/)
   assert.deepEqual(shipmentTrackingStageEvents(events, 'in_transit').map((event) => event.id), ['older', 'latest', 'pause'])
   assert.deepEqual(shipmentTrackingStageEventDetails(events[1], 'in_transit'), [{ label: 'Standortmeldung', value: 'Hannover · 210 km bis Entladestelle' }])
