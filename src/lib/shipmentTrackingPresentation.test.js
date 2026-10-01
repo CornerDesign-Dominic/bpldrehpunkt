@@ -16,15 +16,13 @@ test('timeline model uses the neutral upcoming state until manual tracking exist
   assert.equal(model.stations.find((station) => station.id === 'loading').plan, 'Fr., 08:00–10:00')
 })
 
-test('a reported loading duration appears at the loading station with its AI source', () => {
+test('an old duration report does not appear as a loading status fact', () => {
   const event = { eventType: 'loading_duration_reported', eventTime: new Date('2026-10-01T15:46:33Z'), recordedAt: new Date('2026-10-01T15:47:00Z'), source: 'ai_mail', newValue: { loadingDurationMinutes: 90 } }
   const tracking = { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', stageId: 'in_transit' }
   const station = shipmentTrackingStations({ tracking, imported, events: [event] }).find((item) => item.id === 'loading')
   const summary = shipmentTrackingStationSummary(station, tracking)
-  assert.deepEqual(summary.rows.map((row) => ({ label: row.label, value: row.value, ai: row.ai })), [{ label: 'Beladung dauerte', value: '1 Std. 30 Min.', ai: true }])
-  assert.deepEqual(shipmentTrackingStageEvents([event], 'loading'), [event])
-  assert.deepEqual(shipmentTrackingStageEventDetails(event, 'loading'), [{ label: 'Beladedauer', value: '1 Std. 30 Min.' }])
-  assert.equal(shipmentTrackingEventDescription(event), 'Beladung dauerte 1 Std. 30 Min.')
+  assert.deepEqual(summary.rows.map((row) => row.value), ['Ankunft offen'])
+  assert.deepEqual(shipmentTrackingStageEvents([event], 'loading'), [])
 })
 
 test('history description remains understandable for tracked field corrections', () => {
@@ -281,8 +279,25 @@ test('station summaries keep the direct view compact and stage-specific', () => 
   const loading = shipmentTrackingStationSummary(stations.find((station) => station.id === 'loading'), {})
   assert.deepEqual(preparation.rows, [{ label: '', value: 'AB-CD 123 / EF-GH 456', kind: 'actual' }])
   assert.equal(preparation.actionLabel, 'Kennzeichen aktualisieren')
-  assert.equal(loading.rows.length, 3)
+  assert.deepEqual(loading.rows.map((row) => row.label), ['Ankunft', 'Beladung begonnen', 'Beladung beendet', 'Abfahrt'])
   assert.equal(loading.actionLabel, 'Ladestelle erfassen')
+})
+
+test('loading start and end keep separate source icons when only one came from AI', () => {
+  const tracking = { loadingStartedAt: new Date('2026-09-25T08:15:00'), loadingCompletedAt: new Date('2026-09-25T09:00:00'), fieldSources: { loadingStartedAt: { source: 'ai_mail' } } }
+  const station = shipmentTrackingStations({ tracking, imported }).find((item) => item.id === 'loading')
+  const rows = shipmentTrackingStationSummary(station, tracking).rows
+  assert.equal(rows.find((row) => row.label === 'Beladung begonnen').ai, true)
+  assert.equal(rows.find((row) => row.label === 'Beladung beendet').ai, undefined)
+})
+
+test('a corrected transit report remains visible as manual and has an audit entry', () => {
+  const corrected = { id: 'position', eventType: 'transit_position_reported', source: 'manual', eventTime: new Date('2026-10-01T10:00:00Z'), newValue: { transitEntry: { kind: 'position', at: new Date('2026-10-01T10:00:00Z'), kilometersToDestination: 200, location: '' } } }
+  const audit = { id: 'correction', eventType: 'transit_entry_corrected', source: 'manual', eventTime: new Date('2026-10-01T10:05:00Z'), newValue: corrected.newValue }
+  const station = shipmentTrackingStations({ tracking: {}, events: [corrected, audit] }).find((item) => item.id === 'in_transit')
+  assert.equal(shipmentTrackingStationSummary(station, {}).rows[0].ai, undefined)
+  assert.deepEqual(shipmentTrackingStageEvents([corrected, audit], 'in_transit').map((event) => event.id), ['position', 'correction'])
+  assert.equal(shipmentTrackingEventDescription(audit), 'Standortmeldung manuell korrigiert')
 })
 
 test('stage information filters events, fields and ordering without leaking other stages', () => {
@@ -318,12 +333,9 @@ test('loading arrival is assessed only with a complete slot and only after its s
   assert.equal(shipmentTrackingStationAssessments({ tracking: { actualArrivalLoadingAt: new Date('2026-09-25T10:35:00+02:00') }, imported: { loading: { window: { from: '2026-09-25T08:00' } } } }).loading.arrival, undefined)
 })
 
-test('loading duration uses the requested warning and alert thresholds', () => {
-  const started = new Date('2026-09-25T08:00:00+02:00')
-  assert.equal(shipmentTrackingStationAssessments({ tracking: { loadingStartedAt: started }, now: new Date('2026-09-25T09:30:00+02:00') }).loading.process, undefined)
-  assert.deepEqual(shipmentTrackingStationAssessments({ tracking: { loadingStartedAt: started }, now: new Date('2026-09-25T09:45:00+02:00') }).loading.process, { severity: 'notice', text: 'Beladung seit 1 Std. 45 Min.' })
-  assert.deepEqual(shipmentTrackingStationAssessments({ tracking: { loadingStartedAt: started }, now: new Date('2026-09-25T11:00:00+02:00') }).loading.process, { severity: 'notice', text: 'Beladung seit 3 Std.' })
-  assert.deepEqual(shipmentTrackingStationAssessments({ tracking: { loadingStartedAt: started, loadingCompletedAt: new Date('2026-09-25T11:10:00+02:00') } }).loading.process, { severity: 'alert', text: 'Beladung dauerte 3 Std. 10 Min.' })
+test('loading duration is not shown as a separate timeline assessment', () => {
+  const tracking = { loadingStartedAt: new Date('2026-09-25T08:00:00+02:00'), loadingCompletedAt: new Date('2026-09-25T11:10:00+02:00') }
+  assert.equal(shipmentTrackingStationAssessments({ tracking }).loading.process, undefined)
 })
 
 test('loading departure uses one hour as the warning-to-alert boundary', () => {

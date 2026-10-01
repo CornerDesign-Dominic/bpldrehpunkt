@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitEntries } from './shipmentTracking.js'
+import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitCorrections, normalizeTransitEntries } from './shipmentTracking.js'
 
 test('manual transit reports validate position and pause without deriving another tracking stage', () => {
   const entries = normalizeTransitEntries([
@@ -15,6 +15,14 @@ test('manual transit reports validate position and pause without deriving anothe
   assert.throws(() => normalizeTransitEntries([{ kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: -1 }]), /Kilometer/)
   assert.throws(() => normalizeTransitEntries([{ kind: 'pause', at: '2026-10-01T13:00:00Z', durationMinutes: 0 }]), /Pausendauer/)
   assert.throws(() => normalizeTransitEntries([{ kind: 'pause', at: '', durationMinutes: 45 }]), /Zeitpunkt/)
+})
+
+test('a manual transit correction must identify one existing report with valid values', () => {
+  const correction = normalizeTransitCorrections([{ id: 'ai-position-mail-1', entry: { kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: 210, location: '' } }])
+  assert.equal(correction[0].entry.kilometersToDestination, 210)
+  assert.throws(() => normalizeTransitCorrections([{ id: '../other', entry: { kind: 'pause', at: '2026-10-01T12:00:00Z', durationMinutes: 45 } }]), /Ungültige Fahrtmeldung/)
+  const duplicate = { id: 'ai-position-mail-1', entry: { kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: 210 } }
+  assert.throws(() => normalizeTransitCorrections([duplicate, duplicate]), /Ungültige Fahrtmeldung/)
 })
 
 test('manual tracking writes require transportOrders.edit, except for superadmins', () => {

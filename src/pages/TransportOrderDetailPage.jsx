@@ -203,7 +203,7 @@ export default function TransportOrderDetailPage() {
   async function performTrackingAction(action, payload = {}) {
     setTrackingSaving(true); setTrackingError('')
     try {
-      await updateManualShipmentTracking({ orderId: transportOrderId, action, source: payload.source || 'manual', note: payload.note || '', values: payload.changes, transitEntries: payload.transitEntries, recipientChanges: payload.recipientChanges, earlyStart: payload.earlyStart === true })
+      await updateManualShipmentTracking({ orderId: transportOrderId, action, source: payload.source || 'manual', note: payload.note || '', values: payload.changes, transitEntries: payload.transitEntries, transitCorrections: payload.transitCorrections, recipientChanges: payload.recipientChanges, earlyStart: payload.earlyStart === true })
       setTrackingEditorStage(null)
       await refreshTracking()
       return true
@@ -311,7 +311,7 @@ export default function TransportOrderDetailPage() {
         <details className="transport-order-detail-section transport-order-detail-section--import-info"><summary>Importinfos</summary><dl className="transport-order-detail-list transport-order-detail-list--single"><Detail label="Importiert am">{formatTimestamp(order.importMeta?.importedAt)}</Detail><Detail label="Zuletzt aktualisiert">{formatTimestamp(order.updatedAt || order.importMeta?.lastImportedAt)}</Detail><Detail label="Importdatei">{order.importMeta?.fileName}</Detail><Detail label="Importlauf">{order.importMeta?.importRunId}</Detail></dl></details>
       </aside>
     </div>
-    {trackingEditorStage && <ShipmentTrackingEditorModal tracking={tracking} stageId={trackingEditorStage} saving={trackingSaving} onClose={() => setTrackingEditorStage(null)} onSave={(payload) => performTrackingAction(trackingEditorStage === 'in_transit' ? 'add_transit_entries' : 'update', payload)} />}
+    {trackingEditorStage && <ShipmentTrackingEditorModal tracking={tracking} events={trackingEvents} stageId={trackingEditorStage} saving={trackingSaving} onClose={() => setTrackingEditorStage(null)} onSave={(payload) => performTrackingAction(trackingEditorStage === 'in_transit' ? 'save_transit_entries' : 'update', payload)} />}
     {trackingInfoStage && <ShipmentTrackingStageInfoModal stageId={trackingInfoStage} events={trackingEvents} onClose={() => setTrackingInfoStage(null)} />}
     {trackingManualMailOpen && <ShipmentTrackingManualMailModal orderId={transportOrderId} bundles={trackingManualMailBundles} initialTemplateId={trackingManualMailTemplateId} defaultRecipient={trackingCarrierRecipient(tracking)} saving={trackingSaving} onClose={() => { setTrackingManualMailOpen(false); setTrackingManualMailBundles([]); setTrackingManualMailTemplateId('') }} onSend={(payload) => void sendTrackingManualMail(payload)} />}
   </div>

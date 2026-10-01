@@ -150,17 +150,6 @@ export function explicitRemainingDistance(mail, routeDistanceKm = null) {
   return validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'kilometers_to_unloading', value, location: '', evidence: match[0], confidence: 'high' }] }, mail, routeDistanceKm)
 }
 
-/** A reported duration is useful but does not establish clock times for loading. */
-export function explicitLoadingDuration(mail) {
-  const body = currentMailBody(mail)
-  const match = /\bbeladung\b[^\n.!?]{0,60}?\bhat\b[^\n.!?]{0,20}?(\d{1,2}(?:[.,]\d+)?)\s*(h|std\.?|stunden?|min(?:uten)?)\b[^\n.!?]{0,20}?\bgedauert\b/i.exec(body)
-    || /\bbeladung\b[^\n.!?]{0,30}?\bdauerte\b[^\n.!?]{0,10}?(\d{1,2}(?:[.,]\d+)?)\s*(h|std\.?|stunden?|min(?:uten)?)\b/i.exec(body)
-  if (!match) return null
-  const amount = Number(match[1].replace(',', '.'))
-  const durationMinutes = Math.round(amount * (/^(?:h|std|stunden?)/i.test(match[2]) ? 60 : 1))
-  return durationMinutes >= 1 && durationMinutes <= 1440 ? { durationMinutes, evidence: match[0] } : null
-}
-
 export function validateStatusMailPauseUpdates(result, mail) {
   if (!Array.isArray(result?.pauseUpdates)) return []
   const source = normalizedEvidence(`${text(mail.subject)}\n${text(mail.bodyText)}`)
@@ -224,7 +213,7 @@ export function statusMailPromptContext({ mail, order, tracking, route, history 
     precedingMails: history.filter((entry) => iso(entry.receivedAt) && iso(entry.receivedAt) < iso(mail.receivedAt)).slice(0, 12).map((entry) => ({ receivedAt: iso(entry.receivedAt), sender: text(entry.sender), subject: text(entry.subject).slice(0, 300), bodyText: text(entry.bodyText).slice(0, 1800), conversationId: text(entry.conversationId) })),
     sentRequests: sentRequests.filter((entry) => ['sent', 'delivered'].includes(entry.status) && iso(entry.sentAt || entry.deliveredAt) && iso(entry.sentAt || entry.deliveredAt) <= iso(mail.receivedAt)).slice(0, 12).map((entry) => ({ sentAt: iso(entry.sentAt || entry.deliveredAt), recipient: text(entry.recipient), templateId: text(entry.templateId), subject: text(entry.subject).slice(0, 300), message: text(entry.message).slice(0, 1800) })),
     automaticRequests: automaticRequests.filter((entry) => entry.status === 'sent' && iso(entry.sentAt) && iso(entry.sentAt) <= iso(mail.receivedAt)).slice(0, 12).map((entry) => ({ sentAt: iso(entry.sentAt), recipient: text(entry.recipient), templateId: text(entry.templateId), topics: Array.isArray(entry.topics) ? entry.topics.slice(0, 5) : [] })),
-    recentTrackingEvents: events.slice(0, 20).map((entry) => ({ eventType: text(entry.eventType), eventTime: iso(entry.eventTime), source: text(entry.source), loadingDurationMinutes: Number.isFinite(entry.newValue?.loadingDurationMinutes) ? entry.newValue.loadingDurationMinutes : null, transitEntry: entry.newValue?.transitEntry ? { kind: text(entry.newValue.transitEntry.kind), at: iso(entry.newValue.transitEntry.at), kilometersToDestination: entry.newValue.transitEntry.kilometersToDestination, durationMinutes: entry.newValue.transitEntry.durationMinutes } : null })),
+    recentTrackingEvents: events.slice(0, 20).filter((entry) => entry.eventType !== 'loading_duration_reported').map((entry) => ({ eventType: text(entry.eventType), eventTime: iso(entry.eventTime), source: text(entry.source), transitEntry: entry.newValue?.transitEntry ? { kind: text(entry.newValue.transitEntry.kind), at: iso(entry.newValue.transitEntry.at), kilometersToDestination: entry.newValue.transitEntry.kilometersToDestination, durationMinutes: entry.newValue.transitEntry.durationMinutes } : null })),
   }
 }
 
@@ -238,7 +227,7 @@ function prompt({ mail, order, tracking, route, history, sentRequests, automatic
     'Jedes evidence muss ein kurzer, wortgetreuer Ausschnitt aus Betreff oder aktuellem Mailtext sein und die Statusaussage samt Uhrzeit beziehungsweise Kennzeichen belegen. Wenn Aussage, Ort, Datum oder Kennzeichen unsicher sind: keine Aktualisierung. Erfinde keine Daten.',
     'Vergangene Mails, gesendete Anfragen und Trackingwerte dienen nur zur Einordnung der AKTUELLEN Mail. Extrahiere aus ihnen keine neuen Werte. Eine Antwort auf eine eindeutige Anfrage zur Beladung oder Entladung darf den Ort klären; bei konkurrierenden Anfragen oder widersprüchlichem Verlauf reviewRequired=true setzen.',
     'Für eine aktuelle Entfernung zur Entladestelle gib transitUpdates mit kilometers_to_unloading zurück. Für „noch 45 Minuten zur Entladestelle“ gib minutes_to_unloading mit Wert 45 zurück. Die App rechnet mit 70 km/h in ungefähre Kilometer um und verwendet die Empfangszeit als Standortzeit. Falls ein aktueller Ort wörtlich in der Mail steht, gib ihn in location zurück, sonst einen leeren String. Keine Entfernung aus einer ETA-Uhrzeit ableiten. Nur den aktuellen Fahrstatus erfassen, nicht zitierte ältere Angaben.',
-    'Eine eindeutig berichtete aktuelle Pause mit Startzeit und Dauer gehört in pauseUpdates. Verwende eine ausdrücklich genannte Startzeit oder bei „jetzt/gerade“ genau die Empfangszeit. durationMinutes in Minuten. Ohne eindeutige Startzeit oder Dauer reviewRequired=true, falls es sich um eine Statusinformation handelt. Eine reine Beladedauer ohne Start- oder Enduhrzeit wird getrennt erfasst; erfinde dafür keine Uhrzeiten und markiere sie allein deswegen nicht zur Prüfung.',
+    'Eine eindeutig berichtete aktuelle Pause mit Startzeit und Dauer gehört in pauseUpdates. Verwende eine ausdrücklich genannte Startzeit oder bei „jetzt/gerade“ genau die Empfangszeit. durationMinutes in Minuten. Ohne eindeutige Startzeit oder Dauer reviewRequired=true, falls es sich um eine Statusinformation handelt. Eine reine Be- oder Entladedauer ohne Start- oder Endzeit ist kein eintragbarer Statuswert. Erfinde daraus keine Uhrzeiten; wenn die Mail nur eine solche Dauer enthält, setze isStatusUpdate=false und reviewRequired=false.',
     'Wenn die Mail offenbar Statusinformationen enthält, die du wegen unklarem Ort, Datum, Widerspruch oder unklarer Bedeutung nicht sicher zuordnen kannst, setze reviewRequired=true und erkläre kurz warum. Reine Fragen, Signaturen und statusfremde Inhalte benötigen keine Prüfung.',
     `Kontext und E-Mail:\n${JSON.stringify(statusMailPromptContext({ mail, order, tracking, route, history, sentRequests, automaticRequests, events }))}`,
   ].join('\n\n')
@@ -278,7 +267,6 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
   let updates
   let transitUpdates
   let pauseUpdates
-  let loadingDuration
   let reviewRequired = false
   let reviewReason = ''
   try {
@@ -294,8 +282,7 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     transitUpdates = result.isStatusUpdate ? validateStatusMailTransitUpdates(result, mail, route?.roundedDistanceKm) : []
     if (!transitUpdates.length) transitUpdates = explicitRemainingDistance(mail, route?.roundedDistanceKm)
     pauseUpdates = result.isStatusUpdate ? validateStatusMailPauseUpdates(result, mail) : []
-    loadingDuration = explicitLoadingDuration(mail)
-    reviewRequired = result.reviewRequired === true || (result.isStatusUpdate && (result.updates.length > updates.length || (result.transitUpdates || []).length > transitUpdates.length || (result.pauseUpdates || []).length > pauseUpdates.length || (updates.length === 0 && transitUpdates.length === 0 && pauseUpdates.length === 0 && !loadingDuration)))
+    reviewRequired = result.reviewRequired === true || (result.isStatusUpdate && (result.updates.length > updates.length || (result.transitUpdates || []).length > transitUpdates.length || (result.pauseUpdates || []).length > pauseUpdates.length || (updates.length === 0 && transitUpdates.length === 0 && pauseUpdates.length === 0)))
     reviewReason = text(result.reviewReason).slice(0, 300) || (reviewRequired ? 'Statusangabe konnte nicht sicher zugeordnet werden.' : '')
   } catch (error) {
     const errorType = getAiErrorType(error)
@@ -315,7 +302,7 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
       return 'skipped'
     }
     const lifecycle = shipmentTrackingLifecycle({ earliestLoading: freshOrder.data()?.imported?.loading?.window?.from, latestUnloading: freshOrder.data()?.imported?.unloading?.window?.until, operatingHours })
-    const actualInMail = updates.some((update) => actualFields.has(update.field)) || transitUpdates.length > 0 || pauseUpdates.length > 0 || Boolean(loadingDuration)
+    const actualInMail = updates.some((update) => actualFields.has(update.field)) || transitUpdates.length > 0 || pauseUpdates.length > 0
     const phase = lifecycle.phase === 'upcoming' && !actualInMail ? 'upcoming' : 'in_progress'
     const base = current || createShipmentTrackingDocument(orderId, 'status-mail-ai', 'KI · Status-Postfach', {
       trackingMode: 'automatic', lifecyclePhase: phase,
@@ -325,13 +312,12 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     })
     const { changes, applied } = planStatusMailAiChanges(base, updates, freshMail.data().receivedAt)
     const appliedFields = new Set(applied.map((item) => item.field))
-    const status = applied.length || transitUpdates.length || pauseUpdates.length || loadingDuration ? 'applied' : reviewRequired ? 'needs_review' : 'no_change'
-    transaction.update(mailRef, { ai: { status, model, processedAt: FieldValue.serverTimestamp(), reviewRequired, reviewReason, updates: updates.map((item) => ({ ...item, applied: appliedFields.has(item.field) })), transitUpdates, pauseUpdates: pauseUpdates.map((item) => ({ ...item, at: item.at.toDate().toISOString() })), loadingDuration } })
-    if (!applied.length && !transitUpdates.length && !pauseUpdates.length && !loadingDuration) return status
+    const status = applied.length || transitUpdates.length || pauseUpdates.length ? 'applied' : reviewRequired ? 'needs_review' : 'no_change'
+    transaction.update(mailRef, { ai: { status, model, processedAt: FieldValue.serverTimestamp(), reviewRequired, reviewReason, updates: updates.map((item) => ({ ...item, applied: appliedFields.has(item.field) })), transitUpdates, pauseUpdates: pauseUpdates.map((item) => ({ ...item, at: item.at.toDate().toISOString() })) } })
+    if (!applied.length && !transitUpdates.length && !pauseUpdates.length) return status
     const fieldSources = { ...(base.fieldSources || {}) }
     for (const item of applied) fieldSources[item.field] = { source: 'ai_mail', mailId, receivedAt: freshMail.data().receivedAt }
     const position = deriveShipmentTrackingPosition({ ...base, ...changes })
-    if (loadingDuration && position.stageId === 'preparation') position.stageId = 'loading'
     if ((transitUpdates.length || pauseUpdates.length) && ['preparation', 'loading'].includes(position.stageId)) position.stageId = 'in_transit'
     const stageOrder = { preparation: 0, loading: 1, in_transit: 2, unloading: 3, post_transport: 4 }
     if ((stageOrder[current?.stageId] ?? -1) > (stageOrder[position.stageId] ?? -1)) position.stageId = current.stageId
@@ -366,11 +352,6 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
         eventTime: update.at, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: `Mail: ${update.evidence}`,
       })
     }
-    if (loadingDuration) transaction.create(trackingRef.collection('events').doc(`ai-loading-duration-${mailId}`), {
-      eventType: 'loading_duration_reported', changedFields: ['loadingDurationMinutes'], oldValue: {}, newValue: { loadingDurationMinutes: loadingDuration.durationMinutes },
-      eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId,
-      note: `Mail: ${loadingDuration.evidence}`,
-    })
     return status
   })
 }

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Timestamp } from 'firebase-admin/firestore'
-import { explicitLoadingDuration, explicitRemainingDistance, planStatusMailAiChanges, processStatusMailAi, statusMailPromptContext, statusMailTrackingEventTime, validateStatusMailAiResult, validateStatusMailTransitUpdates, validateStatusMailPauseUpdates } from './statusMailAi.js'
+import { explicitRemainingDistance, planStatusMailAiChanges, processStatusMailAi, statusMailPromptContext, statusMailTrackingEventTime, validateStatusMailAiResult, validateStatusMailTransitUpdates, validateStatusMailPauseUpdates } from './statusMailAi.js'
 
 const receivedAt = Timestamp.fromDate(new Date('2026-10-01T10:00:00Z'))
 const mail = {
@@ -26,12 +26,10 @@ test('keeps a literal remaining-distance report when the model misses it', () =>
   assert.equal(explicitRemainingDistance(second, 1400)[0]?.kilometersToDestination, 850)
   assert.deepEqual(explicitRemainingDistance({ ...mail, bodyText: 'Hallo,\nKein Status.\n\nVon: Spedition\nDer LKW hat noch 850km zur Entladestelle.' }, 1400), [])
   assert.deepEqual(explicitRemainingDistance(second, 400), [])
-  assert.equal(explicitLoadingDuration(first)?.durationMinutes, 90)
-  assert.equal(explicitLoadingDuration(second), null)
   assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'kilometers_to_unloading', value: 850, location: '', evidence: 'noch 850km bis zu entladestelle', confidence: 'high' }] }, first, 1400).map((entry) => entry.kilometersToDestination), [850])
 })
 
-test('an explicit distance and loading duration reach both tracking sections despite empty model updates', async () => {
+test('an explicit distance reaches tracking without turning loading duration into a status fact', async () => {
   const current = { ...mail, bodyText: 'Hallo,\nDer LKW hat noch 850km bis zu entladestelle, beladung hat 1,5h gedauert.' }
   const documents = new Map([
     ['transportOrders/order-1', { imported: {} }],
@@ -47,7 +45,7 @@ test('an explicit distance and loading duration reach both tracking sections des
   const infer = async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [], transitUpdates: [], pauseUpdates: [] })
   assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-distance', infer }), 'applied')
   assert.equal(documents.get('transportOrderTrackings/order-1/events/ai-position-mail-distance').newValue.transitEntry.kilometersToDestination, 850)
-  assert.equal(documents.get('transportOrderTrackings/order-1/events/ai-loading-duration-mail-distance').newValue.loadingDurationMinutes, 90)
+  assert.equal(documents.has('transportOrderTrackings/order-1/events/ai-loading-duration-mail-distance'), false)
   assert.equal(documents.get('transportOrders/order-1/receivedMails/mail-distance').ai.reviewRequired, false)
 })
 
