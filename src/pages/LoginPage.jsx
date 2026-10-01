@@ -1,3 +1,4 @@
+import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { requestPasswordReset, signInWithEmail } from '../auth/authService.js'
@@ -57,17 +58,17 @@ export default function LoginPage() {
 
   return <main className="login-page">
     <section className="login-card" aria-labelledby="login-title">
-      <div className="login-card__brand"><span>Drehpunkt</span><p>Eine Anwendung der Brennpunkt Logistik GmbH</p></div>
-      <div className="login-card__heading"><h1 id="login-title">{isResetMode ? 'Passwort zurücksetzen' : 'Anmelden'}</h1>{isResetMode && <p>Geben Sie Ihre E-Mail-Adresse ein.</p>}</div>
-      {accessDenied && <p className="login-message login-message--error">Dieses Benutzerkonto ist nicht für den Zugriff freigegeben.</p>}
+      <div className="login-card__brand"><span><StaticText source={"Drehpunkt"} /></span><p><StaticText source={"Eine Anwendung der Brennpunkt Logistik GmbH"} /></p></div>
+      <div className="login-card__heading"><h1 id="login-title">{<StaticText source={isResetMode ? 'Passwort zurücksetzen' : 'Anmelden'} />}</h1>{isResetMode && <p><StaticText source={"Geben Sie Ihre E-Mail-Adresse ein."} /></p>}</div>
+      {accessDenied && <p className="login-message login-message--error"><StaticText source={"Dieses Benutzerkonto ist nicht für den Zugriff freigegeben."} /></p>}
       <form className="login-form" onSubmit={isResetMode ? handlePasswordReset : handleLogin}>
-        <label><span>E-Mail</span><input autoComplete="email" autoFocus type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-        {!isResetMode && <label><span>Passwort</span><input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>}
-        {error && <p className="login-message login-message--error" role="alert">{error}</p>}
-        {notice && <p className="login-message login-message--notice" role="status">{notice}</p>}
-        <button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Bitte warten …' : isResetMode ? 'Reset-Mail senden' : 'Anmelden'}</button>
+        <label><span><StaticText source={"E-Mail"} /></span><input autoComplete="email" autoFocus type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
+        {!isResetMode && <label><span><StaticText source={"Passwort"} /></span><input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>}
+        {error && <p className="login-message login-message--error" role="alert">{<StaticText source={error} />}</p>}
+        {notice && <p className="login-message login-message--notice" role="status">{<StaticText source={notice} />}</p>}
+        <button className="button" type="submit" disabled={isSubmitting}>{<StaticText source={isSubmitting ? 'Bitte warten …' : isResetMode ? 'Reset-Mail senden' : 'Anmelden'} />}</button>
       </form>
-      <button className="text-button login-card__switch" type="button" disabled={isSubmitting} onClick={() => switchMode(isResetMode ? 'login' : 'reset')}>{isResetMode ? 'Zurück zur Anmeldung' : 'Passwort vergessen?'}</button>
+      <button className="text-button login-card__switch" type="button" disabled={isSubmitting} onClick={() => switchMode(isResetMode ? 'login' : 'reset')}>{<StaticText source={isResetMode ? 'Zurück zur Anmeldung' : 'Passwort vergessen?'} />}</button>
     </section>
   </main>
 }

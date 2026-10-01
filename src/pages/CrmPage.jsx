@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerStatusLabel, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
@@ -79,12 +80,12 @@ export default function CrmPage() {
 
   function updateFilter(key, value) { setFilters((current) => ({ ...current, [key]: value })) }
   function filterSelect(key, label, options) {
-    return <label className="filter-field"><span className="sr-only">{label} filtern</span><select aria-label={`${label} filtern`} value={filters[key]} disabled={Boolean(ratingError) && (key === 'customer' || key === 'carrier')} onChange={(event) => updateFilter(key, event.target.value)}>{options.map(([value, caption]) => <option key={value} value={value}>{caption}</option>)}</select></label>
+    return <label className="filter-field"><span className="sr-only">{label} <StaticText source={"filtern"} /></span><select aria-label={`${label} filtern`} value={filters[key]} disabled={Boolean(ratingError) && (key === 'customer' || key === 'carrier')} onChange={(event) => updateFilter(key, event.target.value)}>{options.map(([value, caption]) => <option key={value} value={value}>{caption}</option>)}</select></label>
   }
   function sortableHeader([key, label]) {
     const direction = sort.key === key ? sort.direction : 'none'
     const title = key === 'customerRating' ? 'Bewertung als Kunde' : key === 'carrierRating' ? 'Bewertung als Unternehmer' : undefined
-    return <th key={key} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'} title={title}><button className="table-sort-button" type="button" onClick={() => setSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' })}><span>{label}</span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{direction === 'none' ? ', sortieren' : `, aktuell ${direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert`}</span></button></th>
+    return <th key={key} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'} title={title}><button className="table-sort-button" type="button" onClick={() => setSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' })}><span>{label}</span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{<StaticText source={direction === 'none' ? ', sortieren' : `, aktuell ${direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert`} />}</span></button></th>
   }
   function ratingCell(summary) {
     return <td className="crm-table__rating" title={summary ? `${summary.count} ${summary.count === 1 ? 'Bewertung' : 'Bewertungen'}` : 'Keine Bewertung'}>{summary?.averageScore == null ? '—' : formatTransportRatingScore(summary.averageScore)}</td>
@@ -98,17 +99,17 @@ export default function CrmPage() {
 
   return <div className="crm-page">
     <div className="list-toolbar crm-toolbar"><div className="list-controls crm-list-filters">
-      <label className="search-field"><span className="sr-only">CRM-Partner suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></label>
-      {filterSelect('type', 'Typ', [['all', 'Alle Typen'], ['customer', 'Kunden'], ['carrier', 'Unternehmer'], ['both', 'Kunde & Unternehmer']])}
-      {filterSelect('status', 'Partnerstatus', [['all', 'Alle Status'], ...BUSINESS_PARTNER_STATUSES.map(({ value, label }) => [value, label])])}
+      <label className="search-field"><span className="sr-only"><StaticText source={"CRM-Partner suchen"} /></span><TranslatedProps sources={{"placeholder":"Geschäftspartner suchen"}}><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Geschäftspartner suchen" type="search" /></TranslatedProps></label>
+      {<StaticText source={filterSelect('type', 'Typ', [['all', 'Alle Typen'], ['customer', 'Kunden'], ['carrier', 'Unternehmer'], ['both', 'Kunde & Unternehmer']])} />}
+      {<StaticText source={filterSelect('status', 'Partnerstatus', [['all', 'Alle Status'], ...BUSINESS_PARTNER_STATUSES.map(({ value, label }) => [value, label])])} />}
       {filterSelect('customer', '★ KU', ratingOptions.map(([value, label]) => [value, `★ KU: ${label}`]))}
       {filterSelect('carrier', '★ UTN', ratingOptions.map(([value, label]) => [value, `★ UTN: ${label}`]))}
-      {filterSelect('potential', 'Potenzial', [['all', 'Alle Potenziale'], ['Hoch', 'Hoch'], ['Mittel', 'Mittel'], ['Niedrig', 'Niedrig'], ['none', 'Ohne Potenzial']])}
+      {<StaticText source={filterSelect('potential', 'Potenzial', [['all', 'Alle Potenziale'], ['Hoch', 'Hoch'], ['Mittel', 'Mittel'], ['Niedrig', 'Niedrig'], ['none', 'Ohne Potenzial']])} />}
     </div></div>
-    {error && <p className="form-error">{error}</p>}
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
     {ratingError && <p className="form-error">{ratingError}</p>}
     <div className="crm-table-frame"><table className="data-table crm-table"><thead><tr>{columns.map(sortableHeader)}</tr></thead><tbody>
-      {loading ? <tr><td colSpan="9" className="table-state">CRM-Partner werden geladen …</td></tr> : error ? <tr><td colSpan="9" className="table-state">Keine Geschäftspartner verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="crm-table__row" key={partner.id} role="link" tabIndex="0" aria-label={`${partner.companyName} öffnen`} onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></td>{ratingCell(summaries[partner.id]?.customer)}{ratingCell(summaries[partner.id]?.carrier)}<td>{partner.potential || '—'}</td></tr>) : <tr><td colSpan="9" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}
+      {loading ? <tr><td colSpan="9" className="table-state"><StaticText source={"CRM-Partner werden geladen …"} /></td></tr> : error ? <tr><td colSpan="9" className="table-state"><StaticText source={"Keine Geschäftspartner verfügbar."} /></td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="crm-table__row" key={partner.id} role="link" tabIndex="0" aria-label={`${partner.companyName} öffnen`} onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.address?.city || '—'}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></td>{ratingCell(summaries[partner.id]?.customer)}{ratingCell(summaries[partner.id]?.carrier)}<td>{partner.potential || '—'}</td></tr>) : <tr><td colSpan="9" className="table-state"><StaticText source={"Keine Geschäftspartner gefunden."} /></td></tr>}
     </tbody></table></div>
   </div>
 }

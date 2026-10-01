@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useRef } from 'react'
 import LiabilityLetterForm from './LiabilityLetterForm.jsx'
 
@@ -17,9 +18,9 @@ export default function LiabilityAiResultModal({ aiDraftData, onChange, onClose,
 
   return <div className="liability-ai-modal-backdrop" role="presentation">
     <section ref={dialogRef} className="liability-ai-modal liability-ai-modal--result" role="dialog" aria-modal="true" aria-labelledby="liability-ai-result-title" tabIndex="-1">
-      <div className="liability-ai-modal__heading"><div><h2 id="liability-ai-result-title">KI-Ergebnis prüfen</h2><p>Prüfen und korrigieren Sie die erkannten Angaben vor der Übernahme.</p></div><button className="liability-ai-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></div>
-      <LiabilityLetterForm documentData={aiDraftData} onChange={onChange} headingId="liability-ai-result-form-heading" title="Angaben zum Schreiben" description="Die Daten werden erst nach Ihrer Übernahme in das Schreiben eingefügt." />
-      <div className="liability-ai-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}>Abbrechen</button><button className="button" type="button" onClick={onAccept}>Daten übernehmen</button></div>
+      <div className="liability-ai-modal__heading"><div><h2 id="liability-ai-result-title"><StaticText source={"KI-Ergebnis prüfen"} /></h2><p><StaticText source={"Prüfen und korrigieren Sie die erkannten Angaben vor der Übernahme."} /></p></div><TranslatedProps sources={{"aria-label":"Dialog schließen"}}><button className="liability-ai-modal__close" type="button" onClick={onClose} aria-label="Dialog schließen">×</button></TranslatedProps></div>
+      <TranslatedProps sources={{"title":"Angaben zum Schreiben"}}><LiabilityLetterForm documentData={aiDraftData} onChange={onChange} headingId="liability-ai-result-form-heading" title="Angaben zum Schreiben" description="Die Daten werden erst nach Ihrer Übernahme in das Schreiben eingefügt." /></TranslatedProps>
+      <div className="liability-ai-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}><StaticText source={"Abbrechen"} /></button><button className="button" type="button" onClick={onAccept}><StaticText source={"Daten übernehmen"} /></button></div>
     </section>
   </div>
 }

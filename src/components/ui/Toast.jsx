@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 
 export default function Toast({ message, onDismiss }) {
   useEffect(() => {
@@ -6,5 +7,5 @@ export default function Toast({ message, onDismiss }) {
     return () => window.clearTimeout(timeout)
   }, [onDismiss])
 
-  return <div className="toast" role="status">{message}</div>
+  return <div className="toast" role="status"><StaticText source={message} /></div>
 }

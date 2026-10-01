@@ -1,3 +1,4 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { FaArrowRightFromBracket, FaArrowRightToBracket, FaBoxOpen, FaCircleExclamation, FaCircleInfo, FaClipboardCheck, FaClock, FaFileCircleCheck, FaTruck, FaWarehouse } from 'react-icons/fa6'
 import { defaultShipmentTrackingUiModel, trackingStages } from './shipmentTrackingUiModel.js'
@@ -42,8 +43,8 @@ function ShipmentTrackingActivation({ activation, loading, error, canEdit, savin
   const timing = shipmentTrackingActivationPresentation(activation, { now })
   const headline = loading ? 'Automatischer Start wird berechnet …' : error ? 'Automatischer Startzeitpunkt nicht verfügbar.' : timing.countdown
   return <div className="shipment-tracking-timeline__activation">
-    <div className="shipment-tracking-timeline__activation-timing"><FaClock aria-hidden="true" /><div><strong>{headline}</strong>{!loading && !error && timing.startAt && <span>{timing.startAt}</span>}<small>Beim vorzeitigen Start wird keine E-Mail versendet. Alle Automatik-Regeln bleiben unverändert.</small></div></div>
-    {canEdit && <button className="button" type="button" disabled={saving} onClick={onEarlyStart}>Sendungsverfolgung vorzeitig starten</button>}
+    <div className="shipment-tracking-timeline__activation-timing"><FaClock aria-hidden="true" /><div><strong>{headline}</strong>{!loading && !error && timing.startAt && <span>{timing.startAt}</span>}<small><StaticText source={"Beim vorzeitigen Start wird keine E-Mail versendet. Alle Automatik-Regeln bleiben unverändert."} /></small></div></div>
+    {canEdit && <button className="button" type="button" disabled={saving} onClick={onEarlyStart}><StaticText source={"Sendungsverfolgung vorzeitig starten"} /></button>}
   </div>
 }
 
@@ -58,8 +59,8 @@ export default function ShipmentTrackingTimeline({ model = defaultShipmentTracki
 
   return <section className="transport-order-detail-section transport-order-detail-section--tracking" aria-labelledby="shipment-tracking-heading">
     <div className="shipment-tracking-timeline__heading">
-      <div><h3 id="shipment-tracking-heading">Sendungsverfolgung</h3></div>
-      <div className="shipment-tracking-timeline__header-summary"><span><em>Status:</em><strong>{model.lifecycleLabel || 'Bevorstehend'}</strong></span><span><em>Art:</em><strong>{model.trackingTypeLabel || 'Manuell'}</strong></span></div>
+      <div><h3 id="shipment-tracking-heading"><StaticText source={"Sendungsverfolgung"} /></h3></div>
+      <div className="shipment-tracking-timeline__header-summary"><span><em>Status:</em><strong>{model.lifecycleLabel || 'Bevorstehend'}</strong></span><span><em><StaticText source={"Art:"} /></em><strong>{model.trackingTypeLabel || <StaticText source={"Manuell"} />}</strong></span></div>
     </div>
 
     <div className="shipment-tracking-timeline__timeline">
@@ -82,20 +83,20 @@ export default function ShipmentTrackingTimeline({ model = defaultShipmentTracki
             {model.trackingExists && canEdit && <button className="button button--secondary shipment-tracking-timeline__station-action" type="button" disabled={actionDisabled} title={actionTitle} aria-label={isRatingsAction ? 'Bewertungen öffnen' : `${station.label} aktualisieren`} onClick={() => { if (isRatingsAction) onOpenRatings?.(); else onEditStage?.(station.id) }}>{actionLabel}</button>}
             <div className="shipment-tracking-timeline__stage-information">
               <StationSummary station={station} tracking={tracking} />
-              {model.trackingExists && hasStageInformation && <a className="shipment-tracking-timeline__info-link" href="#shipment-tracking-history-heading" onClick={(event) => { event.preventDefault(); onShowStageInfo?.(station.id) }}><FaCircleInfo aria-hidden="true" />Weitere Infos</a>}
+              {model.trackingExists && hasStageInformation && <a className="shipment-tracking-timeline__info-link" href="#shipment-tracking-history-heading" onClick={(event) => { event.preventDefault(); onShowStageInfo?.(station.id) }}><FaCircleInfo aria-hidden="true" /><StaticText source={"Weitere Infos"} /></a>}
             </div>
           </li>
         })}
       </ol>
     </div>
 
-    {model.trackingExists && model.lifecycleLabel === 'Bevorstehend' && canEdit && <div className="shipment-tracking-timeline__activation"><div className="shipment-tracking-timeline__activation-timing"><FaClock aria-hidden="true" /><div><strong>Sendungsverfolgung ist bevorstehend</strong><small>Beim vorzeitigen Start wird keine E-Mail versendet. Alle Automatik-Regeln bleiben unverändert.</small></div></div><button className="button" type="button" disabled={saving} onClick={onEarlyStart}>Sendungsverfolgung vorzeitig starten</button></div>}
+    {model.trackingExists && model.lifecycleLabel === 'Bevorstehend' && canEdit && <div className="shipment-tracking-timeline__activation"><div className="shipment-tracking-timeline__activation-timing"><FaClock aria-hidden="true" /><div><strong><StaticText source={"Sendungsverfolgung ist bevorstehend"} /></strong><small><StaticText source={"Beim vorzeitigen Start wird keine E-Mail versendet. Alle Automatik-Regeln bleiben unverändert."} /></small></div></div><button className="button" type="button" disabled={saving} onClick={onEarlyStart}><StaticText source={"Sendungsverfolgung vorzeitig starten"} /></button></div>}
 
     <div className="shipment-tracking-timeline__details">
       {model.trackingExists && <ShipmentTrackingRecipientsCard tracking={tracking} canEdit={canEdit && model.lifecycleStatus !== 'completed'} canDispatch={canEdit} saving={saving} onSaveRecipient={onSaveRecipient} onOpenMailTemplate={onOpenMailTemplate} onManualDispatch={onManualDispatch} manualDispatchBundles={manualDispatchBundles} />}
       {model.trackingExists && <ShipmentTrackingActionOverview preview={dryRunPreview} loading={dryRunLoading} error={dryRunError} />}
       {systemHints.length > 0 && <div className="shipment-tracking-timeline__panel shipment-tracking-timeline__panel--system">
-        <div className="shipment-tracking-timeline__panel-heading"><FaCircleInfo aria-hidden="true" /><h4>Systemhinweise</h4></div>
+        <div className="shipment-tracking-timeline__panel-heading"><FaCircleInfo aria-hidden="true" /><h4><StaticText source={"Systemhinweise"} /></h4></div>
         <ul className="shipment-tracking-timeline__hints">{systemHints.map((hint, index) => <li className={`shipment-tracking-timeline__hint shipment-tracking-timeline__hint--${hint.status === 'error' ? 'overdue' : hint.status || 'neutral'}`} key={hint.id || index}>{hint.status === 'error' ? <FaCircleExclamation aria-hidden="true" /> : <FaCircleInfo aria-hidden="true" />}<span>{hint.description}</span></li>)}</ul>
       </div>}
     </div>

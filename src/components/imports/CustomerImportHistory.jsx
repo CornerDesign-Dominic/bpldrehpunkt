@@ -1,3 +1,4 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CheckIcon } from '../icons.jsx'
@@ -5,7 +6,7 @@ import { customerImportHistoryDate, customerImportHistoryGroups, customerImportH
 
 export default function CustomerImportHistory({ rows, runs = {}, identityLabel = 'Debitor' }) {
   const [expanded, setExpanded] = useState({})
-  if (!rows.length) return <div className="import-empty-state">Noch keine übernommenen Zeilen vorhanden.</div>
+  if (!rows.length) return <div className="import-empty-state"><StaticText source={"Noch keine übernommenen Zeilen vorhanden."} /></div>
 
   const groups = customerImportHistoryGroups(rows, runs)
   return <div className="customer-import-history">{groups.map((group, index) => {
@@ -14,7 +15,7 @@ export default function CustomerImportHistory({ rows, runs = {}, identityLabel =
     return <details className="customer-import-history__group" key={group.key} open={isOpen}>
       <summary onClick={(event) => { event.preventDefault(); setExpanded((current) => ({ ...current, [group.key]: !(current[group.key] ?? index === 0) })) }}>
         <span className="customer-import-history__heading"><strong>{group.fileName}</strong>{date && <span>· {date}</span>}{group.importedByName && <span>· {group.importedByName}</span>}</span>
-        <span className="customer-import-history__counts">{group.automatic} automatisch · {group.reviewed} geprüft</span>
+        <span className="customer-import-history__counts">{group.automatic} <StaticText source={"automatisch ·"} /> {group.reviewed} <StaticText source={"geprüft"} /></span>
       </summary>
       <div className="customer-import-history__rows">{group.rows.map((row) => {
         const view = customerImportHistoryRowView(row)
@@ -23,11 +24,11 @@ export default function CustomerImportHistory({ rows, runs = {}, identityLabel =
           <div className="customer-import-history__description">
             <strong>{view.title}</strong>
             <span>{identityLabel} {identityLabel === 'Kreditor' ? row.creditorNumber || '—' : view.debtor} · {view.partnerName}</span>
-            <small>Zuordnung: {view.match}</small>
+            <small><StaticText source={"Zuordnung:"} /> {view.match}</small>
           </div>
           <div className="customer-import-history__actions">
             <span className={`customer-import-history__badge customer-import-history__badge--${view.approval}`}>{view.approval}</span>
-            {view.partnerPath && <Link to={view.partnerPath}>Stammdatenblatt öffnen →</Link>}
+            {view.partnerPath && <Link to={view.partnerPath}><StaticText source={"Stammdatenblatt öffnen →"} /></Link>}
           </div>
         </article>
       })}</div>

@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { useCompanyData } from '../company/companyDataContext.js'
 import { blobToDataUrl, companyStampErrorMessage, deleteCompanyStamp, loadCompanyStamp, saveCompanyData, uploadCompanyStamp } from '../lib/companyMasterData.js'
@@ -6,7 +7,7 @@ import '../styles/companyMasterData.css'
 
 export default function CompanyMasterDataPage() {
   const { company, loading, error: loadError } = useCompanyData()
-  if (loading) return <div className="company-master-data"><p>Stammdaten werden geladen …</p></div>
+  if (loading) return <div className="company-master-data"><p><StaticText source={"Stammdaten werden geladen …"} /></p></div>
   return <CompanyMasterDataEditor company={company} loadError={loadError} />
 }
 
@@ -89,9 +90,9 @@ function CompanyMasterDataEditor({ company, loadError }) {
   }
 
   return <div className="company-master-data">
-    <header className="company-master-data__intro"><h2>Stammdaten</h2><p>Firmendaten und gemeinsamer Stempel für alle Bereiche und Dokumentvorlagen.</p></header>
+    <header className="company-master-data__intro"><h2><StaticText source={"Stammdaten"} /></h2><p><StaticText source={"Firmendaten und gemeinsamer Stempel für alle Bereiche und Dokumentvorlagen."} /></p></header>
     {(error || loadError) && <p className="form-error" role="alert">{error || loadError}</p>}
-    {notice && <p className="company-master-data__notice" role="status">{notice}</p>}
+    {notice && <p className="company-master-data__notice" role="status">{<StaticText source={notice} />}</p>}
     <form onSubmit={save}>
       <div className="company-master-data__cards">
         {COMPANY_FOOTER_EDIT_GROUPS.map(({ title, fields }) => <section className="company-master-data__section" key={title}>
@@ -99,12 +100,12 @@ function CompanyMasterDataEditor({ company, loadError }) {
           <div className="company-master-data__fields">{fields.map(([field, label]) => <label className="form-field" key={field}><span>{label}</span><input type={field === 'email' ? 'email' : 'text'} value={draft[field]} required={field === 'legalName'} maxLength={COMPANY_FIELD_LIMITS[field]} onChange={(event) => setDraft((value) => ({ ...value, [field]: event.target.value }))} /></label>)}</div>
         </section>)}
       </div>
-      {hasUnsavedChanges && <div className="company-master-data__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={discardChanges}>Änderungen verwerfen</button><button className="button" type="submit" disabled={saving || Boolean(loadError)}>{saving ? 'Speichert …' : 'Firmendaten speichern'}</button></div>}
+      {hasUnsavedChanges && <div className="company-master-data__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={discardChanges}><StaticText source={"Änderungen verwerfen"} /></button><button className="button" type="submit" disabled={saving || Boolean(loadError)}>{<StaticText source={saving ? 'Speichert …' : 'Firmendaten speichern'} />}</button></div>}
     </form>
-    <section className="company-master-data__stamp"><h3>Gemeinsamer Stempel</h3><p>JPG, JPEG oder PNG mit maximal 2 MB. Alle angemeldeten Mitarbeitenden können diesen Stempel in Dokumentvorlagen verwenden.</p>
+    <section className="company-master-data__stamp"><h3><StaticText source={"Gemeinsamer Stempel"} /></h3><p><StaticText source={"JPG, JPEG oder PNG mit maximal 2 MB. Alle angemeldeten Mitarbeitenden können diesen Stempel in Dokumentvorlagen verwenden."} /></p>
       {stampError && <p className="form-error" role="alert">{stampError}</p>}
-      {stampLoading ? <p>Stempel wird geladen …</p> : stampUrl ? <img src={stampUrl} alt="Gemeinsamer Firmenstempel" /> : !stampError && <p>Es ist noch kein Stempel hinterlegt.</p>}
-      <div className="company-master-data__stamp-actions"><label className="button button--secondary">{stampBusy ? 'Bitte warten …' : stampUrl ? 'Stempel ersetzen' : 'Stempel hochladen'}<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" disabled={stampBusy} onClick={openStampPicker} onCancel={() => refreshStamp()} onChange={uploadStamp} /></label>{stampUrl && <button className="button button--secondary" type="button" disabled={stampBusy} onClick={removeStamp}>Stempel entfernen</button>}</div>
+      {stampLoading ? <p><StaticText source={"Stempel wird geladen …"} /></p> : stampUrl ? <TranslatedProps sources={{"alt":"Gemeinsamer Firmenstempel"}}><img src={stampUrl} alt="Gemeinsamer Firmenstempel" /></TranslatedProps> : !stampError && <p><StaticText source={"Es ist noch kein Stempel hinterlegt."} /></p>}
+      <div className="company-master-data__stamp-actions"><label className="button button--secondary">{<StaticText source={stampBusy ? 'Bitte warten …' : stampUrl ? 'Stempel ersetzen' : 'Stempel hochladen'} />}<input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" disabled={stampBusy} onClick={openStampPicker} onCancel={() => refreshStamp()} onChange={uploadStamp} /></label>{stampUrl && <button className="button button--secondary" type="button" disabled={stampBusy} onClick={removeStamp}><StaticText source={"Stempel entfernen"} /></button>}</div>
     </section>
   </div>
 }

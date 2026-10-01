@@ -1,3 +1,4 @@
+import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useRef, useState } from 'react'
 import BusinessDocumentForm from '../components/templates/BusinessDocumentForm.jsx'
 import BusinessDocumentPreview from '../components/templates/BusinessDocumentPreview.jsx'
@@ -48,7 +49,7 @@ export default function BusinessDocumentPage() {
   return <>
     <div className="liability-page__toolbar"><BackLink className="liability-page__back" to="/vorlagen" /></div>
     <div className="liability-page">
-      <div className="liability-page__header"><div><h2>Geschäftsdokument</h2></div></div>
+      <div className="liability-page__header"><div><h2><StaticText source={"Geschäftsdokument"} /></h2></div></div>
       <BusinessDocumentForm documentData={documentData} onChange={updateDocumentData} />
       <div className="liability-page__document-actions">
         <div className="document-signature-settings">
@@ -58,8 +59,8 @@ export default function BusinessDocumentPage() {
         {companyError && <p className="form-error" role="alert">{companyError}</p>}
         {pdfError && <p className="form-error" role="alert">{pdfError}</p>}
         <div className="liability-page__actions">
-          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}>PDF drucken</button>
-          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}>PDF erstellen</button>
+          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
+          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
         </div>
       </div>
       <BusinessDocumentPreview documentData={documentData} paperRef={documentPaperRef} />

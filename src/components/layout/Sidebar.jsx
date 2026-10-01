@@ -1,7 +1,9 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
+import { useLanguage } from '../../i18n/useLanguage.js'
 import { canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../../lib/permissions.js'
 import { CalendarIcon, ChevronDownIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, SettingsIcon, ShieldIcon, ShieldOutlineIcon, SignOutIcon, StarIcon, TemplatesIcon, TodoIcon, TruckTrailerIcon, UserPlusIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
@@ -50,12 +52,24 @@ const navigationGroups = [
   { key: 'administration', label: 'System', icon: SettingsIcon },
 ]
 
+const navigationLabelKeys = {
+  '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
+  '/feiertagskalender': 'nav.holidays', '/news': 'nav.news', '/team': 'nav.team', '/urlaub': 'nav.vacation',
+  '/personal': 'nav.personnel', '/urlaubsmanagement': 'nav.vacationManagement', '/transportauftraege': 'nav.orders',
+  '/paletten': 'nav.pallets', '/kunden-unternehmer': 'nav.partners', '/crm': 'nav.crm', '/schaeden': 'nav.damages',
+  '/inkasso': 'nav.collections', '/legal-disputes': 'nav.disputes', '/insolvenzen': 'nav.insolvencies',
+  '/dokumente': 'nav.documents', '/vorlagen': 'nav.templates', '/agb-pruefer': 'nav.termsChecker',
+  '/admin': 'nav.admin', '/admin/sendungsverfolgung': 'nav.shipmentTracking', '/admin/systemmails': 'nav.systemMails',
+  '/admin/ki-prompts': 'nav.ai', '/admin/stammdaten': 'nav.masterData', '/admin/diagnose': 'nav.diagnostics',
+}
+
 function itemIsActive(item, pathname) {
   if (item.to === '/admin') return pathname === '/admin'
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
 function NavigationItem({ item, badgeCounts, collapsed, favorite, onToggleFavorite, showFavoriteControl = false, suppressActive = false, onSelect }) {
+  const { t } = useLanguage()
   const { badge, label, to, icon: Icon } = item
   const count = badge ? badgeCounts[badge] || 0 : 0
   const variant = badge ? SIDEBAR_BADGE_DEFINITIONS[badge]?.variant : ''
@@ -65,7 +79,7 @@ function NavigationItem({ item, badgeCounts, collapsed, favorite, onToggleFavori
       {collapsed && <Icon />}
       {!collapsed && <><span className="nav-item__label">{label}</span>{count > 0 && <span className={`nav-item__badge nav-item__badge--${variant}`}>{count > 9 ? '9+' : count}</span>}</>}
     </NavLink>
-    {showFavoriteControl && !collapsed && <button className={`nav-item-favorite${favorite ? ' nav-item-favorite--active' : ''}`} type="button" aria-label={favorite ? `${label} aus Favoriten entfernen` : `${label} zu Favoriten hinzufügen`} aria-pressed={favorite} title={favorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggleFavorite(item.id) }}><StarIcon filled={favorite} /></button>}
+    {showFavoriteControl && !collapsed && <button className={`nav-item-favorite${favorite ? ' nav-item-favorite--active' : ''}`} type="button" aria-label={t(favorite ? 'nav.removeFavorite' : 'nav.addFavorite', { label })} aria-pressed={favorite} title={t(favorite ? 'nav.removeFavoriteTitle' : 'nav.addFavoriteTitle')} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onToggleFavorite(item.id) }}><StarIcon filled={favorite} /></button>}
   </div>
 }
 
@@ -73,9 +87,10 @@ export default function Sidebar({ collapsed, onToggle }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { profile, user } = useAuth()
+  const { t } = useLanguage()
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [badgeCounts, setBadgeCounts] = useState({})
-  const visibleItems = navigationItems.map((item) => ({ ...item, id: item.to })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module))
+  const visibleItems = navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module))
   const visibleItemIds = visibleItems.map((item) => item.id)
   const groupIds = navigationGroups.map((group) => group.key)
   const activeGroupIds = [...new Set(visibleItems.filter((item) => itemIsActive(item, location.pathname)).map((item) => item.group))]
@@ -165,17 +180,17 @@ export default function Sidebar({ collapsed, onToggle }) {
     <aside className="sidebar">
       <div className="sidebar__brand">
         <span className="brand-mark" aria-hidden="true"><DrehpunktLogoIcon /></span>
-        {!collapsed && <span className="brand-name">Drehpunkt</span>}
+        {!collapsed && <span className="brand-name"><StaticText source={"Drehpunkt"} /></span>}
       </div>
 
-      <NavLink className={({ isActive }) => `sidebar__profile${isActive ? ' active' : ''}`} to="/profil" title={collapsed ? 'Mein Profil' : undefined}>
+      <NavLink className={({ isActive }) => `sidebar__profile${isActive ? ' active' : ''}`} to="/profil" title={collapsed ? t('nav.profile') : undefined}>
         <span className="sidebar__profile-avatar" aria-hidden="true">{initials}</span>
         {!collapsed && <span className="sidebar__profile-identity"><strong>{profileName}</strong></span>}
       </NavLink>
 
-      <nav className="sidebar__nav" aria-label="Hauptnavigation">
+      <nav className="sidebar__nav" aria-label={t('nav.main')}>
         {!collapsed && favoriteItems.length > 0 && <section className={`sidebar__nav-group sidebar__favorites${expandedSection === 'favorites' ? ' sidebar__nav-group--expanded' : ''}`}>
-          <button className="sidebar__nav-group-toggle" type="button" aria-expanded={expandedSection === 'favorites'} aria-controls="sidebar-group-favorites" onClick={toggleFavorites}><span className="sidebar__nav-group-title"><StarIcon size={18} /><span>Favoriten</span></span><ChevronDownIcon /></button>
+          <button className="sidebar__nav-group-toggle" type="button" aria-expanded={expandedSection === 'favorites'} aria-controls="sidebar-group-favorites" onClick={toggleFavorites}><span className="sidebar__nav-group-title"><StarIcon size={18} /><span>{t('nav.favorites')}</span></span><ChevronDownIcon /></button>
           <div className={`sidebar__nav-group-items${expandedSection === 'favorites' ? '' : ' sidebar__nav-group-items--collapsed'}`} id="sidebar-group-favorites"><div className="sidebar__nav-group-items-inner">
             {favoriteItems.map((item) => <NavigationItem key={`favorite-${item.id}`} item={item} badgeCounts={badgeCounts} collapsed={collapsed} onSelect={selectFavorite} />)}
           </div></div>
@@ -187,7 +202,7 @@ export default function Sidebar({ collapsed, onToggle }) {
           const isExpanded = collapsed || expandedSection === group.key
           const GroupIcon = group.icon
           return <section className={`sidebar__nav-group${isExpanded ? ' sidebar__nav-group--expanded' : ''}${isActiveGroup ? ' sidebar__nav-group--current' : ''}`} key={group.key}>
-            {!collapsed && <button className="sidebar__nav-group-toggle" type="button" aria-expanded={isExpanded} aria-controls={`sidebar-group-${group.key}`} onClick={() => toggleGroup(group.key)}><span className="sidebar__nav-group-title"><GroupIcon size={18} /><span>{group.label}</span></span><ChevronDownIcon /></button>}
+            {!collapsed && <button className="sidebar__nav-group-toggle" type="button" aria-expanded={isExpanded} aria-controls={`sidebar-group-${group.key}`} onClick={() => toggleGroup(group.key)}><span className="sidebar__nav-group-title"><GroupIcon size={18} /><span>{t(`group.${group.key}`)}</span></span><ChevronDownIcon /></button>}
             <div className={`sidebar__nav-group-items${isExpanded ? '' : ' sidebar__nav-group-items--collapsed'}`} id={`sidebar-group-${group.key}`}><div className="sidebar__nav-group-items-inner">
               {groupItems.map((item) => <NavigationItem key={item.id} item={item} badgeCounts={badgeCounts} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
             </div></div>
@@ -196,8 +211,8 @@ export default function Sidebar({ collapsed, onToggle }) {
       </nav>
 
       <div className="sidebar__footer">
-        {!collapsed && <button className="sidebar__signout" type="button" onClick={handleSignOut} disabled={isSigningOut}><SignOutIcon />{isSigningOut ? 'Wird abgemeldet …' : 'Abmelden'}</button>}
-        <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'} title={collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>
+        {!collapsed && <button className="sidebar__signout" type="button" onClick={handleSignOut} disabled={isSigningOut}><SignOutIcon />{t(isSigningOut ? 'nav.signingOut' : 'nav.signOut')}</button>}
+        <button className="sidebar__toggle" type="button" onClick={onToggle} aria-label={t(collapsed ? 'nav.expand' : 'nav.collapse')} title={t(collapsed ? 'nav.expand' : 'nav.collapse')}>
           <span className={collapsed ? 'toggle-icon toggle-icon--collapsed' : 'toggle-icon'}><ChevronIcon size={20} /></span>
         </button>
       </div>

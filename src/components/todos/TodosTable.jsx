@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useMemo, useState } from "react";
 import {
   TODO_STATUS,
@@ -93,9 +94,9 @@ function SortableHeader({ activeSort, label, onSort, sortKey }) {
           aria-hidden="true"
         />
         <span className="sr-only">
-          {active
+          {<StaticText source={active
             ? `, aktuell ${direction === "asc" ? "aufsteigend" : "absteigend"} sortiert`
-            : ", sortieren"}
+            : ", sortieren"} />}
         </span>
       </button>
     </th>
@@ -128,7 +129,7 @@ export default function TodosTable({ formatDate, onOpen, todos }) {
   }
 
   if (!todos.length)
-    return <p className="todos-gallery__state">Keine To-dos vorhanden.</p>;
+    return <p className="todos-gallery__state"><StaticText source={"Keine To-dos vorhanden."} /></p>;
   return (
     <div className="todos-list-table-frame">
       <table className="data-table todos-table">
@@ -140,48 +141,48 @@ export default function TodosTable({ formatDate, onOpen, todos }) {
               onSort={toggleSort}
               sortKey="status"
             />
-            <SortableHeader
+            <TranslatedProps sources={{"label":"Aufgabe"}}><SortableHeader
               activeSort={sort}
               label="Aufgabe"
               onSort={toggleSort}
               sortKey="title"
-            />
-            <SortableHeader
+            /></TranslatedProps>
+            <TranslatedProps sources={{"label":"TA-Nummer"}}><SortableHeader
               activeSort={sort}
               label="TA-Nummer"
               onSort={toggleSort}
               sortKey="transportOrder"
-            />
-            <SortableHeader
+            /></TranslatedProps>
+            <TranslatedProps sources={{"label":"Wichtigkeit"}}><SortableHeader
               activeSort={sort}
               label="Wichtigkeit"
               onSort={toggleSort}
               sortKey="priority"
-            />
-            <SortableHeader
+            /></TranslatedProps>
+            <TranslatedProps sources={{"label":"Fällig am"}}><SortableHeader
               activeSort={sort}
               label="Fällig am"
               onSort={toggleSort}
               sortKey="dueDate"
-            />
-            <SortableHeader
+            /></TranslatedProps>
+            <TranslatedProps sources={{"label":"Bearbeiter"}}><SortableHeader
               activeSort={sort}
               label="Bearbeiter"
               onSort={toggleSort}
               sortKey="assignee"
-            />
-            <SortableHeader
+            /></TranslatedProps>
+            <TranslatedProps sources={{"label":"Erstellt von"}}><SortableHeader
               activeSort={sort}
               label="Erstellt von"
               onSort={toggleSort}
               sortKey="creator"
-            />
-            <SortableHeader
+            /></TranslatedProps>
+            <TranslatedProps sources={{"label":"Zuständigkeit"}}><SortableHeader
               activeSort={sort}
               label="Zuständigkeit"
               onSort={toggleSort}
               sortKey="responsibility"
-            />
+            /></TranslatedProps>
           </tr>
         </thead>
         <tbody>
@@ -230,7 +231,7 @@ export default function TodosTable({ formatDate, onOpen, todos }) {
                 >
                   {dueText}
                 </td>
-                <td>{todo.assignedUserName || "Noch nicht übernommen"}</td>
+                <td>{todo.assignedUserName || <StaticText source={"Noch nicht übernommen"} />}</td>
                 <td>{todo.creatorName || "—"}</td>
                 <td>{responsibilityLabel(todo)}</td>
               </tr>

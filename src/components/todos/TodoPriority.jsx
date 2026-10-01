@@ -1,3 +1,4 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { TODO_PRIORITY } from '../../lib/todos.js'
 import { TodoPriorityIcon } from '../icons.jsx'
 
@@ -15,5 +16,5 @@ export function TodoPriority({ priority }) {
 
 export function TodoPriorityPicker({ disabled = false, onChange, value }) {
   const selected = normalizedPriority(value)
-  return <fieldset className="todo-priority-picker"><legend>Wichtigkeit</legend><div>{priorityValues.map((priority) => <label className={`todo-priority-picker__option${selected === priority ? ' todo-priority-picker__option--selected' : ''}`} key={priority}><input className="sr-only" type="radio" name="priority" value={priority} checked={selected === priority} disabled={disabled} onChange={(event) => onChange(event.target.value)} /><TodoPriority priority={priority} /></label>)}</div></fieldset>
+  return <fieldset className="todo-priority-picker"><legend><StaticText source={"Wichtigkeit"} /></legend><div>{priorityValues.map((priority) => <label className={`todo-priority-picker__option${selected === priority ? ' todo-priority-picker__option--selected' : ''}`} key={priority}><input className="sr-only" type="radio" name="priority" value={priority} checked={selected === priority} disabled={disabled} onChange={(event) => onChange(event.target.value)} /><TodoPriority priority={priority} /></label>)}</div></fieldset>
 }

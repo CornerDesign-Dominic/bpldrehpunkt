@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LegalDisputeCaseForm from '../components/legal-disputes/LegalDisputeCaseForm.jsx'
@@ -71,19 +72,19 @@ export default function LegalDisputesPage() {
   }
 
   return <div className="damages-page legal-disputes-page">
-    {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}>Neuer Fall</button></div>}
-    <section className="damages-filter-area" aria-labelledby="legal-disputes-filter-heading"><h2 id="legal-disputes-filter-heading">Filter</h2><div className="damage-filters"><label className="search-field"><span className="sr-only">Fälle durchsuchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aktenzeichen, Betreff, Gegenseite oder Art" /></label><label className="filter-field"><span className="sr-only">Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Alle Status</option>{LEGAL_DISPUTE_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label className={`damage-filter-toggle${criticalOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={criticalOnly} onChange={(event) => setCriticalOnly(event.target.checked)} />Frist / Termin kritisch</label></div></section>
-    {error && <p className="form-error">{error}</p>}
-    {loading ? <p className="page-state">Fälle werden geladen …</p> : <div className="legal-disputes-lists">
+    {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}><StaticText source={"Neuer Fall"} /></button></div>}
+    <section className="damages-filter-area" aria-labelledby="legal-disputes-filter-heading"><h2 id="legal-disputes-filter-heading">Filter</h2><div className="damage-filters"><label className="search-field"><span className="sr-only"><StaticText source={"Fälle durchsuchen"} /></span><TranslatedProps sources={{"placeholder":"Aktenzeichen, Betreff, Gegenseite oder Art"}}><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aktenzeichen, Betreff, Gegenseite oder Art" /></TranslatedProps></label><label className="filter-field"><span className="sr-only">Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value=""><StaticText source={"Alle Status"} /></option>{LEGAL_DISPUTE_STATUSES.map((item) => <option key={item.value} value={item.value}>{<StaticText source={item.label} />}</option>)}</select></label><label className={`damage-filter-toggle${criticalOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={criticalOnly} onChange={(event) => setCriticalOnly(event.target.checked)} /><StaticText source={"Frist / Termin kritisch"} /></label></div></section>
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
+    {loading ? <p className="page-state"><StaticText source={"Fälle werden geladen …"} /></p> : <div className="legal-disputes-lists">
       <section className="legal-disputes-list" aria-labelledby="current-legal-disputes-heading">
-        <div className="legal-disputes-list__heading"><h2 id="current-legal-disputes-heading">Aktuelle Fälle</h2></div>
+        <div className="legal-disputes-list__heading"><h2 id="current-legal-disputes-heading"><StaticText source={"Aktuelle Fälle"} /></h2></div>
         <LegalDisputeCasesTable cases={currentCases} emptyMessage="Keine aktuellen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
       <section className="legal-disputes-list" aria-labelledby="closed-legal-disputes-heading">
-        <div className="legal-disputes-list__heading"><h2 id="closed-legal-disputes-heading">Abgeschlossene Fälle</h2></div>
+        <div className="legal-disputes-list__heading"><h2 id="closed-legal-disputes-heading"><StaticText source={"Abgeschlossene Fälle"} /></h2></div>
         <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
       </section>
     </div>}
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><TranslatedProps sources={{"aria-label":"Neuen Fall anlegen"}}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></TranslatedProps></div>}
   </div>
 }

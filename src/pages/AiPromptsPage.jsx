@@ -1,3 +1,4 @@
+import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import Toast from '../components/ui/Toast.jsx'
@@ -50,19 +51,19 @@ export default function AiPromptsPage() {
     }
   }
 
-  if (loading) return <section className="admin-page"><p>KI-Prompts werden geladen …</p></section>
+  if (loading) return <section className="admin-page"><p><StaticText source={"KI-Prompts werden geladen …"} /></p></section>
 
   return <div className="admin-page ai-prompts-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    {error && <p className="form-error">{error}</p>}
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
     <section className="ai-prompts-workspace">
-      <aside className="ai-prompts-list"><div className="ai-prompts-list__heading"><h2>KI-Funktionen</h2></div>{prompts.map((prompt) => <button key={prompt.id} className={prompt.id === editing?.id ? 'ai-prompts-list__item ai-prompts-list__item--active' : 'ai-prompts-list__item'} type="button" onClick={() => { setEditing(clonePrompt(prompt)); setError('') }}>{prompt.displayName}</button>)}</aside>
+      <aside className="ai-prompts-list"><div className="ai-prompts-list__heading"><h2><StaticText source={"KI-Funktionen"} /></h2></div>{prompts.map((prompt) => <button key={prompt.id} className={prompt.id === editing?.id ? 'ai-prompts-list__item ai-prompts-list__item--active' : 'ai-prompts-list__item'} type="button" onClick={() => { setEditing(clonePrompt(prompt)); setError('') }}>{prompt.displayName}</button>)}</aside>
       {editing && <section className="ai-prompts-editor">
         <div><h2>{editing.displayName}</h2><p>{editing.description}</p></div>
-        <div className="ai-prompts-editor__notice"><strong>Geschützter Kern</strong><span>Extraktion, Datenvalidierung, Output-Schema und Sicherheitsvorgaben sind nicht bearbeitbar und haben immer Vorrang.</span></div>
-        <label className="form-field ai-prompts-editor__field"><span>Entwurf – ergänzende Fachanweisung</span><textarea rows="14" maxLength="5000" value={editing.draft.instructions} onChange={(event) => setEditing((current) => ({ ...current, draft: { ...current.draft, instructions: event.target.value } }))} /></label>
-        <div className="ai-prompts-editor__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={() => { void run('resetAiPromptDraft', 'Entwurf auf den sicheren Standard zurückgesetzt.') }}>Standard wiederherstellen</button><button className="button button--secondary" type="button" disabled={saving} onClick={() => { void run('saveAiPromptDraft', 'Entwurf gespeichert.') }}>Entwurf speichern</button><button className="button" type="button" disabled={saving} onClick={() => { void run('publishAiPromptDraft', 'Entwurf veröffentlicht. Neue KI-Aufrufe verwenden ihn sofort.') }}>Veröffentlichen</button></div>
-        <section className="ai-prompts-editor__published"><h3>Aktiv veröffentlichte Fassung</h3><p>{editing.published.instructions}</p></section>
+        <div className="ai-prompts-editor__notice"><strong><StaticText source={"Geschützter Kern"} /></strong><span><StaticText source={"Extraktion, Datenvalidierung, Output-Schema und Sicherheitsvorgaben sind nicht bearbeitbar und haben immer Vorrang."} /></span></div>
+        <label className="form-field ai-prompts-editor__field"><span><StaticText source={"Entwurf – ergänzende Fachanweisung"} /></span><textarea rows="14" maxLength="5000" value={editing.draft.instructions} onChange={(event) => setEditing((current) => ({ ...current, draft: { ...current.draft, instructions: event.target.value } }))} /></label>
+        <div className="ai-prompts-editor__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={() => { void run('resetAiPromptDraft', 'Entwurf auf den sicheren Standard zurückgesetzt.') }}><StaticText source={"Standard wiederherstellen"} /></button><button className="button button--secondary" type="button" disabled={saving} onClick={() => { void run('saveAiPromptDraft', 'Entwurf gespeichert.') }}><StaticText source={"Entwurf speichern"} /></button><button className="button" type="button" disabled={saving} onClick={() => { void run('publishAiPromptDraft', 'Entwurf veröffentlicht. Neue KI-Aufrufe verwenden ihn sofort.') }}><StaticText source={"Veröffentlichen"} /></button></div>
+        <section className="ai-prompts-editor__published"><h3><StaticText source={"Aktiv veröffentlichte Fassung"} /></h3><p>{editing.published.instructions}</p></section>
       </section>}
     </section>
   </div>

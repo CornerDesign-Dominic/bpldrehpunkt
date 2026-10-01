@@ -5,7 +5,7 @@ import { USER_ROLES, getSafeProfileDefaults } from './permissions.js'
 
 export const USER_PROFILES_COLLECTION = 'users'
 export { USER_ROLES }
-export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'role', 'permissions', 'vacationManager', 'vacationManagerAllDepartments', 'vacationManagerDepartments', 'active', 'employmentStart', 'personnelNumber', 'createdAt', 'updatedAt']
+export const USER_PROFILE_FIELDS = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'role', 'permissions', 'vacationManager', 'vacationManagerAllDepartments', 'vacationManagerDepartments', 'active', 'employmentStart', 'personnelNumber', 'language', 'createdAt', 'updatedAt']
 export const ADMIN_MANAGED_USER_PROFILE_FIELDS = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'departmentId', 'departmentName', 'department', 'active', 'employmentStart', 'personnelNumber']
 export const USER_AVAILABILITY_STATUSES = [
   { value: 'working', label: 'Arbeitend' },
@@ -20,6 +20,12 @@ export const USER_AVAILABILITY_STATUSES = [
 export async function getUserProfile(uid) {
   const snapshot = await getDoc(doc(db, USER_PROFILES_COLLECTION, uid))
   return snapshot.exists() ? getSafeProfileDefaults({ id: snapshot.id, ...snapshot.data() }) : null
+}
+
+export async function saveOwnLanguage(language) {
+  await waitForAppCheckToken()
+  const result = await httpsCallable(functions, 'updateOwnLanguage')({ language })
+  return result.data?.language
 }
 
 export async function listManagedUserProfiles() {

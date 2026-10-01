@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import HolidayMonthCalendar from '../components/holidays/HolidayMonthCalendar.jsx'
 import HolidayDetailModal from '../components/holidays/HolidayDetailModal.jsx'
@@ -22,7 +23,7 @@ function AllGermanStatesToggle({ disabled, selectedStates, onToggle }) {
     if (inputRef.current) inputRef.current.indeterminate = partlySelected
   }, [partlySelected])
 
-  return <label className="holiday-state holiday-state-list__all"><input ref={inputRef} type="checkbox" checked={allSelected} disabled={disabled} onChange={(event) => onToggle(event.target.checked)} /><span>Alle Bundesländer</span></label>
+  return <label className="holiday-state holiday-state-list__all"><input ref={inputRef} type="checkbox" checked={allSelected} disabled={disabled} onChange={(event) => onToggle(event.target.checked)} /><span><StaticText source={"Alle Bundesländer"} /></span></label>
 }
 
 export default function HolidayCalendarPage() {
@@ -113,28 +114,28 @@ export default function HolidayCalendarPage() {
 
   return <div className="holiday-page">
     <section className="holiday-calendar-card">
-      <div className="holiday-toolbar"><CalendarNavigation onPrevious={() => moveMonth(-1)} onToday={showToday} onNext={() => moveMonth(1)}><label className="filter-field"><span className="sr-only">Monat</span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
-          <label className="filter-field"><span className="sr-only">Jahr</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></CalendarNavigation></div>
+      <div className="holiday-toolbar"><CalendarNavigation onPrevious={() => moveMonth(-1)} onToday={showToday} onNext={() => moveMonth(1)}><label className="filter-field"><span className="sr-only"><StaticText source={"Monat"} /></span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{VACATION_MONTHS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+          <label className="filter-field"><span className="sr-only"><StaticText source={"Jahr"} /></span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></CalendarNavigation></div>
       {holidayLoadError && <p className="holiday-calendar-state">{holidayLoadError}</p>}
       <HolidayMonthCalendar year={year} month={month} today={today} holidays={holidays} schoolHolidayDays={schoolHolidayDays} onHolidayClick={setSelectedHoliday} />
     </section>
 
     <div className="holiday-sidebar">
       <section className="school-holidays-card">
-        <div className="school-holidays-card__heading"><h2>Schulferien</h2></div>
-        <label className="school-holidays-card__toggle"><input type="checkbox" checked={schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaysEnabled(event.target.checked)} /><span>Ferien einblenden</span></label>
-        <label className="filter-field school-holidays-card__field"><span className="sr-only">Bundesland</span><select aria-label="Bundesland" value={schoolHolidaySubdivisionCode} disabled={!schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaySubdivisionCode(event.target.value)}>{GERMAN_STATES.map((state) => <option key={state.code} value={`DE-${state.code}`}>{state.name}</option>)}</select></label>
+        <div className="school-holidays-card__heading"><h2><StaticText source={"Schulferien"} /></h2></div>
+        <label className="school-holidays-card__toggle"><input type="checkbox" checked={schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaysEnabled(event.target.checked)} /><span><StaticText source={"Ferien einblenden"} /></span></label>
+        <label className="filter-field school-holidays-card__field"><span className="sr-only"><StaticText source={"Bundesland"} /></span><TranslatedProps sources={{"aria-label":"Bundesland"}}><select aria-label="Bundesland" value={schoolHolidaySubdivisionCode} disabled={!schoolHolidaysEnabled} onChange={(event) => setSchoolHolidaySubdivisionCode(event.target.value)}>{GERMAN_STATES.map((state) => <option key={state.code} value={`DE-${state.code}`}>{state.name}</option>)}</select></TranslatedProps></label>
         {schoolHolidayLoadError && <p className="school-holidays-card__error">{schoolHolidayLoadError}</p>}
       </section>
       <aside className="holiday-countries-card">
-        <div className="holiday-countries-card__heading"><h2>Feiertage</h2></div>
-      <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={allCountriesSelected} onChange={(event) => toggleAllCountries(event.target.checked)} /><span>Alle Länder</span></label>{EUROPEAN_COUNTRIES.map((country) => {
+        <div className="holiday-countries-card__heading"><h2><StaticText source={"Feiertage"} /></h2></div>
+      <div className="holiday-country-list"><label className="holiday-country-list__all"><input type="checkbox" checked={allCountriesSelected} onChange={(event) => toggleAllCountries(event.target.checked)} /><span><StaticText source={"Alle Länder"} /></span></label>{EUROPEAN_COUNTRIES.map((country) => {
         const isExpanded = expandedCountries.has(country.code)
         return <div className={`holiday-country${country.available ? '' : ' holiday-country--unavailable'}`} key={country.code}>
           <div className="holiday-country__row">
             {country.regions.length > 0 ? <button className={`holiday-country__toggle${isExpanded ? ' holiday-country__toggle--open' : ''}`} type="button" onClick={() => toggleCountryExpansion(country.code)} aria-label={`${country.name} ${isExpanded ? 'einklappen' : 'ausklappen'}`}>›</button> : <span className="holiday-country__toggle-placeholder" />}
             <label><input type="checkbox" checked={country.code === 'DE' ? germanyEnabled : selectedCountryCodes.includes(country.code)} disabled={!country.available} onChange={(event) => toggleCountry(country.code, event.target.checked)} /><span>{country.name}</span></label>
-            {!country.available && <small>Feiertage folgen</small>}
+            {!country.available && <small><StaticText source={"Feiertage folgen"} /></small>}
           </div>
           {country.code === 'DE' && isExpanded && <div className="holiday-state-list"><AllGermanStatesToggle disabled={!germanyEnabled} selectedStates={selectedStates} onToggle={toggleAllGermanStates} />{country.regions.map((state) => <label className="holiday-state" key={state.code}><input type="checkbox" checked={selectedStates.includes(state.code)} disabled={!germanyEnabled} onChange={(event) => toggleState(state.code, event.target.checked)} /><span>{state.name}</span></label>)}</div>}
         </div>

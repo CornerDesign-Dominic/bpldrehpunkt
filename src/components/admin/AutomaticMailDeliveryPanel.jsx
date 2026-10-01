@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
@@ -37,7 +38,7 @@ export default function AutomaticMailDeliveryPanel() {
 
   const stateLabel = paused ? 'Pausiert' : 'Aktiv'
   return <>
-    <ConfirmDialog
+    <TranslatedProps sources={{"title":"Automatische E-Mails pausieren?"}}><ConfirmDialog
       open={confirmationOpen}
       title="Automatische E-Mails pausieren?"
       message="Sendungsverfolgung, Frist-Erinnerungen und automatische Urlaubsbenachrichtigungen werden sofort angehalten. Manuell ausgelöste Mails bleiben möglich."
@@ -46,16 +47,16 @@ export default function AutomaticMailDeliveryPanel() {
       isSubmitting={saving}
       onCancel={() => setConfirmationOpen(false)}
       onConfirm={() => void save(true)}
-    />
+    /></TranslatedProps>
     <section className="admin-panel automatic-mail-delivery" aria-labelledby="automatic-mail-delivery-title">
       <div className="admin-panel__heading">
-        <div><h2 id="automatic-mail-delivery-title">Automatische E-Mails</h2><p>Globaler Versandstatus: <strong>{loading ? 'Wird geladen …' : stateLabel}</strong></p></div>
+        <div><h2 id="automatic-mail-delivery-title"><StaticText source={"Automatische E-Mails"} /></h2><p><StaticText source={"Globaler Versandstatus:"} /> <strong>{<StaticText source={loading ? 'Wird geladen …' : stateLabel} />}</strong></p></div>
         <div className="admin-panel__actions">
-          <button className={paused ? 'button' : 'button button--danger'} type="button" disabled={loading || saving} onClick={() => paused ? void save(false) : setConfirmationOpen(true)}>{saving ? 'Wird gespeichert …' : paused ? 'Automatische E-Mails aktivieren' : 'Automatische E-Mails pausieren'}</button>
+          <button className={paused ? 'button' : 'button button--danger'} type="button" disabled={loading || saving} onClick={() => paused ? void save(false) : setConfirmationOpen(true)}>{<StaticText source={saving ? 'Wird gespeichert …' : paused ? 'Automatische E-Mails aktivieren' : 'Automatische E-Mails pausieren'} />}</button>
         </div>
       </div>
-      <p className="automatic-mail-delivery__hint">Betrifft nur automatisch ausgelöste Mails. Manuelle Tracking- und Testmails bleiben verfügbar.</p>
-      {error && <p className="form-error">{error}</p>}
+      <p className="automatic-mail-delivery__hint"><StaticText source={"Betrifft nur automatisch ausgelöste Mails. Manuelle Tracking- und Testmails bleiben verfügbar."} /></p>
+      {error && <p className="form-error">{<StaticText source={error} />}</p>}
     </section>
   </>
 }

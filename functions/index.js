@@ -245,6 +245,18 @@ export const listManagedUsers = onCall({ region: 'europe-west3', enforceAppCheck
   return { profiles: users.docs.map(managedUserEntry) }
 })
 
+// Users may change only their own interface language. Profile writes stay
+// callable-only so this cannot be used to modify roles or protected fields.
+export const updateOwnLanguage = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
+  await requireActiveProfile(request)
+  const language = request.data?.language
+  if (!['de', 'en'].includes(language) || Object.keys(request.data || {}).some((key) => key !== 'language')) {
+    throw new HttpsError('invalid-argument', 'Ungültige Sprache.')
+  }
+  await db.doc(`users/${request.auth.uid}`).update({ language, updatedAt: FieldValue.serverTimestamp() })
+  return { language }
+})
+
 function personnelListEntry(snapshot) {
   const profile = snapshot.data()
   return {

@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { Link } from 'react-router-dom'
 import { ChevronIcon } from '../icons.jsx'
 import { getBusinessPartnerType } from '../../lib/businessPartners.js'
@@ -44,25 +45,25 @@ export default function BusinessPartnerHeader({ account, canViewCrm, canViewPall
 
   return <section className="partner-header" aria-labelledby="partner-header-title">
     <div className="partner-header__identity">
-      <h1 id="partner-header-title">{partner.companyName || 'Geschäftspartner'}</h1>
-      {partner.dycosCreatedAt && <p className="partner-header__since">Partner seit (DyCoS): <strong>{formatPartnerSince(partner.dycosCreatedAt)}</strong></p>}
+      <h1 id="partner-header-title">{partner.companyName || <StaticText source={"Geschäftspartner"} />}</h1>
+      {partner.dycosCreatedAt && <p className="partner-header__since"><StaticText source={"Partner seit (DyCoS):"} /> <strong>{formatPartnerSince(partner.dycosCreatedAt)}</strong></p>}
       <p>{getBusinessPartnerType(partner)}</p>
-      <p className="partner-header__numbers">Debitor: <strong>{partner.debtorNumber || '—'}</strong><span aria-hidden="true">·</span>Kreditor: <strong>{partner.creditorNumber || '—'}</strong></p>
+      <p className="partner-header__numbers"><StaticText source={"Debitor:"} /> <strong>{partner.debtorNumber || '—'}</strong><span aria-hidden="true">·</span><StaticText source={"Kreditor:"} /> <strong>{partner.creditorNumber || '—'}</strong></p>
     </div>
 
     <div className="partner-header__tiles">
-      <PartnerHeaderTile ariaLabel="Palettenkonto öffnen" title="Paletten" tone="pallets" to={canViewPallets ? palletAccountPath(partnerId) : undefined}>
+      <TranslatedProps sources={{"title":"Paletten"}}><PartnerHeaderTile ariaLabel="Palettenkonto öffnen" title="Paletten" tone="pallets" to={canViewPallets ? palletAccountPath(partnerId) : undefined}>
         <strong className="partner-header__tile-value" data-status={palletStatus}>{account ? formatPalletNumber(account.balance, true) : '—'}</strong><span className="partner-evaluation-label" data-status={palletStatus}>{PARTNER_EVALUATION_STATUS_LABELS[palletStatus]}</span>
-      </PartnerHeaderTile>
+      </PartnerHeaderTile></TranslatedProps>
 
       <PartnerHeaderTile ariaLabel="CRM des Geschäftspartners öffnen" title="Ranking" tone="ranking" to={canViewCrm ? crmPartnerPath(partnerId) : undefined}>
         <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', customerRating?.averageScore, settings)}>{formatRankingValue(customerRating)}</strong><span className="partner-header__rating-label">KU</span></span>
         <span className="partner-header__rating"><strong data-status={getPartnerEvaluationStatus('ranking', carrierRating?.averageScore, settings)}>{formatRankingValue(carrierRating)}</strong><span className="partner-header__rating-label">UTN</span></span>
       </PartnerHeaderTile>
 
-      <PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" title="Kreditlimit" to={canViewCrm ? crmPartnerPath(partnerId) : undefined} tone="credit-limit">
+      <TranslatedProps sources={{"title":"Kreditlimit"}}><PartnerHeaderTile ariaLabel="CRM und Kreditlimit öffnen" title="Kreditlimit" to={canViewCrm ? crmPartnerPath(partnerId) : undefined} tone="credit-limit">
         <strong className="partner-header__tile-value" data-status={creditStatus}>{formatCreditLimit(partner.creditLimit)}</strong><span className="partner-evaluation-label" data-status={creditStatus}>{CREDIT_LIMIT_STATUS_LABELS[creditStatus]}</span>
-      </PartnerHeaderTile>
+      </PartnerHeaderTile></TranslatedProps>
     </div>
   </section>
 }

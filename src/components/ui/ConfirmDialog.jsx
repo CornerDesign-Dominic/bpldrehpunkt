@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
+import { useLanguage } from '../../i18n/useLanguage.js'
 
-export default function ConfirmDialog({ cancelLabel = 'Abbrechen', confirmLabel = 'Bestätigen', isSubmitting = false, message, onCancel, onConfirm, open, submittingLabel = 'Wird ausgeführt …', title, variant = 'primary' }) {
+export default function ConfirmDialog({ cancelLabel, confirmLabel, isSubmitting = false, message, onCancel, onConfirm, open, submittingLabel, title, variant = 'primary' }) {
+  const { t } = useLanguage()
   const dialogRef = useRef(null)
   const confirmButtonRef = useRef(null)
 
@@ -39,7 +41,7 @@ export default function ConfirmDialog({ cancelLabel = 'Abbrechen', confirmLabel 
     <section ref={dialogRef} className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message" tabIndex="-1">
       <h2 id="confirm-dialog-title">{title}</h2>
       <p id="confirm-dialog-message">{message}</p>
-      <div className="confirm-dialog__actions"><button className="button button--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>{cancelLabel}</button><button ref={confirmButtonRef} className={`button${variant === 'danger' ? ' button--danger' : ''}`} type="button" onClick={onConfirm} disabled={isSubmitting}>{isSubmitting ? submittingLabel : confirmLabel}</button></div>
+      <div className="confirm-dialog__actions"><button className="button button--secondary" type="button" onClick={onCancel} disabled={isSubmitting}>{cancelLabel ?? t('common.cancel')}</button><button ref={confirmButtonRef} className={`button${variant === 'danger' ? ' button--danger' : ''}`} type="button" onClick={onConfirm} disabled={isSubmitting}>{isSubmitting ? (submittingLabel ?? t('common.processing')) : (confirmLabel ?? t('common.confirm'))}</button></div>
     </section>
   </div>
 }

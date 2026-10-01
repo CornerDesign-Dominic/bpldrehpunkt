@@ -1,3 +1,4 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { legalDisputeScheduleTypeLabel, legalDisputeStatusLabel } from '../../lib/legalDisputes.js'
 
 function TableHeader({ children }) {
@@ -10,7 +11,7 @@ function formatDate(value) { return value ? new Intl.DateTimeFormat('de-DE').for
 export default function LegalDisputeCasesTable({ cases, emptyMessage, onOpen }) {
   if (!cases.length) return <p className="todos-gallery__state">{emptyMessage}</p>
 
-  return <div className="legal-disputes-cases-table-frame"><table className="data-table todos-table legal-disputes-cases-table"><thead><tr><TableHeader>Aktenzeichen</TableHeader><TableHeader>Gegenseite</TableHeader><TableHeader>Art</TableHeader><TableHeader>Status</TableHeader><TableHeader>Streitwert</TableHeader><TableHeader>Nächste Frist / Termin</TableHeader></tr></thead><tbody>{cases.map((legalDispute) => <tr className={onOpen ? 'legal-disputes-cases-table__row' : ''} key={legalDispute.id} tabIndex={onOpen ? 0 : undefined} role={onOpen ? 'link' : undefined} aria-label={onOpen ? `Fall ${legalDispute.caseNumber || legalDispute.reference || ''} öffnen` : undefined} onClick={() => onOpen?.(legalDispute)} onKeyDown={(event) => { if (onOpen && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(legalDispute) } }}>
+  return <div className="legal-disputes-cases-table-frame"><table className="data-table todos-table legal-disputes-cases-table"><thead><tr><TableHeader><StaticText source={"Aktenzeichen"} /></TableHeader><TableHeader><StaticText source={"Gegenseite"} /></TableHeader><TableHeader><StaticText source={"Art"} /></TableHeader><TableHeader>Status</TableHeader><TableHeader><StaticText source={"Streitwert"} /></TableHeader><TableHeader><StaticText source={"Nächste Frist / Termin"} /></TableHeader></tr></thead><tbody>{cases.map((legalDispute) => <tr className={onOpen ? 'legal-disputes-cases-table__row' : ''} key={legalDispute.id} tabIndex={onOpen ? 0 : undefined} role={onOpen ? 'link' : undefined} aria-label={onOpen ? `Fall ${legalDispute.caseNumber || legalDispute.reference || ''} öffnen` : undefined} onClick={() => onOpen?.(legalDispute)} onKeyDown={(event) => { if (onOpen && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(legalDispute) } }}>
     <td className="todos-table__title">{legalDispute.caseNumber || legalDispute.reference || '—'}</td>
     <td>{legalDispute.counterparty || '—'}</td>
     <td>{legalDispute.caseType || '—'}</td>

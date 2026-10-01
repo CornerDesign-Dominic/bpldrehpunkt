@@ -7,6 +7,11 @@
 .profile-readonly-grid div { min-width: 0; padding: 8px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
 .profile-readonly-grid dt { color: var(--text-muted); font-size: 10px; font-weight: 700; }
 .profile-readonly-grid dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--text-secondary); font-size: 13px; }
+.profile-settings { display: grid; justify-items: start; gap: 7px; }
+.profile-settings h2 { margin-bottom: 3px; }
+.profile-settings label { color: var(--text-secondary); font-size: 12px; font-weight: 650; }
+.profile-settings select { min-width: 180px; min-height: 34px; padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); font: inherit; font-size: 13px; }
+.profile-settings p { margin: 0; color: var(--text-muted); font-size: 12px; }
 .signature-section { display: grid; gap: 11px; }
 .signature-section__heading h2 { margin-bottom: 3px; }
 .signature-section__heading p { max-width: 680px; margin: 0; color: var(--text-muted); font-size: 12px; line-height: 1.45; }

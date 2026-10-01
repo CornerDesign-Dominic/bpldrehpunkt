@@ -1,3 +1,5 @@
+import { localeForLanguage } from '../i18n/translations.js'
+
 export const PERSONAL_NOTE_TITLE_MAX_LENGTH = 140
 export const PERSONAL_NOTE_TEXT_MAX_LENGTH = 12000
 export const PERSONAL_NOTE_LEVELS = [
@@ -61,10 +63,10 @@ export function sortPersonalNotes(notes, sort = 'created-desc') {
   })
 }
 
-export function formatPersonalNoteCreatedAt(value) {
+export function formatPersonalNoteCreatedAt(value, language = 'de') {
   const date = dateValue(value)
   if (!date || Number.isNaN(date.getTime())) return 'Wird gespeichert …'
-  return new Intl.DateTimeFormat('de-DE', {
+  return new Intl.DateTimeFormat(localeForLanguage(language), {
     day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
   }).format(date)
 }
