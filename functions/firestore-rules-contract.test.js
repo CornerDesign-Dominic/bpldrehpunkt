@@ -68,6 +68,16 @@ test('an active user may read only their own profile; administration uses a call
   assert.match(functionsIndex, /export const listManagedUsers = onCall/)
 })
 
+test('language preference can change only through an active user callable', () => {
+  const callable = functionsIndex.match(/export const updateOwnLanguage = onCall\([\s\S]*?\n\}\)/)?.[0] || ''
+  assert.match(callable, /enforceAppCheck: true/)
+  assert.match(callable, /await requireActiveProfile\(request\)/)
+  assert.match(callable, /\['de', 'en'\]\.includes\(language\)/)
+  assert.match(callable, /key !== 'language'/)
+  assert.match(callable, /users\/\$\{request\.auth\.uid\}/)
+  assert.match(rules, /match \/users\/\{userId\} \{[\s\S]*?allow update: if false;/)
+})
+
 test('the admin employee list remains an active-admin callable and is independent of personnel rights', () => {
   const adminList = functionsIndex.match(/export const listManagedUsers = onCall([\s\S]*?\n\}\))/)?.[1] || ''
   const managerAssertion = functionsIndex.match(/async function assertManager\(request\) \{([\s\S]*?)\n\}/)?.[1] || ''
@@ -172,8 +182,8 @@ test('personnel details require an explicit per-card edit action while vacation 
   assert.match(personnelDetailPage, /editable=\{canModify\}/)
   assert.match(personnelDetailPage, /vacation\.status === 'approved' && vacation\.payrollProcessed === true/)
   assert.match(personnelDetailPage, /vacation\.hrManualEntry === true && vacation\.status === 'manual'/)
-  assert.match(personnelDetailPage, /<option value="relevant">Relevante anzeigen<\/option>/)
-  assert.match(personnelDetailPage, /<h2>Urlaubsübersicht<\/h2>/)
+  assert.match(personnelDetailPage, /<option value="relevant"><StaticText source=\{"Relevante anzeigen"\} \/><\/option>/)
+  assert.match(personnelDetailPage, /<h2><StaticText source=\{"Urlaubsübersicht"\} \/><\/h2>/)
   assert.match(personnelDetailPage, /calculateVacationYearBalance\(\{ \.\.\.employee, entries: vacations, year \}\)/)
   assert.match(personnelDetailPage, /Verfügbare Urlaubstage/)
   assert.match(personnelDetailPage, /Bereits genommene Urlaubstage/)
@@ -297,7 +307,7 @@ test('HR-recorded vacations are visible to the employee but cannot enter the emp
   assert.match(rules, /allow read: if view\('vacation'\) && \(resource\.data\.userId == request\.auth\.uid \|\| resource\.data\.status == 'approved'\);/)
   assert.match(vacationPage, /isSelectedHrManualVacation = selectedBaseRequest\?\.hrManualEntry === true/)
   assert.match(vacationPage, /!request\.hrManualEntry \|\| request\.status !== 'withdrawn'/)
-  assert.match(vacationPage, /<option value="manual">Manuell<\/option>/)
+  assert.match(vacationPage, /<option value="manual"><StaticText source=\{"Manuell"\} \/><\/option>/)
   assert.match(vacationPage, /Urlaub manuell erfasst von \$\{request\.hrManualCreatedByName \|\| 'HR'\}/)
   assert.match(vacationPage, /const calendarKind = item\.hrManualEntry === true \? 'approved' : item\.status/)
 })

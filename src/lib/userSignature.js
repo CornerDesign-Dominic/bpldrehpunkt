@@ -23,11 +23,11 @@ function currentUserSignatureRef() {
   return ref(storage, `user-signatures/${uid}/signature.jpg`)
 }
 
-export function validateSignatureFile(file) {
-  if (!file) return 'Bitte wähle eine JPG- oder JPEG-Datei aus.'
-  if (file.type !== 'image/jpeg') return 'Bitte lade ausschließlich eine JPG- oder JPEG-Datei hoch.'
-  if (file.size === 0) return 'Die ausgewählte Datei ist leer.'
-  if (file.size > MAX_SIGNATURE_SIZE_BYTES) return 'Die Unterschrift darf maximal 2 MB groß sein.'
+export function validateSignatureFile(file, t) {
+  if (!file) return t ? t('signature.noFile') : 'Bitte wähle eine JPG- oder JPEG-Datei aus.'
+  if (file.type !== 'image/jpeg') return t ? t('signature.wrongType') : 'Bitte lade ausschließlich eine JPG- oder JPEG-Datei hoch.'
+  if (file.size === 0) return t ? t('signature.emptyFile') : 'Die ausgewählte Datei ist leer.'
+  if (file.size > MAX_SIGNATURE_SIZE_BYTES) return t ? t('signature.tooLarge') : 'Die Unterschrift darf maximal 2 MB groß sein.'
   return ''
 }
 
@@ -91,13 +91,14 @@ export async function deleteCurrentUserSignature() {
   await deleteObject(currentUserSignatureRef())
 }
 
-export function signatureErrorMessage(error, action) {
+export function signatureErrorMessage(error, action, t) {
   if (['storage/object-not-found', 'signature/not-uploaded'].includes(error?.code)) return ''
-  if (error?.code === 'signature/invalid-file') return error.message
-  if (['storage/unauthorized', 'storage/permission-denied', 'functions/permission-denied'].includes(error?.code)) return 'Du hast keine Berechtigung für diese Unterschrift.'
-  if (['storage/unauthenticated', 'functions/unauthenticated'].includes(error?.code)) return 'Bitte melde dich erneut an.'
-  if (error?.code === 'signature/timeout') return 'Das Laden der Unterschrift dauert zu lange. Bitte versuche es erneut.'
-  if (error?.code === 'storage/quota-exceeded') return 'Der Speicherplatz ist derzeit erschöpft.'
-  if (error?.code === 'storage/canceled') return 'Der Upload wurde abgebrochen.'
+  if (error?.code === 'signature/invalid-file') return t ? t('signature.invalidFile') : error.message
+  if (['storage/unauthorized', 'storage/permission-denied', 'functions/permission-denied'].includes(error?.code)) return t ? t('signature.forbidden') : 'Du hast keine Berechtigung für diese Unterschrift.'
+  if (['storage/unauthenticated', 'functions/unauthenticated'].includes(error?.code)) return t ? t('signature.signIn') : 'Bitte melde dich erneut an.'
+  if (error?.code === 'signature/timeout') return t ? t('signature.timeout') : 'Das Laden der Unterschrift dauert zu lange. Bitte versuche es erneut.'
+  if (error?.code === 'storage/quota-exceeded') return t ? t('signature.quota') : 'Der Speicherplatz ist derzeit erschöpft.'
+  if (error?.code === 'storage/canceled') return t ? t('signature.canceled') : 'Der Upload wurde abgebrochen.'
+  if (t) return t(action === 'load' ? 'signature.loadError' : 'signature.saveError')
   return action === 'load' ? 'Die Unterschrift konnte nicht geladen werden.' : 'Die Unterschrift konnte nicht gespeichert werden.'
 }

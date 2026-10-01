@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
@@ -25,9 +26,9 @@ function formatImportDate(value) {
 function MissingCreditorNumberNotice({ notice }) {
   if (!notice) return null
   return <aside className="partner-import-warning" aria-labelledby="partner-import-warning-title">
-    <strong id="partner-import-warning-title">Kreditorennummer fehlt</strong>
-    <p>Dieser Unternehmer wurde aus einem Transportauftrag angelegt. Bitte Stammdaten ergänzen oder später mit einem bestehenden Unternehmer zusammenführen.</p>
-    <small>TA-Nummer: {notice.transportOrderNumber || '—'} · Importlauf: {notice.importRunId || '—'} · Importdatum: {formatImportDate(notice.importedAt)}</small>
+    <strong id="partner-import-warning-title"><StaticText source={"Kreditorennummer fehlt"} /></strong>
+    <p><StaticText source={"Dieser Unternehmer wurde aus einem Transportauftrag angelegt. Bitte Stammdaten ergänzen oder später mit einem bestehenden Unternehmer zusammenführen."} /></p>
+    <small><StaticText source={"TA-Nummer:"} /> {notice.transportOrderNumber || '—'} <StaticText source={"· Importlauf:"} /> {notice.importRunId || '—'} <StaticText source={"· Importdatum:"} /> {formatImportDate(notice.importedAt)}</small>
   </aside>
 }
 
@@ -146,8 +147,8 @@ export default function BusinessPartnerFormPage({ mode }) {
     } catch { setToast('Zusammenführung getrennt. Bitte das Stammdatenblatt neu laden.') }
   }
 
-  if (loading) return <p className="page-state">Stammdaten werden geladen …</p>
-  if (error && !partner) return <section className="page-state page-state--error"><p>{error}</p><BackLink to="/kunden-unternehmer" /></section>
+  if (loading) return <p className="page-state"><StaticText source={"Stammdaten werden geladen …"} /></p>
+  if (error && !partner) return <section className="page-state page-state--error"><p>{<StaticText source={error} />}</p><BackLink to="/kunden-unternehmer" /></section>
 
   const shownPartner = currentValues ?? partner
   const isNew = mode === 'create'
@@ -158,11 +159,11 @@ export default function BusinessPartnerFormPage({ mode }) {
   return (
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <div className="masterdata-action-row"><div><BackLink to="/kunden-unternehmer" /></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Wird angelegt …' : 'Anlegen'}</button>}{!isNew && !archived && canEdit('partnerMerges') && <div className="partner-merge-menu" ref={mergeMenuRef}><button className="partner-merge-menu__trigger" type="button" aria-label="Partner-Aktionen öffnen" aria-haspopup="menu" aria-expanded={mergeMenuOpen} onClick={() => setMergeMenuOpen((open) => !open)}>…</button>{mergeMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-source'); setMergeMenuOpen(false) }}>Diesen Partner in anderen zusammenführen …</button><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-target'); setMergeMenuOpen(false) }}>Anderen Partner hierher zusammenführen …</button></div>}</div>}</div>
-      {archived && <aside className="partner-archive-notice"><strong>Archiviertes Stammdatenblatt</strong><p>Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten.</p><Link to={businessPartnerDetailPath(shownPartner.mergedIntoPartnerId)}>Aktiven Zielpartner öffnen</Link></aside>}
+      <div className="masterdata-action-row"><div><BackLink to="/kunden-unternehmer" /></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{<StaticText source={isSubmitting ? 'Wird angelegt …' : 'Anlegen'} />}</button>}{!isNew && !archived && canEdit('partnerMerges') && <div className="partner-merge-menu" ref={mergeMenuRef}><TranslatedProps sources={{"aria-label":"Partner-Aktionen öffnen"}}><button className="partner-merge-menu__trigger" type="button" aria-label="Partner-Aktionen öffnen" aria-haspopup="menu" aria-expanded={mergeMenuOpen} onClick={() => setMergeMenuOpen((open) => !open)}>…</button></TranslatedProps>{mergeMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-source'); setMergeMenuOpen(false) }}><StaticText source={"Diesen Partner in anderen zusammenführen …"} /></button><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-target'); setMergeMenuOpen(false) }}><StaticText source={"Anderen Partner hierher zusammenführen …"} /></button></div>}</div>}</div>
+      {archived && <aside className="partner-archive-notice"><strong><StaticText source={"Archiviertes Stammdatenblatt"} /></strong><p><StaticText source={"Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten."} /></p><Link to={businessPartnerDetailPath(shownPartner.mergedIntoPartnerId)}><StaticText source={"Aktiven Zielpartner öffnen"} /></Link></aside>}
       {!archived && <MissingCreditorNumberNotice notice={missingCreditorNumberNotice} />}
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={!archived && canView('crm')} canViewPallets={!archived && canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
-      {error && <p className="form-error">{error}</p>}
+      {error && <p className="form-error">{<StaticText source={error} />}</p>}
       <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
       {mergeDirection && <ManualPartnerMergeFlow currentPartnerId={partnerId} direction={mergeDirection} onClose={() => setMergeDirection('')} onMerged={handleManualMerge} />}
     </div>

@@ -4,6 +4,7 @@ import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerStatusLabel, getBusinessPa
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import Toast from '../components/ui/Toast.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
+import { useLanguage } from '../i18n/useLanguage.js'
 
 const filters = [
   { value: 'all', label: 'Alle' },
@@ -48,6 +49,7 @@ function sortPartners(partners, sort) {
 
 export default function CustomersPage() {
   const { canEdit } = usePermissions()
+  const { t } = useLanguage()
   const [partners, setPartners] = useState([])
   const location = useLocation()
   const navigate = useNavigate()
@@ -56,10 +58,20 @@ export default function CustomersPage() {
   const [filter, setFilter] = useState('all')
   const [sort, setSort] = useState({ key: 'companyName', direction: 'asc' })
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(false)
+
+  function partnerTypeLabel(partner) {
+    const type = getBusinessPartnerType(partner)
+    const key = { Kunde: 'partners.customer', Unternehmer: 'partners.carrier', 'Kunde & Unternehmer': 'partners.both' }[type]
+    return key ? t(key) : type
+  }
+
+  function partnerStatusLabel(status) {
+    return ['active', 'inactive', 'insolvency', 'blocked'].includes(status) ? t(`partners.${status}`) : getBusinessPartnerStatusLabel(status)
+  }
 
   useEffect(() => {
-    listBusinessPartners().then(setPartners).catch(() => setError('Die Liste konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.')).finally(() => setLoading(false))
+    listBusinessPartners().then(setPartners).catch(() => setError(true)).finally(() => setLoading(false))
   }, [])
 
   const visiblePartners = useMemo(() => {
@@ -75,7 +87,7 @@ export default function CustomersPage() {
   function renderSortableHeader(key, label) {
     const isActive = sort.key === key
     const direction = isActive ? sort.direction : 'none'
-    return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}><span>{label}</span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{isActive ? `, aktuell ${sort.direction === 'asc' ? 'aufsteigend' : 'absteigend'} sortiert` : ', sortieren'}</span></button></th>
+    return <th aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}><span>{label}</span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{t(isActive ? (sort.direction === 'asc' ? 'partners.sortedAsc' : 'partners.sortedDesc') : 'partners.sort')}</span></button></th>
   }
 
   function openPartner(partner) {
@@ -91,9 +103,12 @@ export default function CustomersPage() {
   return (
     <div className="business-partners-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <div className="list-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Geschäftspartner suchen</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Suchen" type="search" /></label><label className="filter-field"><span className="sr-only">Filter</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}</select></label></div><div className="list-toolbar__actions">{canEdit('dataImports') && <Link className="button button--secondary" to="/kunden-unternehmer/import">Stammdaten importieren</Link>}{canEdit('masterData') && <Link className="button" to="/kunden-unternehmer/neu">Geschäftspartner anlegen</Link>}</div></div>
-      {error && <p className="form-error">{error}</p>}
-      <div className="business-partners-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', 'Firmenname')}{renderSortableHeader('city', 'Ort')}{renderSortableHeader('type', 'Typ')}{renderSortableHeader('debtorNumber', 'Debitor')}{renderSortableHeader('creditorNumber', 'Kreditor')}{renderSortableHeader('timocomNumber', 'TIMOCOM')}{renderSortableHeader('transeuNumber', 'Trans.eu')}{renderSortableHeader('status', 'Status')}</tr></thead><tbody>{loading ? <tr><td colSpan="8" className="table-state">Stammdaten werden geladen …</td></tr> : error ? <tr><td colSpan="8" className="table-state">Keine Stammdaten verfügbar.</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="business-partners-table__row" key={partner.id} role="link" tabIndex="0" onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{getBusinessPartnerType(partner)}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{partner.timocomNumber || '—'}</td><td>{partner.transeuNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{getBusinessPartnerStatusLabel(partner.status)}</span></td></tr>) : <tr><td colSpan="8" className="table-state">Keine Geschäftspartner gefunden.</td></tr>}</tbody></table></div>
+      <div className="list-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">{t('partners.search')}</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('partners.searchHint')} type="search" /></label><label className="filter-field"><span className="sr-only">{t('partners.filter')}</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => {
+        const key = { all: 'partners.all', customer: 'partners.customers', supplier: 'partners.carriers', both: 'partners.both', active: 'partners.active', inactive: 'partners.inactive', insolvency: 'partners.insolvency', blocked: 'partners.blocked' }[value]
+        return <option key={value} value={value}>{key ? t(key) : label}</option>
+      })}</select></label></div><div className="list-toolbar__actions">{canEdit('dataImports') && <Link className="button button--secondary" to="/kunden-unternehmer/import">{t('partners.import')}</Link>}{canEdit('masterData') && <Link className="button" to="/kunden-unternehmer/neu">{t('partners.create')}</Link>}</div></div>
+      {error && <p className="form-error">{t('partners.loadError')}</p>}
+      <div className="business-partners-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', t('partners.companyName'))}{renderSortableHeader('city', t('partners.city'))}{renderSortableHeader('type', t('partners.type'))}{renderSortableHeader('debtorNumber', t('partners.debtor'))}{renderSortableHeader('creditorNumber', t('partners.creditor'))}{renderSortableHeader('timocomNumber', 'TIMOCOM')}{renderSortableHeader('transeuNumber', 'Trans.eu')}{renderSortableHeader('status', t('partners.status'))}</tr></thead><tbody>{loading ? <tr><td colSpan="8" className="table-state">{t('partners.loading')}</td></tr> : error ? <tr><td colSpan="8" className="table-state">{t('partners.unavailable')}</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="business-partners-table__row" key={partner.id} role="link" tabIndex="0" onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{partnerTypeLabel(partner)}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{partner.timocomNumber || '—'}</td><td>{partner.transeuNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{partnerStatusLabel(partner.status)}</span></td></tr>) : <tr><td colSpan="8" className="table-state">{t('partners.empty')}</td></tr>}</tbody></table></div>
     </div>
   )
 }

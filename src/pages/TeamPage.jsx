@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useLanguage } from '../i18n/useLanguage.js'
 import { CopyIcon } from '../components/icons.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { listVisibleUserDirectory } from '../lib/userProfiles.js'
@@ -16,16 +17,18 @@ function memberFunction(member) {
 }
 
 function TeamCard({ member, onCopyEmail, onVacation }) {
-  return <article className="team-card"><div className="team-card__heading"><h2>{displayName(member)}</h2><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{onVacation ? 'Urlaub' : 'Aktiv'}</span></div><div className="team-card__details"><div className="team-card__phone">{member.phone ? <a href={`tel:${member.phone}`} aria-label={`Telefonnummer von ${displayName(member)}`}>{member.phone}</a> : '—'}</div><div className="team-card__email">{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={`E-Mail-Adresse von ${displayName(member)} kopieren`} title="E-Mail-Adresse kopieren"><CopyIcon /></button></span> : '—'}</div></div></article>
+  const { t } = useLanguage()
+  return <article className="team-card"><div className="team-card__heading"><h2>{displayName(member)}</h2><span className={`team-status team-status--${onVacation ? 'vacation' : 'active'}`}><i aria-hidden="true" />{t(onVacation ? 'team.vacation' : 'team.active')}</span></div><div className="team-card__details"><div className="team-card__phone">{member.phone ? <a href={`tel:${member.phone}`} aria-label={t('team.phoneOf', { name: displayName(member) })}>{member.phone}</a> : '—'}</div><div className="team-card__email">{member.email ? <span className="team-email"><a href={`mailto:${member.email}`}>{member.email}</a><button className="team-email__copy" type="button" onClick={() => onCopyEmail(member.email)} aria-label={t('team.copyEmailOf', { name: displayName(member) })} title={t('team.copyEmail')}><CopyIcon /></button></span> : '—'}</div></div></article>
 }
 
 export default function TeamPage() {
+  const { t } = useLanguage()
   const [members, setMembers] = useState([])
   const [vacationUserIds, setVacationUserIds] = useState(() => new Set())
   const [search, setSearch] = useState('')
   const [department, setDepartment] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(false)
   const [toast, setToast] = useState('')
 
   useEffect(() => {
@@ -37,7 +40,7 @@ export default function TeamPage() {
         const today = todayValue()
         setVacationUserIds(new Set(vacations.filter((vacation) => getMainVacationStatus(vacation) === 'approved' && requestOverlaps(vacation, today, today)).map((vacation) => vacation.userId)))
       })
-      .catch(() => { if (current) setError('Das Teamverzeichnis konnte nicht geladen werden.') })
+      .catch(() => { if (current) setError(true) })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [])
@@ -54,11 +57,11 @@ export default function TeamPage() {
   const departmentGroups = useMemo(() => {
     const groups = new Map()
     visibleMembers.forEach((member) => {
-      const name = member.department?.trim() || 'Ohne Abteilung'
+      const name = member.department?.trim() || t('team.noDepartment')
       groups.set(name, [...(groups.get(name) || []), member])
     })
     return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right, 'de'))
-  }, [visibleMembers])
+  }, [visibleMembers, t])
 
   async function copyEmail(email) {
     try {
@@ -75,11 +78,11 @@ export default function TeamPage() {
         document.execCommand('copy')
         input.remove()
       }
-      setToast('E-Mail-Adresse kopiert.')
+      setToast(t('team.emailCopied'))
     } catch {
-      setToast('E-Mail-Adresse konnte nicht kopiert werden.')
+      setToast(t('team.emailCopyError'))
     }
   }
 
-  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">Team durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Abteilung oder Funktion suchen" /></label><label className="filter-field"><span className="sr-only">Abteilung filtern</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">Alle Abteilungen</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{error}</p>}{loading ? <p className="team-state">Team wird geladen …</p> : !error && (departmentGroups.length ? <div className="team-departments">{departmentGroups.map(([name, groupMembers]) => <section className="team-department" key={name}><h2>{name}</h2><div className="team-grid">{groupMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} onVacation={vacationUserIds.has(member.id)} />)}</div></section>)}</div> : <p className="team-state">Keine Mitarbeiter gefunden.</p>)}</div>
+  return <div className="team-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}<div className="team-toolbar"><label className="search-field"><span className="sr-only">{t('team.search')}</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('team.searchHint')} /></label><label className="filter-field"><span className="sr-only">{t('team.filterDepartment')}</span><select value={department} onChange={(event) => setDepartment(event.target.value)}><option value="all">{t('team.allDepartments')}</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>{error && <p className="form-error">{t('team.loadError')}</p>}{loading ? <p className="team-state">{t('team.loading')}</p> : !error && (departmentGroups.length ? <div className="team-departments">{departmentGroups.map(([name, groupMembers]) => <section className="team-department" key={name}><h2>{name}</h2><div className="team-grid">{groupMembers.map((member) => <TeamCard key={member.id} member={member} onCopyEmail={copyEmail} onVacation={vacationUserIds.has(member.id)} />)}</div></section>)}</div> : <p className="team-state">{t('team.empty')}</p>)}</div>
 }

@@ -1,3 +1,4 @@
+import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import SystemMailPanel from '../components/admin/SystemMailPanel.jsx'
@@ -23,7 +24,7 @@ export default function SystemMailsPage() {
 
   return <div className="admin-page system-mails-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-    <section className="system-mails-page__test-card" aria-labelledby="system-mail-test-heading"><div><h2 id="system-mail-test-heading">Testmail</h2><p>Sendet die aktuelle Testvorlage an die E-Mail-Adresse deines Benutzerprofils.</p></div><div className="system-mails-page__test-actions"><button className="button button--secondary" type="button" onClick={sendTestMail} disabled={sending}>{sending ? 'Wird gesendet …' : 'Testmail senden'}</button></div></section>
+    <section className="system-mails-page__test-card" aria-labelledby="system-mail-test-heading"><div><h2 id="system-mail-test-heading"><StaticText source={"Testmail"} /></h2><p><StaticText source={"Sendet die aktuelle Testvorlage an die E-Mail-Adresse deines Benutzerprofils."} /></p></div><div className="system-mails-page__test-actions"><button className="button button--secondary" type="button" onClick={sendTestMail} disabled={sending}>{<StaticText source={sending ? 'Wird gesendet …' : 'Testmail senden'} />}</button></div></section>
     <SystemMailPanel />
   </div>
 }

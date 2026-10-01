@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from '../icons.jsx'
@@ -21,8 +22,8 @@ export default function CrmEditModal({ title, description, onClose, onSubmit, sa
 
   return createPortal(<div className="crm-edit-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }} onKeyDown={handleKeyDown}>
     <section className={`crm-edit-modal${className ? ` ${className}` : ''}`} ref={dialogRef} role="dialog" aria-modal="true" aria-label={title}>
-      <div className="crm-edit-modal__heading"><div><h2>{title}</h2><p>{description}</p></div><button type="button" onClick={onClose} disabled={saving} aria-label="Dialog schließen"><CloseIcon /></button></div>
-      <form onSubmit={onSubmit}><div className={`crm-edit-modal__fields${fieldsClassName ? ` ${fieldsClassName}` : ''}`}>{children}</div>{error && <p className="form-error" role="alert">{error}</p>}<div className="crm-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose} disabled={saving}>Abbrechen</button><button className="button" type="submit" disabled={saving || !changed}>{saving ? 'Wird gespeichert …' : saveLabel}</button></div></form>
+      <div className="crm-edit-modal__heading"><div><h2>{title}</h2><p>{description}</p></div><TranslatedProps sources={{"aria-label":"Dialog schließen"}}><button type="button" onClick={onClose} disabled={saving} aria-label="Dialog schließen"><CloseIcon /></button></TranslatedProps></div>
+      <form onSubmit={onSubmit}><div className={`crm-edit-modal__fields${fieldsClassName ? ` ${fieldsClassName}` : ''}`}>{children}</div>{error && <p className="form-error" role="alert">{<StaticText source={error} />}</p>}<div className="crm-edit-modal__actions"><button className="button button--secondary" type="button" onClick={onClose} disabled={saving}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={saving || !changed}>{<StaticText source={saving ? 'Wird gespeichert …' : saveLabel} />}</button></div></form>
     </section>
   </div>, document.body)
 }

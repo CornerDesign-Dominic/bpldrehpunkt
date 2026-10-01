@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useRef, useState } from 'react'
 import LiabilityLetterForm from '../components/templates/LiabilityLetterForm.jsx'
 import LiabilityLetterPreview from '../components/templates/LiabilityLetterPreview.jsx'
@@ -139,14 +140,14 @@ export default function LiabilityLetterPage() {
   }
 
   return <>
-    <ConfirmDialog open={Boolean(pdfConfirmationAction)} title="Unvollständige Angaben" message="Nicht alle Felder sind ausgefüllt. Möchtest du die PDF trotzdem erzeugen?" confirmLabel="Trotzdem erzeugen" onCancel={() => setPdfConfirmationAction(null)} onConfirm={confirmPdfAction} />
-    <ConfirmDialog open={newDocumentConfirmationOpen} title="Neue Haftbarhaltung erstellen?" message="Alle eingegebenen Daten werden geleert." confirmLabel="Neu erstellen" onCancel={() => setNewDocumentConfirmationOpen(false)} onConfirm={confirmNewDocument} />
+    <TranslatedProps sources={{"title":"Unvollständige Angaben"}}><ConfirmDialog open={Boolean(pdfConfirmationAction)} title="Unvollständige Angaben" message="Nicht alle Felder sind ausgefüllt. Möchtest du die PDF trotzdem erzeugen?" confirmLabel="Trotzdem erzeugen" onCancel={() => setPdfConfirmationAction(null)} onConfirm={confirmPdfAction} /></TranslatedProps>
+    <TranslatedProps sources={{"title":"Neue Haftbarhaltung erstellen?"}}><ConfirmDialog open={newDocumentConfirmationOpen} title="Neue Haftbarhaltung erstellen?" message="Alle eingegebenen Daten werden geleert." confirmLabel="Neu erstellen" onCancel={() => setNewDocumentConfirmationOpen(false)} onConfirm={confirmNewDocument} /></TranslatedProps>
     <div className="liability-page__toolbar">
       <BackLink className="liability-page__back" to="/vorlagen" />
-      <button className="button button--ai" type="button" onClick={() => setAiStep('input')}>Mit KI vorausfüllen</button>
+      <button className="button button--ai" type="button" onClick={() => setAiStep('input')}><StaticText source={"Mit KI vorausfüllen"} /></button>
     </div>
     <div className="liability-page">
-      <div className="liability-page__header"><div><h2>Haftbarhaltung</h2></div></div>
+      <div className="liability-page__header"><div><h2><StaticText source={"Haftbarhaltung"} /></h2></div></div>
       <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={requestNewDocument} />
       <div className="liability-page__document-actions">
         <div className="document-signature-settings">
@@ -156,8 +157,8 @@ export default function LiabilityLetterPage() {
         {companyError && <p className="form-error" role="alert">{companyError}</p>}
         {pdfError && <p className="form-error" role="alert">{pdfError}</p>}
         <div className="liability-page__actions">
-          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}>PDF drucken</button>
-          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}>PDF erstellen</button>
+          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
+          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
         </div>
       </div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />

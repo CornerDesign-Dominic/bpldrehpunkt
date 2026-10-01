@@ -1,8 +1,10 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { useAuth } from '../../auth/useAuth.js'
 import { usePermissions } from '../../auth/usePermissions.js'
 import { useTheme } from '../../theme/useTheme.js'
+import { useLanguage } from '../../i18n/useLanguage.js'
 import { listBusinessPartners } from '../../lib/businessPartners.js'
 import { functions } from '../../lib/firebase.js'
 import { createTodo } from '../../lib/todos.js'
@@ -14,18 +16,19 @@ import Toast from '../ui/Toast.jsx'
 const modules = ['Dashboard', 'Mein Urlaub', 'Kalender', 'Urlaubsmanagement', 'Team Brennpunkt', 'Kunden & Unternehmer', 'CRM', 'Palettenmanagement', 'News', 'Dokumente', 'To-dos', 'Mein Profil', 'Adminbereich', 'Sonstiges']
 const emptyForm = () => ({ module: '', description: '' })
 
-function submissionErrorMessage(error) {
+function submissionErrorMessage(error, t) {
   switch (error?.code) {
-    case 'functions/unauthenticated': return 'Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.'
-    case 'functions/permission-denied': return 'Dein Benutzerkonto ist nicht aktiv. Bitte wende dich an die Administration.'
-    case 'functions/invalid-argument': return 'Bitte prüfe Modul und Beschreibung.'
-    case 'functions/failed-precondition': return 'Der E-Mail-Empfängerkreis ist noch nicht vollständig eingerichtet.'
-    case 'functions/unavailable': return 'Die Meldung konnte gerade nicht versendet werden. Bitte versuche es später erneut.'
-    default: return 'Die Meldung konnte nicht versendet werden. Bitte versuche es später erneut.'
+    case 'functions/unauthenticated': return t('quick.error.unauthenticated')
+    case 'functions/permission-denied': return t('quick.error.permissionDenied')
+    case 'functions/invalid-argument': return t('quick.error.invalidArgument')
+    case 'functions/failed-precondition': return t('quick.error.failedPrecondition')
+    case 'functions/unavailable': return t('quick.error.unavailable')
+    default: return t('quick.error.default')
   }
 }
 
 function BugReportModal({ onClose, onSuccess }) {
+  const { t } = useLanguage()
   const dialogRef = useRef(null)
   const moduleRef = useRef(null)
   const [form, setForm] = useState(emptyForm)
@@ -65,7 +68,7 @@ function BugReportModal({ onClose, onSuccess }) {
     const module = form.module.trim()
     const description = form.description.trim()
     if (!module || !description) {
-      setError('Bitte Modul und Beschreibung ausfüllen.')
+      setError(t('quick.required'))
       return
     }
 
@@ -75,7 +78,7 @@ function BugReportModal({ onClose, onSuccess }) {
       await httpsCallable(functions, 'submitBugReport')({ module, description })
       onSuccess()
     } catch (submitError) {
-      setError(submissionErrorMessage(submitError))
+      setError(submissionErrorMessage(submitError, t))
     } finally {
       setSubmitting(false)
     }
@@ -83,14 +86,14 @@ function BugReportModal({ onClose, onSuccess }) {
 
   return <div className="bug-report-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !submitting) onClose() }}>
     <section ref={dialogRef} className="bug-report-modal" role="dialog" aria-modal="true" aria-labelledby="bug-report-title" tabIndex="-1">
-      <div className="bug-report-modal__heading"><div><h2 id="bug-report-title">Fehler melden</h2><p>Beschreibe kurz, was passiert ist.</p></div></div>
+      <div className="bug-report-modal__heading"><div><h2 id="bug-report-title">{t('quick.bugTitle')}</h2><p>{t('quick.bugHint')}</p></div></div>
       <form onSubmit={submit} noValidate>
         <div className="bug-report-modal__fields">
-          <label className="form-field"><span>Modul *</span><select ref={moduleRef} required value={form.module} onChange={(event) => setForm((current) => ({ ...current, module: event.target.value }))}><option value="">Bitte wählen</option>{modules.map((module) => <option key={module} value={module}>{module}</option>)}</select></label>
-          <label className="form-field"><span>Was ist passiert? *</span><textarea required rows="7" maxLength="4000" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></label>
+          <label className="form-field"><span>{t('quick.module')}</span><select ref={moduleRef} required value={form.module} onChange={(event) => setForm((current) => ({ ...current, module: event.target.value }))}><option value="">{t('quick.choose')}</option>{modules.map((module) => <option key={module} value={module}>{<StaticText source={t({ 'Mein Urlaub': 'nav.vacation', 'Kalender': 'nav.calendar', 'Urlaubsmanagement': 'nav.vacationManagement', 'Team Brennpunkt': 'title.team', 'Kunden & Unternehmer': 'nav.partners', 'Palettenmanagement': 'nav.pallets', 'Dokumente': 'nav.documents', 'Mein Profil': 'nav.profile', 'Adminbereich': 'nav.admin', 'Sonstiges': 'quick.other' }[module] || module)} />}</option>)}</select></label>
+          <label className="form-field"><span>{t('quick.description')}</span><textarea required rows="7" maxLength="4000" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></label>
         </div>
-        {error && <p className="form-error">{error}</p>}
-        <div className="bug-report-modal__actions"><button className="button button--secondary" type="button" onClick={onClose} disabled={submitting}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gesendet …' : 'Meldung senden'}</button></div>
+        {error && <p className="form-error">{<StaticText source={error} />}</p>}
+        <div className="bug-report-modal__actions"><button className="button button--secondary" type="button" onClick={onClose} disabled={submitting}>{t('quick.cancel')}</button><button className="button" type="submit" disabled={submitting}>{t(submitting ? 'quick.sending' : 'quick.send')}</button></div>
       </form>
     </section>
   </div>
@@ -100,6 +103,7 @@ export default function BugReportButton() {
   const { profile, user } = useAuth()
   const { canEdit, canView } = usePermissions()
   const { theme, setTheme } = useTheme()
+  const { t } = useLanguage()
   const [menuOpen, setMenuOpen] = useState(false)
   const [bugReportOpen, setBugReportOpen] = useState(false)
   const [todoOpen, setTodoOpen] = useState(false)
@@ -137,7 +141,7 @@ export default function BugReportButton() {
       setTodoUsers(users)
       setTodoPartners(partners)
     } catch {
-      setTodoSetupError('Die Angaben für das To-do konnten nicht geladen werden. Bitte versuche es erneut.')
+      setTodoSetupError(t('quick.todoLoadError'))
     } finally {
       setTodoSetupLoading(false)
     }
@@ -145,27 +149,27 @@ export default function BugReportButton() {
 
   async function createGlobalTodo(values) {
     await createTodo(values, { profile, user }, todoUsersById)
-    setToast('To-do gespeichert.')
+    setToast(t('quick.todoSaved'))
   }
 
   if (!user) return null
 
   return <>
     <div ref={menuRef} className="global-action-menu">
-      {menuOpen && <div className="global-action-menu__options" role="menu" aria-label="Schnellaktionen">
-        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setBugReportOpen(true) }}><BugIcon size={18} /><span>Bug melden</span></button>
-        {canCreateTodos && <button type="button" role="menuitem" onClick={openTodoModal}><TodoIcon size={18} /><span>To-do anlegen</span></button>}
-        <label className="global-action-menu__theme-switch" title={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}>
+      {menuOpen && <div className="global-action-menu__options" role="menu" aria-label={t('quick.actions')}>
+        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setBugReportOpen(true) }}><BugIcon size={18} /><span>{t('quick.bug')}</span></button>
+        {canCreateTodos && <button type="button" role="menuitem" onClick={openTodoModal}><TodoIcon size={18} /><span>{t('quick.createTodo')}</span></button>}
+        <label className="global-action-menu__theme-switch" title={t(theme === 'dark' ? 'quick.lightTheme' : 'quick.darkTheme')}>
           <SunIcon size={16} />
-          <input type="checkbox" checked={theme === 'dark'} onChange={(event) => setTheme(event.target.checked ? 'dark' : 'light')} aria-label={theme === 'dark' ? 'Dunkles Design ist aktiv; helles Design aktivieren' : 'Helles Design ist aktiv; dunkles Design aktivieren'} />
+          <input type="checkbox" checked={theme === 'dark'} onChange={(event) => setTheme(event.target.checked ? 'dark' : 'light')} aria-label={t(theme === 'dark' ? 'quick.lightTheme' : 'quick.darkTheme')} />
           <i aria-hidden="true" />
           <MoonIcon size={16} />
         </label>
       </div>}
-      <button className="global-action-menu__toggle" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label={menuOpen ? 'Schnellaktionen schließen' : 'Schnellaktionen öffnen'} title={menuOpen ? 'Schließen' : 'Schnellaktionen'} aria-expanded={menuOpen}>{menuOpen ? <CloseIcon size={20} /> : <span aria-hidden="true">+</span>}</button>
+      <button className="global-action-menu__toggle" type="button" onClick={() => setMenuOpen((open) => !open)} aria-label={t(menuOpen ? 'quick.close' : 'quick.open')} title={t(menuOpen ? 'quick.close' : 'quick.open')} aria-expanded={menuOpen}>{menuOpen ? <CloseIcon size={20} /> : <span aria-hidden="true">+</span>}</button>
     </div>
-    {bugReportOpen && <BugReportModal onClose={() => setBugReportOpen(false)} onSuccess={() => { setBugReportOpen(false); setToast('Danke, deine Meldung wurde versendet.') }} />}
-    {todoOpen && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !todoSetupLoading) setTodoOpen(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label="To-do anlegen">{todoSetupLoading ? <p className="page-state">To-do wird vorbereitet …</p> : todoSetupError ? <div className="global-action-menu__todo-error"><p className="form-error">{todoSetupError}</p><button className="button button--secondary" type="button" onClick={() => setTodoOpen(false)}>Schließen</button></div> : <TodoForm key="global-new-todo" canViewTransportOrders={canViewTransportOrders} currentUserId={user.uid} partners={todoPartners} users={todoUsers.filter((item) => item.active !== false)} onCancel={() => setTodoOpen(false)} onSubmit={createGlobalTodo} />}</section></div>}
+    {bugReportOpen && <BugReportModal onClose={() => setBugReportOpen(false)} onSuccess={() => { setBugReportOpen(false); setToast(t('quick.sendThanks')) }} />}
+    {todoOpen && <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !todoSetupLoading) setTodoOpen(false) }}><section className="todo-form-modal" role="dialog" aria-modal="true" aria-label={t('quick.createTodo')}>{todoSetupLoading ? <p className="page-state">{t('quick.todoPrepare')}</p> : todoSetupError ? <div className="global-action-menu__todo-error"><p className="form-error">{todoSetupError}</p><button className="button button--secondary" type="button" onClick={() => setTodoOpen(false)}>{t('quick.closeButton')}</button></div> : <TodoForm key="global-new-todo" canViewTransportOrders={canViewTransportOrders} currentUserId={user.uid} partners={todoPartners} users={todoUsers.filter((item) => item.active !== false)} onCancel={() => setTodoOpen(false)} onSubmit={createGlobalTodo} />}</section></div>}
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
   </>
 }

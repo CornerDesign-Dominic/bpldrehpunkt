@@ -504,7 +504,17 @@ button, a { font: inherit; }
 .user-placeholder { display: inline-flex; align-items: center; gap: 8px; color: var(--legacy-9aa4b2); font-size: 12px; }
 .user-placeholder__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--legacy-c7ced8); }
 .app-content { min-height: 0; padding: 28px 36px 36px; overflow-x: hidden; overflow-y: auto; }
-.dashboard-page { min-height: 100%; }
+.dashboard-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 16px; min-height: 520px; height: 100%; }
+.dashboard-card { min-width: 0; min-height: 0; padding: 20px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--content-background); }
+.dashboard-card--updates { display: flex; flex-direction: column; overflow: hidden; }
+.dashboard-card--updates > h2 { flex: 0 0 auto; margin: 0 0 14px; color: var(--text-primary); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); }
+.dashboard-updates-list { display: grid; flex: 1; align-content: start; gap: 10px; min-height: 0; overflow-y: auto; }
+.dashboard-update { min-width: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.dashboard-update__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.dashboard-update__heading h3 { min-width: 0; margin: 0; overflow: hidden; color: var(--text-primary); font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-update__meta { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.dashboard-update__tag { padding: 2px 7px; border-radius: 99px; color: var(--button-text); background: var(--button-background); font-size: 10px; font-weight: 700; }
+.dashboard-update p { display: -webkit-box; margin: 7px 0 0; overflow: hidden; color: var(--text-secondary); font-size: 12px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .dashboard-welcome { width: min(100%, 660px); color: var(--text-secondary); font-size: 14px; line-height: 1.6; }
 .dashboard-welcome h2 { margin: 0 0 16px; color: var(--text-primary); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); letter-spacing: -0.2px; }
 .dashboard-welcome p { margin: 0 0 14px; }

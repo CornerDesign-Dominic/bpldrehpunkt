@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TodoForm from "../components/todos/TodoForm.jsx";
@@ -8,6 +9,8 @@ import ConfirmDialog from "../components/ui/ConfirmDialog.jsx";
 import Toast from "../components/ui/Toast.jsx";
 import { useAuth } from "../auth/useAuth.js";
 import { usePermissions } from "../auth/usePermissions.js";
+import { useLanguage } from "../i18n/useLanguage.js";
+import { localeForLanguage } from "../i18n/translations.js";
 import {
   getUserDisplayName,
   listVisibleUserDirectory,
@@ -24,9 +27,9 @@ import {
   withdrawTodo,
 } from "../lib/todos.js";
 
-function formatDate(value) {
+function formatDate(value, language) {
   return value
-    ? new Intl.DateTimeFormat("de-DE").format(new Date(`${value}T12:00:00`))
+    ? new Intl.DateTimeFormat(localeForLanguage(language)).format(new Date(`${value}T12:00:00`))
     : "—";
 }
 
@@ -60,6 +63,7 @@ function transportOrderNumbers(todo) {
 }
 
 export default function TodosPage() {
+  const { language } = useLanguage();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { canEdit, canView } = usePermissions();
@@ -238,8 +242,8 @@ export default function TodosPage() {
   return (
     <>
       <div className="list-toolbar todo-toolbar">
-        <div className="todo-view-switcher" aria-label="Ansicht auswählen">
-          <button
+        <TranslatedProps sources={{"aria-label":"Ansicht auswählen"}}><div className="todo-view-switcher" aria-label="Ansicht auswählen">
+          <TranslatedProps sources={{"title":"Card-Ansicht","aria-label":"Card-Ansicht"}}><button
             className={
               view === "grid"
                 ? "todo-view-switcher__button todo-view-switcher__button--active"
@@ -252,8 +256,8 @@ export default function TodosPage() {
             onClick={() => setView("grid")}
           >
             <GridViewIcon />
-          </button>
-          <button
+          </button></TranslatedProps>
+          <TranslatedProps sources={{"title":"Tabellenansicht","aria-label":"Tabellenansicht"}}><button
             className={
               view === "table"
                 ? "todo-view-switcher__button todo-view-switcher__button--active"
@@ -266,9 +270,9 @@ export default function TodosPage() {
             onClick={() => setView("table")}
           >
             <TableViewIcon />
-          </button>
-        </div>
-        <div className="todo-tabs" role="tablist" aria-label="To-dos filtern">
+          </button></TranslatedProps>
+        </div></TranslatedProps>
+        <TranslatedProps sources={{"aria-label":"To-dos filtern"}}><div className="todo-tabs" role="tablist" aria-label="To-dos filtern">
           <button
             className={`todo-tabs__tab ${filter === "active" ? "todo-tabs__tab--active" : ""}`}
             type="button"
@@ -276,7 +280,7 @@ export default function TodosPage() {
             aria-selected={filter === "active"}
             onClick={() => setFilter("active")}
           >
-            Aktiv
+            <StaticText source={"Aktiv"} />
           </button>
           <button
             className={`todo-tabs__tab ${filter === "completed" ? "todo-tabs__tab--active" : ""}`}
@@ -285,7 +289,7 @@ export default function TodosPage() {
             aria-selected={filter === "completed"}
             onClick={() => setFilter("completed")}
           >
-            Erledigt
+            <StaticText source={"Erledigt"} />
           </button>
           <button
             className={`todo-tabs__tab ${filter === "all" ? "todo-tabs__tab--active" : ""}`}
@@ -294,9 +298,9 @@ export default function TodosPage() {
             aria-selected={filter === "all"}
             onClick={() => setFilter("all")}
           >
-            Alle
+            <StaticText source={"Alle"} />
           </button>
-        </div>
+        </div></TranslatedProps>
         {editable && (
           <button
             className="button"
@@ -306,18 +310,18 @@ export default function TodosPage() {
               setShowForm(true);
             }}
           >
-            To-do anlegen
+            <StaticText source={"To-do anlegen"} />
           </button>
         )}
       </div>
       <div className="todos-page">
-        <div className="todo-filter-bar" aria-label="To-dos durchsuchen und filtern">
-          <label className="search-field todo-filter-bar__search"><span className="sr-only">To-dos durchsuchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aufgabe oder TA-Nummer suchen" /></label>
-          <label className="filter-field"><span>Bearbeiter</span><select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value="">Alle Bearbeiter</option>{filterOptions.assignees.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label className="filter-field"><span>Erstellt von</span><select value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}><option value="">Alle Ersteller</option>{filterOptions.creators.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label className="filter-field"><span>Zuständigkeit</span><select value={responsibilityFilter} onChange={(event) => setResponsibilityFilter(event.target.value)}><option value="">Alle Zuständigkeiten</option>{filterOptions.responsibilities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label className="filter-field"><span>Wichtigkeit</span><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value="">Alle Wichtigkeiten</option><option value="high">Hoch</option><option value="medium">Mittel</option><option value="low">Gering</option></select></label>
-        </div>
+        <TranslatedProps sources={{"aria-label":"To-dos durchsuchen und filtern"}}><div className="todo-filter-bar" aria-label="To-dos durchsuchen und filtern">
+          <label className="search-field todo-filter-bar__search"><span className="sr-only"><StaticText source={"To-dos durchsuchen"} /></span><TranslatedProps sources={{"placeholder":"Aufgabe oder TA-Nummer suchen"}}><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aufgabe oder TA-Nummer suchen" /></TranslatedProps></label>
+          <label className="filter-field"><span><StaticText source={"Bearbeiter"} /></span><select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value=""><StaticText source={"Alle Bearbeiter"} /></option>{filterOptions.assignees.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="filter-field"><span><StaticText source={"Erstellt von"} /></span><select value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}><option value=""><StaticText source={"Alle Ersteller"} /></option>{filterOptions.creators.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="filter-field"><span><StaticText source={"Zuständigkeit"} /></span><select value={responsibilityFilter} onChange={(event) => setResponsibilityFilter(event.target.value)}><option value=""><StaticText source={"Alle Zuständigkeiten"} /></option>{filterOptions.responsibilities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="filter-field"><span><StaticText source={"Wichtigkeit"} /></span><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value=""><StaticText source={"Alle Wichtigkeiten"} /></option><option value="high"><StaticText source={"Hoch"} /></option><option value="medium"><StaticText source={"Mittel"} /></option><option value="low"><StaticText source={"Gering"} /></option></select></label>
+        </div></TranslatedProps>
         {toast && <Toast message={toast} onDismiss={() => setToast("")} />}
         <ConfirmDialog
           open={Boolean(confirmation)}
@@ -335,7 +339,7 @@ export default function TodosPage() {
               if (event.target === event.currentTarget) setShowForm(false);
             }}
           >
-            <section
+            <TranslatedProps sources={{"aria-label":"To-do anlegen"}}><section
               className="todo-form-modal"
               role="dialog"
               aria-modal="true"
@@ -350,7 +354,7 @@ export default function TodosPage() {
                 onCancel={() => setShowForm(false)}
                 onSubmit={addTodo}
               />
-            </section>
+            </section></TranslatedProps>
           </div>
         )}
         {editing && (
@@ -365,9 +369,9 @@ export default function TodosPage() {
             onSubmit={saveEdit}
           />
         )}
-        {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error">{<StaticText source={error} />}</p>}
         {loading ? (
-          <p className="todos-gallery__state">To-dos werden geladen …</p>
+          <p className="todos-gallery__state"><StaticText source={"To-dos werden geladen …"} /></p>
         ) : (
           <div
             className={`todo-sections${view === "table" ? " todo-sections--table" : ""}`}
@@ -382,20 +386,20 @@ export default function TodosPage() {
                 key={key}
               >
                 <div className="todo-section__heading">
-                  <h2>{title}</h2>
+                  <h2><StaticText source={title} /></h2>
                   <span>{todoGroups[key].length}</span>
                 </div>
                 {view === "grid" ? (
                   <TodosGallery
                     todos={todoGroups[key]}
-                    formatDate={formatDate}
+                    formatDate={(value) => formatDate(value, language)}
                     getDueClass={dueClass}
                     onOpen={(todo) => navigate(`/todos/${todo.id}`)}
                   />
                 ) : (
                   <TodosTable
                     todos={todoGroups[key]}
-                    formatDate={formatDate}
+                    formatDate={(value) => formatDate(value, language)}
                     onOpen={(todo) => navigate(`/todos/${todo.id}`)}
                   />
                 )}

@@ -1,3 +1,4 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { createEmptyInsolvency } from '../../lib/insolvencies.js'
 
@@ -32,17 +33,17 @@ export default function InsolvencyCaseForm({ initialValues, onCancel, onSubmit, 
   }
 
   return <form className="damage-form insolvency-case-form" onSubmit={submit} noValidate>
-    <div className="damage-form__heading"><h2>Insolvenz hinzufügen</h2></div>
-    <section className="damage-form__section"><h3>Grunddaten</h3><div className="damage-form__grid damage-form__grid--context">
-      <label className="form-field damage-form__wide"><span>Betroffenes Unternehmen *</span><select autoFocus value={form.partnerId} onChange={(event) => update('partnerId', event.target.value)} disabled={loadingPartners || Boolean(partnerError)}><option value="">{loadingPartners ? 'Unternehmen werden geladen …' : 'Bitte auswählen'}</option>{partners.map((partner) => <option key={partner.id} value={partner.id}>{partnerLabel(partner)}</option>)}</select></label>
-      <label className="form-field"><span>Insolvenzeröffnung</span><input type="date" value={form.insolvencyDate} onChange={(event) => update('insolvencyDate', event.target.value)} /></label>
-      <label className="form-field"><span>Bekannt geworden am</span><input type="date" value={form.knownDate} onChange={(event) => update('knownDate', event.target.value)} /></label>
+    <div className="damage-form__heading"><h2><StaticText source={"Insolvenz hinzufügen"} /></h2></div>
+    <section className="damage-form__section"><h3><StaticText source={"Grunddaten"} /></h3><div className="damage-form__grid damage-form__grid--context">
+      <label className="form-field damage-form__wide"><span><StaticText source={"Betroffenes Unternehmen *"} /></span><select autoFocus value={form.partnerId} onChange={(event) => update('partnerId', event.target.value)} disabled={loadingPartners || Boolean(partnerError)}><option value="">{<StaticText source={loadingPartners ? 'Unternehmen werden geladen …' : 'Bitte auswählen'} />}</option>{partners.map((partner) => <option key={partner.id} value={partner.id}>{partnerLabel(partner)}</option>)}</select></label>
+      <label className="form-field"><span><StaticText source={"Insolvenzeröffnung"} /></span><input type="date" value={form.insolvencyDate} onChange={(event) => update('insolvencyDate', event.target.value)} /></label>
+      <label className="form-field"><span><StaticText source={"Bekannt geworden am"} /></span><input type="date" value={form.knownDate} onChange={(event) => update('knownDate', event.target.value)} /></label>
     </div></section>
-    <section className="damage-form__section"><h3>Gerichtsangaben</h3><div className="damage-form__grid damage-form__grid--context">
-      <label className="form-field"><span>Aktenzeichen</span><input value={form.courtReference} maxLength="240" onChange={(event) => update('courtReference', event.target.value)} /></label>
-      <label className="form-field"><span>Gerichtsstand</span><input value={form.courtVenue} maxLength="240" onChange={(event) => update('courtVenue', event.target.value)} /></label>
+    <section className="damage-form__section"><h3><StaticText source={"Gerichtsangaben"} /></h3><div className="damage-form__grid damage-form__grid--context">
+      <label className="form-field"><span><StaticText source={"Aktenzeichen"} /></span><input value={form.courtReference} maxLength="240" onChange={(event) => update('courtReference', event.target.value)} /></label>
+      <label className="form-field"><span><StaticText source={"Gerichtsstand"} /></span><input value={form.courtVenue} maxLength="240" onChange={(event) => update('courtVenue', event.target.value)} /></label>
     </div></section>
-    {partnerError && <p className="form-error">{partnerError}</p>}{error && <p className="form-error">{error}</p>}
-    <div className="form-actions"><button className="button button--secondary" type="button" disabled={submitting} onClick={onCancel}>Abbrechen</button><button className="button" type="submit" disabled={submitting || loadingPartners || Boolean(partnerError)}>{submitting ? 'Wird angelegt …' : 'Insolvenz anlegen'}</button></div>
+    {partnerError && <p className="form-error">{partnerError}</p>}{error && <p className="form-error">{<StaticText source={error} />}</p>}
+    <div className="form-actions"><button className="button button--secondary" type="button" disabled={submitting} onClick={onCancel}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={submitting || loadingPartners || Boolean(partnerError)}>{<StaticText source={submitting ? 'Wird angelegt …' : 'Insolvenz anlegen'} />}</button></div>
   </form>
 }

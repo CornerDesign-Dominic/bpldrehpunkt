@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { httpsCallable } from 'firebase/functions'
 import { functions } from '../../lib/firebase.js'
@@ -111,31 +112,31 @@ export default function SystemMailPanel() {
     return <button key={template.id} className={template.id === editing?.id ? 'system-mail-template system-mail-template--active' : 'system-mail-template'} type="button" aria-pressed={template.id === editing?.id} onClick={() => selectTemplate(template)}>{template.displayName}</button>
   }
 
-  if (loading) return <section className="system-mail-panel"><p>Vorlagen werden geladen …</p></section>
+  if (loading) return <section className="system-mail-panel"><p><StaticText source={"Vorlagen werden geladen …"} /></p></section>
 
-  return <section className="system-mail-panel" aria-label="Systemmail-Vorlagen">
-    {error && <p className="form-error">{error}</p>}
+  return <TranslatedProps sources={{"aria-label":"Systemmail-Vorlagen"}}><section className="system-mail-panel" aria-label="Systemmail-Vorlagen">
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
     <div className="system-mail-workspace">
-      <aside className="system-mail-templates" aria-label="Systemmail-Vorlagen">
-        <div className="system-mail-workspace__heading"><h2>Vorlagen</h2><span>{templates.length}</span></div>
+      <TranslatedProps sources={{"aria-label":"Systemmail-Vorlagen"}}><aside className="system-mail-templates" aria-label="Systemmail-Vorlagen">
+        <div className="system-mail-workspace__heading"><h2><StaticText source={"Vorlagen"} /></h2><span>{templates.length}</span></div>
         <div className="system-mail-templates__list">{templateCategories.map((category) => {
           const categoryTemplates = templates.filter(category.matches)
           if (!categoryTemplates.length) return null
           return <section className="system-mail-template-group" key={category.id} aria-label={`${category.label}-Vorlagen`}><h3>{category.label}</h3>{categoryTemplates.map(renderTemplateButton)}</section>
         })}</div>
-      </aside>
+      </aside></TranslatedProps>
 
       {editing ? <form className="system-mail-editor" onSubmit={save}>
-        <div className="system-mail-editor__heading"><div><h2>{editing.displayName}</h2><p>Betreff und Nachricht dieser Vorlage bearbeiten.</p></div></div>
-        <label className="form-field"><span>Betreff</span><input ref={subjectRef} value={editing.subject} maxLength="240" onFocus={(event) => rememberField('subject', event)} onSelect={(event) => rememberField('subject', event)} onKeyUp={(event) => rememberField('subject', event)} onChange={(event) => updateField('subject', event.target.value, event)} /></label>
-        <label className="form-field system-mail-editor__message"><span>Nachricht</span><textarea ref={messageRef} rows="12" value={editing.message} maxLength="12000" onFocus={(event) => rememberField('message', event)} onSelect={(event) => rememberField('message', event)} onKeyUp={(event) => rememberField('message', event)} onChange={(event) => updateField('message', event.target.value, event)} /></label>
-        <div className="system-mail-editor__actions"><button className="button button--secondary" type="button" onClick={cancel} disabled={saving}>Abbrechen</button><button className="button" type="submit" disabled={saving}>{saving ? 'Wird gespeichert …' : 'Speichern'}</button></div>
-      </form> : <section className="system-mail-editor system-mail-editor--empty"><h2>Keine Vorlage verfügbar</h2><p>Es wurden keine Systemmail-Vorlagen gefunden.</p></section>}
+        <div className="system-mail-editor__heading"><div><h2>{editing.displayName}</h2><p><StaticText source={"Betreff und Nachricht dieser Vorlage bearbeiten."} /></p></div></div>
+        <label className="form-field"><span><StaticText source={"Betreff"} /></span><input ref={subjectRef} value={editing.subject} maxLength="240" onFocus={(event) => rememberField('subject', event)} onSelect={(event) => rememberField('subject', event)} onKeyUp={(event) => rememberField('subject', event)} onChange={(event) => updateField('subject', event.target.value, event)} /></label>
+        <label className="form-field system-mail-editor__message"><span><StaticText source={"Nachricht"} /></span><textarea ref={messageRef} rows="12" value={editing.message} maxLength="12000" onFocus={(event) => rememberField('message', event)} onSelect={(event) => rememberField('message', event)} onKeyUp={(event) => rememberField('message', event)} onChange={(event) => updateField('message', event.target.value, event)} /></label>
+        <div className="system-mail-editor__actions"><button className="button button--secondary" type="button" onClick={cancel} disabled={saving}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={saving}>{<StaticText source={saving ? 'Wird gespeichert …' : 'Speichern'} />}</button></div>
+      </form> : <section className="system-mail-editor system-mail-editor--empty"><h2><StaticText source={"Keine Vorlage verfügbar"} /></h2><p><StaticText source={"Es wurden keine Systemmail-Vorlagen gefunden."} /></p></section>}
 
-      <aside className="system-mail-variables" aria-label="Erlaubte Variablen">
-        <div className="system-mail-workspace__heading"><h2>Variablen</h2><span>{editing?.allowedPlaceholders?.length || 0}</span></div>
-        {editing?.allowedPlaceholders?.length ? <div className="system-mail-variables__list">{editing.allowedPlaceholders.map((name) => <article className="system-mail-variable" key={name}><code>{`{{${name}}}`}</code><p>{PLACEHOLDER_DESCRIPTIONS[name] || 'Für diese Vorlage verfügbar.'}</p><button className="button button--secondary" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertPlaceholder(name)}>Einsetzen</button></article>)}</div> : <p className="system-mail-variables__empty">Für diese Vorlage sind keine Variablen erlaubt.</p>}
-      </aside>
+      <TranslatedProps sources={{"aria-label":"Erlaubte Variablen"}}><aside className="system-mail-variables" aria-label="Erlaubte Variablen">
+        <div className="system-mail-workspace__heading"><h2><StaticText source={"Variablen"} /></h2><span>{editing?.allowedPlaceholders?.length || 0}</span></div>
+        {editing?.allowedPlaceholders?.length ? <div className="system-mail-variables__list">{editing.allowedPlaceholders.map((name) => <article className="system-mail-variable" key={name}><code>{`{{${name}}}`}</code><p>{PLACEHOLDER_DESCRIPTIONS[name] || <StaticText source={"Für diese Vorlage verfügbar."} />}</p><button className="button button--secondary" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => insertPlaceholder(name)}><StaticText source={"Einsetzen"} /></button></article>)}</div> : <p className="system-mail-variables__empty"><StaticText source={"Für diese Vorlage sind keine Variablen erlaubt."} /></p>}
+      </aside></TranslatedProps>
     </div>
-  </section>
+  </section></TranslatedProps>
 }

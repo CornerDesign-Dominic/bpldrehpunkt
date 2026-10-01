@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { TemplatesIcon } from '../components/icons.jsx'
+import { useLanguage } from '../i18n/useLanguage.js'
 
 export default function TemplatesOverviewPage() {
+  const { t } = useLanguage()
   return <div className="templates-page">
-    <section className="templates-intro"><div><h2>Briefvorlagen</h2><p>Erstellen Sie standardisierte Geschäftsschreiben direkt aus einer Vorlage.</p></div></section>
-    <div className="templates-grid"><Link className="template-card" to="/vorlagen/haftbarhaltung"><span className="template-card__icon"><TemplatesIcon size={23} /></span><span><strong>Haftbarhaltung</strong><small>Haftbarhaltung für einen Transportauftrag erstellen</small></span><span className="template-card__open">Öffnen</span></Link><Link className="template-card" to="/vorlagen/geschaeftsdokument"><span className="template-card__icon"><TemplatesIcon size={23} /></span><span><strong>Geschäftsdokument</strong><small>Individuelles Geschäftsschreiben erstellen</small></span><span className="template-card__open">Öffnen</span></Link></div>
+    <section className="templates-intro"><div><h2>{t('templates.intro')}</h2><p>{t('templates.hint')}</p></div></section>
+    <div className="templates-grid"><Link className="template-card" to="/vorlagen/haftbarhaltung"><span className="template-card__icon"><TemplatesIcon size={23} /></span><span><strong>{t('templates.liability')}</strong><small>{t('templates.liabilityHint')}</small></span><span className="template-card__open">{t('templates.open')}</span></Link><Link className="template-card" to="/vorlagen/geschaeftsdokument"><span className="template-card__icon"><TemplatesIcon size={23} /></span><span><strong>{t('templates.business')}</strong><small>{t('templates.businessHint')}</small></span><span className="template-card__open">{t('templates.open')}</span></Link></div>
   </div>
 }

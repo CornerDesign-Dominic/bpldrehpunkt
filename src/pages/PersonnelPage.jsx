@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listPersonnelEmployees } from '../lib/personnel.js'
@@ -37,10 +38,10 @@ export default function PersonnelPage() {
   }, [employees, search])
 
   return <div className="personnel-page">
-    <div className="personnel-toolbar"><label className="search-field"><span className="sr-only">Mitarbeiter suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Personalnummer, Abteilung oder Funktion suchen" /></label></div>
-    {error && <p className="form-error">{error}</p>}
-    <div className="personnel-table table-frame"><table className="data-table"><thead><tr><th>Name</th><th>Personalnummer</th><th>Abteilung</th><th>Funktion</th><th>Eintrittsdatum</th></tr></thead><tbody>
-      {loading ? <tr><td colSpan="5" className="table-state">Mitarbeiter werden geladen …</td></tr> : error ? <tr><td colSpan="5" className="table-state">Mitarbeiter können derzeit nicht angezeigt werden.</td></tr> : visibleEmployees.length ? visibleEmployees.map((employee) => <tr className="personnel-table__row--link" key={employee.id} role="link" tabIndex="0" aria-label={`${displayName(employee)} öffnen`} onClick={() => navigate(`/personal/${employee.id}`)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/personal/${employee.id}`) } }}><td>{displayName(employee)}</td><td>{employee.personnelNumber || '—'}</td><td>{employee.department || '—'}</td><td>{employee.jobTitle || '—'}</td><td>{formatDate(employee.employmentStart)}</td></tr>) : <tr><td colSpan="5" className="table-state">Keine Mitarbeiter gefunden.</td></tr>}
+    <div className="personnel-toolbar"><label className="search-field"><span className="sr-only"><StaticText source={"Mitarbeiter suchen"} /></span><TranslatedProps sources={{"placeholder":"Name, Personalnummer, Abteilung oder Funktion suchen"}}><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, Personalnummer, Abteilung oder Funktion suchen" /></TranslatedProps></label></div>
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
+    <div className="personnel-table table-frame"><table className="data-table"><thead><tr><th>Name</th><th><StaticText source={"Personalnummer"} /></th><th><StaticText source={"Abteilung"} /></th><th><StaticText source={"Funktion"} /></th><th><StaticText source={"Eintrittsdatum"} /></th></tr></thead><tbody>
+      {loading ? <tr><td colSpan="5" className="table-state"><StaticText source={"Mitarbeiter werden geladen …"} /></td></tr> : error ? <tr><td colSpan="5" className="table-state"><StaticText source={"Mitarbeiter können derzeit nicht angezeigt werden."} /></td></tr> : visibleEmployees.length ? visibleEmployees.map((employee) => <tr className="personnel-table__row--link" key={employee.id} role="link" tabIndex="0" aria-label={`${displayName(employee)} öffnen`} onClick={() => navigate(`/personal/${employee.id}`)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/personal/${employee.id}`) } }}><td>{displayName(employee)}</td><td>{employee.personnelNumber || '—'}</td><td>{employee.department || '—'}</td><td>{employee.jobTitle || '—'}</td><td>{formatDate(employee.employmentStart)}</td></tr>) : <tr><td colSpan="5" className="table-state"><StaticText source={"Keine Mitarbeiter gefunden."} /></td></tr>}
     </tbody></table></div>
   </div>
 }

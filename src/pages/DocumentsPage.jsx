@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import DocumentForm from '../components/documents/DocumentForm.jsx'
 import DocumentDetailsModal from '../components/documents/DocumentDetailsModal.jsx'
@@ -159,10 +160,10 @@ export default function DocumentsPage() {
   return <div className="documents-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     {detailsDocument && <DocumentDetailsModal documentItem={detailsDocument} onClose={() => setDetailsDocument(null)} />}
-    <ConfirmDialog open={Boolean(confirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isConfirming} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} />
-    <div className="list-toolbar documents-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">Dokumente suchen</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Dokumente suchen" /></label></div>{editable && <button className="button" type="button" onClick={() => setEditingDocument('new')}>Dokument hochladen</button>}</div>
+    <TranslatedProps sources={{"title":"Dokument dauerhaft löschen?"}}><ConfirmDialog open={Boolean(confirmation)} title="Dokument dauerhaft löschen?" message="Dieses Dokument wird dauerhaft gelöscht und kann nicht wiederhergestellt werden." confirmLabel="Endgültig löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isConfirming} onCancel={() => setConfirmation(null)} onConfirm={confirmAction} /></TranslatedProps>
+    <div className="list-toolbar documents-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only"><StaticText source={"Dokumente suchen"} /></span><TranslatedProps sources={{"placeholder":"Dokumente suchen"}}><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Dokumente suchen" /></TranslatedProps></label></div>{editable && <button className="button" type="button" onClick={() => setEditingDocument('new')}><StaticText source={"Dokument hochladen"} /></button>}</div>
     {editingDocument && <div className="document-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditingDocument(undefined) }}><section className="document-modal" role="dialog" aria-modal="true" aria-label={selectedEditDocument ? 'Dokument bearbeiten' : 'Dokument hochladen'}><DocumentForm key={selectedEditDocument?.id || 'new'} documentItem={selectedEditDocument} onCancel={() => setEditingDocument(undefined)} onSubmit={saveDocument} /></section></div>}
-    {error && <p className="form-error">{error}</p>}
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
     <DocumentsGallery documents={visibleDocuments} loading={loading} onOpen={openDocument} onDownload={downloadDocument} onDetails={setDetailsDocument} onEdit={(documentItem) => setEditingDocument(documentItem)} onDelete={(documentItem) => setConfirmation({ type: 'delete', document: documentItem })} canEdit={editable} />
   </div>
 }

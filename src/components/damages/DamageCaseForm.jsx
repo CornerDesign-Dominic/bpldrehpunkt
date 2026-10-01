@@ -1,3 +1,4 @@
+import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useMemo, useState } from 'react'
 import { createEmptyDamageCase, DAMAGE_CASE_TYPES } from '../../lib/damages.js'
 import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
@@ -50,18 +51,18 @@ export default function DamageCaseForm({ canViewTransportOrders = false, damageC
   }
 
   return <form className="damage-form" onSubmit={submit} noValidate>
-    <div className="damage-form__heading"><h2>{damageCase ? 'Fall bearbeiten' : 'Neuen Fall anlegen'}</h2>{damageCase?.caseNumber && <span>{damageCase.caseNumber}</span>}</div>
-    <section className="damage-form__section"><h3>Falldaten</h3><div className="damage-form__grid damage-form__grid--core">
-      <label className="form-field"><span>Schadendatum *</span><input type="date" value={form.damageDate} onChange={(event) => update('damageDate', event.target.value)} /></label>
-      <label className="form-field"><span>Schadenart *</span><select value={form.damageType} onChange={(event) => update('damageType', event.target.value)}><option value="">Bitte wählen</option>{DAMAGE_CASE_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
-      <label className="form-field"><span>Schadenhöhe *</span><input required type="number" min="0" step="0.01" inputMode="decimal" value={form.damageAmount} onChange={(event) => update('damageAmount', event.target.value)} placeholder="0,00" /></label>
+    <div className="damage-form__heading"><h2>{<StaticText source={damageCase ? 'Fall bearbeiten' : 'Neuen Fall anlegen'} />}</h2>{damageCase?.caseNumber && <span>{damageCase.caseNumber}</span>}</div>
+    <section className="damage-form__section"><h3><StaticText source={"Falldaten"} /></h3><div className="damage-form__grid damage-form__grid--core">
+      <label className="form-field"><span><StaticText source={"Schadendatum *"} /></span><input type="date" value={form.damageDate} onChange={(event) => update('damageDate', event.target.value)} /></label>
+      <label className="form-field"><span><StaticText source={"Schadenart *"} /></span><select value={form.damageType} onChange={(event) => update('damageType', event.target.value)}><option value=""><StaticText source={"Bitte wählen"} /></option>{DAMAGE_CASE_TYPES.map((type) => <option key={type.value} value={type.value}>{<StaticText source={type.label} />}</option>)}</select></label>
+      <label className="form-field"><span><StaticText source={"Schadenhöhe *"} /></span><input required type="number" min="0" step="0.01" inputMode="decimal" value={form.damageAmount} onChange={(event) => update('damageAmount', event.target.value)} placeholder="0,00" /></label>
     </div></section>
-    <section className="damage-form__section"><h3>Verknüpfung</h3><div className="damage-form__grid damage-form__grid--context">
+    <section className="damage-form__section"><h3><StaticText source={"Verknüpfung"} /></h3><div className="damage-form__grid damage-form__grid--context">
       <TodoTransportOrderPicker autoFocus canViewTransportOrders={canViewTransportOrders} disabled={submitting} transportOrderLinks={transportOrderLinks} onRemove={removeTransportOrder} onSelect={selectTransportOrder} />
-      <label className="form-field"><span>Kunde / Anspruchsteller</span><select value={form.claimantPartnerId} onChange={(event) => selectPartner('claimant', event.target.value)}><option value="">Kein Kunde verknüpft</option>{form.claimantPartnerId && !customers.some((partner) => partner.id === form.claimantPartnerId) && <option value={form.claimantPartnerId}>{form.claimant || 'Verknüpfter Kunde'}</option>}{customers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
-      <label className="form-field"><span>Unternehmer</span><select value={form.contractorPartnerId} onChange={(event) => selectPartner('contractor', event.target.value)}><option value="">Kein Unternehmer verknüpft</option>{form.contractorPartnerId && !contractors.some((partner) => partner.id === form.contractorPartnerId) && <option value={form.contractorPartnerId}>{form.contractor || 'Verknüpfter Unternehmer'}</option>}{contractors.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
+      <label className="form-field"><span><StaticText source={"Kunde / Anspruchsteller"} /></span><select value={form.claimantPartnerId} onChange={(event) => selectPartner('claimant', event.target.value)}><option value=""><StaticText source={"Kein Kunde verknüpft"} /></option>{form.claimantPartnerId && !customers.some((partner) => partner.id === form.claimantPartnerId) && <option value={form.claimantPartnerId}>{form.claimant || <StaticText source={"Verknüpfter Kunde"} />}</option>}{customers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
+      <label className="form-field"><span><StaticText source={"Unternehmer"} /></span><select value={form.contractorPartnerId} onChange={(event) => selectPartner('contractor', event.target.value)}><option value=""><StaticText source={"Kein Unternehmer verknüpft"} /></option>{form.contractorPartnerId && !contractors.some((partner) => partner.id === form.contractorPartnerId) && <option value={form.contractorPartnerId}>{form.contractor || <StaticText source={"Verknüpfter Unternehmer"} />}</option>}{contractors.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
     </div></section>
-    {error && <p className="form-error">{error}</p>}
-    <div className="form-actions"><button className="button button--secondary" type="button" onClick={onCancel} disabled={submitting}>Abbrechen</button><button className="button" type="submit" disabled={submitting}>{submitting ? 'Wird gespeichert …' : damageCase ? 'Änderungen speichern' : 'Fall anlegen'}</button></div>
+    {error && <p className="form-error">{<StaticText source={error} />}</p>}
+    <div className="form-actions"><button className="button button--secondary" type="button" onClick={onCancel} disabled={submitting}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={submitting}>{<StaticText source={submitting ? 'Wird gespeichert …' : damageCase ? 'Änderungen speichern' : 'Fall anlegen'} />}</button></div>
   </form>
 }

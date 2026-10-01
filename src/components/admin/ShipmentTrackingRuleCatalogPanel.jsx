@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
@@ -35,7 +36,7 @@ const validationCatalog = (catalog) => {
 function OffsetInput({ value, label, onChange }) {
   const { hours, minutes } = offsetParts(value)
   const update = (nextHours, nextMinutes) => onChange(Math.max(0, nextHours) + Math.max(0, nextMinutes) / 60)
-  return <label className="shipment-tracking-rule-catalog__offset"><input type="number" min="0" step="1" value={hours} aria-label={`${label}: Stunden`} onChange={(event) => { const next = wholeNumber(event.target.value); if (Number.isInteger(next) && next >= 0) update(next, minutes) }} /><span>Std.</span><input type="number" min="0" max="59" step="1" value={minutes} aria-label={`${label}: Minuten`} onChange={(event) => { const next = wholeNumber(event.target.value); if (Number.isInteger(next) && next >= 0 && next < 60) update(hours, next) }} /><span>Min. vorher</span></label>
+  return <label className="shipment-tracking-rule-catalog__offset"><input type="number" min="0" step="1" value={hours} aria-label={`${label}: Stunden`} onChange={(event) => { const next = wholeNumber(event.target.value); if (Number.isInteger(next) && next >= 0) update(next, minutes) }} /><span><StaticText source={"Std."} /></span><input type="number" min="0" max="59" step="1" value={minutes} aria-label={`${label}: Minuten`} onChange={(event) => { const next = wholeNumber(event.target.value); if (Number.isInteger(next) && next >= 0 && next < 60) update(hours, next) }} /><span><StaticText source={"Min. vorher"} /></span></label>
 }
 
 function RuleRow({ step, label, rule, onChange, onRemove }) {
@@ -58,18 +59,18 @@ function TopicEditor({ topic, value, onChange }) {
   return <section className="shipment-tracking-rule-catalog__topic" aria-labelledby={`shipment-tracking-rule-catalog-${topic.key}`}>
     <h3 id={`shipment-tracking-rule-catalog-${topic.key}`}>{topic.label}</h3>
     <div className="shipment-tracking-rule-catalog__group">
-      <h4>Extern</h4>
+      <h4><StaticText source={"Extern"} /></h4>
       <RuleRow step={1} label="Erste Anfrage" rule={value.initialRequest} onChange={(offsetWorkingHours) => onChange({ ...value, initialRequest: { ...value.initialRequest, offsetWorkingHours } })} />
-      {value.reminders.map((rule, index) => <RuleRow key={rule.id || rule.clientKey} step={index + 2} label="Erinnerung" rule={rule} onChange={(offsetWorkingHours) => update('reminders', index, offsetWorkingHours)} onRemove={() => remove('reminders', index)} />)}
-      <button className="button button--secondary shipment-tracking-rule-catalog__add" type="button" disabled={value.reminders.length >= 5} onClick={() => add('reminders', reminderSuggestion)}>+ Erinnerung</button>
+      {value.reminders.map((rule, index) => <TranslatedProps key={rule.id || rule.clientKey} sources={{"label":"Erinnerung"}}><RuleRow key={rule.id || rule.clientKey} step={index + 2} label="Erinnerung" rule={rule} onChange={(offsetWorkingHours) => update('reminders', index, offsetWorkingHours)} onRemove={() => remove('reminders', index)} /></TranslatedProps>)}
+      <button className="button button--secondary shipment-tracking-rule-catalog__add" type="button" disabled={value.reminders.length >= 5} onClick={() => add('reminders', reminderSuggestion)}><StaticText source={"+ Erinnerung"} /></button>
     </div>
     <div className="shipment-tracking-rule-catalog__group shipment-tracking-rule-catalog__group--internal">
-      <h4>Intern</h4>
+      <h4><StaticText source={"Intern"} /></h4>
       {value.internalEscalations.map((rule, index) => <RuleRow key={rule.id || rule.clientKey} step={internalStart + index} label="BPL intern informieren" rule={rule} onChange={(offsetWorkingHours) => update('internalEscalations', index, offsetWorkingHours)} onRemove={value.internalEscalations.length > 1 ? () => remove('internalEscalations', index) : null} />)}
-      <button className="button button--secondary shipment-tracking-rule-catalog__add" type="button" disabled={value.internalEscalations.length >= 5} onClick={() => add('internalEscalations', escalationSuggestion)}>+ Eskalation</button>
+      <button className="button button--secondary shipment-tracking-rule-catalog__add" type="button" disabled={value.internalEscalations.length >= 5} onClick={() => add('internalEscalations', escalationSuggestion)}><StaticText source={"+ Eskalation"} /></button>
     </div>
     <div className="shipment-tracking-rule-catalog__group shipment-tracking-rule-catalog__group--customer-requirement">
-      <h4>Kundenanforderung</h4>
+      <h4><StaticText source={"Kundenanforderung"} /></h4>
       <RuleRow step="K" label="Kunde wichtig: BPL intern informieren" rule={value.customerRequirement} onChange={(offsetWorkingHours) => onChange({ ...value, customerRequirement: { ...value.customerRequirement, offsetWorkingHours } })} />
     </div>
   </section>
@@ -90,14 +91,14 @@ function RuleCatalogEditor({ catalog, catalogExists, loading, error }) {
     try { await httpsCallable(functions, 'updateShipmentTrackingRuleCatalog')({ catalog: publicCatalog(draft) }); setFeedback('Regelstufen gespeichert.') } catch (requestError) { setFeedback(requestError?.code === 'functions/permission-denied' ? 'Die Regelstufen konnten nicht gespeichert werden: Keine Berechtigung.' : 'Die Regelstufen konnten nicht gespeichert werden. Bitte erneut versuchen.') } finally { setSaving(false) }
   }
   return <section className="admin-panel shipment-tracking-rule-catalog" aria-labelledby="shipment-tracking-rule-catalog-title">
-    <div className="admin-panel__heading"><div><h2 id="shipment-tracking-rule-catalog-title">Sendungsverfolgung – Regelstufen</h2></div></div>
-    {loading ? <p>Regelstufen werden geladen …</p> : error ? <p className="form-error">{error}</p> : <>
-      <p className="shipment-tracking-rule-catalog__hint">Zeiten in Arbeitsstunden vor der frühesten Beladung</p>
-      {!catalogExists && <p className="shipment-tracking-rule-catalog__setup">Der Regelkatalog ist noch nicht angelegt. Prüfe bei Bedarf die Startwerte und lege ihn anschließend einmalig an.</p>}
-      {missingRequirements.length > 0 && <p className="shipment-tracking-rule-catalog__migration-note"><strong>Aktualisierung erforderlich:</strong> Für {missingRequirements.join(' und ')} ist die Kundenanforderungs-Stufe unten bereits vorgeschlagen, aber noch nicht Teil des gespeicherten Regelwerks. Mit dem hervorgehobenen Button übernehmen.</p>}
+    <div className="admin-panel__heading"><div><h2 id="shipment-tracking-rule-catalog-title"><StaticText source={"Sendungsverfolgung – Regelstufen"} /></h2></div></div>
+    {loading ? <p><StaticText source={"Regelstufen werden geladen …"} /></p> : error ? <p className="form-error">{<StaticText source={error} />}</p> : <>
+      <p className="shipment-tracking-rule-catalog__hint"><StaticText source={"Zeiten in Arbeitsstunden vor der frühesten Beladung"} /></p>
+      {!catalogExists && <p className="shipment-tracking-rule-catalog__setup"><StaticText source={"Der Regelkatalog ist noch nicht angelegt. Prüfe bei Bedarf die Startwerte und lege ihn anschließend einmalig an."} /></p>}
+      {missingRequirements.length > 0 && <p className="shipment-tracking-rule-catalog__migration-note"><strong><StaticText source={"Aktualisierung erforderlich:"} /></strong> <StaticText source={"Für"} /> {<StaticText source={missingRequirements.join(' und ')} />} <StaticText source={"ist die Kundenanforderungs-Stufe unten bereits vorgeschlagen, aber noch nicht Teil des gespeicherten Regelwerks. Mit dem hervorgehobenen Button übernehmen."} /></p>}
       <div className="shipment-tracking-rule-catalog__topics">{topics.map((topic) => <TopicEditor key={topic.key} topic={topic} value={draft.topics[topic.key]} onChange={(value) => updateTopic(topic.key, value)} />)}</div>
       {(validationError || feedback) && <p className={validationError || feedback.includes('konnten') ? 'form-error' : 'shipment-tracking-rule-catalog__success'}>{validationError || feedback}</p>}
-      <div className="shipment-tracking-rule-catalog__actions"><button className={canSave ? 'button shipment-tracking-rule-catalog__save--changed' : 'button'} type="button" disabled={saving || Boolean(validationError) || !canSave} onClick={() => void save()}>{saving ? 'Wird gespeichert …' : catalogExists ? missingRequirements.length ? 'Regelwerk aktualisieren & speichern' : 'Regelstufen speichern' : 'Regelkatalog anlegen'}</button></div>
+      <div className="shipment-tracking-rule-catalog__actions"><button className={canSave ? 'button shipment-tracking-rule-catalog__save--changed' : 'button'} type="button" disabled={saving || Boolean(validationError) || !canSave} onClick={() => void save()}>{<StaticText source={saving ? 'Wird gespeichert …' : catalogExists ? missingRequirements.length ? 'Regelwerk aktualisieren & speichern' : 'Regelstufen speichern' : 'Regelkatalog anlegen'} />}</button></div>
     </>}
   </section>
 }

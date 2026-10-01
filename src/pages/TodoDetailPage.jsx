@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import TodoQuickEditModal from "../components/todos/TodoQuickEditModal.jsx";
@@ -123,7 +124,7 @@ function TodoActions({ actor, editable, onAction, todo }) {
           type="button"
           onClick={() => onAction("assign", todo)}
         >
-          Aufgabe annehmen
+          <StaticText source={"Aufgabe annehmen"} />
         </button>
       )}
       {isAssignee && status === "in_progress" && (
@@ -132,7 +133,7 @@ function TodoActions({ actor, editable, onAction, todo }) {
           type="button"
           onClick={() => onAction("complete", todo)}
         >
-          Erledigen
+          <StaticText source={"Erledigen"} />
         </button>
       )}
       {canReactivate && (
@@ -141,7 +142,7 @@ function TodoActions({ actor, editable, onAction, todo }) {
           type="button"
           onClick={() => onAction("reactivate", todo)}
         >
-          Reaktivieren
+          <StaticText source={"Reaktivieren"} />
         </button>
       )}
     </div>
@@ -414,7 +415,7 @@ export default function TodoDetailPage() {
     }
   }
 
-  if (!result) return <p className="page-state">Aufgabe wird geladen …</p>;
+  if (!result) return <p className="page-state"><StaticText source={"Aufgabe wird geladen …"} /></p>;
   if (result.error)
     return (
       <section className="todo-detail-empty">
@@ -501,7 +502,7 @@ export default function TodoDetailPage() {
           <div className="todo-detail-header__title">
             <h2>{todo.title}</h2>
             {canManageSections && (
-              <button
+              <TranslatedProps sources={{"title":"Titel bearbeiten","aria-label":"Titel bearbeiten"}}><button
                 className="todo-detail-section-edit"
                 type="button"
                 onClick={() => setQuickEditing("content")}
@@ -509,14 +510,14 @@ export default function TodoDetailPage() {
                 aria-label="Titel bearbeiten"
               >
                 <EditIcon size={14} />
-              </button>
+              </button></TranslatedProps>
             )}
             <span className={`todo-status todo-status--${todoStatus(todo)}`}>
               {TODO_STATUS[todoStatus(todo)] || "—"}
             </span>
           </div>
         </header>
-        {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error">{<StaticText source={error} />}</p>}
         {quickEditing && (
           <TodoQuickEditModal
             key={quickEditing}
@@ -542,10 +543,10 @@ export default function TodoDetailPage() {
                   canManageSections ? () => setQuickEditing("content") : null
                 }
               >
-                Beschreibung
+                <StaticText source={"Beschreibung"} />
               </DetailSectionHeading>
               <p className="todo-detail-description">
-                {todo.description || "Keine Beschreibung hinterlegt."}
+                {todo.description || <StaticText source={"Keine Beschreibung hinterlegt."} />}
               </p>
             </section>
             <TodoDeadlinesCard canEdit={canManageSections} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
@@ -554,30 +555,30 @@ export default function TodoDetailPage() {
               aria-labelledby="todo-updates-title"
             >
               <div className="todo-updates__heading">
-                <h3 id="todo-updates-title">Updates zum Fall</h3>
+                <h3 id="todo-updates-title"><StaticText source={"Updates zum Fall"} /></h3>
                 <span>{caseUpdates.length}</span>
               </div>
               {canView("todos") && (
                 <form className="todo-updates__form" onSubmit={saveNote}>
-                  <textarea
+                  <TranslatedProps sources={{"aria-label":"Update zum Fall","placeholder":"Update zum Fall hinzufügen …"}}><textarea
                     aria-label="Update zum Fall"
                     rows="2"
                     value={note}
                     maxLength="1000"
                     onChange={(event) => setNote(event.target.value)}
                     placeholder="Update zum Fall hinzufügen …"
-                  />
+                  /></TranslatedProps>
                   <button
                     className="button"
                     type="submit"
                     disabled={noteSaving || !note.trim()}
                   >
-                    {noteSaving ? "Wird gespeichert …" : "Update hinzufügen"}
+                    {<StaticText source={noteSaving ? "Wird gespeichert …" : "Update hinzufügen"} />}
                   </button>
                 </form>
               )}
               {updatesLoading ? (
-                <p className="todo-updates__empty">Updates werden geladen …</p>
+                <p className="todo-updates__empty"><StaticText source={"Updates werden geladen …"} /></p>
               ) : caseUpdates.length ? (
                 <ol className="todo-updates__list">
                   {caseUpdates.map((update) => (
@@ -597,7 +598,7 @@ export default function TodoDetailPage() {
                 </ol>
               ) : (
                 <p className="todo-updates__empty">
-                  Noch keine Updates zum Fall.
+                  <StaticText source={"Noch keine Updates zum Fall."} />
                 </p>
               )}
             </section>
@@ -606,11 +607,11 @@ export default function TodoDetailPage() {
               aria-labelledby="todo-history-title"
             >
               <div className="todo-updates__heading">
-                <h3 id="todo-history-title">Historie</h3>
+                <h3 id="todo-history-title"><StaticText source={"Historie"} /></h3>
                 <span>{history.length}</span>
               </div>
               {updatesLoading ? (
-                <p className="todo-updates__empty">Historie wird geladen …</p>
+                <p className="todo-updates__empty"><StaticText source={"Historie wird geladen …"} /></p>
               ) : history.length ? (
                 <ol className="todo-updates__list">
                   {history.map((update) => (
@@ -631,7 +632,7 @@ export default function TodoDetailPage() {
                 </ol>
               ) : (
                 <p className="todo-updates__empty">
-                  Noch keine Historieneinträge.
+                  <StaticText source={"Noch keine Historieneinträge."} />
                 </p>
               )}
             </section>
@@ -643,18 +644,18 @@ export default function TodoDetailPage() {
                   canManageSections ? () => setQuickEditing("schedule") : null
                 }
               >
-                Priorität
+                <StaticText source={"Priorität"} />
               </DetailSectionHeading>
               <TodoPriority priority={todoPriority(todo)} />
               <dl>
-                <Detail label="Fällig am">
+                <TranslatedProps sources={{"label":"Fällig am"}}><Detail label="Fällig am">
                   <span className={dueClass(todo)}>
                     {formatDate(todo.dueDate)}
                   </span>
-                </Detail>
-                <Detail label="Erinnerung am">
+                </Detail></TranslatedProps>
+                <TranslatedProps sources={{"label":"Erinnerung am"}}><Detail label="Erinnerung am">
                   {formatDate(todo.reminderDate)}
-                </Detail>
+                </Detail></TranslatedProps>
               </dl>
             </section>
             <section>
@@ -665,12 +666,12 @@ export default function TodoDetailPage() {
                     : null
                 }
               >
-                Zuständigkeit
+                <StaticText source={"Zuständigkeit"} />
               </DetailSectionHeading>
               <dl>
                 <Detail label="Zielgruppe">{todo.audienceLabel}</Detail>
                 <Detail label="Aktueller Bearbeiter">
-                  {todo.assignedUserName || "Noch nicht übernommen"}
+                  {todo.assignedUserName || <StaticText source={"Noch nicht übernommen"} />}
                 </Detail>
               </dl>
             </section>
@@ -680,10 +681,10 @@ export default function TodoDetailPage() {
                   canManageSections ? () => setQuickEditing("links") : null
                 }
               >
-                Verknüpfungen
+                <StaticText source={"Verknüpfungen"} />
               </DetailSectionHeading>
               <dl>
-                <Detail label="Kunde">
+                <TranslatedProps sources={{"label":"Kunde"}}><Detail label="Kunde">
                   {todo.customerId && canViewMasterData ? (
                     <Link
                       to={businessPartnerDetailPath(
@@ -693,13 +694,13 @@ export default function TodoDetailPage() {
                     >
                       {effectivePartner(todo.customerId)?.companyName ||
                         todo.customerName ||
-                        "Kunde öffnen"}
+                        <StaticText source={"Kunde öffnen"} />}
                     </Link>
                   ) : (
                     todo.customerName
                   )}
-                </Detail>
-                <Detail label="Unternehmer">
+                </Detail></TranslatedProps>
+                <TranslatedProps sources={{"label":"Unternehmer"}}><Detail label="Unternehmer">
                   {todo.carrierId && canViewMasterData ? (
                     <Link
                       to={businessPartnerDetailPath(
@@ -708,54 +709,54 @@ export default function TodoDetailPage() {
                     >
                       {effectivePartner(todo.carrierId)?.companyName ||
                         todo.carrierName ||
-                        "Unternehmer öffnen"}
+                        <StaticText source={"Unternehmer öffnen"} />}
                     </Link>
                   ) : (
                     todo.carrierName
                   )}
-                </Detail>
-                <Detail label="Schadenfall">
+                </Detail></TranslatedProps>
+                <TranslatedProps sources={{"label":"Schadenfall"}}><Detail label="Schadenfall">
                   {linkedDamageCase ? (
                     <Link to={`/schaeden/${linkedDamageCase.id}`}>
                       {linkedDamageCaseLabel}
                     </Link>
                   ) : todo.damageCaseId ? (
-                    "Schadenfall nicht verfügbar"
+                    <StaticText source="Schadenfall nicht verfügbar" />
                   ) : null}
-                </Detail>
+                </Detail></TranslatedProps>
                 <Detail label="Insolvenz">
                   {associatedInsolvency ? (
                     <Link to={insolvencyCasePath(associatedInsolvency.id)}>
                       {associatedInsolvencyLabel}
                     </Link>
                   ) : todo.insolvencyId ? (
-                    "Insolvenz nicht verfügbar"
+                    <StaticText source="Insolvenz nicht verfügbar" />
                   ) : null}
                 </Detail>
-                <Detail label="TA-Nummern">
+                <TranslatedProps sources={{"label":"TA-Nummern"}}><Detail label="TA-Nummern">
                   {linkedTransportOrders.length
                     ? linkedTransportOrders.map((link, index) => (
                         <span key={link.id}>
-                          {index > 0 && ", "}
+                          {<StaticText source={index > 0 && ", "} />}
                           <Link to={transportOrderPath(link.id)}>
                             TA {link.number || link.id}
                           </Link>
                         </span>
                       ))
                     : null}
-                </Detail>
+                </Detail></TranslatedProps>
               </dl>
             </section>
             <section className="todo-detail-system">
-              <h3>Systemdaten</h3>
+              <h3><StaticText source={"Systemdaten"} /></h3>
               <dl>
-                <Detail label="Erstellt von">{todo.creatorName}</Detail>
-                <Detail label="Erstellt am">
+                <TranslatedProps sources={{"label":"Erstellt von"}}><Detail label="Erstellt von">{todo.creatorName}</Detail></TranslatedProps>
+                <TranslatedProps sources={{"label":"Erstellt am"}}><Detail label="Erstellt am">
                   {formatTimestamp(todo.createdAt)}
-                </Detail>
-                <Detail label="Zuletzt aktualisiert">
+                </Detail></TranslatedProps>
+                <TranslatedProps sources={{"label":"Zuletzt aktualisiert"}}><Detail label="Zuletzt aktualisiert">
                   {formatTimestamp(todo.updatedAt)}
-                </Detail>
+                </Detail></TranslatedProps>
                 <Detail label="Übernommen am">
                   {formatTimestamp(todo.assignedAt)}
                 </Detail>

@@ -1,3 +1,4 @@
+import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -51,10 +52,10 @@ export function DocumentPreview({ documentItem, getDocumentBlob = getInternalDoc
     return () => { current = false; loadingTask?.destroy(); if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [documentItem, getDocumentBlob])
 
-  return <button className={className} type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
+  return <TranslatedProps sources={{"title":"Im Browser öffnen"}}><button className={className} type="button" onClick={() => onOpen(documentItem)} aria-label={`${documentItem.title} öffnen`} title="Im Browser öffnen">
     {url ? <img src={url} alt="" /> : <span className="document-card__preview-fallback">PDF</span>}
-    <span className="document-card__preview-overlay">Vorschau öffnen</span>
-  </button>
+    <span className="document-card__preview-overlay"><StaticText source={"Vorschau öffnen"} /></span>
+  </button></TranslatedProps>
 }
 
 export function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit }) {
@@ -82,18 +83,18 @@ export function DocumentActionsMenu({ documentItem, onDelete, onDetails, onEdit 
     closeTimerRef.current = window.setTimeout(() => setOpen(false), 350)
   }
 
-  return <div ref={menuRef} className="document-card__menu" onMouseEnter={cancelScheduledClose} onMouseLeave={scheduleClose}><button className="document-card__menu-trigger" type="button" aria-label={`Aktionen für ${documentItem.title}`} aria-expanded={open} title="Weitere Aktionen" onClick={() => setOpen((current) => !current)}><MoreIcon /></button>{open && <div role="menu"><button role="menuitem" type="button" onClick={() => { setOpen(false); onDetails(documentItem) }}>Details</button><button role="menuitem" type="button" onClick={() => { setOpen(false); onEdit(documentItem) }}>Bearbeiten</button><button className="document-card__delete" role="menuitem" type="button" onClick={() => { setOpen(false); onDelete(documentItem) }}>Löschen</button></div>}</div>
+  return <div ref={menuRef} className="document-card__menu" onMouseEnter={cancelScheduledClose} onMouseLeave={scheduleClose}><TranslatedProps sources={{"title":"Weitere Aktionen"}}><button className="document-card__menu-trigger" type="button" aria-label={`Aktionen für ${documentItem.title}`} aria-expanded={open} title="Weitere Aktionen" onClick={() => setOpen((current) => !current)}><MoreIcon /></button></TranslatedProps>{open && <div role="menu"><button role="menuitem" type="button" onClick={() => { setOpen(false); onDetails(documentItem) }}>Details</button><button role="menuitem" type="button" onClick={() => { setOpen(false); onEdit(documentItem) }}><StaticText source={"Bearbeiten"} /></button><button className="document-card__delete" role="menuitem" type="button" onClick={() => { setOpen(false); onDelete(documentItem) }}><StaticText source={"Löschen"} /></button></div>}</div>
 }
 
 export default function DocumentsGallery({ documents, loading, onOpen, onDownload, onDetails, onEdit, onDelete, canEdit }) {
-  if (loading) return <p className="documents-gallery__state">Dokumente werden geladen …</p>
-  if (!documents.length) return <p className="documents-gallery__state">Keine Dokumente gespeichert.</p>
+  if (loading) return <p className="documents-gallery__state"><StaticText source={"Dokumente werden geladen …"} /></p>
+  if (!documents.length) return <p className="documents-gallery__state"><StaticText source={"Keine Dokumente gespeichert."} /></p>
 
   return <div className="documents-gallery">
     {documents.map((documentItem) => <article className="document-card" key={documentItem.id}>
       <DocumentPreview documentItem={documentItem} onOpen={onOpen} />
       <div className="document-card__content">
-        <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div><div className="document-card__heading-actions">{canEdit && <DocumentActionsMenu documentItem={documentItem} onDetails={onDetails} onEdit={onEdit} onDelete={onDelete} />}<button className="document-card__download" type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></div></div>
+        <div className="document-card__heading"><div><h2 title={documentItem.title}>{documentItem.title}</h2></div><div className="document-card__heading-actions">{canEdit && <DocumentActionsMenu documentItem={documentItem} onDetails={onDetails} onEdit={onEdit} onDelete={onDelete} />}<TranslatedProps sources={{"title":"Herunterladen"}}><button className="document-card__download" type="button" onClick={() => onDownload(documentItem)} aria-label={`${documentItem.title} herunterladen`} title="Herunterladen"><DownloadIcon /></button></TranslatedProps></div></div>
       </div>
     </article>)}
   </div>
