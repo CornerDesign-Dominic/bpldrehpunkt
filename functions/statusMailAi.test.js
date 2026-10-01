@@ -163,7 +163,13 @@ test('a clear 45-minute reply creates a dated AI transit report', async () => {
   assert.equal(event.newValue.transitEntry.kilometersToDestination, 53)
   assert.equal(event.eventTime.toDate().toISOString(), receivedAt.toDate().toISOString())
   assert.equal(event.source, 'ai_mail')
+  assert.equal(documents.get('transportOrderTrackings/order-1').stageId, 'in_transit')
+  assert.equal(documents.get('transportOrderTrackings/order-1').lifecyclePhase, 'in_progress')
   assert.equal(documents.get('transportOrders/order-1/receivedMails/mail-3').ai.reviewRequired, false)
+  documents.set('transportOrders/order-1/receivedMails/mail-5', { ...mail, bodyText: 'ETA Entladestelle heute 17:00 Uhr.', receivedAt: Timestamp.fromDate(new Date('2026-10-01T11:00:00Z')) })
+  const inferEta = async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [{ field: 'estimatedArrivalUnloadingAt', value: '2026-10-01T17:00:00+02:00', evidence: 'ETA Entladestelle heute 17:00 Uhr', confidence: 'high' }], transitUpdates: [], pauseUpdates: [] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-5', infer: inferEta }), 'applied')
+  assert.equal(documents.get('transportOrderTrackings/order-1').stageId, 'in_transit')
 })
 
 test('ambiguous tracking information is marked for manual review', async () => {

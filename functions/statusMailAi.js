@@ -286,7 +286,7 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
       return 'skipped'
     }
     const lifecycle = shipmentTrackingLifecycle({ earliestLoading: freshOrder.data()?.imported?.loading?.window?.from, latestUnloading: freshOrder.data()?.imported?.unloading?.window?.until, operatingHours })
-    const actualInMail = updates.some((update) => actualFields.has(update.field))
+    const actualInMail = updates.some((update) => actualFields.has(update.field)) || transitUpdates.length > 0 || pauseUpdates.length > 0
     const phase = lifecycle.phase === 'upcoming' && !actualInMail ? 'upcoming' : 'in_progress'
     const base = current || createShipmentTrackingDocument(orderId, 'status-mail-ai', 'KI · Status-Postfach', {
       trackingMode: 'automatic', lifecyclePhase: phase,
@@ -303,6 +303,8 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     for (const item of applied) fieldSources[item.field] = { source: 'ai_mail', mailId, receivedAt: freshMail.data().receivedAt }
     const position = deriveShipmentTrackingPosition({ ...base, ...changes })
     if ((transitUpdates.length || pauseUpdates.length) && ['preparation', 'loading'].includes(position.stageId)) position.stageId = 'in_transit'
+    const stageOrder = { preparation: 0, loading: 1, in_transit: 2, unloading: 3, post_transport: 4 }
+    if ((stageOrder[current?.stageId] ?? -1) > (stageOrder[position.stageId] ?? -1)) position.stageId = current.stageId
     if (current) transaction.update(trackingRef, { ...changes, ...position, fieldSources, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'status-mail-ai', updatedByName: 'KI · Status-Postfach' })
     else {
       transaction.create(trackingRef, { ...base, ...changes, ...position, fieldSources })
