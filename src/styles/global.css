@@ -1881,6 +1881,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-received-mails__list { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
 .transport-order-received-mails__list button { display: grid; width: 100%; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); text-align: left; cursor: pointer; }
 .transport-order-received-mails__list button:hover { border-color: var(--button-background); }
+.transport-order-received-mails__list button.transport-order-received-mails__needs-review { border: 2px solid #eab308; }
 .transport-order-received-mails__list span { overflow-wrap: anywhere; font-size: 12px; font-weight: 650; }
 .transport-order-received-mails__list small { overflow-wrap: anywhere; color: var(--text-secondary); font-size: 10px; }
 .transport-order-received-mail-modal { width: min(100%, 760px); }

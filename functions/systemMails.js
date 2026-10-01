@@ -101,6 +101,24 @@ export const systemMailTemplateDefinitions = {
     message: 'Guten Tag,\n\nbitte teilen Sie uns den aktuellen Status für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
+  shipment_tracking_unloading_eta_request: {
+    displayName: 'Sendungsverfolgung – ETA zur Entladestelle anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – ETA Entladestelle benötigt',
+    message: 'Guten Tag,\n\nwie weit ist der LKW noch von der Entladestelle entfernt? Bitte nennen Sie uns die voraussichtliche Ankunftszeit oder die verbleibende Fahrzeit und, falls bekannt, die verbleibenden Kilometer für den Transportauftrag {{transportOrderNumber}}.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
+  },
+  shipment_tracking_loading_update_request: {
+    displayName: 'Sendungsverfolgung – Update zur Beladung anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Update zur Beladung benötigt',
+    message: 'Guten Tag,\n\nbitte geben Sie uns ein Update zur Beladung für den Transportauftrag {{transportOrderNumber}}: Ist der LKW bereits an der Ladestelle, hat die Beladung begonnen oder ist sie abgeschlossen? Bitte nennen Sie die jeweiligen Uhrzeiten und die voraussichtliche Abfahrt.\n\nLadestelle: {{loadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation'],
+  },
+  shipment_tracking_unloading_update_request: {
+    displayName: 'Sendungsverfolgung – Update zur Entladung anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Update zur Entladung benötigt',
+    message: 'Guten Tag,\n\nbitte geben Sie uns ein Update zur Entladung für den Transportauftrag {{transportOrderNumber}}: Ist der LKW bereits an der Entladestelle, hat die Entladung begonnen oder ist sie abgeschlossen? Bitte nennen Sie die jeweiligen Uhrzeiten.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
+  },
   shipment_tracking_actual_arrival_confirmation: {
     displayName: 'Sendungsverfolgung – Kurz vor Beladung bestätigen',
     adminVisible: false,

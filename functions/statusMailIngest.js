@@ -27,7 +27,19 @@ export function validateStatusMail(payload) {
   const receivedAt = text(payload.receivedAt, 40)
   const date = new Date(receivedAt)
   if (!mailbox || !messageId || !subject || !sender || !receivedAt || !/^\d{4}-\d\d-\d\dT/.test(receivedAt) || Number.isNaN(date.getTime())) return null
-  return { mailbox, messageId, subject, sender, bodyText, receivedAt: date }
+  const sentAt = text(payload.sentAt, 40)
+  const sentDate = sentAt ? new Date(sentAt) : null
+  const addresses = (value) => typeof value === 'string'
+    ? value.split(/[;,]/).map((item) => item.trim()).filter(Boolean).slice(0, 30)
+    : Array.isArray(value) ? value.map((item) => typeof item === 'string' ? item : item?.emailAddress?.address || item?.address || '').filter((item) => typeof item === 'string' && item.length <= 320).slice(0, 30) : []
+  return {
+    mailbox, messageId, subject, sender, bodyText, receivedAt: date,
+    outlookMessageId: text(payload.outlookMessageId, 1000),
+    internetMessageId: text(payload.internetMessageId, 500),
+    conversationId: text(payload.conversationId, 1000),
+    replyTo: addresses(payload.replyTo), toRecipients: addresses(payload.toRecipients), ccRecipients: addresses(payload.ccRecipients),
+    ...(sentDate && !Number.isNaN(sentDate.getTime()) ? { sentAt: sentDate } : {}),
+  }
 }
 
 function authorized(header, secret) {
@@ -58,6 +70,10 @@ export async function ingestStatusMailHandler(request, response, { db = getFires
       source: 'powerAutomate', mailbox: mail.mailbox, messageId: mail.messageId,
       transportOrderId: orderId, transportOrderNumber: orderNumber,
       subject: mail.subject, sender: mail.sender, bodyText: mail.bodyText,
+      outlookMessageId: mail.outlookMessageId, internetMessageId: mail.internetMessageId,
+      conversationId: mail.conversationId, replyTo: mail.replyTo,
+      toRecipients: mail.toRecipients, ccRecipients: mail.ccRecipients,
+      ...(mail.sentAt ? { sentAt: mail.sentAt } : {}),
       receivedAt: mail.receivedAt, createdAt: FieldValue.serverTimestamp(),
     })
     return 'stored'

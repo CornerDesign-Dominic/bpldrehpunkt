@@ -1,13 +1,36 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Timestamp } from 'firebase-admin/firestore'
-import { planStatusMailAiChanges, processStatusMailAi, statusMailTrackingEventTime, validateStatusMailAiResult } from './statusMailAi.js'
+import { planStatusMailAiChanges, processStatusMailAi, statusMailPromptContext, statusMailTrackingEventTime, validateStatusMailAiResult, validateStatusMailTransitUpdates, validateStatusMailPauseUpdates } from './statusMailAi.js'
 
 const receivedAt = Timestamp.fromDate(new Date('2026-10-01T10:00:00Z'))
 const mail = {
   source: 'powerAutomate', mailbox: 'status@brennpunkt-logistik.de', transportOrderId: 'order-1',
   subject: 'TA 260900123', bodyText: 'ETA Entladestelle heute 15:30 Uhr. Kennzeichen: HH-AB 123.', receivedAt,
 }
+
+test('converts an explicit remaining drive time using the route planning speed', () => {
+  const current = { ...mail, bodyText: 'Der LKW hat noch 45 min zur Entladestelle.' }
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'noch 45 min zur Entladestelle', confidence: 'high' }] }, current, 290).map(({ kilometersToDestination }) => kilometersToDestination), [53])
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'nicht in der Mail', confidence: 'high' }] }, current, 290), [])
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'noch 45 min zur Entladestelle', confidence: 'high' }] }, current, 30), [])
+})
+
+test('requires a grounded pause start and duration', () => {
+  const pauseMail = { ...mail, bodyText: 'Pause begann heute 11:00 Uhr für 45 Minuten.' }
+  const accepted = validateStatusMailPauseUpdates({ pauseUpdates: [{ startAt: '2026-10-01T11:00:00+02:00', durationMinutes: 45, evidence: 'Pause begann heute 11:00 Uhr für 45 Minuten', confidence: 'high' }] }, pauseMail)
+  assert.equal(accepted[0].at.toDate().toISOString(), '2026-10-01T09:00:00.000Z')
+  assert.equal(accepted[0].durationMinutes, 45)
+  assert.deepEqual(validateStatusMailPauseUpdates({ pauseUpdates: [{ startAt: '2026-10-01T11:00:00+02:00', durationMinutes: 60, evidence: 'Pause begann heute 11:00 Uhr für 45 Minuten', confidence: 'high' }] }, pauseMail), [])
+})
+
+test('the prompt context contains route, prior request and tracking while keeping current mail separate', () => {
+  const context = statusMailPromptContext({ mail, order: { imported: { unloading: { city: 'Berlin' } } }, tracking: { stageId: 'in_transit', estimatedArrivalUnloadingAt: receivedAt }, route: { roundedDistanceKm: 290 }, history: [{ receivedAt: Timestamp.fromDate(new Date('2026-10-01T09:00:00Z')), subject: 'TA 260900123', bodyText: 'Vorherige Mail' }], sentRequests: [{ status: 'sent', sentAt: Timestamp.fromDate(new Date('2026-10-01T08:00:00Z')), templateId: 'shipment_tracking_unloading_eta_request', message: 'Wie weit bis zur Entladestelle?' }] })
+  assert.equal(context.routeDistanceKm, 290)
+  assert.equal(context.tracking.stage, 'in_transit')
+  assert.equal(context.precedingMails.length, 1)
+  assert.equal(context.sentRequests[0].templateId, 'shipment_tracking_unloading_eta_request')
+})
 
 test('accepts only high-confidence updates backed by literal mail evidence', () => {
   const result = validateStatusMailAiResult({ isStatusUpdate: true, updates: [
@@ -119,4 +142,42 @@ test('an existing no-change mail can be retried while an applied mail stays idem
   assert.equal(calls, 1)
   assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-2', infer, retry: true }), 'applied')
   assert.equal(calls, 1)
+})
+
+test('a clear 45-minute reply creates a dated AI transit report', async () => {
+  const transitMail = { ...mail, bodyText: 'Der LKW hat noch 45 min zur Entladestelle.' }
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: { loading: { window: { from: '2026-10-01T08:00' } }, unloading: { window: { until: '2026-10-01T18:00' } } } }],
+    ['transportOrders/order-1/receivedMails/mail-3', transitMail],
+    ['transportOrderRoutes/order-1', { roundedDistanceKm: 290 }],
+  ])
+  const ref = (path) => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }) })
+  const db = { doc: ref, runTransaction: async (callback) => callback({
+    get: async (reference) => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+    create: (reference, data) => { assert.equal(documents.has(reference.path), false); documents.set(reference.path, data) },
+    update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+  }) }
+  const infer = async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [], transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'noch 45 min zur Entladestelle', confidence: 'high' }] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-3', infer }), 'applied')
+  const event = documents.get('transportOrderTrackings/order-1/events/ai-position-mail-3')
+  assert.equal(event.newValue.transitEntry.kilometersToDestination, 53)
+  assert.equal(event.eventTime.toDate().toISOString(), receivedAt.toDate().toISOString())
+  assert.equal(event.source, 'ai_mail')
+  assert.equal(documents.get('transportOrders/order-1/receivedMails/mail-3').ai.reviewRequired, false)
+})
+
+test('ambiguous tracking information is marked for manual review', async () => {
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: {} }],
+    ['transportOrders/order-1/receivedMails/mail-4', { ...mail, bodyText: 'Wir kommen heute später.' }],
+  ])
+  const ref = (path) => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }), update: async (data) => documents.set(path, { ...documents.get(path), ...data }) })
+  const db = { doc: ref, runTransaction: async (callback) => callback({
+    get: async (reference) => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+    update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+  }) }
+  const infer = async () => ({ isStatusUpdate: true, reviewRequired: true, reviewReason: 'Unklar, welche Station gemeint ist.', updates: [], transitUpdates: [] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'mail-4', infer }), 'needs_review')
+  assert.equal(documents.get('transportOrders/order-1/receivedMails/mail-4').ai.reviewRequired, true)
+  assert.equal(documents.has('transportOrderTrackings/order-1'), false)
 })

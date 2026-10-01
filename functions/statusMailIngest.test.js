@@ -28,6 +28,10 @@ test('validates the mail contract', () => {
   assert.equal(validateStatusMail(payload).receivedAt.toISOString(), '2026-09-30T10:00:00.000Z')
   assert.equal(validateStatusMail({ ...payload, receivedAt: 'morgen' }), null)
   assert.equal(validateStatusMail({ ...payload, messageId: '' }), null)
+  const enriched = validateStatusMail({ ...payload, outlookMessageId: 'AAMk123', internetMessageId: '<unique@example.com>', conversationId: 'conv-1', replyTo: 'reply@example.com', toRecipients: 'status@example.com', ccRecipients: 'desk@example.com', sentAt: '2026-09-30T09:59:00Z' })
+  assert.deepEqual(enriched.replyTo, ['reply@example.com'])
+  assert.deepEqual(enriched.toRecipients, ['status@example.com'])
+  assert.equal(enriched.sentAt.toISOString(), '2026-09-30T09:59:00.000Z')
 })
 
 test('stores a uniquely matched mail once and leaves unmatched mail untouched', async () => {
