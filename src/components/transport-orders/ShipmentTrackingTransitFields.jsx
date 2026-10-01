@@ -11,7 +11,7 @@ const durationOptions = [
 
 function TransitEntryFields({ entry, number, onUpdate, onRemove, original }) {
   const label = entry.kind === 'position' ? 'Standortmeldung' : 'Pause'
-  const aiField = (field) => entry.source === 'ai_mail' && entry[field] === original?.[field]
+  const aiField = (field) => entry.source === 'ai_mail' && entry[field] !== '' && entry[field] !== null && entry[field] === original?.[field]
   const aiProps = (field) => ({ className: aiField(field) ? 'shipment-tracking-editor__input--ai' : undefined, title: aiField(field) ? 'Von KI aus einer Status-Mail übernommen' : undefined })
   return <div className="shipment-tracking-transit__entry">
     <div className="shipment-tracking-transit__entry-heading"><h3><StaticText source={label} /> {number}</h3>{onRemove && <button type="button" className="button button--secondary" onClick={onRemove} aria-label={`${label} ${number} entfernen`}><StaticText source="Entfernen" /></button>}</div>
