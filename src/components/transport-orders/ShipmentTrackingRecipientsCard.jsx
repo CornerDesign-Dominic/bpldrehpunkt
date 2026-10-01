@@ -7,6 +7,9 @@ const requestOptions = [
   { id: 'shipment_tracking_license_plate_request', label: 'Kennzeichen' },
   { id: 'shipment_tracking_license_plate_and_arrival_request', label: 'Ankunft + KZ' },
   { id: 'shipment_tracking_general_status_update', label: 'Allg. Update' },
+  { id: 'shipment_tracking_unloading_eta_request', label: 'ETA Entladestelle' },
+  { id: 'shipment_tracking_loading_update_request', label: 'Update Beladung' },
+  { id: 'shipment_tracking_unloading_update_request', label: 'Update Entladung' },
 ]
 
 function recipientEmail(tracking) {

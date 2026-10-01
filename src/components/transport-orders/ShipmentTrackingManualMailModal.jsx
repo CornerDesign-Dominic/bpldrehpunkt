@@ -10,6 +10,9 @@ const requestTitleByTemplateId = {
   shipment_tracking_license_plate_request: 'Statusanfrage – Kennzeichen',
   shipment_tracking_license_plate_and_arrival_request: 'Statusanfrage – Ankunft + Kennzeichen',
   shipment_tracking_general_status_update: 'Statusanfrage – Allgemeines Update',
+  shipment_tracking_unloading_eta_request: 'Statusanfrage – ETA Entladestelle',
+  shipment_tracking_loading_update_request: 'Statusanfrage – Update zur Beladung',
+  shipment_tracking_unloading_update_request: 'Statusanfrage – Update zur Entladung',
 }
 
 export default function ShipmentTrackingManualMailModal({ orderId, bundles = [], initialTemplateId = '', defaultRecipient = '', saving = false, onClose, onSend }) {

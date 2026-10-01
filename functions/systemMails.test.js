@@ -10,15 +10,19 @@ test('shipment-tracking templates cover the individual and bundled carrier reque
     'shipment_tracking_arrival_request',
     'shipment_tracking_license_plate_and_arrival_request',
     'shipment_tracking_general_status_update',
+    'shipment_tracking_unloading_eta_request',
+    'shipment_tracking_loading_update_request',
+    'shipment_tracking_unloading_update_request',
     'shipment_tracking_actual_arrival_confirmation',
   ])
 
   for (const id of Object.keys(definitions).filter((key) => key.startsWith('shipment_tracking_'))) {
     assert.match(definitions[id].displayName, /^Sendungsverfolgung – /)
     assert.ok(definitions[id].subject.includes('{{transportOrderNumber}}'))
-    assert.ok(definitions[id].message.includes('{{loadingLocation}}'))
-    assert.ok(definitions[id].message.includes('{{loadingTime}}'))
-    assert.deepEqual(definitions[id].allowedPlaceholders, ['transportOrderNumber', 'loadingLocation', 'loadingTime'])
+    const unloading = ['shipment_tracking_unloading_eta_request', 'shipment_tracking_unloading_update_request'].includes(id)
+    assert.ok(definitions[id].message.includes(unloading ? '{{unloadingLocation}}' : '{{loadingLocation}}'))
+    if (!unloading && id !== 'shipment_tracking_loading_update_request') assert.ok(definitions[id].message.includes('{{loadingTime}}'))
+    assert.deepEqual(definitions[id].allowedPlaceholders, unloading ? ['transportOrderNumber', 'unloadingLocation'] : id === 'shipment_tracking_loading_update_request' ? ['transportOrderNumber', 'loadingLocation'] : ['transportOrderNumber', 'loadingLocation', 'loadingTime'])
   }
 })
 

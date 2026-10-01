@@ -61,10 +61,10 @@ zugeordnet und vom Nutzer in der Auftragsansicht bestätigt.
    Zeilenumbrüche im Mailtext korrekt als JSON übertragen werden:
 
    ```text
-   addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(json('{}'),'mailbox','status@brennpunkt-logistik.de'),'messageId',if(empty(triggerOutputs()?['body/internetMessageId']),triggerOutputs()?['body/id'],triggerOutputs()?['body/internetMessageId'])),'subject',triggerOutputs()?['body/subject']),'sender',triggerOutputs()?['body/from']),'bodyText',body('HTML_zu_Text')),'receivedAt',triggerOutputs()?['body/receivedDateTime'])
+   addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(addProperty(json('{}'),'mailbox','status@brennpunkt-logistik.de'),'messageId',if(empty(triggerOutputs()?['body/internetMessageId']),triggerOutputs()?['body/id'],triggerOutputs()?['body/internetMessageId'])),'subject',triggerOutputs()?['body/subject']),'sender',triggerOutputs()?['body/from']),'bodyText',body('HTML_zu_Text')),'receivedAt',triggerOutputs()?['body/receivedDateTime']),'outlookMessageId',triggerOutputs()?['body/id']),'internetMessageId',triggerOutputs()?['body/internetMessageId']),'conversationId',triggerOutputs()?['body/conversationId']),'replyTo',triggerOutputs()?['body/replyTo']),'toRecipients',triggerOutputs()?['body/toRecipients']),'ccRecipients',triggerOutputs()?['body/ccRecipients'])
    ```
 
-   Im bestehenden Entwurf ist dieser Ausdruck bereits hinterlegt. Er verwendet:
+   Im veröffentlichten Dev-Flow ist dieser Ausdruck hinterlegt. Er verwendet:
 
    | JSON-Feld | Power-Automate-Wert |
    | --- | --- |
@@ -74,6 +74,18 @@ zugeordnet und vom Nutzer in der Auftragsansicht bestätigt.
    | `sender` | **Von** (`body/from`) |
    | `bodyText` | Ausgabe von **Html to text** |
    | `receivedAt` | **Received Time** (ISO-Zeitstempel) |
+   | `outlookMessageId` | Outlook **Message Id** für eine spätere Antwort |
+   | `internetMessageId` | **Internet Message Id** |
+   | `conversationId` | **Conversation Id** |
+   | `replyTo` | **Reply To** |
+   | `toRecipients`, `ccRecipients` | **To**, **CC** |
+
+Der veröffentlichte Dev-Flow übergibt diese zusätzlichen Felder. Die
+HTTP-Aktion wurde danach mit **0 Fehlern, 0 Warnungen** geprüft und gespeichert.
+Für eine spätere Antwort kann `replyTo` (falls vorhanden) oder `sender`
+als Empfänger und Outlooks Message Id in `Reply to email (V3)` mit dem
+Original Mailbox Address verwendet werden. Die Antwortfunktion selbst ist
+hier noch nicht umgesetzt.
 
 Der **HTTP**-Connector kann eine Power-Automate-Premium-Lizenz erfordern.
 Falls die Aktion im Tenant nicht verfügbar ist, vor Aktivierung eine
@@ -91,11 +103,23 @@ firebase functions:secrets:set STATUS_MAIL_OPENAI_API_KEY --project db-bpl-drehp
 ```
 
 Die Funktion `processStatusMailAiOnCreate` wird bei **neu gespeicherten**
-zugeordneten Status-Mails ausgelöst. Sie sendet Betreff, Mailtext und wenige
-Auftragsdaten an OpenAI, fordert strukturierte Statuswerte an und speichert nur
+zugeordneten Status-Mails ausgelöst. Sie sendet die aktuelle Mail sowie
+vorhandene Trackingwerte, die berechnete Strecke, bis zu zwölf vorherige
+Auftragsmails, bis zu zwölf tatsächlich gesendete manuelle Anfragen, bis zu
+zwölf automatische Anfragen mit Vorlagenbezug und
+aktuelle Trackingereignisse als Kontext an OpenAI. Frühere Nachrichten dienen
+der Einordnung, nicht als Beleg für neue Werte. Sie fordert strukturierte
+Statuswerte an und speichert nur
 Angaben mit hoher Modell-Sicherheit und belegender Originalstelle. Bestehende
 manuelle Werte haben Vorrang. Neuere KI-Mails können ältere KI-Werte
 aktualisieren. Ohne eindeutige Angabe bleibt die Sendungsverfolgung unverändert.
+Klare Entfernungen zur Entladestelle werden als Standortmeldung zur
+Mail-Eingangszeit erfasst. Eine verbleibende Fahrzeit wird mit dem auch in der
+Streckenkarte verwendeten Planwert von 70 km/h in ungefähre Kilometer
+umgerechnet. Beispielsweise ergeben 45 Minuten etwa 53 km. Eindeutige Pausen
+mit Beginn und Dauer werden ebenfalls im Verlauf erfasst. Angaben mit unklarer
+Station, fehlendem Pausenbeginn, widersprüchlichem Kontext oder verworfenen Werten werden
+mit `ai.reviewRequired` gekennzeichnet und im Auftrag gelb umrandet.
 Auswertung und Ergebnis stehen im `ai`-Feld der zugeordneten Mail; Tokenverbrauch
 und geschätzte Kosten werden als `status_mail_tracking` in `aiUsage` erfasst.
 Die API-Anfrage verwendet `store: false`.
@@ -106,6 +130,7 @@ neue zuordenbare Status-Mail an das Postfach senden und im Auftrag die
 KI-Markierung sowie den Verlauf prüfen.
 Für Mails mit `Keine eindeutige Statusangabe` oder `KI-Auswertung fehlgeschlagen`
 können Nutzer mit Bearbeitungsrecht die KI im Mail-Dialog erneut ausführen.
+Das gilt auch für `Statusangabe manuell prüfen`.
 Jede erneute Auswertung erzeugt eine weitere OpenAI-Anfrage und wird in
 `aiUsage` erfasst. Das Modell darf einen nicht genannten Ort nur aus dem
 geplanten Stopptag ableiten, wenn das Datum zu genau einem Stopp passt.

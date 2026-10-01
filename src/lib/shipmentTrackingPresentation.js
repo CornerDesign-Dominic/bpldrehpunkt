@@ -292,9 +292,13 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   const workflowStates = shipmentTrackingWorkflowStates(tracking)
   const assessments = shipmentTrackingStationAssessments({ tracking, imported, customerPolicy, now })
   const plate = licensePlate(tracking)
+  const latestLoadingDuration = (Array.isArray(events) ? events : [])
+    .filter((event) => event.eventType === 'loading_duration_reported' && Number.isFinite(event.newValue?.loadingDurationMinutes))
+    .sort((left, right) => eventDateValue(right.eventTime) - eventDateValue(left.eventTime))[0]
   const loadingActualRows = [
     formatTime(tracking?.actualArrivalLoadingAt) && { kind: 'arrival', label: 'Ankunft', value: formatTime(tracking.actualArrivalLoadingAt) },
     ...actualRange('Beladung', tracking?.loadingStartedAt, tracking?.loadingCompletedAt, 'process'),
+    latestLoadingDuration && !(tracking?.loadingStartedAt && tracking?.loadingCompletedAt) && { kind: 'process', label: 'Beladung dauerte', value: formatTransitDuration(latestLoadingDuration.newValue.loadingDurationMinutes), ai: latestLoadingDuration.source === 'ai_mail' },
     formatTime(tracking?.actualDepartureLoadingAt) && { kind: 'departure', label: 'Abfahrt', value: formatTime(tracking.actualDepartureLoadingAt) },
   ].filter(Boolean)
   const unloadingActualRows = [
@@ -308,11 +312,13 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   const unloadingForecastRows = [
     formatTime(tracking?.estimatedArrivalUnloadingAt) && { label: 'Voraussichtliche Ankunft', value: formatTime(tracking.estimatedArrivalUnloadingAt) },
   ].filter(Boolean)
-  const latestPosition = transitEntry(transitEvents(events, 'position')[0])
-  const latestPause = transitEntry(transitEvents(events, 'pause')[0])
+  const latestPositionEvent = transitEvents(events, 'position')[0]
+  const latestPosition = transitEntry(latestPositionEvent)
+  const latestPauseEvent = transitEvents(events, 'pause')[0]
+  const latestPause = transitEntry(latestPauseEvent)
   const transitRows = [
-    latestPosition && { kind: 'position', label: latestPosition.location || 'Letzter Standort', value: `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(latestPosition.kilometersToDestination)} km bis Ziel · ${formatShipmentTrackingTimestamp(latestPosition.at)}` },
-    latestPause && { kind: 'pause', label: 'Letzte Pause', value: `${formatShipmentTrackingTimestamp(latestPause.at)} · ${formatTransitDuration(latestPause.durationMinutes)}` },
+    latestPosition && { kind: 'position', label: latestPosition.location || 'Letzter Standort', value: `${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(latestPosition.kilometersToDestination)} km bis Ziel · ${formatShipmentTrackingTimestamp(latestPosition.at)}`, ai: latestPositionEvent?.source === 'ai_mail' },
+    latestPause && { kind: 'pause', label: 'Letzte Pause', value: `${formatShipmentTrackingTimestamp(latestPause.at)} · ${formatTransitDuration(latestPause.durationMinutes)}`, ai: latestPauseEvent?.source === 'ai_mail' },
   ].filter(Boolean)
 
   return [
@@ -379,8 +385,8 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
   ]
 }
 
-function summaryRow(label, value, kind = 'actual', key = null, hint = null) {
-  return { label, value, kind, ...(key ? { key } : {}), ...(hint ? { hint } : {}) }
+function summaryRow(label, value, kind = 'actual', key = null, hint = null, ai = false) {
+  return { label, value, kind, ...(key ? { key } : {}), ...(hint ? { hint } : {}), ...(ai ? { ai: true } : {}) }
 }
 
 function aiSourceFields(stationId, row, tracking) {
@@ -428,10 +434,10 @@ export function shipmentTrackingStationSummary(station, tracking) {
     rows = plate ? [summaryRow('', plate)] : [summaryRow('', 'Kennzeichen offen', 'missing', 'licensePlate', station.assessments?.licensePlate)]
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
-    rows = [...actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]])), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
+    rows = [...actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], station.assessments?.[rowKeys[row.kind]], row.ai)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
   } else if (station.id === 'in_transit') {
-    rows = [...actual.map((row) => summaryRow(row.label, row.value, row.kind === 'position' || row.kind === 'pause' ? row.kind : 'actual')), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
+    rows = [...actual.map((row) => summaryRow(row.label, row.value, row.kind === 'position' || row.kind === 'pause' ? row.kind : 'actual', null, null, row.ai)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Noch nicht unterwegs', 'missing')]
   } else if (station.id === 'unloading') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
@@ -448,11 +454,12 @@ function eventDateValue(value) {
 export function shipmentTrackingStageEvents(events, stageId) {
   const fields = shipmentTrackingStageConfigurations[stageId]?.fields || []
   return (Array.isArray(events) ? events : [])
-    .filter((event) => (event.eventType === 'tracking_completed' && stageId === 'afterTransport') || (stageId === 'in_transit' && transitEventTypes.has(event.eventType)) || (event.changedFields || []).some((field) => fields.includes(field)))
+    .filter((event) => (event.eventType === 'tracking_completed' && stageId === 'afterTransport') || (stageId === 'loading' && event.eventType === 'loading_duration_reported') || (stageId === 'in_transit' && transitEventTypes.has(event.eventType)) || (event.changedFields || []).some((field) => fields.includes(field)))
     .sort((left, right) => eventDateValue(left.recordedAt) - eventDateValue(right.recordedAt))
 }
 
 export function shipmentTrackingStageEventDetails(event, stageId) {
+  if (stageId === 'loading' && event.eventType === 'loading_duration_reported') return [{ label: 'Beladedauer', value: formatTransitDuration(event.newValue?.loadingDurationMinutes) }]
   if (stageId === 'in_transit' && transitEventTypes.has(event.eventType)) {
     const entry = transitEntry(event)
     if (!entry) return []
@@ -523,6 +530,7 @@ function importHistoryValue(value) {
 }
 
 export function shipmentTrackingEventChangeType(event) {
+  if (event.eventType === 'loading_duration_reported') return 'Neu'
   if (transitEventTypes.has(event.eventType)) return 'Neu'
   if (event.eventType === 'tracking_started') return 'Neu'
   if (event.eventType === 'tracking_completed') return 'Abgeschlossen'
@@ -541,6 +549,7 @@ export function shipmentTrackingEventChangeType(event) {
 }
 
 export function shipmentTrackingEventDescription(event) {
+  if (event.eventType === 'loading_duration_reported') return `Beladung dauerte ${formatTransitDuration(event.newValue?.loadingDurationMinutes)}`
   if (event.eventType === 'transit_position_reported') {
     const entry = transitEntry(event)
     return entry ? `Standortmeldung: ${entry.location ? `${entry.location} · ` : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(entry.kilometersToDestination)} km bis Entladestelle` : 'Standortmeldung'
