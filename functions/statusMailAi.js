@@ -43,9 +43,9 @@ const resultSchema = {
     },
     transitUpdates: {
       type: 'array', maxItems: 3,
-      items: { type: 'object', additionalProperties: false, required: ['kind', 'value', 'evidence', 'confidence'], properties: {
+      items: { type: 'object', additionalProperties: false, required: ['kind', 'value', 'location', 'evidence', 'confidence'], properties: {
         kind: { type: 'string', enum: ['kilometers_to_unloading', 'minutes_to_unloading'] },
-        value: { type: 'number' }, evidence: { type: 'string' }, confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+        value: { type: 'number' }, location: { type: 'string' }, evidence: { type: 'string' }, confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
       } },
     },
     pauseUpdates: {
@@ -130,7 +130,9 @@ export function validateStatusMailTransitUpdates(result, mail, routeDistanceKm =
     if (item.kind === 'kilometers_to_unloading' && !/\bkm\b|kilometer/i.test(evidence)) continue
     const kilometers = item.kind === 'minutes_to_unloading' ? Math.round(value * 70 / 60) : value
     if (kilometers > 100000 || (routeLimit !== null && kilometers > routeLimit)) continue
-    accepted.push({ kilometersToDestination: kilometers, evidence, kind: item.kind, originalValue: value })
+    const location = text(item.location).slice(0, 120)
+    if (location && !normalizedEvidence(evidence).includes(normalizedEvidence(location))) continue
+    accepted.push({ kilometersToDestination: kilometers, evidence, kind: item.kind, originalValue: value, location })
   }
   return accepted.slice(0, 1)
 }
@@ -211,7 +213,7 @@ function prompt({ mail, order, tracking, route, history, sentRequests, automatic
     'Auch eine vergangene ETA darf als estimatedArrival... erfasst werden, wenn die Mail anschließend eine tatsächliche Ankunft nennt; beide Werte sind dann für den Vergleich relevant.',
     'Jedes evidence muss ein kurzer, wortgetreuer Ausschnitt aus Betreff oder aktuellem Mailtext sein und die Statusaussage samt Uhrzeit beziehungsweise Kennzeichen belegen. Wenn Aussage, Ort, Datum oder Kennzeichen unsicher sind: keine Aktualisierung. Erfinde keine Daten.',
     'Vergangene Mails, gesendete Anfragen und Trackingwerte dienen nur zur Einordnung der AKTUELLEN Mail. Extrahiere aus ihnen keine neuen Werte. Eine Antwort auf eine eindeutige Anfrage zur Beladung oder Entladung darf den Ort klären; bei konkurrierenden Anfragen oder widersprüchlichem Verlauf reviewRequired=true setzen.',
-    'Für eine aktuelle Entfernung zur Entladestelle gib transitUpdates mit kilometers_to_unloading zurück. Für „noch 45 Minuten zur Entladestelle“ gib minutes_to_unloading mit Wert 45 zurück. Die App rechnet mit 70 km/h in ungefähre Kilometer um und verwendet die Empfangszeit als Standortzeit. Keine Entfernung aus einer ETA-Uhrzeit ableiten. Nur den aktuellen Fahrstatus erfassen, nicht zitierte ältere Angaben.',
+    'Für eine aktuelle Entfernung zur Entladestelle gib transitUpdates mit kilometers_to_unloading zurück. Für „noch 45 Minuten zur Entladestelle“ gib minutes_to_unloading mit Wert 45 zurück. Die App rechnet mit 70 km/h in ungefähre Kilometer um und verwendet die Empfangszeit als Standortzeit. Falls ein aktueller Ort wörtlich in der Mail steht, gib ihn in location zurück, sonst einen leeren String. Keine Entfernung aus einer ETA-Uhrzeit ableiten. Nur den aktuellen Fahrstatus erfassen, nicht zitierte ältere Angaben.',
     'Eine eindeutig berichtete aktuelle Pause mit Startzeit und Dauer gehört in pauseUpdates. Verwende eine ausdrücklich genannte Startzeit oder bei „jetzt/gerade“ genau die Empfangszeit. durationMinutes in Minuten. Ohne eindeutige Startzeit oder Dauer reviewRequired=true, falls es sich um eine Statusinformation handelt.',
     'Wenn die Mail offenbar Statusinformationen enthält, die du wegen unklarem Ort, Datum, Widerspruch oder unklarer Bedeutung nicht sicher zuordnen kannst, setze reviewRequired=true und erkläre kurz warum. Reine Fragen, Signaturen und statusfremde Inhalte benötigen keine Prüfung.',
     `Kontext und E-Mail:\n${JSON.stringify(statusMailPromptContext({ mail, order, tracking, route, history, sentRequests, automaticRequests, events }))}`,
@@ -321,7 +323,7 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     })
     if (transitUpdates.length) {
       const update = transitUpdates[0]
-      const transitEntry = { kind: 'position', at: freshMail.data().receivedAt, kilometersToDestination: update.kilometersToDestination, location: '' }
+      const transitEntry = { kind: 'position', at: freshMail.data().receivedAt, kilometersToDestination: update.kilometersToDestination, location: update.location }
       transaction.create(trackingRef.collection('events').doc(`ai-position-${mailId}`), {
         eventType: 'transit_position_reported', changedFields: ['transitEntry'], oldValue: {}, newValue: { transitEntry },
         eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId,

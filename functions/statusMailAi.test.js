@@ -14,6 +14,9 @@ test('converts an explicit remaining drive time using the route planning speed',
   assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'noch 45 min zur Entladestelle', confidence: 'high' }] }, current, 290).map(({ kilometersToDestination }) => kilometersToDestination), [53])
   assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'nicht in der Mail', confidence: 'high' }] }, current, 290), [])
   assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'noch 45 min zur Entladestelle', confidence: 'high' }] }, current, 30), [])
+  const located = { ...mail, bodyText: 'Der LKW ist bei Kassel und hat noch 45 min zur Entladestelle.' }
+  assert.equal(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, location: 'Kassel', evidence: 'bei Kassel und hat noch 45 min zur Entladestelle', confidence: 'high' }] }, located, 290)[0].location, 'Kassel')
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, location: 'Hamburg', evidence: 'bei Kassel und hat noch 45 min zur Entladestelle', confidence: 'high' }] }, located, 290), [])
 })
 
 test('requires a grounded pause start and duration', () => {
