@@ -18,8 +18,8 @@ export default function ShipmentTrackingTransitFields({ entries, onChange }) {
 
   return <div className="shipment-tracking-transit">
     <p>Standortmeldungen und Pausen werden einzeln im Verlauf gespeichert. Sie ändern keine ETA und lösen keine Automatik aus.</p>
-    {entries.map((entry, index) => <div className="shipment-tracking-transit__entry" key={entry.id}>
-      <div className="shipment-tracking-transit__entry-heading"><h3>{entry.kind === 'position' ? `Standortmeldung ${index + 1}` : `Pause ${index + 1}`}</h3><button type="button" className="button button--secondary" onClick={() => remove(entry.id)} aria-label={`${entry.kind === 'position' ? 'Standortmeldung' : 'Pause'} ${index + 1} entfernen`}>Entfernen</button></div>
+    {entries.map((entry, index) => { const number = entries.slice(0, index + 1).filter((candidate) => candidate.kind === entry.kind).length; const label = entry.kind === 'position' ? 'Standortmeldung' : 'Pause'; return <div className="shipment-tracking-transit__entry" key={entry.id}>
+      <div className="shipment-tracking-transit__entry-heading"><h3>{label} {number}</h3><button type="button" className="button button--secondary" onClick={() => remove(entry.id)} aria-label={`${label} ${number} entfernen`}>Entfernen</button></div>
       <div className="shipment-tracking-transit__fields">
         <label className="form-field"><span>{entry.kind === 'position' ? 'Zeitpunkt (Tag und Uhrzeit)' : 'Pausenbeginn (Tag und Uhrzeit)'}</span><input type="datetime-local" required value={entry.at} onChange={(event) => update(entry.id, { at: event.target.value })} /></label>
         {entry.kind === 'position' ? <>
@@ -30,7 +30,7 @@ export default function ShipmentTrackingTransitFields({ entries, onChange }) {
           {entry.durationChoice === 'custom' && <label className="form-field"><span>Individuelle Dauer in Minuten</span><input type="number" min="1" max="10080" step="1" inputMode="numeric" required value={entry.durationMinutes} onChange={(event) => update(entry.id, { durationMinutes: event.target.value })} /></label>}
         </>}
       </div>
-    </div>)}
+    </div> })}
     <div className="shipment-tracking-transit__add"><button className="button button--secondary" type="button" disabled={entries.length >= 20} onClick={() => add('position')}>+ Standortmeldung</button><button className="button button--secondary" type="button" disabled={entries.length >= 20} onClick={() => add('pause')}>+ Pause</button></div>
   </div>
 }
