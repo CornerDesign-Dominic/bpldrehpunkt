@@ -212,6 +212,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Successful AGB reviews are shared with everyone who may use the checker.
+    // Only the callable function can add records; clients cannot change history.
+    match /agbCheckerHistory/{id} {
+      allow read: if view('agbChecker');
+      allow write: if false;
+
+      match /data/{dataId} {
+        allow get: if view('agbChecker');
+        allow list, write: if false;
+      }
+    }
+
     match /calendars/{calendarId} {
       // The own calendar is created lazily. Its initial get must be permitted
       // even before the document exists, otherwise provisioning can never run.

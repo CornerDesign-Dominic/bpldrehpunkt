@@ -1,4 +1,5 @@
 export const agbCheckerTestData = {
+  customerIdentity: { name: 'Testkunde GmbH', country: 'Deutschland', postalCode: '10115', city: 'Berlin' },
   results: [
     { field: 'Firmenname / Adresse', status: 'found', value: 'Testkunde GmbH, Musterstraße 12, 10115 Berlin', sourceText: 'Testkunde GmbH, Musterstraße 12, 10115 Berlin', confidence: 'high' },
     { field: 'USt-IdNr.', status: 'found', value: 'DE123456789', sourceText: 'USt-IdNr.: DE123456789', confidence: 'medium' },
