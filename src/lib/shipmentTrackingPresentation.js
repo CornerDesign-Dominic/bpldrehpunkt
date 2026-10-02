@@ -6,6 +6,7 @@ const fieldLabels = {
   trailerLicensePlate: 'Kennzeichen Auflieger',
   driverName: 'Name vom LKW-Fahrer',
   driverPhone: 'Handynummer vom Fahrer',
+  driverCount: 'Anzahl Fahrer',
   estimatedArrivalLoadingAt: 'Voraussichtliche Ankunft Ladestelle',
   actualArrivalLoadingAt: 'Tatsächliche Ankunft Ladestelle',
   loadingStartedAt: 'Beladung gestartet',
@@ -28,18 +29,18 @@ const germanPlanTimestamp = /^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})$
 const timeOnlyTimestamp = /^(\d{1,2}):(\d{2})$/
 
 export const shipmentTrackingStageConfigurations = Object.freeze({
-  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['licensePlate', 'driverName', 'driverPhone'] },
+  preparation: { label: 'Kennzeichen', title: 'Kennzeichen erfassen', fields: ['licensePlate', 'driverName', 'driverPhone', 'driverCount'] },
   loading: { label: 'Ladestelle', title: 'Ladestelle erfassen', fields: ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'] },
   in_transit: { label: 'Unterwegs', title: 'Fahrtstatus aktualisieren', fields: [] },
   unloading: { label: 'Entladestelle', title: 'Entladestelle erfassen', fields: ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'] },
-  afterTransport: { label: 'Nachtransport', title: 'Bewertungen', fields: [] },
+  afterTransport: { label: 'Bewertung', title: 'Bewertungen', fields: [] },
 })
 
 const transitEventTypes = new Set(['transit_position_reported', 'transit_pause_reported'])
 function transitEntry(event) { return event?.newValue?.transitEntry || null }
 function transitEvents(events, kind) {
   return (Array.isArray(events) ? events : [])
-    .filter((event) => transitEntry(event)?.kind === kind && transitEventTypes.has(event.eventType))
+    .filter((event) => transitEntry(event)?.kind === kind && transitEventTypes.has(event.eventType) && !event.removedAt)
     .sort((left, right) => eventDateValue(right.eventTime) - eventDateValue(left.eventTime))
 }
 export function formatTransitDuration(minutes) {
@@ -258,26 +259,44 @@ function unloadingWorkflowLabel(tracking, state) {
   return 'Ankunft noch offen'
 }
 
-export function shipmentTrackingWorkflowStates(tracking) {
-  const started = Boolean(tracking)
-  const completed = [
-    Boolean(licensePlate(tracking)),
-    Boolean(tracking?.actualDepartureLoadingAt),
-    Boolean(tracking?.actualArrivalUnloadingAt),
-    Boolean(tracking?.unloadingStartedAt && tracking?.unloadingCompletedAt),
-    tracking?.lifecycleStatus === 'completed',
-  ]
-  if (!started) return ['pending', 'pending', 'pending', 'pending', 'pending']
-  if (tracking?.lifecyclePhase === 'upcoming') return ['pending', 'pending', 'pending', 'pending', 'pending']
-  const firstOpen = completed.findIndex((value) => !value)
-  return completed.map((isCompleted, index) => isCompleted ? 'completed' : index === firstOpen ? 'active' : 'pending')
+function completedRating(rating) {
+  return Number.isFinite(rating?.averageScore) && rating.averageScore >= 1 && rating.averageScore <= 5
 }
 
-export function shipmentTrackingStations({ tracking, imported, route, customerPolicy, now, events } = {}) {
+export function shipmentTrackingRatingState(ratings = {}, ratingPartners = {}) {
+  const requiredRoles = ['customer', 'carrier'].filter((role) => Boolean(ratingPartners?.[role]?.id))
+  if (!requiredRoles.length) return { state: 'pending', label: 'Keine Bewertung möglich' }
+  if (requiredRoles.every((role) => completedRating(ratings?.[role]))) return { state: 'completed', label: 'Bewertungen abgeschlossen' }
+  return { state: 'active', label: 'Bewertungen offen' }
+}
+
+/**
+ * The five stations are intentionally independent.  A missing license plate
+ * must not hide that the truck has already left the loading site, and ratings
+ * can be completed before or after the physical transport.
+ */
+export function shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners) {
+  if (!tracking) return ['pending', 'pending', 'pending', 'pending', 'pending']
+  if (tracking.lifecycleStatus === 'completed') return ['completed', 'completed', 'completed', 'completed', 'completed']
+
+  const loadingTouched = Boolean(tracking.actualArrivalLoadingAt || tracking.loadingStartedAt || tracking.loadingCompletedAt)
+  const unloadingTouched = Boolean(tracking.actualArrivalUnloadingAt || tracking.unloadingStartedAt)
+  const rating = shipmentTrackingRatingState(ratings, ratingPartners)
+  return [
+    licensePlate(tracking) ? 'completed' : 'active',
+    tracking.actualDepartureLoadingAt ? 'completed' : loadingTouched ? 'active' : 'pending',
+    tracking.actualArrivalUnloadingAt ? 'completed' : tracking.actualDepartureLoadingAt ? 'active' : 'pending',
+    tracking.unloadingCompletedAt ? 'completed' : unloadingTouched ? 'active' : 'pending',
+    rating.state,
+  ]
+}
+
+export function shipmentTrackingStations({ tracking, imported, route, customerPolicy, now, events, ratings, ratingPartners } = {}) {
   const loadingPlan = scheduleWindow(imported?.loading?.window?.from, imported?.loading?.window?.until)
   const unloadingPlan = scheduleWindow(imported?.unloading?.window?.from, imported?.unloading?.window?.until)
   const routePlan = formatShipmentTrackingRoutePlan(route?.roundedDistanceKm)
-  const workflowStates = shipmentTrackingWorkflowStates(tracking)
+  const workflowStates = shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners)
+  const rating = shipmentTrackingRatingState(ratings, ratingPartners)
   const assessments = shipmentTrackingStationAssessments({ tracking, imported, customerPolicy, now })
   const plate = licensePlate(tracking)
   const loadingActualRows = [
@@ -356,9 +375,9 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
     },
     {
       id: 'afterTransport',
-      label: 'Nachtransport',
+      label: 'Bewertung',
       workflowState: workflowStates[4],
-      workflowLabel: tracking?.lifecycleStatus === 'completed' ? 'Sendungsverfolgung abgeschlossen' : 'Abschluss ausstehend',
+      workflowLabel: tracking?.lifecycleStatus === 'completed' ? 'Sendungsverfolgung abgeschlossen' : rating.label,
       plan: null,
       actualRows: [],
       forecastRows: [],
@@ -438,13 +457,13 @@ function eventDateValue(value) {
 export function shipmentTrackingStageEvents(events, stageId) {
   const fields = shipmentTrackingStageConfigurations[stageId]?.fields || []
   return (Array.isArray(events) ? events : [])
-    .filter((event) => (event.eventType === 'tracking_completed' && stageId === 'afterTransport') || (stageId === 'in_transit' && (transitEventTypes.has(event.eventType) || event.eventType === 'transit_entry_corrected')) || (event.changedFields || []).some((field) => fields.includes(field)))
+    .filter((event) => (event.eventType === 'tracking_completed' && stageId === 'afterTransport') || (stageId === 'in_transit' && ((transitEventTypes.has(event.eventType) && !event.removedAt) || ['transit_entry_corrected', 'transit_entry_removed'].includes(event.eventType))) || (event.changedFields || []).some((field) => fields.includes(field)))
     .sort((left, right) => eventDateValue(left.recordedAt) - eventDateValue(right.recordedAt))
 }
 
 export function shipmentTrackingStageEventDetails(event, stageId) {
-  if (stageId === 'in_transit' && (transitEventTypes.has(event.eventType) || event.eventType === 'transit_entry_corrected')) {
-    const entry = transitEntry(event)
+  if (stageId === 'in_transit' && (transitEventTypes.has(event.eventType) || ['transit_entry_corrected', 'transit_entry_removed'].includes(event.eventType))) {
+    const entry = transitEntry(event) || event.oldValue?.transitEntry
     if (!entry) return []
     return entry.kind === 'position'
       ? [{ label: 'Standortmeldung', value: `${entry.location ? `${entry.location} · ` : ''}${new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 }).format(entry.kilometersToDestination)} km bis Entladestelle` }]
@@ -470,23 +489,25 @@ export function timestampToDateTimeInput(value) {
 }
 
 export function shipmentTrackingFormValues(tracking) {
-  return Object.fromEntries(Object.keys(fieldLabels).map((field) => [field, field === 'licensePlate' ? licensePlate(tracking) : field.endsWith('At') ? timestampToDateTimeInput(tracking?.[field]) : tracking?.[field] ?? (field === 'proofStatus' ? 'unknown' : '')]))
+  return Object.fromEntries(Object.keys(fieldLabels).map((field) => [field, field === 'licensePlate' ? licensePlate(tracking) : field.endsWith('At') ? timestampToDateTimeInput(tracking?.[field]) : tracking?.[field] ?? (field === 'proofStatus' ? 'unknown' : field === 'driverCount' ? 1 : '')]))
 }
 
-export function shipmentTrackingTimelineModel(tracking, imported, route, customerPolicy, events) {
-  const stations = shipmentTrackingStations({ tracking, imported, route, customerPolicy, events })
+export function shipmentTrackingTimelineModel(tracking, imported, route, customerPolicy, events, ratings, ratingPartners) {
+  const stations = shipmentTrackingStations({ tracking, imported, route, customerPolicy, events, ratings, ratingPartners })
   if (!tracking) return { ...defaultShipmentTrackingUiModel, trackingExists: false, stations }
   const completed = tracking.lifecycleStatus === 'completed'
-  const lifecyclePhase = completed ? 'completed' : tracking.lifecyclePhase === 'upcoming' ? 'upcoming' : 'in_progress'
-  const lifecycleLabels = { upcoming: 'Bevorstehend', in_progress: 'Laufend', completed: 'Durchgeführt' }
+  const transportCompleted = Boolean(tracking.unloadingCompletedAt)
+  const lifecyclePhase = completed ? 'completed' : tracking.lifecyclePhase === 'upcoming' ? 'upcoming' : tracking.lifecyclePhase === 'aftercare' ? 'aftercare' : 'in_progress'
+  const lifecycleLabels = { upcoming: 'Bevorstehend', in_progress: 'Laufend', aftercare: 'Nachbearbeitung', completed: 'Durchgeführt' }
   return {
     ...defaultShipmentTrackingUiModel,
     status: completed ? 'confirmed' : 'manual',
-    statusLabel: completed ? 'Sendungsverfolgung abgeschlossen' : 'Manuelles Tracking aktiv',
+    statusLabel: completed ? 'Sendungsverfolgung abgeschlossen' : transportCompleted ? 'Transport erledigt · Tracking aktiv' : 'Manuelles Tracking aktiv',
     lifecycleStatus: completed ? 'completed' : 'active',
-    lifecycleLabel: lifecycleLabels[lifecyclePhase] || 'Laufend',
+    lifecycleLabel: transportCompleted ? 'Transport erledigt' : lifecycleLabels[lifecyclePhase] || 'Laufend',
     trackingTypeLabel: tracking.trackingMode === 'automatic' ? 'Automatisch' : tracking.trackingStartedEarly === true ? 'Vorzeitig gestartet' : 'Manuell',
     trackingExists: true,
+    transportCompleted,
     vehiclePosition: { stageId: tracking.stageId || 'preparation', progressToNextStage: tracking.progressToNextStage || 0 },
     stations,
   }
@@ -515,6 +536,7 @@ function importHistoryValue(value) {
 export function shipmentTrackingEventChangeType(event) {
   if (transitEventTypes.has(event.eventType)) return 'Neu'
   if (event.eventType === 'transit_entry_corrected') return 'Aktualisiert'
+  if (event.eventType === 'transit_entry_removed') return 'Gelöscht'
   if (event.eventType === 'tracking_started') return 'Neu'
   if (event.eventType === 'tracking_completed') return 'Abgeschlossen'
   if (event.eventType === 'tracking_manual_mail_sent' || event.eventType === 'tracking_automatic_mail_sent' || event.eventType === 'tracking_actual_arrival_confirmation_sent') return 'Versendet'
@@ -538,6 +560,7 @@ export function shipmentTrackingEventDescription(event) {
   }
   if (event.eventType === 'transit_pause_reported') return `Pause erfasst: ${formatTransitDuration(transitEntry(event)?.durationMinutes)}`
   if (event.eventType === 'transit_entry_corrected') return transitEntry(event)?.kind === 'pause' ? 'Pause manuell korrigiert' : 'Standortmeldung manuell korrigiert'
+  if (event.eventType === 'transit_entry_removed') return event.oldValue?.transitEntry?.kind === 'pause' ? 'Pause gelöscht' : 'Standortmeldung gelöscht'
   if (event.eventType === 'tracking_started') return 'Sendungsverfolgung gestartet'
   if (event.eventType === 'tracking_completed') return 'Sendungsverfolgung abgeschlossen'
   if (event.eventType === 'tracking_automation_paused') return 'Sendungsverfolgungs-Automatik pausiert'

@@ -1,11 +1,11 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { calculateTransportOrderRoute, getTransportOrder, getTransportOrderRoute } from '../lib/transportOrders.js'
 import { isCarrierMasterDataIncomplete } from '../lib/importedPartnerStatus.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { transportOrderDocumentTitle } from '../lib/transportOrderPresentation.js'
-import { CopyIcon } from '../components/icons.jsx'
+import { ChevronDownIcon, CopyIcon } from '../components/icons.jsx'
 import ShipmentTrackingTimeline from '../components/transport-orders/ShipmentTrackingTimeline.jsx'
 import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
 import { usePageHeader } from '../lib/pageHeader.js'
@@ -14,11 +14,13 @@ import { useAuth } from '../auth/useAuth.js'
 import { getOwnTransportOrderRatings, saveTransportOrderRating } from '../lib/transportOrderRatings.js'
 import TransportOrderRatingsModal from '../components/transport-orders/TransportOrderRatingsModal.jsx'
 import { getShipmentTracking, getShipmentTrackingActivation, getShipmentTrackingDryRun, previewManualShipmentTrackingMail, sendManualShipmentTrackingMail, shipmentTrackingDryRunErrorMessage, shipmentTrackingManualMailErrorMessage, updateManualShipmentTracking } from '../lib/shipmentTracking.js'
+import { getShipmentTrackingAttention, getShipmentTrackingForecast, refreshShipmentTrackingForecast } from '../lib/shipmentTrackingForecast.js'
 import { shipmentTrackingTimelineModel } from '../lib/shipmentTrackingPresentation.js'
 import ShipmentTrackingEditorModal from '../components/transport-orders/ShipmentTrackingEditorModal.jsx'
 import ShipmentTrackingStageInfoModal from '../components/transport-orders/ShipmentTrackingStageInfoModal.jsx'
 import ShipmentTrackingManualMailModal from '../components/transport-orders/ShipmentTrackingManualMailModal.jsx'
 import ShipmentTrackingHistory from '../components/transport-orders/ShipmentTrackingHistory.jsx'
+import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
 import TransportOrderRoutePanel from '../components/transport-orders/TransportOrderRoutePanel.jsx'
 import TransportOrderRouteCountrySelectionModal from '../components/transport-orders/TransportOrderRouteCountrySelectionModal.jsx'
 import TransportOrderLinkedCasesCard from '../components/case-links/TransportOrderLinkedCasesCard.jsx'
@@ -113,6 +115,13 @@ export default function TransportOrderDetailPage() {
   const [trackingEarlyStartConfirmationOpen, setTrackingEarlyStartConfirmationOpen] = useState(false)
   const [trackingCompletionConfirmationOpen, setTrackingCompletionConfirmationOpen] = useState(false)
   const [trackingPauseConfirmationOpen, setTrackingPauseConfirmationOpen] = useState(false)
+  const [trackingForecast, setTrackingForecast] = useState(null)
+  const [trackingAttention, setTrackingAttention] = useState(null)
+  const [trackingForecastOpen, setTrackingForecastOpen] = useState(false)
+  const [trackingForecastLoading, setTrackingForecastLoading] = useState(false)
+  const [trackingForecastError, setTrackingForecastError] = useState('')
+  const [receivedMailVersion, setReceivedMailVersion] = useState(0)
+  const handleReceivedMailsChanged = useCallback(() => setReceivedMailVersion((value) => value + 1), [])
   const [route, setRoute] = useState(null)
   const [routeError, setRouteError] = useState('')
   const [routeCalculating, setRouteCalculating] = useState(false)
@@ -144,6 +153,17 @@ export default function TransportOrderDetailPage() {
     return () => { current = false }
   }, [transportOrderId])
   const trackingVersion = tracking?.updatedAt?.toMillis?.() || tracking?.updatedAt?.seconds || ''
+  useEffect(() => {
+    if (!tracking) return undefined
+    let current = true
+    Promise.all([getShipmentTrackingForecast(transportOrderId), getShipmentTrackingAttention(transportOrderId)]).then(([forecast, attention]) => {
+      if (!current) return
+      setTrackingForecast(forecast)
+      setTrackingAttention(attention.attention || null)
+      setTrackingForecastError('')
+    }).catch(() => { if (current) setTrackingForecastError('Die Transportprognose konnte nicht geladen werden.') })
+    return () => { current = false }
+  }, [transportOrderId, trackingVersion, tracking, receivedMailVersion])
   useEffect(() => {
     if (tracking?.lifecycleStatus !== 'active') return undefined
     let current = true
@@ -204,7 +224,7 @@ export default function TransportOrderDetailPage() {
   async function performTrackingAction(action, payload = {}) {
     setTrackingSaving(true); setTrackingError('')
     try {
-      await updateManualShipmentTracking({ orderId: transportOrderId, action, source: payload.source || 'manual', note: payload.note || '', values: payload.changes, transitEntries: payload.transitEntries, transitCorrections: payload.transitCorrections, recipientChanges: payload.recipientChanges, earlyStart: payload.earlyStart === true })
+      await updateManualShipmentTracking({ orderId: transportOrderId, action, source: payload.source || 'manual', note: payload.note || '', values: payload.changes, transitEntries: payload.transitEntries, transitCorrections: payload.transitCorrections, transitRemovals: payload.transitRemovals, recipientChanges: payload.recipientChanges, earlyStart: payload.earlyStart === true })
       setTrackingEditorStage(null)
       await refreshTracking()
       return true
@@ -212,6 +232,10 @@ export default function TransportOrderDetailPage() {
       setTrackingError(caught instanceof Error ? caught.message : 'Die Sendungsverfolgung konnte nicht gespeichert werden.')
       return false
     } finally { setTrackingSaving(false) }
+  }
+  async function refreshForecast() {
+    setTrackingForecastLoading(true); setTrackingForecastError('')
+    try { await refreshShipmentTrackingForecast(transportOrderId); const forecast = await getShipmentTrackingForecast(transportOrderId); setTrackingForecast(forecast) } catch (caught) { setTrackingForecastError(caught?.message || 'Die Transportprognose konnte nicht aktualisiert werden.') } finally { setTrackingForecastLoading(false) }
   }
   async function confirmTrackingCompletion() {
     await performTrackingAction('complete')
@@ -302,18 +326,19 @@ export default function TransportOrderDetailPage() {
         <section className="transport-order-detail-section transport-order-detail-section--after-partners"><h3><StaticText source={"Ladehinweise"} /></h3><dl className="transport-order-detail-list"><TranslatedProps sources={{"label":"Bemerkung"}}><Detail label="Bemerkung">{imported.loading?.note}</Detail></TranslatedProps><TranslatedProps sources={{"label":"Referenz"}}><CopyDetail label="Referenz" value={imported.loading?.reference} /></TranslatedProps></dl></section>
         <section className="transport-order-detail-section"><h3><StaticText source={"Letzte Entladestelle"} /></h3><dl className="transport-order-detail-list"><TranslatedProps sources={{"label":"Adresse"}}><CopyDetail label="Adresse" value={imported.unloading?.originalText} /></TranslatedProps><TranslatedProps sources={{"label":"Ort"}}><CopyDetail label="Ort" value={imported.unloading?.city} /></TranslatedProps><TranslatedProps sources={{"label":"Von"}}><Detail label="Von">{formatStationDateTime(imported.unloading?.window?.from)}</Detail></TranslatedProps><TranslatedProps sources={{"label":"Bis"}}><Detail label="Bis">{formatStationDateTime(imported.unloading?.window?.until)}</Detail></TranslatedProps></dl></section>
         <section className="transport-order-detail-section"><h3><StaticText source={"Entladehinweise"} /></h3><dl className="transport-order-detail-list"><TranslatedProps sources={{"label":"Bemerkung"}}><Detail label="Bemerkung">{imported.unloading?.note}</Detail></TranslatedProps><TranslatedProps sources={{"label":"Referenz"}}><CopyDetail label="Referenz" value={imported.unloading?.reference} /></TranslatedProps></dl></section>
-        <ShipmentTrackingTimeline model={shipmentTrackingTimelineModel(tracking, imported, route, customerMasterData?.shipmentTrackingPolicy, trackingEvents)} tracking={tracking} events={trackingEvents} dryRunPreview={tracking?.lifecycleStatus === 'active' ? trackingDryRun : null} dryRunLoading={tracking?.lifecycleStatus === 'active' && trackingDryRunLoading} dryRunError={tracking?.lifecycleStatus === 'active' ? trackingDryRunError : ''} activation={trackingActivation.orderId === order.id ? trackingActivation.value : null} activationLoading={!tracking && Boolean(order.id) && trackingActivation.orderId !== order.id && trackingActivationError.orderId !== order.id} activationError={trackingActivationError.orderId === order.id ? trackingActivationError.message : ''} canEdit={canEdit('transportOrders')} saving={trackingSaving} ratingsLoading={ratingsLoading} ratingsError={ratingsError} onOpenRatings={() => setRatingsModalOpen(true)} onEarlyStart={() => setTrackingEarlyStartConfirmationOpen(true)} onEditStage={setTrackingEditorStage} onSaveRecipient={(email) => void performTrackingAction('update_recipients', { recipientChanges: { carrier: email } })} onShowStageInfo={setTrackingInfoStage} onOpenMailTemplate={(templateId) => void openTrackingMailDraft(templateId)} onManualDispatch={({ templateId, bundles }) => { setTrackingManualMailTemplateId(templateId); setTrackingManualMailBundles(bundles); setTrackingManualMailOpen(true) }} />
+        <ShipmentTrackingTimeline model={shipmentTrackingTimelineModel(tracking, imported, route, customerMasterData?.shipmentTrackingPolicy, trackingEvents, ratings, ratingPartners)} tracking={tracking} events={trackingEvents} dryRunPreview={tracking?.lifecycleStatus === 'active' ? trackingDryRun : null} dryRunLoading={tracking?.lifecycleStatus === 'active' && trackingDryRunLoading} dryRunError={tracking?.lifecycleStatus === 'active' ? trackingDryRunError : ''} activation={trackingActivation.orderId === order.id ? trackingActivation.value : null} activationLoading={!tracking && Boolean(order.id) && trackingActivation.orderId !== order.id && trackingActivationError.orderId !== order.id} activationError={trackingActivationError.orderId === order.id ? trackingActivationError.message : ''} canEdit={canEdit('transportOrders')} saving={trackingSaving} ratingsLoading={ratingsLoading} ratingsError={ratingsError} attention={trackingAttention} forecast={trackingForecast?.forecast} onOpenForecast={() => setTrackingForecastOpen(true)} onOpenRatings={() => setRatingsModalOpen(true)} onEarlyStart={() => setTrackingEarlyStartConfirmationOpen(true)} onEditStage={setTrackingEditorStage} onSaveRecipient={(email) => void performTrackingAction('update_recipients', { recipientChanges: { carrier: email } })} onShowStageInfo={setTrackingInfoStage} onOpenMailTemplate={(templateId) => void openTrackingMailDraft(templateId)} onManualDispatch={({ templateId, bundles }) => { setTrackingManualMailTemplateId(templateId); setTrackingManualMailBundles(bundles); setTrackingManualMailOpen(true) }} />
         {trackingError && <p className="form-error transport-order-detail-tracking-error">{trackingError}</p>}
         <ShipmentTrackingHistory events={trackingEvents} loading={trackingLoading} error={trackingError} />
       </main>
       <TranslatedProps sources={{"aria-label":"System und Kontext"}}><aside className="transport-order-detail-system" aria-label="System und Kontext">
-        <TransportOrderReceivedMails key={transportOrderId} transportOrderId={transportOrderId} canEdit={canEdit('transportOrders')} />
-        <section className="transport-order-detail-section transport-order-detail-section--contacts"><h3><StaticText source={"Kontakte"} /></h3><div className="transport-order-detail-contact-group"><h4><StaticText source={"Kunde"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.customerStandardEmail} /><CopyDetail label="Info-1" value={imported.contacts?.customerForOrder} /></dl></div><div className="transport-order-detail-contact-group"><h4><StaticText source={"Unternehmer"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.carrierStandardEmail} /><CopyDetail label="Im Auftrag" value={imported.contacts?.carrierForOrder} /></dl></div></section>
+        <details open className="transport-order-detail-section transport-order-detail-section--contacts"><summary><StaticText source={"Kontakte"} /><ChevronDownIcon /></summary><div className="transport-order-detail-section__content"><div className="transport-order-detail-contact-group"><h4><StaticText source={"Kunde"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.customerStandardEmail} /><CopyDetail label="Info-1" value={imported.contacts?.customerForOrder} /></dl></div><div className="transport-order-detail-contact-group"><h4><StaticText source={"Unternehmer"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.carrierStandardEmail} /><CopyDetail label="Im Auftrag" value={imported.contacts?.carrierForOrder} /></dl></div></div></details>
+        <TransportOrderReceivedMails key={transportOrderId} transportOrderId={transportOrderId} canEdit={canEdit('transportOrders')} onMailsChanged={handleReceivedMailsChanged} />
         <details className="transport-order-detail-section transport-order-detail-section--import-info"><summary><StaticText source={"Importinfos"} /></summary><dl className="transport-order-detail-list transport-order-detail-list--single"><Detail label="Importiert am">{formatTimestamp(order.importMeta?.importedAt)}</Detail><TranslatedProps sources={{"label":"Zuletzt aktualisiert"}}><Detail label="Zuletzt aktualisiert">{formatTimestamp(order.updatedAt || order.importMeta?.lastImportedAt)}</Detail></TranslatedProps><TranslatedProps sources={{"label":"Importdatei"}}><Detail label="Importdatei">{order.importMeta?.fileName}</Detail></TranslatedProps><Detail label="Importlauf">{order.importMeta?.importRunId}</Detail></dl></details>
       </aside></TranslatedProps>
     </div>
     {trackingEditorStage && <ShipmentTrackingEditorModal tracking={tracking} events={trackingEvents} stageId={trackingEditorStage} saving={trackingSaving} onClose={() => setTrackingEditorStage(null)} onSave={(payload) => performTrackingAction(trackingEditorStage === 'in_transit' ? 'save_transit_entries' : 'update', payload)} />}
     {trackingInfoStage && <ShipmentTrackingStageInfoModal stageId={trackingInfoStage} events={trackingEvents} onClose={() => setTrackingInfoStage(null)} />}
     {trackingManualMailOpen && <ShipmentTrackingManualMailModal orderId={transportOrderId} bundles={trackingManualMailBundles} initialTemplateId={trackingManualMailTemplateId} defaultRecipient={trackingCarrierRecipient(tracking)} saving={trackingSaving} onClose={() => { setTrackingManualMailOpen(false); setTrackingManualMailBundles([]); setTrackingManualMailTemplateId('') }} onSend={(payload) => void sendTrackingManualMail(payload)} />}
+    {trackingForecastOpen && <ShipmentTrackingForecastModal data={trackingForecast} loading={!trackingForecast} error={trackingForecastError} refreshing={trackingForecastLoading} onRefresh={trackingForecast?.forecast?.kind === 'arrival' ? undefined : () => void refreshForecast()} onClose={() => setTrackingForecastOpen(false)} />}
   </div>
 }

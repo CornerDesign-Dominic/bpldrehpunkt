@@ -16,7 +16,7 @@ function TimeField({ field, label = fieldLabels[field], value, onChange, quickAc
 
 function StageFields({ stage, values, onChange, aiField }) {
   const timeField = (field, label, quickActions = false) => <TimeField field={field} label={label} value={values[field]} onChange={onChange} quickActions={quickActions} ai={aiField(field)} />
-  if (stage.id === 'preparation') return <div className="shipment-tracking-editor__license-plates"><label className="form-field shipment-tracking-editor__license-plate"><span><StaticText source={"Kennzeichen"} /></span><input value={values.licensePlate} maxLength="180" onChange={(event) => onChange('licensePlate', event.target.value)} className={aiField('licensePlate') ? 'shipment-tracking-editor__input--ai' : undefined} title={aiField('licensePlate') ? 'Von KI aus einer Status-Mail übernommen' : undefined} /></label><label className="form-field"><span><StaticText source={"Name vom LKW-Fahrer"} /></span><input value={values.driverName} maxLength="140" autoComplete="name" onChange={(event) => onChange('driverName', event.target.value)} /></label><label className="form-field"><span><StaticText source={"Handynummer vom Fahrer"} /></span><input type="tel" value={values.driverPhone} maxLength="60" autoComplete="tel" onChange={(event) => onChange('driverPhone', event.target.value)} /></label></div>
+  if (stage.id === 'preparation') return <div className="shipment-tracking-editor__license-plates"><label className="form-field shipment-tracking-editor__license-plate"><span><StaticText source={"Kennzeichen"} /></span><input value={values.licensePlate} maxLength="180" onChange={(event) => onChange('licensePlate', event.target.value)} className={aiField('licensePlate') ? 'shipment-tracking-editor__input--ai' : undefined} title={aiField('licensePlate') ? 'Von KI aus einer Status-Mail übernommen' : undefined} /></label><label className="form-field"><span><StaticText source={"Name vom LKW-Fahrer"} /></span><input value={values.driverName} maxLength="140" autoComplete="name" onChange={(event) => onChange('driverName', event.target.value)} /></label><label className="form-field"><span><StaticText source={"Handynummer vom Fahrer"} /></span><input type="tel" value={values.driverPhone} maxLength="60" autoComplete="tel" onChange={(event) => onChange('driverPhone', event.target.value)} /></label><label className="form-field"><span><StaticText source={"Fahreranzahl"} /></span><select value={values.driverCount} onChange={(event) => onChange('driverCount', Number(event.target.value))}><option value={1}>1 Fahrer</option><option value={2}>2 Fahrer</option></select></label></div>
   if (stage.id === 'loading') return <div className="shipment-tracking-editor__loading-groups"><section className="shipment-tracking-editor__loading-group"><h3><StaticText source={"Ankunft"} /></h3><div className="shipment-tracking-editor__time-grid">{timeField('estimatedArrivalLoadingAt', 'Voraussichtlich')}{timeField('actualArrivalLoadingAt', 'Tatsächlich')}</div></section><section className="shipment-tracking-editor__loading-group"><h3><StaticText source={"Beladung"} /></h3><div className="shipment-tracking-editor__time-grid">{timeField('loadingStartedAt', 'Start')}{timeField('loadingCompletedAt', 'Ende')}</div></section><section className="shipment-tracking-editor__loading-group"><h3><StaticText source={"Abfahrt"} /></h3><div className="shipment-tracking-editor__time-grid">{timeField('estimatedDepartureLoadingAt', 'Voraussichtlich')}{timeField('actualDepartureLoadingAt', 'Tatsächlich')}</div></section></div>
   if (stage.id === 'unloading') return <div className="shipment-tracking-editor__loading-groups"><section className="shipment-tracking-editor__loading-group"><h3><StaticText source={"Ankunft"} /></h3><div className="shipment-tracking-editor__time-grid">{timeField('estimatedArrivalUnloadingAt', 'Voraussichtlich')}{timeField('actualArrivalUnloadingAt', 'Tatsächlich')}</div></section><section className="shipment-tracking-editor__loading-group"><h3><StaticText source={"Entladung"} /></h3><div className="shipment-tracking-editor__time-grid">{timeField('unloadingStartedAt', 'Start')}{timeField('unloadingCompletedAt', 'Ende')}</div></section></div>
   if (stage.id === 'afterTransport') return <label className="form-field"><span><StaticText source={"Nachweise"} /></span><select value={values.proofStatus} onChange={(event) => onChange('proofStatus', event.target.value)}>{Object.entries(proofLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -25,7 +25,7 @@ function StageFields({ stage, values, onChange, aiField }) {
 
 function existingTransitEntries(events) {
   return (Array.isArray(events) ? events : [])
-    .filter((event) => ['transit_position_reported', 'transit_pause_reported'].includes(event.eventType) && event.newValue?.transitEntry && event.id)
+    .filter((event) => ['transit_position_reported', 'transit_pause_reported'].includes(event.eventType) && !event.removedAt && event.newValue?.transitEntry && event.id)
     .slice(0, 20)
     .reverse()
     .map((event) => {
@@ -60,15 +60,19 @@ export default function ShipmentTrackingEditorModal({ tracking, events, stageId,
   async function submit(event) {
     event.preventDefault()
     if (stageId === 'in_transit') {
-      const edited = existingEntries.filter((entry, index) => ['at', 'kilometersToDestination', 'location', 'durationMinutes'].some((field) => entry[field] !== initialExisting[index]?.[field]))
-      if (!transitEntries.length && !edited.length) { setError('Bitte füge eine Meldung hinzu oder ändere eine vorhandene Angabe.'); return }
+      const edited = existingEntries.filter((entry) => {
+        const initial = initialExisting.find((candidate) => candidate.id === entry.id)
+        return ['at', 'kilometersToDestination', 'location', 'durationMinutes'].some((field) => entry[field] !== initial?.[field])
+      })
+      const removals = initialExisting.filter((entry) => !existingEntries.some((current) => current.id === entry.id)).map((entry) => entry.id)
+      if (!transitEntries.length && !edited.length && !removals.length) { setError('Bitte füge eine Meldung hinzu, ändere sie oder entferne sie.'); return }
       let entries, corrections
       try {
         entries = transitEntries.map(normalizedTransitEntry)
         corrections = edited.map((entry) => ({ id: entry.id, entry: normalizedTransitEntry(entry) }))
       } catch (caught) { setError(caught.message); return }
       setError('')
-      const saved = await onSave({ transitEntries: entries, transitCorrections: corrections })
+      const saved = await onSave({ transitEntries: entries, transitCorrections: corrections, transitRemovals: removals })
       if (saved === false) setError('Die Fahrtmeldungen konnten nicht gespeichert werden. Bitte versuche es erneut.')
       return
     }
@@ -80,11 +84,11 @@ export default function ShipmentTrackingEditorModal({ tracking, events, stageId,
 
   return createPortal(<div className="shipment-tracking-editor-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
     <section className="shipment-tracking-editor shipment-tracking-editor--stage" role="dialog" aria-modal="true" aria-labelledby="shipment-tracking-editor-title">
-      <div className="shipment-tracking-editor__heading"><div><h2 id="shipment-tracking-editor-title">{stage.title}</h2>{stageId !== 'preparation' && stageId !== 'loading' && stageId !== 'unloading' && <p><StaticText source={"Die Angabe wird getrennt vom Import gespeichert und im Verlauf protokolliert."} /></p>}</div><TranslatedProps sources={{"aria-label":"Dialog schließen"}}><button type="button" onClick={onClose} aria-label="Dialog schließen" disabled={saving}><CloseIcon /></button></TranslatedProps></div>
+      <div className="shipment-tracking-editor__heading"><div><h2 id="shipment-tracking-editor-title">{stage.title}</h2></div><TranslatedProps sources={{"aria-label":"Dialog schließen"}}><button type="button" onClick={onClose} aria-label="Dialog schließen" disabled={saving}><CloseIcon /></button></TranslatedProps></div>
       <form onSubmit={(event) => void submit(event)} noValidate>
-        <div className="shipment-tracking-editor__groups">
-          <section>{stageId === 'in_transit' ? <ShipmentTrackingTransitFields entries={transitEntries} onChange={setTransitEntries} existingEntries={existingEntries} initialExisting={initialExisting} onExistingChange={setExistingEntries} /> : <StageFields stage={{ ...stage, id: stageId }} values={values} onChange={update} aiField={aiField} />}</section>
-        </div>
+        {stageId === 'in_transit'
+          ? <ShipmentTrackingTransitFields entries={transitEntries} onChange={setTransitEntries} existingEntries={existingEntries} initialExisting={initialExisting} onExistingChange={setExistingEntries} />
+          : <div className="shipment-tracking-editor__groups"><section><StageFields stage={{ ...stage, id: stageId }} values={values} onChange={update} aiField={aiField} /></section></div>}
         {error && <p className="form-error">{<StaticText source={error} />}</p>}
         <div className="shipment-tracking-editor__actions"><button className="button button--secondary" type="button" disabled={saving} onClick={onClose}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={saving}>{<StaticText source={saving ? 'Update wird gespeichert …' : 'Speichern'} />}</button></div>
       </form>

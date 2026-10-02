@@ -1,5 +1,6 @@
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { formatShipmentTrackingTimestamp, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, sourceLabels } from '../../lib/shipmentTrackingPresentation.js'
+import { ChevronDownIcon } from '../icons.jsx'
 
 export default function ShipmentTrackingHistory({ events, loading, error }) {
   const visibleEvents = Array.isArray(events) ? events.filter((event) => event.eventType !== 'loading_duration_reported') : []
@@ -7,7 +8,7 @@ export default function ShipmentTrackingHistory({ events, loading, error }) {
   return <details className="transport-order-detail-section shipment-tracking-history">
     <summary aria-label={`Verlauf der Sendungsverfolgung${eventCount ? `, ${eventCount} Ereignisse` : ''}`}>
       <h3 id="shipment-tracking-history-heading"><StaticText source={"Verlauf"} /></h3>
-      {!loading && !error && <span className="shipment-tracking-history__toggle">{eventCount ? <><span className="shipment-tracking-history__expand">{eventCount} <StaticText source={"Ereignisse aufklappen"} /></span><span className="shipment-tracking-history__collapse">{eventCount} <StaticText source={"Ereignisse zuklappen"} /></span></> : <StaticText source="Keine Ereignisse" />}</span>}
+      <span className="shipment-tracking-history__summary-action">{!loading && !error && <span className="shipment-tracking-history__toggle">{eventCount ? <><span className="shipment-tracking-history__expand">{eventCount} <StaticText source={"Ereignisse aufklappen"} /></span><span className="shipment-tracking-history__collapse">{eventCount} <StaticText source={"Ereignisse zuklappen"} /></span></> : <StaticText source="Keine Ereignisse" />}</span>}<ChevronDownIcon /></span>
     </summary>
     <div className="shipment-tracking-history__content" aria-labelledby="shipment-tracking-history-heading">
       {loading && <p><StaticText source={"Verlauf wird geladen …"} /></p>}

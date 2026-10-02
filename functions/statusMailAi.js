@@ -365,3 +365,18 @@ export async function retryStatusMailAiHandler(request) {
   const status = await processStatusMailAi({ orderId, mailId, retry: true })
   return { status }
 }
+
+export async function resolveStatusMailReviewHandler(request) {
+  const profile = await requireActiveProfile(request)
+  if (!hasTrackingEditAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Bearbeitung der Sendungsverfolgung.')
+  const orderId = text(request.data?.orderId)
+  const mailId = text(request.data?.mailId)
+  if (!orderId || orderId.length > 240 || orderId.includes('/') || !/^[a-f0-9]{64}$/.test(mailId)) throw new HttpsError('invalid-argument', 'Ungültige Mailauswahl.')
+  const mailRef = getFirestore().doc(`transportOrders/${orderId}/receivedMails/${mailId}`)
+  const snapshot = await mailRef.get()
+  if (!snapshot.exists) throw new HttpsError('not-found', 'Die Status-Mail wurde nicht gefunden.')
+  const currentStatus = snapshot.data()?.ai?.status
+  if (snapshot.data()?.ai?.reviewRequired !== true && !['needs_review', 'error'].includes(currentStatus)) return { resolved: false }
+  await mailRef.update({ 'ai.reviewRequired': false, 'ai.status': 'reviewed', 'ai.reviewOriginalStatus': currentStatus || null, 'ai.reviewResolvedAt': FieldValue.serverTimestamp(), 'ai.reviewResolvedBy': request.auth.uid })
+  return { resolved: true }
+}

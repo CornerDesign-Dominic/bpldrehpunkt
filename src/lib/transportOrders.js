@@ -11,9 +11,9 @@ export async function listTransportOrders() {
   return snapshots.docs.map(mapSnapshot)
 }
 
-export async function listTransportOrdersPage({ trackingStatus, search, relation, loadingFrom, loadingUntil, sort, cursor = null }) {
+export async function listTransportOrdersPage({ trackingStatus, attention = 'all', search, relation, loadingFrom, loadingUntil, sort, cursor = null }) {
   await waitForAppCheckToken()
-  const result = await httpsCallable(functions, 'listTransportOrdersPage')({ trackingStatus, search, relation, loadingFrom, loadingUntil, sort, cursor })
+  const result = await httpsCallable(functions, 'listTransportOrdersPage')({ trackingStatus, attention, search, relation, loadingFrom, loadingUntil, sort, cursor })
   return result.data
 }
 

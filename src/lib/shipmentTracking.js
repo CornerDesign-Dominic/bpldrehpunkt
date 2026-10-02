@@ -32,12 +32,13 @@ function dateTimeInputToIso(value) {
   return Number.isNaN(localDate.getTime()) ? null : localDate.toISOString()
 }
 
-export async function updateManualShipmentTracking({ orderId, action, values, transitEntries, transitCorrections, recipientChanges, source, note, earlyStart = false }) {
+export async function updateManualShipmentTracking({ orderId, action, values, transitEntries, transitCorrections, transitRemovals, recipientChanges, source, note, earlyStart = false }) {
   const changes = values && action === 'update' ? Object.fromEntries(Object.entries(values).map(([key, value]) => [key, key.endsWith('At') ? dateTimeInputToIso(value) : value])) : undefined
   const normalizedTransitEntries = ['add_transit_entries', 'save_transit_entries'].includes(action) ? transitEntries?.map((entry) => ({ ...entry, at: dateTimeInputToIso(entry.at) })) : undefined
   const normalizedTransitCorrections = action === 'save_transit_entries' ? transitCorrections?.map((correction) => ({ id: correction.id, entry: { ...correction.entry, at: dateTimeInputToIso(correction.entry.at) } })) : undefined
+  const normalizedTransitRemovals = action === 'save_transit_entries' ? transitRemovals : undefined
   try {
-    const result = await httpsCallable(functions, 'updateManualShipmentTracking')({ orderId, action, ...(changes ? { changes } : {}), ...(normalizedTransitEntries ? { transitEntries: normalizedTransitEntries } : {}), ...(normalizedTransitCorrections ? { transitCorrections: normalizedTransitCorrections } : {}), ...(recipientChanges ? { recipientChanges } : {}), ...(earlyStart ? { earlyStart: true } : {}), source, note })
+    const result = await httpsCallable(functions, 'updateManualShipmentTracking')({ orderId, action, ...(changes ? { changes } : {}), ...(normalizedTransitEntries ? { transitEntries: normalizedTransitEntries } : {}), ...(normalizedTransitCorrections ? { transitCorrections: normalizedTransitCorrections } : {}), ...(normalizedTransitRemovals ? { transitRemovals: normalizedTransitRemovals } : {}), ...(recipientChanges ? { recipientChanges } : {}), ...(earlyStart ? { earlyStart: true } : {}), source, note })
     return result.data
   } catch (error) {
     // Server-side failures are recorded by the callable itself; transport failures cannot be.

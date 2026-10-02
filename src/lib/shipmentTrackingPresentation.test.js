@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, formatShipmentTrackingTimestamp, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
+import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, formatShipmentTrackingTimestamp, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, shipmentTrackingRatingState, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
 
 const imported = {
   loading: { window: { from: '2026-09-25T08:00', until: '2026-09-25T10:00' } },
@@ -149,29 +149,46 @@ test('manual tracking keeps its existing vehicle position in the extended timeli
   assert.equal(model.trackingExists, true)
 })
 
-const stationStates = (tracking) => shipmentTrackingStations({ tracking, imported }).map((station) => station.workflowState)
+const stationStates = (tracking, ratings, ratingPartners) => shipmentTrackingStations({ tracking, imported, ratings, ratingPartners }).map((station) => station.workflowState)
 
 test('tracking not started keeps every station pending', () => {
   assert.deepEqual(stationStates(null), ['pending', 'pending', 'pending', 'pending', 'pending'])
 })
 
-test('started tracking without a license plate keeps preparation active', () => {
+test('started tracking without a license plate keeps only preparation active', () => {
   assert.deepEqual(stationStates({ lifecycleStatus: 'active' }), ['active', 'pending', 'pending', 'pending', 'pending'])
 })
 
-test('a license plate completes preparation and activates loading', () => {
-  assert.deepEqual(stationStates({ lifecycleStatus: 'active', licensePlate: 'AB-CD 123' }), ['completed', 'active', 'pending', 'pending', 'pending'])
+test('preparation does not control the other stations', () => {
+  assert.deepEqual(stationStates({ lifecycleStatus: 'active', licensePlate: 'AB-CD 123' }), ['completed', 'pending', 'pending', 'pending', 'pending'])
 })
 
-test('an actual loading departure completes loading and activates transit', () => {
-  assert.deepEqual(stationStates({ lifecycleStatus: 'active', licensePlate: 'AB-CD 123', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00') }), ['completed', 'completed', 'active', 'pending', 'pending'])
+test('a departure completes loading and activates transit even while preparation remains open', () => {
+  assert.deepEqual(stationStates({ lifecycleStatus: 'active', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00') }), ['active', 'completed', 'active', 'pending', 'pending'])
 })
 
 test('an actual unloading arrival completes transit and activates unloading', () => {
   assert.deepEqual(stationStates({ lifecycleStatus: 'active', licensePlate: 'AB-CD 123', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00'), actualArrivalUnloadingAt: new Date('2026-09-25T14:28:00') }), ['completed', 'completed', 'completed', 'active', 'pending'])
 })
 
-test('tracking completion completes the after-transport station', () => {
+test('unloading completion marks the transport done without closing tracking or preparation', () => {
+  const tracking = { lifecycleStatus: 'active', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00'), actualArrivalUnloadingAt: new Date('2026-09-25T14:28:00'), unloadingStartedAt: new Date('2026-09-25T14:35:00'), unloadingCompletedAt: new Date('2026-09-25T15:10:00') }
+  assert.deepEqual(stationStates(tracking), ['active', 'completed', 'completed', 'completed', 'pending'])
+  const model = shipmentTrackingTimelineModel(tracking, imported)
+  assert.equal(model.transportCompleted, true)
+  assert.equal(model.statusLabel, 'Transport erledigt · Tracking aktiv')
+  assert.equal(model.lifecycleStatus, 'active')
+})
+
+test('ratings are independent and complete only once every available partner was rated', () => {
+  const partners = { customer: { id: 'customer-1' }, carrier: { id: 'carrier-1' } }
+  assert.deepEqual(shipmentTrackingRatingState({}, partners), { state: 'active', label: 'Bewertungen offen' })
+  assert.deepEqual(shipmentTrackingRatingState({ customer: { averageScore: 4 } }, partners), { state: 'active', label: 'Bewertungen offen' })
+  assert.deepEqual(shipmentTrackingRatingState({ customer: { averageScore: 4 }, carrier: { averageScore: 5 } }, partners), { state: 'completed', label: 'Bewertungen abgeschlossen' })
+  assert.equal(stationStates({ lifecycleStatus: 'active' }, { customer: { averageScore: 4 }, carrier: { averageScore: 5 } }, partners)[4], 'completed')
+})
+
+test('explicit tracking completion still completes every station', () => {
   const states = stationStates({ lifecycleStatus: 'completed', licensePlate: 'AB-CD 123', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00'), actualArrivalUnloadingAt: new Date('2026-09-25T14:28:00'), unloadingStartedAt: new Date('2026-09-25T14:35:00'), unloadingCompletedAt: new Date('2026-09-25T15:10:00') })
   assert.deepEqual(states, ['completed', 'completed', 'completed', 'completed', 'completed'])
 })
@@ -266,7 +283,7 @@ test('transit shows the latest manual position and pause and keeps every report 
 })
 
 test('every station editor is restricted to its own tracking fields', () => {
-  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['licensePlate', 'driverName', 'driverPhone'])
+  assert.deepEqual(shipmentTrackingStageConfigurations.preparation.fields, ['licensePlate', 'driverName', 'driverPhone', 'driverCount'])
   assert.deepEqual(shipmentTrackingStageConfigurations.loading.fields, ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt'])
   assert.deepEqual(shipmentTrackingStageConfigurations.in_transit.fields, [])
   assert.deepEqual(shipmentTrackingStageConfigurations.unloading.fields, ['estimatedArrivalUnloadingAt', 'actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt'])
@@ -298,6 +315,16 @@ test('a corrected transit report remains visible as manual and has an audit entr
   assert.equal(shipmentTrackingStationSummary(station, {}).rows[0].ai, undefined)
   assert.deepEqual(shipmentTrackingStageEvents([corrected, audit], 'in_transit').map((event) => event.id), ['position', 'correction'])
   assert.equal(shipmentTrackingEventDescription(audit), 'Standortmeldung manuell korrigiert')
+})
+
+test('a removed transit report no longer affects the current status and stays auditable', () => {
+  const removed = { id: 'position', eventType: 'transit_position_reported', removedAt: new Date('2026-10-01T10:05:00Z'), eventTime: new Date('2026-10-01T10:00:00Z'), newValue: { transitEntry: { kind: 'position', at: new Date('2026-10-01T10:00:00Z'), kilometersToDestination: 200, location: 'A2' } } }
+  const audit = { id: 'removal', eventType: 'transit_entry_removed', recordedAt: new Date('2026-10-01T10:05:00Z'), oldValue: removed.newValue, newValue: { removedEventId: 'position' } }
+  const station = shipmentTrackingStations({ tracking: {}, events: [removed, audit] }).find((item) => item.id === 'in_transit')
+  assert.equal(station.workflowLabel, 'Noch nicht unterwegs')
+  assert.deepEqual(shipmentTrackingStageEvents([removed, audit], 'in_transit').map((event) => event.id), ['removal'])
+  assert.equal(shipmentTrackingEventDescription(audit), 'Standortmeldung gelöscht')
+  assert.equal(shipmentTrackingEventChangeType(audit), 'Gelöscht')
 })
 
 test('stage information filters events, fields and ordering without leaking other stages', () => {

@@ -14,7 +14,7 @@ const timestampFields = [
 ]
 const licensePlateFields = ['licensePlate', 'tractorLicensePlate', 'trailerLicensePlate']
 const driverFields = ['driverName', 'driverPhone']
-const editableFields = [...licensePlateFields, ...driverFields, ...timestampFields, 'proofStatus']
+const editableFields = [...licensePlateFields, ...driverFields, ...timestampFields, 'proofStatus', 'driverCount']
 const sources = new Set(['manual', 'phone', 'other_mailbox', 'other'])
 const recipientRoles = new Set(['customer', 'carrier'])
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -68,6 +68,7 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     licensePlate: licensePlate && licensePlate.length <= 180 ? licensePlate : null,
     driverName: null,
     driverPhone: null,
+    driverCount: 1,
     estimatedArrivalLoadingAt: null,
     actualArrivalLoadingAt: null,
     loadingStartedAt: null,
@@ -153,6 +154,10 @@ function normalizedChanges(input) {
       if (value !== null && (typeof value !== 'string' || text(value).length > (field === 'driverName' ? 140 : 60))) throw new HttpsError('invalid-argument', 'Die Fahrerangabe ist ungültig.')
       result[field] = value === null || !text(value) ? null : text(value)
     }
+    if (field === 'driverCount') {
+      if (![1, 2].includes(value)) throw new HttpsError('invalid-argument', 'Die Fahreranzahl muss 1 oder 2 sein.')
+      result[field] = value
+    }
     if (field === 'proofStatus') {
       if (!['unknown', 'open', 'received'].includes(value)) throw new HttpsError('invalid-argument', 'Der Nachweisstatus ist ungültig.')
       result[field] = value
@@ -233,6 +238,16 @@ export function normalizeTransitCorrections(input) {
   })
 }
 
+export function normalizeTransitRemovals(input) {
+  if (!Array.isArray(input) || input.length > 20) throw new HttpsError('invalid-argument', 'Ungültige Löschungen der Fahrtmeldungen.')
+  const ids = new Set()
+  return input.map((id) => {
+    if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,200}$/.test(id) || ids.has(id)) throw new HttpsError('invalid-argument', 'Ungültige Fahrtmeldung zum Löschen.')
+    ids.add(id)
+    return id
+  })
+}
+
 function eventTimeFor(changes) { return timestampFields.map((field) => changes[field]).find(valueIsSet) || FieldValue.serverTimestamp() }
 function eventPayload({ eventType, changedFields = [], oldValue = {}, newValue = {}, eventTime, actorId, actor, source, note }) {
   return {
@@ -259,10 +274,12 @@ export async function updateManualShipmentTrackingHandler(request) {
   const changes = action === 'update' ? normalizedChanges(request.data?.changes) : {}
   const transitEntries = action === 'add_transit_entries' ? normalizeTransitEntries(request.data?.transitEntries) : action === 'save_transit_entries' && request.data?.transitEntries?.length ? normalizeTransitEntries(request.data.transitEntries) : []
   const transitCorrections = action === 'save_transit_entries' ? normalizeTransitCorrections(request.data?.transitCorrections) : []
+  const transitRemovals = action === 'save_transit_entries' ? normalizeTransitRemovals(request.data?.transitRemovals) : []
   const recipientChanges = action === 'update_recipients' ? normalizeRecipientChanges(request.data?.recipientChanges) : {}
   const earlyStartRequested = action === 'start' && request.data?.earlyStart === true
   if (action === 'update' && !Object.keys(changes).length) throw new HttpsError('invalid-argument', 'Es wurden keine Änderungen übergeben.')
-  if (action === 'save_transit_entries' && !transitEntries.length && !transitCorrections.length) throw new HttpsError('invalid-argument', 'Es wurden keine Fahrtmeldungen übergeben.')
+  if (action === 'save_transit_entries' && !transitEntries.length && !transitCorrections.length && !transitRemovals.length) throw new HttpsError('invalid-argument', 'Es wurden keine Fahrtmeldungen übergeben.')
+  if (transitCorrections.some(({ id }) => transitRemovals.includes(id))) throw new HttpsError('invalid-argument', 'Eine Fahrtmeldung kann nicht gleichzeitig geändert und gelöscht werden.')
 
   const db = getFirestore()
   const orderRef = db.doc(`transportOrders/${orderId}`)
@@ -295,14 +312,23 @@ export async function updateManualShipmentTrackingHandler(request) {
     if (!current) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung wurde noch nicht gestartet.')
     if (action === 'add_transit_entries' || action === 'save_transit_entries') {
       const correctionSnapshots = await Promise.all(transitCorrections.map(({ id }) => transaction.get(trackingRef.collection('events').doc(id))))
+      const removalSnapshots = await Promise.all(transitRemovals.map((id) => transaction.get(trackingRef.collection('events').doc(id))))
       for (let index = 0; index < transitCorrections.length; index += 1) {
         const { id, entry } = transitCorrections[index]
         const snapshot = correctionSnapshots[index]
         const previous = snapshot.exists ? snapshot.data() : null
-        if (!previous || !['transit_position_reported', 'transit_pause_reported'].includes(previous.eventType) || previous.newValue?.transitEntry?.kind !== entry.kind) throw new HttpsError('failed-precondition', 'Die Fahrtmeldung zur Korrektur wurde nicht gefunden.')
+        if (!previous || previous.removedAt || !['transit_position_reported', 'transit_pause_reported'].includes(previous.eventType) || previous.newValue?.transitEntry?.kind !== entry.kind) throw new HttpsError('failed-precondition', 'Die Fahrtmeldung zur Korrektur wurde nicht gefunden.')
         const correctedRef = trackingRef.collection('events').doc(id)
         transaction.update(correctedRef, { newValue: { transitEntry: entry }, eventTime: entry.at, source: 'manual', recordedBy: request.auth.uid, recordedByName: actor, note: '', correctedAt: FieldValue.serverTimestamp(), originalAiValue: previous.originalAiValue || (previous.source === 'ai_mail' ? previous.newValue : null) })
         transaction.create(trackingRef.collection('events').doc(), eventPayload({ eventType: 'transit_entry_corrected', changedFields: ['transitEntry'], oldValue: previous.newValue, newValue: { transitEntry: entry, correctedEventId: id }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source: 'manual', note: '' }))
+      }
+      for (let index = 0; index < transitRemovals.length; index += 1) {
+        const id = transitRemovals[index]
+        const snapshot = removalSnapshots[index]
+        const previous = snapshot.exists ? snapshot.data() : null
+        if (!previous || previous.removedAt || !['transit_position_reported', 'transit_pause_reported'].includes(previous.eventType)) throw new HttpsError('failed-precondition', 'Die Fahrtmeldung zum Löschen wurde nicht gefunden.')
+        transaction.update(trackingRef.collection('events').doc(id), { removedAt: FieldValue.serverTimestamp(), removedBy: request.auth.uid, removedByName: actor })
+        transaction.create(trackingRef.collection('events').doc(), eventPayload({ eventType: 'transit_entry_removed', changedFields: ['transitEntry'], oldValue: previous.newValue, newValue: { removedEventId: id }, eventTime: FieldValue.serverTimestamp(), actorId: request.auth.uid, actor, source: 'manual', note: '' }))
       }
       transaction.update(trackingRef, { updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
       for (const entry of transitEntries) transaction.create(trackingRef.collection('events').doc(), eventPayload({ eventType: entry.kind === 'position' ? 'transit_position_reported' : 'transit_pause_reported', changedFields: ['transitEntry'], newValue: { transitEntry: entry }, eventTime: entry.at, actorId: request.auth.uid, actor, source: 'manual', note: '' }))

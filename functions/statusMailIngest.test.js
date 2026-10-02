@@ -20,6 +20,9 @@ function request(body = payload, authorization = 'Bearer secure-token') {
 test('reads only an unambiguous TA number from the subject', () => {
   assert.equal(transportOrderNumberFromSubject('AW: TA-Nr. 260900123'), '260900123')
   assert.equal(transportOrderNumberFromSubject('Re: Transportauftrag 260900123'), '260900123')
+  assert.equal(transportOrderNumberFromSubject('260900123'), '260900123')
+  assert.equal(transportOrderNumberFromSubject('WG: 260900123'), '260900123')
+  assert.equal(transportOrderNumberFromSubject('[EXTERN] AW: WG: 260900123'), '260900123')
   assert.equal(transportOrderNumberFromSubject('TA 260900123 und TA 260900124'), null)
   assert.equal(transportOrderNumberFromSubject('Referenz 260900123'), null)
 })

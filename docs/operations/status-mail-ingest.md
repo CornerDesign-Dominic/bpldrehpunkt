@@ -5,7 +5,10 @@
 Der erste Schritt verarbeitet neue Mails aus dem freigegebenen Postfach
 `status@brennpunkt-logistik.de`. Eine Mail wird nur gespeichert, wenn ihr Betreff
 genau eine TA-Nummer im Format `TA 260900123` oder `Transportauftrag 260900123`
-enthält und `transportOrders.externalNumber` genau einen Auftrag liefert.
+enthält. Auch ein alleinstehender TA-Betreff wie `260900123` wird akzeptiert –
+einschließlich üblicher Antwort-, Weiterleitungs- und Systempräfixe wie
+`WG:`, `AW:`, `RE:`, `FW:` oder `[EXTERN]`. `transportOrders.externalNumber`
+muss dabei genau einen Auftrag liefern.
 Nicht zuordenbare Mails werden mit HTTP 200 (`unmatched`) quittiert und nicht
 gespeichert. Gleiche Nachrichten werden nur einmal gespeichert (`duplicate`).
 Zugeordnete Mails aus diesem Postfach werden anschließend in Dev auf eindeutige

@@ -25,6 +25,7 @@ import ProfilePage from './pages/ProfilePage.jsx'
 import TeamPage from './pages/TeamPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
 import ShipmentTrackingAdminPage from './pages/ShipmentTrackingAdminPage.jsx'
+import ShipmentTrackingHelpPage from './pages/ShipmentTrackingHelpPage.jsx'
 import DiagnosticsPage from './pages/DiagnosticsPage.jsx'
 import CompanyMasterDataPage from './pages/CompanyMasterDataPage.jsx'
 import { CompanyDataProvider } from './company/CompanyDataProvider.jsx'
@@ -113,6 +114,7 @@ export default function App() {
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
+        <Route path="/hilfe/sendungsverfolgung" element={<PermissionRoute module="transportOrders"><ShipmentTrackingHelpPage /></PermissionRoute>} />
         <Route path="/admin/diagnose" element={<PermissionRoute requireUserManagement><DiagnosticsPage /></PermissionRoute>} />
         <Route path="/admin/stammdaten" element={<PermissionRoute requireUserManagement><CompanyMasterDataPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitCorrections, normalizeTransitEntries } from './shipmentTracking.js'
+import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitCorrections, normalizeTransitEntries, normalizeTransitRemovals } from './shipmentTracking.js'
 
 test('manual transit reports validate position and pause without deriving another tracking stage', () => {
   const entries = normalizeTransitEntries([
@@ -23,6 +23,12 @@ test('a manual transit correction must identify one existing report with valid v
   assert.throws(() => normalizeTransitCorrections([{ id: '../other', entry: { kind: 'pause', at: '2026-10-01T12:00:00Z', durationMinutes: 45 } }]), /Ungültige Fahrtmeldung/)
   const duplicate = { id: 'ai-position-mail-1', entry: { kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: 210 } }
   assert.throws(() => normalizeTransitCorrections([duplicate, duplicate]), /Ungültige Fahrtmeldung/)
+})
+
+test('a manual transit removal accepts stable event IDs only once', () => {
+  assert.deepEqual(normalizeTransitRemovals(['ai-position-mail-1']), ['ai-position-mail-1'])
+  assert.throws(() => normalizeTransitRemovals(['../other']), /Ungültige Fahrtmeldung/)
+  assert.throws(() => normalizeTransitRemovals(['position-1', 'position-1']), /Ungültige Fahrtmeldung/)
 })
 
 test('manual tracking writes require transportOrders.edit, except for superadmins', () => {

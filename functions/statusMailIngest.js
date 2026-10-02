@@ -14,7 +14,15 @@ function text(value, maxLength) {
 export function transportOrderNumberFromSubject(subject) {
   const matches = [...subject.matchAll(/\b(?:TA|Transportauftrag)(?:\s*[- ]?\s*(?:Nr\.?|Nummer))?\s*[:#-]?\s*(\d{9})\b/gi)]
   const numbers = [...new Set(matches.map((match) => match[1]))]
-  return numbers.length === 1 ? numbers[0] : null
+  if (numbers.length === 1) return numbers[0]
+  if (numbers.length > 1) return null
+  let remaining = subject.trim()
+  for (let index = 0; index < 8; index += 1) {
+    const next = remaining.replace(/^\s*(?:(?:aw|re|wg|fw|fwd)\s*:\s*|\[[^\]\r\n]{1,80}\]\s*)/i, '').trim()
+    if (next === remaining) break
+    remaining = next
+  }
+  return /^\d{9}$/.test(remaining) ? remaining : null
 }
 
 export function validateStatusMail(payload) {

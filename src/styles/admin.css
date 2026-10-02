@@ -73,6 +73,7 @@
 .shipment-tracking-arrival-confirmation__message textarea { min-height: 170px; resize: vertical; }
 .shipment-tracking-arrival-confirmation code { padding: 1px 4px; border-radius: 3px; color: var(--text-secondary); background: var(--content-background); font-size: 11px; }
 .shipment-tracking-hours__preview-result h3 { margin: 0; color: var(--text-primary); font-size: 13px; }
+.shipment-tracking-forecast-settings { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }.shipment-tracking-forecast-settings h3, .shipment-tracking-forecast-settings h4, .shipment-tracking-forecast-settings p { margin: 0; }.shipment-tracking-forecast-settings h3 { color: var(--text-primary); font-size: 15px; }.shipment-tracking-forecast-settings h4 { color: var(--text-primary); font-size: 13px; }.shipment-tracking-forecast-settings p { color: var(--text-secondary); font-size: 12px; line-height: 1.45; }.shipment-tracking-forecast-settings__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.shipment-tracking-forecast-settings__profiles { display: grid; gap: 8px; }.shipment-tracking-forecast-settings__profiles > div { display: grid; grid-template-columns: minmax(130px, .6fr) 140px minmax(240px, 1.4fr); gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 5px; background: var(--content-background); }@media (max-width: 760px) { .shipment-tracking-forecast-settings__grid, .shipment-tracking-forecast-settings__profiles > div { grid-template-columns: 1fr; } }
 
 .admin-holiday-sync-log { padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
 .admin-holiday-sync-log__entries { display: grid; border-top: 1px solid var(--border); }
@@ -242,7 +243,13 @@
 .system-mail-templates__list { display: grid; max-height: calc(min(650px, 100vh - 188px) - 49px); overflow-y: auto; }
 .system-mail-template-group { display: grid; border-bottom: 1px solid var(--border); }
 .system-mail-template-group:last-child { border-bottom: 0; }
-.system-mail-template-group h3 { margin: 0; padding: 11px 12px 6px; color: var(--text-muted); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
+.system-mail-template-group h3 { margin: 0; }
+.system-mail-template-group__toggle { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; width: 100%; min-height: 42px; padding: 0 12px; border: 0; color: var(--text-muted); background: transparent; cursor: pointer; font: inherit; font-size: 10px; font-weight: 750; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+.system-mail-template-group__toggle:hover { color: var(--text-primary); background: var(--surface-active); }
+.system-mail-template-group__toggle:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+.system-mail-template-group__count { display: inline-grid; min-width: 18px; height: 18px; place-items: center; border-radius: 999px; color: var(--text-muted); background: var(--content-background); font-size: 10px; letter-spacing: 0; }
+.system-mail-template-group__chevron { color: var(--text-secondary); font-size: 18px; line-height: 1; transform: rotate(0deg); transition: transform .15s ease; }
+.system-mail-template-group__toggle[aria-expanded="true"] .system-mail-template-group__chevron { transform: rotate(90deg); }
 .system-mail-template { min-height: 43px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--border); color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 12px; font-weight: 650; text-align: left; }
 .system-mail-template-group .system-mail-template:last-child { border-bottom: 0; }
 .system-mail-template:hover { color: var(--text-primary); background: var(--surface-active); }

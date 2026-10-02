@@ -36,10 +36,10 @@ export default function ShipmentTrackingTransitFields({ entries, onChange, exist
   function update(id, patch) { onChange(entries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)) }
   function remove(id) { onChange(entries.filter((entry) => entry.id !== id)) }
   function updateExisting(id, patch) { onExistingChange(existingEntries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry)) }
+  function removeExisting(id) { onExistingChange(existingEntries.filter((entry) => entry.id !== id)) }
 
   return <div className="shipment-tracking-transit">
-    <p><StaticText source="Standortmeldungen und Pausen werden einzeln im Verlauf gespeichert. Sie ändern keine ETA und lösen keine Automatik aus." /></p>
-    {existingEntries.length > 0 && <div className="shipment-tracking-transit__existing"><h3><StaticText source="Vorhandene Meldungen" /></h3>{existingEntries.map((entry, index) => <TransitEntryFields key={entry.id} entry={entry} original={initialExisting[index]} number={index + 1} onUpdate={(patch) => updateExisting(entry.id, patch)} />)}</div>}
+    {existingEntries.map((entry, index) => <TransitEntryFields key={entry.id} entry={entry} original={initialExisting.find((initial) => initial.id === entry.id)} number={index + 1} onUpdate={(patch) => updateExisting(entry.id, patch)} onRemove={() => removeExisting(entry.id)} />)}
     {entries.map((entry, index) => <TransitEntryFields key={entry.id} entry={entry} number={index + 1} onUpdate={(patch) => update(entry.id, patch)} onRemove={() => remove(entry.id)} />)}
     <div className="shipment-tracking-transit__add"><button className="button button--secondary" type="button" disabled={entries.length >= 20} onClick={() => add('position')}>+ <StaticText source="Standortmeldung" /></button><button className="button button--secondary" type="button" disabled={entries.length >= 20} onClick={() => add('pause')}>+ <StaticText source="Pause" /></button></div>
   </div>
