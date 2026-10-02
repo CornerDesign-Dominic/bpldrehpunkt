@@ -5,12 +5,14 @@ import { defineSecret } from 'firebase-functions/params'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { externalEffectsAllowed, logExternalEffectsSkipped } from './externalEffects.js'
+import { agbHistorySearchTokens } from './shared/agbCheckerHistorySearch.js'
 
 const openAiApiKey = defineSecret('DREHPUNKT_AGB_CHECKER_KEY')
 const model = 'gpt-5.4'
 const maxPdfBytes = 20 * 1024 * 1024
 const maxTextCharacters = 160_000
 const usageCollection = 'agbCheckerUsage'
+const historyCollection = 'agbCheckerHistory'
 
 const resultFields = [
   ['customer', 'Firmenname / Adresse'], ['customer', 'USt-IdNr.'],
@@ -22,8 +24,15 @@ const resultFields = [
 
 const fieldNames = resultFields.map(([, field]) => field)
 const resultSchema = {
-  type: 'object', additionalProperties: false, required: ['results', 'contactsStatus', 'contacts', 'findings'],
+  type: 'object', additionalProperties: false, required: ['customerIdentity', 'results', 'contactsStatus', 'contacts', 'findings'],
   properties: {
+    customerIdentity: {
+      type: 'object', additionalProperties: false, required: ['name', 'country', 'postalCode', 'city'],
+      properties: {
+        name: { type: 'string' }, country: { type: 'string' },
+        postalCode: { type: 'string' }, city: { type: 'string' },
+      },
+    },
     results: {
       type: 'array', maxItems: resultFields.length,
       items: {
@@ -92,6 +101,7 @@ function prompt(documentText) {
     'Du prüfst ausschließlich dauerhafte kaufmännische und vertragliche Bedingungen eines Kunden. Du gibst keine juristische Bewertung ab.',
     'Ignoriere ausdrücklich alle konkreten operativen Transportdaten: Ladestellen, Entladestellen, Lade- und Entladezeiten, Fixtermine, Auftrags- und Referenznummern, Fahrzeug- und Fahrerdaten, Kennzeichen, konkreten Frachtpreis, Gewichte, Mengen, Packstücke, Transportstrecken und sonstige Sendungsdaten. Diese Informationen dürfen weder in results noch contacts noch findings erscheinen.',
     'Prüfe ausschließlich den übergebenen Dokumenttext. Erfinde keine Werte und nutze keine Branchenannahmen. Wenn eine Angabe nicht eindeutig belegt ist, verwende status "not_found" oder "unclear". Bei "not_found" sind value und sourceText leer. Bei "found" oder "unclear" liefere nur einen kurzen, relevanten Originalausschnitt als sourceText.',
+    'customerIdentity enthält den Namen und die Anschrift des Auftraggebers/Kunden als getrennte Angaben: name, country, postalCode, city. Verwende nur eindeutig belegte Angaben aus dem Dokument. Lade- und Entladeorte oder Anschriften anderer Unternehmen sind keine Kundenanschrift. Fehlende oder uneindeutige Teile bleiben als leere Zeichenfolge stehen. Die Angaben dienen nur der Wiedererkennung in der Prüfungshistorie.',
     'Prüfe jeden vorgegebenen Prüfpunkt höchstens einmal. Beim Gutschriftsverfahren verwende bei eindeutiger Aussage "Ja" oder "Nein". Bei Originalrechnung / Originalbelegen per Post verwende bei eindeutiger Aussage "Erforderlich" oder "Nicht erforderlich". Bei Subunternehmerverbot und Umladeverbot verwende bei eindeutiger Aussage "Ja" oder "Nein". Bei Palettenpreisen übernimm Betrag, Einheit und Kontext. Mehrere Preisfälle für Verlust, Nichttausch oder Rückgabe müssen verständlich getrennt dargestellt werden. Gib bei Standgeld die relevante Regelung kompakt einschließlich Betrag, Einheit und möglicher Freistunden wieder.',
     'contacts ist eine Liste aller im Dokument gefundenen Ansprechpartner. Jeder Eintrag enthält Name, Abteilung oder Funktion, E-Mail-Adresse, status, confidence und einen kurzen sourceText. Wenn nur eine E-Mail-Adresse gefunden wird, nimm sie mit leerem Namen auf. Erfinde keine Abteilung. Bei keinen Ansprechpartnern ist contacts leer und contactsStatus "not_found".',
     'findings enthält höchstens fünf tatsächlich dokumentierte Auffälligkeiten. Nimm dort ausschließlich Informationen auf, die zusätzliche Kosten, Vertragsstrafen, Abzüge, Gebühren oder sonstige finanzielle Nachteile verursachen, ungewöhnlich strenge Fristen mit möglicher Sanktion enthalten, ein Verbot oder eine wesentliche Einschränkung darstellen oder deren Nichtbeachtung wahrscheinlich zu Kosten, Sanktionen oder operativen Problemen führt.',
@@ -131,7 +141,7 @@ function tokenCount(value) { return Number.isFinite(value) && value >= 0 ? Math.
 function tokenUsage(usage = {}) { const inputTokens = tokenCount(usage.input_tokens); const outputTokens = tokenCount(usage.output_tokens); return { inputTokens, outputTokens, totalTokens: tokenCount(usage.total_tokens) || inputTokens + outputTokens } }
 
 function validateModelResult(result) {
-  if (!result || !Array.isArray(result.results) || !Array.isArray(result.contacts) || !Array.isArray(result.findings) || !['found', 'not_found', 'unclear'].includes(result.contactsStatus)) throw errorWithType('OpenAI hat kein strukturiertes Ergebnis zurückgegeben.', 'invalid_model_response')
+  if (!result || !result.customerIdentity || ['name', 'country', 'postalCode', 'city'].some((key) => typeof result.customerIdentity[key] !== 'string') || !Array.isArray(result.results) || !Array.isArray(result.contacts) || !Array.isArray(result.findings) || !['found', 'not_found', 'unclear'].includes(result.contactsStatus)) throw errorWithType('OpenAI hat kein strukturiertes Ergebnis zurückgegeben.', 'invalid_model_response')
   const seen = new Set()
   for (const item of result.results) {
     if (!item || !fieldNames.includes(item.field) || seen.has(item.field) || !['found', 'not_found', 'unclear'].includes(item.status) || typeof item.value !== 'string' || typeof item.sourceText !== 'string' || !['high', 'medium', 'low'].includes(item.confidence)) throw errorWithType('OpenAI hat ein ungültiges Prüfergebnis zurückgegeben.', 'invalid_model_response')
@@ -143,6 +153,12 @@ function validateModelResult(result) {
 }
 
 function normalizeResult(result) {
+  const customerIdentity = {
+    name: cleanText(result.customerIdentity.name, 180),
+    country: cleanText(result.customerIdentity.country, 100),
+    postalCode: cleanText(result.customerIdentity.postalCode, 30),
+    city: cleanText(result.customerIdentity.city, 120),
+  }
   const received = new Map((Array.isArray(result?.results) ? result.results : []).filter((item) => fieldNames.includes(item?.field)).map((item) => [item.field, item]))
   const results = resultFields.map(([category, field]) => {
     const item = received.get(field)
@@ -159,7 +175,21 @@ function normalizeResult(result) {
     .filter((contact) => contact.name || contact.email)
     .filter((contact, index, all) => all.findIndex((candidate) => `${candidate.name}|${candidate.department}|${candidate.email}` === `${contact.name}|${contact.department}|${contact.email}`) === index)
   const contactsStatus = result.contactsStatus === 'found' && !contacts.length ? 'unclear' : result.contactsStatus
-  return { results, contactsStatus, contacts, findings: (Array.isArray(result?.findings) ? result.findings : []).map((item) => cleanText(item, 360)).filter(Boolean).slice(0, 5) }
+  return { customerIdentity, results, contactsStatus, contacts, findings: (Array.isArray(result?.findings) ? result.findings : []).map((item) => cleanText(item, 360)).filter(Boolean).slice(0, 5) }
+}
+
+async function saveHistory({ userId, analyzedFileName, analysis }) {
+  const firestore = getFirestore()
+  const entry = firestore.collection(historyCollection).doc()
+  const batch = firestore.batch()
+  batch.set(entry, {
+    createdAt: FieldValue.serverTimestamp(), createdByUserId: userId,
+    fileName: analyzedFileName, customerIdentity: analysis.customerIdentity,
+    nameSearchTokens: agbHistorySearchTokens(analysis.customerIdentity.name),
+  })
+  batch.set(entry.collection('data').doc('result'), { analysis })
+  await batch.commit()
+  return entry.id
 }
 
 async function logUsage({ userId, analyzedFileName, usage, success, errorType, pageCount, requestId, durationMs }) {
@@ -197,8 +227,9 @@ export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', enforc
     usage = ai.usage; requestId = ai.requestId
     validateModelResult(ai.result)
     const data = normalizeResult(ai.result)
+    const historyId = await saveHistory({ userId: request.auth.uid, analyzedFileName, analysis: data })
     try { await logUsage({ userId: request.auth.uid, analyzedFileName, usage, success: true, pageCount, requestId, durationMs: Date.now() - startedAt }) } catch (loggingError) { logger.error('AGB-Prüfer-Nutzung konnte nicht protokolliert werden.', { errorType: loggingError?.errorType || 'internal_error' }) }
-    return data
+    return { ...data, historyId }
   } catch (error) {
     try { await logUsage({ userId: request.auth.uid, analyzedFileName, usage: error?.usage || usage, success: false, errorType: error?.errorType, pageCount: error?.pageCount || pageCount, requestId: error?.requestId || requestId, durationMs: Date.now() - startedAt }) } catch (loggingError) { logger.error('AGB-Prüfer-Nutzung konnte nicht protokolliert werden.', { errorType: loggingError?.errorType || 'internal_error' }) }
     if (['invalid_pdf_input', 'document_too_large', 'empty_pdf_text'].includes(error?.errorType)) throw new HttpsError('invalid-argument', error.message)

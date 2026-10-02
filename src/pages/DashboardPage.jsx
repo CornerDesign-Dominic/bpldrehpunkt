@@ -3,6 +3,13 @@ import { localeForLanguage } from '../i18n/translations.js'
 
 const dashboardUpdates = [
   {
+    id: 'agb-checker-history',
+    date: '2026-10-02',
+    titleKey: 'dashboard.update.agbHistoryTitle',
+    summaryKey: 'dashboard.update.agbHistorySummary',
+    tagKey: 'dashboard.update.extensionTag',
+  },
+  {
     id: 'english-interface',
     date: '2026-10-01',
     titleKey: 'dashboard.update.languageTitle',
