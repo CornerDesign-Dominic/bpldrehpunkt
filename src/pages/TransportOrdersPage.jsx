@@ -1,11 +1,11 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useRef, useState } from 'react'
-import { FaBan, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
+import { FaBan, FaChevronLeft, FaChevronRight, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { listTransportOrderRelations, listTransportOrdersPage } from '../lib/transportOrders.js'
-import { formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
+import { formatTransportOrderRelation, formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
 import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingFilterOptions, trackingStatusForList, transportOrderListPageSize, transportOrderListPageSizeOptions, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
 import { getShipmentTrackingForecast, refreshShipmentTrackingForecast } from '../lib/shipmentTrackingForecast.js'
 import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
@@ -13,8 +13,8 @@ import { LicensePlateIcon } from '../components/icons.jsx'
 
 const columns = [
   { key: 'externalNumber', label: 'TA-Nummer' }, { key: 'relation', label: 'Relation' }, { key: 'tracking', label: 'Verfolgung' }, { key: 'attention', label: 'Empfehlung' }, { key: 'forecast', label: 'Prognose' },
-  { key: 'loading', label: 'Ladestelle' }, { key: 'loadingFrom', label: 'Ladetermin frühestens' },
-  { key: 'unloading', label: 'Entladestelle' }, { key: 'unloadingUntil', label: 'Entladetermin spätestens' },
+  { key: 'loading', label: 'Ladestelle' }, { key: 'loadingFrom', label: 'Ladetermin' },
+  { key: 'unloading', label: 'Entladestelle' }, { key: 'unloadingUntil', label: 'Entladetermin' },
   { key: 'customer', label: 'Kunde' }, { key: 'carrier', label: 'Unternehmer' },
 ]
 
@@ -132,8 +132,8 @@ export default function TransportOrdersPage() {
           <label className="transport-orders-tracking-filter"><span><StaticText source="Start bis" /></span><input type="date" value={loadingUntil} min={loadingFrom || undefined} onChange={(event) => updateLoadingUntil(event.target.value)} /></label>
           <button className="button button--secondary transport-orders-filters__reset" type="button" disabled={!search && trackingFilter === defaultTrackingFilter && attentionFilter === 'all' && !iconFilters.automationPaused && !iconFilters.mailReview && !iconFilters.licensePlate && !iconFilters.stopwatch && !iconFilters.truck && !relationFilter && !loadingFrom && !loadingUntil} onClick={resetFilters}><StaticText source="Filter zurücksetzen" /></button>
         </div>
-        <section className="transport-orders-icon-filters" aria-label="Hinweise filtern">
-          <span className="transport-orders-icon-filters__label">Hinweise</span>
+        <section className="transport-orders-icon-filters" aria-label="Filter-Verfolgung">
+          <span className="transport-orders-icon-filters__label">Filter-Verfolgung</span>
           <div className="transport-orders-icon-filter-group transport-orders-icon-filter-group--single" aria-label="Pausierte Automatik">
             <IconFilterButton active={iconFilters.automationPaused} title="Pausierte Automatik" label="Pausierte Automatik" onClick={() => toggleIconFilter('automationPaused')} tone="critical"><FaBan /></IconFilterButton>
           </div>
@@ -161,7 +161,7 @@ export default function TransportOrdersPage() {
     {error && <p className="form-error">{<StaticText source={error} />}</p>}
     <div className="transport-orders-table-frame" ref={tableRef}><table className="data-table transport-orders-table transport-orders-table--list"><thead><tr>{columns.map(renderSortableHeader)}</tr></thead><tbody>{loading ? <tr><td className="table-state" colSpan={columns.length}><StaticText source={"Transportaufträge werden geladen …"} /></td></tr> : !page.orders.length ? <tr><td className="table-state" colSpan={columns.length}><div className="transport-orders-empty"><span><StaticText source={emptyTrackingFilterMessage(trackingFilter)} /></span>{trackingFilter !== 'all' && <button className="button button--secondary" type="button" onClick={() => selectTrackingFilter('all')}><StaticText source={"Filter zurücksetzen"} /></button>}</div></td></tr> : page.orders.map((order) => <tr className="transport-orders-table__row" key={order.id} role="link" tabIndex="0" aria-label={t('orders.open', { number: order.externalNumber })} onClick={() => openOrder(order.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openOrder(order.id) } }}>
       <td><strong>{order.externalNumber}</strong></td>
-      <td title={order.imported?.relation || ''}>{order.imported?.relation || '—'}</td>
+      <td title={formatTransportOrderRelation(order.imported?.relation)}>{formatTransportOrderRelation(order.imported?.relation)}</td>
       <td><span className={`transport-orders-tracking-status transport-orders-tracking-status--${trackingStatusForList(order.trackingStatus).className}`}><StaticText source={trackingStatusForList(order.trackingStatus).label} /></span></td>
       <td><span className="transport-orders-attention-icons">{(order.attention?.visible || []).map((item) => { const Icon = attentionIcon(item); return <span key={item.id} className={`transport-orders-attention-icons__item transport-orders-attention-icons__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}>{item.id === 'license-plate' ? <LicensePlateIcon /> : <Icon aria-hidden="true" />}</span> })}{order.attention?.moreCount > 0 && <span>+{order.attention.moreCount}</span>}</span></td>
       <td>{order.forecast && <button className={`transport-orders-forecast-button transport-orders-forecast-button--${order.forecast.state}`} type="button" onClick={(event) => void openForecast(event, order.id)} aria-label={`Transportprognose: ${forecastStateLabel(order.forecast.state)}`} title={`Transportprognose: ${forecastStateLabel(order.forecast.state)}`}>{order.forecast.kind === 'arrival' ? <FaHouse aria-hidden="true" /> : <FaTruckFast aria-hidden="true" />}</button>}</td>
@@ -172,6 +172,6 @@ export default function TransportOrdersPage() {
       <td className="transport-orders-table__partner" title={order.imported?.customer?.name || ''}>{order.imported?.customer?.name || '—'}</td>
       <td className="transport-orders-table__partner" title={order.imported?.carrier?.originalName || ''}>{order.imported?.carrier?.originalName || '—'}</td>
     </tr>)}</tbody></table></div>
-    {!loading && !error && page.orders.length > 0 && <TranslatedProps sources={{"aria-label":"Seitennavigation für Transportaufträge"}}><nav className="transport-orders-pagination" aria-label="Seitennavigation für Transportaufträge"><label>Einträge pro Seite<select value={pageSize} onChange={(event) => updatePageSize(event.target.value)}>{transportOrderListPageSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><div><button className="button button--secondary" type="button" disabled={pageIndex === 0} onClick={goToPreviousPage}><StaticText source={"← Zurück"} /></button><span><StaticText source={"Seite"} /> {pageIndex + 1}</span><button className="button button--secondary" type="button" disabled={!page.hasMore} onClick={goToNextPage}><StaticText source={"Weiter →"} /></button></div></nav></TranslatedProps>}
+    {!loading && !error && page.orders.length > 0 && <TranslatedProps sources={{"aria-label":"Seitennavigation für Transportaufträge"}}><nav className="transport-orders-pagination" aria-label="Seitennavigation für Transportaufträge"><label className="transport-orders-pagination__page-size"><span><StaticText source="Einträge pro Seite" /></span><select value={pageSize} onChange={(event) => updatePageSize(event.target.value)}>{transportOrderListPageSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><div className="transport-orders-pagination__controls"><TranslatedProps sources={{"aria-label":"Vorherige Seite","title":"Vorherige Seite"}}><button className="button button--secondary transport-orders-pagination__button" type="button" disabled={pageIndex === 0} onClick={goToPreviousPage} aria-label="Vorherige Seite" title="Vorherige Seite"><FaChevronLeft aria-hidden="true" /><span className="sr-only"><StaticText source="Vorherige Seite" /></span></button></TranslatedProps><span className="transport-orders-pagination__current"><span><StaticText source="Seite" /></span><strong>{pageIndex + 1}</strong></span><TranslatedProps sources={{"aria-label":"Nächste Seite","title":"Nächste Seite"}}><button className="button button--secondary transport-orders-pagination__button" type="button" disabled={!page.hasMore} onClick={goToNextPage} aria-label="Nächste Seite" title="Nächste Seite"><FaChevronRight aria-hidden="true" /><span className="sr-only"><StaticText source="Nächste Seite" /></span></button></TranslatedProps></div></nav></TranslatedProps>}
     {forecastModal && <ShipmentTrackingForecastModal data={forecastModal.data} loading={forecastLoading} error={forecastModal.error} refreshing={forecastRefreshing} onRefresh={forecastModal.data?.forecast?.kind === 'arrival' ? undefined : () => void refreshForecast()} onClose={() => setForecastModal(null)} />}</div>
 }

@@ -3,6 +3,27 @@ import { localeForLanguage } from '../i18n/translations.js'
 
 const dashboardUpdates = [
   {
+    id: 'shipment-tracking-recommendations',
+    date: '2026-10-04',
+    titleKey: 'dashboard.update.shipmentTrackingRecommendationsTitle',
+    summaryKey: 'dashboard.update.shipmentTrackingRecommendationsSummary',
+    tagKey: 'dashboard.update.extensionTag',
+  },
+  {
+    id: 'shipment-tracking-forecast',
+    date: '2026-10-04',
+    titleKey: 'dashboard.update.shipmentTrackingForecastTitle',
+    summaryKey: 'dashboard.update.shipmentTrackingForecastSummary',
+    tagKey: 'dashboard.update.extensionTag',
+  },
+  {
+    id: 'expanded-quick-actions',
+    date: '2026-10-04',
+    titleKey: 'dashboard.update.expandedQuickActionsTitle',
+    summaryKey: 'dashboard.update.expandedQuickActionsSummary',
+    tagKey: 'dashboard.update.extensionTag',
+  },
+  {
     id: 'transport-orders-same-tab',
     date: '2026-10-02',
     titleKey: 'dashboard.update.transportOrdersSameTabTitle',

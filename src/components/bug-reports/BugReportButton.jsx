@@ -273,9 +273,9 @@ export default function BugReportButton() {
       {menuOpen && <div className="global-action-menu__options" role="menu" aria-label={t('quick.actions')}>
         <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setIdeaOpen(true) }}><IdeaIcon size={18} /><span>{t('quick.sendIdea')}</span></button>
         <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setBugReportOpen(true) }}><BugIcon size={18} /><span>{t('quick.bug')}</span></button>
-        {canCreateTodos && <button type="button" role="menuitem" onClick={openTodoModal}><TodoIcon size={18} /><span>{t('quick.createTodo')}</span></button>}
+        {canCreateTodos && <><div className="global-action-menu__divider" role="separator" /><button type="button" role="menuitem" onClick={openTodoModal}><TodoIcon size={18} /><span>{t('quick.createTodo')}</span></button></>}
         <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setNoteOpen(true) }}><DocumentsIcon size={18} /><span>{t('quick.createNote')}</span></button>
-        {canViewCalendar && <button type="button" role="menuitem" onClick={openCalendarEventModal}><CalendarIcon size={18} /><span>{t('quick.createCalendarEvent')}</span></button>}
+        {canViewCalendar && <><button type="button" role="menuitem" onClick={openCalendarEventModal}><CalendarIcon size={18} /><span>{t('quick.createCalendarEvent')}</span></button><div className="global-action-menu__divider" role="separator" /></>}
         <label className="global-action-menu__theme-switch" title={t(theme === 'dark' ? 'quick.lightTheme' : 'quick.darkTheme')}>
           <SunIcon size={16} />
           <input type="checkbox" checked={theme === 'dark'} onChange={(event) => setTheme(event.target.checked ? 'dark' : 'light')} aria-label={t(theme === 'dark' ? 'quick.lightTheme' : 'quick.darkTheme')} />
