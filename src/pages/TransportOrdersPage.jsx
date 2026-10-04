@@ -8,7 +8,9 @@ import { listTransportOrderRelations, listTransportOrdersPage } from '../lib/tra
 import { formatTransportOrderRelation, formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
 import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingFilterOptions, trackingStatusForList, transportOrderListPageSize, transportOrderListPageSizeOptions, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
 import { getShipmentTrackingForecast, refreshShipmentTrackingForecast } from '../lib/shipmentTrackingForecast.js'
+import { getShipmentTracking, sendManualShipmentTrackingMail, shipmentTrackingManualMailErrorMessage } from '../lib/shipmentTracking.js'
 import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
+import ShipmentTrackingManualMailModal from '../components/transport-orders/ShipmentTrackingManualMailModal.jsx'
 import { LicensePlateIcon } from '../components/icons.jsx'
 
 const columns = [
@@ -22,6 +24,10 @@ const emptyIconFilters = { automationPaused: false, mailReview: false, licensePl
 
 const attentionIcon = (item) => item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
 const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen' }[state] || 'Unbekannt')
+const trackingCarrierRecipient = (tracking) => {
+  const carrier = tracking?.recipients?.carrier
+  return ['manual', 'transport-order-import'].includes(carrier?.source) && typeof carrier?.email === 'string' ? carrier.email.trim() : ''
+}
 
 function IconFilterButton({ active, title, label, children, onClick, tone = '' }) {
   return <button className={`transport-orders-icon-filter${active ? ' transport-orders-icon-filter--active' : ''}${tone ? ` transport-orders-icon-filter--${tone}` : ''}`} type="button" aria-pressed={active} title={title} onClick={onClick}><span aria-hidden="true">{children}</span><span className="sr-only">{label}</span></button>
@@ -49,6 +55,8 @@ export default function TransportOrdersPage() {
   const [forecastModal, setForecastModal] = useState(null)
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastRefreshing, setForecastRefreshing] = useState(false)
+  const [forecastRequestMail, setForecastRequestMail] = useState(null)
+  const [forecastRequestMailSaving, setForecastRequestMailSaving] = useState(false)
   const tableRef = useRef(null)
   const cursor = cursors[pageIndex]
 
@@ -89,7 +97,17 @@ export default function TransportOrdersPage() {
   function updateLoadingUntil(value) { resetList(() => setLoadingUntil(value)) }
   function updatePageSize(value) { resetList(() => setPageSize(Number(value))) }
   function resetFilters() { resetList(() => { setSearch(''); setTrackingFilter(defaultTrackingFilter); setAttentionFilter('all'); setIconFilters(emptyIconFilters); setRelationFilter(''); setLoadingFrom(''); setLoadingUntil('') }) }
-  async function openForecast(event, orderId) { event.stopPropagation(); setForecastLoading(true); setForecastModal({ orderId, data: null, error: '' }); try { setForecastModal({ orderId, data: await getShipmentTrackingForecast(orderId), error: '' }) } catch { setForecastModal({ orderId, data: null, error: 'Die Transportprognose konnte nicht geladen werden.' }) } finally { setForecastLoading(false) } }
+  async function openForecast(event, orderId) {
+    event.stopPropagation()
+    setForecastLoading(true)
+    setForecastModal({ orderId, data: null, error: '', recipient: '' })
+    try {
+      const [data, tracking] = await Promise.all([getShipmentTrackingForecast(orderId), getShipmentTracking(orderId)])
+      setForecastModal({ orderId, data, error: '', recipient: trackingCarrierRecipient(tracking.tracking) })
+    } catch {
+      setForecastModal({ orderId, data: null, error: 'Die Transportprognose konnte nicht geladen werden.', recipient: '' })
+    } finally { setForecastLoading(false) }
+  }
   async function refreshForecast() {
     const orderId = forecastModal?.orderId
     if (!orderId) return
@@ -102,6 +120,18 @@ export default function TransportOrdersPage() {
     } catch {
       setForecastModal((current) => current?.orderId === orderId ? { ...current, error: 'Die Transportprognose konnte nicht aktualisiert werden.' } : current)
     } finally { setForecastRefreshing(false) }
+  }
+  async function sendForecastRequestMail(payload) {
+    const orderId = forecastRequestMail?.orderId
+    if (!orderId) return
+    setForecastRequestMailSaving(true)
+    setError('')
+    try {
+      await sendManualShipmentTrackingMail(orderId, payload)
+      setForecastRequestMail(null)
+    } catch (caught) {
+      setError(shipmentTrackingManualMailErrorMessage(caught))
+    } finally { setForecastRequestMailSaving(false) }
   }
   function goToNextPage() {
     if (!page.hasMore || !page.nextCursor) return
@@ -173,5 +203,6 @@ export default function TransportOrdersPage() {
       <td className="transport-orders-table__partner" title={order.imported?.carrier?.originalName || ''}>{order.imported?.carrier?.originalName || '—'}</td>
     </tr>)}</tbody></table></div>
     {!loading && !error && page.orders.length > 0 && <TranslatedProps sources={{"aria-label":"Seitennavigation für Transportaufträge"}}><nav className="transport-orders-pagination" aria-label="Seitennavigation für Transportaufträge"><label className="transport-orders-pagination__page-size"><span><StaticText source="Einträge pro Seite" /></span><select value={pageSize} onChange={(event) => updatePageSize(event.target.value)}>{transportOrderListPageSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><div className="transport-orders-pagination__controls"><TranslatedProps sources={{"aria-label":"Vorherige Seite","title":"Vorherige Seite"}}><button className="button button--secondary transport-orders-pagination__button" type="button" disabled={pageIndex === 0} onClick={goToPreviousPage} aria-label="Vorherige Seite" title="Vorherige Seite"><FaChevronLeft aria-hidden="true" /><span className="sr-only"><StaticText source="Vorherige Seite" /></span></button></TranslatedProps><span className="transport-orders-pagination__current"><span><StaticText source="Seite" /></span><strong>{pageIndex + 1}</strong></span><TranslatedProps sources={{"aria-label":"Nächste Seite","title":"Nächste Seite"}}><button className="button button--secondary transport-orders-pagination__button" type="button" disabled={!page.hasMore} onClick={goToNextPage} aria-label="Nächste Seite" title="Nächste Seite"><FaChevronRight aria-hidden="true" /><span className="sr-only"><StaticText source="Nächste Seite" /></span></button></TranslatedProps></div></nav></TranslatedProps>}
-    {forecastModal && <ShipmentTrackingForecastModal data={forecastModal.data} loading={forecastLoading} error={forecastModal.error} refreshing={forecastRefreshing} onRefresh={forecastModal.data?.forecast?.kind === 'arrival' ? undefined : () => void refreshForecast()} onClose={() => setForecastModal(null)} />}</div>
+    {forecastModal && <ShipmentTrackingForecastModal data={forecastModal.data} loading={forecastLoading} error={forecastModal.error} refreshing={forecastRefreshing} onRefresh={forecastModal.data?.forecast?.kind === 'arrival' ? undefined : () => void refreshForecast()} onRequestForecastUpdate={(templateId) => setForecastRequestMail({ orderId: forecastModal.orderId, recipient: forecastModal.recipient, templateId })} requestDisabled={!canEdit('transportOrders') || !forecastModal.recipient} onClose={() => setForecastModal(null)} />}
+    {forecastRequestMail && <ShipmentTrackingManualMailModal orderId={forecastRequestMail.orderId} initialTemplateId={forecastRequestMail.templateId} defaultRecipient={forecastRequestMail.recipient} saving={forecastRequestMailSaving} onClose={() => setForecastRequestMail(null)} onSend={(payload) => void sendForecastRequestMail(payload)} />}</div>
 }
