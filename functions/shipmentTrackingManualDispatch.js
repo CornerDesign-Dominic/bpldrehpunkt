@@ -122,11 +122,12 @@ export function shipmentTrackingLoadingWindow(imported) {
 function loadingLocation(imported) { return text(imported?.loading?.city) || text(imported?.loading?.originalText) || 'Nicht hinterlegt' }
 function orderNumber(imported, externalNumber) { return text(externalNumber) || text(imported?.externalNumber) || text(imported?.orderNumber) || 'Nicht hinterlegt' }
 function templateValues(imported, externalNumber) {
-  return { transportOrderNumber: orderNumber(imported, externalNumber), loadingLocation: loadingLocation(imported), loadingTime: shipmentTrackingLoadingWindow(imported) }
+  return { transportOrderNumber: orderNumber(imported, externalNumber), loadingLocation: loadingLocation(imported), loadingTime: shipmentTrackingLoadingWindow(imported), unloadingLocation: text(imported?.unloading?.city) || text(imported?.unloading?.originalText) || 'Nicht hinterlegt' }
 }
+function renderedOverride(value, values) { return value.replace(/{{\s*([^{}\s]+)\s*}}/g, (_, key) => values[key] || '') }
 function topicsForTemplate(templateId) {
   if (templateId === shipmentTrackingManualDispatchTemplateIds.combined) return ['licensePlate', 'loadingSite']
-  if (templateId === shipmentTrackingManualDispatchTemplateIds.generalUpdate) return []
+  if ([shipmentTrackingManualDispatchTemplateIds.generalUpdate, shipmentTrackingManualDispatchTemplateIds.loadingEta, shipmentTrackingManualDispatchTemplateIds.loadingArrival, shipmentTrackingManualDispatchTemplateIds.loadingDeparture, shipmentTrackingManualDispatchTemplateIds.unloadingEta, shipmentTrackingManualDispatchTemplateIds.unloadingArrival, shipmentTrackingManualDispatchTemplateIds.loadingUpdate, shipmentTrackingManualDispatchTemplateIds.unloadingUpdate].includes(templateId)) return []
   return templateId === shipmentTrackingManualDispatchTemplateIds.licensePlate ? ['licensePlate'] : ['loadingSite']
 }
 function templateLabel(templateId) {
@@ -135,6 +136,13 @@ function templateLabel(templateId) {
     [shipmentTrackingManualDispatchTemplateIds.loadingSite]: 'LKW-Ankunft anfragen',
     [shipmentTrackingManualDispatchTemplateIds.combined]: 'Kennzeichen und LKW-Ankunft anfragen',
     [shipmentTrackingManualDispatchTemplateIds.generalUpdate]: 'Allgemeines Status-Update anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingEta]: 'ETA Ladestelle anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingArrival]: 'LS Ankunft anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingDeparture]: 'LS Abfahrt anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.unloadingEta]: 'ETA Entladestelle anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.unloadingArrival]: 'Tatsächliche Ankunft Entladestelle anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingUpdate]: 'Update zur Beladung anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.unloadingUpdate]: 'Update zur Entladung anfragen',
   })[templateId] || 'Tracking-Anfrage'
 }
 function matchingDueBundle(preview, requestedBundleId, templateId, recipient) {
@@ -161,8 +169,7 @@ export function hasShipmentTrackingManualDispatchAccess(profile) {
   return hasTrackingEditAccess(profile)
 }
 
-/** Turns transport failures into safe, actionable admin diagnostics. Secrets,
- * URLs and the customized mail content deliberately never enter Firestore. */
+/** Turns transport failures into safe, actionable admin diagnostics. */
 export function manualMailTechnicalDiagnostic(error) {
   if (error?.cause?.code === 'ENOTFOUND') return { code: 'notification_endpoint_unreachable', message: 'Der Versanddienst ist nicht erreichbar.' }
   if (error?.message === 'notification-service-not-configured') return { code: 'notification_service_missing', message: 'Der Versanddienst ist nicht konfiguriert.' }
@@ -208,7 +215,8 @@ export async function sendManualShipmentTrackingMailHandler(request) {
     // deliberately never settles old rule stages retroactively.
     const dueBundle = tracking.lifecycleStatus === 'active' ? matchingDueBundle(preview, requestedBundleId, templateId, permittedRecipient) : null
     const trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
-    delivery = { recipient: permittedRecipient, templateId, templateLabel: templateLabel(templateId), ruleIds: dueBundle?.ruleIds || [], topics: dueBundle?.topics || topicsForTemplate(templateId), ...(dueBundle ? { scheduledAt: dueBundle.scheduledAt } : {}), ...(tracking.lifecycleStatus === 'completed' ? { afterCompletion: true } : {}) }
+    const values = templateValues(imported, externalNumber)
+    delivery = { recipient: permittedRecipient, templateId, templateLabel: templateLabel(templateId), subject: renderedOverride(subject, values).slice(0, 240), message: renderedOverride(message, values).slice(0, 12000), ruleIds: dueBundle?.ruleIds || [], topics: dueBundle?.topics || topicsForTemplate(templateId), ...(dueBundle ? { scheduledAt: dueBundle.scheduledAt } : {}), ...(tracking.lifecycleStatus === 'completed' ? { afterCompletion: true } : {}) }
     deliveryRef = dueBundle ? trackingRef.collection('manualMailDeliveries').doc(deterministicDeliveryId(dueBundle.id)) : trackingRef.collection('manualMailDeliveries').doc()
     await db.runTransaction(async (transaction) => {
       const [trackingSnapshot, deliverySnapshot] = await Promise.all([transaction.get(trackingRef), transaction.get(deliveryRef)])

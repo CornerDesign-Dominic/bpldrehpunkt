@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { formatTransportOrderWindow, sortTransportOrders, transportOrderDocumentTitle, transportOrderPath } from './transportOrderPresentation.js'
+import { formatTransportOrderRelation, formatTransportOrderWindow, sortTransportOrders, transportOrderDocumentTitle, transportOrderPath } from './transportOrderPresentation.js'
 
 test('transport order opens through its exact route and receives a concise browser-tab title', () => {
   assert.equal(transportOrderPath('dycos-260900123'), '/transportauftraege/dycos-260900123')
@@ -20,8 +20,15 @@ test('transport orders sort every displayed column and keep empty values last', 
   assert.equal(sortTransportOrders(orders, { key: null }), orders)
 })
 
-test('loading and unloading windows display local DyCoS date and time without timezone shifts', () => {
-  assert.equal(formatTransportOrderWindow('2026-09-10T07:00'), '10.09.2026, 07:00')
+test('loading and unloading windows display concise local dates and omit round minutes', () => {
+  assert.equal(formatTransportOrderWindow('2026-09-10T07:00'), '10.09. · 07 Uhr')
+  assert.equal(formatTransportOrderWindow('2026-09-10T07:30'), '10.09. · 07:30 Uhr')
   assert.equal(formatTransportOrderWindow(null), '—')
   assert.equal(formatTransportOrderWindow('ungültig'), '—')
+})
+
+test('relations hide only a leading numeric import prefix in the list display', () => {
+  assert.equal(formatTransportOrderRelation('03 Dobo Christian'), 'Dobo Christian')
+  assert.equal(formatTransportOrderRelation('Dobo Christian'), 'Dobo Christian')
+  assert.equal(formatTransportOrderRelation(null), '—')
 })

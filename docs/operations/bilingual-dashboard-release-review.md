@@ -19,6 +19,6 @@ Stand: 2026-10-01. Release-Zuordnung: gezielter Cherry-pick von `dev` nach `main
 
 - `npm run build`: bestanden.
 - `npm run lint`: bestanden.
-- `node --test` gezielt für die Testdateien in `src/` und `functions/` auf `dev`: 459 Tests, 437 bestanden, 22 übersprungen, 0 fehlgeschlagen. Auf dem Cherry-pick-Stand von `main`: 444 Tests, 422 bestanden, 22 übersprungen, 0 fehlgeschlagen. Der unbeschränkte Testaufruf erfasst zusätzlich ignorierte Testkopien unter `tmp/` und ist für diese Prüfung ungeeignet.
+- `node --test` gezielt für die Testdateien in `src/` und `functions/`: 459 Tests, 437 bestanden, 22 übersprungen, 0 fehlgeschlagen. Der unbeschränkte Testaufruf erfasst zusätzlich ignorierte Testkopien unter `tmp/` und ist für diese Prüfung ungeeignet.
 - Der Contract-Test prüft App Check, aktives Profil, Eingabegrenzen, eigene UID und das Verbot direkter Profiländerungen. Das Dashboard wurde in der Entwicklungsumgebung vom Nutzer begutachtet.
-- Nach dem Cherry-pick wurden Build, Lint und Tests auf dem tatsächlichen `main`-Stand erfolgreich erneut ausgeführt. Die noch offenen englischen UI-Texte bleiben als begrenzter, dokumentierter Restumfang bestehen.
+- Nach dem Cherry-pick sind Build, Lint und Tests auf dem tatsächlichen `main`-Stand erneut auszuführen. Die noch offenen englischen UI-Texte bleiben als begrenzter, dokumentierter Restumfang bestehen.

@@ -15,7 +15,15 @@ const orderSortValues = {
 
 export function formatTransportOrderWindow(value) {
   const match = text(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
-  return match ? `${match[3]}.${match[2]}.${match[1]}, ${match[4]}:${match[5]}` : '—'
+  if (!match) return '—'
+  const [, , month, day, hour, minute] = match
+  const time = minute === '00' ? `${hour} Uhr` : `${hour}:${minute} Uhr`
+  return `${day}.${month}. · ${time}`
+}
+
+export function formatTransportOrderRelation(value) {
+  const relation = text(value).replace(/^\d+\s+/, '')
+  return relation || '—'
 }
 
 export function sortTransportOrders(orders, sort) {

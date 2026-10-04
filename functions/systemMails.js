@@ -8,6 +8,7 @@ import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/fire
 import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js'
 import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsSkipped } from './externalEffects.js'
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
+import { shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shared/shipmentTrackingArrivalConfirmation.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -18,13 +19,13 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export const systemMailTemplateDefinitions = {
   vacation_request_confirmation: {
-    displayName: 'Urlaubsantrag – Bestätigung',
+    displayName: 'Antrag – Bestätigung',
     subject: 'Urlaub [Antrag] - {{employeeName}}',
     message: 'Dein Urlaubsantrag wurde versendet.\n\nDein Urlaubsantrag:\n\nZeitraum: {{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}\nKommentar: {{comment}}\n\nStatus:\nAusstehend',
     allowedPlaceholders: ['employeeName', 'period', 'days', 'vacationType', 'comment'],
   },
   vacation_request_manager: {
-    displayName: 'Urlaubsantrag – Urlaubsmanagement',
+    displayName: 'Antrag – Urlaubsmanagement',
     subject: 'Urlaub [Antrag] - {{employeeName}}',
     message: 'Ein Urlaubsantrag ist eingegangen.\n\nVon: {{employeeName}}\nAbteilung: {{department}}\nZeitraum: {{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}\nKommentar: {{comment}}\n\nBitte im Drehpunkt prüfen.',
     allowedPlaceholders: ['employeeName', 'department', 'period', 'days', 'vacationType', 'comment'],
@@ -66,44 +67,85 @@ export const systemMailTemplateDefinitions = {
     allowedPlaceholders: ['employeeName', 'department', 'period', 'days', 'vacationType'],
   },
   vacation_approved: {
-    displayName: 'Urlaub – Genehmigung',
+    displayName: 'Genehmigung',
     subject: 'Urlaub [Genehmigt] - {{employeeName}}',
     message: 'Dein {{requestLabel}} wurde genehmigt.\n\n{{requestLabel}}:\n\n{{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}{{managerComment}}\n\nStatus:\nGenehmigt',
     allowedPlaceholders: ['employeeName', 'requestLabel', 'period', 'days', 'vacationType', 'managerComment'],
   },
   vacation_rejected: {
-    displayName: 'Urlaub – Ablehnung',
+    displayName: 'Ablehnung',
     subject: 'Urlaub [Abgelehnt] - {{employeeName}}',
     message: 'Dein {{requestLabel}} wurde abgelehnt.\n\n{{requestLabel}}:\n\n{{period}}\nUrlaubstage: {{days}}\nUrlaubsart: {{vacationType}}{{managerComment}}\n\nStatus:\nAbgelehnt',
     allowedPlaceholders: ['employeeName', 'requestLabel', 'period', 'days', 'vacationType', 'managerComment'],
   },
   shipment_tracking_license_plate_request: {
-    displayName: 'Sendungsverfolgung – Kennzeichen anfragen',
+    displayName: 'Kennzeichen anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – Kennzeichen benötigt',
     message: 'Guten Tag,\n\nbitte teilen Sie uns das Kennzeichen des eingesetzten Fahrzeugs für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
   shipment_tracking_arrival_request: {
-    displayName: 'Sendungsverfolgung – LKW-Ankunft anfragen',
+    displayName: 'LKW-Ankunft anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – LKW-Ankunft benötigt',
     message: 'Guten Tag,\n\nbitte teilen Sie uns die voraussichtliche Ankunftszeit des LKW für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
   shipment_tracking_license_plate_and_arrival_request: {
-    displayName: 'Sendungsverfolgung – Kennzeichen und LKW-Ankunft anfragen',
+    displayName: 'Kennzeichen und LKW-Ankunft anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – Kennzeichen und LKW-Ankunft benötigt',
     message: 'Guten Tag,\n\nbitte teilen Sie uns für den Transportauftrag {{transportOrderNumber}} mit:\n\n- das Kennzeichen des eingesetzten Fahrzeugs\n- die voraussichtliche Ankunftszeit des LKW\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
   shipment_tracking_general_status_update: {
-    displayName: 'Sendungsverfolgung – Allgemeines Status-Update anfragen',
+    displayName: 'Status-Update anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – Bitte um Status-Update',
     message: 'Guten Tag,\n\nbitte teilen Sie uns den aktuellen Status für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
-  shipment_tracking_actual_arrival_confirmation: {
-    displayName: 'Sendungsverfolgung – Kurz vor Beladung bestätigen',
-    adminVisible: false,
+  shipment_tracking_loading_eta_request: {
+    displayName: 'ETA Ladestelle anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – ETA Ladestelle benötigt',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns die voraussichtliche Ankunftszeit des Fahrzeugs an der Ladestelle für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_loading_arrival_request: {
+    displayName: 'LS Ankunft anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Ankunft an der Ladestelle bestätigen',
+    message: 'Guten Tag,\n\nist das Fahrzeug für den Transportauftrag {{transportOrderNumber}} pünktlich an der Ladestelle angekommen? Falls nicht, teilen Sie uns bitte mit, wann es voraussichtlich dort ankommt.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_loading_departure_request: {
+    displayName: 'LS Abfahrt anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Abfahrt von der Ladestelle bestätigen',
+    message: 'Guten Tag,\n\nist das Fahrzeug für den Transportauftrag {{transportOrderNumber}} bereits mit der Beladung fertig und von der Ladestelle abgefahren? Bitte um ein kurzes Update.\n\nLadestelle: {{loadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation'],
+  },
+  shipment_tracking_unloading_eta_request: {
+    displayName: 'ETA zur Entladestelle anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – ETA Entladestelle benötigt',
+    message: 'Guten Tag,\n\nwie weit ist der LKW noch von der Entladestelle entfernt? Bitte nennen Sie uns die voraussichtliche Ankunftszeit oder die verbleibende Fahrzeit und, falls bekannt, die verbleibenden Kilometer für den Transportauftrag {{transportOrderNumber}}.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
+  },
+  shipment_tracking_unloading_arrival_request: {
+    displayName: 'Tatsächliche Ankunft Entladestelle anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Ankunft an der Entladestelle bestätigen',
+    message: 'Guten Tag,\n\nist das Fahrzeug für den Transportauftrag {{transportOrderNumber}} bereits an der Entladestelle angekommen? Bitte nennen Sie uns die tatsächliche Ankunftszeit. Falls es noch nicht angekommen ist, teilen Sie uns bitte die aktuelle voraussichtliche Ankunftszeit mit.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
+  },
+  shipment_tracking_loading_update_request: {
+    displayName: 'Update zur Beladung anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Update zur Beladung benötigt',
+    message: 'Guten Tag,\n\nbitte geben Sie uns ein Update zur Beladung für den Transportauftrag {{transportOrderNumber}}: Ist der LKW bereits an der Ladestelle, hat die Beladung begonnen oder ist sie abgeschlossen? Bitte nennen Sie die jeweiligen Uhrzeiten und die voraussichtliche Abfahrt.\n\nLadestelle: {{loadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation'],
+  },
+  shipment_tracking_unloading_update_request: {
+    displayName: 'Update zur Entladung anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Update zur Entladung benötigt',
+    message: 'Guten Tag,\n\nbitte geben Sie uns ein Update zur Entladung für den Transportauftrag {{transportOrderNumber}}: Ist der LKW bereits an der Entladestelle, hat die Entladung begonnen oder ist sie abgeschlossen? Bitte nennen Sie die jeweiligen Uhrzeiten.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
+  },
+  [shipmentTrackingArrivalConfirmationTemplateId]: {
+    displayName: 'Kurz vor Beladung bestätigen',
     subject: 'Transportauftrag {{transportOrderNumber}} – Bitte aktuellen Stand bestätigen',
     message: 'Guten Tag,\n\nbitte bestätigen Sie kurz, ob für den Transportauftrag {{transportOrderNumber}} alles wie geplant ist oder ob es Änderungen gibt.\n\nLadestelle: {{loadingLocation}}\nGeplanter Beginn: {{loadingTime}}\n\nBitte teilen Sie uns insbesondere die aktuelle voraussichtliche Ankunftszeit mit.\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
@@ -121,7 +163,7 @@ export const systemMailTemplateDefinitions = {
     allowedPlaceholders: ['todoTitle', 'dueDateTime', 'note'],
   },
   system_test: {
-    displayName: 'System – Testmail',
+    displayName: 'Testmail',
     subject: 'Drehpunkt Testmail',
     message: 'Die Drehpunkt-Systemmail-Schnittstelle funktioniert.',
     allowedPlaceholders: [],
@@ -202,6 +244,10 @@ function templateData(id, value) {
 }
 async function loadTemplate(id) {
   const saved = await db.doc(`systemMailTemplates/${id}`).get()
+  if (!saved.exists && id === shipmentTrackingArrivalConfirmationTemplateId) {
+    const legacy = await db.doc(shipmentTrackingArrivalConfirmationPath).get()
+    return templateData(id, legacy.exists ? legacy.data() : null)
+  }
   return templateData(id, saved.exists ? saved.data() : null)
 }
 function escapeHtml(value) {
@@ -365,7 +411,8 @@ async function assertActiveAdmin(request) { return requireRole(await requireActi
 export const listSystemMailTemplates = onCall({ region, enforceAppCheck: true }, async (request) => {
   await assertActiveSuperadmin(request)
   const snapshots = await Promise.all(Object.entries(templateDefinitions).filter(([, definition]) => definition.adminVisible !== false).map(([id]) => db.doc(`systemMailTemplates/${id}`).get()))
-  return { templates: snapshots.map((snapshot) => templateData(snapshot.id, snapshot.exists ? snapshot.data() : null)) }
+  const legacyArrivalTemplate = await db.doc(shipmentTrackingArrivalConfirmationPath).get()
+  return { templates: snapshots.map((snapshot) => templateData(snapshot.id, snapshot.exists ? snapshot.data() : snapshot.id === shipmentTrackingArrivalConfirmationTemplateId && legacyArrivalTemplate.exists ? legacyArrivalTemplate.data() : null)) }
 })
 
 export const updateSystemMailTemplate = onCall({ region, enforceAppCheck: true }, async (request) => {

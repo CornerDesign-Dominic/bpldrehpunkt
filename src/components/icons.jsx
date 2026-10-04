@@ -132,12 +132,20 @@ export function TableViewIcon({ size = 16 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M3 10h18M9 4v16" /></svg>
 }
 
+export function LicensePlateIcon({ label = 'KZ' }) {
+  return <span className="license-plate-icon" aria-hidden="true">{label}</span>
+}
+
 export function CalendarIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18M8 14h3m2 0h3m-8 3h3" /></svg>
 }
 
 export function BugIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 8.5 7.5 6.8M15 8.5l1.5-1.7M8 12H4m16 0h-4M8.5 16.5 6 18m12-1.5 2.5 1.5" /><rect x="8" y="7" width="8" height="12" rx="4" /><path d="M12 7V4m-2 8h4" /></svg>
+}
+
+export function IdeaIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18h6M10 22h4M8.5 14.5A6 6 0 1 1 15.5 14.5c-.9.7-1.5 1.7-1.5 2.8h-4c0-1.1-.6-2.1-1.5-2.8Z" /><path d="M12 2V1m7 4-1-1m-13 1 1-1M3 10H1m22 0h-2" /></svg>
 }
 
 export function CopyIcon({ size = 16 }) {

@@ -2,6 +2,7 @@ import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import ShipmentTrackingOperatingHoursPanel from '../components/admin/ShipmentTrackingOperatingHoursPanel.jsx'
 import ShipmentTrackingArrivalConfirmationPanel from '../components/admin/ShipmentTrackingArrivalConfirmationPanel.jsx'
 import ShipmentTrackingRuleCatalogPanel from '../components/admin/ShipmentTrackingRuleCatalogPanel.jsx'
+import ShipmentTrackingForecastPanel from '../components/admin/ShipmentTrackingForecastPanel.jsx'
 import '../styles/admin.css'
 
 export default function ShipmentTrackingAdminPage() {
@@ -14,12 +15,13 @@ export default function ShipmentTrackingAdminPage() {
       <strong><StaticText source={"So werden Änderungen wirksam"} /></strong>
       <ol>
         <li><StaticText source={"Betriebszeiten oder Ausnahmen anpassen und dort speichern."} /></li>
-        <li><StaticText source={"Die Kurz-vor-Ladung-Anfrage sowie ihre Vorlaufzeit und Mailvorlage prüfen."} /></li>
+        <li><StaticText source={"Die Kurz-vor-Ladung-Anfrage und ihre Vorlaufzeit prüfen; die Mailvorlage wird unter Systemmails verwaltet."} /></li>
         <li><StaticText source={"Regelstufen und Partner-Einstellungen separat beim jeweiligen Kunden oder Unternehmer speichern."} /></li>
       </ol>
     </section></TranslatedProps>
     <ShipmentTrackingOperatingHoursPanel />
     <ShipmentTrackingArrivalConfirmationPanel />
     <ShipmentTrackingRuleCatalogPanel />
+    <ShipmentTrackingForecastPanel />
   </main>
 }

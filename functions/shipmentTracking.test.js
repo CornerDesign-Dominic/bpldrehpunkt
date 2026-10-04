@@ -1,7 +1,35 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges } from './shipmentTracking.js'
+import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitCorrections, normalizeTransitEntries, normalizeTransitRemovals } from './shipmentTracking.js'
+
+test('manual transit reports validate position and pause without deriving another tracking stage', () => {
+  const entries = normalizeTransitEntries([
+    { kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: 234.5, location: 'A2 bei Hannover' },
+    { kind: 'pause', at: '2026-10-01T13:00:00Z', durationMinutes: 45 },
+  ])
+  assert.equal(entries[0].kilometersToDestination, 234.5)
+  assert.equal(entries[0].location, 'A2 bei Hannover')
+  assert.equal(entries[1].durationMinutes, 45)
+  assert.deepEqual(deriveShipmentTrackingPosition({}), { stageId: 'preparation', progressToNextStage: 0 })
+  assert.throws(() => normalizeTransitEntries([{ kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: -1 }]), /Kilometer/)
+  assert.throws(() => normalizeTransitEntries([{ kind: 'pause', at: '2026-10-01T13:00:00Z', durationMinutes: 0 }]), /Pausendauer/)
+  assert.throws(() => normalizeTransitEntries([{ kind: 'pause', at: '', durationMinutes: 45 }]), /Zeitpunkt/)
+})
+
+test('a manual transit correction must identify one existing report with valid values', () => {
+  const correction = normalizeTransitCorrections([{ id: 'ai-position-mail-1', entry: { kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: 210, location: '' } }])
+  assert.equal(correction[0].entry.kilometersToDestination, 210)
+  assert.throws(() => normalizeTransitCorrections([{ id: '../other', entry: { kind: 'pause', at: '2026-10-01T12:00:00Z', durationMinutes: 45 } }]), /Ungültige Fahrtmeldung/)
+  const duplicate = { id: 'ai-position-mail-1', entry: { kind: 'position', at: '2026-10-01T12:00:00Z', kilometersToDestination: 210 } }
+  assert.throws(() => normalizeTransitCorrections([duplicate, duplicate]), /Ungültige Fahrtmeldung/)
+})
+
+test('a manual transit removal accepts stable event IDs only once', () => {
+  assert.deepEqual(normalizeTransitRemovals(['ai-position-mail-1']), ['ai-position-mail-1'])
+  assert.throws(() => normalizeTransitRemovals(['../other']), /Ungültige Fahrtmeldung/)
+  assert.throws(() => normalizeTransitRemovals(['position-1', 'position-1']), /Ungültige Fahrtmeldung/)
+})
 
 test('manual tracking writes require transportOrders.edit, except for superadmins', () => {
   assert.equal(hasTrackingEditAccess({ role: 'user', permissions: { transportOrders: 'view' } }), false)

@@ -22,7 +22,7 @@ const PLACEHOLDER_DESCRIPTIONS = {
 const templateCategories = [
   { id: 'vacation', label: 'Urlaub', matches: (template) => template.id.startsWith('vacation_') },
   { id: 'shipmentTracking', label: 'Sendungsverfolgung', matches: (template) => template.id.startsWith('shipment_tracking_') },
-  { id: 'system', label: 'System', matches: (template) => template.id === 'system_test' },
+  { id: 'system', label: 'System', matches: (template) => !template.id.startsWith('vacation_') && !template.id.startsWith('shipment_tracking_') },
 ]
 
 const cloneTemplate = (template) => ({ ...template, allowedPlaceholders: [...(template.allowedPlaceholders || [])] })
@@ -33,6 +33,7 @@ export default function SystemMailPanel() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState(() => new Set())
   const subjectRef = useRef(null)
   const messageRef = useRef(null)
   const lastFieldRef = useRef({ field: 'message', start: 0, end: 0 })
@@ -44,8 +45,7 @@ export default function SystemMailPanel() {
         if (!active) return
         const loadedTemplates = result.data?.templates || []
         setTemplates(loadedTemplates)
-        setEditing(loadedTemplates[0] ? cloneTemplate(loadedTemplates[0]) : null)
-        if (loadedTemplates[0]) lastFieldRef.current = { field: 'message', start: loadedTemplates[0].message?.length || 0, end: loadedTemplates[0].message?.length || 0 }
+        setEditing(null)
       })
       .catch(() => { if (active) setError('Systemmail-Vorlagen konnten nicht geladen werden.') })
       .finally(() => { if (active) setLoading(false) })
@@ -56,6 +56,15 @@ export default function SystemMailPanel() {
     setEditing(cloneTemplate(template))
     setError('')
     lastFieldRef.current = { field: 'message', start: template.message?.length || 0, end: template.message?.length || 0 }
+  }
+
+  function toggleCategory(categoryId) {
+    setExpandedCategoryIds((current) => {
+      const next = new Set(current)
+      if (next.has(categoryId)) next.delete(categoryId)
+      else next.add(categoryId)
+      return next
+    })
   }
 
   function rememberField(field, event) {
@@ -122,7 +131,9 @@ export default function SystemMailPanel() {
         <div className="system-mail-templates__list">{templateCategories.map((category) => {
           const categoryTemplates = templates.filter(category.matches)
           if (!categoryTemplates.length) return null
-          return <section className="system-mail-template-group" key={category.id} aria-label={`${category.label}-Vorlagen`}><h3>{category.label}</h3>{categoryTemplates.map(renderTemplateButton)}</section>
+          const expanded = expandedCategoryIds.has(category.id)
+          const contentId = `system-mail-category-${category.id}`
+          return <section className="system-mail-template-group" key={category.id} aria-label={`${category.label}-Vorlagen`}><h3><button className="system-mail-template-group__toggle" type="button" aria-expanded={expanded} aria-controls={contentId} onClick={() => toggleCategory(category.id)}><span>{category.label}</span><span className="system-mail-template-group__count">{categoryTemplates.length}</span><span className="system-mail-template-group__chevron" aria-hidden="true">›</span></button></h3>{expanded && <div id={contentId} className="system-mail-template-group__content">{categoryTemplates.map(renderTemplateButton)}</div>}</section>
         })}</div>
       </aside></TranslatedProps>
 
@@ -131,7 +142,7 @@ export default function SystemMailPanel() {
         <label className="form-field"><span><StaticText source={"Betreff"} /></span><input ref={subjectRef} value={editing.subject} maxLength="240" onFocus={(event) => rememberField('subject', event)} onSelect={(event) => rememberField('subject', event)} onKeyUp={(event) => rememberField('subject', event)} onChange={(event) => updateField('subject', event.target.value, event)} /></label>
         <label className="form-field system-mail-editor__message"><span><StaticText source={"Nachricht"} /></span><textarea ref={messageRef} rows="12" value={editing.message} maxLength="12000" onFocus={(event) => rememberField('message', event)} onSelect={(event) => rememberField('message', event)} onKeyUp={(event) => rememberField('message', event)} onChange={(event) => updateField('message', event.target.value, event)} /></label>
         <div className="system-mail-editor__actions"><button className="button button--secondary" type="button" onClick={cancel} disabled={saving}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={saving}>{<StaticText source={saving ? 'Wird gespeichert …' : 'Speichern'} />}</button></div>
-      </form> : <section className="system-mail-editor system-mail-editor--empty"><h2><StaticText source={"Keine Vorlage verfügbar"} /></h2><p><StaticText source={"Es wurden keine Systemmail-Vorlagen gefunden."} /></p></section>}
+      </form> : <section className="system-mail-editor system-mail-editor--empty"><h2><StaticText source={"Vorlage auswählen"} /></h2><p><StaticText source={"Wähle links eine Kategorie und Vorlage aus."} /></p></section>}
 
       <TranslatedProps sources={{"aria-label":"Erlaubte Variablen"}}><aside className="system-mail-variables" aria-label="Erlaubte Variablen">
         <div className="system-mail-workspace__heading"><h2><StaticText source={"Variablen"} /></h2><span>{editing?.allowedPlaceholders?.length || 0}</span></div>

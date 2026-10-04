@@ -3,7 +3,7 @@ export const trackingStages = [
   { id: 'loading', label: 'Ladestelle', subtitle: 'Ankunft · Beladung · Abfahrt' },
   { id: 'in_transit', label: 'Unterwegs', subtitle: 'Fahrt' },
   { id: 'unloading', label: 'Entladestelle', subtitle: 'ETA · Ankunft · Entladung' },
-  { id: 'afterTransport', label: 'Nachtransport', subtitle: 'Abschluss' },
+  { id: 'afterTransport', label: 'Bewertung', subtitle: 'Kunde · Unternehmer' },
 ]
 
 export const trackingStatusLabels = {

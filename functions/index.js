@@ -3,8 +3,8 @@ import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { logger } from 'firebase-functions'
-import { HttpsError, onCall } from 'firebase-functions/v2/https'
-import { onDocumentCreated } from 'firebase-functions/v2/firestore'
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
+import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { requireActiveProfile, requireRole } from './access.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
@@ -18,14 +18,46 @@ import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHand
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
+import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
 import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
 import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
 import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
+import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } from './statusMailIngest.js'
+import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
 if (!getApps().length) initializeApp()
+export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
+export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, async (event) => {
+  if (!event.data) return
+  await processStatusMailAi({ orderId: event.params.orderId, mailId: event.params.mailId })
+})
+// Forecasts are only recalculated for the three agreed loading facts. A later
+// actual unloading arrival merely replaces the current moving truck with its
+// terminal house state; it never creates another forecast history entry.
+export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ region: 'europe-west3', document: 'transportOrderTrackings/{orderId}', maxInstances: 3 }, async (event) => {
+  if (!event.data?.after.exists) return
+  const before = event.data.before.exists ? event.data.before.data() : {}
+  const after = event.data.after.data()
+  const forecastFields = ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'actualDepartureLoadingAt']
+  const changed = forecastFields.some((field) => {
+    const oldValue = before?.[field]?.toMillis?.() ?? before?.[field] ?? null
+    const newValue = after?.[field]?.toMillis?.() ?? after?.[field] ?? null
+    return oldValue !== newValue
+  })
+  const oldUnload = before?.actualArrivalUnloadingAt?.toMillis?.() ?? before?.actualArrivalUnloadingAt ?? null
+  const newUnload = after?.actualArrivalUnloadingAt?.toMillis?.() ?? after?.actualArrivalUnloadingAt ?? null
+  if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
+  else if (oldUnload !== newUnload) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
+})
+export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3 }, async (event) => {
+  if (!event.data?.after.exists) return
+  await refreshShipmentTrackingAttentionSummary(event.params.orderId)
+})
+export const retryStatusMailAi = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, retryStatusMailAiHandler)
+export const resolveStatusMailReview = onCall({ region: 'europe-west3', enforceAppCheck: true }, resolveStatusMailReviewHandler)
 export const updateCompanyMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateCompanyMasterDataHandler)
 export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, getCompanyStampHandler)
 export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)
@@ -995,7 +1027,7 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
 })
 
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
-export { submitBugReport } from './bugReports.js'
+export { submitBugReport, submitIdea } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
 export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'
@@ -1031,6 +1063,10 @@ export const updateShipmentTrackingOperatingHours = onCall({ region: 'europe-wes
 export const previewShipmentTrackingOperatingHours = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewShipmentTrackingOperatingHoursHandler)
 export const updateShipmentTrackingArrivalConfirmation = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingArrivalConfirmationHandler)
 export const updateShipmentTrackingRuleCatalog = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingRuleCatalogHandler)
+export const getShipmentTrackingForecast = onCall({ region: 'europe-west3', enforceAppCheck: true }, getShipmentTrackingForecastHandler)
+export const getShipmentTrackingAttention = onCall({ region: 'europe-west3', enforceAppCheck: true }, getShipmentTrackingAttentionHandler)
+export const refreshShipmentTrackingForecast = onCall({ region: 'europe-west3', enforceAppCheck: true }, refreshShipmentTrackingForecastHandler)
+export const updateShipmentTrackingForecastSettings = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingForecastSettingsHandler)
 export const updateAutomaticMailDelivery = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateAutomaticMailDeliveryHandler)
 export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
 export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)

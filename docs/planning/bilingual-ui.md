@@ -1,6 +1,6 @@
 # Zweisprachige Bedienoberfläche
 
-Stand: 2026-10-01. Die Implementierung wurde von `dev` gezielt nach `main` übernommen.
+Stand: 2026-10-01. Die Implementierung liegt auf `dev`.
 
 ## Umfang
 

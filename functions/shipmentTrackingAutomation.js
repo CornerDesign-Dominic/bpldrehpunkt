@@ -140,17 +140,15 @@ async function synchronizeLifecycle(db, orderSnapshot, currentTracking, operatin
       return
     }
     if (tracking.lifecycleStatus === 'completed') return
-    if (lifecycle.phase === 'completed') {
+    // The schedule's end is an automation boundary, not a data lock.  The
+    // transport may already be done, while users and the mailbox still need
+    // to add or correct preparation, tracking, and rating information.
+    const nextLifecyclePhase = lifecycle.phase === 'completed' ? 'aftercare' : lifecycle.phase
+    if (tracking.lifecyclePhase !== nextLifecyclePhase && !(tracking.trackingStartedEarly === true && nextLifecyclePhase === 'upcoming')) {
       transaction.update(trackingRef, {
-        lifecycleStatus: 'completed', lifecyclePhase: 'completed', stageId: 'post_transport', progressToNextStage: 0,
-        trackingCompletedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik',
+        lifecyclePhase: nextLifecyclePhase, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik',
       })
-      transaction.create(eventRef, eventPayload('tracking_completed', { lifecycleStatus: tracking.lifecycleStatus, lifecyclePhase: tracking.lifecyclePhase || null }, { lifecycleStatus: 'completed', lifecyclePhase: 'completed' }))
-      return
-    }
-    if (tracking.lifecyclePhase !== lifecycle.phase && !(tracking.trackingStartedEarly === true && lifecycle.phase === 'upcoming')) {
-      transaction.update(trackingRef, { lifecyclePhase: lifecycle.phase, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik' })
-      transaction.create(eventRef, eventPayload('tracking_phase_changed', { lifecyclePhase: tracking.lifecyclePhase || 'in_progress' }, { lifecyclePhase: lifecycle.phase }))
+      transaction.create(eventRef, eventPayload('tracking_phase_changed', { lifecyclePhase: tracking.lifecyclePhase || 'in_progress' }, { lifecyclePhase: nextLifecyclePhase }))
     }
   })
   const updated = await trackingRef.get()
@@ -167,12 +165,11 @@ async function recordBlockedDelivery(trackingRef, bundle, reason) {
 
 async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumber, tracking, operatingHours, settings, now }) {
   if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
-  if (tracking.automationPaused === true || tracking.actualArrivalLoadingAt) return { sent: 0, blocked: 0 }
+  if (tracking.automationPaused === true || tracking.actualArrivalLoadingAt || tracking.unloadingCompletedAt) return { sent: 0, blocked: 0 }
   const carrier = await effectivePartner(db, imported?.carrier?.partnerId)
   const plan = shipmentTrackingArrivalConfirmationPlan({ imported, tracking, carrier, settings, operatingHours, now })
   const recipient = storedCarrierRecipient(tracking)
   if (!plan || !recipient) return { sent: 0, blocked: 0 }
-  const normalizedSettings = normalizeShipmentTrackingArrivalConfirmation(settings)
   const trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
   const deliveryRef = trackingRef.collection('automaticMailDeliveries').doc(automaticTrackingDeliveryId(`actual-arrival-confirmation:${orderId}:${plan.scheduledAt}:${recipient.toLowerCase()}`))
   const deliveryData = {
@@ -200,7 +197,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
     return { sent: 0, blocked: 0 }
   }
   try {
-    const delivered = await sendSystemMailTemplate({ recipient, templateId: shipmentTrackingArrivalConfirmationTemplateId, values: templateValues(imported, externalNumber), subject: normalizedSettings.subject, message: normalizedSettings.message, automatic: true })
+    const delivered = await sendSystemMailTemplate({ recipient, templateId: shipmentTrackingArrivalConfirmationTemplateId, values: templateValues(imported, externalNumber), automatic: true })
     if (!delivered) {
       await deliveryRef.set({ status: 'paused', pausedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: 'automatic-mail-delivery-paused' }, { merge: true })
       return { sent: 0, blocked: 0, paused: 1 }
@@ -223,7 +220,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
 
 async function dispatchDueBundles(db, { orderId, imported, externalNumber, tracking, catalog, operatingHours, arrivalConfirmationSettings, now }) {
   if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
-  if (tracking.automationPaused === true) return { sent: 0, blocked: 0 }
+  if (tracking.automationPaused === true || tracking.unloadingCompletedAt) return { sent: 0, blocked: 0 }
   const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
   const preview = shipmentTrackingDryRun({ imported, tracking, customer, carrier, catalog, operatingHours, arrivalConfirmationSettings, now })
   const bundles = shipmentTrackingManualDispatchBundles(preview)

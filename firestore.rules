@@ -136,6 +136,13 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Forecast thresholds and vehicle mappings are read by transport-order
+    // users for the explanation only; all changes remain callable-only.
+    match /systemSettings/shipmentTrackingForecast {
+      allow read: if admin() || view('transportOrders');
+      allow write: if false;
+    }
+
     // The automatic-mail emergency switch is visible only to the people who
     // may operate it. Updates are exclusively validated by a superadmin
     // callable function.
@@ -279,6 +286,7 @@ service cloud.firestore {
       allow read: if view('transportOrders');
       allow write: if false;
       match /history/{entryId} { allow read: if view('transportOrders'); allow write: if false; }
+      match /receivedMails/{mailId} { allow read: if view('transportOrders'); allow write: if false; }
     }
 
     // Own TA ratings are validated and written by the callable functions.

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { loadingStartMatches, relationMatches, trackingStatusMatches, transportOrderListPageSize, transportOrderRelationOptions, transportOrderTrackingStatus } from './transportOrderList.js'
+import { listIconFiltersMatch, loadingStartMatches, normalizeListIconFilters, normalizeTransportOrderListPageSize, relationMatches, trackingStatusMatches, transportOrderListPageSize, transportOrderRelationOptions, transportOrderTrackingStatus } from './transportOrderList.js'
 
 test('list tracking status is derived only from the separate tracking lifecycle', () => {
   assert.equal(transportOrderTrackingStatus(null), 'upcoming')
@@ -22,9 +22,24 @@ test('relation and loading-start filters use the selected relation and inclusive
   assert.equal(loadingStartMatches({ imported: { loading: { window: {} } } }, '', ''), false)
 })
 
-test('tracking filter matches only its selected status and the server page is capped at 100 orders', () => {
-  assert.equal(transportOrderListPageSize, 100)
+test('tracking filter matches only its selected status and the server page defaults to 25 orders', () => {
+  assert.equal(transportOrderListPageSize, 25)
+  assert.equal(normalizeTransportOrderListPageSize(50), 50)
+  assert.equal(normalizeTransportOrderListPageSize(75), 25)
   assert.equal(trackingStatusMatches('in_progress', 'in_progress'), true)
   assert.equal(trackingStatusMatches('in_progress', 'upcoming'), false)
   assert.equal(trackingStatusMatches('upcoming', 'all'), true)
+})
+
+test('icon filters combine groups but keep each color selection mutually exclusive', () => {
+  const items = [
+    { id: 'mail-review', severity: 'warning' },
+    { id: 'loading-wait', icon: 'stopwatch', severity: 'warning' },
+    { id: 'license-plate', severity: 'warning' },
+  ]
+  const filters = normalizeListIconFilters({ mailReview: true, licensePlate: true, stopwatch: 'warning' })
+  assert.equal(listIconFiltersMatch(items, filters), true)
+  assert.equal(listIconFiltersMatch(items, { ...filters, stopwatch: 'critical' }), false)
+  assert.equal(listIconFiltersMatch(items, { ...filters, automationPaused: true }), false)
+  assert.deepEqual(normalizeListIconFilters({ stopwatch: 'warning', truck: 'red', mailReview: 'true' }), { automationPaused: false, mailReview: false, licensePlate: false, stopwatch: 'warning', truck: '' })
 })
