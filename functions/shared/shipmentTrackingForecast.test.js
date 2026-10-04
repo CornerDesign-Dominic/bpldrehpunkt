@@ -6,8 +6,8 @@ import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
 const imported = {
   shipment: { vehicleType: 'Tautliner mit Plane' },
-  loading: { window: { from: '2026-10-06T12:00:00Z' } },
-  unloading: { window: { until: '2026-10-07T18:00:00Z' } },
+  loading: { window: { from: '2026-10-06T12:00:00Z', until: '2026-10-06T14:00:00Z' } },
+  unloading: { window: { from: '2026-10-07T12:00:00Z', until: '2026-10-07T18:00:00Z' } },
 }
 
 test('forecast matches imported vehicle aliases and discloses standard fallback', () => {
@@ -26,6 +26,16 @@ test('actual unloading ends forecast calculation with a separate house result', 
   const result = buildShipmentTrackingForecast({ tracking: { actualArrivalUnloadingAt: '2026-10-07T17:45:00Z' }, imported, route: { roundedDistanceKm: 650 } })
   assert.deepEqual(result.kind, 'arrival')
   assert.equal(result.state, 'green')
+  assert.equal(result.slotStartAt, '2026-10-07T12:00:00.000Z')
+})
+
+test('forecast exposes both bounds of the unloading time slot', () => {
+  const result = buildShipmentTrackingForecast({ tracking: { actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, imported, route: { roundedDistanceKm: 650 } })
+  assert.equal(result.loadingSlotStartAt, '2026-10-06T12:00:00.000Z')
+  assert.equal(result.loadingSlotEndAt, '2026-10-06T14:00:00.000Z')
+  assert.equal(result.loadingFacts.actualDepartureAt, '2026-10-06T10:00:00.000Z')
+  assert.equal(result.slotStartAt, '2026-10-07T12:00:00.000Z')
+  assert.equal(result.deadlineAt, '2026-10-07T18:00:00.000Z')
 })
 
 test('attention uses a stopwatch instead of a duplicate truck during loading', () => {
@@ -55,8 +65,32 @@ test('loading-start and loading-end stopwatch limits remain independent', () => 
   assert.equal(afterStart.items.find((item) => item.id === 'loading-wait').severity, 'success')
 })
 
+test('an actual departure keeps incomplete loading times yellow instead of escalating them', () => {
+  const result = shipmentTrackingAttention({
+    tracking: { actualDepartureLoadingAt: '2026-10-06T12:00:00Z' },
+    imported,
+    now: new Date('2026-10-06T18:00:00Z'),
+  })
+  const loading = result.items.find((item) => item.id === 'loading-wait')
+  assert.equal(loading.severity, 'warning')
+  assert.equal(loading.icon, 'stopwatch')
+  assert.equal(loading.label, 'Beladezeiten ergänzen')
+})
+
+test('completed transports retain only mail review and yellow loading-time follow-ups', () => {
+  const result = shipmentTrackingAttention({
+    tracking: { lifecycleStatus: 'completed', lifecyclePhase: 'in_progress', automationPaused: true, actualArrivalUnloadingAt: '2026-10-07T18:00:00Z' },
+    imported,
+    receivedMails: [{ ai: { reviewRequired: true } }],
+  })
+  assert.deepEqual(result.items.map((item) => item.id), ['loading-wait', 'mail-review'])
+  const loading = result.items.find((item) => item.id === 'loading-wait')
+  assert.equal(loading.severity, 'warning')
+  assert.equal(loading.icon, 'stopwatch')
+})
+
 test('forecast color uses the active admin thresholds while preserving the calculated span', () => {
-  const base = { tracking: { actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, imported: { ...imported, unloading: { window: { until: '2026-10-06T20:00:00Z' } } }, route: { roundedDistanceKm: 650 } }
+  const base = { tracking: { actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, imported: { ...imported, unloading: { window: { until: '2026-10-07T07:30:00Z' } } }, route: { roundedDistanceKm: 650 } }
   const yellow = buildShipmentTrackingForecast({ ...base, settings: { redThresholdPercent: 15, greenThresholdPercent: 50 } })
   const red = buildShipmentTrackingForecast({ ...base, settings: { redThresholdPercent: 60, greenThresholdPercent: 70 } })
   assert.equal(yellow.onTimeSharePercent, red.onTimeSharePercent)
@@ -75,4 +109,27 @@ test('a fresh location report and an active reported pause affect a refresh with
   assert.equal(result.inputs.usedDistanceKm, 100)
   assert.equal(result.inputs.activePauseMinutes, 20)
   assert.equal(result.assumptions.some((item) => item.includes('Standortmeldung')), true)
+})
+
+test('forecast plans mandatory driving breaks and daily rest for a long single-driver journey', () => {
+  const result = buildShipmentTrackingForecast({
+    tracking: { actualDepartureLoadingAt: '2026-10-05T08:00:00Z' },
+    imported: { ...imported, unloading: { window: { until: '2026-10-07T18:00:00Z' } } },
+    route: { roundedDistanceKm: 617.5 },
+  })
+  assert.equal(result.inputs.regulatedRestPlanning.realistic.breakCount, 1)
+  assert.equal(result.inputs.regulatedRestPlanning.realistic.dailyRestCount, 1)
+  assert.equal(result.arrivals.realistic, '2026-10-06T05:15:00.000Z')
+})
+
+test('forecast plans a reduced Sunday rest in optimistic and realistic scenarios and a regular one pessimistically', () => {
+  const result = buildShipmentTrackingForecast({
+    tracking: { actualDepartureLoadingAt: '2026-10-03T08:00:00Z' },
+    imported: { ...imported, unloading: { window: { until: '2026-10-08T18:00:00Z' } } },
+    route: { roundedDistanceKm: 1450 },
+  })
+  assert.equal(result.inputs.regulatedRestPlanning.optimistic.weeklyRestHours, 24)
+  assert.equal(result.inputs.regulatedRestPlanning.realistic.weeklyRestHours, 24)
+  assert.equal(result.inputs.regulatedRestPlanning.pessimistic.weeklyRestHours, 45)
+  assert.equal(result.assumptions.some((item) => item.startsWith('Wochenendplanung: Bei einer Fahrt bis Sonntag')), true)
 })

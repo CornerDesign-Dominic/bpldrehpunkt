@@ -2,6 +2,14 @@ import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, normalizeShipmentTrackingF
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
 const MILLIS_PER_HOUR = 60 * 60 * 1000
+const MINUTES_PER_HOUR = 60
+const MAX_CONTINUOUS_DRIVING_MINUTES = 4.5 * MINUTES_PER_HOUR
+const MANDATORY_BREAK_MINUTES = 45
+const MAX_DAILY_DRIVING_MINUTES = 9 * MINUTES_PER_HOUR
+const DAILY_REST_MINUTES = 11 * MINUTES_PER_HOUR
+const REDUCED_WEEKLY_REST_MINUTES = 24 * MINUTES_PER_HOUR
+const REGULAR_WEEKLY_REST_MINUTES = 45 * MINUTES_PER_HOUR
+const berlinWeekdayFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', weekday: 'short' })
 
 function normalizedText(value) {
   return typeof value === 'string' ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('de-DE').replace(/[^a-z0-9]+/g, ' ').trim() : ''
@@ -43,6 +51,63 @@ function forecastColor(onTimeSharePercent, settings) {
 
 function serializableDate(value) { return value ? value.toISOString() : null }
 
+function isSunday(value) { return berlinWeekdayFormatter.format(value) === 'Sun' }
+
+/**
+ * This is a cautious planning model, not a tachograph compliance check. It
+ * starts a fresh driving day at the forecast basis because prior driving and
+ * rest data are not available in a transport order. The operational Sunday
+ * assumption intentionally plans a weekly rest at the first possible stop on
+ * a Sunday when the trip reaches one.
+ */
+function regulatedArrival({ startAt, drivingMinutes, activePauseMinutes = 0, weeklyRestMinutes }) {
+  let current = new Date(startAt.getTime() + activePauseMinutes * 60000)
+  let remaining = drivingMinutes
+  let continuousDriving = 0
+  let dailyDriving = 0
+  let breakCount = 0
+  let dailyRestCount = 0
+  let weeklyRestCount = 0
+  let weeklyRestApplied = false
+  while (remaining > 0.001) {
+    if (!weeklyRestApplied && isSunday(current)) {
+      current = new Date(current.getTime() + weeklyRestMinutes * 60000)
+      weeklyRestApplied = true
+      weeklyRestCount += 1
+      continuousDriving = 0
+      dailyDriving = 0
+      continue
+    }
+    const continuousRemaining = MAX_CONTINUOUS_DRIVING_MINUTES - continuousDriving
+    const dailyRemaining = MAX_DAILY_DRIVING_MINUTES - dailyDriving
+    if (dailyRemaining <= 0.001) {
+      current = new Date(current.getTime() + DAILY_REST_MINUTES * 60000)
+      dailyRestCount += 1
+      continuousDriving = 0
+      dailyDriving = 0
+      continue
+    }
+    if (continuousRemaining <= 0.001) {
+      current = new Date(current.getTime() + MANDATORY_BREAK_MINUTES * 60000)
+      breakCount += 1
+      continuousDriving = 0
+      continue
+    }
+    const leg = Math.min(remaining, continuousRemaining, dailyRemaining)
+    current = new Date(current.getTime() + leg * 60000)
+    remaining -= leg
+    continuousDriving += leg
+    dailyDriving += leg
+  }
+  return { arrivalAt: current, breakCount, dailyRestCount, weeklyRestCount, weeklyRestMinutes: weeklyRestCount ? weeklyRestMinutes : 0 }
+}
+
+function restPlanningText(label, plan) {
+  const parts = [`${label}: ${plan.breakCount} Fahrpause${plan.breakCount === 1 ? '' : 'n'} à 45 Min.`, `${plan.dailyRestCount} tägliche Ruhezeit${plan.dailyRestCount === 1 ? '' : 'en'} à 11 Std.`]
+  if (plan.weeklyRestCount) parts.push(`${plan.weeklyRestMinutes / MINUTES_PER_HOUR} Std. Wochenendruhe eingeplant`)
+  return parts.join(' · ')
+}
+
 /**
  * Deliberately deterministic and explainable first forecast. It never writes a
  * carrier ETA into tracking fields and makes every missing input an assumption.
@@ -50,9 +115,12 @@ function serializableDate(value) { return value ? value.toISOString() : null }
 export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, route = {}, events = [], settings: value, now = new Date() } = {}) {
   const settings = normalizeShipmentTrackingForecastSettings(value)
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
-  const latestUnloading = shipmentTrackingDate(imported?.unloading?.window?.until) || shipmentTrackingDate(imported?.unloading?.window?.from)
+  const earliestLoading = shipmentTrackingDate(imported?.loading?.window?.from) || shipmentTrackingDate(imported?.loading?.window?.until)
+  const latestLoading = shipmentTrackingDate(imported?.loading?.window?.until) || earliestLoading
+  const earliestUnloading = shipmentTrackingDate(imported?.unloading?.window?.from) || shipmentTrackingDate(imported?.unloading?.window?.until)
+  const latestUnloading = shipmentTrackingDate(imported?.unloading?.window?.until) || earliestUnloading
   if (actualUnloading) {
-    return { kind: 'arrival', state: actualUnloading <= latestUnloading ? 'green' : 'yellow', actualArrivalUnloadingAt: serializableDate(actualUnloading), deadlineAt: serializableDate(latestUnloading), message: actualUnloading <= latestUnloading ? 'Tatsächliche Ankunft innerhalb des Entladefensters.' : 'Tatsächliche Ankunft nach dem Ende des Entladefensters.' }
+    return { kind: 'arrival', state: actualUnloading <= latestUnloading ? 'green' : 'yellow', actualArrivalUnloadingAt: serializableDate(actualUnloading), loadingSlotStartAt: serializableDate(earliestLoading), loadingSlotEndAt: serializableDate(latestLoading), slotStartAt: serializableDate(earliestUnloading), deadlineAt: serializableDate(latestUnloading), message: actualUnloading <= latestUnloading ? 'Tatsächliche Ankunft innerhalb des Entladefensters.' : 'Tatsächliche Ankunft nach dem Ende des Entladefensters.' }
   }
   const vehicle = vehicleForecastProfile(imported?.shipment?.vehicleType, settings)
   const actualDeparture = shipmentTrackingDate(tracking.actualDepartureLoadingAt)
@@ -70,7 +138,12 @@ export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, ro
   const driverCount = tracking.driverCount === 2 ? 2 : 1
   const driverFactor = driverCount === 2 ? 0.92 : 1
   const speeds = { optimistic: 70, realistic: 65, pessimistic: 60 }
-  const arrivals = Object.fromEntries(Object.entries(speeds).map(([scenario, speed]) => [scenario, new Date(departureAssumedAt.getTime() + ((distanceKm / speed) * driverFactor * MILLIS_PER_HOUR) + transit.pauseMinutes * 60000)]))
+  const scenarioPlans = Object.fromEntries(Object.entries(speeds).map(([scenario, speed]) => {
+    const drivingMinutes = (distanceKm / speed) * driverFactor * MINUTES_PER_HOUR
+    const weeklyRestMinutes = scenario === 'pessimistic' ? REGULAR_WEEKLY_REST_MINUTES : REDUCED_WEEKLY_REST_MINUTES
+    return [scenario, regulatedArrival({ startAt: departureAssumedAt, drivingMinutes, activePauseMinutes: transit.pauseMinutes, weeklyRestMinutes })]
+  }))
+  const arrivals = Object.fromEntries(Object.entries(scenarioPlans).map(([scenario, plan]) => [scenario, plan.arrivalAt]))
   const start = arrivals.optimistic.getTime()
   const end = arrivals.pessimistic.getTime()
   const deadline = latestUnloading.getTime()
@@ -80,17 +153,23 @@ export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, ro
   const assumptions = [
     `Fahrzeugprofil: ${vehicle.label} (${vehicle.loadingDurationHours} Std. kalkulatorische Beladung)${vehicle.assumed ? ' · Annahme' : ''}`,
     `${driverCount} Fahrer${tracking.driverCount === 2 ? '' : ' · Annahme'}`,
-    'Szenarien: 70 / 65 / 60 km/h; keine nicht belegten Fahrverbote oder Lenkzeiten ergänzt.',
+    'Szenarien: 70 / 65 / 60 km/h; je Fahrtag maximal 4,5 Std. Lenkzeit bis 45 Min. Pause und maximal 9 Std. Lenkzeit vor 11 Std. täglicher Ruhezeit.',
+    'Die Abfahrtsgrundlage wird als Beginn eines neuen Fahrtags behandelt, weil Tachograph- und vorherige Ruhezeitdaten nicht vorliegen.',
+    restPlanningText('Optimistisch', scenarioPlans.optimistic),
+    restPlanningText('Realistisch', scenarioPlans.realistic),
+    restPlanningText('Pessimistisch', scenarioPlans.pessimistic),
   ]
+  if (Object.values(scenarioPlans).some((plan) => plan.weeklyRestCount)) assumptions.push('Wochenendplanung: Bei einer Fahrt bis Sonntag ist in optimistisch/realistisch eine reduzierte Wochenruhe von 24 Std. und pessimistisch eine reguläre Wochenruhe von 45 Std. berücksichtigt. Die tatsächliche gesetzliche Fälligkeit hängt von den nicht vorliegenden Lenk- und Ruhezeiten des Fahrers ab.')
+  else assumptions.push('Wochenendplanung: Die berechnete Fahrt reicht nicht bis zu einem Sonntag; deshalb wurde keine Wochenendruhe zusätzlich angesetzt.')
   if (transit.positionAt) assumptions.push(`Aktuelle Standortmeldung vom ${transit.positionAt.toISOString()}: ${distanceKm} km Reststrecke; Berechnung ab jetzt.`)
   else assumptions.push(`Streckenbasis: ${plannedDistanceKm} km Planstrecke.`)
   if (transit.pauseMinutes > 0) assumptions.push(`Laufende Pause: verbleibende ${transit.pauseMinutes} Minuten eingerechnet.`)
   const reportedArrivalUnloading = shipmentTrackingDate(tracking.estimatedArrivalUnloadingAt)
   if (reportedArrivalUnloading) assumptions.push(`Gemeldete voraussichtliche Entladeankunft: ${reportedArrivalUnloading.toISOString()} (Referenz, keine Überschreibung der Prognose).`)
   return {
-    kind: 'forecast', state: expired ? 'grey' : forecastColor(onTimeSharePercent, settings), source, createdAt: serializableDate(now), expiresAt: serializableDate(expiresAt), deadlineAt: serializableDate(latestUnloading), distanceKm, driverCount,
+    kind: 'forecast', state: expired ? 'grey' : forecastColor(onTimeSharePercent, settings), source, createdAt: serializableDate(now), expiresAt: serializableDate(expiresAt), loadingSlotStartAt: serializableDate(earliestLoading), loadingSlotEndAt: serializableDate(latestLoading), loadingFacts: { estimatedArrivalAt: serializableDate(estimatedArrivalLoading), actualArrivalAt: serializableDate(actualArrivalLoading), actualDepartureAt: serializableDate(actualDeparture) }, slotStartAt: serializableDate(earliestUnloading), deadlineAt: serializableDate(latestUnloading), distanceKm, driverCount,
     vehicle: { id: vehicle.id, label: vehicle.label, loadingDurationHours: vehicle.loadingDurationHours, assumed: vehicle.assumed },
-    inputs: { sourceAt: serializableDate(base), plannedDistanceKm, usedDistanceKm: distanceKm, positionAt: serializableDate(transit.positionAt), activePauseMinutes: transit.pauseMinutes, reportedArrivalUnloadingAt: serializableDate(reportedArrivalUnloading) },
+    inputs: { sourceAt: serializableDate(base), plannedDistanceKm, usedDistanceKm: distanceKm, positionAt: serializableDate(transit.positionAt), activePauseMinutes: transit.pauseMinutes, reportedArrivalUnloadingAt: serializableDate(reportedArrivalUnloading), regulatedRestPlanning: Object.fromEntries(Object.entries(scenarioPlans).map(([scenario, plan]) => [scenario, { breakCount: plan.breakCount, dailyRestCount: plan.dailyRestCount, weeklyRestHours: plan.weeklyRestMinutes / MINUTES_PER_HOUR }])) },
     departureAssumedAt: serializableDate(departureAssumedAt), arrivals: Object.fromEntries(Object.entries(arrivals).map(([key, item]) => [key, serializableDate(item)])), onTimeSharePercent, thresholds: { red: settings.redThresholdPercent, green: settings.greenThresholdPercent }, assumptions,
   }
 }

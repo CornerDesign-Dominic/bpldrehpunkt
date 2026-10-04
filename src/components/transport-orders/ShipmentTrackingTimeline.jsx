@@ -5,6 +5,7 @@ import { defaultShipmentTrackingUiModel, trackingStages } from './shipmentTracki
 import { shipmentTrackingStageEvents, shipmentTrackingStationSummary } from '../../lib/shipmentTrackingPresentation.js'
 import ShipmentTrackingRecipientsCard from './ShipmentTrackingRecipientsCard.jsx'
 import ShipmentTrackingActionOverview from './ShipmentTrackingActionOverview.jsx'
+import { LicensePlateIcon } from '../icons.jsx'
 import { shipmentTrackingManualDispatchBundles } from '../../../shared/shipmentTrackingManualDispatch.js'
 import { shipmentTrackingActivationPresentation } from '../../lib/shipmentTrackingActivationPresentation.js'
 
@@ -54,7 +55,7 @@ function ShipmentTrackingActivation({ activation, loading, error, canEdit, savin
  */
 function AttentionIcon({ item }) {
   const Icon = item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
-  return <span className={`shipment-tracking-attention__item shipment-tracking-attention__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}><Icon aria-hidden="true" /><span className="sr-only">{item.label}</span></span>
+  return <span className={`shipment-tracking-attention__item shipment-tracking-attention__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}>{item.id === 'license-plate' ? <LicensePlateIcon /> : <Icon aria-hidden="true" />}<span className="sr-only">{item.label}</span></span>
 }
 function ForecastButton({ forecast, onOpenForecast }) {
   if (!onOpenForecast) return null
@@ -68,7 +69,7 @@ function ForecastButton({ forecast, onOpenForecast }) {
   return <button type="button" className={`shipment-tracking-forecast-button shipment-tracking-forecast-button--${state}`} onClick={onOpenForecast} aria-label={label} title={label}><Icon aria-hidden="true" /></button>
 }
 
-export default function ShipmentTrackingTimeline({ model = defaultShipmentTrackingUiModel, tracking = null, events = [], dryRunPreview = null, dryRunLoading = false, dryRunError = '', activation = null, activationLoading = false, activationError = '', canEdit = false, saving = false, ratingsLoading = false, ratingsError = '', attention = null, forecast = null, onOpenForecast, onOpenRatings, onEarlyStart, onEditStage, onSaveRecipient, onShowStageInfo, onManualDispatch, onOpenMailTemplate }) {
+export default function ShipmentTrackingTimeline({ model = defaultShipmentTrackingUiModel, tracking = null, events = [], dryRunPreview = null, dryRunLoading = false, dryRunError = '', activation = null, activationLoading = false, activationError = '', canEdit = false, saving = false, ratingsLoading = false, ratingsError = '', attention = null, forecast = null, onOpenForecast, onOpenRatings, onEarlyStart, onEditStage, onSaveRecipient, onShowStageInfo, onManualDispatch }) {
   const manualDispatchBundles = shipmentTrackingManualDispatchBundles(dryRunPreview)
   const systemHints = [...(Array.isArray(model.hints) ? model.hints : []), ...(dryRunError ? [{ id: 'shipment-tracking-preview-error', status: 'error', description: dryRunError }] : [])]
   const stations = trackingStages.map((stage) => model.stations?.find((entry) => entry.id === stage.id) || fallbackStation(stage))
@@ -109,7 +110,7 @@ export default function ShipmentTrackingTimeline({ model = defaultShipmentTracki
     {model.trackingExists && model.lifecycleLabel === 'Bevorstehend' && canEdit && <div className="shipment-tracking-timeline__activation"><div className="shipment-tracking-timeline__activation-timing"><FaClock aria-hidden="true" /><div><strong><StaticText source={"Sendungsverfolgung ist bevorstehend"} /></strong><small><StaticText source={"Beim vorzeitigen Start wird keine E-Mail versendet. Alle Automatik-Regeln bleiben unverändert."} /></small></div></div><button className="button" type="button" disabled={saving} onClick={onEarlyStart}><StaticText source={"Sendungsverfolgung vorzeitig starten"} /></button></div>}
 
     <div className="shipment-tracking-timeline__details">
-      {model.trackingExists && <ShipmentTrackingRecipientsCard tracking={tracking} canEdit={canEdit && model.lifecycleStatus !== 'completed'} canDispatch={canEdit} saving={saving} onSaveRecipient={onSaveRecipient} onOpenMailTemplate={onOpenMailTemplate} onManualDispatch={onManualDispatch} manualDispatchBundles={manualDispatchBundles} />}
+      {model.trackingExists && <ShipmentTrackingRecipientsCard tracking={tracking} canEdit={canEdit && model.lifecycleStatus !== 'completed'} canDispatch={canEdit} saving={saving} onSaveRecipient={onSaveRecipient} onManualDispatch={onManualDispatch} manualDispatchBundles={manualDispatchBundles} />}
       {model.trackingExists && <ShipmentTrackingActionOverview preview={dryRunPreview} loading={dryRunLoading} error={dryRunError} />}
       {systemHints.length > 0 && <div className="shipment-tracking-timeline__panel shipment-tracking-timeline__panel--system">
         <div className="shipment-tracking-timeline__panel-heading"><FaCircleInfo aria-hidden="true" /><h4><StaticText source={"Systemhinweise"} /></h4></div>

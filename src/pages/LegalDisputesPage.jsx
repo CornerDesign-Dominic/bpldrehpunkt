@@ -68,7 +68,8 @@ export default function LegalDisputesPage() {
   async function save(values) {
     const id = await createLegalDispute(values, { user, profile }, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
-    navigate(`/legal-disputes/${id}`)
+    if (pendingCaseCreation?.returnTo) navigate(pendingCaseCreation.returnTo, { replace: true })
+    else navigate(`/legal-disputes/${id}`)
   }
 
   return <div className="damages-page legal-disputes-page">

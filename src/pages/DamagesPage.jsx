@@ -58,7 +58,8 @@ export default function DamagesPage() {
   async function save(values) {
     const id = await createDamageCase(values, { user, profile }, new Map(), { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
-    navigate(`/schaeden/${id}`)
+    if (pendingCaseCreation?.returnTo) navigate(pendingCaseCreation.returnTo, { replace: true })
+    else navigate(`/schaeden/${id}`)
   }
 
   return <div className="damages-page">

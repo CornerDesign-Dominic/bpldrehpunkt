@@ -3,7 +3,11 @@ const TEMPLATE_IDS = Object.freeze({
   loadingSite: 'shipment_tracking_arrival_request',
   combined: 'shipment_tracking_license_plate_and_arrival_request',
   generalUpdate: 'shipment_tracking_general_status_update',
+  loadingEta: 'shipment_tracking_loading_eta_request',
+  loadingArrival: 'shipment_tracking_loading_arrival_request',
+  loadingDeparture: 'shipment_tracking_loading_departure_request',
   unloadingEta: 'shipment_tracking_unloading_eta_request',
+  unloadingArrival: 'shipment_tracking_unloading_arrival_request',
   loadingUpdate: 'shipment_tracking_loading_update_request',
   unloadingUpdate: 'shipment_tracking_unloading_update_request',
 })
@@ -13,7 +17,11 @@ const templateLabels = Object.freeze({
   [TEMPLATE_IDS.loadingSite]: 'LKW-Ankunft anfragen',
   [TEMPLATE_IDS.combined]: 'Kennzeichen und LKW-Ankunft anfragen',
   [TEMPLATE_IDS.generalUpdate]: 'Allgemeines Status-Update anfragen',
+  [TEMPLATE_IDS.loadingEta]: 'ETA Ladestelle anfragen',
+  [TEMPLATE_IDS.loadingArrival]: 'LS Ankunft anfragen',
+  [TEMPLATE_IDS.loadingDeparture]: 'LS Abfahrt anfragen',
   [TEMPLATE_IDS.unloadingEta]: 'ETA Entladestelle anfragen',
+  [TEMPLATE_IDS.unloadingArrival]: 'Tatsächliche Ankunft Entladestelle anfragen',
   [TEMPLATE_IDS.loadingUpdate]: 'Update zur Beladung anfragen',
   [TEMPLATE_IDS.unloadingUpdate]: 'Update zur Entladung anfragen',
 })

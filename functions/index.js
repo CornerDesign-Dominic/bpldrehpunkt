@@ -1027,7 +1027,7 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
 })
 
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
-export { submitBugReport } from './bugReports.js'
+export { submitBugReport, submitIdea } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
 export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'

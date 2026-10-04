@@ -67,7 +67,8 @@ export default function InkassoPage() {
   async function save(values) {
     const id = await createInkassoCase(values, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
     setShowForm(false)
-    navigate(`/inkasso/${id}`)
+    if (pendingCaseCreation?.returnTo) navigate(pendingCaseCreation.returnTo, { replace: true })
+    else navigate(`/inkasso/${id}`)
   }
 
   return <div className="damages-page inkasso-page">

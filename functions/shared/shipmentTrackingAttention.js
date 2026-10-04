@@ -29,10 +29,24 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
   const manuallyReviewableMail = (receivedMails || []).some((mail) => mail?.ai?.reviewRequired === true || ['needs_review', 'error'].includes(mail?.ai?.status))
   if (manuallyReviewableMail) items.push(issue('mail-review', 'warning', 'Eingangsmail manuell prüfen', 'Eine zugeordnete Mail benötigt eine fachliche Prüfung.'))
+  if (actualUnloading) {
+    if (!loadingStarted || !loadingCompleted) {
+      const missing = !loadingStarted && !loadingCompleted ? 'Beladezeiten' : !loadingStarted ? 'Beladestart' : 'Beladeende'
+      const loading = issue('loading-wait', 'warning', `${missing} ergänzen`, 'Die Entladung ist abgeschlossen. Fehlende Beladezeiten können weiterhin nachgetragen werden.')
+      loading.icon = 'stopwatch'
+      items.push(loading)
+    }
+    items.sort((left, right) => rank[left.severity] - rank[right.severity] || left.label.localeCompare(right.label, 'de-DE'))
+    return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3) }
+  }
   if (tracking.automationPaused === true) items.push(issue('automation-paused', 'critical', 'Automatik pausiert', 'Fällige Anfragen werden während der Pause nicht ausgeführt.'))
   if (tracking.lifecyclePhase === 'in_progress' && !plate(tracking)) items.push(issue('license-plate', 'warning', 'KZ fehlt', 'Für die laufende Vorbereitung fehlt ein Kennzeichen.'))
   let truck = null
-  if (!actualArrivalLoading) {
+  if (actualDeparture && (!loadingStarted || !loadingCompleted)) {
+    const missing = !loadingStarted && !loadingCompleted ? 'Beladezeiten' : !loadingStarted ? 'Beladestart' : 'Beladeende'
+    truck = issue('loading-wait', 'warning', `${missing} ergänzen`, 'Die tatsächliche Abfahrt liegt vor. Die Beladezeit bleibt als gelber Hinweis offen, bis Start und Ende nachgetragen sind.')
+    truck.icon = 'stopwatch'
+  } else if (!actualArrivalLoading) {
     if (!estimatedArrivalLoading) {
       if (workingHoursReached(now, loadingFrom, timing.noArrivalRedWorkingHours, operatingHours)) truck = issue('loading-arrival', 'critical', 'Ladeankunft fehlt', 'Die rote Frist vor Ladebeginn ist erreicht.')
       else if (workingHoursReached(now, loadingFrom, timing.noArrivalYellowWorkingHours, operatingHours)) truck = issue('loading-arrival', 'warning', 'Ladeankunft fehlt', 'Eine Rückmeldung zur Ladeankunft wird benötigt.')

@@ -127,7 +127,7 @@ function templateValues(imported, externalNumber) {
 function renderedOverride(value, values) { return value.replace(/{{\s*([^{}\s]+)\s*}}/g, (_, key) => values[key] || '') }
 function topicsForTemplate(templateId) {
   if (templateId === shipmentTrackingManualDispatchTemplateIds.combined) return ['licensePlate', 'loadingSite']
-  if ([shipmentTrackingManualDispatchTemplateIds.generalUpdate, shipmentTrackingManualDispatchTemplateIds.unloadingEta, shipmentTrackingManualDispatchTemplateIds.loadingUpdate, shipmentTrackingManualDispatchTemplateIds.unloadingUpdate].includes(templateId)) return []
+  if ([shipmentTrackingManualDispatchTemplateIds.generalUpdate, shipmentTrackingManualDispatchTemplateIds.loadingEta, shipmentTrackingManualDispatchTemplateIds.loadingArrival, shipmentTrackingManualDispatchTemplateIds.loadingDeparture, shipmentTrackingManualDispatchTemplateIds.unloadingEta, shipmentTrackingManualDispatchTemplateIds.unloadingArrival, shipmentTrackingManualDispatchTemplateIds.loadingUpdate, shipmentTrackingManualDispatchTemplateIds.unloadingUpdate].includes(templateId)) return []
   return templateId === shipmentTrackingManualDispatchTemplateIds.licensePlate ? ['licensePlate'] : ['loadingSite']
 }
 function templateLabel(templateId) {
@@ -136,7 +136,11 @@ function templateLabel(templateId) {
     [shipmentTrackingManualDispatchTemplateIds.loadingSite]: 'LKW-Ankunft anfragen',
     [shipmentTrackingManualDispatchTemplateIds.combined]: 'Kennzeichen und LKW-Ankunft anfragen',
     [shipmentTrackingManualDispatchTemplateIds.generalUpdate]: 'Allgemeines Status-Update anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingEta]: 'ETA Ladestelle anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingArrival]: 'LS Ankunft anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.loadingDeparture]: 'LS Abfahrt anfragen',
     [shipmentTrackingManualDispatchTemplateIds.unloadingEta]: 'ETA Entladestelle anfragen',
+    [shipmentTrackingManualDispatchTemplateIds.unloadingArrival]: 'Tatsächliche Ankunft Entladestelle anfragen',
     [shipmentTrackingManualDispatchTemplateIds.loadingUpdate]: 'Update zur Beladung anfragen',
     [shipmentTrackingManualDispatchTemplateIds.unloadingUpdate]: 'Update zur Entladung anfragen',
   })[templateId] || 'Tracking-Anfrage'

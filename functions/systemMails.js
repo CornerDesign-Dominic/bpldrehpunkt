@@ -102,10 +102,34 @@ export const systemMailTemplateDefinitions = {
     message: 'Guten Tag,\n\nbitte teilen Sie uns den aktuellen Status für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
   },
+  shipment_tracking_loading_eta_request: {
+    displayName: 'ETA Ladestelle anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – ETA Ladestelle benötigt',
+    message: 'Guten Tag,\n\nbitte teilen Sie uns die voraussichtliche Ankunftszeit des Fahrzeugs an der Ladestelle für den Transportauftrag {{transportOrderNumber}} mit.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_loading_arrival_request: {
+    displayName: 'LS Ankunft anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Ankunft an der Ladestelle bestätigen',
+    message: 'Guten Tag,\n\nist das Fahrzeug für den Transportauftrag {{transportOrderNumber}} pünktlich an der Ladestelle angekommen? Falls nicht, teilen Sie uns bitte mit, wann es voraussichtlich dort ankommt.\n\nLadestelle: {{loadingLocation}}\nTermin Ladestelle: {{loadingTime}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'loadingTime'],
+  },
+  shipment_tracking_loading_departure_request: {
+    displayName: 'LS Abfahrt anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Abfahrt von der Ladestelle bestätigen',
+    message: 'Guten Tag,\n\nist das Fahrzeug für den Transportauftrag {{transportOrderNumber}} bereits mit der Beladung fertig und von der Ladestelle abgefahren? Bitte um ein kurzes Update.\n\nLadestelle: {{loadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation'],
+  },
   shipment_tracking_unloading_eta_request: {
     displayName: 'ETA zur Entladestelle anfragen',
     subject: 'Transportauftrag {{transportOrderNumber}} – ETA Entladestelle benötigt',
     message: 'Guten Tag,\n\nwie weit ist der LKW noch von der Entladestelle entfernt? Bitte nennen Sie uns die voraussichtliche Ankunftszeit oder die verbleibende Fahrzeit und, falls bekannt, die verbleibenden Kilometer für den Transportauftrag {{transportOrderNumber}}.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
+    allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
+  },
+  shipment_tracking_unloading_arrival_request: {
+    displayName: 'Tatsächliche Ankunft Entladestelle anfragen',
+    subject: 'Transportauftrag {{transportOrderNumber}} – Ankunft an der Entladestelle bestätigen',
+    message: 'Guten Tag,\n\nist das Fahrzeug für den Transportauftrag {{transportOrderNumber}} bereits an der Entladestelle angekommen? Bitte nennen Sie uns die tatsächliche Ankunftszeit. Falls es noch nicht angekommen ist, teilen Sie uns bitte die aktuelle voraussichtliche Ankunftszeit mit.\n\nEntladestelle: {{unloadingLocation}}\n\nVielen Dank.',
     allowedPlaceholders: ['transportOrderNumber', 'unloadingLocation'],
   },
   shipment_tracking_loading_update_request: {
