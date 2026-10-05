@@ -87,6 +87,8 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     automationPaused: false,
     automationPausedAt: null,
     automationSkippedBefore: null,
+    automationSkippedRules: {},
+    automationAutomaticResumeAfter: null,
     lastAutomationPause: null,
     trackingStartedAt: FieldValue.serverTimestamp(),
     trackingCompletedAt: null,
@@ -355,8 +357,8 @@ export async function updateManualShipmentTrackingHandler(request) {
       if (current.automationPaused !== true) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgungs-Automatik ist nicht pausiert.')
       const resumedAt = Timestamp.fromDate(new Date())
       const pause = { from: current.automationPausedAt || resumedAt, until: resumedAt }
-      transaction.update(trackingRef, { automationPaused: false, automationPausedAt: null, automationSkippedBefore: resumedAt, lastAutomationPause: pause, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
-      transaction.create(eventRef, eventPayload({ eventType: 'tracking_automation_resumed', changedFields: ['automationPaused', 'automationSkippedBefore'], oldValue: { automationPaused: true, automationPausedAt: current.automationPausedAt || null }, newValue: { automationPaused: false, automationSkippedBefore: resumedAt, lastAutomationPause: pause }, eventTime: resumedAt, actorId: request.auth.uid, actor, source: 'manual', note: '' }))
+      transaction.update(trackingRef, { automationPaused: false, automationPausedAt: null, automationAutomaticResumeAfter: resumedAt, lastAutomationPause: pause, updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+      transaction.create(eventRef, eventPayload({ eventType: 'tracking_automation_resumed', changedFields: ['automationPaused', 'automationAutomaticResumeAfter'], oldValue: { automationPaused: true, automationPausedAt: current.automationPausedAt || null }, newValue: { automationPaused: false, automationAutomaticResumeAfter: resumedAt, lastAutomationPause: pause }, eventTime: resumedAt, actorId: request.auth.uid, actor, source: 'manual', note: '' }))
       return
     }
     if (action === 'update_recipients') {

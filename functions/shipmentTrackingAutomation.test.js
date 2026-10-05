@@ -35,6 +35,7 @@ test('the ETA confirmation is due two working hours before the loading ETA and n
   assert.equal(plan?.offsetWorkingHours, 2)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { ...input.tracking, actualArrivalLoadingAt: '2026-12-08T08:01:00.000Z' } }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { estimatedArrivalLoadingAt: '2026-12-08 10:00', estimatedArrivalLoadingRecordedAt: '2026-12-08T08:01:00.000Z' }, now: '2026-12-08T08:05:00.000Z' }), null)
+  assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { ...input.tracking, automationAutomaticResumeAfter: new Date('2026-12-08T08:01:00.000Z') }, now: '2026-12-08T08:05:00.000Z' }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, carrier: { shipmentTrackingPolicy: { carrier: { actualArrivalConfirmationEnabled: false } } } }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, now: '2026-12-08T08:20:00.000Z' }), null)
 })

@@ -69,14 +69,14 @@ function arrivalConfirmationDispatch(tracking) {
   const dispatch = tracking?.actualArrivalConfirmationDispatch
   return dispatch && typeof dispatch === 'object' && (dispatch.sentAt || dispatch.dispatchId) ? dispatch : null
 }
-function pausedAutomation(tracking, scheduledAt, now) {
+function pausedAutomation(tracking, ruleId, scheduledAt) {
   const scheduled = asDate(scheduledAt)
   if (!scheduled) return null
-  const pausedAt = asDate(tracking?.automationPausedAt)
+  const skippedRule = tracking?.automationSkippedRules?.[ruleId]
   const skippedBefore = asDate(tracking?.automationSkippedBefore)
   const importSkippedBefore = asDate(tracking?.importScheduleSkippedBefore)
-  if (tracking?.automationPaused === true && scheduled.getTime() <= now.getTime()) return { from: pausedAt, until: null, active: true }
   if (importSkippedBefore && scheduled.getTime() <= importSkippedBefore.getTime()) return { from: importSkippedBefore, until: importSkippedBefore, active: false, reason: 'import-date-change' }
+  if (skippedRule && text(skippedRule.scheduledAt) === text(scheduledAt)) return { from: asDate(skippedRule.pausedAt), until: asDate(skippedRule.skippedAt), active: false, reason: 'automation-paused' }
   if (skippedBefore && scheduled.getTime() <= skippedBefore.getTime()) {
     const lastPause = tracking?.lastAutomationPause
     return { from: asDate(lastPause?.from), until: asDate(lastPause?.until) || skippedBefore, active: false, reason: 'automation-paused' }
@@ -137,7 +137,7 @@ export function shipmentTrackingArrivalConfirmationRule({ tracking = null, carri
     } catch { /* The read-only preview exposes the unavailable timestamp. */ }
   }
   const dispatch = arrivalConfirmationDispatch(tracking)
-  const pause = pausedAutomation(tracking, scheduledAt, clock)
+  const pause = pausedAutomation(tracking, ARRIVAL_CONFIRMATION_RULE_ID, scheduledAt)
   const completed = Boolean(tracking?.actualArrivalLoadingAt)
   const etaRecordedAt = asDate(tracking?.estimatedArrivalLoadingRecordedAt)
   const scheduledDate = asDate(scheduledAt)
@@ -201,7 +201,7 @@ export function shipmentTrackingDryRun({ imported = null, tracking = null, custo
         }
       }
       const dispatch = kind === 'external' ? externalRuleDispatch(tracking, rule.id) : null
-      const pause = pausedAutomation(tracking, scheduledAt, clock)
+      const pause = pausedAutomation(tracking, rule.id, scheduledAt)
       const status = completed ? 'notRequired' : dispatch ? 'sent' : pause ? 'skipped' : scheduledAt && new Date(scheduledAt).getTime() <= clock.getTime() ? 'due' : 'upcoming'
       rules.push({ ruleId: rule.id, topic, kind, scheduledAt, status, recipient, title: ruleTitle(rule.group), reason: reasonFor(rule), adjustmentReason: adjustment, source: effective.source, ...(pause ? { pause } : {}), ...(dispatch ? { dispatch } : {}) })
     }
