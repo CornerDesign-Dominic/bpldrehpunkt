@@ -23,6 +23,8 @@ test('shipment-tracking templates cover the individual and bundled carrier reque
   for (const id of Object.keys(definitions).filter((key) => key.startsWith('shipment_tracking_'))) {
     assert.doesNotMatch(definitions[id].displayName, /^Sendungsverfolgung/)
     assert.ok(definitions[id].subject.includes('{{transportOrderNumber}}'))
+    assert.match(definitions[id].message, /^Hallo,\n\n/)
+    assert.match(definitions[id].message, /\b(?:Could|Has)\b/)
     const unloading = ['shipment_tracking_unloading_eta_request', 'shipment_tracking_unloading_arrival_request', 'shipment_tracking_unloading_update_request'].includes(id)
     const loadingWithoutTime = ['shipment_tracking_loading_update_request', 'shipment_tracking_loading_departure_request'].includes(id)
     assert.ok(definitions[id].message.includes(unloading ? '{{unloadingLocation}}' : '{{loadingLocation}}'))
