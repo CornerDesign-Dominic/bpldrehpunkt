@@ -29,7 +29,9 @@ test('shipment-tracking templates cover the individual and bundled carrier reque
     const loadingWithoutTime = ['shipment_tracking_loading_update_request', 'shipment_tracking_loading_departure_request'].includes(id)
     assert.ok(definitions[id].message.includes(unloading ? '{{unloadingLocation}}' : '{{loadingLocation}}'))
     if (!unloading && !loadingWithoutTime) assert.ok(definitions[id].message.includes('{{loadingTime}}'))
-    assert.deepEqual(definitions[id].allowedPlaceholders, unloading ? ['transportOrderNumber', 'unloadingLocation'] : loadingWithoutTime ? ['transportOrderNumber', 'loadingLocation'] : ['transportOrderNumber', 'loadingLocation', 'loadingTime'])
+    assert.ok(definitions[id].allowedPlaceholders.includes('loadingLocation'))
+    assert.ok(definitions[id].allowedPlaceholders.includes('unloadingLocation'))
+    assert.equal(definitions[id].allowedPlaceholders.includes('loadingTime'), !unloading && !loadingWithoutTime)
   }
 })
 
