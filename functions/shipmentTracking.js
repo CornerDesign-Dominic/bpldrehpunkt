@@ -70,6 +70,7 @@ export function createShipmentTrackingDocument(orderId, actorId, actor, { tracki
     driverPhone: null,
     driverCount: 1,
     estimatedArrivalLoadingAt: null,
+    estimatedArrivalLoadingRecordedAt: null,
     actualArrivalLoadingAt: null,
     loadingStartedAt: null,
     loadingCompletedAt: null,
@@ -377,7 +378,10 @@ export async function updateManualShipmentTrackingHandler(request) {
     const position = deriveShipmentTrackingPosition(merged)
     const fieldSources = { ...(current.fieldSources || {}) }
     for (const field of Object.keys(changes)) delete fieldSources[field]
-    transaction.update(trackingRef, { ...changes, ...position, fieldSources, trackingMode: 'manual', updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
+    const etaRecording = Object.prototype.hasOwnProperty.call(changes, 'estimatedArrivalLoadingAt')
+      ? { estimatedArrivalLoadingRecordedAt: changes.estimatedArrivalLoadingAt ? FieldValue.serverTimestamp() : null }
+      : {}
+    transaction.update(trackingRef, { ...changes, ...etaRecording, ...position, fieldSources, trackingMode: 'manual', updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
     transaction.create(eventRef, eventPayload({ eventType: 'tracking_updated', changedFields: Object.keys(changes), oldValue, newValue: changes, eventTime: eventTimeFor(changes), actorId: request.auth.uid, actor, source, note }))
     })
   } catch (error) {

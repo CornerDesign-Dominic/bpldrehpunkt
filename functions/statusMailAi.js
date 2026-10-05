@@ -321,9 +321,12 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     if ((transitUpdates.length || pauseUpdates.length) && ['preparation', 'loading'].includes(position.stageId)) position.stageId = 'in_transit'
     const stageOrder = { preparation: 0, loading: 1, in_transit: 2, unloading: 3, post_transport: 4 }
     if ((stageOrder[current?.stageId] ?? -1) > (stageOrder[position.stageId] ?? -1)) position.stageId = current.stageId
-    if (current) transaction.update(trackingRef, { ...changes, ...position, fieldSources, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'status-mail-ai', updatedByName: 'KI · Status-Postfach' })
+    const etaRecording = Object.prototype.hasOwnProperty.call(changes, 'estimatedArrivalLoadingAt')
+      ? { estimatedArrivalLoadingRecordedAt: changes.estimatedArrivalLoadingAt ? freshMail.data().receivedAt : null }
+      : {}
+    if (current) transaction.update(trackingRef, { ...changes, ...etaRecording, ...position, fieldSources, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'status-mail-ai', updatedByName: 'KI · Status-Postfach' })
     else {
-      transaction.create(trackingRef, { ...base, ...changes, ...position, fieldSources })
+      transaction.create(trackingRef, { ...base, ...changes, ...etaRecording, ...position, fieldSources })
       transaction.create(trackingRef.collection('events').doc(`ai-start-${mailId}`), {
         eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase'], oldValue: {}, newValue: { lifecycleStatus: 'active', lifecyclePhase: phase },
         eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',

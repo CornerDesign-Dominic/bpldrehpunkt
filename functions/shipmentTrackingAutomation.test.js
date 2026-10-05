@@ -21,10 +21,10 @@ test('a rule due before the lifecycle start provisions tracking early but retain
   assert.equal(shouldActivateShipmentTracking(lifecycle, { rules: [] }, '2026-09-30T09:01:00.000Z'), false)
 })
 
-test('the short-notice arrival confirmation is due two working hours before loading and never after an actual arrival', () => {
+test('the ETA confirmation is due two working hours before the loading ETA and never after an actual arrival', () => {
   const input = {
     imported: { loading: { window: { from: '2026-12-08T10:00' } } },
-    tracking: {},
+    tracking: { estimatedArrivalLoadingAt: '2026-12-08 10:00', estimatedArrivalLoadingRecordedAt: '2026-12-08T06:00:00.000Z' },
     carrier: { shipmentTrackingPolicy: { carrier: { actualArrivalConfirmationEnabled: true } } },
     settings: { enabled: true, offsetWorkingHours: 2 },
     operatingHours: DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS,
@@ -33,7 +33,8 @@ test('the short-notice arrival confirmation is due two working hours before load
   const plan = shipmentTrackingArrivalConfirmationPlan(input)
   assert.deepEqual(plan?.scheduled, { date: '2026-12-08', time: '08:00' })
   assert.equal(plan?.offsetWorkingHours, 2)
-  assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { actualArrivalLoadingAt: '2026-12-08T08:01:00.000Z' } }), null)
+  assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { ...input.tracking, actualArrivalLoadingAt: '2026-12-08T08:01:00.000Z' } }), null)
+  assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { estimatedArrivalLoadingAt: '2026-12-08 10:00', estimatedArrivalLoadingRecordedAt: '2026-12-08T08:01:00.000Z' }, now: '2026-12-08T08:05:00.000Z' }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, carrier: { shipmentTrackingPolicy: { carrier: { actualArrivalConfirmationEnabled: false } } } }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, now: '2026-12-08T08:20:00.000Z' }), null)
 })

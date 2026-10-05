@@ -144,6 +144,7 @@ test('a successfully dispatched external rule is shown as sent and is no longer 
 test('the arrival confirmation runs alongside normal carrier rules without sharing their dispatch state', () => {
   const result = preview({
     imported: imported('2026-12-07 08:00'),
+    tracking: { estimatedArrivalLoadingAt: '2026-12-07 08:00', estimatedArrivalLoadingRecordedAt: '2026-12-04T14:00:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } },
     carrier: carrierPolicy(['licensePlate.external.reminder.2'], true),
     arrivalConfirmationSettings: { enabled: true, offsetWorkingHours: 2 },
     now: '2026-12-04T15:05:00.000Z',
@@ -156,22 +157,35 @@ test('the arrival confirmation runs alongside normal carrier rules without shari
   assert.equal(result.rules[1].withinDispatchWindow, true)
 })
 
-test('arrival confirmation is rescheduled, skipped while paused, and never repeated after a recorded send', () => {
+test('arrival confirmation follows the loading ETA, is skipped while paused, and never repeated after a recorded send', () => {
   const base = {
     imported: imported('2026-12-07 08:00'),
+    tracking: { estimatedArrivalLoadingAt: '2026-12-07 08:00', estimatedArrivalLoadingRecordedAt: '2026-12-04T14:00:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } },
     carrier: carrierPolicy([], true),
     arrivalConfirmationSettings: { enabled: true, offsetWorkingHours: 2 },
     now: '2026-12-04T15:05:00.000Z',
   }
-  const shifted = preview({ ...base, imported: imported('2026-12-07 12:00') })
+  const shifted = preview({ ...base, tracking: { ...base.tracking, estimatedArrivalLoadingAt: '2026-12-07 12:00', estimatedArrivalLoadingRecordedAt: '2026-12-04T15:05:00.000Z' } })
   assert.equal(shifted.rules[0].scheduledAt, '2026-12-07T09:00:00.000Z')
   assert.equal(shifted.rules[0].status, 'upcoming')
-  const paused = preview({ ...base, tracking: { automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  const paused = preview({ ...base, tracking: { ...base.tracking, automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z' } })
   assert.equal(paused.rules[0].status, 'skipped')
-  const sentThenShifted = preview({ ...base, imported: imported('2026-12-07 12:00'), tracking: { actualArrivalConfirmationDispatch: { dispatchId: 'arrival-confirmation', sentAt: '2026-12-04T15:05:00.000Z' }, recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  const sentThenShifted = preview({ ...base, tracking: { ...base.tracking, estimatedArrivalLoadingAt: '2026-12-07 12:00', actualArrivalConfirmationDispatch: { dispatchId: 'arrival-confirmation', sentAt: '2026-12-04T15:05:00.000Z' } } })
   assert.equal(sentThenShifted.rules[0].status, 'sent')
-  const actualArrival = preview({ ...base, tracking: { actualArrivalLoadingAt: '2026-12-07T09:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  const actualArrival = preview({ ...base, tracking: { ...base.tracking, actualArrivalLoadingAt: '2026-12-07T09:30:00.000Z' } })
   assert.equal(actualArrival.rules[0].status, 'notRequired')
+})
+
+test('a loading ETA that arrives after its calculated trigger is missed and never automatically sent', () => {
+  const result = preview({
+    carrier: carrierPolicy([], true),
+    arrivalConfirmationSettings: { enabled: true, offsetWorkingHours: 2 },
+    tracking: { estimatedArrivalLoadingAt: '2026-12-07 08:00', estimatedArrivalLoadingRecordedAt: '2026-12-04T15:01:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } },
+    now: '2026-12-04T15:05:00.000Z',
+  })
+  assert.equal(result.rules[0].status, 'due')
+  assert.equal(result.rules[0].etaArrivedTooLate, true)
+  assert.equal(result.rules[0].withinDispatchWindow, false)
 })
 
 test('a policy saved after tracking started is used by the next dry-run calculation', () => {
