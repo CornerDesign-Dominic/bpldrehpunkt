@@ -6,13 +6,16 @@ const stateLabels = Object.freeze({ planned: 'Geplant', missed: 'Verpasst', sent
 const stateIcons = Object.freeze({ planned: FaClock, missed: FaCircleExclamation, sent: FaCircleCheck, skipped: FaCircleInfo, blocked: FaCircleExclamation })
 
 function ruleQualifier(entry) {
+  if (entry.arrivalConfirmation === true) {
+    const hours = /^(\d+(?:[.,]\d+)?) Arbeitsstunden vor ETA Ladestelle$/.exec(entry.reason || '')
+    return hours ? `UTN · ${hours[1]} Std. vor ETA` : 'UTN · Vor ETA'
+  }
   if (entry.title === 'Interne Eskalation') return 'intern'
   if (entry.title === 'Erste Anfrage an Unternehmer') return 'Erste Anfrage'
   if (entry.title === 'Erinnerung an Unternehmer') {
     const reminder = entry.id.match(/\.reminder\.(\d+)$/)
     return reminder ? `${reminder[1]}. Erinnerung` : 'Erinnerung'
   }
-  if (entry.arrivalConfirmation === true) return 'Vor ETA Ladestelle'
   return entry.title
 }
 

@@ -111,11 +111,13 @@ test('due and upcoming stages use the supplied reference time deterministically'
   assert.equal(upcoming.rules[0].status, 'upcoming')
 })
 
-test('rules due during a pause remain skipped after tracking resumes', () => {
+test('pausing keeps current rule states and only records rules actually skipped during the pause', () => {
   const paused = preview({ now: '2026-12-04T16:00:00.000Z', tracking: { automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
-  assert.equal(paused.rules[0].status, 'skipped')
-  assert.equal(paused.rules[0].pause.active, true)
-  const resumed = preview({ now: '2026-12-04T18:00:00.000Z', tracking: { automationPaused: false, automationSkippedBefore: '2026-12-04T17:00:00.000Z', lastAutomationPause: { from: '2026-12-04T14:30:00.000Z', until: '2026-12-04T17:00:00.000Z' }, recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(paused.rules[0].status, 'due')
+  const future = preview({ now: '2026-12-04T14:00:00.000Z', tracking: { automationPaused: true, automationPausedAt: '2026-12-04T13:30:00.000Z', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
+  assert.equal(future.rules[0].status, 'upcoming')
+  const skippedRule = { scheduledAt: '2026-12-04T15:00:00.000Z', pausedAt: '2026-12-04T14:30:00.000Z', skippedAt: '2026-12-04T15:01:00.000Z' }
+  const resumed = preview({ now: '2026-12-04T18:00:00.000Z', tracking: { automationPaused: false, automationSkippedRules: { 'licensePlate.external.reminder.2': skippedRule }, recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } } })
   assert.equal(resumed.rules[0].status, 'skipped')
   assert.equal(resumed.rules[0].pause.active, false)
   assert.equal(resumed.nextAction, null)
@@ -169,7 +171,9 @@ test('arrival confirmation follows the loading ETA, is skipped while paused, and
   assert.equal(shifted.rules[0].scheduledAt, '2026-12-07T09:00:00.000Z')
   assert.equal(shifted.rules[0].status, 'upcoming')
   const paused = preview({ ...base, tracking: { ...base.tracking, automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z' } })
-  assert.equal(paused.rules[0].status, 'skipped')
+  assert.equal(paused.rules[0].status, 'due')
+  const skipped = preview({ ...base, tracking: { ...base.tracking, automationPaused: true, automationPausedAt: '2026-12-04T14:30:00.000Z', automationSkippedRules: { 'actualArrivalConfirmation.external': { scheduledAt: '2026-12-04T15:00:00.000Z', pausedAt: '2026-12-04T14:30:00.000Z', skippedAt: '2026-12-04T15:01:00.000Z' } } } })
+  assert.equal(skipped.rules[0].status, 'skipped')
   const sentThenShifted = preview({ ...base, tracking: { ...base.tracking, estimatedArrivalLoadingAt: '2026-12-07 12:00', actualArrivalConfirmationDispatch: { dispatchId: 'arrival-confirmation', sentAt: '2026-12-04T15:05:00.000Z' } } })
   assert.equal(sentThenShifted.rules[0].status, 'sent')
   const actualArrival = preview({ ...base, tracking: { ...base.tracking, actualArrivalLoadingAt: '2026-12-07T09:30:00.000Z' } })

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { automaticTrackingDeliveryAllowed, automaticTrackingDeliveryId, isTrackingRecipientAllowed, shipmentTrackingArrivalConfirmationPlan, shouldActivateShipmentTracking } from './shipmentTrackingAutomation.js'
+import { automaticTrackingDeliveryAllowed, automaticTrackingDeliveryId, isAutomaticTrackingDispatchDue, isTrackingRecipientAllowed, shipmentTrackingArrivalConfirmationPlan, shouldActivateShipmentTracking } from './shipmentTrackingAutomation.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 
 test('automatic tracking mails are production-only, accept every valid recipient and retain stable deduplication ids', () => {
@@ -13,6 +13,14 @@ test('automatic tracking mails are production-only, accept every valid recipient
   assert.equal(isTrackingRecipientAllowed('not-an-email'), false)
   assert.equal(automaticTrackingDeliveryId('same-due-bundle'), automaticTrackingDeliveryId('same-due-bundle'))
   assert.notEqual(automaticTrackingDeliveryId('first'), automaticTrackingDeliveryId('second'))
+})
+
+test('automatic tracking dispatches only at the planned moment, never retroactively', () => {
+  const scheduledAt = '2026-12-08T08:00:00.000Z'
+  assert.equal(isAutomaticTrackingDispatchDue(scheduledAt, '2026-12-08T08:00:00.000Z'), true)
+  assert.equal(isAutomaticTrackingDispatchDue(scheduledAt, '2026-12-08T08:10:00.000Z'), true)
+  assert.equal(isAutomaticTrackingDispatchDue(scheduledAt, '2026-12-08T08:10:01.000Z'), false)
+  assert.equal(isAutomaticTrackingDispatchDue(scheduledAt, '2026-12-08T07:59:59.000Z'), false)
 })
 
 test('a rule due before the lifecycle start provisions tracking early but retains the upcoming lifecycle phase', () => {
@@ -35,6 +43,7 @@ test('the ETA confirmation is due two working hours before the loading ETA and n
   assert.equal(plan?.offsetWorkingHours, 2)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { ...input.tracking, actualArrivalLoadingAt: '2026-12-08T08:01:00.000Z' } }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { estimatedArrivalLoadingAt: '2026-12-08 10:00', estimatedArrivalLoadingRecordedAt: '2026-12-08T08:01:00.000Z' }, now: '2026-12-08T08:05:00.000Z' }), null)
+  assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, tracking: { ...input.tracking, automationAutomaticResumeAfter: new Date('2026-12-08T08:01:00.000Z') }, now: '2026-12-08T08:05:00.000Z' }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, carrier: { shipmentTrackingPolicy: { carrier: { actualArrivalConfirmationEnabled: false } } } }), null)
   assert.equal(shipmentTrackingArrivalConfirmationPlan({ ...input, now: '2026-12-08T08:20:00.000Z' }), null)
 })

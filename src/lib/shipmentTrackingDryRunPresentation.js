@@ -106,7 +106,7 @@ export function shipmentTrackingDryRunPresentation(preview, { now = new Date() }
     return {
       id: rule.ruleId,
       time: formatShipmentTrackingDryRunAt(rule.scheduledAt),
-      topic: topicLabel(rule.topic),
+      topic: rule.arrivalConfirmation === true ? 'ETA Ladestelle' : topicLabel(rule.topic),
       title: rule.title || (rule.kind === 'internal' ? 'Interne Eskalation' : 'Erinnerung an Unternehmer'),
       recipient: recipientLabel(rule.recipient),
       reason: rule.reason || '',

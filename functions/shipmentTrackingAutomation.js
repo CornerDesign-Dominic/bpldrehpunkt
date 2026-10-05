@@ -15,8 +15,20 @@ import { sendSystemMailTemplate, shipmentTrackingMailNotificationUrl, systemMail
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// The scheduler runs every five minutes.  Ten minutes give it one safe retry
+// interval, but never turn an old, missed action into an automatic e-mail.
+const AUTOMATIC_DISPATCH_WINDOW_MS = 10 * 60 * 1000
 
 function text(value) { return typeof value === 'string' ? value.trim() : '' }
+function asDate(value) {
+  const date = value?.toDate?.() || value
+  if (date instanceof Date && !Number.isNaN(date.getTime())) return date
+  if (typeof date === 'string' && date) {
+    const parsed = new Date(date)
+    return Number.isNaN(parsed.getTime()) ? null : parsed
+  }
+  return null
+}
 function eventPayload(eventType, oldValue, newValue) {
   return {
     eventType,
@@ -71,12 +83,24 @@ export function automaticTrackingDeliveryId(bundleId) {
   return `automatic-${createHash('sha256').update(bundleId).digest('hex')}`
 }
 
+/** Only a currently due action may leave automatically. Older actions stay
+ * visible as missed and can exclusively be triggered by a person. */
+export function isAutomaticTrackingDispatchDue(scheduledAt, now = new Date()) {
+  const scheduled = asDate(scheduledAt)
+  const clock = asDate(now) || new Date()
+  if (!scheduled) return false
+  const elapsedMs = clock.getTime() - scheduled.getTime()
+  return elapsedMs >= 0 && elapsedMs <= AUTOMATIC_DISPATCH_WINDOW_MS
+}
+
 /** Calculates the one short-notice arrival confirmation without looking at
  * existing rule-catalogue steps. A small scheduler tolerance avoids sending a
  * stale mail when an order is first seen long after the intended point. */
 export function shipmentTrackingArrivalConfirmationPlan({ imported, tracking, carrier, settings, operatingHours, now }) {
   const rule = shipmentTrackingArrivalConfirmationRule({ imported, tracking, carrier, settings, operatingHours, now })
   if (!rule || rule.status !== 'due' || rule.withinDispatchWindow !== true) return null
+  const automaticResumeAfter = asDate(tracking?.automationAutomaticResumeAfter)
+  if (automaticResumeAfter && asDate(rule.scheduledAt)?.getTime() < automaticResumeAfter.getTime()) return null
   return { scheduledAt: rule.scheduledAt, scheduled: shipmentTrackingBerlinLocal(rule.scheduledAt), offsetWorkingHours: normalizeShipmentTrackingArrivalConfirmation(settings).offsetWorkingHours }
 }
 
@@ -164,6 +188,36 @@ async function recordBlockedDelivery(trackingRef, bundle, reason) {
   }, { merge: true })
 }
 
+/** A pause freezes the current plan. Only a rule whose own scheduled instant
+ * occurs while the pause is active becomes a durable "skipped" action. */
+async function recordRulesSkippedDuringPause(db, trackingRef, tracking, rules, now) {
+  const pausedAt = asDate(tracking?.automationPausedAt)
+  const clock = asDate(now) || new Date()
+  if (!pausedAt) return
+  const dueRules = (rules || []).filter((rule) => {
+    const scheduledAt = asDate(rule?.scheduledAt)
+    const hasConfiguredRecipient = rule?.kind !== 'external' || rule?.recipient?.state === 'configured'
+    const etaWouldDispatch = rule?.arrivalConfirmation !== true || rule?.withinDispatchWindow === true
+    return rule?.status === 'due' && hasConfiguredRecipient && etaWouldDispatch && isAutomaticTrackingDispatchDue(scheduledAt, clock) && scheduledAt && scheduledAt.getTime() >= pausedAt.getTime() && scheduledAt.getTime() <= clock.getTime()
+  })
+  if (!dueRules.length) return
+  await db.runTransaction(async (transaction) => {
+    const fresh = await transaction.get(trackingRef)
+    const current = fresh.exists ? fresh.data() : null
+    const currentPausedAt = asDate(current?.automationPausedAt)
+    if (!current || current.automationPaused !== true || !currentPausedAt) return
+    const skippedRules = { ...(current.automationSkippedRules || {}) }
+    const newlySkipped = dueRules.filter((rule) => {
+      const scheduledAt = text(rule.scheduledAt)
+      return scheduledAt && skippedRules[rule.ruleId]?.scheduledAt !== scheduledAt && asDate(rule.scheduledAt)?.getTime() >= currentPausedAt.getTime()
+    })
+    if (!newlySkipped.length) return
+    for (const rule of newlySkipped) skippedRules[rule.ruleId] = { scheduledAt: rule.scheduledAt, pausedAt: currentPausedAt.toISOString(), skippedAt: clock.toISOString() }
+    transaction.update(trackingRef, { automationSkippedRules: skippedRules, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'system', updatedByName: 'Sendungsverfolgungs-Automatik' })
+    transaction.create(trackingRef.collection('events').doc(), eventPayload('tracking_automation_rules_skipped', {}, { ruleIds: newlySkipped.map((rule) => rule.ruleId), reason: 'automation-paused' }))
+  })
+}
+
 async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumber, tracking, operatingHours, settings, now }) {
   if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
   if (tracking.automationPaused === true || tracking.actualArrivalLoadingAt || tracking.unloadingCompletedAt) return { sent: 0, blocked: 0 }
@@ -193,8 +247,8 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
   })
   if (!claimed) return { sent: 0, blocked: 0 }
   const beforeSend = await trackingRef.get()
-  if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || beforeSend.data()?.actualArrivalLoadingAt || beforeSend.data()?.actualArrivalConfirmationDispatch?.dispatchId) {
-    await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'arrival-recorded-or-automation-paused-before-send' }, { merge: true })
+  if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || beforeSend.data()?.actualArrivalLoadingAt || beforeSend.data()?.actualArrivalConfirmationDispatch?.dispatchId || !isAutomaticTrackingDispatchDue(plan.scheduledAt, new Date())) {
+    await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'arrival-recorded-automation-paused-or-dispatch-window-expired-before-send' }, { merge: true })
     return { sent: 0, blocked: 0 }
   }
   try {
@@ -221,11 +275,19 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
 
 async function dispatchDueBundles(db, { orderId, imported, externalNumber, tracking, catalog, operatingHours, arrivalConfirmationSettings, now }) {
   if (!tracking || tracking.lifecycleStatus !== 'active' || !['upcoming', 'in_progress'].includes(tracking.lifecyclePhase || 'in_progress')) return { sent: 0, blocked: 0 }
-  if (tracking.automationPaused === true || tracking.unloadingCompletedAt) return { sent: 0, blocked: 0 }
+  if (tracking.unloadingCompletedAt) return { sent: 0, blocked: 0 }
   const [customer, carrier] = await Promise.all([effectivePartner(db, imported?.customer?.partnerId), effectivePartner(db, imported?.carrier?.partnerId)])
   const preview = shipmentTrackingDryRun({ imported, tracking, customer, carrier, catalog, operatingHours, arrivalConfirmationSettings, now })
-  const bundles = shipmentTrackingManualDispatchBundles(preview)
   const trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
+  if (tracking.automationPaused === true) {
+    await recordRulesSkippedDuringPause(db, trackingRef, tracking, preview.rules, now)
+    return { sent: 0, blocked: 0 }
+  }
+  const automaticResumeAfter = asDate(tracking.automationAutomaticResumeAfter)
+  const bundles = shipmentTrackingManualDispatchBundles(preview).filter((bundle) =>
+    (!automaticResumeAfter || asDate(bundle.scheduledAt)?.getTime() >= automaticResumeAfter.getTime())
+    && isAutomaticTrackingDispatchDue(bundle.scheduledAt, now),
+  )
   let sent = 0
   let blocked = 0
   for (const bundle of bundles) {
@@ -251,8 +313,8 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
     })
     if (!claimed) continue
     const beforeSend = await trackingRef.get()
-    if (!beforeSend.exists || beforeSend.data()?.automationPaused === true) {
-      await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'automation-paused-before-send' }, { merge: true })
+    if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || !isAutomaticTrackingDispatchDue(bundle.scheduledAt, new Date())) {
+      await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'automation-paused-or-dispatch-window-expired-before-send' }, { merge: true })
       continue
     }
     try {
