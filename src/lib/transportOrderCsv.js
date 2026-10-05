@@ -2,7 +2,7 @@ export const TRANSPORT_ORDER_REQUIRED_COLUMNS = ['Nummer', 'KundenNr.', 'FZ Name
 
 const field = (value) => typeof value === 'string' ? value.trim() : ''
 const text = (value) => field(value) || null
-const dateTimePattern = /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/
+const dateTimePattern = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/
 const isoDateTimePattern = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?$/
 const timePattern = /^(\d{1,2}):(\d{2})$/
 
@@ -45,7 +45,7 @@ function toIsoDateTime(value, label, errors) {
   if (!match) { errors.push(invalidDateTimeError(label, source)); return null }
   const [, first, second, third, hourValue, minuteValue] = match
   const german = Boolean(source.match(dateTimePattern))
-  const year = german ? third : first; const month = german ? second : second; const day = german ? first : third
+  const rawYear = german ? third : first; const year = german && rawYear.length === 2 ? String(2000 + Number(rawYear)) : rawYear; const month = german ? second : second; const day = german ? first : third
   const hour = hourValue ?? '0'; const minute = minuteValue ?? '0'
   const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)))
   if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() !== Number(month) - 1 || parsed.getUTCDate() !== Number(day) || Number(hour) > 23 || Number(minute) > 59) { errors.push(invalidDateTimeError(label, source)); return null }
