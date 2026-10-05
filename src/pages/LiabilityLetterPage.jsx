@@ -13,7 +13,7 @@ import { usePersonalDocumentSignature } from '../hooks/usePersonalDocumentSignat
 import { useCompanyStamp } from '../hooks/useCompanyStamp.js'
 import { createLiabilityDocumentData } from '../templates/liabilityDocumentData.js'
 import { documentPdfFileName } from '../lib/documentExport.js'
-import { downloadLiabilityLetterPdf } from '../lib/liabilityLetterPdf.js'
+import { downloadLiabilityLetterPdf, printLiabilityLetterPdf } from '../lib/liabilityLetterPdf.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { analyzeLiabilityTransportOrderWithAi, liabilityAnalysisToDocumentData } from '../lib/liabilityAi.js'
 
@@ -37,6 +37,7 @@ export default function LiabilityLetterPage() {
   const { company, loading: companyLoading, error: companyError } = useCompanyData()
   const [documentData, setDocumentData] = useState(createLiabilityDocumentData)
   const [isCreatingPdf, setCreatingPdf] = useState(false)
+  const [isPrintingPdf, setPrintingPdf] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const [aiStep, setAiStep] = useState(null)
   const [aiDraftData, setAiDraftData] = useState(null)
@@ -52,8 +53,17 @@ export default function LiabilityLetterPage() {
     setDocumentData((current) => ({ ...current, [field]: value }))
   }
 
-  function printDocument() {
-    window.print()
+  async function printDocument() {
+    setPrintingPdf(true)
+    setPdfError('')
+    try {
+      await printLiabilityLetterPdf(documentData, company)
+    } catch (error) {
+      setPdfError('Die Druckansicht konnte nicht vorbereitet werden. Bitte versuche es erneut.')
+      void reportTechnicalFailure({ module: 'document-templates', stage: 'pdf-print', error })
+    } finally {
+      setPrintingPdf(false)
+    }
   }
 
   async function requestPdfAction(action) {
@@ -65,7 +75,7 @@ export default function LiabilityLetterPage() {
       setPdfConfirmationAction(action)
       return
     }
-    if (action === 'print') printDocument()
+    if (action === 'print') await printDocument()
     else void createPdf()
   }
 
@@ -73,7 +83,7 @@ export default function LiabilityLetterPage() {
     const action = pdfConfirmationAction
     setPdfConfirmationAction(null)
     if (!await ensurePersonalSignature(documentData)) return
-    if (action === 'print') printDocument()
+    if (action === 'print') await printDocument()
     if (action === 'create') void createPdf()
   }
 
@@ -157,8 +167,8 @@ export default function LiabilityLetterPage() {
         {companyError && <p className="form-error" role="alert">{companyError}</p>}
         {pdfError && <p className="form-error" role="alert">{pdfError}</p>}
         <div className="liability-page__actions">
-          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
-          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
+          <button className="button button--secondary" type="button" disabled={isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isPrintingPdf} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
+          <button className="button" type="button" disabled={isCreatingPdf || isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
         </div>
       </div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />

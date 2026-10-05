@@ -7,9 +7,9 @@ const PAGE = { left: 19, right: 191, footerLeft: 16, footerRight: 194 }
 const LETTERHEAD = { top: 8, width: 172, height: 33.75 }
 const BODY_FONT_SIZE = 10.3
 const BODY_LINE_HEIGHT = 5.45
-const CONTENT_BOTTOM = 257
+const CONTENT_BOTTOM = 260
 
-function writeFooter(pdf, company) {
+function writeFooter(pdf, company, pageNumber, pageCount) {
   // Matches the fixed bottom spacing of the browser preview. The former
   // position left an unnecessarily large gap below the generated PDF footer.
   const footerTop = 270
@@ -26,16 +26,21 @@ function writeFooter(pdf, company) {
       y += 3.35
     })
   })
+  if (pageCount > 1) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7.5)
+    pdf.text(`Seite ${pageNumber}/${pageCount}`, 105, 290, { align: 'center' })
+  }
 }
 
-function writeLetterhead(pdf, headerImage, company) {
+function writeLetterhead(pdf, headerImage, company, pageNumber, pageCount) {
   if (company.legalName === DEFAULT_COMPANY_DATA.legalName) pdf.addImage(headerImage, 'PNG', PAGE.left, LETTERHEAD.top, LETTERHEAD.width, LETTERHEAD.height)
   else {
     pdf.setFont('helvetica', 'bold'); pdf.setFontSize(company.legalName.length > 60 ? 11 : 18)
     pdf.text(pdf.splitTextToSize(company.legalName, LETTERHEAD.width), PAGE.left, LETTERHEAD.top + 15)
     pdf.setDrawColor(80); pdf.line(PAGE.left, LETTERHEAD.top + LETTERHEAD.height, PAGE.right, LETTERHEAD.top + LETTERHEAD.height)
   }
-  writeFooter(pdf, company)
+  writeFooter(pdf, company, pageNumber, pageCount)
 }
 
 export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage, company }) {
@@ -144,7 +149,7 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage, com
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index]
     pdf.setPage(index + 1)
-    writeLetterhead(pdf, headerImage, company)
+    writeLetterhead(pdf, headerImage, company, index + 1, pages.length)
     page.forEach((entry) => {
       if (entry.type === 'image') {
         pdf.addImage(entry.imageData, entry.format || 'JPEG', entry.x, entry.y, entry.width, entry.height)
