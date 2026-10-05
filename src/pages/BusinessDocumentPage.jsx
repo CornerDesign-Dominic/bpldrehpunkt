@@ -9,7 +9,7 @@ import BackLink from '../components/ui/BackLink.jsx'
 import { usePersonalDocumentSignature } from '../hooks/usePersonalDocumentSignature.js'
 import { useCompanyStamp } from '../hooks/useCompanyStamp.js'
 import { documentPdfFileName } from '../lib/documentExport.js'
-import { downloadBusinessDocumentPdf } from '../lib/businessDocumentPdf.js'
+import { downloadBusinessDocumentPdf, printBusinessDocumentPdf } from '../lib/businessDocumentPdf.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { createBusinessDocumentData } from '../templates/businessDocumentData.js'
 
@@ -17,6 +17,7 @@ export default function BusinessDocumentPage() {
   const { company, loading: companyLoading, error: companyError } = useCompanyData()
   const [documentData, setDocumentData] = useState(createBusinessDocumentData)
   const [isCreatingPdf, setCreatingPdf] = useState(false)
+  const [isPrintingPdf, setPrintingPdf] = useState(false)
   const [pdfError, setPdfError] = useState('')
   const documentPaperRef = useRef(null)
   const { usePersonalSignature, signatureLoading, signatureNoticeVisible, signatureNoticeMessage, signatureMissing, togglePersonalSignature, ensurePersonalSignature } = usePersonalDocumentSignature(setDocumentData)
@@ -39,10 +40,23 @@ export default function BusinessDocumentPage() {
     }
   }
 
+  async function printDocument() {
+    setPrintingPdf(true)
+    setPdfError('')
+    try {
+      await printBusinessDocumentPdf(documentData, company)
+    } catch (error) {
+      setPdfError('Die Druckansicht konnte nicht vorbereitet werden. Bitte versuche es erneut.')
+      void reportTechnicalFailure({ module: 'document-templates', stage: 'pdf-print', error })
+    } finally {
+      setPrintingPdf(false)
+    }
+  }
+
   async function requestPdfAction(action) {
     if (companyLoading || companyError || stamp.loading) return
     if (!await ensurePersonalSignature(documentData)) return
-    if (action === 'print') window.print()
+    if (action === 'print') await printDocument()
     else void createPdf()
   }
 
@@ -59,8 +73,8 @@ export default function BusinessDocumentPage() {
         {companyError && <p className="form-error" role="alert">{companyError}</p>}
         {pdfError && <p className="form-error" role="alert">{pdfError}</p>}
         <div className="liability-page__actions">
-          <button className="button button--secondary" type="button" disabled={signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
-          <button className="button" type="button" disabled={isCreatingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
+          <button className="button button--secondary" type="button" disabled={isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isPrintingPdf} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
+          <button className="button" type="button" disabled={isCreatingPdf || isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
         </div>
       </div>
       <BusinessDocumentPreview documentData={documentData} paperRef={documentPaperRef} />

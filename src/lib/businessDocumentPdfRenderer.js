@@ -6,9 +6,9 @@ const PAGE = { left: 19, right: 191, footerLeft: 16, footerRight: 194 }
 const LETTERHEAD = { top: 8, width: 172, height: 33.75 }
 const BODY_FONT_SIZE = 10.3
 const BODY_LINE_HEIGHT = 5.45
-const CONTENT_BOTTOM = 257
+const CONTENT_BOTTOM = 260
 
-function writeFooter(pdf, company) {
+function writeFooter(pdf, company, pageNumber, pageCount) {
   // Matches the fixed bottom spacing of the browser preview. The former
   // position left an unnecessarily large gap below the generated PDF footer.
   const footerTop = 270
@@ -25,6 +25,11 @@ function writeFooter(pdf, company) {
       y += 3.35
     })
   })
+  if (pageCount > 1) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7.5)
+    pdf.text(`Seite ${pageNumber}/${pageCount}`, 105, 290, { align: 'center' })
+  }
 }
 
 export function renderBusinessDocumentPdf({ JsPdf, documentData, headerImage, company }) {
@@ -126,7 +131,7 @@ export function renderBusinessDocumentPdf({ JsPdf, documentData, headerImage, co
       pdf.text(pdf.splitTextToSize(company.legalName, LETTERHEAD.width), PAGE.left, LETTERHEAD.top + 15)
       pdf.setDrawColor(80); pdf.line(PAGE.left, LETTERHEAD.top + LETTERHEAD.height, PAGE.right, LETTERHEAD.top + LETTERHEAD.height)
     }
-    writeFooter(pdf, company)
+    writeFooter(pdf, company, index + 1, pages.length)
     pages[index].forEach((entry) => {
       if (entry.type === 'image') {
         pdf.addImage(entry.imageData, entry.format || 'JPEG', entry.x, entry.y, entry.width, entry.height)
