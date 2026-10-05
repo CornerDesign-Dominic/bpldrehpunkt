@@ -7,6 +7,8 @@ const isoDateTimePattern = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{1,2}):(\d{2}))?$/
 const timePattern = /^(\d{1,2}):(\d{2})$/
 
 function normalizeHeader(value) { return field(value).replace(/\s+/g, ' ') }
+function shownImportValue(value) { return String(value).replace(/\u00a0|\u202f/g, '⍽').replace(/\r?\n/g, '↵').replace(/\u200b/g, '⟂') }
+function invalidDateTimeError(label, value) { return `${label}: Wert „${shownImportValue(value)}“ konnte nicht als Datum/Uhrzeit gelesen werden.` }
 
 function detectDelimiter(line) {
   let quoted = false; let commas = 0; let semicolons = 0
@@ -40,13 +42,13 @@ function toIsoDateTime(value, label, errors) {
   const source = field(value)
   if (!source) return null
   const match = source.match(dateTimePattern) || source.match(isoDateTimePattern)
-  if (!match) { errors.push(`${label}: ungültiges Datum oder ungültige Uhrzeit.`); return null }
+  if (!match) { errors.push(invalidDateTimeError(label, source)); return null }
   const [, first, second, third, hourValue, minuteValue] = match
   const german = Boolean(source.match(dateTimePattern))
   const year = german ? third : first; const month = german ? second : second; const day = german ? first : third
   const hour = hourValue ?? '0'; const minute = minuteValue ?? '0'
   const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)))
-  if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() !== Number(month) - 1 || parsed.getUTCDate() !== Number(day) || Number(hour) > 23 || Number(minute) > 59) { errors.push(`${label}: ungültiges Datum oder ungültige Uhrzeit.`); return null }
+  if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() !== Number(month) - 1 || parsed.getUTCDate() !== Number(day) || Number(hour) > 23 || Number(minute) > 59) { errors.push(invalidDateTimeError(label, source)); return null }
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
@@ -55,9 +57,15 @@ function toWindow(from, until, label, errors) {
   const slot = field(until)
   if (!slot) return { from: start, until: null }
   const time = slot.match(timePattern)
-  const end = time && start ? `${start.slice(0, 10)}T${String(time[1]).padStart(2, '0')}:${time[2]}` : toIsoDateTime(slot, `${label} bis`, errors)
-  if (time && (!start || Number(time[1]) > 23 || Number(time[2]) > 59)) errors.push(`${label} bis: ungültige Uhrzeit.`)
-  return { from: start, until: end }
+  if (time) {
+    if (!start) return { from: start, until: null }
+    if (Number(time[1]) > 23 || Number(time[2]) > 59) {
+      errors.push(invalidDateTimeError(`${label} bis`, slot))
+      return { from: start, until: null }
+    }
+    return { from: start, until: `${start.slice(0, 10)}T${String(time[1]).padStart(2, '0')}:${time[2]}` }
+  }
+  return { from: start, until: toIsoDateTime(slot, `${label} bis`, errors) }
 }
 
 function toNumber(value, label, errors, integer = false) {

@@ -27,9 +27,15 @@ test('keeps a complete slot date and time unchanged', () => {
 
 test('marks invalid time values and duplicate DyCoS numbers as row errors', () => {
   const result = parseTransportOrderCsv(`${header}\n${row('260400212', '10.09.2026 07:00', '29:00', '11.09.2026 08:00', '16:00')}\n${row('260400212', '10.09.2026 07:00', '14:00', '11.09.2026 08:00', '16:00')}`)
-  assert.match(result.rows[0].errors.join(' '), /ungültige Uhrzeit/)
+  assert.match(result.rows[0].errors.join(' '), /Erste Ladestelle bis: Wert „29:00“ konnte nicht als Datum\/Uhrzeit gelesen werden/)
   assert.match(result.rows[0].errors.join(' '), /mehrfach vor/)
   assert.match(result.rows[1].errors.join(' '), /mehrfach vor/)
+})
+
+test('shows the original malformed date value in an import error', () => {
+  const result = parseTransportOrderCsv(`${header}\n${row('260400214', '##########', '14:00', '11.09.2026 08:00', '16:00')}`)
+
+  assert.deepEqual(result.rows[0].errors, ['Erste Ladestelle von: Wert „##########“ konnte nicht als Datum/Uhrzeit gelesen werden.'])
 })
 
 test('combines truck and trailer license plate columns while treating punctuation placeholders as empty', () => {
