@@ -85,9 +85,9 @@ test('the action overview explains a rule skipped after an imported date change'
   assert.match(model.entries[0].pauseText, /Terminänderung beim Import/)
 })
 
-test('the action overview presents the independent short-notice arrival confirmation as its own action', () => {
-  const model = shipmentTrackingDryRunPresentation({ rules: [{ ruleId: 'actualArrivalConfirmation.external', topic: 'loadingSite', kind: 'external', title: 'Aktuellen Stand anfragen', source: 'arrival-confirmation', arrivalConfirmation: true, recipient: { role: 'carrier', state: 'configured', email: 'test@example.test' }, scheduledAt: '2026-12-04T15:00:00.000Z', status: 'upcoming', reason: '2 Arbeitsstunden vor frühester Beladung' }] }, { now: '2026-12-04T14:00:00.000Z' })
-  assert.equal(model.entries[0].title, 'Aktuellen Stand anfragen')
-  assert.equal(model.entries[0].trigger, 'Kurz vor Ladung')
+test('the action overview presents the independent ETA confirmation as its own action', () => {
+  const model = shipmentTrackingDryRunPresentation({ rules: [{ ruleId: 'actualArrivalConfirmation.external', topic: 'loadingSite', kind: 'external', title: 'Aktuellen Stand vor ETA anfragen', source: 'arrival-confirmation', arrivalConfirmation: true, recipient: { role: 'carrier', state: 'configured', email: 'test@example.test' }, scheduledAt: '2026-12-04T15:00:00.000Z', status: 'upcoming', reason: '2 Arbeitsstunden vor ETA Ladestelle' }] }, { now: '2026-12-04T14:00:00.000Z' })
+  assert.equal(model.entries[0].title, 'Aktuellen Stand vor ETA anfragen')
+  assert.equal(model.entries[0].trigger, 'Vor ETA Ladestelle')
   assert.equal(model.entries[0].arrivalConfirmation, true)
 })

@@ -72,7 +72,7 @@ function pauseText(pause) {
 
 function triggerLabel(sources) {
   const sourceSet = new Set(sources)
-  if (sourceSet.has('arrival-confirmation')) return 'Kurz vor Ladung'
+  if (sourceSet.has('arrival-confirmation')) return 'Vor ETA Ladestelle'
   if (sourceSet.has('carrier') && sourceSet.has('customer-required')) return 'Unternehmer und Kunde wichtig'
   if (sourceSet.has('customer-required')) return 'Kunde wichtig'
   if (sourceSet.has('carrier')) return 'Unternehmer'

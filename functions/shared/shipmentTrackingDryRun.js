@@ -116,13 +116,16 @@ function catalogAvailability(catalog) {
   try { validateShipmentTrackingRuleCatalog(catalog); return 'available' } catch { return 'invalid' }
 }
 
-/** The near-loading confirmation intentionally has no connection to the
- * editable rule catalogue. It nevertheless uses the same recipient,
- * pause/import-shift and sent-state semantics as every carrier rule. */
-export function shipmentTrackingArrivalConfirmationRule({ imported = null, tracking = null, carrier = null, settings = null, operatingHours = null, now = new Date() } = {}) {
+/** The ETA confirmation intentionally has no connection to the editable rule
+ * catalogue. It nevertheless uses the same recipient, pause/import-shift and
+ * sent-state semantics as every carrier rule. */
+export function shipmentTrackingArrivalConfirmationRule({ tracking = null, carrier = null, settings = null, operatingHours = null, now = new Date() } = {}) {
   const configured = normalizeShipmentTrackingArrivalConfirmation(settings)
   if (!configured.enabled || carrier?.shipmentTrackingPolicy?.carrier?.actualArrivalConfirmationEnabled !== true) return null
-  const reference = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
+  // This request is tied to the actual ETA, not the planned loading slot.
+  // Without an ETA there is deliberately no automatic dispatch to catch up.
+  const reference = shipmentTrackingBerlinLocal(tracking?.estimatedArrivalLoadingAt)
+  if (!reference) return null
   const clock = asDate(now) || new Date()
   let scheduledAt = null
   let adjustment = null
@@ -136,13 +139,19 @@ export function shipmentTrackingArrivalConfirmationRule({ imported = null, track
   const dispatch = arrivalConfirmationDispatch(tracking)
   const pause = pausedAutomation(tracking, scheduledAt, clock)
   const completed = Boolean(tracking?.actualArrivalLoadingAt)
+  const etaRecordedAt = asDate(tracking?.estimatedArrivalLoadingRecordedAt)
+  const scheduledDate = asDate(scheduledAt)
+  // A newly received ETA must not trigger an overdue automatic mail. It is
+  // shown as missed instead and can be sent from the manual request controls.
+  const etaArrivedTooLate = Boolean(etaRecordedAt && scheduledDate && etaRecordedAt.getTime() > scheduledDate.getTime())
   const status = completed ? 'notRequired' : dispatch ? 'sent' : pause ? 'skipped' : scheduledAt && new Date(scheduledAt).getTime() <= clock.getTime() ? 'due' : 'upcoming'
   const delayMs = scheduledAt ? clock.getTime() - new Date(scheduledAt).getTime() : null
   return {
-    ruleId: ARRIVAL_CONFIRMATION_RULE_ID, topic: 'loadingSite', kind: 'external', title: 'Aktuellen Stand anfragen',
-    reason: `${configured.offsetWorkingHours} Arbeitsstunden vor frühester Beladung`, source: 'arrival-confirmation',
+    ruleId: ARRIVAL_CONFIRMATION_RULE_ID, topic: 'loadingSite', kind: 'external', title: 'Aktuellen Stand vor ETA anfragen',
+    reason: `${configured.offsetWorkingHours} Arbeitsstunden vor ETA Ladestelle`, source: 'arrival-confirmation',
     recipient: carrierRecipient(tracking), scheduledAt, status, adjustmentReason: adjustment, arrivalConfirmation: true,
-    withinDispatchWindow: status === 'due' && delayMs >= 0 && delayMs <= 10 * 60 * 1000,
+    etaArrivedTooLate,
+    withinDispatchWindow: status === 'due' && !etaArrivedTooLate && delayMs >= 0 && delayMs <= 10 * 60 * 1000,
     ...(pause ? { pause } : {}), ...(dispatch ? { dispatch } : {}),
   }
 }

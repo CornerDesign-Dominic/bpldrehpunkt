@@ -107,6 +107,7 @@ function templateValues(imported, externalNumber) {
   return {
     transportOrderNumber: text(externalNumber) || text(imported?.externalNumber) || text(imported?.orderNumber) || 'Nicht hinterlegt',
     loadingLocation: text(imported?.loading?.city) || text(imported?.loading?.originalText) || 'Nicht hinterlegt',
+    unloadingLocation: text(imported?.unloading?.city) || text(imported?.unloading?.originalText) || 'Nicht hinterlegt',
     loadingTime: loadingTime(imported),
   }
 }
@@ -213,7 +214,7 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
     return { sent: 1, blocked: 0 }
   } catch (error) {
     await deliveryRef.set({ status: 'failed', failedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: error instanceof Error ? error.message.slice(0, 240) : 'delivery-failed' }, { merge: true })
-    logger.error('Kurz-vor-Ladung-Anfrage fehlgeschlagen.', { orderId, deliveryId: deliveryRef.id, error: error instanceof Error ? error.message : 'unknown' })
+    logger.error('ETA-Ladestelle-Anfrage fehlgeschlagen.', { orderId, deliveryId: deliveryRef.id, error: error instanceof Error ? error.message : 'unknown' })
     return { sent: 0, blocked: 0 }
   }
 }
