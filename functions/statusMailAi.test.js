@@ -78,6 +78,18 @@ test('accepts only high-confidence updates backed by literal mail evidence', () 
   ])
 })
 
+test('accepts a clearly paired tractor and trailer license plate from one mail excerpt', () => {
+  const plateMail = { ...mail, bodyText: 'Kennzeichen: WGM5763J / WGM8765K\nETA: 15:00 Uhr' }
+  const result = validateStatusMailAiResult({ isStatusUpdate: true, updates: [
+    { field: 'tractorLicensePlate', value: 'WGM5763J', evidence: 'Kennzeichen: WGM5763J / WGM8765K', confidence: 'high' },
+    { field: 'trailerLicensePlate', value: 'WGM8765K', evidence: 'Kennzeichen: WGM5763J / WGM8765K', confidence: 'high' },
+  ] }, plateMail)
+  assert.deepEqual(result.map(({ field, value }) => ({ field, value })), [
+    { field: 'tractorLicensePlate', value: 'WGM5763J' },
+    { field: 'trailerLicensePlate', value: 'WGM8765K' },
+  ])
+})
+
 test('rejects future actual events and time values without a time in evidence', () => {
   const updates = validateStatusMailAiResult({ isStatusUpdate: true, updates: [
     { field: 'actualArrivalUnloadingAt', value: '2026-10-02T15:30:00+02:00', evidence: 'ETA Entladestelle heute 15:30 Uhr', confidence: 'high' },

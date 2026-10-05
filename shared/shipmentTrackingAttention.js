@@ -27,9 +27,14 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
   const estimatedDeparture = shipmentTrackingDate(tracking.estimatedDepartureLoadingAt)
   const actualDeparture = shipmentTrackingDate(tracking.actualDepartureLoadingAt)
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
+  const unloadingCompleted = shipmentTrackingDate(tracking.unloadingCompletedAt)
+  const transportFinished = Boolean(actualUnloading || unloadingCompleted || tracking.lifecycleStatus === 'completed')
   const manuallyReviewableMail = (receivedMails || []).some((mail) => mail?.ai?.reviewRequired === true || ['needs_review', 'error'].includes(mail?.ai?.status))
   if (manuallyReviewableMail) items.push(issue('mail-review', 'warning', 'Eingangsmail manuell prüfen', 'Eine zugeordnete Mail benötigt eine fachliche Prüfung.'))
-  if (actualUnloading) {
+  // Once the transport has reached or completed the unloading site, none of
+  // the operational truck prompts for loading arrival, departure or transit
+  // are still actionable. Keep only manual mail review and yellow data care.
+  if (transportFinished) {
     if (!loadingStarted || !loadingCompleted) {
       const missing = !loadingStarted && !loadingCompleted ? 'Beladezeiten' : !loadingStarted ? 'Beladestart' : 'Beladeende'
       const loading = issue('loading-wait', 'warning', `${missing} ergänzen`, 'Die Entladung ist abgeschlossen. Fehlende Beladezeiten können weiterhin nachgetragen werden.')
