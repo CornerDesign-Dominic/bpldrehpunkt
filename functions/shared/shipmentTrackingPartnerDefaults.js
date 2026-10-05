@@ -19,8 +19,8 @@ export function newShipmentTrackingPartnerPolicy(partner = {}, catalog = null) {
       licensePlateImportant: roles.customer,
       loadingSiteInformationImportant: roles.customer,
     },
-    // This independent, short-notice check is enabled for each newly created
-    // carrier. Existing partners stay unchanged until someone enables it.
-    carrier: { enabledRuleIds, actualArrivalConfirmationEnabled: roles.carrier },
+    // This independent, short-notice check starts disabled for each newly
+    // created carrier. Existing partners stay unchanged until someone edits it.
+    carrier: { enabledRuleIds, actualArrivalConfirmationEnabled: false },
   }
 }

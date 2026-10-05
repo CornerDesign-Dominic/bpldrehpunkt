@@ -13,6 +13,7 @@ test('a new carrier enables only active internal tracking rules', () => {
     'licensePlate.internal.escalation.1': true,
     'loadingSite.internal.escalation.2': true,
   })
+  assert.equal(policy.carrier.actualArrivalConfirmationEnabled, false)
 })
 
 test('a provisional TA-import carrier without a creditor number receives carrier defaults', () => {
@@ -35,4 +36,5 @@ test('a new partner with both roles receives independent defaults', () => {
   assert.equal(policy.customer.licensePlateImportant, true)
   assert.equal(policy.customer.loadingSiteInformationImportant, true)
   assert.equal(Object.values(policy.carrier.enabledRuleIds).every(Boolean), true)
+  assert.equal(policy.carrier.actualArrivalConfirmationEnabled, false)
 })
