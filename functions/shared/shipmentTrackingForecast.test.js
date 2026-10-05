@@ -89,6 +89,16 @@ test('completed transports retain only mail review and yellow loading-time follo
   assert.equal(loading.icon, 'stopwatch')
 })
 
+test('a completed unloading or manually completed tracking suppresses every operational truck prompt', () => {
+  for (const tracking of [
+    { unloadingCompletedAt: '2026-10-07T18:00:00Z' },
+    { lifecycleStatus: 'completed' },
+  ]) {
+    const result = shipmentTrackingAttention({ tracking, imported, now: new Date('2026-10-08T10:00:00Z') })
+    assert.equal(result.items.some((item) => item.id === 'loading-arrival' || item.id === 'departure-missing' || item.id === 'departure-confirmation' || item.id === 'unloading-arrival' || item.id === 'in-transit'), false)
+  }
+})
+
 test('forecast color uses the active admin thresholds while preserving the calculated span', () => {
   const base = { tracking: { actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, imported: { ...imported, unloading: { window: { until: '2026-10-07T07:30:00Z' } } }, route: { roundedDistanceKm: 650 } }
   const yellow = buildShipmentTrackingForecast({ ...base, settings: { redThresholdPercent: 15, greenThresholdPercent: 50 } })
