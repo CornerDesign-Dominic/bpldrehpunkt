@@ -19,6 +19,14 @@ test('normalizes a matching time-only end to the complete start timestamp', () =
   assert.equal(result.rows[0].imported.loading.window.until, '2026-09-10T12:00')
 })
 
+test('accepts the two-digit year format used by DyCoS exports', () => {
+  const result = parseTransportOrderCsv(`${header}\n${row('260400214', '06.10.26 12:00', '06.10.26 14:00', '07.10.26 09:00', '07.10.26 09:00')}`)
+
+  assert.deepEqual(result.rows[0].errors, [])
+  assert.deepEqual(result.rows[0].imported.loading.window, { from: '2026-10-06T12:00', until: '2026-10-06T14:00' })
+  assert.deepEqual(result.rows[0].imported.unloading.window, { from: '2026-10-07T09:00', until: '2026-10-07T09:00' })
+})
+
 test('keeps a complete slot date and time unchanged', () => {
   const result = parseTransportOrderCsv(`${header}\n${row('260400211', '10.09.2026 07:00', '12.09.2026 14:00', '11.09.2026 08:00', '11.09.2026 16:00')}`)
   assert.equal(result.rows[0].imported.loading.window.from, '2026-09-10T07:00')
