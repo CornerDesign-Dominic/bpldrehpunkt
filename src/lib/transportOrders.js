@@ -23,6 +23,12 @@ export async function listTransportOrderRelations() {
   return Array.isArray(result.data?.relations) ? result.data.relations : []
 }
 
+export async function saveOwnTransportOrderListPreferences(preferences) {
+  await waitForAppCheckToken()
+  const result = await httpsCallable(functions, 'updateOwnTransportOrderListPreferences')({ preferences })
+  return result.data?.preferences || null
+}
+
 export async function getTransportOrder(transportOrderId) {
   const snapshot = await getDoc(doc(db, TRANSPORT_ORDERS_COLLECTION, transportOrderId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null

@@ -25,6 +25,7 @@ import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarri
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
+import { updateOwnTransportOrderListPreferencesHandler } from './userPreferences.js'
 import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } from './statusMailIngest.js'
 import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
@@ -288,6 +289,10 @@ export const updateOwnLanguage = onCall({ region: 'europe-west3', enforceAppChec
   await db.doc(`users/${request.auth.uid}`).update({ language, updatedAt: FieldValue.serverTimestamp() })
   return { language }
 })
+
+// Personal order-list filters are stored with the signed-in user, but only
+// this small, validated preference object may be updated through the client.
+export const updateOwnTransportOrderListPreferences = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateOwnTransportOrderListPreferencesHandler)
 
 function personnelListEntry(snapshot) {
   const profile = snapshot.data()
