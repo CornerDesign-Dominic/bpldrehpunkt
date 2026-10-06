@@ -1,12 +1,13 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FaBan, FaChevronLeft, FaChevronRight, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
+import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
-import { listTransportOrderRelations, listTransportOrdersPage } from '../lib/transportOrders.js'
+import { listTransportOrderRelations, listTransportOrdersPage, saveOwnTransportOrderListPreferences } from '../lib/transportOrders.js'
 import { formatTransportOrderRelation, formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
-import { defaultTrackingFilter, emptyTrackingFilterMessage, trackingFilterOptions, trackingStatusForList, transportOrderListPageSize, transportOrderListPageSizeOptions, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
+import { defaultTrackingFilter, defaultTransportOrderListPreferences, emptyTrackingFilterMessage, normalizeTransportOrderListPreferences, trackingFilterOptions, trackingStatusForList, transportOrderListPageSizeOptions, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
 import { getShipmentTrackingForecast, refreshShipmentTrackingForecast } from '../lib/shipmentTrackingForecast.js'
 import { getShipmentTracking, sendManualShipmentTrackingMail, shipmentTrackingManualMailErrorMessage } from '../lib/shipmentTracking.js'
 import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
@@ -20,7 +21,7 @@ const columns = [
   { key: 'customer', label: 'Kunde' }, { key: 'carrier', label: 'Unternehmer' },
 ]
 
-const emptyIconFilters = { automationPaused: false, mailReview: false, licensePlate: false, stopwatch: '', truck: '' }
+const transportOrderListPreferenceCache = new Map()
 
 const attentionIcon = (item) => item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
 const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen' }[state] || 'Unbekannt')
@@ -35,18 +36,20 @@ function IconFilterButton({ active, title, label, children, onClick, tone = '' }
 
 export default function TransportOrdersPage() {
   const { canEdit } = usePermissions()
+  const { user, profile } = useAuth()
   const { t } = useLanguage()
   const navigate = useNavigate()
-  const [search, setSearch] = useState('')
-  const [trackingFilter, setTrackingFilter] = useState(defaultTrackingFilter)
-  const [attentionFilter, setAttentionFilter] = useState('all')
-  const [iconFilters, setIconFilters] = useState(emptyIconFilters)
-  const [relationFilter, setRelationFilter] = useState('')
-  const [loadingFrom, setLoadingFrom] = useState('')
-  const [loadingUntil, setLoadingUntil] = useState('')
+  const initialPreferences = () => transportOrderListPreferenceCache.get(user?.uid) || normalizeTransportOrderListPreferences(profile?.userPreferences?.transportOrderList)
+  const [search, setSearch] = useState(() => initialPreferences().search)
+  const [trackingFilter, setTrackingFilter] = useState(() => initialPreferences().trackingFilter)
+  const [attentionFilter, setAttentionFilter] = useState(() => initialPreferences().attentionFilter)
+  const [iconFilters, setIconFilters] = useState(() => initialPreferences().iconFilters)
+  const [relationFilter, setRelationFilter] = useState(() => initialPreferences().relation)
+  const [loadingFrom, setLoadingFrom] = useState(() => initialPreferences().loadingFrom)
+  const [loadingUntil, setLoadingUntil] = useState(() => initialPreferences().loadingUntil)
   const [relations, setRelations] = useState([])
-  const [sort, setSort] = useState({ key: null, direction: 'asc' })
-  const [pageSize, setPageSize] = useState(transportOrderListPageSize)
+  const [sort, setSort] = useState(() => initialPreferences().sort)
+  const [pageSize, setPageSize] = useState(() => initialPreferences().pageSize)
   const [cursors, setCursors] = useState([null])
   const [pageIndex, setPageIndex] = useState(0)
   const [page, setPage] = useState({ orders: [], hasMore: false, nextCursor: null })
@@ -58,7 +61,34 @@ export default function TransportOrdersPage() {
   const [forecastRequestMail, setForecastRequestMail] = useState(null)
   const [forecastRequestMailSaving, setForecastRequestMailSaving] = useState(false)
   const tableRef = useRef(null)
+  const preferencesRef = useRef(null)
+  const preferencesInitializedRef = useRef(false)
+  const preferencesDirtyRef = useRef(false)
+  const preferenceSaveChainRef = useRef(Promise.resolve())
   const cursor = cursors[pageIndex]
+  const preferences = useMemo(() => ({ search, trackingFilter, attentionFilter, iconFilters, relation: relationFilter, loadingFrom, loadingUntil, sort, pageSize }), [search, trackingFilter, attentionFilter, iconFilters, relationFilter, loadingFrom, loadingUntil, sort, pageSize])
+
+  useEffect(() => {
+    if (!user?.uid) return undefined
+    const savedPreferences = normalizeTransportOrderListPreferences(preferences)
+    transportOrderListPreferenceCache.set(user.uid, savedPreferences)
+    preferencesRef.current = savedPreferences
+    if (!preferencesInitializedRef.current) {
+      preferencesInitializedRef.current = true
+      return undefined
+    }
+    preferencesDirtyRef.current = true
+    const timeout = window.setTimeout(() => {
+      preferenceSaveChainRef.current = preferenceSaveChainRef.current.catch(() => undefined).then(() => saveOwnTransportOrderListPreferences(savedPreferences)).catch(() => undefined)
+    }, 350)
+    return () => window.clearTimeout(timeout)
+  }, [preferences, user?.uid])
+
+  useEffect(() => () => {
+    const savedPreferences = preferencesRef.current
+    if (!user?.uid || !savedPreferences || !preferencesDirtyRef.current) return
+    preferenceSaveChainRef.current = preferenceSaveChainRef.current.catch(() => undefined).then(() => saveOwnTransportOrderListPreferences(savedPreferences)).catch(() => undefined)
+  }, [user?.uid])
 
   useEffect(() => {
     let cancelled = false
@@ -96,7 +126,7 @@ export default function TransportOrdersPage() {
   function updateLoadingFrom(value) { resetList(() => setLoadingFrom(value)) }
   function updateLoadingUntil(value) { resetList(() => setLoadingUntil(value)) }
   function updatePageSize(value) { resetList(() => setPageSize(Number(value))) }
-  function resetFilters() { resetList(() => { setSearch(''); setTrackingFilter(defaultTrackingFilter); setAttentionFilter('all'); setIconFilters(emptyIconFilters); setRelationFilter(''); setLoadingFrom(''); setLoadingUntil('') }) }
+  function resetFilters() { resetList(() => { const defaults = defaultTransportOrderListPreferences(); setSearch(defaults.search); setTrackingFilter(defaults.trackingFilter); setAttentionFilter(defaults.attentionFilter); setIconFilters(defaults.iconFilters); setRelationFilter(defaults.relation); setLoadingFrom(defaults.loadingFrom); setLoadingUntil(defaults.loadingUntil) }) }
   async function openForecast(event, orderId) {
     event.stopPropagation()
     setForecastLoading(true)
