@@ -4,7 +4,7 @@ import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
-import { appendDiagnosticToBatch } from './diagnostics.js'
+import { appendDiagnosticToBatch, recordDiagnostic } from './diagnostics.js'
 import { routingCountryCandidates } from './shared/routingCountries.js'
 
 export const tomTomRoutingApiKey = defineSecret('TOMTOM_ROUTING_API_KEY')
@@ -84,7 +84,7 @@ export function buildCoarsePlace(station, stationLabel, selectedCountryCode = ''
 }
 export function roundRouteDistanceKm(distanceMeters) { return Math.ceil((distanceMeters / 1000) / 10) * 10 }
 export function geocodeCacheDocumentId(cacheKey) { return Buffer.from(cacheKey).toString('base64url') }
-export function emptyTomTomUsageSummary(month) { return { month, manualCalculations: 0, routingRequests: 0, geocodingRequests: 0, succeededRequests: 0, failedRequests: 0, monthlyFreeQuota: 20000 } }
+export function emptyTomTomUsageSummary(month) { return { month, manualCalculations: 0, automaticCalculations: 0, routingRequests: 0, geocodingRequests: 0, succeededRequests: 0, failedRequests: 0, monthlyFreeQuota: 20000 } }
 export function buildTomTomGeocodingUrl(place, apiKey) {
   return `https://api.tomtom.com/search/2/search/${encodeURIComponent(place.query)}.json?key=${encodeURIComponent(apiKey)}&limit=1&countrySet=${encodeURIComponent(place.countryCode)}`
 }
@@ -145,7 +145,7 @@ const diagnosticMessages = {
   provider_not_configured: 'Routendienst nicht konfiguriert.',
 }
 
-async function saveCalculation({ db, orderId, calculationId, profile, actorId, status, originPlace, destinationPlace, originCoordinates = null, destinationCoordinates = null, rawDistanceMeters = null, errorCode = null, userSafeError = null, failureStage = null }) {
+async function saveCalculation({ db, orderId, calculationId, profile, actorId, automatic = false, status, originPlace, destinationPlace, originCoordinates = null, destinationCoordinates = null, rawDistanceMeters = null, errorCode = null, userSafeError = null, failureStage = null }) {
   const routeRef = db.doc(`transportOrderRoutes/${orderId}`)
   const calculationRef = routeRef.collection('calculations').doc(calculationId)
   const rawDistanceKm = Number.isFinite(rawDistanceMeters) ? rawDistanceMeters / 1000 : null
@@ -161,10 +161,14 @@ async function saveCalculation({ db, orderId, calculationId, profile, actorId, s
   batch.set(calculationRef, { ...data, calculationId })
   const latestRoute = status === 'succeeded'
     ? { ...data, latestCalculationId: calculationId }
-    : { orderId, latestCalculationId: calculationId, latestCalculationStatus: status, calculatedAt: data.calculatedAt, calculatedBy: data.calculatedBy, calculatedByName: data.calculatedByName, status, errorCode, userSafeError, routeProfile }
-  batch.set(routeRef, latestRoute, { merge: true })
+    : automatic ? null
+      : { orderId, latestCalculationId: calculationId, latestCalculationStatus: status, calculatedAt: data.calculatedAt, calculatedBy: data.calculatedBy, calculatedByName: data.calculatedByName, status, errorCode, userSafeError, routeProfile }
+  // An import must remain quiet when TomTom cannot determine a route. The
+  // detailed failed calculation and its admin diagnosis exist, but the order
+  // itself deliberately stays without a user-facing route error.
+  if (latestRoute) batch.set(routeRef, latestRoute, { merge: true })
   if (status === 'succeeded') batch.set(db.doc(`transportOrders/${orderId}`), { routeNeedsRecalculation: false, routeRecalculatedAt: FieldValue.serverTimestamp() }, { merge: true })
-  batch.set(db.doc(`tomTomUsageMonths/${month}`), { month, manualCalculations: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  batch.set(db.doc(`tomTomUsageMonths/${month}`), { month, [automatic ? 'automaticCalculations' : 'manualCalculations']: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   if (status === 'failed') appendDiagnosticToBatch(batch, db, {
     module: 'transport-route', stage: failureStage || 'preparation', code: errorCode,
     message: diagnosticMessages[errorCode] || 'Streckenberechnung fehlgeschlagen.',
@@ -175,14 +179,9 @@ async function saveCalculation({ db, orderId, calculationId, profile, actorId, s
   return { calculationId, roundedDistanceKm }
 }
 
-export async function calculateTransportOrderRouteHandler(request) {
-  const profile = await requireActiveProfile(request)
-  if (!hasRouteEditAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Streckenberechnung.')
-  const orderId = text(request.data?.orderId)
-  if (!orderId || orderId.length > 240) throw new HttpsError('invalid-argument', 'Ungültiger Transportauftrag.')
-  const db = getFirestore(); const orderSnapshot = await db.doc(`transportOrders/${orderId}`).get()
+async function calculateRoute({ db, orderId, profile, actorId, countryOverrides = {}, automatic = false }) {
+  const orderSnapshot = await db.doc(`transportOrders/${orderId}`).get()
   if (!orderSnapshot.exists) throw new HttpsError('not-found', 'Transportauftrag nicht gefunden.')
-  const countryOverrides = request.data?.countryOverrides && typeof request.data.countryOverrides === 'object' ? request.data.countryOverrides : {}
   const originPlace = buildCoarsePlace(orderSnapshot.data()?.imported?.loading, 'ersten Ladestelle', countryOverrides.loading)
   const destinationPlace = buildCoarsePlace(orderSnapshot.data()?.imported?.unloading, 'letzten Entladestelle', countryOverrides.unloading)
   const calculationId = db.collection('transportOrderRoutes').doc(orderId).collection('calculations').doc().id
@@ -194,34 +193,74 @@ export async function calculateTransportOrderRouteHandler(request) {
       code: place.errorCode, station, stationLabel, countryValue: place.countryValue || null, countryCandidates: place.countryCandidates || [],
     }))
     const problem = originPlace.errorCode ? originPlace : destinationPlace
-    await saveCalculation({ db, orderId, calculationId, profile, actorId: request.auth.uid, status: 'failed', originPlace, destinationPlace, errorCode: problem.errorCode, userSafeError: problem.userSafeError, failureStage: 'preparation' })
-    throw new HttpsError('failed-precondition', problem.userSafeError, { routeProblems })
+    await saveCalculation({ db, orderId, calculationId, profile, actorId, automatic, status: 'failed', originPlace, destinationPlace, errorCode: problem.errorCode, userSafeError: problem.userSafeError, failureStage: 'preparation' })
+    return { status: 'failed', errorCode: problem.errorCode, userSafeError: problem.userSafeError, routeProblems }
   }
   const apiKey = normaliseTomTomApiKey(tomTomRoutingApiKey.value())
   if (!apiKey) {
     const userSafeError = 'Die Streckenberechnung ist noch nicht konfiguriert.'
-    await saveCalculation({ db, orderId, calculationId, profile, actorId: request.auth.uid, status: 'failed', originPlace, destinationPlace, errorCode: 'provider_not_configured', userSafeError, failureStage: 'configuration' })
-    throw new HttpsError('failed-precondition', userSafeError)
+    await saveCalculation({ db, orderId, calculationId, profile, actorId, automatic, status: 'failed', originPlace, destinationPlace, errorCode: 'provider_not_configured', userSafeError, failureStage: 'configuration' })
+    return { status: 'failed', errorCode: 'provider_not_configured', userSafeError }
   }
   let stage = 'geocoding_origin'
   try {
-    const originCoordinates = await geocodePlace({ db, place: originPlace, apiKey, orderId, routeCalculationId: calculationId, userId: request.auth.uid })
+    const originCoordinates = await geocodePlace({ db, place: originPlace, apiKey, orderId, routeCalculationId: calculationId, userId: actorId })
     stage = 'geocoding_destination'
-    const destinationCoordinates = await geocodePlace({ db, place: destinationPlace, apiKey, orderId, routeCalculationId: calculationId, userId: request.auth.uid })
+    const destinationCoordinates = await geocodePlace({ db, place: destinationPlace, apiKey, orderId, routeCalculationId: calculationId, userId: actorId })
     stage = 'routing'
     const points = `${originCoordinates.latitude},${originCoordinates.longitude}:${destinationCoordinates.latitude},${destinationCoordinates.longitude}`
-    const data = await tomTomRequest({ db, api: 'routing', orderId, routeCalculationId: calculationId, userId: request.auth.uid, url: `https://api.tomtom.com/routing/1/calculateRoute/${points}/json?key=${encodeURIComponent(apiKey)}&travelMode=truck` })
+    const data = await tomTomRequest({ db, api: 'routing', orderId, routeCalculationId: calculationId, userId: actorId, url: `https://api.tomtom.com/routing/1/calculateRoute/${points}/json?key=${encodeURIComponent(apiKey)}&travelMode=truck` })
     const rawDistanceMeters = data?.routes?.[0]?.summary?.lengthInMeters
     if (!Number.isFinite(rawDistanceMeters) || rawDistanceMeters <= 0) throw new RouteProblem('route_not_found', 'Für diese Orte konnte keine LKW-Planungsstrecke bestimmt werden.')
-    const route = await saveCalculation({ db, orderId, calculationId, profile, actorId: request.auth.uid, status: 'succeeded', originPlace, destinationPlace, originCoordinates, destinationCoordinates, rawDistanceMeters })
-    return { route }
+    const route = await saveCalculation({ db, orderId, calculationId, profile, actorId, automatic, status: 'succeeded', originPlace, destinationPlace, originCoordinates, destinationCoordinates, rawDistanceMeters })
+    return { status: 'succeeded', route }
   } catch (error) {
     const errorCode = ['place_not_found', 'route_not_found', 'provider_unauthorized'].includes(error?.code) ? error.code : 'provider_unavailable'
     const userSafeError = ['place_not_found', 'route_not_found', 'provider_unauthorized'].includes(error?.code) ? error.message : 'Die Streckenberechnung ist momentan nicht verfügbar. Bitte versuche es später erneut.'
     logger.warn(`Streckenberechnung fehlgeschlagen (${errorCode}).`)
-    await saveCalculation({ db, orderId, calculationId, profile, actorId: request.auth.uid, status: 'failed', originPlace, destinationPlace, errorCode, userSafeError, failureStage: stage })
-    if (error instanceof HttpsError) throw error
-    throw new HttpsError('unavailable', userSafeError)
+    await saveCalculation({ db, orderId, calculationId, profile, actorId, automatic, status: 'failed', originPlace, destinationPlace, errorCode, userSafeError, failureStage: stage })
+    return { status: 'failed', errorCode, userSafeError }
+  }
+}
+
+export function isAutomaticImportedRouteCandidate(order) {
+  return order?.source === 'dycos' && order?.importMeta?.source === 'dycos' && Boolean(text(order?.importMeta?.importRunId))
+}
+
+export async function calculateTransportOrderRouteHandler(request) {
+  const profile = await requireActiveProfile(request)
+  if (!hasRouteEditAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Streckenberechnung.')
+  const orderId = text(request.data?.orderId)
+  if (!orderId || orderId.length > 240) throw new HttpsError('invalid-argument', 'Ungültiger Transportauftrag.')
+  const countryOverrides = request.data?.countryOverrides && typeof request.data.countryOverrides === 'object' ? request.data.countryOverrides : {}
+  const result = await calculateRoute({ db: getFirestore(), orderId, profile, actorId: request.auth.uid, countryOverrides })
+  if (result.status === 'succeeded') return { route: result.route }
+  throw new HttpsError(result.errorCode === 'provider_unavailable' ? 'unavailable' : 'failed-precondition', result.userSafeError, result.routeProblems ? { routeProblems: result.routeProblems } : undefined)
+}
+
+/** Firestore events are at-least-once. This durable claim makes one new
+ * imported order result in one automatic calculation attempt only. */
+export async function calculateImportedTransportOrderRouteHandler(event) {
+  if (!event.data || !isAutomaticImportedRouteCandidate(event.data.data())) return
+  const orderId = text(event.params?.orderId)
+  if (!orderId) return
+  const db = getFirestore(); const routeRef = db.doc(`transportOrderRoutes/${orderId}`)
+  const claimed = await db.runTransaction(async (transaction) => {
+    const route = await transaction.get(routeRef)
+    if (route.exists && (route.data()?.automaticCalculationAttempt || route.data()?.latestCalculationId)) return false
+    transaction.set(routeRef, { orderId, automaticCalculationAttempt: { status: 'running', source: 'transport-order-import', startedAt: FieldValue.serverTimestamp() } }, { merge: true })
+    return true
+  })
+  if (!claimed) return
+  const profile = { firstName: 'Importautomatik' }
+  const actorId = 'system-import-automation'
+  try {
+    const result = await calculateRoute({ db, orderId, profile, actorId, automatic: true })
+    await routeRef.set({ automaticCalculationAttempt: { status: result.status, source: 'transport-order-import', finishedAt: FieldValue.serverTimestamp(), ...(result.errorCode ? { errorCode: result.errorCode } : {}) } }, { merge: true })
+  } catch (error) {
+    logger.error('Automatische Streckenberechnung nach Import fehlgeschlagen.', { orderId, error: error instanceof Error ? error.message : 'unknown' })
+    await recordDiagnostic({ module: 'transport-route', stage: 'automatic-import', code: 'automatic-calculation-failed', message: 'Automatische Streckenberechnung nach Import fehlgeschlagen.', actorId, actorName: actorName(profile), orderId }, db)
+    await routeRef.set({ automaticCalculationAttempt: { status: 'failed', source: 'transport-order-import', finishedAt: FieldValue.serverTimestamp(), errorCode: 'automatic-calculation-failed' } }, { merge: true })
   }
 }
 
@@ -232,5 +271,5 @@ export async function getTomTomUsageSummaryHandler(request) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpsError('invalid-argument', 'Ungültiger Monat.')
   const snapshot = await getFirestore().doc(`tomTomUsageMonths/${month}`).get()
   const usage = snapshot.exists ? snapshot.data() : {}
-  return { ...emptyTomTomUsageSummary(month), manualCalculations: usage.manualCalculations || 0, routingRequests: usage.routingRequests || 0, geocodingRequests: usage.geocodingRequests || 0, succeededRequests: usage.succeededRequests || 0, failedRequests: usage.failedRequests || 0 }
+  return { ...emptyTomTomUsageSummary(month), manualCalculations: usage.manualCalculations || 0, automaticCalculations: usage.automaticCalculations || 0, routingRequests: usage.routingRequests || 0, geocodingRequests: usage.geocodingRequests || 0, succeededRequests: usage.succeededRequests || 0, failedRequests: usage.failedRequests || 0 }
 }

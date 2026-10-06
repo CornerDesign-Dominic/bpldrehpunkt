@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { buildCoarsePlace, buildTomTomGeocodingUrl, emptyTomTomUsageSummary, geocodeCacheDocumentId, hasRouteEditAccess, normaliseLocationQuery, normaliseTomTomApiKey, roundRouteDistanceKm } from './transportOrderRoutes.js'
+import { buildCoarsePlace, buildTomTomGeocodingUrl, emptyTomTomUsageSummary, geocodeCacheDocumentId, hasRouteEditAccess, isAutomaticImportedRouteCandidate, normaliseLocationQuery, normaliseTomTomApiKey, roundRouteDistanceKm } from './transportOrderRoutes.js'
 import { routingCountryCodes } from './shared/routingCountries.js'
 
 test('TomTom key normalisation accepts the secret value only, an assignment, and surrounding quotes', () => {
@@ -86,11 +86,12 @@ test('legacy DyCoS prefixes remain supported through the central country normali
   assert.equal(destination.label.includes('SMYTHS'), false)
 })
 
-test('usage events and monthly summaries remain server-side, and imports do not calculate routes', async () => {
-  const [routeSource, clientSource, importSource] = await Promise.all([
+test('usage events and monthly summaries remain server-side, while new imports use one protected background route attempt', async () => {
+  const [routeSource, clientSource, importSource, indexSource] = await Promise.all([
     readFile(new URL('./transportOrderRoutes.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/lib/transportOrders.js', import.meta.url), 'utf8'),
     readFile(new URL('./transportOrderImports.js', import.meta.url), 'utf8'),
+    readFile(new URL('./index.js', import.meta.url), 'utf8'),
   ])
   assert.match(routeSource, /tomTomUsageEvents/)
   assert.match(routeSource, /status, month/)
@@ -99,7 +100,17 @@ test('usage events and monthly summaries remain server-side, and imports do not 
   assert.equal(routeSource.includes('vehicle=truck'), false)
   assert.equal(clientSource.includes('TOMTOM_ROUTING_API_KEY'), false)
   assert.equal(importSource.includes('calculateTransportOrderRoute'), false)
-  assert.deepEqual(emptyTomTomUsageSummary('2026-09'), { month: '2026-09', manualCalculations: 0, routingRequests: 0, geocodingRequests: 0, succeededRequests: 0, failedRequests: 0, monthlyFreeQuota: 20000 })
+  assert.match(indexSource, /onDocumentCreated\(\{ region: 'europe-west3', document: 'transportOrders\/\{orderId\}'/)
+  assert.match(indexSource, /calculateImportedTransportOrderRouteHandler/)
+  assert.match(routeSource, /automaticCalculationAttempt/)
+  assert.match(routeSource, /automatic \? null/)
+  assert.deepEqual(emptyTomTomUsageSummary('2026-09'), { month: '2026-09', manualCalculations: 0, automaticCalculations: 0, routingRequests: 0, geocodingRequests: 0, succeededRequests: 0, failedRequests: 0, monthlyFreeQuota: 20000 })
+})
+
+test('only completely new DyCoS import orders qualify for automatic route calculation', () => {
+  assert.equal(isAutomaticImportedRouteCandidate({ source: 'dycos', importMeta: { source: 'dycos', importRunId: 'run-1' } }), true)
+  assert.equal(isAutomaticImportedRouteCandidate({ source: 'dycos', importMeta: { source: 'dycos' } }), false)
+  assert.equal(isAutomaticImportedRouteCandidate({ source: 'manual', importMeta: { source: 'dycos', importRunId: 'run-1' } }), false)
 })
 
 test('incomplete places do not produce a queryable location and route distances round up to ten kilometres', () => {
