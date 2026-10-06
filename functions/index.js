@@ -13,7 +13,7 @@ import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
 import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
 import { shipmentTrackingMailNotificationUrl, systemMailNotificationUrl } from './systemMails.js'
 import { listTransportOrderRelationsHandler, listTransportOrdersPageHandler } from './transportOrderList.js'
-import { calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
+import { calculateImportedTransportOrderRouteHandler, calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
 import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHandler, listPartnerTransportOrderRatingsHandler, saveTransportOrderRatingHandler } from './transportOrderRatings.js'
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
@@ -1059,6 +1059,7 @@ export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAp
 export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
 export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
 export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)
+export const calculateImportedTransportOrderRoute = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}', secrets: [tomTomRoutingApiKey], maxInstances: 2, timeoutSeconds: 60 }, calculateImportedTransportOrderRouteHandler)
 export const getTomTomUsageSummary = onCall({ region: 'europe-west3', enforceAppCheck: true }, getTomTomUsageSummaryHandler)
 export const getOwnTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnTransportOrderRatingsHandler)
 export const saveTransportOrderRating = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveTransportOrderRatingHandler)
