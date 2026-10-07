@@ -16,6 +16,12 @@ export const systemMailNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATI
 export const shipmentTrackingMailNotificationUrl = defineSecret('POWER_AUTOMATE_TRACKING_NOTIFICATION_URL')
 const region = 'europe-west3'
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const shipmentTrackingAllowedPlaceholders = Object.freeze([
+  'transportOrderNumber',
+  'loadingLocation', 'unloadingLocation',
+  'loadingTimeFrom', 'loadingTimeUntil', 'loadingTime',
+  'unloadingTimeFrom', 'unloadingTimeUntil', 'unloadingTime',
+])
 
 export const systemMailTemplateDefinitions = {
   vacation_request_confirmation: {
@@ -82,73 +88,73 @@ export const systemMailTemplateDefinitions = {
     displayName: 'Kennzeichen anfragen',
     subject: 'TA {{transportOrderNumber}} – Kennzeichen / Registration number',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz das Kennzeichen für TA {{transportOrderNumber}} schicken?\n\nLadestelle / Loading site: {{loadingLocation}}\nTermin / Time slot: {{loadingTime}}\n\nCould you please send us the vehicle registration number for order {{transportOrderNumber}}?\n\nLoading site: {{loadingLocation}}\nTime slot: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_arrival_request: {
     displayName: 'LKW-Ankunft anfragen',
     subject: 'TA {{transportOrderNumber}} – ETA Ladestelle / Loading ETA',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz die voraussichtliche Ankunft an der Ladestelle für TA {{transportOrderNumber}} schicken?\n\nLadestelle / Loading site: {{loadingLocation}}\nTermin / Time slot: {{loadingTime}}\n\nCould you please let us know the expected arrival time at the loading site for order {{transportOrderNumber}}?\n\nLoading site: {{loadingLocation}}\nTime slot: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_license_plate_and_arrival_request: {
     displayName: 'Kennzeichen und LKW-Ankunft anfragen',
     subject: 'TA {{transportOrderNumber}} – Kennzeichen + ETA / Registration + ETA',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz das Kennzeichen und die voraussichtliche Ankunft an der Ladestelle für TA {{transportOrderNumber}} schicken?\n\nLadestelle / Loading site: {{loadingLocation}}\nTermin / Time slot: {{loadingTime}}\n\nCould you please send us the vehicle registration number and the expected arrival time at the loading site for order {{transportOrderNumber}}?\n\nLoading site: {{loadingLocation}}\nTime slot: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_general_status_update: {
     displayName: 'Status-Update anfragen',
     subject: 'TA {{transportOrderNumber}} – Kurzes Update / Quick update',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz ein Update zum aktuellen Stand von TA {{transportOrderNumber}} geben?\n\nLadestelle / Loading site: {{loadingLocation}}\nTermin / Time slot: {{loadingTime}}\n\nCould you please send us a brief update on the current status of order {{transportOrderNumber}}?\n\nLoading site: {{loadingLocation}}\nTime slot: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_loading_eta_request: {
     displayName: 'ETA Ladestelle anfragen',
     subject: 'TA {{transportOrderNumber}} – ETA Ladestelle / Loading ETA',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz die voraussichtliche Ankunft an der Ladestelle für TA {{transportOrderNumber}} schicken?\n\nLadestelle / Loading site: {{loadingLocation}}\nTermin / Time slot: {{loadingTime}}\n\nCould you please let us know the expected arrival time at the loading site for order {{transportOrderNumber}}?\n\nLoading site: {{loadingLocation}}\nTime slot: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_loading_arrival_request: {
     displayName: 'LS Ankunft anfragen',
     subject: 'TA {{transportOrderNumber}} – Ankunft Ladestelle / Loading arrival',
     message: 'Hallo,\n\nist das Fahrzeug für TA {{transportOrderNumber}} schon an der Ladestelle angekommen? Falls nicht, wann kommt es voraussichtlich an?\n\nLadestelle / Loading site: {{loadingLocation}}\nTermin / Time slot: {{loadingTime}}\n\nHas the vehicle for order {{transportOrderNumber}} already arrived at the loading site? If not, when do you expect it to arrive?\n\nLoading site: {{loadingLocation}}\nTime slot: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_loading_departure_request: {
     displayName: 'LS Abfahrt anfragen',
     subject: 'TA {{transportOrderNumber}} – Abfahrt Ladestelle / Loading departure',
     message: 'Hallo,\n\nist die Beladung für TA {{transportOrderNumber}} abgeschlossen und das Fahrzeug schon von der Ladestelle abgefahren? Bitte schickt uns kurz die Abfahrtszeit.\n\nLadestelle / Loading site: {{loadingLocation}}\n\nHas loading for order {{transportOrderNumber}} been completed and has the vehicle already left the loading site? Please send us the departure time.\n\nLoading site: {{loadingLocation}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_unloading_eta_request: {
     displayName: 'ETA zur Entladestelle anfragen',
     subject: 'TA {{transportOrderNumber}} – ETA Entladestelle / Unloading ETA',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz die aktuelle ETA an der Entladestelle für TA {{transportOrderNumber}} schicken? Falls verfügbar, gerne auch Restfahrzeit oder Restkilometer.\n\nEntladestelle / Unloading site: {{unloadingLocation}}\n\nCould you please send us the current ETA at the unloading site for order {{transportOrderNumber}}? If available, the remaining driving time or distance is also helpful.\n\nUnloading site: {{unloadingLocation}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_unloading_arrival_request: {
     displayName: 'Tatsächliche Ankunft Entladestelle anfragen',
     subject: 'TA {{transportOrderNumber}} – Ankunft Entladestelle / Unloading arrival',
     message: 'Hallo,\n\nist das Fahrzeug für TA {{transportOrderNumber}} schon an der Entladestelle angekommen? Wenn ja, schickt uns bitte kurz die tatsächliche Ankunftszeit. Wenn nicht, brauchen wir die aktuelle ETA.\n\nEntladestelle / Unloading site: {{unloadingLocation}}\n\nHas the vehicle for order {{transportOrderNumber}} already arrived at the unloading site? If so, please send us the actual arrival time. If not, we need the current ETA.\n\nUnloading site: {{unloadingLocation}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_loading_update_request: {
     displayName: 'Update zur Beladung anfragen',
     subject: 'TA {{transportOrderNumber}} – Beladestatus / Loading status',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz den Beladestatus für TA {{transportOrderNumber}} schicken? Ist das Fahrzeug schon da, läuft die Beladung oder ist sie bereits fertig? Wenn möglich, bitte mit den Zeiten und der geplanten Abfahrt.\n\nLadestelle / Loading site: {{loadingLocation}}\n\nCould you please send us a brief loading status for order {{transportOrderNumber}}? Has the vehicle arrived, is loading in progress, or is it already completed? If possible, please include the times and planned departure.\n\nLoading site: {{loadingLocation}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   shipment_tracking_unloading_update_request: {
     displayName: 'Update zur Entladung anfragen',
     subject: 'TA {{transportOrderNumber}} – Entladestatus / Unloading status',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz den Entladestatus für TA {{transportOrderNumber}} schicken? Ist das Fahrzeug schon da, läuft die Entladung oder ist sie bereits fertig? Wenn möglich, bitte mit den Zeiten.\n\nEntladestelle / Unloading site: {{unloadingLocation}}\n\nCould you please send us a brief unloading status for order {{transportOrderNumber}}? Has the vehicle arrived, is unloading in progress, or is it already completed? If possible, please include the times.\n\nUnloading site: {{unloadingLocation}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   [shipmentTrackingArrivalConfirmationTemplateId]: {
     displayName: 'Kurz vor Beladung bestätigen',
     subject: 'TA {{transportOrderNumber}} – Kurzes Update / Quick update',
     message: 'Hallo,\n\nkönnt ihr uns bitte kurz bestätigen, ob bei TA {{transportOrderNumber}} alles wie geplant läuft? Wichtig wäre vor allem die aktuelle ETA an der Ladestelle.\n\nLadestelle / Loading site: {{loadingLocation}}\nGeplanter Beginn / Planned start: {{loadingTime}}\n\nCould you please confirm whether everything is on schedule for order {{transportOrderNumber}}? The current ETA at the loading site is especially helpful.\n\nLoading site: {{loadingLocation}}\nPlanned start: {{loadingTime}}',
-    allowedPlaceholders: ['transportOrderNumber', 'loadingLocation', 'unloadingLocation', 'loadingTime'],
+    allowedPlaceholders: shipmentTrackingAllowedPlaceholders,
   },
   case_deadline_reminder: {
     displayName: 'Fälle – Termin- und Fristerinnerung',

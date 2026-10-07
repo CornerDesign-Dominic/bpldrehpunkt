@@ -6,12 +6,13 @@ import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { previewSystemMailTemplate, sendSystemMailTemplate } from './systemMails.js'
 import { hasTrackingEditAccess } from './shipmentTracking.js'
-import { shipmentTrackingDryRun, shipmentTrackingBerlinLocal } from './shared/shipmentTrackingDryRun.js'
+import { shipmentTrackingDryRun } from './shared/shipmentTrackingDryRun.js'
 import { shipmentTrackingManualDispatchBundles, shipmentTrackingManualDispatchTemplateIds } from './shared/shipmentTrackingManualDispatch.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 import { SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingHours.js'
 import { externalEffectsEnvironment } from './externalEffects.js'
+import { shipmentTrackingMailTemplateValues, shipmentTrackingTimeWindow } from './shipmentTrackingMailValues.js'
 
 const allowedTemplateIds = new Set(Object.values(shipmentTrackingManualDispatchTemplateIds))
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -99,31 +100,8 @@ async function dispatchContext(db, orderId, { allowCompleted = false } = {}) {
 }
 
 function deterministicDeliveryId(bundleId) { return `manual-${createHash('sha256').update(bundleId).digest('hex')}` }
-function weekday(date) { return ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(`${date}T12:00:00Z`).getUTCDay()] }
-function formatLoadingDateTime(local) {
-  const [year, month, day] = local.date.split('-')
-  return `${weekday(local.date)}, ${day}.${month}.${year}, ${local.time} Uhr`
-}
-
-/** A single loading window stays compact while still spelling out dates for
- * multi-day windows. This avoids ambiguous repeats such as 07:00–07:00. */
-export function shipmentTrackingLoadingWindow(imported) {
-  const from = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
-  const until = shipmentTrackingBerlinLocal(imported?.loading?.window?.until)
-  if (!from && !until) return 'Nicht hinterlegt'
-  if (!from) return `bis ${formatLoadingDateTime(until)}`
-  if (!until) return formatLoadingDateTime(from)
-  if (from.date !== until.date) return `${formatLoadingDateTime(from)} bis ${formatLoadingDateTime(until)}`
-  const [year, month, day] = from.date.split('-')
-  const date = `${weekday(from.date)}, ${day}.${month}.${year}`
-  if (from.time === until.time) return `${date}, ${from.time} Uhr`
-  return `${date}, ${from.time}–${until.time} Uhr`
-}
-function loadingLocation(imported) { return text(imported?.loading?.city) || text(imported?.loading?.originalText) || 'Nicht hinterlegt' }
-function orderNumber(imported, externalNumber) { return text(externalNumber) || text(imported?.externalNumber) || text(imported?.orderNumber) || 'Nicht hinterlegt' }
-function templateValues(imported, externalNumber) {
-  return { transportOrderNumber: orderNumber(imported, externalNumber), loadingLocation: loadingLocation(imported), loadingTime: shipmentTrackingLoadingWindow(imported), unloadingLocation: text(imported?.unloading?.city) || text(imported?.unloading?.originalText) || 'Nicht hinterlegt' }
-}
+export function shipmentTrackingLoadingWindow(imported) { return shipmentTrackingTimeWindow(imported?.loading?.window) }
+function templateValues(imported, externalNumber) { return shipmentTrackingMailTemplateValues(imported, externalNumber) }
 function renderedOverride(value, values) { return value.replace(/{{\s*([^{}\s]+)\s*}}/g, (_, key) => values[key] || '') }
 function topicsForTemplate(templateId) {
   if (templateId === shipmentTrackingManualDispatchTemplateIds.combined) return ['licensePlate', 'loadingSite']

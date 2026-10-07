@@ -26,12 +26,13 @@ test('shipment-tracking templates cover the individual and bundled carrier reque
     assert.match(definitions[id].message, /^Hallo,\n\n/)
     assert.match(definitions[id].message, /\b(?:Could|Has)\b/)
     const unloading = ['shipment_tracking_unloading_eta_request', 'shipment_tracking_unloading_arrival_request', 'shipment_tracking_unloading_update_request'].includes(id)
-    const loadingWithoutTime = ['shipment_tracking_loading_update_request', 'shipment_tracking_loading_departure_request'].includes(id)
     assert.ok(definitions[id].message.includes(unloading ? '{{unloadingLocation}}' : '{{loadingLocation}}'))
-    if (!unloading && !loadingWithoutTime) assert.ok(definitions[id].message.includes('{{loadingTime}}'))
-    assert.ok(definitions[id].allowedPlaceholders.includes('loadingLocation'))
-    assert.ok(definitions[id].allowedPlaceholders.includes('unloadingLocation'))
-    assert.equal(definitions[id].allowedPlaceholders.includes('loadingTime'), !unloading && !loadingWithoutTime)
+    assert.deepEqual(definitions[id].allowedPlaceholders, [
+      'transportOrderNumber',
+      'loadingLocation', 'unloadingLocation',
+      'loadingTimeFrom', 'loadingTimeUntil', 'loadingTime',
+      'unloadingTimeFrom', 'unloadingTimeUntil', 'unloadingTime',
+    ])
   }
 })
 

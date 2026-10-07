@@ -16,7 +16,13 @@ const PLACEHOLDER_DESCRIPTIONS = {
   managerComment: 'Kommentar der genehmigenden Person',
   transportOrderNumber: 'TA-Nummer des Transportauftrags',
   loadingLocation: 'Ladestelle des Transportauftrags',
-  loadingTime: 'Geplante früheste Beladung',
+  unloadingLocation: 'Entladestelle des Transportauftrags',
+  loadingTimeFrom: 'Geplantes Zeitfenster Ladestelle: von',
+  loadingTimeUntil: 'Geplantes Zeitfenster Ladestelle: bis',
+  loadingTime: 'Geplantes Zeitfenster Ladestelle: von – bis',
+  unloadingTimeFrom: 'Geplantes Zeitfenster Entladestelle: von',
+  unloadingTimeUntil: 'Geplantes Zeitfenster Entladestelle: bis',
+  unloadingTime: 'Geplantes Zeitfenster Entladestelle: von – bis',
 }
 
 const templateCategories = [
