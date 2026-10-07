@@ -17,6 +17,11 @@ const definitions = {
     description: 'Ergänzende redaktionelle Vorgaben für die KI-gestützte News-Recherche. Quellen-, Kategorien- und Validierungsregeln bleiben geschützt.',
     defaultInstructions: 'Formuliere News verständlich, konkret und operativ relevant für ein Logistikunternehmen.',
   },
+  statusMailTracking: {
+    displayName: 'Sendungsverfolgung – Mail-Auswertung',
+    description: 'Ergänzende fachliche Vorgaben für die KI-Auswertung eingehender Status-Mails von Unternehmern. Extraktion, Sicherheitsregeln, Datumsprüfung und Datenvalidierung bleiben geschützt.',
+    defaultInstructions: 'Bei einer eindeutigen Zeitspanne für eine voraussichtliche Ankunft verwende den späteren Zeitpunkt als ETA. Beispiel: „Der LKW kommt zwischen 10 und 11 Uhr“ bedeutet ETA 11:00 Uhr. Übernimm nur eindeutige Angaben aus der aktuellen Status-Mail.',
+  },
 }
 
 function cleanInstructions(value) {
