@@ -13,6 +13,7 @@ import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingH
 import { DEFAULT_SHIPMENT_TRACKING_ARRIVAL_CONFIRMATION, normalizeShipmentTrackingArrivalConfirmation, shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shipmentTrackingArrivalConfirmation.js'
 import { sendSystemMailTemplate, shipmentTrackingMailNotificationUrl, systemMailNotificationUrl } from './systemMails.js'
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
+import { shipmentTrackingMailTemplateValues } from './shipmentTrackingMailValues.js'
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 // The scheduler runs every five minutes.  Ten minutes give it one safe retry
@@ -121,20 +122,7 @@ async function effectivePartner(db, partnerId) {
   return null
 }
 
-function loadingTime(imported) {
-  const local = shipmentTrackingBerlinLocal(imported?.loading?.window?.from)
-  if (!local) return 'Nicht hinterlegt'
-  const [year, month, day] = local.date.split('-')
-  return `${day}.${month}.${year}, ${local.time} Uhr`
-}
-function templateValues(imported, externalNumber) {
-  return {
-    transportOrderNumber: text(externalNumber) || text(imported?.externalNumber) || text(imported?.orderNumber) || 'Nicht hinterlegt',
-    loadingLocation: text(imported?.loading?.city) || text(imported?.loading?.originalText) || 'Nicht hinterlegt',
-    unloadingLocation: text(imported?.unloading?.city) || text(imported?.unloading?.originalText) || 'Nicht hinterlegt',
-    loadingTime: loadingTime(imported),
-  }
-}
+function templateValues(imported, externalNumber) { return shipmentTrackingMailTemplateValues(imported, externalNumber) }
 
 async function synchronizeLifecycle(db, orderSnapshot, currentTracking, operatingHours, now, activationRequired = false) {
   const orderId = orderSnapshot.id
