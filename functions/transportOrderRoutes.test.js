@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { buildCoarsePlace, buildTomTomGeocodingUrl, emptyTomTomUsageSummary, geocodeCacheDocumentId, hasRouteEditAccess, isAutomaticImportedRouteCandidate, normaliseLocationQuery, normaliseTomTomApiKey, roundRouteDistanceKm } from './transportOrderRoutes.js'
+import { automaticRouteSpacingMs, buildCoarsePlace, buildTomTomGeocodingUrl, calculateImportedTransportOrderRouteHandler, emptyTomTomUsageSummary, geocodeCacheDocumentId, hasRouteEditAccess, isAutomaticImportedRouteCandidate, normaliseLocationQuery, normaliseTomTomApiKey, processImportedTransportOrderRouteHandler, roundRouteDistanceKm, routeFailureCode, waitForAutomaticRouteSlot } from './transportOrderRoutes.js'
 import { routingCountryCodes } from './shared/routingCountries.js'
 
 test('TomTom key normalisation accepts the secret value only, an assignment, and surrounding quotes', () => {
@@ -111,6 +111,74 @@ test('only completely new DyCoS import orders qualify for automatic route calcul
   assert.equal(isAutomaticImportedRouteCandidate({ source: 'dycos', importMeta: { source: 'dycos', importRunId: 'run-1' } }), true)
   assert.equal(isAutomaticImportedRouteCandidate({ source: 'dycos', importMeta: { source: 'dycos' } }), false)
   assert.equal(isAutomaticImportedRouteCandidate({ source: 'manual', importMeta: { source: 'dycos', importRunId: 'run-1' } }), false)
+})
+
+test('only a new imported order is enqueued with a stable duplicate-safe task ID', async () => {
+  const queued = []
+  const enqueue = async (...args) => queued.push(args)
+  const event = (orderId, order) => ({ params: { orderId }, data: { data: () => order } })
+  const imported = { source: 'dycos', importMeta: { source: 'dycos', importRunId: 'run-1' } }
+  await calculateImportedTransportOrderRouteHandler(event('dycos-1', imported), { enqueue })
+  await calculateImportedTransportOrderRouteHandler(event('dycos-1', imported), { enqueue })
+  await calculateImportedTransportOrderRouteHandler(event('manual-1', { source: 'manual' }), { enqueue })
+  assert.equal(queued.length, 2)
+  assert.equal(queued[0][0], 'dycos-1')
+  assert.match(queued[0][1], /^[a-f0-9]{64}$/)
+  assert.equal(queued[0][1], queued[1][1])
+})
+
+test('automatic route starts reserve separate five-second slots even when work arrives together', async () => {
+  const documents = new Map()
+  const db = {
+    doc: (path) => ({ path }),
+    runTransaction: async (callback) => callback({
+      get: async (ref) => ({ data: () => documents.get(ref.path) }),
+      set: (ref, data) => documents.set(ref.path, { ...documents.get(ref.path), ...data }),
+    }),
+  }
+  const waits = []
+  const options = { now: () => 1000, pause: async (ms) => waits.push(ms) }
+  await waitForAutomaticRouteSlot(db, options)
+  await waitForAutomaticRouteSlot(db, options)
+  await waitForAutomaticRouteSlot(db, options)
+  assert.equal(automaticRouteSpacingMs, 5000)
+  assert.deepEqual(waits, [5000, 10000])
+  assert.equal(documents.get('transportRouteAutomation/dispatch').nextAvailableAtMs, 16000)
+})
+
+test('a queued import calculates once and a duplicate delivery cannot repeat a failed TomTom attempt', async () => {
+  const orderId = 'dycos-new-order'
+  const documents = new Map([[
+    `transportOrders/${orderId}`,
+    { source: 'dycos', importMeta: { source: 'dycos', importRunId: 'new-run' } },
+  ]])
+  const db = {
+    doc: (path) => ({
+      path,
+      set: async (data) => documents.set(path, { ...documents.get(path), ...data }),
+    }),
+    runTransaction: async (callback) => callback({
+      get: async (ref) => ({ exists: documents.has(ref.path), data: () => documents.get(ref.path) }),
+      set: (ref, data) => documents.set(ref.path, { ...documents.get(ref.path), ...data }),
+    }),
+  }
+  let attempts = 0
+  const options = {
+    db,
+    wait: async () => {},
+    calculate: async () => { attempts += 1; return { status: 'failed', errorCode: 'provider_rate_limited' } },
+  }
+  await processImportedTransportOrderRouteHandler({ data: { orderId } }, options)
+  await processImportedTransportOrderRouteHandler({ data: { orderId } }, options)
+  assert.equal(attempts, 1)
+  assert.deepEqual(documents.get(`transportOrderRoutes/${orderId}`).automaticCalculationAttempt.errorCode, 'provider_rate_limited')
+})
+
+test('TomTom HTTP 429 is identified for the import while manual calculation keeps its existing error code', () => {
+  const rateLimit = { code: 'provider_rate_limited' }
+  assert.equal(routeFailureCode(rateLimit, true), 'provider_rate_limited')
+  assert.equal(routeFailureCode(rateLimit, false), 'provider_unavailable')
+  assert.equal(routeFailureCode({ code: 'place_not_found' }, true), 'place_not_found')
 })
 
 test('incomplete places do not produce a queryable location and route distances round up to ten kilometres', () => {

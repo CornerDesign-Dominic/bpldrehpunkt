@@ -1,5 +1,7 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { getFunctions } from 'firebase-admin/functions'
 import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
 import { HttpsError } from 'firebase-functions/v2/https'
@@ -9,6 +11,8 @@ import { routingCountryCandidates } from './shared/routingCountries.js'
 
 export const tomTomRoutingApiKey = defineSecret('TOMTOM_ROUTING_API_KEY')
 export const routeProfile = 'standard_truck_coarse'
+export const automaticRouteSpacingMs = 5000
+const automaticRouteWorkerName = 'processImportedTransportOrderRoute'
 const levels = { none: 0, view: 1, edit: 2 }
 const text = (value) => typeof value === 'string' ? value.trim() : ''
 export const normaliseTomTomApiKey = (value) => text(value)
@@ -108,6 +112,7 @@ async function tomTomRequest({ db, api, orderId, routeCalculationId, userId, url
     if (!response.ok) {
       logger.warn(`TomTom-${api}-Anfrage mit HTTP-Status ${response.status} fehlgeschlagen.`)
       if (response.status === 401 || response.status === 403) throw new RouteProblem('provider_unauthorized', 'Die Routendienst-Konfiguration in der Dev-Umgebung wurde vom Dienst abgelehnt.')
+      if (response.status === 429) throw new RouteProblem('provider_rate_limited', 'Das TomTom-Anfragelimit wurde erreicht.')
       throw new RouteProblem('provider_unavailable', 'Der Routendienst ist momentan nicht erreichbar.')
     }
     const data = await response.json()
@@ -142,7 +147,13 @@ const diagnosticMessages = {
   route_not_found: 'Keine LKW-Planungsstrecke gefunden.',
   provider_unauthorized: 'Routendienst hat die Konfiguration abgelehnt.',
   provider_unavailable: 'Routendienst nicht verfügbar.',
+  provider_rate_limited: 'TomTom-Anfragelimit erreicht.',
   provider_not_configured: 'Routendienst nicht konfiguriert.',
+}
+
+export function routeFailureCode(error, automatic) {
+  if (automatic && error?.code === 'provider_rate_limited') return 'provider_rate_limited'
+  return ['place_not_found', 'route_not_found', 'provider_unauthorized'].includes(error?.code) ? error.code : 'provider_unavailable'
 }
 
 async function saveCalculation({ db, orderId, calculationId, profile, actorId, automatic = false, status, originPlace, destinationPlace, originCoordinates = null, destinationCoordinates = null, rawDistanceMeters = null, errorCode = null, userSafeError = null, failureStage = null }) {
@@ -215,7 +226,9 @@ async function calculateRoute({ db, orderId, profile, actorId, countryOverrides 
     const route = await saveCalculation({ db, orderId, calculationId, profile, actorId, automatic, status: 'succeeded', originPlace, destinationPlace, originCoordinates, destinationCoordinates, rawDistanceMeters })
     return { status: 'succeeded', route }
   } catch (error) {
-    const errorCode = ['place_not_found', 'route_not_found', 'provider_unauthorized'].includes(error?.code) ? error.code : 'provider_unavailable'
+    // Keep the manual calculation's existing error behaviour. Imports get a
+    // precise diagnosis when a batch hits TomTom's request rate limit.
+    const errorCode = routeFailureCode(error, automatic)
     const userSafeError = ['place_not_found', 'route_not_found', 'provider_unauthorized'].includes(error?.code) ? error.message : 'Die Streckenberechnung ist momentan nicht verfügbar. Bitte versuche es später erneut.'
     logger.warn(`Streckenberechnung fehlgeschlagen (${errorCode}).`)
     await saveCalculation({ db, orderId, calculationId, profile, actorId, automatic, status: 'failed', originPlace, destinationPlace, errorCode, userSafeError, failureStage: stage })
@@ -225,6 +238,23 @@ async function calculateRoute({ db, orderId, profile, actorId, countryOverrides 
 
 export function isAutomaticImportedRouteCandidate(order) {
   return order?.source === 'dycos' && order?.importMeta?.source === 'dycos' && Boolean(text(order?.importMeta?.importRunId))
+}
+
+export function nextAutomaticRouteStartAt(nowMs, nextAvailableAtMs) {
+  return Math.max(nowMs, Number.isFinite(nextAvailableAtMs) ? nextAvailableAtMs : nowMs)
+}
+
+export async function waitForAutomaticRouteSlot(db, { now = Date.now, pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
+  const clockRef = db.doc('transportRouteAutomation/dispatch')
+  const startAtMs = await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(clockRef)
+    const nowMs = now()
+    const reserved = nextAutomaticRouteStartAt(nowMs, snapshot.data()?.nextAvailableAtMs)
+    transaction.set(clockRef, { nextAvailableAtMs: reserved + automaticRouteSpacingMs }, { merge: true })
+    return reserved
+  })
+  const delayMs = startAtMs - now()
+  if (delayMs > 0) await pause(delayMs)
 }
 
 export async function calculateTransportOrderRouteHandler(request) {
@@ -238,15 +268,36 @@ export async function calculateTransportOrderRouteHandler(request) {
   throw new HttpsError(result.errorCode === 'provider_unavailable' ? 'unavailable' : 'failed-precondition', result.userSafeError, result.routeProblems ? { routeProblems: result.routeProblems } : undefined)
 }
 
-/** Firestore events are at-least-once. This durable claim makes one new
- * imported order result in one automatic calculation attempt only. */
-export async function calculateImportedTransportOrderRouteHandler(event) {
+async function enqueueImportedRoute(orderId, taskId) {
+  await getFunctions().taskQueue(`locations/europe-west3/functions/${automaticRouteWorkerName}`)
+    .enqueue({ orderId }, { id: taskId, dispatchDeadlineSeconds: 120 })
+}
+
+/** The order creation event only enqueues work. A stable task ID prevents
+ * duplicate events from producing multiple queued copies of one order. */
+export async function calculateImportedTransportOrderRouteHandler(event, { enqueue = enqueueImportedRoute } = {}) {
   if (!event.data || !isAutomaticImportedRouteCandidate(event.data.data())) return
   const orderId = text(event.params?.orderId)
   if (!orderId) return
-  const db = getFirestore(); const routeRef = db.doc(`transportOrderRoutes/${orderId}`)
+  const taskId = createHash('sha256').update(orderId).digest('hex')
+  try {
+    await enqueue(orderId, taskId)
+  } catch (error) {
+    if (['task-already-exists', 'functions/task-already-exists'].includes(error?.code)) return
+    logger.error('Automatische Streckenberechnung konnte nicht eingereiht werden.', { orderId, code: error?.code || 'unknown' })
+    await recordDiagnostic({ module: 'transport-route', stage: 'queue', code: 'queue_enqueue_failed', message: 'Automatische Streckenberechnung konnte nicht eingereiht werden.', actorId: 'system-import-automation', actorName: 'Importautomatik', orderId })
+  }
+}
+
+/** Cloud Tasks dispatches at most one worker at a time. The Firestore claim
+ * also protects the single TomTom attempt against duplicate task deliveries. */
+export async function processImportedTransportOrderRouteHandler(request, { db = getFirestore(), wait = waitForAutomaticRouteSlot, calculate = calculateRoute } = {}) {
+  const orderId = text(request.data?.orderId)
+  if (!orderId || orderId.length > 240 || orderId.includes('/')) return
+  const routeRef = db.doc(`transportOrderRoutes/${orderId}`)
   const claimed = await db.runTransaction(async (transaction) => {
-    const route = await transaction.get(routeRef)
+    const [route, order] = await Promise.all([transaction.get(routeRef), transaction.get(db.doc(`transportOrders/${orderId}`))])
+    if (!order.exists || !isAutomaticImportedRouteCandidate(order.data())) return false
     if (route.exists && (route.data()?.automaticCalculationAttempt || route.data()?.latestCalculationId)) return false
     transaction.set(routeRef, { orderId, automaticCalculationAttempt: { status: 'running', source: 'transport-order-import', startedAt: FieldValue.serverTimestamp() } }, { merge: true })
     return true
@@ -255,7 +306,8 @@ export async function calculateImportedTransportOrderRouteHandler(event) {
   const profile = { firstName: 'Importautomatik' }
   const actorId = 'system-import-automation'
   try {
-    const result = await calculateRoute({ db, orderId, profile, actorId, automatic: true })
+    await wait(db)
+    const result = await calculate({ db, orderId, profile, actorId, automatic: true })
     await routeRef.set({ automaticCalculationAttempt: { status: result.status, source: 'transport-order-import', finishedAt: FieldValue.serverTimestamp(), ...(result.errorCode ? { errorCode: result.errorCode } : {}) } }, { merge: true })
   } catch (error) {
     logger.error('Automatische Streckenberechnung nach Import fehlgeschlagen.', { orderId, error: error instanceof Error ? error.message : 'unknown' })
