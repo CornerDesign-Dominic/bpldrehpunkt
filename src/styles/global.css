@@ -1949,7 +1949,10 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-received-mail-modal__tracking-footer { display: flex; flex-direction: column; align-items: stretch; gap: 7px; padding: 11px 12px; border-top: 1px solid var(--border); }
 .transport-order-received-mail-modal__tracking-footer .form-error { margin: 0; font-size: 11px; }
 .transport-order-received-mail-modal__message { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; min-width: 0; min-height: 0; }
-.transport-order-received-mail-modal__body { min-height: 0; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.transport-order-received-mail-modal__message > .shipment-tracking-recipients__warning { grid-row: 1; }
+.transport-order-received-mail-modal__body { grid-row: 2; min-height: 0; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.transport-order-received-mail-modal__message > .form-error { grid-row: 3; }
+.transport-order-received-mail-modal__message > .shipment-tracking-editor__actions { grid-row: 4; }
 .transport-order-received-mail-modal__saved { margin: 0; color: var(--status-success-text); font-size: 12px; font-weight: 700; }
 @media (max-width: 850px) { .shipment-tracking-editor.transport-order-received-mail-modal { height: calc(100vh - 20px); }.transport-order-received-mail-modal__columns { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 1fr) minmax(170px, .8fr); gap: 10px; min-height: 0; }.transport-order-received-mail-modal__stage .shipment-tracking-editor__time-field > div:has(> .button) { grid-template-columns: minmax(0, 1fr); }.transport-order-received-mail-modal__message .shipment-tracking-editor__actions { flex-wrap: wrap; } }
 
