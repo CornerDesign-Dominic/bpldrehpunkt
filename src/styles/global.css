@@ -1928,8 +1928,30 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-received-mails__list button.transport-order-received-mails__needs-review { border: 2px solid #eab308; }
 .transport-order-received-mails__list span { overflow-wrap: anywhere; font-size: 12px; font-weight: 650; }
 .transport-order-received-mails__list small { overflow-wrap: anywhere; color: var(--text-secondary); font-size: 10px; }
-.transport-order-received-mail-modal { width: min(100%, 760px); }
-.transport-order-received-mail-modal__body { max-height: 55vh; overflow: auto; margin: 16px 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.shipment-tracking-editor.transport-order-received-mail-modal { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(100%, 1280px); height: min(900px, calc(100vh - 40px)); overflow: hidden; }
+.transport-order-received-mail-modal__columns { display: grid; grid-template-columns: minmax(350px, 42%) minmax(0, 1fr); gap: 16px; min-height: 0; margin-top: 16px; }
+.transport-order-received-mail-modal__tracking { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-secondary); }
+.transport-order-received-mail-modal__tracking-loading { display: grid; min-height: 0; padding: 16px; place-items: center; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 12px; }
+.transport-order-received-mail-modal__tracking-heading { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.transport-order-received-mail-modal__tracking-heading h3 { margin: 0; color: var(--text-primary); font-size: 15px; }
+.transport-order-received-mail-modal__tracking-heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 11px; }
+.transport-order-received-mail-modal__tracking-scroll { display: grid; align-content: start; gap: 12px; min-width: 0; min-height: 0; margin: 0; padding: 12px; overflow: auto; border: 0; }
+.transport-order-received-mail-modal__tracking-notice { margin: 0; padding: 9px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); font-size: 12px; }
+.transport-order-received-mail-modal__stage { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }
+.transport-order-received-mail-modal__stage h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--text-primary); font-size: 13px; }
+.transport-order-received-mail-modal__stage h4 span { display: grid; width: 23px; height: 23px; flex: 0 0 auto; place-items: center; border: 1px solid var(--button-background); border-radius: 50%; color: var(--button-background); font-size: 11px; }
+.transport-order-received-mail-modal__stage .shipment-tracking-editor__license-plates, .transport-order-received-mail-modal__stage .shipment-tracking-editor__time-grid, .transport-order-received-mail-modal__stage .shipment-tracking-transit__fields { grid-template-columns: 1fr; }
+.transport-order-received-mail-modal__stage .shipment-tracking-editor__license-plate { grid-column: auto; }
+.transport-order-received-mail-modal__stage .form-field { margin: 0; }
+.transport-order-received-mail-modal__stage .shipment-tracking-editor__time-field > div { grid-template-columns: minmax(0, 1fr); }
+.transport-order-received-mail-modal__stage .shipment-tracking-editor__time-field > div:has(> .button) { grid-template-columns: minmax(0, 1fr) auto minmax(95px, auto); }
+.transport-order-received-mail-modal__stage .shipment-tracking-transit__entry { padding: 9px; }
+.transport-order-received-mail-modal__tracking-footer { display: flex; flex-direction: column; align-items: stretch; gap: 7px; padding: 11px 12px; border-top: 1px solid var(--border); }
+.transport-order-received-mail-modal__tracking-footer .form-error { margin: 0; font-size: 11px; }
+.transport-order-received-mail-modal__message { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; min-width: 0; min-height: 0; }
+.transport-order-received-mail-modal__body { min-height: 0; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); font: inherit; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.transport-order-received-mail-modal__saved { margin: 0; color: var(--status-success-text); font-size: 12px; font-weight: 700; }
+@media (max-width: 850px) { .shipment-tracking-editor.transport-order-received-mail-modal { height: calc(100vh - 20px); }.transport-order-received-mail-modal__columns { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 1fr) minmax(170px, .8fr); gap: 10px; min-height: 0; }.transport-order-received-mail-modal__stage .shipment-tracking-editor__time-field > div:has(> .button) { grid-template-columns: minmax(0, 1fr); }.transport-order-received-mail-modal__message .shipment-tracking-editor__actions { flex-wrap: wrap; } }
 
 @media (min-width: 1241px) {
   .transport-order-detail-actions, .transport-order-detail-system {
