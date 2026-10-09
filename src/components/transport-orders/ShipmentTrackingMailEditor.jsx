@@ -19,6 +19,7 @@ export default function ShipmentTrackingMailEditor({ tracking, events, canEdit, 
   const [existingEntries, setExistingEntries] = useState(initialExisting)
   const [transitEntries, setTransitEntries] = useState([])
   const [transitDirty, setTransitDirty] = useState(false)
+  const [openStage, setOpenStage] = useState(null)
   const [error, setError] = useState('')
   const baselineValues = useRef(initialValues)
   const previousTracking = useRef(tracking)
@@ -74,8 +75,8 @@ export default function ShipmentTrackingMailEditor({ tracking, events, canEdit, 
     <div className="transport-order-received-mail-modal__tracking-heading"><h3><StaticText source="Sendungsverfolgung" /></h3><p><StaticText source="KI-Werte sind farbig umrandet." /></p></div>
     <fieldset className="transport-order-received-mail-modal__tracking-scroll" disabled={!canEdit || !tracking || saving}>
       {!tracking && <p className="transport-order-received-mail-modal__tracking-notice"><StaticText source="Die Sendungsverfolgung wurde noch nicht gestartet. Angaben können erst danach gespeichert werden." /></p>}
-      {stages.map(({ id, title }, index) => <details className="transport-order-received-mail-modal__stage" key={id}>
-        <summary><h4><span>{index + 1}</span><StaticText source={title} /></h4></summary>
+      {stages.map(({ id, title }, index) => <details className="transport-order-received-mail-modal__stage" key={id} open={openStage === id}>
+        <summary onClick={(event) => { event.preventDefault(); setOpenStage((current) => current === id ? null : id) }}><h4><span>{index + 1}</span><StaticText source={title} /></h4></summary>
         <div className="transport-order-received-mail-modal__stage-fields">
           {id === 'in_transit'
             ? <ShipmentTrackingTransitFields entries={transitEntries} onChange={(next) => { setInitialExisting(currentInitialExisting); setExistingEntries(currentExistingEntries); setTransitEntries(next); setTransitDirty(true); onEdit() }} existingEntries={currentExistingEntries} initialExisting={currentInitialExisting} onExistingChange={(next) => { setInitialExisting(currentInitialExisting); setExistingEntries(next); setTransitDirty(true); onEdit() }} />
