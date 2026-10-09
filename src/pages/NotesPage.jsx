@@ -23,6 +23,7 @@ export default function NotesPage() {
   const [loadError, setLoadError] = useState(false)
   const [editingNote, setEditingNote] = useState(null)
   const [sort, setSort] = useState('created-desc')
+  const [view, setView] = useState('large')
 
   useEffect(() => {
     if (!user?.uid) return undefined
@@ -44,8 +45,8 @@ export default function NotesPage() {
   const sortedNotes = useMemo(() => sortPersonalNotes(notes, sort), [notes, sort])
 
   return <div className="notes-page">
-    <div className="notes-page__header"><label className="notes-sort"><span>{t('notes.sort')}</span><select value={sort} onChange={(event) => setSort(event.target.value)}>{PERSONAL_NOTE_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t({ 'created-desc': 'notes.sortNewest', 'created-asc': 'notes.sortOldest', eisenhower: 'notes.sortPriority' }[option.value])}</option>)}</select></label><button className="button" type="button" onClick={() => setEditingNote({})}>{t('notes.new')}</button></div>
-    {loading ? <p className="notes-page__message">{t('notes.loading')}</p> : loadError ? <p className="form-error">{t('notes.loadError')}</p> : notes.length === 0 ? <div className="notes-page__empty"><h3>{t('notes.emptyTitle')}</h3><p>{t('notes.emptyHint')}</p></div> : <div className="notes-page__grid">{sortedNotes.map((note) => <NoteCard key={note.id} note={note} onOpen={setEditingNote} />)}</div>}
+    <div className="notes-page__header"><div className="notes-page__settings"><label className="notes-sort"><span>{t('notes.sort')}</span><select value={sort} onChange={(event) => setSort(event.target.value)}>{PERSONAL_NOTE_SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{t({ 'created-desc': 'notes.sortNewest', 'created-asc': 'notes.sortOldest', eisenhower: 'notes.sortPriority' }[option.value])}</option>)}</select></label><label className="notes-sort"><span>{t('notes.view')}</span><select value={view} onChange={(event) => setView(event.target.value)}><option value="small">{t('notes.viewSmall')}</option><option value="medium">{t('notes.viewMedium')}</option><option value="large">{t('notes.viewLarge')}</option></select></label></div><button className="button" type="button" onClick={() => setEditingNote({})}>{t('notes.new')}</button></div>
+    {loading ? <p className="notes-page__message">{t('notes.loading')}</p> : loadError ? <p className="form-error">{t('notes.loadError')}</p> : notes.length === 0 ? <div className="notes-page__empty"><h3>{t('notes.emptyTitle')}</h3><p>{t('notes.emptyHint')}</p></div> : <div className={`notes-page__grid notes-page__grid--${view}`}>{sortedNotes.map((note) => <NoteCard key={note.id} note={note} onOpen={setEditingNote} />)}</div>}
     {editingNote && <PersonalNoteModal note={editingNote.id ? editingNote : null} onClose={() => setEditingNote(null)} onDelete={editingNote.id ? () => deletePersonalNote(user.uid, editingNote.id) : null} onSave={save} />}
   </div>
 }
