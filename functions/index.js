@@ -5,6 +5,7 @@ import { getStorage } from 'firebase-admin/storage'
 import { logger } from 'firebase-functions'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { requireActiveProfile, requireRole } from './access.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
@@ -13,7 +14,7 @@ import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
 import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
 import { shipmentTrackingMailNotificationUrl, systemMailNotificationUrl } from './systemMails.js'
 import { listTransportOrderRelationsHandler, listTransportOrdersPageHandler } from './transportOrderList.js'
-import { calculateImportedTransportOrderRouteHandler, calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
+import { calculateImportedTransportOrderRouteHandler, calculateTransportOrderRouteHandler, getTomTomUsageSummaryHandler, processImportedTransportOrderRouteHandler, tomTomRoutingApiKey } from './transportOrderRoutes.js'
 import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHandler, listPartnerTransportOrderRatingsHandler, saveTransportOrderRatingHandler } from './transportOrderRatings.js'
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
@@ -1059,7 +1060,13 @@ export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAp
 export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
 export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
 export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)
-export const calculateImportedTransportOrderRoute = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}', secrets: [tomTomRoutingApiKey], maxInstances: 2, timeoutSeconds: 60 }, calculateImportedTransportOrderRouteHandler)
+export const calculateImportedTransportOrderRoute = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}', maxInstances: 2, timeoutSeconds: 60 }, calculateImportedTransportOrderRouteHandler)
+export const processImportedTransportOrderRoute = onTaskDispatched({
+  region: 'europe-west3', secrets: [tomTomRoutingApiKey], timeoutSeconds: 120,
+  maxInstances: 1, concurrency: 1,
+  retryConfig: { maxAttempts: 1 },
+  rateLimits: { maxConcurrentDispatches: 1, maxDispatchesPerSecond: 0.2 },
+}, processImportedTransportOrderRouteHandler)
 export const getTomTomUsageSummary = onCall({ region: 'europe-west3', enforceAppCheck: true }, getTomTomUsageSummaryHandler)
 export const getOwnTransportOrderRatings = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnTransportOrderRatingsHandler)
 export const saveTransportOrderRating = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveTransportOrderRatingHandler)
