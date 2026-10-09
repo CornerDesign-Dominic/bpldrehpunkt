@@ -75,14 +75,14 @@ export default function ShipmentTrackingMailEditor({ tracking, events, canEdit, 
     <div className="transport-order-received-mail-modal__tracking-heading"><h3><StaticText source="Sendungsverfolgung" /></h3><p><StaticText source="KI-Werte sind farbig umrandet." /></p></div>
     <fieldset className="transport-order-received-mail-modal__tracking-scroll" disabled={!canEdit || !tracking || saving}>
       {!tracking && <p className="transport-order-received-mail-modal__tracking-notice"><StaticText source="Die Sendungsverfolgung wurde noch nicht gestartet. Angaben können erst danach gespeichert werden." /></p>}
-      {stages.map(({ id, title }, index) => <details className="transport-order-received-mail-modal__stage" key={id} open={openStage === id}>
-        <summary onClick={(event) => { event.preventDefault(); setOpenStage((current) => current === id ? null : id) }}><h4><span>{index + 1}</span><StaticText source={title} /></h4></summary>
-        <div className="transport-order-received-mail-modal__stage-fields">
+      {stages.map(({ id, title }, index) => <section className={`transport-order-received-mail-modal__stage${openStage === id ? ' transport-order-received-mail-modal__stage--open' : ''}`} key={id}>
+        <button type="button" className="transport-order-received-mail-modal__stage-toggle" aria-expanded={openStage === id} aria-controls={`received-mail-tracking-${id}`} onClick={() => setOpenStage((current) => current === id ? null : id)}><span className="transport-order-received-mail-modal__stage-title"><span>{index + 1}</span><StaticText source={title} /></span></button>
+        {openStage === id && <div className="transport-order-received-mail-modal__stage-fields" id={`received-mail-tracking-${id}`}>
           {id === 'in_transit'
             ? <ShipmentTrackingTransitFields entries={transitEntries} onChange={(next) => { setInitialExisting(currentInitialExisting); setExistingEntries(currentExistingEntries); setTransitEntries(next); setTransitDirty(true); onEdit() }} existingEntries={currentExistingEntries} initialExisting={currentInitialExisting} onExistingChange={(next) => { setInitialExisting(currentInitialExisting); setExistingEntries(next); setTransitDirty(true); onEdit() }} />
             : <ShipmentTrackingStageFields stage={{ ...shipmentTrackingStageConfigurations[id], id }} values={values} onChange={(field, value) => { setValues((current) => ({ ...current, [field]: value })); onEdit() }} aiField={aiField} />}
-        </div>
-      </details>)}
+        </div>}
+      </section>)}
     </fieldset>
     <div className="transport-order-received-mail-modal__tracking-footer">
       {saved && <p className="transport-order-received-mail-modal__saved" role="status"><StaticText source="Eingaben übernommen." /></p>}
