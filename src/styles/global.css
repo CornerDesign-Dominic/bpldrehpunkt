@@ -1935,11 +1935,17 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-received-mail-modal__tracking-heading { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .transport-order-received-mail-modal__tracking-heading h3 { margin: 0; color: var(--text-primary); font-size: 15px; }
 .transport-order-received-mail-modal__tracking-heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 11px; }
-.transport-order-received-mail-modal__tracking-scroll { display: grid; align-content: start; gap: 12px; min-width: 0; min-height: 0; margin: 0; padding: 12px; overflow: auto; border: 0; }
+.transport-order-received-mail-modal__tracking-scroll { display: grid; align-content: start; gap: 12px; min-width: 0; min-height: 0; margin: 0; padding: 12px; overflow: auto; scrollbar-gutter: stable; border: 0; }
 .transport-order-received-mail-modal__tracking-notice { margin: 0; padding: 9px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-secondary); font-size: 12px; }
-.transport-order-received-mail-modal__stage { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }
-.transport-order-received-mail-modal__stage h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; color: var(--text-primary); font-size: 13px; }
+.transport-order-received-mail-modal__stage { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); }
+.transport-order-received-mail-modal__stage > summary { display: flex; align-items: center; gap: 8px; padding: 12px; cursor: pointer; list-style: none; }
+.transport-order-received-mail-modal__stage > summary::-webkit-details-marker { display: none; }
+.transport-order-received-mail-modal__stage > summary::after { content: '›'; margin-left: auto; color: var(--text-muted); font-size: 20px; line-height: 1; transition: transform .15s ease; }
+.transport-order-received-mail-modal__stage[open] > summary::after { transform: rotate(90deg); }
+.transport-order-received-mail-modal__stage > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.transport-order-received-mail-modal__stage h4 { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-primary); font-size: 13px; }
 .transport-order-received-mail-modal__stage h4 span { display: grid; width: 23px; height: 23px; flex: 0 0 auto; place-items: center; border: 1px solid var(--button-background); border-radius: 50%; color: var(--button-background); font-size: 11px; }
+.transport-order-received-mail-modal__stage-fields { padding: 0 12px 12px; }
 .transport-order-received-mail-modal__stage .shipment-tracking-editor__license-plates, .transport-order-received-mail-modal__stage .shipment-tracking-editor__time-grid, .transport-order-received-mail-modal__stage .shipment-tracking-transit__fields { grid-template-columns: 1fr; }
 .transport-order-received-mail-modal__stage .shipment-tracking-editor__license-plate { grid-column: auto; }
 .transport-order-received-mail-modal__stage .form-field { margin: 0; }
