@@ -140,6 +140,7 @@ export default function TransportOrderDetailPage() {
     try {
       const result = await getShipmentTracking(transportOrderId)
       setTracking(result.tracking); setTrackingEvents(result.events); setTrackingError('')
+      return result
     } catch {
       setTrackingError('Die Sendungsverfolgung konnte nicht geladen werden.')
     } finally { setTrackingLoading(false) }
@@ -152,6 +153,14 @@ export default function TransportOrderDetailPage() {
     }).catch(() => { if (current) setTrackingError('Die Sendungsverfolgung konnte nicht geladen werden.') }).finally(() => { if (current) setTrackingLoading(false) })
     return () => { current = false }
   }, [transportOrderId])
+  useEffect(() => {
+    if (!receivedMailVersion) return undefined
+    let current = true
+    getShipmentTracking(transportOrderId).then((result) => {
+      if (current) { setTracking(result.tracking); setTrackingEvents(result.events) }
+    }).catch(() => { /* Die bisher angezeigten Tracking-Daten bleiben erhalten. */ })
+    return () => { current = false }
+  }, [transportOrderId, receivedMailVersion])
   const trackingVersion = tracking?.updatedAt?.toMillis?.() || tracking?.updatedAt?.seconds || ''
   useEffect(() => {
     if (!tracking) return undefined
@@ -231,6 +240,27 @@ export default function TransportOrderDetailPage() {
     } catch (caught) {
       setTrackingError(caught instanceof Error ? caught.message : 'Die Sendungsverfolgung konnte nicht gespeichert werden.')
       return false
+    } finally { setTrackingSaving(false) }
+  }
+  async function saveMailTracking(payload) {
+    setTrackingSaving(true); setTrackingError('')
+    let savedPart = false
+    try {
+      if (Object.keys(payload.changes).length) {
+        await updateManualShipmentTracking({ orderId: transportOrderId, action: 'update', source: 'manual', values: payload.changes })
+        savedPart = true
+      }
+      if (payload.transitEntries.length || payload.transitCorrections.length || payload.transitRemovals.length) {
+        await updateManualShipmentTracking({ orderId: transportOrderId, action: 'save_transit_entries', source: 'manual', transitEntries: payload.transitEntries, transitCorrections: payload.transitCorrections, transitRemovals: payload.transitRemovals })
+        savedPart = true
+      }
+      const refreshed = await refreshTracking()
+      return { ok: true, ...refreshed }
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : 'Die Sendungsverfolgung konnte nicht gespeichert werden.'
+      const refreshed = savedPart ? await refreshTracking() : null
+      setTrackingError(message)
+      return { ok: false, partial: savedPart, error: message, ...refreshed }
     } finally { setTrackingSaving(false) }
   }
   async function refreshForecast() {
@@ -319,7 +349,7 @@ export default function TransportOrderDetailPage() {
       </main>
       <TranslatedProps sources={{"aria-label":"System und Kontext"}}><aside className="transport-order-detail-system" aria-label="System und Kontext">
         <details open className="transport-order-detail-section transport-order-detail-section--contacts"><summary><StaticText source={"Kontakte"} /><ChevronDownIcon /></summary><div className="transport-order-detail-section__content"><div className="transport-order-detail-contact-group"><h4><StaticText source={"Kunde"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.customerStandardEmail} /><CopyDetail label="Info-1" value={imported.contacts?.customerForOrder} /></dl></div><div className="transport-order-detail-contact-group"><h4><StaticText source={"Unternehmer"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.carrierStandardEmail} /><CopyDetail label="Im Auftrag" value={imported.contacts?.carrierForOrder} /></dl></div></div></details>
-        <TransportOrderReceivedMails key={transportOrderId} transportOrderId={transportOrderId} canEdit={canEdit('transportOrders')} onMailsChanged={handleReceivedMailsChanged} />
+        <TransportOrderReceivedMails key={transportOrderId} transportOrderId={transportOrderId} tracking={tracking} trackingEvents={trackingEvents} trackingLoading={trackingLoading} trackingSaving={trackingSaving} onSaveTracking={saveMailTracking} canEdit={canEdit('transportOrders')} onMailsChanged={handleReceivedMailsChanged} />
         <details className="transport-order-detail-section transport-order-detail-section--import-info"><summary><StaticText source={"Importinfos"} /></summary><dl className="transport-order-detail-list transport-order-detail-list--single"><Detail label="Importiert am">{formatTimestamp(order.importMeta?.importedAt)}</Detail><TranslatedProps sources={{"label":"Zuletzt aktualisiert"}}><Detail label="Zuletzt aktualisiert">{formatTimestamp(order.updatedAt || order.importMeta?.lastImportedAt)}</Detail></TranslatedProps><TranslatedProps sources={{"label":"Importdatei"}}><Detail label="Importdatei">{order.importMeta?.fileName}</Detail></TranslatedProps><Detail label="Importlauf">{order.importMeta?.importRunId}</Detail></dl></details>
       </aside></TranslatedProps>
     </div>

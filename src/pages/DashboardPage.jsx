@@ -3,6 +3,13 @@ import { localeForLanguage } from '../i18n/translations.js'
 
 const dashboardUpdates = [
   {
+    id: 'tracking-from-received-mail',
+    date: '2026-10-09',
+    titleKey: 'dashboard.update.trackingFromMailTitle',
+    summaryKey: 'dashboard.update.trackingFromMailSummary',
+    tagKey: 'dashboard.update.extensionTag',
+  },
+  {
     id: 'shipment-tracking-recommendations',
     date: '2026-10-04',
     titleKey: 'dashboard.update.shipmentTrackingRecommendationsTitle',
