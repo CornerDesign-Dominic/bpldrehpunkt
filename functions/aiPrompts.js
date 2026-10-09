@@ -1,4 +1,5 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 
@@ -56,8 +57,19 @@ async function assertSuperadmin(request) {
 export async function getPublishedAiPromptInstructions(id) {
   const definition = definitions[id]
   if (!definition) return ''
-  const snapshot = await getFirestore().doc(`${collection}/${id}`).get()
-  return validStoredInstructions(snapshot.data()?.published?.instructions, definition.defaultInstructions)
+  try {
+    const snapshot = await getFirestore().doc(`${collection}/${id}`).get()
+    return validStoredInstructions(snapshot.data()?.published?.instructions, definition.defaultInstructions)
+  } catch (error) {
+    // The configurable prompt is an optional addition. A temporary Firestore
+    // issue must never prevent an operational AI flow such as status-mail
+    // processing from continuing with its vetted default instruction.
+    logger.warn('Veröffentlichte KI-Fachanweisung konnte nicht geladen werden; Standardanweisung wird verwendet.', {
+      promptId: id,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    return definition.defaultInstructions
+  }
 }
 
 export const listAiPromptConfigs = onCall({ region, enforceAppCheck: true }, async (request) => {
