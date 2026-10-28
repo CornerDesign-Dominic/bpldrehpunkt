@@ -1,6 +1,6 @@
 import { doc, getDoc, getDocs, orderBy, query, collection } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
-import { db, functions, waitForAppCheckToken } from './firebase.js'
+import { auth, db, functions, waitForAppCheckToken } from './firebase.js'
 
 export const TRANSPORT_ORDERS_COLLECTION = 'transportOrders'
 
@@ -23,8 +23,9 @@ export async function listTransportOrderRelations() {
   return Array.isArray(result.data?.relations) ? result.data.relations : []
 }
 
-export async function saveOwnTransportOrderListPreferences(preferences) {
+export async function saveOwnTransportOrderListPreferences(preferences, expectedUserId) {
   await waitForAppCheckToken()
+  if (!expectedUserId || auth.currentUser?.uid !== expectedUserId) throw new Error('Die Benutzersitzung hat sich geändert.')
   const result = await httpsCallable(functions, 'updateOwnTransportOrderListPreferences')({ preferences })
   return result.data?.preferences || null
 }

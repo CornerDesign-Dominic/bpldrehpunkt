@@ -1,5 +1,5 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { FaBan, FaChevronLeft, FaChevronRight, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
 import { Link, useNavigate } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
@@ -13,6 +13,7 @@ import { getShipmentTracking, sendManualShipmentTrackingMail, shipmentTrackingMa
 import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
 import ShipmentTrackingManualMailModal from '../components/transport-orders/ShipmentTrackingManualMailModal.jsx'
 import { LicensePlateIcon } from '../components/icons.jsx'
+import { createTransportOrderPreferenceSaver } from '../lib/transportOrderPreferenceSaver.js'
 
 const columns = [
   { key: 'externalNumber', label: 'TA-Nummer' }, { key: 'relation', label: 'Relation' }, { key: 'tracking', label: 'Verfolgung' }, { key: 'attention', label: 'Empfehlung' }, { key: 'forecast', label: 'Prognose' },
@@ -21,7 +22,7 @@ const columns = [
   { key: 'customer', label: 'Kunde' }, { key: 'carrier', label: 'Unternehmer' },
 ]
 
-const transportOrderListPreferenceCache = new Map()
+const transportOrderListPreferenceSavers = new Map()
 
 const attentionIcon = (item) => item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
 const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen' }[state] || 'Unbekannt')
@@ -39,7 +40,16 @@ export default function TransportOrdersPage() {
   const { user, profile } = useAuth()
   const { t } = useLanguage()
   const navigate = useNavigate()
-  const initialPreferences = () => transportOrderListPreferenceCache.get(user?.uid) || normalizeTransportOrderListPreferences(profile?.userPreferences?.transportOrderList)
+  const [preferenceSaver] = useState(() => {
+    if (!transportOrderListPreferenceSavers.has(user.uid)) {
+      transportOrderListPreferenceSavers.set(user.uid, createTransportOrderPreferenceSaver(
+        (preferences) => saveOwnTransportOrderListPreferences(preferences, user.uid),
+        normalizeTransportOrderListPreferences(profile?.userPreferences?.transportOrderList),
+      ))
+    }
+    return transportOrderListPreferenceSavers.get(user.uid)
+  })
+  const initialPreferences = () => preferenceSaver.getPreferences()
   const [search, setSearch] = useState(() => initialPreferences().search)
   const [trackingFilter, setTrackingFilter] = useState(() => initialPreferences().trackingFilter)
   const [attentionFilter, setAttentionFilter] = useState(() => initialPreferences().attentionFilter)
@@ -61,34 +71,21 @@ export default function TransportOrdersPage() {
   const [forecastRequestMail, setForecastRequestMail] = useState(null)
   const [forecastRequestMailSaving, setForecastRequestMailSaving] = useState(false)
   const tableRef = useRef(null)
-  const preferencesRef = useRef(null)
-  const preferencesInitializedRef = useRef(false)
-  const preferencesDirtyRef = useRef(false)
-  const preferenceSaveChainRef = useRef(Promise.resolve())
+  const preferenceSaveStatus = useSyncExternalStore(preferenceSaver.subscribe, preferenceSaver.getStatus)
   const cursor = cursors[pageIndex]
   const preferences = useMemo(() => ({ search, trackingFilter, attentionFilter, iconFilters, relation: relationFilter, loadingFrom, loadingUntil, sort, pageSize }), [search, trackingFilter, attentionFilter, iconFilters, relationFilter, loadingFrom, loadingUntil, sort, pageSize])
 
   useEffect(() => {
     if (!user?.uid) return undefined
     const savedPreferences = normalizeTransportOrderListPreferences(preferences)
-    transportOrderListPreferenceCache.set(user.uid, savedPreferences)
-    preferencesRef.current = savedPreferences
-    if (!preferencesInitializedRef.current) {
-      preferencesInitializedRef.current = true
-      return undefined
-    }
-    preferencesDirtyRef.current = true
-    const timeout = window.setTimeout(() => {
-      preferenceSaveChainRef.current = preferenceSaveChainRef.current.catch(() => undefined).then(() => saveOwnTransportOrderListPreferences(savedPreferences)).catch(() => undefined)
-    }, 350)
+    preferenceSaver.update(savedPreferences)
+    const timeout = window.setTimeout(() => { void preferenceSaver.flush() }, 350)
     return () => window.clearTimeout(timeout)
-  }, [preferences, user?.uid])
+  }, [preferences, user?.uid, preferenceSaver])
 
   useEffect(() => () => {
-    const savedPreferences = preferencesRef.current
-    if (!user?.uid || !savedPreferences || !preferencesDirtyRef.current) return
-    preferenceSaveChainRef.current = preferenceSaveChainRef.current.catch(() => undefined).then(() => saveOwnTransportOrderListPreferences(savedPreferences)).catch(() => undefined)
-  }, [user?.uid])
+    void preferenceSaver.flush()
+  }, [preferenceSaver])
 
   useEffect(() => {
     let cancelled = false
@@ -219,6 +216,7 @@ export default function TransportOrdersPage() {
       {canEdit('dataImports') && <Link className="button" to="/transportauftraege/import"><StaticText source="Transportaufträge importieren" /></Link>}
     </div>
     {error && <p className="form-error">{<StaticText source={error} />}</p>}
+    {preferenceSaveStatus === 'error' && <div className="form-error" role="alert"><p>{t('orders.preferencesSaveError')}</p><button className="button button--secondary" type="button" onClick={() => { void preferenceSaver.flush() }}>{t('orders.preferencesRetry')}</button></div>}
     <div className="transport-orders-table-frame" ref={tableRef}><table className="data-table transport-orders-table transport-orders-table--list"><thead><tr>{columns.map(renderSortableHeader)}</tr></thead><tbody>{loading ? <tr><td className="table-state" colSpan={columns.length}><StaticText source={"Transportaufträge werden geladen …"} /></td></tr> : !page.orders.length ? <tr><td className="table-state" colSpan={columns.length}><div className="transport-orders-empty"><span><StaticText source={emptyTrackingFilterMessage(trackingFilter)} /></span>{trackingFilter !== 'all' && <button className="button button--secondary" type="button" onClick={() => selectTrackingFilter('all')}><StaticText source={"Filter zurücksetzen"} /></button>}</div></td></tr> : page.orders.map((order) => <tr className="transport-orders-table__row" key={order.id} role="link" tabIndex="0" aria-label={t('orders.open', { number: order.externalNumber })} onClick={() => openOrder(order.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openOrder(order.id) } }}>
       <td><strong>{order.externalNumber}</strong></td>
       <td title={formatTransportOrderRelation(order.imported?.relation)}>{formatTransportOrderRelation(order.imported?.relation)}</td>
