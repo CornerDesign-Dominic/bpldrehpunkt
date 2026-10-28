@@ -1,4 +1,4 @@
-# Projektgrundsätze und Live-Release-Umfang
+# Projektgrundsätze und aktueller Produktumfang
 
 ## Zweck und Systemgrenze
 
@@ -13,11 +13,14 @@ Unternehmer. Fachmodule referenzieren diese Daten, statt sie mehrfach zu
 kopieren. Dokumentdateien liegen in Firebase Storage; zugehörige Metadaten und
 fachliche Vorgänge liegen in Firestore.
 
-Der Produktumfang dieses Dokuments ist der aktuelle, auf `main` vorhandene und
-für den ersten Livegang fachlich freigegebene Stand. Es werden damit keine
-zusätzlichen Features angekündigt oder eingeplant.
+Stand: 28.10.2026. Dieses Dokument beschreibt die dauerhaften Grundsätze und
+den vorhandenen Produktumfang im geprüften Code von `main` und `dev`.
+Es ist kein Nachweis, dass jede Funktion bereits in jeder Umgebung deployt oder
+fachlich abgenommen wurde. Historische Releases stehen in
+`docs/release-notes.md`, der laufende Releaseablauf in
+`docs/operations/releases.md`.
 
-## Verbindlicher Umfang des ersten Live-Releases
+## Vorhandener Produktumfang
 
 ### Übersicht und Zusammenarbeit
 
@@ -26,11 +29,18 @@ zusätzlichen Features angekündigt oder eingeplant.
 - News
 - Urlaub, Urlaubsmanagement, Personal und Team
 - To-dos
+- Persönliche Notizen
 - Persönliches Profil
 
 ### Kunden, Vorgänge und Disposition
 
 - Kunden & Unternehmer als Geschäftspartner-Stammdaten
+- Datenimporte aus DyCoS-CSV mit Vorschau, Prüfwarteschlangen und Importverlauf
+- Kontrollierte Partnerzusammenführung und Trennung mit eigener Berechtigung
+- Transportaufträge mit Auftragsliste, persönlichen Listenansichten und
+  Verknüpfungen zu Aufgaben, Fällen und Palettenbewegungen
+- Sendungsverfolgung mit manueller Erfassung, Statusmail-Eingang,
+  KI-Auswertung, Handlungshinweisen, Prognose und Routenberechnung
 - CRM einschließlich Aktivitäten und Bewertungen
 - Palettenmanagement mit Kontoübersichten und Detailansichten
 - Schäden
@@ -50,11 +60,13 @@ zusätzlichen Features angekündigt oder eingeplant.
 - Rollen, Modulrechte und aktive Benutzerprofile
 - Systemmail-Verwaltung
 - KI-Prompt-Verwaltung
+- Einstellungen für Sendungsverfolgung, automatischen Mailversand und Diagnose
 - Abteilungs-, Personal-, Urlaubs- und Feiertagsverwaltungsabläufe im jeweils
   geschützten Umfang
 
-Alle Fachmodule sind über die zentrale Berechtigungsregistrierung und
-geschützte Routen eingebunden. Der Modulzugriff wird mit den Stufen `none`,
+Die Fachmodule werden zentral in `src/lib/permissions.js` registriert und über
+geschützte Routen eingebunden. Persönliches Profil und persönliche Notizen
+folgen zusätzlich eigenen Zugriffs- bzw. Eigentümerregeln. Der Modulzugriff wird mit den Stufen `none`,
 `view` und `edit` gesteuert. Die globalen Rollen sind `user`, `admin` und
 `superadmin`; nur `superadmin` besitzt den allgemeinen Rechte-Override.
 Administration ist keine Umgehung der Fachrechte: Der Zugriff auf Fachbereiche
@@ -107,13 +119,13 @@ Enforcement-Entscheidungen stehen in `APP_CHECK_ROLLOUT.md`.
 - Direkte Client-Schreibzugriffe auf geschützte Konten, Rechte, HR-Daten,
   Systemkonfigurationen und Systemhistorien sind keine zulässige
   Erweiterungsoption.
-- Der erste Live-Release umfasst nur die oben aufgeführten, bereits in Routen,
-  Navigation und Berechtigungsmodell vorhandenen Bereiche. Nicht belegbare
-  zukünftige Module gehören nicht zum Release-Umfang.
+- Neue Releaseumfänge werden aus tatsächlich implementierten, geprüften und
+  freigegebenen Änderungen gebildet. Ein Eintrag in diesem Dokument ersetzt
+  keine fachliche Abnahme und keinen Deploymentnachweis.
 
 ## Entwicklung nach dem Livegang
 
-Die laufende Weiterentwicklung erfolgt künftig in einer separaten
+Die laufende Weiterentwicklung erfolgt in einer separaten
 Entwicklungsumgebung. Änderungen werden dort implementiert und geprüft; erst
 freigegebene, gezielte Änderungen werden nach `main` übernommen. Production
 bleibt stabil und ist kein Arbeitsbereich für laufende Entwicklung oder

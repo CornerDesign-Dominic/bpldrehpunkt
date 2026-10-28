@@ -1,12 +1,17 @@
 # DyCoS CSV-Import – Übergangslösung
 
+Stand: 28.10.2026. Dieses Dokument führt die fachlichen CSV-Datenverträge und
+die verbleibende Planung. Kunden-, Unternehmer- und Transportauftragsimport
+sowie Partnerzusammenführung sind implementiert. Eine spätere SQL-Datenquelle
+und Mehrstopp-Unterstützung sind keine bereits freigegebenen Funktionen.
+
 **Status dieses Dokuments:** Die als **verbindlich** bezeichneten Punkte sind für die Umsetzung festgelegt. **Offen** bezeichnet Punkte, die erst mit weiteren Daten oder Entscheidungen konkretisiert werden.
 
 ## 1. Ziel und Grundprinzip
 
 **Verbindlich:** Zunächst werden DyCoS-CSV-Dateien für Kunden, Unternehmer und anschließend Transportaufträge importiert. Die Fachmodule dürfen nicht an CSV gebunden sein: Eine spätere Read-only-SQL-Schnittstelle ersetzt ausschließlich Datenquelle bzw. Importschicht, nicht die Fachlogik.
 
-**Offen:** Es werden keine Annahmen über tatsächliche CSV-Spalten getroffen. Das verbindliche Feldmapping folgt erst nach Vorlage der Export-Kopfzeilen und anonymisierter Beispielzeilen.
+**Vorhanden:** Die produktiven Feldmappings sind in den Kunden-CSV-Regeln sowie den Abschnitten 12 und 13 dokumentiert. Zusätzliche Exportvarianten werden erst nach Prüfung ihrer Kopfzeilen und anonymisierter Beispiele unterstützt.
 
 ## 2. Aktueller Bestand im Projekt
 
@@ -15,7 +20,7 @@
 - To-dos speichern technische Partnerbezüge (`customerId`/`carrierId`) samt Namen, technische Bezüge zu Schaden, Insolvenz, Gericht/Streit und Inkasso sowie die Freitext-TA-Referenz `reference`.
 - Schäden speichern `claimantPartnerId` und `contractorPartnerId` samt Namen sowie `transportReference` als Freitext. Aus einem Schaden kann ein To-do mit diesen Werten vorausgefüllt werden.
 - Insolvenzen sind über `partnerId` an genau einen `businessPartner` gebunden; der Insolvenzfall verwendet diesen Partner als Dokument-ID und speichert `partnerName` als Snapshot. Ein To-do kann technisch auf den Insolvenzfall verweisen.
-- Gericht/Streit speichert die erforderliche `transportReference` nur als Freitext; es besteht derzeit keine technische Partner- oder TA-Verknüpfung. To-dos können technisch auf Gericht/Streit verweisen.
+- Gericht/Streit behält `transportReference` als Freitext und besitzt keine technische Partner-ID. Technische TA-Verknüpfungen liegen zusätzlich in `caseTransportOrderLinks`; To-dos können auf Gericht/Streit verweisen.
 - Inkasso speichert `debtorPartnerId` mit Rolle und Schuldner-Snapshot. To-dos können technisch auf Inkasso verweisen.
 - Haftbarhaltung ist heute ein nicht persistiertes Dokumentformular: Es enthält eine Freitext-Auftragsnummer und Adress-/Transportdaten, aber keinen technischen TA- oder Partnerbezug.
 - **Nutzen einer echten TA-ID:** Sie ersetzt die Freitext-TA-Referenzen in To-dos, Schäden, Gericht/Streit und Haftbarhaltung durch stabile Verknüpfungen. Sie erlaubt außerdem, Kunde, Unternehmer und verfügbare Auftragsdaten dort konsistent vorzubelegen. Insolvenzen profitieren indirekt über den Partnerbezug und künftig aus einem TA heraus erzeugte To-dos/Fälle.
@@ -83,7 +88,7 @@
 - Eine Trennung der Version 2 entfernt nur die Weiterleitung des ausgewählten Quellpartners, stellt dessen ursprünglichen Status (etwa „Insolvenz“) wieder her und gibt nur dessen eigene Debitoren-/Kreditorennummern zurück. Andere zuvor zu seinem Cluster gehörende Mitglieder bleiben direkt am bisherigen aktiven Hauptpartner; Fall-/Auftrags-/To-do-Referenzen werden nicht bewegt. Die serverseitige Vorschau verwendet eine Prüfsumme; parallel geänderte Daten erzwingen eine neue Vorschau. Später geänderte Stammdatenwerte bleiben erhalten und werden als Warnung/Historieneintrag ausgewiesen.
 - Beide Partner und das Merge-Protokoll erhalten nachvollziehbare Historieneinträge mit Bearbeiter, Zeitpunkt und Ergebnis. Die vorhandene Berechtigung „Partner zusammenführen“ gilt auch für Vorschau und Trennung; Superadmins bleiben berechtigt.
 - Bestandsdaten aus dem früheren Protokoll `schemaVersion: 1` können bereits physisch umgeschriebene Fachreferenzen oder Weiterleitungsketten enthalten. Die neue Logik ändert diese Altfälle nicht stillschweigend: Vor einer produktiven Aussage über den gesamten Datenbestand sind eine lesende Inventur und gegebenenfalls eine gesondert freigegebene, protokollierte Altfallbereinigung erforderlich. Emulatorprüfungen allein belegen die Invariante für neue und im Test bearbeitete Cluster, nicht den unveränderten Firebase-Dev-Bestand.
-- Gericht/Streit besitzt derzeit keine technische Partner-ID und nur eine Freitext-TA-Referenz; Kalenderereignisse besitzen keinen Partner-/Fallbezug. Diese Felder lassen sich daher nicht als Partnerweiterleitung testen. Fallbezogene To-dos behalten dagegen ihre `legalDisputeId`, `damageCaseId`, `insolvencyId` bzw. `inkassoCaseId`.
+- Gericht/Streit besitzt keine technische Partner-ID. Seine Freitext-TA-Referenz ist von technischen Einträgen in `caseTransportOrderLinks` getrennt. Kalenderereignisse besitzen keinen Partner-/Fallbezug. Fallbezogene To-dos behalten ihre `legalDisputeId`, `damageCaseId`, `insolvencyId` bzw. `inkassoCaseId`.
 
 - **Verbindlich:** Es gibt keine automatische Partner-Zusammenführung. Eine gleiche USt-IdNr. erzeugt nur „Mögliche Dublette“.
 - **Verbindlich:** Liefert ein Kunden- oder Unternehmerimport eine Debitoren- und Kreditorennummer, die auf zwei getrennten Partnern liegen, ist dies eine eigene Prüfzeile „Zusammenführung erforderlich“. Die Gegen-ID gehört fachlich zum selben Partner; sie wird nicht als externer Unternehmer-Verweis verknüpft. Der Bearbeiter wählt bewusst den Zielpartner.
@@ -122,13 +127,13 @@
 
 ## 9. Verknüpfungskonzept Transportauftrag
 
-**Ziel – verbindlich:** Ein echter Transportauftrag wird über eine stabile TA-ID mit To-dos, Schäden, Insolvenzen, Gericht/Streit, Inkasso und Haftbarhaltung verknüpft.
+**Vorhanden:** To-dos können mehrere Aufträge verknüpfen. Schäden, Inkasso und Gericht/Streit werden über `caseTransportOrderLinks` mit Aufträgen verbunden; diese Falltypen sind in `shared/caseTransportLinks.js` registriert.
 
-- Aus einem TA heraus sollen später „To-do hinzufügen“, „Schadenfall anlegen“ und „Haftbarhaltung an Unternehmer“ möglich sein.
-- Kunde, Unternehmer und verfügbare TA-Daten werden dabei vorausgefüllt.
-- Die heute vorhandenen Freitext-TA-Referenzen bleiben bis zur Einführung der echten TA-Verknüpfung zu berücksichtigen.
+- Aus der Auftragsdetailseite können berechtigte Nutzer To-dos sowie die unterstützten Falltypen mit vorausgefüllten Daten anlegen.
+- Bestehende Freitextreferenzen bleiben zusätzlich erhalten; sie sind keine technische Identität.
+- **Noch keine allgemeine Umsetzung:** Insolvenz und Haftbarhaltung sind nicht als Falltypen in `caseTransportOrderLinks` registriert. Das allgemeine Verknüpfungsziel ist damit nicht vollständig umgesetzt. Haftbarhaltung bleibt ein eigenes Dokumentformular ohne persistierte technische TA-Verknüpfung.
 
-## 10. Geplanter Importablauf
+## 10. Vorhandener Importablauf
 
 1. CSV auswählen.
 2. Struktur prüfen.
@@ -139,27 +144,32 @@
 7. Differenzen im jeweiligen Stammdaten- oder Transportauftragskontext prüfen.
 8. Niemals automatisch löschen.
 
-## 11. Offene Punkte und nächste Schritte
+## 11. Umsetzungsstand und verbleibende Planung
 
-1. Unternehmer-Export: Kopfzeile und anonymisierte Beispielzeilen prüfen; danach verbindliches Feldmapping.
-2. Transportauftrag-Export: ebenso.
-4. Finales Datenmodell der Transportliste und der TA-Versionen.
-5. Konkrete Statusdefinitionen für `Unverändert` und `Fehlerhaft`.
-6. Technisches Detailmodell für zusätzliche DyCoS-Referenzen, Archiv-Weiterleitung nach einer Zusammenführung und die unveränderbare Zusammenführungshistorie.
-7. Technisches Modell und Verwaltungsoberfläche für Partnerverbünde; die manuelle, nicht automatische Zuordnung bleibt verbindlich.
-8. Spätere SQL-Schnittstelle: CSV-Datenquelle austauschen, Fachmodule unverändert lassen.
+Implementiert sind die Kunden-/Unternehmer-Feldmappings, die Auftragsliste mit
+Importvergleich, Importstatus und Prüfwarteschlangen, zusätzliche DyCoS-Referenzen
+sowie Merge-v2-Protokolle und kontrollierte Trennung. Deren Regeln stehen in
+diesem Dokument und im jeweiligen Import-/Merge-Code; sie sind keine offenen
+Grundsatzentscheidungen mehr.
+
+Verbleibende Planung, ohne neue Releasezusage:
+
+1. Eine spätere Read-only-SQL-Datenquelle über einen geprüften Datenvertrag anbinden; die Fachmodule nicht an deren Transporttechnik koppeln.
+2. Mehrstopp-Transporte erst bei belastbarer Datenquelle und geklärtem Datenmodell ergänzen.
+3. Partnerverbünde als eigenständige fachliche Erweiterung behandeln; keine automatische Zusammenführung daraus ableiten.
+4. Weitere Fall-/Dokumentverknüpfungen nur gezielt mit Berechtigungen, Speicherung und Historie ergänzen.
 
 ## 12. Produktiver Transportauftragsimport aus DyCoS-CSV
 
 **Verbindlich:** Der erste produktive TA-Import nutzt DyCoS-CSV-Dateien. Er bildet nur die erste Ladestelle und letzte Entladestelle ab; Zwischenstopps sind im aktuellen Export bewusst nicht verfügbar. CSV wird als UTF-8 (mit oder ohne BOM), Semikolon- oder Komma-CSV verarbeitet; eine leere erste Excel-Exportspalte wird ignoriert. `Nummer` bleibt immer Text, damit etwa `260400210` unverändert bleibt. `Auftragzeit von` und `Auftragzeit bis` werden, falls vorhanden, ausdrücklich ignoriert.
 
-DyCoS liefert im Produktivexport weder Transportstatus noch Statuszeit. Status, Ereignisse, Handlungsempfehlungen und Zeitverlauf entstehen später ausschließlich im Drehpunkt-Modul Sendungsverfolgung.
+DyCoS liefert im Produktivexport weder Transportstatus noch Statuszeit. Status, Ereignisse, Handlungsempfehlungen und Zeitverlauf entstehen im separaten Drehpunkt-Modul Sendungsverfolgung.
 
 | CSV-Spalte | Bedeutung / Ziel |
 |---|---|
 | `Nummer` | Unveränderliche externe DyCoS-Transportauftragsnummer; zentrale Import-ID |
 | `Relation` | Hinterlegte Mitarbeiterrelation; zunächst original speichern |
-| `Unternehmer` | Unternehmername aus DyCoS; zunächst Importwert, spätere Zuordnung über die separat geplante 100/95/60%-Regel |
+| `Unternehmer` | Unternehmername aus DyCoS; Zuordnung über die vorhandene 100/95/60%-Regel und bewusste Prüfung uneindeutiger Kandidaten |
 | `Ref.Nr` | Kundenreferenznummer zur Zuordnung im Kunden-TMS und Abrechnung |
 | `Ladestellenort`, `Ladestelle` | Strukturierter Ort und vollständiger Originaltext der ersten Ladestelle |
 | `Entladestellenort`, `Entladestelle` | Strukturierter Ort und vollständiger Originaltext der letzten Entladestelle |

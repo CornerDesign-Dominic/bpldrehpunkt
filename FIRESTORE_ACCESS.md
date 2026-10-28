@@ -1,6 +1,6 @@
 # Zugriffs- und Betriebsmodell für Firestore und Storage
 
-Diese Dokumentation beschreibt den im Repository implementierten Produktionsstand. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions.
+Stand: 28.10.2026. Diese Dokumentation beschreibt das im Repository implementierte Zugriffsmodell. Sie bestätigt keinen identischen Live-Deploy. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions. Umgebungs- und Deploymentprüfungen stehen in `docs/operations/documentation-inventory.md`.
 
 ## Authentifizierung und aktive Profile
 
@@ -23,7 +23,7 @@ Die zulässigen globalen Rollen sind `user`, `admin` und `superadmin`. Ungültig
 | `view` | Lesender Modulzugriff. |
 | `edit` | Lesender und schreibender Modulzugriff, soweit die jeweilige Rule die konkrete Operation zulässt. |
 
-`superadmin` erhält im Client und in den Firestore-/Storage-Rules den `edit`-Override für alle vorhandenen Module. `admin` ist kein pauschaler Modulrechte-Override: Administrative Kontoverwaltung ist möglich, der Fachzugriff folgt aber weiterhin den Modulrechten. Die zentrale Modulliste umfasst Dashboard, Urlaub, Feiertagskalender, Kalender, Team, Stammdaten, CRM, Palettenmanagement, News, Dokumente, Vorlagen, To-dos, Schäden, Insolvenzen, Gericht/Streit, Inkasso, Personal und AGB-Prüfer.
+`superadmin` erhält im Client und in den Firestore-/Storage-Rules den `edit`-Override für alle vorhandenen Module. `admin` ist kein pauschaler Modulrechte-Override: Administrative Kontoverwaltung ist möglich, der Fachzugriff folgt aber weiterhin den Modulrechten. Die zentrale Modulliste umfasst Dashboard, Urlaub, Feiertagskalender, Kalender, Team, Stammdaten, Partner zusammenführen, Auftragsliste, Datenimporte, CRM, Palettenmanagement, News, Dokumente, Vorlagen, To-dos, Schäden, Insolvenzen, Gericht/Streit, Inkasso, Personal und AGB-Prüfer. Maßgeblich bleibt die Registrierung in `src/lib/permissions.js`.
 
 Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt über Firestore durch Browser-Clients angelegt, geändert oder gelöscht werden.
 
@@ -34,7 +34,7 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 | Browserzugriff | Firestore- und Storage-Rules | Erzwingt aktive Profile, Rollen, Modulrechte, Eigentümerschaft und datenbezogene Validierungen für direkte SDK-Zugriffe. Eine ausgeblendete UI ersetzt diese Rules nicht. |
 | Serverseitiger Zugriff | Firebase Admin SDK in Cloud Functions und Triggern | Führt privilegierte, validierte Abläufe aus. Admin-SDK-Zugriffe unterliegen nicht den Browser-Rules; client-erreichbare Callables müssen deshalb selbst Authentifizierung, aktives Profil, Rollen bzw. Modulrechte und App Check prüfen. |
 
-Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enforceAppCheck: true`. App Check ergänzt Authentifizierung und Rules, ersetzt aber weder das aktive Profil noch die serverseitigen Berechtigungsprüfungen.
+Die Callables verlangen `enforceAppCheck: true`. Der datierte Quellcode-/Live-Abgleich steht in `docs/operations/documentation-inventory.md`; `APP_CHECK_ROLLOUT.md` beschreibt die zusätzliche Schutzschicht. Der HTTP-Mail-Ingest verwendet stattdessen einen serverseitigen Bearer-Token und eine Postfachprüfung. App Check ersetzt weder das aktive Profil noch Berechtigungsprüfungen.
 
 ## Firestore-Schutzgrenzen
 
@@ -44,6 +44,8 @@ Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enf
 - Vollständige Profile werden nicht als allgemeines Verzeichnis bereitgestellt. Reduzierte Verwaltungs- oder Verzeichnissichten stammen aus geschützten Callables.
 - `employeeHrProfiles`, `hrVacationMeta` und `hrVacationAdjustments` sind für Browser-Clients vollständig gesperrt. Der Personalbereich verwendet dafür Callables mit aktivem Profil und `personnel`-Recht.
 - Persönliche Urlaubsanträge können nur im zulässigen eigenen Umfang angelegt werden. Direkte Änderungen, Entscheidungen und Löschungen von `vacationRequests` sind gesperrt; Entscheidungen erfolgen serverseitig nach Prüfung der Urlaubsmanager-Zuständigkeit.
+- Persönliche Notizen unter `users/{uid}/personalNotes` sind nur für den aktiven Eigentümer les- und schreibbar; die Rules validieren Inhalt und Metadaten.
+- Persönliche Auftragslisten-Einstellungen werden ausschließlich über `updateOwnTransportOrderListPreferences` gespeichert. Die Callable verlangt ein aktives Profil, validiert nur die erlaubten Listenfelder und schreibt ausschließlich `userPreferences.transportOrderList` sowie dessen Änderungszeit im eigenen Profil. Rollen und Modulrechte bleiben unverändert.
 
 ### Fach- und Konfigurationsdaten
 
@@ -52,6 +54,17 @@ Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enf
 - Die eigenen Firmenstammdaten unter `appSettings/companyMasterData` sind für aktive Profile lesbar. Direkte Browser-Schreibzugriffe sind gesperrt; die Änderung erfolgt über `updateCompanyMasterData` für aktive Admins und Superadmins.
 - Systemmail-Vorlagen, KI-Prompt-Konfigurationen, Kontenmigrationen und Nutzungsprotokolle sind für Browser-Clients vollständig gesperrt.
 - Inkassofälle dürfen im Browser nicht direkt angelegt werden, damit die serverseitige Fallnummernvergabe die einzige Quelle bleibt.
+
+### Importe, Partnerzusammenführung und Aufträge
+
+- `transportOrders` sowie deren Historie und `receivedMails` sind mit `transportOrders: view` lesbar, aber nicht direkt durch Browser schreibbar. Importänderungen und deren Freigabe werden serverseitig geprüft; Rollen und zugewiesene DyCoS-Relationen wirken je nach Aktion zusätzlich.
+- Importläufe und Prüfwarteschlangen werden durch geschützte Callables bereitgestellt. Kunden-/Unternehmerprüfung erfordert `dataImports: edit` und `masterData: edit`; Zusammenführungen zusätzlich `partnerMerges: edit`. Die aktuelle Aktion bleibt für die genaue Rechtekombination maßgeblich.
+- `partnerMergeOperations` ist einschließlich Untercollections für direkte Browserzugriffe gesperrt. Zusammenführung und Trennung erfolgen serverseitig. Fachobjekte behalten ihre ursprünglichen Partner-IDs; die aktuelle Identität wird über den Partnercluster aufgelöst.
+- `transportOrderTrackings` und `events` sind für Auftragsleser lesbar; Änderungen und Historieneinträge erfolgen ausschließlich serverseitig. Interne Versand-/Automationsdaten haben keine allgemeine Browserfreigabe.
+- `transportOrderRoutes` und `calculations` sind für Auftragsleser lesbar und nur serverseitig schreibbar. TomTom-Cache und Nutzungsdaten sind direkt gesperrt; administrative Verbrauchsübersichten stammen aus Callables.
+- `transportOrderRatings` ist direkt gesperrt. Eigene Bewertungen und fachliche Auswertungen verwenden die berechtigten Callables.
+- `caseTransportOrderLinks` verbindet Schäden, Inkasso und Gericht/Streit mit Aufträgen. Lesen verlangt Auftrags- und Fallzugriff, Anlegen/Löschen zusätzlich Bearbeitungsrecht des Falls. Verknüpfungen sind nicht nachträglich veränderbar und duplizieren keine Fall-/Auftragsdaten.
+- Tracking-Regelkatalog, Prognose, Betriebszeiten, Ankunftsbestätigung und globale Mailpause folgen jeweils eigenen Leseregeln; direkte Änderungen sind gesperrt. Diagnoseereignisse sind ebenfalls nur über geschützte Functions zugänglich.
 
 ### Historien und Systemdaten
 

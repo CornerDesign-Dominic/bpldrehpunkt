@@ -4,6 +4,31 @@ Release-Notizen werden mit dem jeweiligen Release-Commit gepflegt. Das frühere
 Nutzer-Updates-Modul ist entfernt und wird durch diese technische Historie nicht
 ersetzt oder wieder eingeführt.
 
+## Noch keinem neuen Release zugeordnet
+
+Dieser Abschnitt erfasst Änderungen nach 2.0.0 und ersetzt keine datierte
+Releasefreigabe oder Deploymentprüfung. Stand der Dokumentationspflege:
+28.10.2026.
+
+Bereits im Git-Stand von `main` und `dev` vor der aktuellen Arbeit enthalten:
+
+- Deutsch/Englisch als persönliche Oberflächensprache; bekannte Übersetzungslücken bleiben dokumentiert.
+- Gemeinsame AGB-Prüfhistorie und neue Dashboard-Hinweise.
+- Statusmail-Eingang und KI-Auswertung mit manuellem Review sowie Tracking-Editor direkt neben der Eingangsmail.
+- Tracking-Prognosen, Handlungshinweise und erweiterte administrative Einstellungen.
+- Automatische Routenberechnung nach Auftragsimport mit zeitlich begrenzter Warteschlange.
+- Persönliche Auftragslistenfilter und Notizansichten.
+
+Aktuelle Weiterentwicklung auf `dev`:
+
+- Fehlende Bereitstellung der bereits vorhandenen Callable für persönliche Listenfilter nachziehen.
+- Speicherfehler bei Listenansichten sichtbar machen und erneutes Speichern ermöglichen; schnelle Änderungen zusammenfassen und geordnet speichern.
+- Bestands-, Umgebungs- und Zugriffsdokumentation bereinigen; historischen Releasebeleg vom laufenden Releaseverfahren trennen.
+
+Konkrete Prüf- und Bereitstellungsstände stehen in
+`operations/documentation-inventory.md`. Es wird keine neue Versionsnummer oder
+vollständige Produktionsfreigabe behauptet.
+
 ## 2.0.0 – Vernetzte Auftragsbearbeitung & Sendungsverfolgung
 
 Veröffentlicht am **30.09.2026**. Release-ID: `v2.0.0`.

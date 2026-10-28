@@ -1,5 +1,10 @@
 # Produktions- und Entwicklungsumgebungen
 
+Stand: 28.10.2026. Führende Beschreibung der Umgebungsgrenzen im aktuellen Code.
+Datierte Live-Prüfungen stehen in `documentation-inventory.md`; der Releaseweg
+steht in `releases.md`. Die Zuordnung bestätigt nicht automatisch heutige
+Vercel-Werte oder aktive externe Flows.
+
 ## Zielzuordnung
 
 | Umgebung | Git-Branch | Vercel-Ziel | Firebase-Projekt | Vercel-Client-Konfiguration |
@@ -46,10 +51,10 @@ nennt. Es gibt keinen Fallback auf Werte des Produktionsprojekts.
 - Functions-Secrets bleiben je Firebase-Projekt serverseitig verwaltet. Dazu
   zählen insbesondere KI-Zugänge und Power-Automate-Webhooks; sie gehören
   nicht in Client-`.env`-Dateien oder Vercel-Client-Variablen.
-- Die Functions erlauben externe Wirkungen (Power Automate und OpenAI) nur bei
-  serverseitig erkannter Runtime-Projekt-ID `db-bpl-drehpunkt`. Im Dev-Projekt
-  `db-bpl-drehpunkt-dev` und bei unbekannter Projekt-ID werden diese Wirkungen
-  fail-closed blockiert; Client-`VITE_`-Werte können den Schutz nicht umgehen.
+- Der allgemeine Guard in `functions/externalEffects.js` erlaubt bestimmte
+  externe Wirkungen nur in der serverseitig erkannten Produktionsumgebung.
+  Er ist kein globaler Schalter für alle Integrationen. Separate Pfade und
+  bewusste Dev-Ausnahmen stehen in der folgenden Matrix.
 - Die automatisierte News-Recherche sowie die automatische Feiertags- und
   Ferien-Synchronisierung enden in Dev erfolgreich als No-op. Die manuelle,
   rollen- und App-Check-geschützte Feiertags-/Ferien-Aktualisierung bleibt eine
@@ -58,9 +63,33 @@ nennt. Es gibt keinen Fallback auf Werte des Produktionsprojekts.
   Variablennamen. `.env.local` bleibt durch `.gitignore` ignoriert, während
   `.env.example` versioniert wird.
 
-## Umfang dieses Schritts
+## Externe Wirkungen nach Integration
 
-Dieser Schritt stellt ausschließlich die Client-Initialisierung auf
-umgebungsbasierte Web-App-Konfiguration um. Er ändert keine Production-Werte in
-Vercel oder Firebase, keine Functions-Secrets sowie keine Firebase-Functions,
-Rules oder fachliche Anwendungslogik.
+Die Matrix beschreibt Codegrenzen, keine erfolgreichen Zustellungen. Erlaubte
+Pfade benötigen weiterhin passende Secrets, Anbieterzugänge und Berechtigungen.
+
+| Integration | Produktion | Entwicklung | Maßgeblicher Code in `functions/` |
+| --- | --- | --- | --- |
+| Automatische System-/Tracking-Mails und Fristerinnerungen | Möglich, soweit der Ablauf nicht pausiert ist | Kein automatischer Versand | `systemMails.js`, `shipmentTrackingAutomation.js`, `caseDeadlineReminders.js` |
+| Manueller Tracking-Mailversand | An den hinterlegten geprüften Empfänger möglich | Bewusste Ausnahme nur für hinterlegte Empfänger mit `@brennpunkt-logistik.de`; funktionsfähiger Tracking-Webhook erforderlich | `shipmentTrackingManualDispatch.js`, `systemMails.js` |
+| Systemmail-Test | Admin/Superadmin, kontrollierter eigener Empfänger | Abgewiesen | `systemMails.js` |
+| AGB-Prüfer, Haftbarhaltungs-KI, News-Recherche | Über allgemeinen Production-Guard möglich | Auswertung blockiert bzw. Recherche übersprungen | `agbChecker.js`, `liabilityLetters.js`, `news.js` |
+| Statusmail-Eingang | Bei Postfachanbindung und gültigem Bearer-Token möglich | Ebenfalls möglich; Dev-Flow historisch dokumentiert | `statusMailIngest.js` |
+| Statusmail-KI | Eigener Secret-Pfad ohne allgemeinen Production-only-Guard | Gleicher eigener Pfad; verursacht bei Ausführung API-Aufrufe und Kosten | `statusMailAi.js` |
+| TomTom-Routing, manuell und nach Import | Mit passendem Secret möglich | Ebenfalls möglich; kein allgemeiner Production-only-Guard | `transportOrderRoutes.js` |
+| Automatische Feiertags-/Feriensynchronisierung | Möglich | No-op | `holidays.js` |
+| Manuelle Feiertags-/Feriensynchronisierung | Admin/Superadmin gegen öffentliche APIs | Ebenfalls möglich | `holidays.js`, `schoolHolidays.js` |
+
+Die globale Pause unter `systemSettings/automaticMailDelivery` betrifft
+automatische Mailpfade, keine vollständige Abschaltung externer Dienste.
+Unbekannte Runtime-Projekte werden von den allgemeinen Guards abgewiesen;
+separate Pfade sind unabhängig zu beurteilen. Client-Variablen ersetzen keine
+serverseitigen Projekt- oder Empfängerprüfungen.
+
+## Lokale Arbeit und Deployment
+
+Lokal ausschließlich die Dev-Web-App konfigurieren. Im geprüften Checkout
+existiert keine `.firebaserc`; Firebase-Befehle daher mit explizitem `--project`
+ausführen. Der Ordnername ändert weder Git-Repository noch Firebase-Ziel.
+Ein Push nach `main` veröffentlicht nicht automatisch Functions, Rules oder
+Indizes; deren Bereitstellung folgt `releases.md`.

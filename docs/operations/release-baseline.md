@@ -1,5 +1,10 @@
 # Release-Baseline – erster Livegang
 
+**Historischer Beleg für Erstlivegang und Release 2.0.0.** Ausführungsstände
+und offene Abnahmen beziehen sich auf die damaligen Releases. Für neue Releases
+gilt `releases.md`, für aktuelle Umgebungsgrenzen `environments.md`. Bei der
+Bereinigung vom 28.10.2026 wurde keine frühere Abnahme nachträglich bestätigt.
+
 ## Geltungsbereich
 
 Diese Baseline beschreibt ausschließlich die technische Zuordnung des für den
@@ -18,8 +23,9 @@ Bereitstellung aus.
 | Web-Anwendung | Vite-Frontend aus dem Repository-Stammverzeichnis |
 | Server-Komponente | Firebase Functions aus `functions/` |
 
-Die Firebase-Projektzuordnung ist in der zentralen Client-Initialisierung
-`src/lib/firebase.js` hinterlegt. Die Functions-Region wird in den jeweiligen
+Die Firebase-Projektzuordnung wird in der zentralen Client-Initialisierung
+`src/lib/firebase.js` aus den umgebungsspezifischen `VITE_`-Variablen gelesen.
+Die Functions-Region wird in den jeweiligen
 Functions-Modulen gesetzt; die Client-Anbindung der Functions erfolgt ebenfalls
 über `src/lib/firebase.js`.
 

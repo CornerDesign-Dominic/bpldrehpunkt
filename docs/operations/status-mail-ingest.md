@@ -1,4 +1,11 @@
-# Status-Postfach: Eingang über Power Automate (Dev)
+# Status-Postfach: Eingang und KI-Auswertung
+
+Stand: 28.10.2026. Datenvertrag und Verarbeitung entsprechen dem geprüften
+Code. Die folgende Flow-Einrichtung und die damaligen manuellen Prüfungen
+beziehen sich auf Dev. Die Functions sind auch im Produktionsinventar vorhanden;
+ein aktiver produktiver Postfachflow ist damit nicht nachgewiesen. Die aktuelle
+Anbindung je Umgebung muss separat geprüft werden. Umgebungsgrenzen:
+`environments.md`; ausgehende Mails: `../../functions/SYSTEM_MAILS.md`.
 
 ## Umfang
 
@@ -148,6 +155,11 @@ geplanten Stopptag ableiten, wenn das Datum zu genau einem Stopp passt.
 
 ## Prüffälle
 
+Diese Prüffälle sind eine Anleitung. Historische erfolgreiche Maildurchläufe
+oben sind kein heutiger End-to-End-Nachweis. Für neue Prüfungen Umgebung,
+Auftrag und Ergebnis datiert festhalten; keine echten Mails ohne den vorgesehenen
+fachlichen Testablauf auslösen.
+
 1. Testmail mit `Re: Transportauftrag <existierende Dev-TA-Nummer>` an das
    Postfach senden. Im HTTP-Ergebnis `stored` prüfen und im rechten Bereich
    des Dev-Auftrags die Mail öffnen.
@@ -160,3 +172,18 @@ Der Outlook-Trigger kann geschützte oder übergroße Nachrichten auslassen.
 Mails, die erst nachträglich in den beobachteten Ordner verschoben werden,
 können ebenfalls übergangen werden. Deshalb direkt den Posteingang des
 freigegebenen Postfachs beobachten.
+
+## Betrieb und verbleibende Entscheidungen
+
+`unmatched` ist eine erfolgreiche technische Quittierung ohne Speicherung, kein
+fachlich zugeordneter Eingang. Der Flow erhält dadurch keinen automatischen
+Fehler zur Nachbearbeitung. Betriebsseitig ist festzulegen, wer nicht zuordenbare
+Mails im Postfach prüft; eine automatische neue Fehlerwarteschlange wird hier
+nicht zugesagt.
+
+Für Mailinhalte, KI-Ergebnisse und Nutzungsprotokolle ist eine Aufbewahrungs-
+und Löschregel einschließlich Zuständigkeit festzulegen. Eine automatische
+Bereinigung oder ein Aufbewahrungszeitraum ist durch dieses Runbook nicht
+implementiert. Inhalte nicht zusätzlich in Diagnoseprotokolle kopieren.
+Jede erneute KI-Auswertung verursacht einen weiteren Anbieteraufruf; bei Fehlern
+zuerst Status und Diagnose prüfen, nicht unkontrolliert mehrfach starten.

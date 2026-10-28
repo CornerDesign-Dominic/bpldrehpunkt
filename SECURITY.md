@@ -22,7 +22,7 @@ Diese Leitlinie ist für jede Änderung am Drehpunkt-Projekt verbindlich. Sicher
 - Legacy-Profile ohne `active` werden ausschließlich über die Superadmin-Kontenprüfung kontrolliert auf `active: true` migriert. Bis zur Bestätigung bleiben sie gesperrt; deaktivierte oder nicht zuordenbare Profile erhalten keinen Zugang.
 - Die Migration erfolgt durch eine geprüfte Superadmin-Callable, nie durch eine Client-Schreibregel. Neue `beforeSignIn`-Deployments müssen anschließend darauf geprüft werden, dass Identity Platform auf die zugehörige Cloud-Run-Adresse der Function zeigt.
 - `beforeUserCreated` bleibt deaktiviert, damit die Reihenfolge beim Admin-Workflow (`Auth` anlegen, anschließend `users/{uid}` schreiben) nicht verändert wird.
-- Bestehende fachliche `users`-Listen für Team, Urlaub und To-dos bleiben lesend erforderlich. Sie ersetzen weder die Superadmin-Callable für die Kontenprüfung noch verleihen sie Schreibrechte für die Migration.
+- Fachliche Benutzerverzeichnisse für Team, Urlaub und To-dos werden als reduzierte, berechtigte Callable-Sichten bereitgestellt. Direkte Browser-Listen vollständiger `users`-Profile sind gesperrt. Verzeichnisse ersetzen weder die Superadmin-Kontenprüfung noch verleihen sie Migrationsrechte.
 
 ## Functions, Webhooks und Eingaben
 
@@ -30,6 +30,14 @@ Diese Leitlinie ist für jede Änderung am Drehpunkt-Projekt verbindlich. Sicher
 - Event-getriebene Functions müssen idempotent sein, damit Wiederholungen keine doppelten Nebenwirkungen erzeugen.
 - Systemmails dürfen ausschließlich über `functions/systemMails.js` versendet werden. Es darf keine Client-zu-Power-Automate-Mailroute geben.
 - E-Mail-HTML wird ausschließlich serverseitig aus Klartext erzeugt. Vorlagen- und Platzhalterwerte müssen dabei HTML-sicher escaped werden; HTML aus dem Admin-Editor wird niemals ungefiltert übernommen.
+
+## Neue Schnittstellen und Betriebsfehler
+
+- Pro Schnittstelle festlegen, welches System Daten führt, welche stabilen IDs gelten und welche Felder ergänzt, ersetzt oder ausschließlich manuell entschieden werden dürfen.
+- Eingangswege authentifizieren und Eingabegrößen sowie Formate begrenzen. Wiederholte Zustellung, Parallelität und Teilabbrüche dürfen keine unkontrollierten Doppelwirkungen erzeugen.
+- Betriebszustände und Fehler nachvollziehbar protokollieren, ohne Mailtexte, Secrets oder vollständige personenbezogene Datensätze unnötig in Logs zu übernehmen. Aufbewahrung, Fehlerbearbeitung und Betriebszuständigkeit vor produktiver Nutzung festlegen.
+- Speicherfehler nicht als erfolgreichen Abschluss darstellen oder ohne Rückmeldung verschlucken. Wiederholungen müssen den aktuellen fachlichen Stand verwenden.
+- Externe Wirkungen werden pro Integration und Umgebung geprüft. Ein allgemeiner Production-only-Guard schützt nicht automatisch separate KI-, Routing- oder manuelle Versandpfade; maßgeblich ist die Matrix in `docs/operations/environments.md`.
 
 ## Checkliste vor Merge und Deployment
 

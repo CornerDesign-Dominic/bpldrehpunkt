@@ -1,6 +1,9 @@
 # Zweisprachige Bedienoberfläche
 
-Stand: 2026-10-01. Die Implementierung liegt auf `dev`.
+Implementierungsbeleg vom 01.10.2026; Statusabgleich vom 28.10.2026:
+Die Zweisprachigkeit liegt auf `dev` und `main`. Eine lückenlose Übersetzung
+aller Oberflächen ist nicht bestätigt. Bekannte Restpunkte stehen im
+historischen `../operations/bilingual-dashboard-release-review.md`.
 
 ## Umfang
 
@@ -18,6 +21,9 @@ Stand: 2026-10-01. Die Implementierung liegt auf `dev`.
 - Die App-Check-geschützte Callable `updateOwnLanguage` erlaubt einem aktiven Benutzer ausschließlich `de` oder `en` im eigenen Profil. Die Firestore-Regel für direkte Profiländerungen bleibt gesperrt.
 
 ## Prüfung
+
+Die folgenden Zahlen sind damalige Ergebnisse, kein Testnachweis für den
+heutigen Branch-Stand. Neue Änderungen folgen `../operations/releases.md`.
 
 - `npm run build` und `npm run lint` erfolgreich.
 - 459 Tests aus `src/` und `functions/`: 437 bestanden, 22 übersprungen, 0 fehlgeschlagen.
