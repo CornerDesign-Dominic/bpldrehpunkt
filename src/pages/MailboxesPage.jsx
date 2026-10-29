@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { FiSearch } from 'react-icons/fi'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
@@ -110,9 +111,8 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   }, [load])
   return <aside className="mailbox-inbox" aria-label={w('Posteingang', 'Inbox')}><div className="mailbox-panel-heading"><h2>{w('Posteingang', 'Inbox')}</h2><button type="button" disabled={busy} onClick={() => load()}>{w('Aktualisieren', 'Refresh')}</button></div>
     <form className="mailbox-search" role="search" onSubmit={event => { event.preventDefault(); const nextSearch = searchInput.trim(); if (nextSearch === search) void load(); else setSearch(nextSearch) }}>
-      <label htmlFor="mailbox-search">{w('Posteingang durchsuchen', 'Search inbox')}</label>
-      <input id="mailbox-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder={w('Absender, Betreff, Mailtext', 'Sender, subject, message text')} />
-      <div><button type="submit">{w('Suchen', 'Search')}</button>{search && <button type="button" onClick={() => { setSearchInput(''); setSearch('') }}>{w('Zurücksetzen', 'Clear search')}</button>}</div>
+      <div className="mailbox-search-row"><input aria-label={w('Posteingang durchsuchen', 'Search inbox')} id="mailbox-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder={w('Absender, Betreff, Mailtext', 'Sender, subject, message text')} /><button className="mailbox-search-submit" type="submit" aria-label={w('Suchen', 'Search')} title={w('Suchen', 'Search')}><FiSearch size={17} aria-hidden="true" /></button></div>
+      {search && <div><button type="button" onClick={() => { setSearchInput(''); setSearch('') }}>{w('Zurücksetzen', 'Clear search')}</button></div>}
       {search && <small role="status">{w('Suchergebnisse · bis zu 1.000 Treffer', 'Search results · up to 1,000 matches')}</small>}
     </form>
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
@@ -155,7 +155,7 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
       <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
       {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}
     </article>
-    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}</aside>}
+    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}</aside>}
   </div>
 }
 
