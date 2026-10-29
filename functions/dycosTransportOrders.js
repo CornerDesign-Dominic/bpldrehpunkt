@@ -30,7 +30,7 @@ export function validateDycosRequest(data) {
 
 // Matching by account identity is intentional: a similar company name is not
 // sufficient evidence for linking a different legal/business partner.
-async function resolvePartner(transaction, db, kind, number) {
+export async function resolvePartner(transaction, db, kind, number) {
   if (!number) return null
   const field = kind === 'debtor' ? 'debtorNumber' : 'creditorNumber'
   const refs = kind === 'debtor' ? 'debtorNumbers' : 'creditorNumbers'
@@ -165,7 +165,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
         // authoritative source master data. Populate mapped fields directly.
         for (const [field, value] of Object.entries(entry.additions.patch)) entry.plan.partner[field] = value && typeof value === 'object' && !Array.isArray(value) ? { ...(entry.plan.partner[field] || {}), ...value } : value
       }
-      entry.metadata = { source: 'dycos-api', sourceReferences: entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId })), lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, addedFields: entry.additions.changedFields }
+      entry.metadata = { source: 'dycos-api', sourceReferences: [...new Map([...(entry.plan.partner.dycosImport?.sourceReferences || []), ...entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId }))].map((ref) => [`${ref.entity}:${ref.id}`, ref])).values()], lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, addedFields: entry.additions.changedFields }
       if (entry.plan.create) entry.plan.partner.dycosImport = entry.metadata
     }
     if (partnerConflictCount) partnerWarningCodes.add('PARTNER_MASTER_DATA_CONFLICTS')

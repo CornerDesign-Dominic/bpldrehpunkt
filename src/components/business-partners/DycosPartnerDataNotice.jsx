@@ -11,7 +11,7 @@ export default function DycosPartnerDataNotice({ partner }) {
   return <>
     {conflicts.length > 0 && <TranslatedProps sources={{ 'aria-label': 'Abweichende DyCoS-Stammdaten' }}><aside className="partner-import-warning" aria-label="Abweichende DyCoS-Stammdaten">
       <strong><StaticText source="Abweichende DyCoS-Stammdaten" /></strong>
-      <p><StaticText source="Vorhandene Werte wurden beibehalten. Prüfe die Abweichungen und bearbeite die Stammdaten bei Bedarf. Ein erneuter TA-Abruf aktualisiert den Vergleich." /></p>
+      <p><StaticText source="Vorhandene Werte wurden beibehalten. Prüfe die Abweichungen und bearbeite die Stammdaten bei Bedarf. Ein erneuter DyCoS-Abruf aktualisiert den Vergleich." /></p>
       <div className="table-frame"><table className="data-table"><thead><tr><th><StaticText source="Feld" /></th><th>Drehpunkt</th><th>DyCoS</th></tr></thead><tbody>{conflicts.map((entry, index) => <tr key={`${entry.path}-${index}`}><td><StaticText source={entry.label} /></td><td>{displayValue(at(partner, entry.path))}</td><td>{displayValue(entry.incomingValue)}</td></tr>)}</tbody></table></div>
     </aside></TranslatedProps>}
 

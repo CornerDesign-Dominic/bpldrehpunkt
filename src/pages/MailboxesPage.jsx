@@ -4,8 +4,9 @@ import { FiSearch } from 'react-icons/fi'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
-import { canEdit } from '../lib/permissions.js'
+import { canEdit, canView } from '../lib/permissions.js'
 import MailTrackingAction from '../components/mailboxes/MailTrackingAction.jsx'
+import MailOrderAction from '../components/mailboxes/MailOrderAction.jsx'
 import { mailboxCall } from '../lib/mailboxes.js'
 import { parseRecipients, recipientAddress, recipientText, replyRecipients, safeOutlookLink } from '../lib/mailboxHelpers.js'
 import { groupMailboxAttachments } from '../lib/mailboxAttachmentPresentation.js'
@@ -38,6 +39,7 @@ export default function MailboxesPage() {
   const { connections, loading, error, refresh } = useMailboxConnections()
   const [params, setParams] = useSearchParams()
   const dirtyRef = useRef(false)
+  const orderDirtyRef = useRef(false)
   const connectionId = params.get('mailbox') || ''
   const messageId = params.get('message') || ''
   const connection = connections.find(item => item.id === connectionId)
@@ -60,8 +62,9 @@ export default function MailboxesPage() {
   }, [connections, connectionId, messageId, connection, storageKey, setParams, pending])
 
   function navigate(next) {
-    if (dirtyRef.current && !window.confirm(w('Der Antwortentwurf ist noch nicht gespeichert. Trotzdem wechseln?', 'The reply draft has not been saved. Leave anyway?'))) return
+    if ((dirtyRef.current || orderDirtyRef.current) && !window.confirm(w('Es gibt ungespeicherte Eingaben. Trotzdem wechseln?', 'There are unsaved changes. Leave anyway?'))) return
     dirtyRef.current = false
+    orderDirtyRef.current = false
     setParams(next)
   }
 
@@ -73,7 +76,7 @@ export default function MailboxesPage() {
     {connection?.status === 'disconnecting' && <div className="mailbox-empty"><p>{w('Die Postfachverbindung wird getrennt. Eine unvollständige Trennung kannst du in den Benutzereinstellungen fortsetzen.', 'This mailbox is being disconnected. Complete an unfinished disconnection in user settings.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
     {connection?.status === 'connected' && <div className="mailbox-layout">
       <Inbox key={connection.id} connectionId={connection.id} selectedId={messageId} onSelect={id => navigate({ mailbox: connection.id, message: id })} />
-      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId} connection={connection} messageId={messageId} editable={editable} dirtyRef={dirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
+      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId} connection={connection} messageId={messageId} editable={editable} dirtyRef={dirtyRef} orderDirtyRef={orderDirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
     </div>}
     {!loading && Boolean(connections.length) && connectionId && !connection && <div className="mailbox-empty"><p>{w('Dieses Postfach ist nicht verfügbar. Wähle links ein verbundenes Postfach aus.', 'This mailbox is unavailable. Select a connected mailbox in the sidebar.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
   </section>
@@ -132,7 +135,7 @@ function MessageContent({ message, beforeBody }) {
     {beforeBody}<div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
 }
 
-function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
+function MailWorkspace({ connection, messageId, editable, dirtyRef, orderDirtyRef }) {
   const { profile } = useAuth()
   const w = useWords()
   const [message, setMessage] = useState(null)
@@ -155,7 +158,7 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
       <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
       {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}
     </article>
-    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}</aside>}
+    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}{canEdit(profile, 'transportOrders') && canView(profile, 'masterData') && <MailOrderAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} dirtyRef={orderDirtyRef} />}</aside>}
   </div>
 }
 

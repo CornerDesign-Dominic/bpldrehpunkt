@@ -7,7 +7,7 @@ import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { previewMailboxTrackingHandler, applyMailboxTrackingHandler } from './mailboxes.js'
+import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
@@ -15,6 +15,8 @@ import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMail
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
+import { dycosMasterDataConfigurationSecrets } from './dycosFlowClient.js'
+import { fetchDycosMasterDataHandler } from './dycosMasterData.js'
 import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
 import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
@@ -74,6 +76,8 @@ export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
 export const previewMailboxTracking = onCall({ ...mailboxOptions, timeoutSeconds: 240, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxTrackingHandler)
+export const previewMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 300, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxOrderHandler)
+export const exportMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 120, concurrency: 4 }, exportMailboxOrderHandler)
 export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingHandler)
 export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
 export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)
@@ -1070,6 +1074,7 @@ export { scheduledCaseDeadlineReminderDispatch } from './caseDeadlineReminders.j
 export const previewTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewTransportOrderImportHandler)
 export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
 export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchDycosTransportOrderHandler)
+export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
 export const listTransportOrderImportRuns = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderImportRunsHandler)
 export const updateManualShipmentTracking = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateManualShipmentTrackingHandler)
 export const getShipmentTrackingActivation = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingActivationHandler)

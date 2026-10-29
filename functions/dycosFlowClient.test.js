@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { Buffer } from 'node:buffer'
 import { constants, generateKeyPairSync, randomUUID, verify } from 'node:crypto'
 import test from 'node:test'
-import { createDycosClientAssertion, DycosFlowError, fetchDycosFlowOrder, signDycosClientAssertion, validateDycosFlowConfiguration } from './dycosFlowClient.js'
+import { createDycosClientAssertion, DycosFlowError, fetchDycosFlowOrder, fetchDycosFlowPartner, signDycosClientAssertion, validateDycosFlowConfiguration } from './dycosFlowClient.js'
 
 const now = Date.parse('2026-10-29T12:00:00Z')
 const audience = 'https://service.flow.microsoft.com/'
@@ -21,6 +21,20 @@ function token(config, patch = {}) {
 function json(value, status = 200, headers = {}) { return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json', ...headers } }) }
 function options(config, fetchImpl) { return { config, fetchImpl, now: () => now, assertionFactory: () => 'synthetic-assertion' } }
 const rejects = (code, stage) => (error) => error instanceof DycosFlowError && error.code === code && (!stage || error.stage === stage)
+
+test('partner client reuses authentication but sends only requested kind and number to its configured endpoint', async () => {
+  const config = configuration(); const calls = []
+  const result = await fetchDycosFlowPartner({ typ: 'utn', nummer: '74321' }, options(config, async (url, init) => {
+    calls.push({ url, init }); return calls.length === 1 ? json(token(config)) : json({ partner: { ID: 12 } })
+  }))
+  assert.equal(result.partner.ID, 12)
+  assert.deepEqual(JSON.parse(calls[1].init.body), { typ: 'utn', nummer: '74321' })
+  assert.equal(calls[1].url, config.flowUrl)
+  for (const [status, code, expected] of [[404, 'PARTNER_NOT_FOUND', 'partner_not_found'], [409, 'PARTNER_NOT_UNIQUE', 'partner_not_unique'], [400, 'INVALID_REQUEST', 'invalid_partner']]) {
+    await assert.rejects(fetchDycosFlowPartner({ typ: 'kunde', nummer: '123' }, options(config, async () => json({ code }, status))), rejects(expected))
+  }
+  await assert.rejects(fetchDycosFlowPartner({ typ: 'other', nummer: '123' }, { fetchImpl: () => assert.fail('network') }), rejects('invalid_partner'))
+})
 
 test('configuration binds credentials to the approved tenant environment and HTTPS invoke endpoint', () => {
   const config = configuration()

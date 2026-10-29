@@ -1047,3 +1047,143 @@ Für den Live-Test: Auftragsseite neu laden, Drei-Punkte-Menü → Historie öff
 Nach einem Abruf über „Auftrag aktualisieren“ sind tatsächliche Änderungen mit
 alten/neuen Werten und Person sichtbar; ein unveränderter Abruf ergänzt keinen
 Eintrag. Alte bereits gespeicherte Importänderungen erscheinen ebenfalls.
+
+## 28. Eigenständiger Stammdatenabruf ohne Transportauftrag
+
+Am 29.10.2026 wurde in der Power-Automate-Lösung „BPL Drehpunkt“ der Flow
+„Drehpunkt – DyCoS Stammdaten abrufen“ angelegt (ID
+`0a4c748a-e0d3-f111-84ea-6045bd93bcb8`). Aktueller Stand: nach ausdrücklicher
+Nutzerfreigabe veröffentlicht; die vorhandene technische Anwendung
+„Drehpunkt DyCoS – Dev“ ist zusätzlich zum Besitzerkonto als Aufrufer zugelassen.
+Die Veröffentlichung wurde im Designer bestätigt. Echte Abrufprüfungen wurden
+anschließend erfolgreich abgeschlossen (siehe unten). Die vorherige
+Entwurfsprüfung meldete 0 Fehler und 0 Warnungen;
+eine erst beim Veröffentlichen erkannte Einschränkung wurde korrigiert:
+Der Trigger unterstützt kein JSON-Schema-`pattern`. Das Schema prüft Typ und
+Länge; die separate Bedingung prüft Integer und Wertebereich vor der SQL-Abfrage.
+Der bisherige TA-Flow wurde nicht verändert.
+
+Anfrage: POST mit `{"typ":"kunde","nummer":"18618"}` beziehungsweise
+`{"typ":"utn","nummer":"74321"}`. Die Nummer ist eine Ziffernfolge als Text
+im Wertebereich einer nicht negativen SQL-Int32-Zahl. Die Abfrage verwendet
+`Adressstamm.Debitorennummer` oder `Unternehmerstamm.Kreditorennummer` und
+höchstens zwei Treffer. Es werden gezielt die bereits unterstützten Stamm-,
+Kontakt-, Bank- und Zahlungsbedingungsfelder ausgewählt; kein Kreditlimit,
+keine Zugangsdaten und keine vollständigen Datenbankzeilen.
+
+Erfolg: `schemaVersion: 1`, `typ`, normalisierte `nummer`, `partner` und
+`zahlungsbedingung` (gegebenenfalls null). Antworten unterscheiden 400 für
+ungültige Eingaben, 404 für keinen Treffer, 409 für mehrdeutige Nummern und
+500 für technische Fehler mit Flow-Lauf-ID. Der Flow liest SQL und schreibt
+selbst keine Drehpunkt-Daten.
+
+Verbindliche Abgrenzung des Nutzers: Der Gegenpartner wird nicht zusätzlich
+abgefragt oder angelegt. Nur die bereits am angefragten Datensatz vorhandene
+interne Referenz (`UnternehmerID` beim Kunden, `KundenID` beim Unternehmer)
+darf zum Abgleich mit einem bereits vorhandenen Drehpunkt-Partner dienen.
+Bei sicherer Zuordnung wird dieser um die angefragte Rolle/Nummer und leere
+Felder ergänzt. Bestehende abweichende Werte bleiben erhalten und werden
+gemeldet; das Kreditlimit bleibt in Drehpunkt gepflegt. Eine unsichere
+Zuordnung darf keine automatische Zusammenführung auslösen.
+
+Die Drehpunkt-Anbindung muss dafür dauerhafte Quell-IDs je
+Debitoren-/Kreditorenreferenz erhalten und die vorhandenen Rechte-,
+Konflikt- und Historienregeln wiederverwenden. Die lokale Umsetzung ist in
+Abschnitt 29 beschrieben; ihre Veröffentlichung steht noch aus.
+
+### Reale Stammdaten-Abrufprüfung vom 29.10.2026
+
+Die technischen Zertifikatsanmeldedaten wurden wiederverwendet. Alle 20
+unterschiedlichen Partner aus den 13 bestehenden TA-Beispielen wurden einzeln
+abgerufen: 11 Kunden und 9 Unternehmer, jeweils HTTP 200 mit korrekter Rolle,
+Nummer, Quell-ID und Antwortstruktur. Sämtliche zurückgegebenen Fachfelder
+stimmen mit den vorhandenen Beispielantworten überein. Auch alle 23
+Zahlungsbedingungszuordnungen der Beispiele stimmen hinsichtlich ID und
+Bezeichnung überein. Laufzeit der erfolgreichen Partnerabrufe: 2,21–2,66 Sekunden
+in dieser Stichprobe. Es wurde kein Gegenpartner zusätzlich abgefragt.
+
+Zusätzlich bestanden: Aufruf ohne Token → 401, `abc` als Nummer → 400
+`INVALID_REQUEST`, nicht vorhandene Nummer `2147483647` → 404
+`PARTNER_NOT_FOUND`. Insgesamt 23 erfolgreiche HTTP-Prüfungen nach Korrektur.
+Der 409-Zweig wurde mangels eines bekannten echten Mehrfachtreffers nicht
+live ausgelöst. Keine Daten in Drehpunkt angelegt oder geändert.
+
+Der erste echte Kundenabruf deckte einen Fehler der Antwortaufbereitung auf:
+Power Automate unterstützt `removeProperty` nicht für den Eigenschaftsnamen
+`@odata.etag` mit Punkt. Die Entfernung dieser Connector-Metadaten entfällt;
+die ausgewählten Fachfelder bleiben begrenzt. Nach Korrektur wurde erneut
+veröffentlicht und die vollständige Serie erfolgreich wiederholt. Der
+technische Fehler wurde zuvor korrekt als HTTP 500 mit `FLOW_FAILED`
+zurückgegeben. Hinweis: Ein behandelter Fehler kann im Power-Automate-Verlauf
+als erfolgreicher Ablauf erscheinen; für den Aufrufer zählt der HTTP-Status.
+Rohantworten, Abrufadresse und Testskripte liegen ausschließlich im vorhandenen
+geschützten lokalen Testverzeichnis außerhalb des Repositorys.
+
+## 29. Standalone-Stammdatenabruf in Drehpunkt
+
+Lokal implementiert am 29.10.2026, noch nicht auf Dev veröffentlicht. Main und
+Produktion bleiben unberührt. Auf „Kunden & Unternehmer“ können Benutzer mit
+Stammdaten-Bearbeitungsrechten Kunde/Unternehmer auswählen, eine Debitoren- oder
+Kreditorennummer eingeben und „Abrufen und übernehmen“ wählen. Das Ergebnis
+verlinkt direkt zum effektiven Stammdatenblatt. Datenimportrechte allein
+berechtigen nicht zur Übernahme von Stammdaten.
+
+Die neue Callable `fetchDycosMasterData` verwendet App Check, aktive Benutzerprofile
+und serverseitige Stammdatenrechte. Sie verwendet dieselbe Zertifikatsidentität
+wie der TA-Abruf, aber die separate Secret-Konfiguration
+`DYCOS_MASTER_DATA_FLOW_URL`. Der bestehende Flow-URL-Secret bleibt unverändert.
+Die Adresse liegt bereits im geschützten lokalen Testverzeichnis und darf
+weder in Frontend-Konfiguration noch in Git übernommen werden.
+
+Zuordnung: exakte angefragte Kontonummer einschließlich vorhandener Aliasnummern,
+gespeicherte angefragte DyCoS-ID und gegebenenfalls die bereits im angefragten
+Datensatz enthaltene Gegenreferenz. Unterschiedliche Zielpartner, mehrere
+Treffer, defekte Merge-Weiterleitungen oder widersprüchliche gespeicherte
+Konten-/SQL-ID-Zuordnungen stoppen die Übernahme atomar. Es wird kein Gegenpartner
+bei DyCoS abgefragt oder aus dessen Referenz angelegt. Fehlt eine passende
+gespeicherte Quell-ID, kann eine Gegenreferenz nicht sicher zugeordnet werden;
+darauf weist das Ergebnis ausdrücklich hin. Firmennamen sind kein Matchkriterium.
+
+Bestehende manuelle Daten, Kreditlimit und Einstellungen bleiben erhalten.
+Leere Felder werden mit dem bestehenden DyCoS-Adapter ergänzt, abweichende Werte
+im vorhandenen Konflikthinweis angezeigt. Die angefragte Rolle und Nummer
+werden ergänzt; weitere Kontonummern bleiben als Alias erhalten. Dauerhafte
+Kontenreferenzen liegen unter `dycosReferences.accounts` als
+`{entity, number, sourceId}`. Der TA-Abruf behält zuvor bekannte Quell-IDs bei;
+Partnerzusammenführungen erhalten die Kontenreferenzen beider Seiten.
+
+Speicherung und Historie erfolgen gemeinsam in einer Transaktion. Neuanlagen
+erhalten nur einen kompakten Anlageeintrag, Ergänzungen tatsächliche
+Vorher-/Nachher-Werte mit Zeitpunkt und Person. Unveränderte Abrufe und reine
+Konflikthinweise erzeugen keinen zusätzlichen Änderungseintrag. Benutzerrechte
+werden vor dem Speichern erneut geprüft. Gleichzeitige Abrufe derselben Nummer
+sind gesperrt; eine wiederholte Anfrage-ID liefert das bereits gespeicherte
+Ergebnis zurück. Das gemeinsame Abruflimit mit TA-Abrufen beträgt zehn pro
+Benutzer und Minute. Fehlgeschlagene Abrufe legen keine leeren Partner an.
+Technische Fehler und Zuordnungskonflikte erscheinen unter „DyCoS-Stammdatenabruf“
+in der bestehenden Diagnose, ohne Rohantworten oder Zugangsdaten.
+
+Prüfung: gezielte Client-, Mapping-, Rechte-, Transaktions-, Merge- und
+Historienprüfungen im lokalen Firestore-Emulator bestanden. Dazu gehören
+Gegenreferenz-Erweiterung, neue Aliasnummern, Merge-Weiterleitungen, Erhalt
+manueller Angaben/Kreditlimits, kompakte Historie, Wiederholungen, Parallelabruf,
+Rechteentzug während des Abrufs und tatsächliche Diagnoseeinträge. Alle 20
+bereits authentifiziert abgerufenen Beispielpartner wurden lokal gespeichert
+und erneut übernommen (40 erfolgreiche Übernahmen). Browserprüfung der echten
+Komponente mit isolierten Testantworten: Kunde/Unternehmer, Erfolg mit
+Konflikthinweis, nicht gefunden, Leserechte sowie DE/EN und Hell/Dunkel.
+Lint, Build und Shared-Modulprüfung bestanden; bekannte Build-Chunkwarnung bleibt.
+
+Für eine spätere ausdrücklich freigegebene Dev-Veröffentlichung:
+
+- Neues URL-Secret ausschließlich im Projekt `db-bpl-drehpunkt-dev` hinterlegen.
+- `fetchDycosMasterData` bereitstellen; außerdem `fetchDycosTransportOrder`
+  für den Erhalt der Quellreferenzen und `listDiagnosticsPage` für den neuen
+  Diagnosefilter aktualisieren. Die vorhandenen Merge-Endpunkte mit der
+  erweiterten Kontenreferenz-Erhaltung gemeinsam berücksichtigen.
+- Frontend gesammelt auf Dev veröffentlichen. Für den gemeinsamen XML-Export
+  zusätzlich die Rules mit geschützten Konten-/Quell-ID-Feldern bereitstellen.
+  Keine neuen zusammengesetzten Indizes erforderlich; neue Abrufbelege und
+  Sperren sind ausschließlich serverseitig zugänglich.
+- Im Live-Test eine bekannte Nummer übernehmen, dasselbe Blatt erneut abrufen
+  und anschließend die kompakte Historie und gegebenenfalls Konflikte prüfen.

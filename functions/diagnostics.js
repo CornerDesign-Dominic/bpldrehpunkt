@@ -4,13 +4,13 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'kvp', 'handbook'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
   kvp: ['load', 'save', 'history'],
   handbook: ['load', 'save', 'history'],
-  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply'],
+  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create'],
@@ -18,6 +18,8 @@ const CLIENT_STAGES = Object.freeze({
 })
 const CLIENT_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal', 'unknown', 'resource-exhausted', 'runtime-error', 'unhandled-rejection', 'invalid-response', 'access-failure'])
 const CLIENT_MESSAGES = {
+  'order-preview': 'Auftrag aus persönlicher Mail konnte nicht ausgewertet werden.',
+  'order-export': 'Geprüfter Auftrag konnte nicht als XML erstellt werden.',
   load: 'Sendungsverfolgung konnte nicht geladen werden.',
   save: 'Änderung der Sendungsverfolgung fehlgeschlagen.',
   preview: 'Tracking-Vorschau konnte nicht geladen werden.',
