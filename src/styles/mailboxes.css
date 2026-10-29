@@ -15,12 +15,15 @@
 .mailbox-inbox, .mailbox-reader, .mailbox-reply, .mailbox-empty, .mailbox-actions { min-width: 0; background: var(--content-background); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
 .mailbox-inbox { display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 10px; }
 .mailbox-inbox > :not(.mailbox-message-list) { flex-shrink: 0; }
-.mailbox-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.mailbox-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
 .mailbox-panel-heading h2 { font-size: 15px; margin: 0; }
 .mailbox-panel-heading strong { overflow-wrap: anywhere; }
 .mailbox-search { display: grid; gap: 7px; margin-bottom: 14px; }
 .mailbox-search input { min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-background); color: var(--text-primary); padding: 9px; font: inherit; font-size: 12px; }
-.mailbox-search > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.mailbox-search > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.mailbox-search > .mailbox-search-row { flex-wrap: nowrap; align-items: stretch; }
+.mailbox-search-row input { flex: 1; }
+.mailboxes-page .mailbox-search-submit { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; padding: 0; }
 .mailbox-search small { color: var(--text-secondary); font-size: 11px; }
 .mailbox-message-list { display: grid; align-content: start; gap: 9px; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .mailboxes-page .mailbox-message-item { display: grid; gap: 6px; text-align: left; width: 100%; padding: 12px 9px; background: var(--surface-secondary); border: 1px solid var(--border-strong); border-left: 3px solid var(--border-strong); border-radius: 8px; color: var(--text-primary); box-shadow: 0 2px 4px var(--workspace-shadow); }
@@ -34,7 +37,8 @@
 .mailbox-workspace > .mailbox-reader { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .mailbox-workspace:has(> .mailbox-reader:only-child) { grid-template-columns: minmax(0, 1fr); }
 .mailbox-actions { min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.mailbox-actions > h2 { margin: 0 0 14px; font-size: 15px; }
+.mailbox-actions > h2 { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-size: 15px; }
+.mailbox-actions-divider { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
 .mailbox-actions > button { width: 100%; text-align: left; overflow-wrap: anywhere; }
 .mailbox-actions > button + button { margin-top: 8px; }
 .mail-work-dialog .mail-status-editor { display: block; }
