@@ -175,6 +175,48 @@ Produktionsbaseline für die anschließende Kontrolle:
 Vercel `dpl_H6NVNYTMRuunkCJwUQAvBCm1QzXW`, Git `230c2ad`.
 Ein erfolgreicher Dev-Build ersetzt die folgende Microsoft-Abnahme nicht.
 
+Abschließender Veröffentlichungsnachweis: Commit
+`449e736221792e4bb079628b1fd8893d875fd15d` wurde ausschließlich nach `dev`
+gepusht. Vercel meldet den zu `dev.drehpunktlogistik.de` gehörenden Preview-Deploy
+`dpl_5HMzEpJWvGYJxT8CBiopEuGyAd7o` mit genau diesem Commit als **READY**.
+Die Produktionsbaseline blieb anschließend unverändert. Der ursprüngliche
+Checkout wurde unter Erhalt aller 97 vorhandenen geänderten/unversionierten
+Dateiinhalte auf den veröffentlichten Dev-Commit nachgeführt.
+
+Die Dev-Domain besitzt weiterhin Vercel-Anmeldeschutz. Ein anonymer Abruf wird
+zur Vercel-Anmeldung umgeleitet. Der zusätzliche automatisierte Abruf der
+geschützten Seite wurde durch die automatische Sicherheitsprüfung blockiert;
+die alternative lesende Deployment-Dateibaum-API lieferte 404. Veröffentlichtes
+HTML/JavaScript wurde deshalb nicht unabhängig inhaltlich abgerufen; Status,
+Commit und Domainzuordnung wurden über die Vercel-Verwaltung geprüft.
+Es wurden keine Schutzmaßnahmen verändert oder Bypass-Tokens erstellt.
+Die echte Microsoft-Anmeldung und der angemeldete Mailablauf sind weiterhin
+manuell zu prüfen.
+
+### Korrektur des Nachrichtenabrufs am 29.10.2026
+
+Der Nutzer hat die Microsoft-Anmeldung und die sichtbare Postfachverbindung
+bestätigt. Die Nachrichtenliste scheiterte; Cloud-Run-Logs bestätigen gültige
+Firebase-Authentifizierung und App Check. Die zentralen Diagnoseeinträge
+enthielten bislang nur `unavailable`; daraus lässt sich die konkrete Ursache
+des echten Abrufs nicht sicher ableiten.
+
+Ein geprüfter Codefehler wurde korrigiert: Graph-Folgeseiten dürfen den
+Benutzer-/Ordnerpfad in kanonischer OData-Schreibweise zurückliefern. Die alte
+Prüfung verlangte exakt die anfängliche URL-Schreibweise und verwarf dadurch
+auch die bereits geladene erste Seite. Die neue Prüfung erhält den vollständigen
+Pfad und die opake Query, beschränkt Ziel und Ressourcentyp weiterhin auf
+Graph-v1.0-Nachrichten der eigenen Verbindung und bindet Cursor weiter per HMAC
+an Eigentümer und Postfach.
+
+Technische Diagnosen unterscheiden nun ungültige Graph-Folgeseiten,
+Graph-HTTP-Status und Secret-Manager-HTTP-Status ohne Tokens, Mailinhalte oder
+ungefilterte Providerantworten. 19 Postfachtests einschließlich kanonischer
+Folgeseiten, fremder Ziele, manipuliertem Cursor und sicherer Fehlercodes sowie
+gezielter Lint sind erfolgreich. Die echte Nachrichtenliste muss nach dem
+gezielten Dev-Update von `listMailboxMessages` erneut geprüft werden; der
+Codebefund ist bis dahin keine bestätigte Erklärung des konkreten Livefehlers.
+
 Lokale Prüfung am 29.10.2026: Build, Lint des Projektcodes mit Ausschluss der
 alten `tmp/`-Artefakte, Functions-Syntax, Shared-Abgleich und 67 gezielte
 Tests erfolgreich. Der Build meldet weiterhin große JavaScript-Chunks.

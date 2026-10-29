@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { assertMailboxAccess, assertMailboxEnvironment, assertTestRecipients, createMailboxHandlers, validateMailboxDraft } from './mailboxes.js'
+import { assertMailboxAccess, assertMailboxEnvironment, assertTestRecipients, createMailboxHandlers, mailboxMessagePagePath, validateMailboxDraft } from './mailboxes.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const connectionId = 'a'.repeat(64)
@@ -44,6 +44,53 @@ const proofChallenge = createHash('sha256').update(proof).digest('base64url')
 const request = data => ({ auth: { uid: 'owner' }, data: { connectionId, proofChallenge, ...data } })
 const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpunkt-logistik.de'], ccRecipients: [], bccRecipients: [] }
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
+
+test('Graph message pagination accepts canonical OData paths and preserves the opaque query', () => {
+  const connection = { graphUserId: 'own-graph-user', email: config.testAccount }
+  const query = '?%24skiptoken=A%2FB%3D&%24top=30'
+  for (const resource of [
+    '/me/mailFolders/inbox/messages',
+    "/me/mailFolders('inbox')/messages",
+    "/me/mailfolders('opaque-folder-id')/messages",
+    '/users/own-graph-user/mailFolders/opaque-folder-id/messages',
+    "/users('own-graph-user')/mailFolders('opaque-folder-id')/messages",
+  ]) {
+    assert.equal(mailboxMessagePagePath(`https://graph.microsoft.com/v1.0${resource}${query}`, connection), `${resource}${query}`)
+  }
+  for (const link of [
+    'https://attacker.test/v1.0/me/mailFolders/inbox/messages',
+    'https://graph.microsoft.com.attacker.test/v1.0/me/mailFolders/inbox/messages',
+    'https://graph.microsoft.com/v1.0/users/other-user/mailFolders/inbox/messages',
+    'https://graph.microsoft.com/v1.0/me/drive/root/children',
+    'https://graph.microsoft.com/beta/me/mailFolders/inbox/messages',
+    'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages#fragment',
+  ]) assert.throws(() => mailboxMessagePagePath(link, connection), { code: 'unavailable' })
+})
+
+test('a canonical Graph nextLink does not discard the first inbox page and can be requested with a signed cursor', async () => {
+  const requests = []
+  const nextLink = "https://graph.microsoft.com/v1.0/me/mailFolders('inbox')/messages?%24skiptoken=opaque%2Fvalue%3D"
+  const f = fixture({ fetch: async url => {
+    requests.push(url)
+    return response(requests.length === 1 ? { value: [{ id: 'first' }], '@odata.nextLink': nextLink } : { value: [{ id: 'second' }] })
+  } })
+  const first = await f.handlers.listMailboxMessages(request({}))
+  assert.deepEqual(first.messages, [{ id: 'first' }])
+  assert.ok(first.nextPageToken)
+  const second = await f.handlers.listMailboxMessages(request({ pageToken: first.nextPageToken }))
+  assert.equal(requests[1], nextLink)
+  assert.deepEqual(second.messages, [{ id: 'second' }])
+  assert.equal(second.nextPageToken, null)
+  await assert.rejects(f.handlers.listMailboxMessages(request({ pageToken: `${first.nextPageToken}tampered` })), { code: 'invalid-argument' })
+})
+
+test('Graph failure diagnostics retain only status codes, without provider payload or message content', async () => {
+  const events = []
+  const f = fixture({ fetch: async () => response({ error: { message: 'private provider content must not be logged' } }, 503), diagnostic: async event => { events.push(event) } })
+  await assert.rejects(f.handlers.listMailboxMessages(request({})), { code: 'unavailable' })
+  assert.equal(events[0].code, 'graph_http_503')
+  assert.equal(JSON.stringify(events).includes('private provider'), false)
+})
 function callbackResponse() {
   return { statusCode: null, location: null, set() {}, status(code) { this.statusCode = code; return this }, send(value) { this.text = value }, redirect(code, location) { this.statusCode = code; this.location = location } }
 }

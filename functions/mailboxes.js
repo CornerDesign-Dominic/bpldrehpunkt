@@ -18,7 +18,7 @@ const SCOPES = 'https://graph.microsoft.com/User.Read https://graph.microsoft.co
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const MAX_ATTACHMENT = 5 * 1024 * 1024
 const digest = value => createHash('sha256').update(value).digest('hex')
-const fail = (code, message) => { throw new HttpsError(code, message) }
+const fail = (code, message, details) => { throw new HttpsError(code, message, details) }
 const clean = (value, max = 1024) => typeof value === 'string' && value.length <= max && ![...value].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) ? value.trim() : ''
 const id = value => clean(value, 2048) || fail('invalid-argument', 'Ungültige Nachrichtenreferenz.')
 const segment = value => encodeURIComponent(id(value))
@@ -50,6 +50,25 @@ export function assertTestRecipients(draft) {
   if (!draft.toRecipients.length || recipients.some(r => address(r).split('@')[1] !== 'brennpunkt-logistik.de')) fail('permission-denied', 'Im Dev-Test sind ausschließlich Empfänger mit @brennpunkt-logistik.de erlaubt, auch in CC und BCC.')
 }
 
+// Graph can canonicalize both users and folders to OData key syntax in its
+// opaque nextLink. Keep its full path/query; only validate origin, resource
+// type and mailbox ownership instead of requiring the initial spelling.
+export function mailboxMessagePagePath(value, connection) {
+  try {
+    if (typeof value !== 'string' || value.length > 16000) throw new Error('invalid-link')
+    const link = new URL(value)
+    const resource = link.pathname.match(/^\/v1\.0\/(me|users\/([^/]+)|users\('([^']+)'\))\/mailfolders(?:\/[^/]+|\('[^']+'\))\/messages$/i)
+    if (link.origin !== 'https://graph.microsoft.com' || link.username || link.password || link.hash || !resource) throw new Error('invalid-resource')
+    if (resource[1].toLowerCase() !== 'me') {
+      const owner = decodeURIComponent(resource[2] || resource[3]).toLowerCase()
+      if (![connection?.graphUserId, connection?.email].some(id => typeof id === 'string' && id.toLowerCase() === owner)) throw new Error('foreign-mailbox')
+    }
+    return `${link.pathname.slice(5)}${link.search}`
+  } catch {
+    fail('unavailable', 'Ungültige Microsoft-Folgeseite.', { technicalCode: 'graph_pagination_invalid' })
+  }
+}
+
 function seal(value, secret) {
   const iv = randomBytes(12)
   const cipher = createCipheriv('aes-256-gcm', createHash('sha256').update(secret).digest(), iv)
@@ -69,7 +88,7 @@ async function secretRequest(path, { method = 'GET', body, missingOkay = false }
   const response = await fetch(`https://secretmanager.googleapis.com/v1/${path}`, { method, headers: { Authorization: `Bearer ${credential.access_token}`, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(20000) })
   if (method === 'DELETE' && response.status === 404) return {}
   if (missingOkay && response.status === 404) return null
-  if (!response.ok) fail('unavailable', 'Der sichere Postfachspeicher ist derzeit nicht verfügbar.')
+  if (!response.ok) fail('unavailable', 'Der sichere Postfachspeicher ist derzeit nicht verfügbar.', { technicalCode: `secret_storage_http_${response.status}` })
   return response.status === 204 ? {} : response.json()
 }
 function secretStore(project) {
@@ -178,12 +197,13 @@ export function createMailboxHandlers(deps = {}) {
   }
   const graph = async (token, path, options = {}) => {
     const response = await http(`${GRAPH}${path}`, { ...options, headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.body-content-type="text", IdType="ImmutableId"', 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(25000) })
-    if (!response.ok) fail(response.status === 404 ? 'not-found' : response.status === 403 ? 'permission-denied' : 'unavailable', 'Microsoft konnte die Postfachanfrage nicht ausführen.')
+    if (!response.ok) fail(response.status === 404 ? 'not-found' : response.status === 403 ? 'permission-denied' : 'unavailable', 'Microsoft konnte die Postfachanfrage nicht ausführen.', { technicalCode: `graph_http_${response.status}` })
     return response.status === 202 || response.status === 204 ? null : response.json()
   }
   const guarded = (stage, handler) => async request => {
     try { return await handler(request) } catch (error) {
-      if (!(error instanceof HttpsError) || ['unavailable', 'internal'].includes(error.code)) await diagnose({ stage, code: error instanceof HttpsError ? error.code : 'unexpected_error', message: 'Postfachaktion konnte nicht abgeschlossen werden.', actorId: request?.auth?.uid || '' })
+      const technicalCode = typeof error?.details?.technicalCode === 'string' && /^[a-z0-9_]{1,80}$/.test(error.details.technicalCode) ? error.details.technicalCode : null
+      if (technicalCode || !(error instanceof HttpsError) || ['unavailable', 'internal'].includes(error.code)) await diagnose({ stage, code: technicalCode || (error instanceof HttpsError ? error.code : 'unexpected_error'), message: 'Postfachaktion konnte nicht abgeschlossen werden.', actorId: request?.auth?.uid || '' })
       if (error instanceof HttpsError) throw error
       fail('unavailable', 'Postfachaktion konnte nicht abgeschlossen werden. Bitte erneut versuchen.')
     }
@@ -243,15 +263,14 @@ export function createMailboxHandlers(deps = {}) {
         const expected = createHmac('sha256', config().secret).update(`${context.uid}|${context.connectionId}|${encoded}`).digest('base64url')
         if (!encoded || signature !== expected) fail('invalid-argument', 'Ungültige Folgeseite.')
         const cursor = JSON.parse(Buffer.from(encoded, 'base64url').toString())
-        if (cursor.expiresAt < now() || !cursor.path.startsWith('/me/mailFolders/inbox/messages?')) fail('invalid-argument', 'Folgeseite ist abgelaufen.')
-        path = cursor.path
+        if (!Number.isFinite(cursor.expiresAt) || cursor.expiresAt < now() || typeof cursor.path !== 'string') fail('invalid-argument', 'Folgeseite ist abgelaufen.')
+        path = mailboxMessagePagePath(`${GRAPH}${cursor.path}`, context.connection)
       }
       const result = await graph(await accessToken(context), path)
       let nextPageToken = null
       if (result['@odata.nextLink']) {
-        const link = new URL(result['@odata.nextLink'])
-        if (link.origin !== 'https://graph.microsoft.com' || link.pathname !== '/v1.0/me/mailFolders/inbox/messages') fail('unavailable', 'Ungültige Microsoft-Folgeseite.')
-        const encoded = Buffer.from(JSON.stringify({ path: `${link.pathname.slice(5)}${link.search}`, expiresAt: now() + 30 * 60000 })).toString('base64url')
+        const nextPath = mailboxMessagePagePath(result['@odata.nextLink'], context.connection)
+        const encoded = Buffer.from(JSON.stringify({ path: nextPath, expiresAt: now() + 30 * 60000 })).toString('base64url')
         nextPageToken = `${encoded}.${createHmac('sha256', config().secret).update(`${context.uid}|${context.connectionId}|${encoded}`).digest('base64url')}`
       }
       return { messages: result.value || [], nextPageToken }
