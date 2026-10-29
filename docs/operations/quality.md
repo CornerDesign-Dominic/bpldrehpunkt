@@ -5,6 +5,13 @@ Stand: 29.10.2026. Dev-Release für K.V.P. und Handbuch. Produktionsfreigabe bes
 ## Fachlicher Ablauf
 
 Die Oberfläche verwendet kurze Feld- und Aktionsnamen ohne dauerhafte Erklärtexte.
+Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
+anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
+den ersten Plan-Text; sie führt kein zusätzliches Datenfeld ein.
+Die PDCA-Bearbeitung ist abschnittsweise getrennt: Plan mit Ziel und Messkriterium,
+Do mit Maßnahmen, Verantwortung und Terminen, Check mit Ergebnissen, Act mit
+Entscheidung und Status. Titel und Status sind zusätzlich über „Thema bearbeiten“
+erreichbar. Nicht bearbeitete Abschnitte bleiben beim Speichern erhalten.
 Auf der Detailseite stehen Ziel, Messkriterium, Verantwortung und Zeitraum kompakt
 über den vier PDCA-Phasen. Besprechungsinhalte sind aufklappbar. Vollständige Inhalte
 bleiben auf der Detailseite erhalten; die Übersicht zeigt gekürzte Auszüge.
