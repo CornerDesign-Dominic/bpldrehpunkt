@@ -4,10 +4,12 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { canEdit } from '../lib/permissions.js'
+import MailTrackingAction from '../components/mailboxes/MailTrackingAction.jsx'
 import { mailboxCall } from '../lib/mailboxes.js'
-import { attachmentBlob, parseRecipients, recipientAddress, recipientText, replyRecipients, safeAttachmentName, safeOutlookLink } from '../lib/mailboxHelpers.js'
+import { parseRecipients, recipientAddress, recipientText, replyRecipients, safeOutlookLink } from '../lib/mailboxHelpers.js'
+import { groupMailboxAttachments } from '../lib/mailboxAttachmentPresentation.js'
 import { splitMailConversation } from '../lib/mailboxConversation.js'
-import MailAttachmentPdf from '../components/mailboxes/MailAttachmentPdf.jsx'
+import MailboxAttachmentList from '../components/mailboxes/MailboxAttachmentList.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { useMailboxConnections } from '../mailboxes/useMailboxConnections.js'
 import { unsavedDrafts, syncDraftCacheGuard } from '../lib/mailboxDraftCache.js'
@@ -123,23 +125,19 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   </aside>
 }
 
-function MessageContent({ message }) {
+function MessageContent({ message, beforeBody }) {
   const { language } = useLanguage()
   const w = useWords()
   return <><h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(message.receivedDateTime, language)}</dd></dl>
-    <div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
+    {beforeBody}<div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
 }
 
 function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
+  const { profile } = useAuth()
   const w = useWords()
   const [message, setMessage] = useState(null)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [attachment, setAttachment] = useState(null)
-  const [attachmentBusy, setAttachmentBusy] = useState('')
-  const [attachmentError, setAttachmentError] = useState('')
-  const attachmentRequest = useRef(0)
-  const attachmentUrl = useRef(null)
   const identity = { connectionId: connection.id, messageId }
   useEffect(() => {
     let active = true
@@ -147,45 +145,17 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection.id, messageId, reload])
-  useEffect(() => () => { ++attachmentRequest.current; if (attachmentUrl.current) URL.revokeObjectURL(attachmentUrl.current) }, [])
-
-  async function openAttachment(item, download = false) {
-    const version = ++attachmentRequest.current
-    setAttachmentBusy(item.id); setAttachmentError('')
-    try {
-      const data = await mailboxCall('getMailboxAttachment', { ...identity, attachmentId: item.id })
-      if (version !== attachmentRequest.current) return
-      const blob = attachmentBlob(data)
-      const url = URL.createObjectURL(blob)
-      const name = safeAttachmentName(data.name || item.name)
-      if (download || data.contentType?.split(';')[0].toLowerCase() !== 'application/pdf') {
-        const link = document.createElement('a'); link.href = url; link.download = name; link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
-      } else {
-        if (attachmentUrl.current) URL.revokeObjectURL(attachmentUrl.current)
-        attachmentUrl.current = url; setAttachment({ url, blob, name })
-      }
-    } catch { if (version === attachmentRequest.current) setAttachmentError(w('Anhang konnte nicht geöffnet werden. Bitte erneut versuchen.', 'Could not open attachment. Please try again.')) }
-    finally { if (version === attachmentRequest.current) setAttachmentBusy('') }
-  }
 
   if (error) return <Failure message={error} retry={() => setReload((value) => value + 1)} />
   if (!message) return <p role="status">{w('Nachricht wird geladen …', 'Loading message …')}</p>
+  const { files, inlineImages } = groupMailboxAttachments(message.attachments)
   return <div className="mailbox-workspace">
-    <article className="mailbox-reader"><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2>{editable && <ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} />}</div>
-      <MessageContent message={message} />
-      {message.attachments?.length > 0 && <section className="mailbox-attachments"><h3>{w('Anhänge', 'Attachments')}</h3>{message.attachments.map((item) => <div key={item.id}>
-        <span>{item.name}</span>
-        {item.supported === false ? <small>{w('Über 5 MB oder nicht unterstützter Anhang. Bitte über das Original in Outlook öffnen.', 'Over 5 MB or unsupported attachment. Open the original in Outlook.')}</small> : <>
-          <button type="button" disabled={Boolean(attachmentBusy)} onClick={() => openAttachment(item)}>{attachmentBusy === item.id ? w('Lädt …', 'Loading …') : item.contentType?.toLowerCase() === 'application/pdf' ? w('PDF öffnen', 'Open PDF') : w('Herunterladen', 'Download')}</button>
-          {item.contentType?.toLowerCase() === 'application/pdf' && <button type="button" disabled={Boolean(attachmentBusy)} onClick={() => openAttachment(item, true)}>{w('Herunterladen', 'Download')}</button>}
-        </>}
-      </div>)}</section>}
-      {message.attachmentsTruncated && <p role="status">{w('Es sind weitere Anhänge vorhanden. Bitte öffne die vollständige Nachricht in Outlook.', 'More attachments exist. Open the complete message in Outlook.')}</p>}
+    <article className="mailbox-reader" tabIndex={0} aria-label={w('Schriftverkehr', 'Correspondence')}><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2></div>
+      <MessageContent message={message} beforeBody={<MailboxAttachmentList attachments={files} identity={identity} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} />
+      <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
       {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}
-      {attachmentError && <Failure message={attachmentError} />}
-      {attachment && <section className="mailbox-pdf"><div className="mailbox-panel-heading"><strong>{attachment.name}</strong><button type="button" onClick={() => { URL.revokeObjectURL(attachmentUrl.current); attachmentUrl.current = null; setAttachment(null) }}>{w('Vorschau schließen', 'Close preview')}</button></div><MailAttachmentPdf key={attachment.url} blob={attachment.blob} name={attachment.name} /></section>}
     </article>
+    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}</aside>}
   </div>
 }
 

@@ -23,6 +23,7 @@
 .quality-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
 .quality-card { text-align:left; background:var(--content-background); border:1px solid var(--border); border-radius:8px; padding:20px; color:inherit; font:inherit; cursor:pointer; }
 .quality-card h3,.quality-card h4 { margin:8px 0; }
+.quality-card { text-decoration:none; }
 .quality-process { margin:24px 0; }
 .quality-empty { padding:36px; text-align:center; background:var(--surface-secondary); border-radius:8px; }
 .quality-dialog { width:min(940px,94vw); max-height:90vh; box-sizing:border-box; overflow:auto; background:var(--content-background); color:var(--text-primary); border:1px solid var(--border); border-radius:12px; padding:24px; }
@@ -69,5 +70,8 @@
 .quality-related-links { display:flex; flex-direction:column; gap:8px; margin:16px 0; }
 .quality-related-links a { color:var(--button-background); }
 .quality-editor-cycle { display:block; margin-top:6px; font-size:13px; font-weight:400; color:var(--text-secondary); }
+.quality-meeting-grid { display:grid; grid-template-columns:minmax(0,2fr) minmax(260px,1fr); gap:16px; }
+.quality-meeting-side { display:grid; align-content:start; gap:16px; }
+@media(max-width:800px) { .quality-meeting-grid { grid-template-columns:1fr; } }
 @media(max-width:1050px) { .quality-phase-grid,.quality-goal-summary dl { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:650px) { .quality-phase-grid,.quality-goal-summary dl { grid-template-columns:1fr; } .quality-cycle-bar > .quality-inline { margin-left:0; } }

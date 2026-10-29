@@ -1,4 +1,5 @@
 import test from 'node:test'
+import { shipmentTrackingSourceLabel } from './shipmentTrackingPresentation.js'
 import assert from 'node:assert/strict'
 import { formatShipmentTrackingDelay, formatShipmentTrackingRoutePlan, formatShipmentTrackingSlot, formatShipmentTrackingTimestamp, shipmentTrackingEventChangeType, shipmentTrackingEventDescription, shipmentTrackingRatingState, shipmentTrackingScheduleStatus, shipmentTrackingStageConfigurations, shipmentTrackingStageEventDetails, shipmentTrackingStageEvents, shipmentTrackingStationAssessments, shipmentTrackingStationStateDefinitions, shipmentTrackingStationSummary, shipmentTrackingStations, shipmentTrackingTimelineModel } from './shipmentTrackingPresentation.js'
 
@@ -6,6 +7,12 @@ const imported = {
   loading: { window: { from: '2026-09-25T08:00', until: '2026-09-25T10:00' } },
   unloading: { window: { from: '2026-09-25T14:30', until: '2026-09-25T16:30' } },
 }
+
+test('personal AI provenance and corrections are distinguishable without relabeling the status mailbox', () => {
+  assert.equal(shipmentTrackingSourceLabel({ source: 'ai_mail', channel: 'personal_mailbox' }), 'KI · Persönliches Postfach')
+  assert.equal(shipmentTrackingSourceLabel({ source: 'manual', channel: 'personal_mailbox', originalAiValue: '2026-10-29T13:30:00Z' }), 'Manuell korrigiert · KI-Vorschlag')
+  assert.equal(shipmentTrackingSourceLabel({ source: 'ai_mail' }), 'KI · Status-Postfach')
+})
 
 test('timeline model uses the neutral upcoming state until manual tracking exists', () => {
   const model = shipmentTrackingTimelineModel(null, imported)

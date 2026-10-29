@@ -6,16 +6,20 @@ import { reportTechnicalFailure } from './diagnostics.js'
 const collections = { topic: 'qualityTopics', meeting: 'qualityMeetings', handbook: 'qualityHandbook' }
 const moduleFor = (kind) => kind === 'handbook' ? 'handbook' : 'kvp'
 
-export async function getQualityTopic(id) {
+async function getQualityRecord(kind, id) {
   if (typeof id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(id)) return null
   try {
-    const snapshot = await getDoc(doc(db, collections.topic, id))
+    const snapshot = await getDoc(doc(db, collections[kind], id))
     return snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null
   } catch (error) {
-    void reportTechnicalFailure({ module: 'kvp', stage: 'load', recordId: id, error })
+    void reportTechnicalFailure({ module: moduleFor(kind), stage: 'load', recordId: id, error })
     throw error
   }
 }
+
+export const getQualityTopic = (id) => getQualityRecord('topic', id)
+export const getQualityHandbook = (id) => getQualityRecord('handbook', id)
+export const getQualityMeeting = (id) => getQualityRecord('meeting', id)
 
 export async function listQualityMeetingsForTopic(id) {
   try {

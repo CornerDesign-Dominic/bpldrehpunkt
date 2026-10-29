@@ -7,6 +7,7 @@ import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
+import { previewMailboxTrackingHandler, applyMailboxTrackingHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
@@ -72,6 +73,8 @@ export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck:
 export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
+export const previewMailboxTracking = onCall({ ...mailboxOptions, timeoutSeconds: 240, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxTrackingHandler)
+export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingHandler)
 export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
 export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)
 export const listMailboxConnections = onCall(mailboxOptions, listMailboxConnectionsHandler)

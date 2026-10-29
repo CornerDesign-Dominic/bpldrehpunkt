@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import QualityPage from './pages/QualityPage.jsx'
 import QualityProblemDetailPage from './pages/QualityProblemDetailPage.jsx'
+import QualityHandbookDetailPage from './pages/QualityHandbookDetailPage.jsx'
+import QualityMeetingDetailPage from './pages/QualityMeetingDetailPage.jsx'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { reportTechnicalFailure } from './lib/diagnostics.js'
 import { websiteDiagnosticStage } from './lib/diagnosticClassification.js'
@@ -82,7 +84,9 @@ export default function App() {
       <Route element={<ProtectedAppLayout />}>
         <Route path="/qualitaet/kvp" element={<PermissionRoute module="kvp"><QualityPage key="kvp" /></PermissionRoute>} />
         <Route path="/qualitaet/kvp/:topicId" element={<PermissionRoute module="kvp"><QualityProblemDetailPage /></PermissionRoute>} />
+        <Route path="/qualitaet/kvp/besprechungen/:meetingId" element={<PermissionRoute module="kvp"><QualityMeetingDetailPage /></PermissionRoute>} />
         <Route path="/qualitaet/handbuch" element={<PermissionRoute module="handbook"><QualityPage key="handbook" handbook /></PermissionRoute>} />
+        <Route path="/qualitaet/handbuch/:entryId" element={<PermissionRoute module="handbook"><QualityHandbookDetailPage /></PermissionRoute>} />
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />

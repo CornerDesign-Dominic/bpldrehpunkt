@@ -10,7 +10,7 @@ const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.t
 const CLIENT_STAGES = Object.freeze({
   kvp: ['load', 'save', 'history'],
   handbook: ['load', 'save', 'history'],
-  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename'],
+  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create'],
@@ -31,7 +31,7 @@ const CLIENT_MESSAGES = {
 const MAILBOX_MESSAGES = {
   kvp: { load: 'K.V.P.-Daten konnten nicht geladen werden.', save: 'K.V.P.-Eintrag konnte nicht gespeichert werden.', history: 'K.V.P.-Änderungsverlauf konnte nicht geladen werden.' },
   handbook: { load: 'Handbucheinträge konnten nicht geladen werden.', save: 'Handbucheintrag konnte nicht gespeichert werden.', history: 'Handbuch-Änderungsverlauf konnte nicht geladen werden.' },
-  mailboxes: { connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
+  mailboxes: { 'tracking-preview': 'Persönliche Mail konnte nicht für den Sendungsstatus ausgewertet werden.', 'tracking-apply': 'Sendungsstatus aus persönlicher Mail konnte nicht übernommen werden.', connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
 }
 
 export function canReportLinkDiagnostic(profile, module) {

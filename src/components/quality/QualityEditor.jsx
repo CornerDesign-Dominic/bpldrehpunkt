@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { listQualityHistory, saveQualityRecord } from '../../lib/quality.js'
-import { HANDBOOK_FIELDS, MEETING_FIELDS, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
+import { HANDBOOK_SECTIONS, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
 import { qualityLabels as labels } from '../../lib/qualityLabels.js'
 
 export default function QualityEditor({ kind, record, departmentId, topics, focusPhase, newCycle = false, editable, onClose, onSaved, language }) {
@@ -20,6 +20,12 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
   const readOnly = !editable || Boolean(historical)
   const displayed = historical || form
   const creatingTopic = kind === 'topic' && !record.revision && !newCycle
+  const creatingMeeting = kind === 'meeting' && !record.revision
+  const meetingFields = creatingMeeting ? ['title', 'date'] : focusPhase === 'notes' ? ['notes'] : focusPhase === 'participants' ? ['participants'] : focusPhase === 'topics' ? [] : ['title', 'date']
+  const meetingHeading = creatingMeeting ? text('Neue Besprechung', 'New meeting') : focusPhase === 'notes' ? text('Protokoll', 'Minutes') : focusPhase === 'participants' ? text('Teilnehmer', 'Participants') : focusPhase === 'topics' ? text('Themen', 'Topics') : text('Besprechung bearbeiten', 'Edit meeting')
+  const creatingHandbook = kind === 'handbook' && !record.revision
+  const handbookFields = !creatingHandbook && HANDBOOK_SECTIONS.includes(focusPhase) ? [focusPhase] : ['title', 'process']
+  const handbookHeading = creatingHandbook ? text('Neuer Handbucheintrag', 'New handbook entry') : HANDBOOK_SECTIONS.includes(focusPhase) ? labels[focusPhase][en ? 1 : 0] : text('Eintrag bearbeiten', 'Edit entry')
   const phaseFields = { plan: ['plan', 'goal', 'measure'], do: ['do', 'owner', 'startDate', 'dueDate'], check: ['check'], act: ['act', 'status'] }
   const topicFields = creatingTopic ? ['title', 'plan'] : newCycle ? phaseFields.plan : phaseFields[focusPhase] || ['title', 'status']
   const topicHeading = creatingTopic ? text('Neues Thema', 'New topic') : newCycle ? text('Neuer Durchlauf', 'New cycle') : focusPhase ? text('Bearbeiten', 'Edit') + ' · ' + focusPhase.toUpperCase() : text('Thema bearbeiten', 'Edit topic')
@@ -93,20 +99,20 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
       : <textarea name={key} rows={rows} maxLength={20000} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />}</label>
   }
 
-  return <dialog ref={dialog} className={`quality-dialog${kind === 'topic' ? ' quality-dialog--topic' : ''}`} aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
-    <header className="quality-heading"><h2 id="quality-editor-title">{kind === 'topic' ? topicHeading : record.title || text(kind === 'meeting' ? 'Neue Besprechung' : 'Neuer Handbucheintrag', kind === 'meeting' ? 'New meeting' : 'New handbook entry')}{kind === 'topic' && !creatingTopic && <small className="quality-editor-cycle">{text('Durchlauf', 'Cycle')} {form.cycle}</small>}</h2><button className="button button--secondary" type="button" onClick={close} disabled={saving}>{text('Schließen', 'Close')}</button></header>
+  return <dialog ref={dialog} className={`quality-dialog${kind !== 'meeting' || focusPhase !== 'topics' ? ' quality-dialog--topic' : ''}`} aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
+    <header className="quality-heading"><h2 id="quality-editor-title">{kind === 'topic' ? topicHeading : kind === 'handbook' ? handbookHeading : meetingHeading}{kind === 'topic' && !creatingTopic && <small className="quality-editor-cycle">{text('Durchlauf', 'Cycle')} {form.cycle}</small>}</h2><button className="button button--secondary" type="button" onClick={close} disabled={saving}>{text('Schließen', 'Close')}</button></header>
     {discard && <div className="quality-discard" role="alert"><p>{text('Ungespeicherte Änderungen verwerfen?', 'Discard unsaved changes?')}</p><button className="button button--secondary" type="button" onClick={() => setDiscard(false)}>{text('Weiter bearbeiten', 'Keep editing')}</button> <button className="button button--danger" type="button" onClick={() => onClose({ reload: conflict })}>{text('Verwerfen und schließen', 'Discard and close')}</button></div>}
     {record.revision > 0 && <div className="quality-history"><button className="button button--secondary" type="button" disabled={historyLoading} onClick={showHistory}>{text('Verlauf', 'History')}</button>{history && <label>{text('Fassung', 'Revision')} <select value={historical?.revision || ''} onChange={(event) => setHistorical(history.find((item) => String(item.revision) === event.target.value) || null)}><option value="">{text('Aktuelle Bearbeitung', 'Current editing')}</option>{history.map((item) => <option key={item.revision} value={item.revision}>{kind === 'topic' ? `${text('Durchlauf', 'Cycle')} ${item.cycle} · ` : ''}{text('Fassung', 'Revision')} {item.revision} · {item.updatedAt?.toDate?.().toLocaleString(en ? 'en-GB' : 'de-DE')} · {item.updatedByName || item.updatedBy || ''}</option>)}</select></label>}</div>}
     {historical && <p role="status">{text('Frühere Fassung · nur lesbar', 'Previous revision · read only')}</p>}
     <form onSubmit={submit}>
       <fieldset disabled={saving} className="quality-fields">
-        {kind !== 'topic' && field('title')}
+        {kind === 'meeting' && meetingFields.map((key) => field(key))}
         {kind === 'topic' && topicFields.map((key) => field(key))}
-        {kind === 'handbook' && HANDBOOK_FIELDS.slice(1).map((key) => field(key, 3))}
-        {kind === 'meeting' && <>{MEETING_FIELDS.slice(1).map((key) => field(key, 6))}<fieldset className="quality-topic-picker"><legend>{text('Besprochene Themen', 'Topics discussed')}</legend>{topics.length === 0 && <p>{text('Lege zuerst ein Thema an.', 'Create a topic first.')}</p>}{topics.map((topic) => <label key={topic.id}><input type="checkbox" disabled={readOnly} checked={(displayed.topicIds || []).includes(topic.id)} onChange={(event) => change('topicIds', event.target.checked ? [...form.topicIds, topic.id] : form.topicIds.filter((id) => id !== topic.id))} /> {topic.title}</label>)}</fieldset></>}
+        {kind === 'handbook' && handbookFields.map((key) => field(key))}
+        {kind === 'meeting' && !creatingMeeting && focusPhase === 'topics' && <><fieldset className="quality-topic-picker"><legend>{text('Besprochene Themen', 'Topics discussed')}</legend>{topics.length === 0 && <p>{text('Lege zuerst ein Thema an.', 'Create a topic first.')}</p>}{topics.map((topic) => <label key={topic.id}><input type="checkbox" disabled={readOnly} checked={(displayed.topicIds || []).includes(topic.id)} onChange={(event) => change('topicIds', event.target.checked ? [...form.topicIds, topic.id] : form.topicIds.filter((id) => id !== topic.id))} /> {topic.title}</label>)}</fieldset></>}
       </fieldset>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <footer className="quality-actions">{!readOnly && <button className="button" disabled={saving || !dirty} type="submit">{saving ? text('Wird gespeichert …', 'Saving …') : creatingTopic ? text('Anlegen und öffnen', 'Create and open') : text('Speichern', 'Save')}</button>}</footer>
+      <footer className="quality-actions">{!readOnly && <button className="button" disabled={saving || !dirty} type="submit">{saving ? text('Wird gespeichert …', 'Saving …') : creatingTopic || creatingHandbook || creatingMeeting ? text('Anlegen und öffnen', 'Create and open') : text('Speichern', 'Save')}</button>}</footer>
     </form>
   </dialog>
 }

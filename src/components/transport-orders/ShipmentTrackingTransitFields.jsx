@@ -28,7 +28,7 @@ function TransitEntryFields({ entry, number, onUpdate, onRemove, original }) {
   </div>
 }
 
-export default function ShipmentTrackingTransitFields({ entries, onChange, existingEntries = [], initialExisting = [], onExistingChange }) {
+export default function ShipmentTrackingTransitFields({ entries, onChange, existingEntries = [], initialExisting = [], initialNewEntries = [], onExistingChange }) {
   function add(kind) {
     if (entries.length >= 20) return
     onChange([...entries, { id: crypto.randomUUID(), kind, at: timestampToDateTimeInput(new Date()), ...(kind === 'position' ? { location: '', kilometersToDestination: '' } : { durationChoice: '45', durationMinutes: '45' }) }])
@@ -40,7 +40,7 @@ export default function ShipmentTrackingTransitFields({ entries, onChange, exist
 
   return <div className="shipment-tracking-transit">
     {existingEntries.map((entry, index) => <TransitEntryFields key={entry.id} entry={entry} original={initialExisting.find((initial) => initial.id === entry.id)} number={index + 1} onUpdate={(patch) => updateExisting(entry.id, patch)} onRemove={() => removeExisting(entry.id)} />)}
-    {entries.map((entry, index) => <TransitEntryFields key={entry.id} entry={entry} number={index + 1} onUpdate={(patch) => update(entry.id, patch)} onRemove={() => remove(entry.id)} />)}
+    {entries.map((entry, index) => <TransitEntryFields key={entry.id} entry={entry} original={initialNewEntries.find(initial => initial.id === entry.id)} number={index + 1} onUpdate={(patch) => update(entry.id, patch)} onRemove={() => remove(entry.id)} />)}
     <div className="shipment-tracking-transit__add"><button className="button button--secondary" type="button" disabled={entries.length >= 20} onClick={() => add('position')}>+ <StaticText source="Standortmeldung" /></button><button className="button button--secondary" type="button" disabled={entries.length >= 20} onClick={() => add('pause')}>+ <StaticText source="Pause" /></button></div>
   </div>
 }
