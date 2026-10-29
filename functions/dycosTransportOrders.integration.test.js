@@ -8,6 +8,7 @@ import { fetchDycosTransportOrderHandler, hasDycosImportAccess, validateDycosReq
 import { DycosFlowError } from './dycosFlowClient.js'
 import { importTransportOrdersHandler } from './transportOrderImports.js'
 import { mapDycosOrder } from './dycosOrderMapping.js'
+import { transportOrderHistoryRows } from '../src/lib/transportOrderHistoryPresentation.js'
 import { shipmentTrackingLifecycle } from './shared/shipmentTrackingLifecycle.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 import { isAutomaticImportedRouteCandidate } from './transportOrderRoutes.js'
@@ -77,6 +78,11 @@ test('emulator: sparse TA imports atomically, replay avoids another source call,
   assert.equal(original.imported.financial.revenueNet, 0)
   assert.equal(original.imported.carrier.partnerId, '')
   assert.deepEqual(original.imported.stops, [])
+  const creationHistory = await ref.collection('history').get()
+  assert.equal(creationHistory.size, 1)
+  assert.equal(creationHistory.docs[0].get('eventType'), 'transport_order_created')
+  assert.equal(creationHistory.docs[0].get('recordedBy'), uid)
+  assert.equal(creationHistory.docs[0].get('oldValue'), undefined)
   await ref.update({ manual: { note: 'Disposition bleibt' }, tracking: { status: 'Unterwegs' }, relatedCaseIds: ['case-example'] })
   assert.deepEqual(await fetchDycosTransportOrderHandler(request, deps), first)
   assert.equal(calls, 1)
@@ -89,6 +95,25 @@ test('emulator: sparse TA imports atomically, replay avoids another source call,
   assert.equal(updated.tracking.status, 'Unterwegs')
   await assert.rejects(fetchDycosTransportOrderHandler(req(uid, nextTa(), request.data.requestId), deps), { code: 'invalid-argument' })
   assert.equal(calls, 2)
+})
+
+test('emulator: Auftrag aktualisieren records actual changes with actor; unchanged refresh adds no history', { skip: !enabled }, async () => {
+  const uid = await user(); const ta = nextTa()
+  const raw = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), Gewicht: 1000 } })
+  const deps = dependencies(async () => raw)
+  await fetchDycosTransportOrderHandler(req(uid, ta), deps)
+  raw.auftrag.Gewicht = 1200
+  assert.equal((await fetchDycosTransportOrderHandler(req(uid, ta), deps)).status, 'updated')
+  const ref = db().doc(`transportOrders/${id(ta)}`)
+  const history = await ref.collection('history').get()
+  const rows = transportOrderHistoryRows((await ref.get()).data(), history.docs.map((entry) => ({ id: entry.id, ...entry.data() })))
+  assert.equal(rows.length, 2)
+  const changed = rows.find((entry) => !entry.creation)
+  assert.equal(changed.recordedBy, uid)
+  assert.equal(changed.recordedByName, 'Schnittstellen Test')
+  assert.deepEqual(changed.changes.map((entry) => [entry.path, entry.oldValue, entry.newValue]), [['shipment.weightKg', 1000, 1200]])
+  assert.equal((await fetchDycosTransportOrderHandler(req(uid, ta), deps)).status, 'unchanged')
+  assert.equal((await ref.collection('history').get()).size, history.size)
 })
 
 test('emulator: source nonexistence and technical/mapping failures create no empty orders; diagnostics contain no source content', { skip: !enabled }, async () => {

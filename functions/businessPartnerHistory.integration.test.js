@@ -24,13 +24,14 @@ test('actual browser persistence: compact creation, precise atomic edits, no-op 
   // its environment bootstrap; no cloud configuration, auth or App Check calls.
   globalThis.__partnerHistoryTestDb = db
   globalThis.__partnerHistoryTestAuth = { currentUser: { uid, email: 'editor@example.test' } }
-  const bootstrap = 'data:text/javascript,' + encodeURIComponent('export const db=globalThis.__partnerHistoryTestDb; export const auth=globalThis.__partnerHistoryTestAuth')
+  const bootstrap = 'data:text/javascript,' + encodeURIComponent('export const db=globalThis.__partnerHistoryTestDb; export const auth=globalThis.__partnerHistoryTestAuth; export const functions={}; export const waitForAppCheckToken=async()=>{}')
   const hooks = registerHooks({ resolve(specifier, context, next) {
     const result = next(specifier, context)
     return result.url.endsWith('/src/lib/firebase.js') ? { url: bootstrap, shortCircuit: true } : result
   } })
   try {
     const { createEmptyBusinessPartner, createBusinessPartner, updateBusinessPartner } = await import('../src/lib/businessPartners.js')
+    const { listTransportOrderHistoryPage } = await import('../src/lib/transportOrders.js')
     hooks.deregister()
     const values = { ...createEmptyBusinessPartner(), companyName: 'Firma Alt' }
     const id = await createBusinessPartner(values, null, { id: uid, name: 'Anna Beispiel' })
@@ -54,6 +55,21 @@ test('actual browser persistence: compact creation, precise atomic edits, no-op 
     const viewerHistory = collection(viewerDb, 'businessPartners', id, 'history')
     assert.equal((await getDocs(viewerHistory)).size, count)
     await assert.rejects(setDoc(doc(viewerHistory), { action: 'updated' }), /permission|insufficient/i)
+    const orderId = `history-order-${stamp}`
+    const batch = admin.batch()
+    batch.set(admin.doc(`transportOrders/${orderId}`), { externalNumber: '261100028' })
+    for (let index = 0; index < 52; index++) batch.set(admin.doc(`transportOrders/${orderId}/history/row-${index}`), { recordedAt: new Date(1700000000000 + index * 1000), eventType: index ? 'transport_order_import_updated' : 'transport_order_created' })
+    await batch.commit()
+    await assert.rejects(listTransportOrderHistoryPage(orderId), /permission|insufficient/i)
+    await admin.doc(`users/${uid}`).update({ permissions: { masterData: 'edit', transportOrders: 'view' } })
+    const firstPage = await listTransportOrderHistoryPage(orderId)
+    assert.equal(firstPage.entries.length, 50)
+    assert.equal(firstPage.hasMore, true)
+    const secondPage = await listTransportOrderHistoryPage(orderId, firstPage.cursor)
+    assert.equal(secondPage.entries.length, 2)
+    assert.equal(secondPage.hasMore, false)
+    assert.equal(secondPage.entries.at(-1).eventType, 'transport_order_created')
+    await assert.rejects(setDoc(doc(db, 'transportOrders', orderId, 'history', 'fake'), { recordedAt: new Date() }), /permission|insufficient/i)
   } finally {
     hooks.deregister()
     delete globalThis.__partnerHistoryTestDb; delete globalThis.__partnerHistoryTestAuth

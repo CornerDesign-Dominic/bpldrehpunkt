@@ -1,10 +1,7 @@
+import { recordHistoryTime as partnerHistoryTime, recordHistoryValue } from './recordHistoryPresentation.js'
 import { businessPartnerHistoryChanges, mergePartnerHistoryPatch, partnerHistoryFieldLabel } from '../../shared/businessPartnerHistory.js'
 
 const categories = new Set(['masterData', 'paymentData', 'contactPerson', 'creditLimit', 'shipmentTrackingPolicy', 'import', 'merge'])
-export function partnerHistoryTime(value) {
-  const date = value?.toDate?.() || (value instanceof Date ? value : typeof value === 'string' ? new Date(value) : null)
-  return date && Number.isFinite(date.getTime()) ? date.getTime() : 0
-}
 function expanded(values) {
   const result = {}
   for (const [path, value] of Object.entries(values || {})) {
@@ -64,15 +61,8 @@ export function businessPartnerHistoryRows(partner, history) {
   return compactRows.sort((a, b) => partnerHistoryTime(b.createdAt) - partnerHistoryTime(a.createdAt))
 }
 
-export function businessPartnerHistoryActor(entry) {
-  return entry.createdByName || entry.actor?.name || entry.recordedByName || entry.createdByUserId || entry.actor?.userId || entry.actor?.id || 'Nicht protokolliert'
-}
-
-export function businessPartnerHistoryValue(value, language = 'de') {
-  if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'boolean') return value ? 'Ja' : 'Nein'
-  if (Array.isArray(value)) return value.map((item) => businessPartnerHistoryValue(item, language)).join(', ') || '—'
-  if (typeof value === 'number') return new Intl.NumberFormat(language === 'en' ? 'en-GB' : 'de-DE').format(value)
-  if (typeof value === 'object') return Object.entries(value).map(([key, item]) => `${partnerHistoryFieldLabel(key)}: ${businessPartnerHistoryValue(item, language)}`).join('\n')
-  return String(value)
+export { recordHistoryActor as businessPartnerHistoryActor } from './recordHistoryPresentation.js'
+export function businessPartnerHistoryValue(value, language) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return Object.entries(value).map(([key, item]) => `${partnerHistoryFieldLabel(key)}: ${businessPartnerHistoryValue(item, language)}`).join('\n')
+  return recordHistoryValue(value, language)
 }

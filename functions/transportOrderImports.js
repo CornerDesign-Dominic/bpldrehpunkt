@@ -438,7 +438,10 @@ export async function importTransportOrdersHandler(request) {
     // can commit while this CSV batch is being prepared. Fence the whole batch
     // against that snapshot, including partner and history writes.
     if (existingOrder) batch.update(ref, orderPayload, { lastUpdateTime: existingOrder.updateTime })
-    else batch.create(ref, orderPayload)
+    else {
+      batch.create(ref, orderPayload)
+      batch.set(ref.collection('history').doc(), { eventType: 'transport_order_created', recordedAt: now, recordedBy: request.auth.uid, recordedByName: importedBy, importRunId: runRef.id, source: 'import' })
+    }
     for (const change of changes) {
       batch.set(ref.collection('history').doc(), {
         eventType: 'transport_order_import_updated',

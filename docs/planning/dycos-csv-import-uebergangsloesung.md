@@ -999,3 +999,36 @@ Für den anschließenden Live-Test: Stammdatenblatt öffnen, über die drei Punk
 sowie die Person müssen erscheinen; unverändertes Speichern erzeugt keinen
 zusätzlichen Eintrag. Neuanlagen zeigen nur den Anlageeintrag. Fehlende alte
 Historienwerte werden nicht rückwirkend ergänzt oder erfunden.
+
+
+## 26. Dieselbe kompakte Historie für Transportaufträge
+
+Das Drei-Punkte-Menü oben rechts im Auftragsblatt öffnet „Historie“ mit den
+Spalten Zeitpunkt/Person, alte Daten und neue Daten. Stammdaten und Aufträge
+verwenden dieselbe Dialogdarstellung. Die Historie lädt beim Öffnen in Seiten
+mit 50 Dokumenten und benötigt ausschließlich Transportauftrags-Leserechte;
+Datenimportrechte sind nur für „Auftrag aktualisieren“ erforderlich.
+
+Die vorhandenen serverseitigen Feldänderungen des CSV-Imports und des
+DyCoS-Einzelabrufs werden anhand ihrer importRunId zu einem Abruf zusammengefasst.
+Auch ältere bereits gespeicherte Änderungen durch „Auftrag aktualisieren“
+werden angezeigt. Neue API-/CSV-Aufträge erhalten einen einzelnen atomaren
+Anlageeintrag ohne Startwerte. Für frühere Aufträge wird die belegte Anlage aus
+createdAt/createdByName angezeigt. Unveränderte Abrufe erzeugen keinen Eintrag.
+
+Stations- und Preisarrays werden in lesbare einzelne Felder aufgelöst,
+einschließlich Mengen, Palettentausch und einzelner Kosten-/Ertragspositionen.
+Doppelte Positionen bleiben erhalten. Technische Quell-IDs, Schemazähler und
+Belegreferenzen werden nicht als fachliche Änderungen ausgegeben; eine Änderung
+des erfassenden DyCoS-Bearbeiters ist sichtbar. Fehlende alte Werte erscheinen
+als Gedankenstrich, explizite 0/false bleiben Werte. Beträge erscheinen in EUR.
+Der bestehende Trackingverlauf bleibt der Verlauf der Sendungsverfolgung;
+die neue Historie zeigt die importierten Auftragsdaten.
+
+Prüfung: 18 fokussierte Unit-Tests, 20 bestehende/erweiterte API-/CSV-
+Integrationsprüfungen sowie ein echter Browser-SDK-Emulatortest mit Anlage,
+Bearbeitung, unverändertem Speichern, Historien-Leserechten, schreibgeschützter
+Auftragshistorie und Pagination bestanden. Browserprüfung mit Beispieldaten:
+beide Historien, DE/EN, Light/Dark, kompakte Anlage und Nachladen ohne doppelten
+Anlageeintrag. Lint, Build und Shared-Prüfung erfolgreich; bekannte
+Chunkgrößenwarnung unverändert. Keine neue Dev-/Main-Veröffentlichung durchgeführt.

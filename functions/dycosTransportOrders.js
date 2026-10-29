@@ -204,6 +204,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     }
     if (order.exists) transaction.update(claim.orderRef, patch)
     else transaction.create(claim.orderRef, { id: claim.orderRef.id, ...patch, manual: {}, tracking: {}, createdAt: now, createdBy: request.auth.uid, createdByName: actorName(profile) })
+    if (!order.exists) transaction.create(claim.orderRef.collection('history').doc(), { eventType: 'transport_order_created', recordedAt: now, recordedBy: request.auth.uid, recordedByName: actorName(profile), importRunId: runRef.id, source: 'import' })
     for (const change of changes) transaction.create(claim.orderRef.collection('history').doc(), { eventType: 'transport_order_import_updated', changedFields: [change.path], field: change.path, fieldLabel: change.label, oldValue: change.oldValue, newValue: change.newValue, eventTime: now, recordedAt: now, recordedBy: request.auth.uid, recordedByName: actorName(profile), source: 'import', importRunId: runRef.id })
     if (previous && loadingScheduleMovedEarlier(previous, next) && tracking.exists && tracking.get('lifecycleStatus') === 'active') transaction.update(tracking.ref, { importScheduleSkippedBefore: now, lastImportScheduleChange: { reason: 'loading-moved-earlier', at: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) })
     transaction.create(runRef, { id: runRef.id, source: 'dycos-api', externalNumber: data.taNummer, importedAt: now, importedByUserId: request.auth.uid, importedByName: actorName(profile), counts })

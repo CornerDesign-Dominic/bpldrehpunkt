@@ -30,6 +30,7 @@ import TransportOrderReceivedMails from '../components/transport-orders/Transpor
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import TransportOrderImportedDetails from '../components/transport-orders/TransportOrderImportedDetails.jsx'
 import TransportOrderRefreshButton from '../components/transport-orders/TransportOrderRefreshButton.jsx'
+import TransportOrderHistoryModal from '../components/transport-orders/TransportOrderHistoryModal.jsx'
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
 
 function Detail({ label, children, emptyFallback = '—' }) { return <div><dt>{label}</dt><dd>{children || emptyFallback}</dd></div> }
@@ -99,6 +100,16 @@ export default function TransportOrderDetailPage() {
   const activeOrderId = useRef(transportOrderId)
   useEffect(() => { activeOrderId.current = transportOrderId }, [transportOrderId])
   const [orderDataVersion, setOrderDataVersion] = useState(0)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyMenuOpen, setHistoryMenuOpen] = useState(false)
+  const historyMenuRef = useRef(null)
+  useEffect(() => {
+    if (!historyMenuOpen) return undefined
+    const closeOutside = (event) => { if (!historyMenuRef.current?.contains(event.target)) setHistoryMenuOpen(false) }
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setHistoryMenuOpen(false) }
+    document.addEventListener('pointerdown', closeOutside); document.addEventListener('keydown', closeOnEscape)
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeOnEscape) }
+  }, [historyMenuOpen])
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -343,6 +354,8 @@ export default function TransportOrderDetailPage() {
   if (loading) return <div className="transport-order-detail-page"><p className="page-state"><StaticText source={"Transportauftrag wird geladen …"} /></p></div>
   if (error || !imported) return <div className="transport-order-detail-page"><section className="todo-detail-empty"><h2><StaticText source={"Transportauftrag nicht verfügbar"} /></h2><p>{error || <StaticText source={"Noch keine Daten verfügbar."} />}</p></section></div>
   return <div className="transport-order-detail-page">
+    <div className="transport-order-detail-toolbar"><div className="partner-merge-menu" ref={historyMenuRef}><TranslatedProps sources={{ 'aria-label': 'Auftragsaktionen öffnen' }}><button className="partner-merge-menu__trigger" type="button" aria-label="Auftragsaktionen öffnen" aria-haspopup="menu" aria-expanded={historyMenuOpen} onClick={() => setHistoryMenuOpen((open) => !open)}>…</button></TranslatedProps>{historyMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { historyMenuRef.current?.querySelector('button')?.focus(); setHistoryOpen(true); setHistoryMenuOpen(false) }}><StaticText source="Historie" /></button></div>}</div></div>
+    {historyOpen && <TransportOrderHistoryModal key={`${order.id}-${orderDataVersion}`} order={order} onClose={() => setHistoryOpen(false)} />}
     <TranslatedProps sources={{"title":"Sendungsverfolgung vorzeitig starten?"}}><ConfirmDialog open={trackingEarlyStartConfirmationOpen} title="Sendungsverfolgung vorzeitig starten?" message="Die Sendungsverfolgung wird sofort zur manuellen Bearbeitung geöffnet. Es wird keine E-Mail versendet; alle Automatik-Regeln bleiben unverändert." confirmLabel="Vorzeitig starten" submittingLabel="Wird gestartet …" isSubmitting={trackingSaving} onCancel={() => setTrackingEarlyStartConfirmationOpen(false)} onConfirm={() => void confirmTrackingEarlyStart()} /></TranslatedProps>
     <TranslatedProps sources={{"title":"Unwiderruflich abschließen?","confirmLabel":"Abschließen"}}><ConfirmDialog open={trackingCompletionConfirmationOpen} title="Unwiderruflich abschließen?" message="Die Sendungsverfolgung wird beendet und der Auftrag als abgeschlossen abgelegt." confirmLabel="Abschließen" submittingLabel="Wird abgeschlossen …" isSubmitting={trackingSaving} onCancel={() => setTrackingCompletionConfirmationOpen(false)} onConfirm={() => void confirmTrackingCompletion()} /></TranslatedProps>
     <TranslatedProps sources={{"title":"Sendungsverfolgung pausieren?"}}><ConfirmDialog open={trackingPauseConfirmationOpen} title="Sendungsverfolgung pausieren?" message="Bereits bestehende Aktionen behalten ihren Status. Erst Anfragen, die während der Pause fällig werden, werden übersprungen und nicht nachgesendet. Nach dem Fortsetzen laufen nur spätere Termine wieder automatisch; Statusanfragen kannst du jederzeit manuell auslösen." confirmLabel="Pausieren" submittingLabel="Wird pausiert …" isSubmitting={trackingSaving} onCancel={() => setTrackingPauseConfirmationOpen(false)} onConfirm={() => void confirmTrackingPause()} /></TranslatedProps>

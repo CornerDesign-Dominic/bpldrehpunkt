@@ -1,4 +1,4 @@
-import { doc, getDoc, getDocs, orderBy, query, collection } from 'firebase/firestore'
+import { doc, getDoc, getDocs, orderBy, query, collection, limit, startAfter } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { auth, db, functions, waitForAppCheckToken } from './firebase.js'
 
@@ -77,4 +77,10 @@ export async function listTransportOrderImportRuns(runId = '') {
   await waitForAppCheckToken()
   const result = await httpsCallable(functions, 'listTransportOrderImportRuns')({ runId })
   return result.data
+}
+
+export async function listTransportOrderHistoryPage(orderId, cursor = null) {
+  const constraints = [orderBy('recordedAt', 'desc'), ...(cursor ? [startAfter(cursor)] : []), limit(50)]
+  const snapshot = await getDocs(query(collection(db, TRANSPORT_ORDERS_COLLECTION, orderId, 'history'), ...constraints))
+  return { entries: snapshot.docs.map(mapSnapshot), cursor: snapshot.docs.at(-1) || null, hasMore: snapshot.size === 50 }
 }
