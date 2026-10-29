@@ -887,3 +887,23 @@ wiederholt; Positionszahlen, Stationsmengen und Bearbeiter geprüft. Browserchec
 mit synthetischen Daten in DE/EN und Light/Dark, inklusive expliziter Nullwerte,
 unbekanntem Palettentausch und alten CSV-Aufträgen ohne neue Detailfelder.
 Lint, Build und Shared-Prüfung erfolgreich; bestehende Chunkgrößenwarnung bleibt.
+
+
+## 22. Erneute Dev-Freigabe am 29.10.2026
+
+Der Nutzer hat die Veröffentlichung der erweiterten Partnerdaten und der
+Preis-/Kostenpositionen, Stationsmengen, Palettentauschangaben sowie des
+Bearbeiters ausdrücklich für Dev freigegeben. Die Zurückstellung des
+Rechnungs-/Gutschriftsblocks wegen ungeklärter Belegarten bleibt bestehen.
+Der aktuelle Dev-Postfachstand wurde konfliktfrei übernommen und bleibt erhalten.
+Main und Produktion gehören nicht zum freigegebenen Umfang.
+
+Die Bereitstellung umfasst ausschließlich `fetchDycosTransportOrder` und
+`importTransportOrders` im Firebase-Projekt `db-bpl-drehpunkt-dev` sowie das
+Frontend über den Branch `dev`. Keine Rules-, Index- oder Secret-Änderungen.
+Vor Bereitstellung bestanden Lint, Build, Shared-Prüfung, 37 fokussierte
+Unit-Tests und die vollständige 19-Tests-Emulator-Suite auch nach Zusammenführung
+mit dem aktuellen Dev-Stand. Anschließend erfolgt der Live-Test durch den Nutzer:
+TA erneut abrufen, Partnerergänzungen/Abweichungen und neue Auftragsdetails prüfen.
+Bestehende Aufträge erhalten die zusätzlichen Angaben beim erneuten Abruf;
+eine rückwirkende Massenübernahme ist nicht Teil dieser Veröffentlichung.
