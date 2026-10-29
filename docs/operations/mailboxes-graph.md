@@ -63,7 +63,7 @@ Auftragserstellung und Antwortvorschläge gehören
 nicht zum ersten Umfang. Dafür gibt es keine funktionslosen Aktionsangebote.
 Die vorhandene Power-Automate-Anbindung von `status@` bleibt unabhängig.
 
-Die Anhangsanpassung ist ebenfalls nur lokal vorbereitet. Aktive Dateiformate
+Aktive Dateiformate
 wie HTML/SVG werden nicht als Blob mit Anwendungs-Origin geöffnet, sondern als
 Download behandelt. Ein Vorab-Tab wird während des Klicks erzeugt, ohne Opener,
 und bei Ladefehlern oder einem Nachrichtenwechsel während des Abrufs geschlossen.
@@ -78,7 +78,7 @@ erlaubt aber keine Inspektion von Blob-URLs; die native PDF-Darstellung wurde
 deshalb nicht zusätzlich visuell abgenommen. Acht gezielte Tests prüfen unter
 anderem MIME-Zulassung und die sichere Gruppierung von Inline-Bildern.
 
-## Persönliche Statusübernahme – lokal vorbereitet, nicht veröffentlicht
+## Persönliche Statusübernahme
 
 „Sendungsstatus aktualisieren“ öffnet einen großen Dialog mit Mail links und
 vier aufklappbaren Stationen rechts. Der bisherige Einstieg über zugewiesene
@@ -119,13 +119,14 @@ Beleg auf Basis der Immutable-ID dieser Mail verhindert
 erneute Übernahmen und doppelte Ereignisse. Er enthält keine Mailinhalte.
 Abgeschlossene Sendungsverfolgungen werden nicht wieder geöffnet.
 
-Für einen später ausdrücklich freigegebenen Dev-Release sind die beiden neuen
-Callables und die erweiterte Bereinigung gemeinsam mit dem Client bereitzustellen.
+Der Nutzer hat die Veröffentlichung aller bisherigen Postfachanpassungen in Dev
+am 29.10.2026 ausdrücklich freigegeben. Die beiden neuen Callables und die
+erweiterte Bereinigung werden gemeinsam mit dem Client bereitgestellt.
 Die Vorschau bindet zusätzlich `STATUS_MAIL_OPENAI_API_KEY`; Microsoft-Rechte,
-Rules und bestehende Indizes ändern sich nicht. Es gab keinen Deploy oder Push.
-Die bisherigen lokalen Spaltenanpassungen bleiben Bestandteil des offenen Stands.
+Rules und bestehende Indizes ändern sich nicht. Die festen Spalten und die
+Aktionskarte gehören zu diesem Dev-Release. Produktion bleibt unverändert.
 
-Prüfung: 131 gezielte Tests, der echte Demo-Firestore-Emulatortest, Build, Lint
+Prüfung vor der Dev-Veröffentlichung: 141 gezielte Tests, der echte Demo-Firestore-Emulatortest, Build, Lint
 und Shared-Abgleich erfolgreich. Der Browsercheck mit synthetischen Daten
 prüft Vorschläge, Konfliktlösung, manuelle TA-Eingabe mit falscher/richtiger
 Nummer, bestätigte Übernahme, erhaltene Eingaben nach konkurrierender Änderung,
