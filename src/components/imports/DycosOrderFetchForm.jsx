@@ -12,6 +12,12 @@ const resultMessages = {
 }
 
 const warningMessages = {
+  PARTNER_MASTER_DATA_IDENTITY_MISSING: 'Zusätzliche Partnerdaten konnten ohne eindeutige Kontonummer und Partnerzuordnung nicht übernommen werden.',
+  PARTNER_MULTIPLE_GENERAL_EMAILS: 'Mehrere allgemeine E-Mail-Adressen wurden als Kontakte übernommen. Es wurde keine einzelne Standardadresse ausgewählt.',
+  PARTNER_MASTER_DATA_CONFLICTS: 'Abweichende Stammdaten wurden beibehalten. Die Unterschiede sind im jeweiligen Kunden- oder Unternehmerblatt sichtbar.',
+  PARTNER_MASTER_DATA_PERMISSION_REQUIRED: 'Zusätzliche Stammdaten wurden wegen fehlender Stammdaten-Bearbeitungsrechte nicht übernommen.',
+  PARTNER_CONTACT_DATA_INVALID: 'Einzelne Kontaktangaben aus DyCoS konnten nicht übernommen werden. Bitte die Quelldaten prüfen.',
+  PARTNER_BANK_DATA_INVALID: 'Einzelne Bankangaben aus DyCoS konnten nicht übernommen werden. Bitte die Quelldaten prüfen.',
   SLOT_MIDNIGHT_UNCONFIRMED: 'Eine Bis-Uhrzeit von 00:00 wurde nicht als Zeitfenster übernommen. Bitte die Stationszeiten prüfen.',
   SLOT_OVERNIGHT_UNCONFIRMED: 'Eine Bis-Uhrzeit liegt vor der Von-Uhrzeit. Das Ende des Zeitfensters wurde nicht übernommen; bitte die Stationszeiten prüfen.',
   UNKNOWN_STOP_TYPE: 'Eine Station konnte nicht als Lade- oder Entladestelle eingeordnet werden. Bitte die Stationen prüfen.',
@@ -84,6 +90,7 @@ export default function DycosOrderFetchForm({ disabled = false, onImported, onPe
     {pending && <p className="dycos-order-fetch__message" role="status"><StaticText source="Daten werden abgerufen, geprüft und gespeichert. Dies kann einen Moment dauern." /></p>}
     {error && <p className="form-error" role="alert"><StaticText source={error} /></p>}
     {result && <div className="dycos-order-fetch__result" role="status"><p><strong><StaticText source="TA" /> {result.externalNumber}</strong> · <StaticText source={resultMessages[result.status]} /></p>{canView('transportOrders') && <Link className="button button--secondary" to={transportOrderPath(result.orderId)}><StaticText source="Transportauftrag öffnen" /></Link>}</div>}
+    {result?.partnerUpdates?.enriched > 0 && <p role="status"><StaticText source="Geschäftspartner mit ergänzten Stammdaten:" /> {result.partnerUpdates.enriched}</p>}
     {warnings.length > 0 && <ul className="dycos-order-fetch__warnings" role="status">{warnings.map((message) => <li key={message}><StaticText source={message} /></li>)}</ul>}
   </section>
 }

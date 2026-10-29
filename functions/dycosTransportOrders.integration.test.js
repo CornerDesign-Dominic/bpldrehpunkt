@@ -198,3 +198,86 @@ test('emulator: a late CSV commit cannot overwrite a concurrently completed API 
   assert.equal(result.imported.customer.name, '')
   assert.equal((await database.doc(`businessPartners/dycos-debtor-${debtor}`).get()).exists, false)
 })
+
+test('emulator: rich partner data fills empty fields, preserves manual values and is auditable without leaking into TA snapshots', { skip: !enabled }, async () => {
+  const uid = await user({ dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const creditor = nextAccount()
+  const ref = db().doc(`businessPartners/dycos-creditor-${creditor}`)
+  await ref.set({ id: ref.id, creditorNumber: creditor, companyName: 'Manueller Name', status: 'active', contact: { phone: 'manuell', website: '' }, creditLimit: 9000, contacts: [] })
+  const response = payload(ta, {
+    auftrag: { ID: 123, Nummer: Number(ta), TourenID: 44 }, tour: { ID: 44, UnternehmerID: 55 },
+    unternehmerstamm: { ID: 55, Bezeichnung: 'SQL Name', Kreditorennummer: creditor, Internet: 'www.example.test', USTID: 'DE123', Steuernummer: '123', TimoComNummer: '12345', Ansprechpartner: 'Disposition', TelefonAnsp: '030 123', EMailAnsp: 'person@example.test', Kreditlimit: 100, Transporeon_Kennwort: 'NEVER_COPY', IBAN: 'DE89370400440532013000', SWIFT: 'COBADEFFXXX' },
+    zahlungsbedingungUnternehmer: null,
+  })
+  const deps = dependencies(async () => response)
+  const first = await fetchDycosTransportOrderHandler(req(uid, ta), deps)
+  assert.equal(first.partnerUpdates.enriched, 1)
+  assert.ok(first.warningCodes.includes('PARTNER_MASTER_DATA_CONFLICTS'))
+  const partner = (await ref.get()).data()
+  assert.equal(partner.companyName, 'Manueller Name')
+  assert.equal(partner.contact.phone, 'manuell')
+  assert.equal(partner.contact.website, 'https://www.example.test')
+  assert.equal(partner.creditLimit, 9000)
+  assert.equal(partner.companyData.vatId, 'DE123')
+  assert.equal(partner.bankData.bic, 'COBADEFFXXX')
+  assert.equal(partner.contacts[0].email, 'person@example.test')
+  assert.equal(partner.dycosImport.conflicts[0].path, 'companyName')
+  assert.doesNotMatch(JSON.stringify(partner), /NEVER_COPY/)
+  const order = (await db().doc(`transportOrders/${id(ta)}`).get()).data()
+  assert.doesNotMatch(JSON.stringify(order.imported), /NEVER_COPY|DE89370400440532013000/)
+  const historyBefore = (await ref.collection('history').get()).size
+  const repeat = await fetchDycosTransportOrderHandler(req(uid, ta), deps)
+  assert.equal(repeat.partnerUpdates.enriched, 0)
+  assert.equal((await ref.collection('history').get()).size, historyBefore)
+  assert.equal((await ref.get()).get('contacts').length, partner.contacts.length)
+})
+
+test('emulator: brand new partner gets complete mapped data in the same transaction; missing master-data permission does not enrich', { skip: !enabled }, async () => {
+  const debtor = nextAccount(); const ta = nextTa()
+  const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), FrachtzahlerID: 33 }, kunde: { ID: 33, Firma: 'Kunde', Debitorennummer: debtor, TelefonZentrale: '040 123', EMailZentrale: 'office@example.test', USTID: 'DE999', Erfassungsdatum: '2020-01-01T00:00:00Z', KundeSchicktGutschrift: true } })
+  const uid = await user({ dataImports: 'edit', masterData: 'edit' })
+  await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
+  const partner = (await db().doc(`businessPartners/dycos-debtor-${debtor}`).get()).data()
+  assert.equal(partner.contact.phone, '040 123')
+  assert.equal(partner.contact.email, 'office@example.test')
+  assert.equal(partner.contact.fax, '')
+  assert.equal(partner.companyData.vatId, 'DE999')
+  assert.equal(partner.companyData.taxNumber, '')
+  assert.equal(partner.dycosCreatedAt, '2020-01-01')
+  assert.equal(partner.creditNoteProcedure, true)
+  const limited = await user({ dataImports: 'edit', masterData: 'view' }); const otherTa = nextTa(); const otherDebtor = nextAccount()
+  const other = { ...response, auftrag: { ...response.auftrag, Nummer: Number(otherTa) }, kunde: { ...response.kunde, Debitorennummer: otherDebtor } }
+  const result = await fetchDycosTransportOrderHandler(req(limited, otherTa), dependencies(async () => other))
+  const minimal = (await db().doc(`businessPartners/dycos-debtor-${otherDebtor}`).get()).data()
+  assert.equal(minimal.companyData.vatId, '')
+  assert.equal(minimal.contact.phone, '')
+  assert.equal(minimal.dycosImport, undefined)
+  assert.ok(result.warningCodes.includes('PARTNER_MASTER_DATA_PERMISSION_REQUIRED'))
+})
+
+test('emulator: conflicting customer/carrier data on a shared partner is not resolved by write order', { skip: !enabled }, async () => {
+  const uid = await user({ dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const debtor = nextAccount(); const creditor = nextAccount()
+  const ref = db().collection('businessPartners').doc()
+  await ref.set({ id: ref.id, companyName: 'Gemeinsamer Partner', debtorNumber: debtor, creditorNumber: creditor, contacts: [] })
+  const response = payload(ta, {
+    auftrag: { ID: 123, Nummer: Number(ta), FrachtzahlerID: 33, TourenID: 44 }, kunde: { ID: 33, Firma: 'Gemeinsamer Partner', Debitorennummer: debtor, Zahlungsbedingung: 1, USTID: 'DE123' },
+    tour: { ID: 44, UnternehmerID: 55 }, unternehmerstamm: { ID: 55, Bezeichnung: 'Gemeinsamer Partner', Kreditorennummer: creditor, Zahlungsbedingung: 2, USTID: 'DE123' },
+    zahlungsbedingungKunde: { ID: 1, Bezeichnung: '14 Tage netto' }, zahlungsbedingungUnternehmer: { ID: 2, Bezeichnung: '30 Tage netto' },
+  })
+  const result = await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
+  const partner = (await ref.get()).data()
+  assert.equal(partner.paymentTermDays, undefined)
+  assert.equal(partner.companyData.vatId, 'DE123')
+  assert.equal(result.partnerUpdates.enriched, 1)
+  assert.equal(result.partnerUpdates.conflicts, 1)
+  assert.equal(partner.dycosImport.conflicts[0].path, 'paymentTermDays')
+})
+
+test('emulator: optional partner data without an account identity does not create an unlinked placeholder or block the TA', { skip: !enabled }, async () => {
+  const uid = await user({ dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const name = `Ohne Kontonummer ${randomUUID()}`
+  const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), FrachtzahlerID: 33 }, kunde: { ID: 33, Firma: name, USTID: 'DE777' } })
+  const result = await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
+  assert.equal(result.status, 'new')
+  assert.ok(result.warningCodes.includes('PARTNER_MASTER_DATA_IDENTITY_MISSING'))
+  assert.equal((await db().doc(`transportOrders/${id(ta)}`).get()).get('imported.customer.partnerId'), '')
+  assert.equal((await db().collection('businessPartners').where('companyName', '==', name).get()).empty, true)
+})

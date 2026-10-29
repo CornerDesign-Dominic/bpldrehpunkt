@@ -77,6 +77,11 @@ Die Callables verlangen `enforceAppCheck: true`. Der datierte Quellcode-/Live-Ab
   `transportOrders: view`. `dycosImportRequests`, `dycosImportLocks` und
   `dycosImportQuotas` bleiben durch die standardmäßig verweigernden Rules
   ausschließlich serverseitig; keine neue Browser-Schreibfreigabe.
+  Die erweiterte Partnerergänzung innerhalb dieses Abrufs verlangt zusätzlich
+  `masterData: edit`. Ohne dieses Recht bleibt der TA-Abruf mit seiner bisherigen
+  minimalen Partneranlage möglich; zusätzliche Stammdaten werden mit sichtbarem
+  Hinweis ausgelassen. Ergänzungen und Konfliktmetadaten liegen beim Partner,
+  nicht im allgemeinen TA-Snapshot oder in technischen Diagnosemeldungen.
 - `partnerMergeOperations` ist einschließlich Untercollections für direkte Browserzugriffe gesperrt. Zusammenführung und Trennung erfolgen serverseitig. Fachobjekte behalten ihre ursprünglichen Partner-IDs; die aktuelle Identität wird über den Partnercluster aufgelöst.
 - `transportOrderTrackings` und `events` sind für Auftragsleser lesbar; Änderungen und Historieneinträge erfolgen ausschließlich serverseitig. Interne Versand-/Automationsdaten haben keine allgemeine Browserfreigabe.
 - `transportOrderRoutes` und `calculations` sind für Auftragsleser lesbar und nur serverseitig schreibbar. TomTom-Cache und Nutzungsdaten sind direkt gesperrt; administrative Verbrauchsübersichten stammen aus Callables.

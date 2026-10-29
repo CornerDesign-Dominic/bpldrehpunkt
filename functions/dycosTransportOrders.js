@@ -5,6 +5,7 @@ import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { fetchDycosFlowOrder } from './dycosFlowClient.js'
 import { mapDycosOrder, preserveDycosUnmappedFields } from './dycosOrderMapping.js'
+import { mapDycosPartnerData, hasDycosMasterDataAccess, dycosPartnerAdditions, combineDycosPartnerSources, dycosPartnerReviewFingerprint } from './dycosPartnerData.js'
 import { customerPartnerPayload, carrierPartnerPayload, importPartnerId } from './transportOrderImports.js'
 import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
@@ -112,7 +113,7 @@ async function releaseClaim(db, claim, token) {
   })
 }
 
-export async function saveDycosTransportOrder({ db, request, profile, data, imported, claim, token, nowMs = Date.now() }) {
+export async function saveDycosTransportOrder({ db, request, profile, data, imported, partnerData = {}, claim, token, nowMs = Date.now() }) {
   const runRef = db.collection('transportOrderImportRuns').doc()
   const rowRef = runRef.collection('rows').doc('request')
   const now = FieldValue.serverTimestamp()
@@ -135,6 +136,38 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     const row = { externalNumber: data.taNummer, imported }
     const customerPlan = planPartner(row, 'debtor', customer, runRef.id, now, ruleCatalog)
     const carrierPlan = planPartner(row, 'creditor', carrier, runRef.id, now, ruleCatalog)
+    const partnerUpdates = new Map()
+    const partnerWarningCodes = new Set()
+    if (!hasDycosMasterDataAccess(profile) && (imported.source.customerId || imported.source.carrierId)) partnerWarningCodes.add('PARTNER_MASTER_DATA_PERMISSION_REQUIRED')
+    for (const [kind, plan] of [['customer', customerPlan], ['carrier', carrierPlan]]) {
+      const incoming = partnerData[kind]
+      if (!incoming) continue
+      if (!plan.partner) { partnerWarningCodes.add('PARTNER_MASTER_DATA_IDENTITY_MISSING'); continue }
+      if (!hasDycosMasterDataAccess(profile)) { partnerWarningCodes.add('PARTNER_MASTER_DATA_PERMISSION_REQUIRED'); continue }
+      const entry = partnerUpdates.get(plan.partner.id) || { plan, sources: [] }
+      entry.sources.push(incoming)
+      incoming.warningCodes.forEach((code) => partnerWarningCodes.add(code))
+      partnerUpdates.set(plan.partner.id, entry)
+    }
+    let enrichedPartners = 0; let partnerConflictCount = 0
+    for (const entry of partnerUpdates.values()) {
+      const combined = combineDycosPartnerSources(entry.sources)
+      const additions = dycosPartnerAdditions(entry.plan.create ? {} : entry.plan.partner, combined.fields)
+      entry.additions = additions
+      entry.conflicts = [...combined.conflicts, ...additions.conflicts]
+      entry.fingerprint = dycosPartnerReviewFingerprint(entry.conflicts)
+      entry.reviewChanged = entry.plan.partner.dycosImport?.conflictFingerprint !== entry.fingerprint
+      if (additions.changedFields.length) enrichedPartners++
+      partnerConflictCount += entry.conflicts.length
+      if (entry.plan.create) {
+        // Newly created base payloads contain operational defaults, but no
+        // authoritative source master data. Populate mapped fields directly.
+        for (const [field, value] of Object.entries(entry.additions.patch)) entry.plan.partner[field] = value && typeof value === 'object' && !Array.isArray(value) ? { ...(entry.plan.partner[field] || {}), ...value } : value
+      }
+      entry.metadata = { source: 'dycos-api', sourceReferences: entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId })), lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, addedFields: entry.additions.changedFields }
+      if (entry.plan.create) entry.plan.partner.dycosImport = entry.metadata
+    }
+    if (partnerConflictCount) partnerWarningCodes.add('PARTNER_MASTER_DATA_CONFLICTS')
     const next = { ...imported, customer: linkPartner(imported.customer, customerPlan), carrier: linkPartner(imported.carrier, carrierPlan) }
     // Link creation status is not a business-data change on repeat imports.
     if (previous?.carrier?.partnerId === next.carrier.partnerId && previous?.carrier?.matchStatus) next.carrier.matchStatus = previous.carrier.matchStatus
@@ -145,7 +178,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     const linkedIdsUnchanged = previous?.customer?.partnerId === next.customer.partnerId && previous?.carrier?.partnerId === next.carrier.partnerId
     const status = !order.exists ? 'new' : transportOrderImportFingerprint(previous) === transportOrderImportFingerprint(next) && linkedIdsUnchanged ? 'unchanged' : 'updated'
     const counts = { Neu: status === 'new' ? 1 : 0, Aktualisiert: status === 'updated' ? 1 : 0, Unverändert: status === 'unchanged' ? 1 : 0, 'Prüfung erforderlich': 0, Fehlerhaft: 0 }
-    const result = { status, orderId: claim.orderRef.id, externalNumber: data.taNummer, requestId: data.requestId, runId: runRef.id, warningCodes: imported.source.warningCodes }
+    const result = { status, orderId: claim.orderRef.id, externalNumber: data.taNummer, requestId: data.requestId, runId: runRef.id, warningCodes: [...new Set([...imported.source.warningCodes, ...partnerWarningCodes])], partnerUpdates: { enriched: enrichedPartners, conflicts: partnerConflictCount } }
     const patch = { externalNumber: data.taNummer, source: 'dycos', imported: next, importedFingerprint: transportOrderImportFingerprint(next), importMeta: { ...(order.get('importMeta') || {}), source: 'dycos', channel: 'power-automate', importRunId: runRef.id, requestId: data.requestId, preservedLegacyFields: preserved.preservedPaths, ...(order.exists ? {} : { importedAt: now }), lastImportedAt: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) }
     delete patch.importMeta.fileName
     if (changes.some((change) => change.routeRelevant)) Object.assign(patch, { routeNeedsRecalculation: true, routeNeedsRecalculationAt: now })
@@ -153,6 +186,20 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
       const partnerRef = db.doc(`businessPartners/${plan.partner.id}`)
       transaction.create(partnerRef, plan.partner)
       transaction.create(partnerRef.collection('history').doc(), { category: 'import', action: 'created', summary: 'Aus DyCoS-Abruf erstellt', source: 'dycosTransportOrder', channel: 'power-automate', transportOrderNumber: data.taNummer, importRunId: runRef.id, createdAt: now })
+    }
+    for (const [partnerId, entry] of partnerUpdates) {
+      const partnerRef = db.doc(`businessPartners/${partnerId}`)
+      const update = { dycosImport: entry.metadata }
+      if (!entry.plan.create) {
+        for (const [field, value] of Object.entries(entry.additions.patch)) update[field] = value && typeof value === 'object' && !Array.isArray(value) ? { ...(entry.plan.partner[field] || {}), ...value } : value
+      }
+      if (entry.additions.changedFields.length) update.updatedAt = now
+      if (!entry.plan.create) transaction.update(partnerRef, update)
+      if (entry.additions.changedFields.length || entry.reviewChanged && entry.conflicts.length) transaction.create(partnerRef.collection('history').doc(), {
+        category: 'masterData', action: 'updated', summary: entry.conflicts.length ? 'DyCoS-Stammdaten geprüft; abweichende Werte bleiben erhalten' : 'Leere Stammdaten aus DyCoS ergänzt',
+        metadata: { addedFields: entry.additions.changedFields, conflictFields: entry.conflicts.map((conflict) => conflict.path), importRunId: runRef.id },
+        source: 'dycos-api', createdAt: now, createdByUserId: request.auth.uid, createdByName: actorName(profile),
+      })
     }
     if (order.exists) transaction.update(claim.orderRef, patch)
     else transaction.create(claim.orderRef, { id: claim.orderRef.id, ...patch, manual: {}, tracking: {}, createdAt: now, createdBy: request.auth.uid, createdByName: actorName(profile) })
@@ -178,8 +225,9 @@ export async function fetchDycosTransportOrderHandler(request, { db = getFiresto
     const payload = await fetchOrder(data.taNummer)
     stage = 'mapping'
     const imported = mapDycosOrder(payload, data.taNummer)
+    const partnerData = hasDycosMasterDataAccess(profile) ? mapDycosPartnerData(payload) : {}
     stage = 'save'
-    return await saveDycosTransportOrder({ db, request, profile, data, imported, claim, token })
+    return await saveDycosTransportOrder({ db, request, profile, data, imported, partnerData, claim, token })
   } catch (error) {
     if (error instanceof HttpsError) throw error
     if (error?.code === 'ta_not_found') throw new HttpsError('not-found', 'Die TA-Nummer wurde in DyCoS nicht gefunden.', { sourceCode: 'TA_NOT_FOUND', requestId: data.requestId })

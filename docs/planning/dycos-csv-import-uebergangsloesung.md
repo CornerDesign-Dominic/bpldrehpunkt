@@ -761,3 +761,84 @@ durch bewusst nicht mit veröffentlichte Kalender-/Fall-Diagnoseänderungen.
 Die anschließende Browserabnahme wird gegen
 `https://dev.drehpunktlogistik.de/transportauftraege/import` durchgeführt;
 ein erfolgreicher Backend-Deploy allein gilt nicht als Frontend-/Benutzerabnahme.
+
+Die Abnahme des bereits veröffentlichten TA-Abrufs auf Commit `650f70e` ist
+erfolgt: Neuanlage, unveränderter Wiederholungsabruf, Öffnen/Neuladen, Nichttreffer,
+fehlende Stationen/Preise/Unternehmer und Diagnosefilter wurden auf Dev geprüft.
+Die nachfolgende Stammdatenergänzung aus Abschnitt 20 gehört noch nicht zu
+diesem veröffentlichten Stand.
+
+## 20. Erweiterte Kunden-/Unternehmerdaten aus dem TA-Abruf
+
+Stand **29.10.2026**: lokal implementiert, noch nicht auf Dev bereitgestellt.
+Der Nutzer bestätigt: **leere Felder ergänzen, Abweichungen melden**. Das
+**Kreditlimit bleibt ausschließlich in Drehpunkt gepflegt**; DyCoS überschreibt
+es nicht und füllt auch ein leeres Kreditlimit nicht.
+
+`dycosPartnerData.js` bildet ausschließlich freigegebene fachliche Felder auf
+das vorhandene Partner-Modell ab. Die Partneridentität und die fünf noch offenen
+TA-Kontakt-/Referenzzuordnungen aus Abschnitt 18 bleiben davon getrennt.
+
+| Ziel | Verwendete Quelle |
+| --- | --- |
+| Firma und Anschrift | `Firma`/`Bezeichnung`, `Strasse`, `PLZ`, `Ort`, `Land` |
+| Allgemeiner Kundenkontakt | `TelefonZentrale`, `FaxZentrale`, `EMailZentrale` |
+| Website | `Internet`; E-Mail-Inhalt wird als Kontakt behandelt, nicht als Website |
+| USt-ID / Steuernummer | `USTID`, `Steuernummer` |
+| Zahlungsziel | Vollständige `Zahlungsbedingungen.Bezeichnung`, keine erfundene Tageszahl |
+| Kundenseitiges Gutschriftverfahren | Explizites Boolean `KundeSchicktGutschrift`; keine entsprechende Unternehmerregel erfunden |
+| TimoCom | `TimoComNummer`; Nullnummern nicht als echte Referenz übernehmen |
+| Erfasst am | `Erfassungsdatum`; technische 1899-/1900-Daten bleiben leer |
+| Bankdaten | `IBAN`, `SWIFT` → BIC, Prüfdatum nur mit gesetztem `IBANgeprueft`; keine eigene Bankprüfung behaupten |
+| Ansprechpartner | Gleich benannte Gruppen aus Name, Abteilung, Telefon und `EMailAnsp...`; mehrere Adressen werden getrennt und nach E-Mail dedupliziert |
+
+`Ansp1Mail` usw. sind Ja/Nein-Felder, keine E-Mail-Adressen. Die separate
+Mobilnummernfamilie `Ansp...HandyKD/UTN` bleibt als eigenständiger Kontaktweg
+erhalten; ohne bestätigte Zuordnung zu den Namens-/E-Mail-Indizes wird sie nicht
+willkürlich einer Person angehängt. Nichtleere Abteilungen bleiben als
+„Sonstiges“ mit Originaltext erhalten. Ein neu erzeugter Kontakt besitzt eine
+stabile, nach Quelle und E-Mail getrennte ID. Vorhandene Kontakt-IDs bleiben
+bei E-Mail-Treffern erhalten; manuelle Werte werden nicht überschrieben.
+
+Keine automatische Auswahl einer Standardadresse aus mehreren Kontakten.
+Eine einzelne `EMailZentrale` ist die allgemeine Firmenadresse im Stammdatenblatt,
+nicht automatisch die noch ungeklärte TA-Standardadresse. Mehrere zentrale
+Adressen werden als Kontakte gespeichert und sichtbar erklärt. Ungültige
+Kontakt-/Bankformate werden nicht still übernommen, sondern als begrenzte
+Warncodes zurückgemeldet. Freitext-`Infos`, Portalpasswörter und andere
+Zugangsspalten werden nicht pauschal kopiert. Handelsregister, Registergericht,
+Trans.eu/DPL/PAKI und Sprache werden ohne eindeutig zuordenbare Quelle nicht
+erfunden; eine `SprachenID` ist keine bestätigte Sprache.
+
+Zusätzliche Stammdaten erfordern neben dem TA-Importrecht `masterData: edit`
+oder Superadmin. Ohne dieses Recht bleibt der bisherige TA-Import möglich,
+die erweiterte Übernahme wird sichtbar ausgelassen. Fehlende Kontonummer oder
+Partnerzuordnung erzeugt ebenfalls einen Hinweis, keinen leeren Ersatzpartner.
+
+Alle Ergänzungen erfolgen in derselben Transaktion wie TA und Importlauf.
+Bestehende Werte einschließlich Boolean `false` gelten als befüllt. Bei
+widersprechenden Kunden-/Unternehmerwerten desselben Partners wird kein Wert
+nach zufälliger Schreibreihenfolge ausgewählt. Unter `dycosImport` bleiben
+Quellreferenzen mit Entität/SQL-ID, Zeitpunkt, Akteur, ergänzte Feldpfade und
+Konflikte nachvollziehbar. Stammdaten-Historien verwenden die vorhandenen
+Benutzer-/Zeitfelder; unveränderte Wiederholungen erzeugen keine identischen
+Konflikthistorien. Neue Partner erhalten die vollständige zugeordnete Erstausstattung,
+statt technische Leer-Defaults als bereits manuell gepflegte Werte zu behandeln.
+
+Der TA-Abruf meldet ergänzte Partner und verbleibende Konflikte separat vom
+TA-Änderungsstatus. Das Stammdatenblatt zeigt aktuelle Werte und abweichende
+DyCoS-Werte zum Vergleich; nach manueller Angleichung verschwinden erledigte
+Abweichungen aus der Anzeige. Ein erneuter TA-Abruf aktualisiert den Vergleich.
+Bank-/Erfassungsangaben sind als weitere importierte Daten sichtbar, ohne
+zusätzliche allgemeine TA-Leserechte auf diese Werte auszuweiten.
+
+Prüfung: gezielte Unit- und Firestore-Emulatortests für Ergänzung, Rechte,
+manuelle Werte, gleiche Kontaktadresse, Wiederholung, Kreditlimit-Ausschluss,
+neue Partner und widersprüchliche Doppelrollen. Alle 13 bereitgestellten
+Originalexporte wurden lokal gemappt, gespeichert und erneut unverändert
+importiert; keine SQL-/Cloud-Schreibaufrufe für diese Prüfung. Browserprüfung
+mit synthetischen Daten: DE/EN, Light/Dark und erledigte Konflikte. Abschließend
+33 fokussierte Unit-Tests sowie die 18-Tests-Emulator-Suite bestanden. Lint,
+Build und Shared-Prüfung sind erfolgreich; die vorhandene Chunkgrößenwarnung
+bleibt bestehen. Keine neue Cloud-Bereitstellung oder Dev-/Main-Veröffentlichung
+für diese Erweiterung durchgeführt.

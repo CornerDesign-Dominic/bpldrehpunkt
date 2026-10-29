@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
 import BusinessPartnerHeader from '../components/business-partners/BusinessPartnerHeader.jsx'
+import DycosPartnerDataNotice from '../components/business-partners/DycosPartnerDataNotice.jsx'
 import ManualPartnerMergeFlow from '../components/business-partners/ManualPartnerMergeFlow.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import BackLink from '../components/ui/BackLink.jsx'
@@ -163,6 +164,7 @@ export default function BusinessPartnerFormPage({ mode }) {
       {archived && <aside className="partner-archive-notice"><strong><StaticText source={"Archiviertes Stammdatenblatt"} /></strong><p><StaticText source={"Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten."} /></p><Link to={businessPartnerDetailPath(shownPartner.mergedIntoPartnerId)}><StaticText source={"Aktiven Zielpartner öffnen"} /></Link></aside>}
       {!archived && <MissingCreditorNumberNotice notice={missingCreditorNumberNotice} />}
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={!archived && canView('crm')} canViewPallets={!archived && canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
+      {!isNew && canView('masterData') && <DycosPartnerDataNotice partner={shownPartner} />}
       {error && <p className="form-error">{<StaticText source={error} />}</p>}
       <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
       {mergeDirection && <ManualPartnerMergeFlow currentPartnerId={partnerId} direction={mergeDirection} onClose={() => setMergeDirection('')} onMerged={handleManualMerge} />}
