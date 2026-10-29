@@ -2359,3 +2359,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 
 .dycos-order-fetch__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 14px; }.dycos-order-fetch__form .form-field { flex: 0 1 280px; min-width: 180px; }.dycos-order-fetch__form input { width: 100%; box-sizing: border-box; }.dycos-order-fetch__message { margin: 12px 0 0; color: var(--text-secondary); font-size: 12px; }.dycos-order-fetch__result { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--status-success-text); background: var(--status-success-background); }.dycos-order-fetch__result p { margin: 0; font-size: 13px; }
 .dycos-order-fetch__warnings { display: grid; gap: 5px; margin: 12px 0 0; padding: 12px 12px 12px 28px; border: 1px solid var(--border); border-radius: 6px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 12px; line-height: 1.45; }
+
+.transport-order-imported-table { max-width: 100%; overflow-x: auto; }
+.transport-order-imported-table .data-table { min-width: 620px; }
+.transport-order-imported-table td { overflow-wrap: anywhere; }

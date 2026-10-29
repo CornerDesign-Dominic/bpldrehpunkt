@@ -40,3 +40,15 @@ test('carrier address-only source changes affect status fingerprint and each his
   assert.notEqual(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
   assert.deepEqual(transportOrderImportChanges(before, after).map((change) => change.path), ['carrier.snapshot.street', 'carrier.snapshot.postalCode', 'carrier.snapshot.city', 'carrier.snapshot.country'])
 })
+
+test('cargo, pallets and line items change the import history without invalidating routes or schedules', () => {
+  const before = imported({ stops: [{ sourceId: '1', cargo: { weightKg: 100 }, palletExchange: false }] })
+  const after = structuredClone(before)
+  after.stops[0].cargo.weightKg = 200
+  after.stops[0].palletExchange = true
+  after.financial.costPositions = [{ id: 'cost-1', amountNet: 50 }]
+  assert.notEqual(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
+  const changes = transportOrderImportChanges(before, after)
+  assert.deepEqual(changes.map((change) => change.path), ['financial.costPositions', 'stops'])
+  assert.equal(changes.some((change) => change.routeRelevant || change.scheduleRelevant), false)
+})

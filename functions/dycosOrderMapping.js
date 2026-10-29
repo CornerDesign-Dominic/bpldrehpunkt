@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
 
 // The source connector returns entire SQL rows. Only explicitly selected business
 // fields may cross this boundary; raw partner rows contain credentials and bank data.
@@ -35,6 +36,16 @@ export function preserveDycosUnmappedFields(previous, next) {
       if (value.length > 4000) fail(path)
       imported[section][key] = value
       preservedPaths.push(path)
+    }
+  }
+  // CSV quantities are order totals, not quantities of a particular station.
+  // Preserve an existing total only when the new source provides no value.
+  // An explicitly supplied zero remains a real source value.
+  for (const field of ['weightKg', 'packages', 'loadingMeters']) {
+    const value = previous?.shipment?.[field]
+    if (imported.shipment?.[field] === null && typeof value === 'number' && Number.isFinite(value)) {
+      imported.shipment[field] = value
+      preservedPaths.push(`shipment.${field}`)
     }
   }
   return { imported, preservedPaths }
@@ -141,6 +152,42 @@ function plate(...values) {
   return parts.filter((part, index) => !parts.slice(0, index).some((previous) => previous.localeCompare(part, 'de', { sensitivity: 'accent' }) === 0)).join(' / ') || null
 }
 
+function sourceBoolean(value, field) {
+  if (missing(value)) return null
+  if (typeof value === 'boolean') return value
+  if (value === 0 || value === 1) return value === 1
+  fail(field)
+}
+
+function pricePositions(rows, field) {
+  const positions = rows.map((row) => ({
+    sourceCounter: sourceId(row.Zaehler, `${field}.Zaehler`),
+    sequence: sourceNumber(row.AuftragPos ?? row.TourenPos, `${field}.sequence`, { integer: true, positive: true }),
+    serviceId: sourceId(row.LeistungID, `${field}.LeistungID`),
+    stationSourceId: sourceId(row.LadeEntladestellenID, `${field}.LadeEntladestellenID`),
+    description: sourceText(row.LeistungText, `${field}.LeistungText`),
+    quantity: sourceNumber(row.Menge, `${field}.Menge`),
+    unit: sourceText(row.Einheit, `${field}.Einheit`),
+    unitPriceNet: sourceNumber(row.Preis, `${field}.Preis`, { fallback: 0 }),
+    amountNet: sourceNumber(row.Gesamt, `${field}.Gesamt`, { fallback: 0 }),
+    currency: 'EUR',
+    // Technical references only. Document types/issuers remain unclassified
+    // until the meaning of the DyCoS document codes has been confirmed.
+    documentSourceId: sourceId(row.RechKopfID, `${field}.RechKopfID`),
+    documentLineSourceId: sourceId(row.FakturaPosID, `${field}.FakturaPosID`),
+  }))
+  // SQL connector IDs change on each request. Use business fields and preserve
+  // duplicate positions rather than treating two identical charges as one.
+  positions.sort((left, right) => (left.sequence ?? -1) - (right.sequence ?? -1) || JSON.stringify(left).localeCompare(JSON.stringify(right), 'en'))
+  const duplicates = new Map()
+  return positions.map((position) => {
+    const fingerprint = createHash('sha256').update(JSON.stringify(position)).digest('hex').slice(0, 24)
+    const occurrence = (duplicates.get(fingerprint) || 0) + 1
+    duplicates.set(fingerprint, occurrence)
+    return { id: `${field}-${fingerprint}-${occurrence}`, ...position }
+  })
+}
+
 export function mapDycosOrder(payload, requestedTa) {
   if (typeof requestedTa !== 'string' || !/^\d{1,120}$/.test(requestedTa)) fail('taNummer')
   if (!plainObject(payload)) fail('Antwort')
@@ -193,6 +240,12 @@ export function mapDycosOrder(payload, requestedTa) {
       note: sourceText(row.Bemerkung, 'ladeEntladestellen.Bemerkung'),
       deliveryInformation: sourceText(row.Zustellinformation, 'ladeEntladestellen.Zustellinformation'),
       deliveryNoteNumber: sourceText(row.LieferscheinNr, 'ladeEntladestellen.LieferscheinNr'),
+      cargo: {
+        weightKg: sourceNumber(row.Gewicht, 'ladeEntladestellen.Gewicht', { positive: true }),
+        packages: sourceNumber(row.Kolli, 'ladeEntladestellen.Kolli', { integer: true, positive: true }),
+        loadingMeters: sourceNumber(row.Lademeter, 'ladeEntladestellen.Lademeter', { positive: true }),
+      },
+      palletExchange: sourceBoolean(row.Palettentausch, 'ladeEntladestellen.Palettentausch'),
     }
   }).sort((left, right) => (left.sequence ?? -1) - (right.sequence ?? -1) || Number(left.sourceId) - Number(right.sourceId))
   for (const id of slots.keys()) if (!stopIds.has(id)) fail('LadeEntladestellen2.LadeEntladestellenID')
@@ -213,6 +266,8 @@ export function mapDycosOrder(payload, requestedTa) {
   }
   const revenueNet = sum(payload.auftragspreise, 'auftragspreise')
   const costNet = sum(payload.tourkosten, 'tourkosten', false)
+  const revenuePositions = pricePositions(payload.auftragspreise, 'revenue')
+  const costPositions = pricePositions(payload.tourkosten.filter((row) => sourceId(row.AuftragID, 'tourkosten.AuftragID') === orderId), 'cost')
   for (const row of payload.fakturaZeilen) if (sourceId(row.AuftragID, 'fakturaZeilen.AuftragID', true) !== orderId) fail('fakturaZeilen.AuftragID')
   const customerAddress = address(payload.kunde, 'kunde')
   const carrierAddress = address(payload.unternehmerstamm, 'unternehmerstamm')
@@ -226,13 +281,13 @@ export function mapDycosOrder(payload, requestedTa) {
     carrier: { originalName: sourceText(payload.unternehmerstamm?.Bezeichnung, 'unternehmerstamm.Bezeichnung') || '', creditorNumber: businessNumber(payload.unternehmerstamm?.Kreditorennummer, 'unternehmerstamm.Kreditorennummer'), snapshot: carrierAddress, matchStatus: 'pending' },
     loading: stopView(stops.find((stop) => stop.type === 'loading')),
     unloading: stopView(stops.filter((stop) => stop.type === 'unloading').at(-1)),
-    financial: { revenueNet, costNet },
+    financial: { revenueNet, costNet, currency: 'EUR', revenuePositions, costPositions },
     shipment: { licensePlate: plate(payload.tour?.LKWNummer, payload.tour?.Trailer), weightKg: sourceNumber(order.Gewicht, 'auftrag.Gewicht', { positive: true }), loadingMeters: sourceNumber(order.Lademeter, 'auftrag.Lademeter', { positive: true }), packages: sourceNumber(order.AnzahlKolli, 'auftrag.AnzahlKolli', { integer: true, positive: true }), vehicleType: sourceText(payload.fahrzeugart?.Bezeichnung, 'fahrzeugart.Bezeichnung') },
     // Standard-address selection and Info-1 equivalence have not been confirmed.
     contacts: { carrierForOrder: null, carrierStandardEmail: null, customerForOrder: sourceText(order.ImAuftrag, 'auftrag.ImAuftrag'), customerStandardEmail: null },
     dispatch: { sentAt: plannedDate(payload.tour?.TAPerMailDatum, 'tour.TAPerMailDatum'), sentTo: sourceText(payload.tour?.TAPerMailVersendetAn, 'tour.TAPerMailVersendetAn') },
     stops,
-    source: { system: 'dycos', schemaVersion: 1, orderId, tourId, customerId, carrierId, warningCodes: [...warnings].sort() },
+    source: { system: 'dycos', schemaVersion: 2, orderId, tourId, customerId, carrierId, createdBy: sourceText(order.BearbeiterErfassung, 'auftrag.BearbeiterErfassung'), warningCodes: [...warnings].sort() },
   }
   if (Buffer.byteLength(JSON.stringify(imported), 'utf8') > 256 * 1024) fail('Antwortumfang')
   return imported

@@ -42,7 +42,7 @@ test('a valid TA needs no business data and missing prices are numeric zero', ()
   assert.equal(result.externalNumber, '260000001')
   assert.equal(result.customer.name, '')
   assert.equal(result.carrier.originalName, '')
-  assert.deepEqual(result.financial, { revenueNet: 0, costNet: 0 })
+  assert.deepEqual(result.financial, { revenueNet: 0, costNet: 0, currency: 'EUR', revenuePositions: [], costPositions: [] })
   assert.deepEqual(result.stops, [])
   assert.deepEqual(result.loading.window, { from: null, until: null })
   assert.equal(result.source.orderId, '71')
@@ -94,7 +94,10 @@ test('unconfirmed midnight and overnight slot semantics retain raw clock with ex
 
 test('sums source Gesamt positions and excludes unrelated or unassigned tour costs', () => {
   const result = map(sample())
-  assert.deepEqual(result.financial, { revenueNet: 102.3, costNet: 80.5 })
+  assert.equal(result.financial.revenueNet, 102.3)
+  assert.equal(result.financial.costNet, 80.5)
+  assert.equal(result.financial.revenuePositions.length, 2)
+  assert.equal(result.financial.costPositions.length, 1)
   assert.ok(result.source.warningCodes.includes('TOUR_COSTS_NOT_ASSIGNED_TO_ORDER'))
 })
 
@@ -161,4 +164,60 @@ test('preserves only explicitly unmapped CSV fields while updating actual API da
 test('TA zero remains a valid requested identity if the response matches', () => {
   const data = emptyOrder(); data.auftrag.Nummer = 0
   assert.equal(mapDycosOrder(data, '0').externalNumber, '0')
+})
+
+test('line items retain source totals, duplicates and stable IDs without connector metadata or foreign tour costs', () => {
+  const data = sample()
+  const line = { AuftragID: 71, AuftragPos: 2, LeistungText: 'Fracht', Menge: '2,5', Einheit: 'km', Preis: '10,00', Gesamt: '24,00', RechKopfID: 90, FakturaPosID: 91, ItemInternalId: 'volatile' }
+  data.auftragspreise = [line, { ...line }, { AuftragID: 71, AuftragPos: 1, Gesamt: null }]
+  const result = map(data)
+  const positions = result.financial.revenuePositions
+  assert.equal(result.financial.revenueNet, 48)
+  assert.equal(positions[0].unitPriceNet, 0)
+  assert.equal(positions[0].amountNet, 0)
+  assert.equal(positions[0].quantity, null)
+  assert.equal(positions[1].quantity, 2.5)
+  assert.equal(positions[1].unitPriceNet, 10)
+  assert.equal(positions[1].amountNet, 24)
+  assert.equal(positions[1].documentSourceId, '90')
+  assert.equal(new Set(positions.map((entry) => entry.id)).size, 3)
+  assert.equal(JSON.stringify(positions).includes('volatile'), false)
+  data.auftragspreise.reverse().forEach((entry) => { entry.ItemInternalId = 'another-request' })
+  assert.deepEqual(map(data).financial.revenuePositions, positions)
+  assert.equal(result.financial.costPositions.length, 1)
+  assert.equal(result.financial.costPositions[0].amountNet, 80.5)
+})
+
+test('station cargo remains per station, pallet exchange is tri-state and creator stays a source code', () => {
+  const data = sample()
+  data.auftrag.BearbeiterErfassung = ' AW '
+  Object.assign(data.ladeEntladestellen[1], { Gewicht: '1.600,00', Kolli: '9', Lademeter: '6,5', Palettentausch: true })
+  data.ladeEntladestellen[0].Palettentausch = false
+  const result = map(data)
+  assert.deepEqual(result.stops[0].cargo, { weightKg: 1600, packages: 9, loadingMeters: 6.5 })
+  assert.equal(result.stops[0].palletExchange, true)
+  assert.equal(result.stops[1].palletExchange, null)
+  assert.equal(result.stops[2].palletExchange, false)
+  assert.equal(result.source.createdBy, 'AW')
+  assert.equal(result.shipment.weightKg, 24000.5)
+  for (const invalid of [{ Kolli: '1,5' }, { Gewicht: -1 }, { Palettentausch: 'maybe' }]) {
+    const invalidData = sample()
+    Object.assign(invalidData.ladeEntladestellen[1], invalid)
+    assert.throws(() => map(invalidData), DycosMappingError)
+  }
+})
+
+test('missing API totals preserve CSV quantities without allocating them to stops; explicit zero wins', () => {
+  const previous = { shipment: { weightKg: 24000, packages: 33, loadingMeters: 13.6 } }
+  const data = sample()
+  delete data.auftrag.Gewicht
+  delete data.auftrag.AnzahlKolli
+  data.auftrag.Lademeter = 0
+  const result = preserveDycosUnmappedFields(previous, map(data))
+  assert.deepEqual(result.preservedPaths, ['shipment.weightKg', 'shipment.packages'])
+  assert.equal(result.imported.shipment.weightKg, 24000)
+  assert.equal(result.imported.shipment.packages, 33)
+  assert.equal(result.imported.shipment.loadingMeters, 0)
+  assert.equal(result.imported.stops[0].cargo.weightKg, null)
+  assert.equal(previous.shipment.loadingMeters, 13.6)
 })

@@ -31,6 +31,8 @@ const fields = Object.freeze([
   ['unloading.reference', 'Referenz Entladestelle'],
   ['financial.revenueNet', 'Ertrag netto'],
   ['financial.costNet', 'Kosten netto'],
+  ['financial.revenuePositions', 'Einzelne Ertragspositionen'],
+  ['financial.costPositions', 'Einzelne Kostenpositionen'],
   ['shipment.licensePlate', 'Import-Kennzeichen'],
   ['shipment.vehicleType', 'Fahrzeugart'],
   ['shipment.packages', 'Kolli'],
@@ -42,7 +44,10 @@ const fields = Object.freeze([
   ['contacts.carrierForOrder', 'Info Unternehmer im Auftrag'],
   ['dispatch.sentAt', 'TA-Versandzeitpunkt'],
   ['dispatch.sentTo', 'TA zuletzt versendet an'],
-  ['stops', 'Stationen aus DyCoS', { routeRelevant: true, scheduleRelevant: true }],
+  // Routing/tracking changes of the first loading/last unloading stop are
+  // handled by the location/window fields above. Cargo changes alone do not
+  // require a new route or change the tracking schedule.
+  ['stops', 'Stationen aus DyCoS'],
   ['source', 'DyCoS-Quellreferenzen und Hinweise'],
 ])
 

@@ -842,3 +842,48 @@ mit synthetischen Daten: DE/EN, Light/Dark und erledigte Konflikte. Abschließen
 Build und Shared-Prüfung sind erfolgreich; die vorhandene Chunkgrößenwarnung
 bleibt bestehen. Keine neue Cloud-Bereitstellung oder Dev-/Main-Veröffentlichung
 für diese Erweiterung durchgeführt.
+
+
+## 21. Preispositionen, Stationsware und offene Belegzuordnung (29.10.2026)
+
+Für den manuellen TA-Abruf werden einzelne Kunden-Ertragspositionen und nur die
+explizit dem angefragten Auftrag zugeordneten Tour-Kostenpositionen übernommen:
+Reihenfolge, Leistungstext/-ID, Menge, Einheit, Einzelpreis und Gesamt netto in
+EUR sowie vorhandene technische Stations-/Belegreferenzen. Maßgeblich bleibt
+`Gesamt`; kein Neuberechnen aus Menge × Preis und keine Übernahme fremder oder
+nicht auftragsbezogener Tourkosten. Fehlende Preise sind 0 EUR. Gleichartige
+Positionen bleiben einzeln bestehen; wechselnde SQL-Connector-IDs und andere
+Antwortreihenfolgen erzeugen keine künstlichen Änderungen.
+
+Alle Lade-/Entladestationen erhalten Gewicht (kg), Kolli, Lademeter und den
+Palettentausch als Ja/Nein/unbekannt. Fehlende Mengen bleiben leer; explizite
+Nullen bleiben Null. Stationsmengen werden weder zwischen Laden und Entladen
+summiert noch aus bisherigen CSV-Auftragssummen auf Stationen verteilt.
+Bestehende CSV-Gesamtmengen bleiben bei fehlenden neuen Auftragssummen erhalten;
+ein ausdrücklich gelieferter Wert einschließlich 0 ersetzt die alte Summe.
+Palettentausch ist nur die Quellenangabe, keine automatische Palettenbuchung.
+`BearbeiterErfassung` wird unverändert als Bearbeitercode übernommen, ohne ihn
+einem Drehpunkt-Benutzer zuzuordnen. Das Auftragsblatt zeigt die neuen Angaben;
+Änderungshistorie und Wiederholungsprüfung berücksichtigen sie ebenfalls.
+Reine Waren-/Palettentauschänderungen lösen keine Routenneuberechnung aus.
+
+**Auf ausdrücklichen Nutzerwunsch zurückgestellt:** Der Rechnungs-/Gutschriftsblock
+wartet auf die fachliche Bedeutung der DyCoS-Belegarten **2, 3 und 7** und die
+Zuordnung des Ausstellers (wir oder Geschäftspartner). Nach Klärung nachholen:
+eigene/externe Rechnungs- und Gutschriftsnummern, Belegart, Belegdatum, EUR,
+Proforma-Kennzeichnung und Stornoreferenzen. Keine Zuordnung aus Nummern oder
+Belegtexten erraten. Bei späterer Umsetzung nur Belege des angefragten Auftrags
+berücksichtigen; der Flow kann über Tourkosten auch weitere Belegköpfe liefern.
+Diese Erweiterung verändert den bestehenden Flow nicht und benötigt für die
+bereits gelieferten Daten keine zusätzlichen SQL-Abfragen.
+
+Die Umsetzung bleibt lokal auf dem Dev-Arbeitszweig; keine Veröffentlichung
+auf Dev/Main und keine Cloud-Bereitstellung in diesem Arbeitsschritt.
+
+Prüfung dieser Erweiterung: 37 fokussierte Unit-Tests und 19 Tests in der
+Firestore-Emulator-Suite bestanden. Zusätzlich alle 13 bereitgestellten
+Originalexporte ausschließlich im lokalen Emulator übernommen und unverändert
+wiederholt; Positionszahlen, Stationsmengen und Bearbeiter geprüft. Browsercheck
+mit synthetischen Daten in DE/EN und Light/Dark, inklusive expliziter Nullwerte,
+unbekanntem Palettentausch und alten CSV-Aufträgen ohne neue Detailfelder.
+Lint, Build und Shared-Prüfung erfolgreich; bestehende Chunkgrößenwarnung bleibt.

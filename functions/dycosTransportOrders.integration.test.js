@@ -145,6 +145,38 @@ test('emulator: exact creditor identity overrides similar names; unresolved lega
   assert.equal((await orderRef.get()).get('imported.source.orderId'), '123')
 })
 
+test('emulator: CSV totals survive enrichment and line items/stations persist idempotently without cargo-only route resets', { skip: !enabled }, async () => {
+  const uid = await user(); const ta = nextTa(); const ref = db().doc(`transportOrders/${id(ta)}`)
+  await ref.set({ externalNumber: ta, imported: { shipment: { weightKg: 1000, packages: 10, loadingMeters: 5 } }, manual: { note: 'Bleibt' } })
+  const raw = payload(ta, {
+    auftrag: { ID: 123, Nummer: Number(ta), BearbeiterErfassung: 'AW' },
+    auftragspreise: [{ AuftragID: 123, AuftragPos: 1, LeistungText: 'Fracht', Gesamt: 100 }],
+    ladeEntladestellen: [{ ID: 1, AuftragsID: 123, Zeile_In_Auftrag: 1, Lade_Entladestelle: 'L', Gewicht: '500,00', Kolli: 5, Lademeter: '2,5', Palettentausch: true }],
+  })
+  const deps = dependencies(async () => raw)
+  assert.equal((await fetchDycosTransportOrderHandler(req(uid, ta), deps)).status, 'updated')
+  const first = (await ref.get()).data()
+  assert.equal(first.imported.shipment.weightKg, 1000)
+  assert.equal(first.imported.shipment.packages, 10)
+  assert.equal(first.imported.stops[0].cargo.weightKg, 500)
+  assert.equal(first.imported.stops[0].palletExchange, true)
+  assert.equal(first.imported.financial.revenuePositions[0].amountNet, 100)
+  assert.equal(first.imported.source.createdBy, 'AW')
+  assert.equal(first.manual.note, 'Bleibt')
+  const historyCount = (await ref.collection('history').get()).size
+  assert.equal((await fetchDycosTransportOrderHandler(req(uid, ta), deps)).status, 'unchanged')
+  assert.equal((await ref.collection('history').get()).size, historyCount)
+  await ref.update({ routeNeedsRecalculation: false })
+  raw.ladeEntladestellen[0].Gewicht = 600
+  raw.ladeEntladestellen[0].Palettentausch = false
+  assert.equal((await fetchDycosTransportOrderHandler(req(uid, ta), deps)).status, 'updated')
+  const next = (await ref.get()).data()
+  assert.equal(next.imported.stops[0].cargo.weightKg, 600)
+  assert.equal(next.imported.shipment.weightKg, 1000)
+  assert.equal(next.routeNeedsRecalculation, false)
+  assert.ok((await ref.collection('history').get()).size > historyCount)
+})
+
 test('emulator: ambiguous account identity rolls back order, run and planned partner creation', { skip: !enabled }, async () => {
   const uid = await user(); const ta = nextTa(); const creditor = nextAccount(); const debtor = nextAccount()
   for (let i = 0; i < 2; i++) await db().collection('businessPartners').add({ companyName: `Duplikat ${i}`, creditorNumber: creditor })
