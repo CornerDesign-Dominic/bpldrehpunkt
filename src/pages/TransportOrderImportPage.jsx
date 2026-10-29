@@ -4,6 +4,7 @@ import BackLink from '../components/ui/BackLink.jsx'
 import { parseTransportOrderCsv } from '../lib/transportOrderCsv.js'
 import { importTransportOrderRows, listTransportOrderImportRuns, previewTransportOrderImport } from '../lib/transportOrders.js'
 import { readCsvFile } from '../lib/csvEncoding.js'
+import DycosOrderFetchForm from '../components/imports/DycosOrderFetchForm.jsx'
 
 const dateTimeFormatter = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
 const resultSections = [
@@ -14,6 +15,8 @@ const resultSections = [
 
 const formatRunDate = (value) => value ? dateTimeFormatter.format(new Date(value)) : '—'
 const count = (run, name) => Number(run?.counts?.[name] || 0)
+const isDycosFetch = (run) => run?.source === 'dycos-api'
+const runTitle = (run) => isDycosFetch(run) ? 'Manueller DyCoS-Abruf' : run?.fileName || 'CSV-Import'
 
 function rowError(row, errors) {
   return { rowNumber: row.rowNumber, externalNumber: row.externalNumber, customerName: row.imported?.customer?.name || '', carrierName: row.imported?.carrier?.originalName || '', errors }
@@ -22,7 +25,7 @@ function rowError(row, errors) {
 function RunDetailsModal({ run, rows, loading, onClose }) {
   return <div className="customer-import-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <section className="customer-import-modal transport-order-import-result-modal" role="dialog" aria-modal="true" aria-labelledby="transport-order-import-result-title">
-      <div className="customer-import-modal__heading"><div><h2 id="transport-order-import-result-title"><StaticText source={"Importdetails"} /></h2><p>{run?.fileName || 'CSV-Import'} · {formatRunDate(run?.importedAt)} · {run?.importedByName || 'Unbekannt'}</p></div><TranslatedProps sources={{"aria-label":"Importdetails schließen"}}><button type="button" aria-label="Importdetails schließen" onClick={onClose}>×</button></TranslatedProps></div>
+      <div className="customer-import-modal__heading"><div><h2 id="transport-order-import-result-title"><StaticText source={"Importdetails"} /></h2><p><StaticText source={runTitle(run)} />{isDycosFetch(run) && run.externalNumber ? ` · TA ${run.externalNumber}` : ''} · {formatRunDate(run?.importedAt)} · {run?.importedByName || 'Unbekannt'}</p></div><TranslatedProps sources={{"aria-label":"Importdetails schließen"}}><button type="button" aria-label="Importdetails schließen" onClick={onClose}>×</button></TranslatedProps></div>
       {loading ? <div className="import-empty-state"><StaticText source={"Importdetails werden geladen …"} /></div> : <div className="transport-order-import-result-modal__sections">{resultSections.map((section) => {
         const sectionRows = (rows || []).filter((row) => row.status === section.status)
         return <details className={`transport-order-import-result-section transport-order-import-result-section--${section.status.toLocaleLowerCase('de-DE')}`} key={section.status}>
@@ -42,6 +45,7 @@ export default function TransportOrderImportPage() {
   const [error, setError] = useState('')
   const [uploadDialog, setUploadDialog] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [fetchingDycos, setFetchingDycos] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [details, setDetails] = useState(null)
 
@@ -88,10 +92,11 @@ export default function TransportOrderImportPage() {
   }
 
   return <div className="import-page customer-import-page transport-order-import-page">
-    <div className="transport-order-import-page__toolbar"><div className="import-page__navigation"><BackLink to="/transportauftraege" /></div><div className="masterdata-import-actions transport-order-import-page__actions"><button className="button" type="button" onClick={() => { setUploadDialog({ file: null, error: '' }); setDragOver(false) }}><StaticText source={"Transportaufträge importieren"} /></button></div></div>
+    <div className="transport-order-import-page__toolbar"><div className="import-page__navigation"><BackLink to="/transportauftraege" /></div><div className="masterdata-import-actions transport-order-import-page__actions"><button className="button button--secondary" type="button" disabled={uploading || fetchingDycos} onClick={() => { setUploadDialog({ file: null, error: '' }); setDragOver(false) }}><StaticText source="CSV importieren" /></button></div></div>
     {error && <p className="form-error">{<StaticText source={error} />}</p>}
+    <DycosOrderFetchForm disabled={Boolean(uploadDialog)} onImported={() => void refreshRuns()} onPendingChange={setFetchingDycos} />
     <section className="import-preparation__section transport-order-import-history"><div className="import-preparation__heading"><h2><StaticText source={"Importverlauf"} /></h2></div>
-      {loadingRuns ? <div className="import-empty-state"><StaticText source={"Importverlauf wird geladen …"} /></div> : !runs.length ? <div className="import-empty-state"><StaticText source={"Noch keine Transportaufträge importiert."} /></div> : <div className="transport-order-import-history__list">{runs.map((run) => <button className="transport-order-import-history__row" type="button" key={run.id} onClick={() => void openDetails(run)}><span className="transport-order-import-history__file"><strong>{run.fileName || 'CSV-Import'}</strong><small>{formatRunDate(run.importedAt)} · {run.importedByName || 'Unbekannt'} <StaticText source={"· 1 Datei"} /></small></span><span className={count(run, 'Fehlerhaft') ? 'transport-order-import-history__error-count' : ''}><StaticText source={"Fehlerhaft"} /> <strong>{<StaticText source={count(run, 'Fehlerhaft')} />}</strong></span><span><StaticText source={"Aktualisiert"} /> <strong>{<StaticText source={count(run, 'Aktualisiert')} />}</strong></span><span><StaticText source={"Neu"} /> <strong>{<StaticText source={count(run, 'Neu')} />}</strong></span><span aria-hidden="true">›</span></button>)}</div>}
+      {loadingRuns ? <div className="import-empty-state"><StaticText source={"Importverlauf wird geladen …"} /></div> : !runs.length ? <div className="import-empty-state"><StaticText source={"Noch keine Transportaufträge importiert."} /></div> : <div className="transport-order-import-history__list">{runs.map((run) => <button className="transport-order-import-history__row" type="button" key={run.id} onClick={() => void openDetails(run)}><span className="transport-order-import-history__file"><strong><StaticText source={runTitle(run)} />{isDycosFetch(run) && run.externalNumber ? ` · TA ${run.externalNumber}` : ''}</strong><small>{formatRunDate(run.importedAt)} · {run.importedByName || 'Unbekannt'} <StaticText source={isDycosFetch(run) ? '· 1 Auftrag' : '· 1 Datei'} /></small></span><span className={count(run, 'Fehlerhaft') ? 'transport-order-import-history__error-count' : ''}><StaticText source={"Fehlerhaft"} /> <strong>{<StaticText source={count(run, 'Fehlerhaft')} />}</strong></span><span><StaticText source={"Aktualisiert"} /> <strong>{<StaticText source={count(run, 'Aktualisiert')} />}</strong></span><span><StaticText source={"Neu"} /> <strong>{<StaticText source={count(run, 'Neu')} />}</strong></span><span aria-hidden="true">›</span></button>)}</div>}
     </section>
     {uploadDialog && <div className="customer-import-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !uploading) setUploadDialog(null) }}>
       <section className="customer-import-modal masterdata-upload-modal" role="dialog" aria-modal="true" aria-labelledby="transport-order-upload-title" aria-busy={uploading}>

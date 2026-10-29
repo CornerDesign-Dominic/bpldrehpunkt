@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { automaticRouteSpacingMs, buildCoarsePlace, buildTomTomGeocodingUrl, calculateImportedTransportOrderRouteHandler, emptyTomTomUsageSummary, geocodeCacheDocumentId, hasRouteEditAccess, isAutomaticImportedRouteCandidate, normaliseLocationQuery, normaliseTomTomApiKey, processImportedTransportOrderRouteHandler, roundRouteDistanceKm, routeFailureCode, waitForAutomaticRouteSlot } from './transportOrderRoutes.js'
+import { automaticRouteSpacingMs, buildCoarsePlace, buildTomTomGeocodingUrl, calculateImportedTransportOrderRouteHandler, emptyTomTomUsageSummary, geocodeCacheDocumentId, hasRouteEditAccess, isAutomaticImportedRouteCandidate, normaliseLocationQuery, normaliseTomTomApiKey, processImportedTransportOrderRouteHandler, roundRouteDistanceKm, routeFailureCode, routingStationFor, waitForAutomaticRouteSlot } from './transportOrderRoutes.js'
 import { routingCountryCodes } from './shared/routingCountries.js'
 
 test('TomTom key normalisation accepts the secret value only, an assignment, and surrounding quotes', () => {
@@ -111,6 +111,21 @@ test('only completely new DyCoS import orders qualify for automatic route calcul
   assert.equal(isAutomaticImportedRouteCandidate({ source: 'dycos', importMeta: { source: 'dycos', importRunId: 'run-1' } }), true)
   assert.equal(isAutomaticImportedRouteCandidate({ source: 'dycos', importMeta: { source: 'dycos' } }), false)
   assert.equal(isAutomaticImportedRouteCandidate({ source: 'manual', importMeta: { source: 'dycos', importRunId: 'run-1' } }), false)
+})
+
+test('API routes use first loading and last unloading structured addresses in guard and place preparation', () => {
+  const order = { source: 'dycos', importMeta: { source: 'dycos', channel: 'power-automate', importRunId: 'api-run' }, imported: {
+    loading: { city: 'Hamburg' }, unloading: { city: 'Berlin' }, stops: [
+      { type: 'loading', address: { country: 'DE', postalCode: '20095', city: 'Hamburg' } },
+      { type: 'loading', address: { country: 'NL', postalCode: '1000', city: 'Amsterdam' } },
+      { type: 'unloading', address: { country: 'NL', postalCode: '1000', city: 'Amsterdam' } },
+      { type: 'unloading', address: { country: 'DE', postalCode: '10115', city: 'Berlin' } },
+    ],
+  } }
+  assert.equal(isAutomaticImportedRouteCandidate(order), true)
+  assert.equal(buildCoarsePlace(routingStationFor(order, 'loading'), 'Ladung').label, 'DE, 20095 Hamburg')
+  assert.equal(buildCoarsePlace(routingStationFor(order, 'unloading'), 'Entladung').label, 'DE, 10115 Berlin')
+  assert.equal(isAutomaticImportedRouteCandidate({ ...order, imported: { loading: {}, unloading: {}, stops: [] } }), false)
 })
 
 test('only a new imported order is enqueued with a stable duplicate-safe task ID', async () => {

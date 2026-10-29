@@ -35,7 +35,9 @@ fachlich abgenommen wurde. Historische Releases stehen in
 ### Kunden, Vorgänge und Disposition
 
 - Kunden & Unternehmer als Geschäftspartner-Stammdaten
-- Datenimporte aus DyCoS-CSV mit Vorschau, Prüfwarteschlangen und Importverlauf
+- Datenimporte aus DyCoS-CSV mit Vorschau, Prüfwarteschlangen und Importverlauf;
+  zusätzlich manueller TA-Abruf über Power Automate (Einrichtung und Prüfstand
+  unter [DyCoS-Schnittstelle](docs/planning/dycos-csv-import-uebergangsloesung.md#18-manueller-ta-abruf-in-drehpunkt)).
 - Kontrollierte Partnerzusammenführung und Trennung mit eigener Berechtigung
 - Transportaufträge mit Auftragsliste, persönlichen Listenansichten und
   Verknüpfungen zu Aufgaben, Fällen und Palettenbewegungen

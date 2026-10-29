@@ -17,6 +17,15 @@ Vom Nutzer am 29.10.2026 bestätigte Dev-Webadresse:
 Graph-Postfachverbindung vorgesehen. Diese Angabe ersetzt keinen Live-Abgleich
 der DNS-, Vercel- oder Firebase-Zuordnung.
 
+Die am 29.10.2026 eingerichtete DyCoS-HTTP-Schnittstelle liegt in der
+Power-Automate-Umgebung **Brennpunkt Logistik GmbH (default)** und liest die
+bestehende SQL-Datenquelle. Der Git-Branch `dev` isoliert diesen Flow nicht.
+Die separate Entra-Anwendung **Drehpunkt DyCoS – Dev** ist als technischer
+Aufrufer ausdrücklich zugelassen. Nach den ersten lokalen Abrufprüfungen
+wurden die sechs Dev-Secrets eingerichtet und die benötigten Dev-Functions
+am 29.10.2026 gezielt bereitgestellt. Identität, Zertifikatslaufzeit und Prüfstand stehen in
+[DyCoS-Schnittstellenplanung, Abschnitt 17](../planning/dycos-csv-import-uebergangsloesung.md#17-technische-dev-identität-und-authentifizierte-abrufprüfung).
+
 In Vercel werden diese Variablennamen getrennt für Production und Preview im
 jeweils passenden Zielbereich hinterlegt. Die zugehörigen Werte bleiben in
 Vercel und werden weder in Git noch in dieser Dokumentation gespeichert. Für
@@ -75,6 +84,7 @@ Pfade benötigen weiterhin passende Secrets, Anbieterzugänge und Berechtigungen
 
 | Integration | Produktion | Entwicklung | Maßgeblicher Code in `functions/` |
 | --- | --- | --- | --- |
+| Manueller DyCoS-TA-Abruf | Noch nicht eingerichtet oder freigegeben | Sechs Dev-Secrets und benötigte Functions bereitgestellt; Oberfläche über Git-Branch `dev`; Benutzerabnahme separat prüfen | `dycosTransportOrders.js`, `dycosFlowClient.js`, `dycosOrderMapping.js`; [Einrichtung und Veröffentlichung](../planning/dycos-csv-import-uebergangsloesung.md#18-manueller-ta-abruf-in-drehpunkt) |
 | Persönliche Graph-Postfächer | Gesperrt | Nur konfiguriertes Testpostfach; Antworten ausschließlich an die exakte Domain `brennpunkt-logistik.de`, einschließlich CC/BCC | `mailboxes.js`; Einrichtung unter [Graph-Postfächer](mailboxes-graph.md) |
 | Automatische System-/Tracking-Mails und Fristerinnerungen | Möglich, soweit der Ablauf nicht pausiert ist | Kein automatischer Versand | `systemMails.js`, `shipmentTrackingAutomation.js`, `caseDeadlineReminders.js` |
 | Manueller Tracking-Mailversand | An den hinterlegten geprüften Empfänger möglich | Bewusste Ausnahme nur für hinterlegte Empfänger mit `@brennpunkt-logistik.de`; funktionsfähiger Tracking-Webhook erforderlich | `shipmentTrackingManualDispatch.js`, `systemMails.js` |

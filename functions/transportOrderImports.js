@@ -123,7 +123,7 @@ async function existingFor(numbers) {
     snapshots.forEach((snapshot) => {
       if (!snapshot.exists) return
       const data = snapshot.data()
-      result.set(text(data.externalNumber), { id: snapshot.id, imported: data.imported || {}, importedFingerprint: text(data.importedFingerprint), customerPartnerId: text(data.imported?.customer?.partnerId), carrierPartnerId: text(data.imported?.carrier?.partnerId), importRunId: text(data.importMeta?.importRunId) })
+      result.set(text(data.externalNumber), { id: snapshot.id, imported: data.imported || {}, importedFingerprint: text(data.importedFingerprint), customerPartnerId: text(data.imported?.customer?.partnerId), carrierPartnerId: text(data.imported?.carrier?.partnerId), importRunId: text(data.importMeta?.importRunId), importChannel: text(data.importMeta?.channel), updateTime: snapshot.updateTime, importedAt: data.importMeta?.importedAt || null })
     })
   }
   return result
@@ -186,6 +186,8 @@ function importRunSummary(snapshot) {
   return {
     id: snapshot.id,
     fileName: text(data.fileName),
+    source: text(data.source),
+    externalNumber: text(data.externalNumber),
     importedAt: data.importedAt?.toMillis?.() || null,
     importedByName: text(data.importedByName),
     counts: data.counts || {},
@@ -385,6 +387,7 @@ export async function importTransportOrdersHandler(request) {
   const rowErrors = Array.isArray(request.data?.rowErrors) ? request.data.rowErrors.slice(0, 5000).map(importedRowError) : []
   if (!rows.length && !rowErrors.length) throw new HttpsError('invalid-argument', 'Die CSV-Datei enthält keine importierbaren Zeilen.')
   const [existing, customers, matches, catalogSnapshot] = await Promise.all([existingFor(rows.map((row) => row.externalNumber)), customersFor(rows.map((row) => row.imported.customer.debtorNumber)), carrierCandidatesFor(rows.map((row) => row.imported.carrier.originalName)), db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get()])
+  if ([...existing.values()].some((order) => order.importChannel === 'power-automate')) throw new HttpsError('failed-precondition', 'Mindestens ein Auftrag wurde bereits über die DyCoS-Schnittstelle übernommen. Bitte diese Aufträge über den TA-Abruf aktualisieren und aus der CSV entfernen.')
   const ruleCatalog = catalogSnapshot.exists ? normalizeShipmentTrackingRuleCatalog(catalogSnapshot.data()) : fallbackShipmentTrackingRuleCatalog()
   const selected = resolutions(request.data?.carrierResolutions); const runRef = db.collection('transportOrderImportRuns').doc(); const counts = { new: 0, updated: 0, unchanged: 0, review: 0, failed: rowErrors.length }; const results = []; const now = FieldValue.serverTimestamp(); const importedBy = actorName(profile); const knownCarriers = new Map()
 
@@ -413,16 +416,21 @@ export async function importTransportOrdersHandler(request) {
     counts[importStatus] += 1
     const imported = { ...row.imported, customer: { ...row.imported.customer, ...transportOrderPartnerLink(customer), partnerId: customerPartnerId }, carrier: { ...row.imported.carrier, ...transportOrderPartnerLink(carrier), partnerId: carrierPartnerId, matchStatus: resolution?.createNew ? 'created' : 'linked' } }
     const ref = db.doc(`transportOrders/${documentId(row.externalNumber)}`)
-    batch.set(ref, {
+    const orderPayload = {
       id: ref.id,
       externalNumber: row.externalNumber,
       source: 'dycos',
       imported,
       importedFingerprint: transportOrderImportFingerprint(row.imported),
-      importMeta: { source: 'dycos', ...(existingOrder ? {} : { importedAt: now }), lastImportedAt: now, importRunId: runRef.id, fileName },
+      importMeta: { source: 'dycos', importedAt: existingOrder?.importedAt || now, lastImportedAt: now, importRunId: runRef.id, fileName },
       ...(routeNeedsRecalculation ? { routeNeedsRecalculation: true, routeNeedsRecalculationAt: now } : {}),
       ...(existingOrder ? { updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy } : { manual: {}, tracking: {}, createdAt: now, createdBy: request.auth.uid, createdByName: importedBy, updatedAt: now, updatedBy: request.auth.uid, updatedByName: importedBy }),
-    }, { merge: true })
+    }
+    // The source/channel preflight is insufficient on its own: an API import
+    // can commit while this CSV batch is being prepared. Fence the whole batch
+    // against that snapshot, including partner and history writes.
+    if (existingOrder) batch.update(ref, orderPayload, { lastUpdateTime: existingOrder.updateTime })
+    else batch.create(ref, orderPayload)
     for (const change of changes) {
       batch.set(ref.collection('history').doc(), {
         eventType: 'transport_order_import_updated',

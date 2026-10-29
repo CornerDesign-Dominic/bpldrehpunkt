@@ -33,3 +33,10 @@ test('only a moved-forward loading start sets the no-retroactive-send cutoff', (
   assert.equal(loadingScheduleMovedEarlier(before, imported({ loading: { ...before.loading, window: { ...before.loading.window, from: '2026-09-30 08:00' } } })), true)
   assert.equal(loadingScheduleMovedEarlier(before, imported({ loading: { ...before.loading, window: { ...before.loading.window, from: '2026-10-02 08:00' } } })), false)
 })
+
+test('carrier address-only source changes affect status fingerprint and each history field', () => {
+  const before = imported({ carrier: { originalName: 'Unternehmer', snapshot: { street: 'Alt', postalCode: '10000', city: 'Altstadt', country: 'DE' } } })
+  const after = imported({ carrier: { originalName: 'Unternehmer', snapshot: { street: 'Neu', postalCode: '20000', city: 'Neustadt', country: 'AT' } } })
+  assert.notEqual(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
+  assert.deepEqual(transportOrderImportChanges(before, after).map((change) => change.path), ['carrier.snapshot.street', 'carrier.snapshot.postalCode', 'carrier.snapshot.city', 'carrier.snapshot.country'])
+})

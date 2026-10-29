@@ -193,8 +193,8 @@ async function saveCalculation({ db, orderId, calculationId, profile, actorId, a
 async function calculateRoute({ db, orderId, profile, actorId, countryOverrides = {}, automatic = false }) {
   const orderSnapshot = await db.doc(`transportOrders/${orderId}`).get()
   if (!orderSnapshot.exists) throw new HttpsError('not-found', 'Transportauftrag nicht gefunden.')
-  const originPlace = buildCoarsePlace(orderSnapshot.data()?.imported?.loading, 'ersten Ladestelle', countryOverrides.loading)
-  const destinationPlace = buildCoarsePlace(orderSnapshot.data()?.imported?.unloading, 'letzten Entladestelle', countryOverrides.unloading)
+  const originPlace = buildCoarsePlace(routingStationFor(orderSnapshot.data(), 'loading'), 'ersten Ladestelle', countryOverrides.loading)
+  const destinationPlace = buildCoarsePlace(routingStationFor(orderSnapshot.data(), 'unloading'), 'letzten Entladestelle', countryOverrides.unloading)
   const calculationId = db.collection('transportOrderRoutes').doc(orderId).collection('calculations').doc().id
   if (originPlace.errorCode || destinationPlace.errorCode) {
     const routeProblems = [
@@ -236,7 +236,19 @@ async function calculateRoute({ db, orderId, profile, actorId, countryOverrides 
   }
 }
 
+export function routingStationFor(order, key) {
+  const station = order?.imported?.[key]
+  if (order?.importMeta?.channel !== 'power-automate') return station
+  const stops = Array.isArray(order?.imported?.stops) ? order.imported.stops : []
+  const stop = key === 'loading' ? stops.find((entry) => entry.type === 'loading') : stops.filter((entry) => entry.type === 'unloading').at(-1)
+  return { ...station, country: text(station?.country) || text(stop?.address?.country), postalCode: text(station?.postalCode) || text(stop?.address?.postalCode), city: text(station?.city) || text(stop?.address?.city) }
+}
+
 export function isAutomaticImportedRouteCandidate(order) {
+  if (order?.importMeta?.channel === 'power-automate' && ['loading', 'unloading'].some((key) => {
+    const station = routingStationFor(order, key)
+    return !text(station.country) || !text(station.city)
+  })) return false
   return order?.source === 'dycos' && order?.importMeta?.source === 'dycos' && Boolean(text(order?.importMeta?.importRunId))
 }
 

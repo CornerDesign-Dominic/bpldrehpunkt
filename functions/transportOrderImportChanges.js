@@ -12,6 +12,11 @@ const fields = Object.freeze([
   ['customer.snapshot.city', 'Kundenadresse – Ort'],
   ['customer.snapshot.country', 'Kundenadresse – Land'],
   ['carrier.originalName', 'Unternehmer'],
+  ['carrier.creditorNumber', 'Kreditorennummer Unternehmer'],
+  ['carrier.snapshot.street', 'Unternehmeradresse – Straße'],
+  ['carrier.snapshot.postalCode', 'Unternehmeradresse – PLZ'],
+  ['carrier.snapshot.city', 'Unternehmeradresse – Ort'],
+  ['carrier.snapshot.country', 'Unternehmeradresse – Land'],
   ['loading.originalText', 'Adresse Ladestelle', { routeRelevant: true }],
   ['loading.city', 'Ort Ladestelle', { routeRelevant: true }],
   ['loading.window.from', 'Termin Ladestelle – von', { scheduleRelevant: true }],
@@ -37,6 +42,8 @@ const fields = Object.freeze([
   ['contacts.carrierForOrder', 'Info Unternehmer im Auftrag'],
   ['dispatch.sentAt', 'TA-Versandzeitpunkt'],
   ['dispatch.sentTo', 'TA zuletzt versendet an'],
+  ['stops', 'Stationen aus DyCoS', { routeRelevant: true, scheduleRelevant: true }],
+  ['source', 'DyCoS-Quellreferenzen und Hinweise'],
 ])
 
 function valueAtPath(value, path) {

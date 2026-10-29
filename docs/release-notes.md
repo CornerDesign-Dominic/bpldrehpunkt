@@ -6,6 +6,17 @@ ersetzt oder wieder eingeführt.
 
 ## Noch keinem neuen Release zugeordnet
 
+### 29.10.2026 – Manueller DyCoS-TA-Abruf, ausschließlich Dev
+
+TA-Eingabe auf der Importseite ergänzt, mit serverseitiger Zertifikatsanmeldung,
+validierter JSON-Zuordnung, genauer Partneridentität und atomarer, wiederholungs-
+sicherer Speicherung. CSV bleibt für noch nicht umgestellte Aufträge verfügbar.
+Technische Fehler erscheinen in der Diagnose; bestehende Trackingregeln gelten
+bei ausreichenden Daten weiter. Dev-Secrets und sieben benötigte Functions
+sind bereitgestellt. Oberfläche dieses Umfangs über `dev`, keine Main-/
+Produktionsfreigabe. Details und offene fachliche Zuordnungen unter
+[DyCoS-Veröffentlichung](planning/dycos-csv-import-uebergangsloesung.md#19-freigegebener-dev-veröffentlichungsumfang-am-29102026).
+
 Dieser Abschnitt erfasst Änderungen nach 2.0.0 und ersetzt keine datierte
 Releasefreigabe oder Deploymentprüfung. Stand der Dokumentationspflege:
 28.10.2026.

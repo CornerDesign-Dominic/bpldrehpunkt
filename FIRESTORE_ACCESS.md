@@ -69,6 +69,14 @@ Die Callables verlangen `enforceAppCheck: true`. Der datierte Quellcode-/Live-Ab
 
 - `transportOrders` sowie deren Historie und `receivedMails` sind mit `transportOrders: view` lesbar, aber nicht direkt durch Browser schreibbar. Importänderungen und deren Freigabe werden serverseitig geprüft; Rollen und zugewiesene DyCoS-Relationen wirken je nach Aktion zusätzlich.
 - Importläufe und Prüfwarteschlangen werden durch geschützte Callables bereitgestellt. Kunden-/Unternehmerprüfung erfordert `dataImports: edit` und `masterData: edit`; Zusammenführungen zusätzlich `partnerMerges: edit`. Die aktuelle Aktion bleibt für die genaue Rechtekombination maßgeblich.
+- Der manuelle TA-Abruf `fetchDycosTransportOrder` benötigt App Check,
+  Firebase-Anmeldung, ein aktives Profil und `dataImports: edit` (oder
+  Superadmin). Auftragsleserecht allein erlaubt keinen Import. Die Antwort
+  liefert Status und Dokumentreferenz, keine vollständigen SQL-Zeilen.
+  Der Auftragslink und das anschließende Lesen benötigen separat
+  `transportOrders: view`. `dycosImportRequests`, `dycosImportLocks` und
+  `dycosImportQuotas` bleiben durch die standardmäßig verweigernden Rules
+  ausschließlich serverseitig; keine neue Browser-Schreibfreigabe.
 - `partnerMergeOperations` ist einschließlich Untercollections für direkte Browserzugriffe gesperrt. Zusammenführung und Trennung erfolgen serverseitig. Fachobjekte behalten ihre ursprünglichen Partner-IDs; die aktuelle Identität wird über den Partnercluster aufgelöst.
 - `transportOrderTrackings` und `events` sind für Auftragsleser lesbar; Änderungen und Historieneinträge erfolgen ausschließlich serverseitig. Interne Versand-/Automationsdaten haben keine allgemeine Browserfreigabe.
 - `transportOrderRoutes` und `calculations` sind für Auftragsleser lesbar und nur serverseitig schreibbar. TomTom-Cache und Nutzungsdaten sind direkt gesperrt; administrative Verbrauchsübersichten stammen aus Callables.
