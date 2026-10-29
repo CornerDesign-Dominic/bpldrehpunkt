@@ -21,13 +21,19 @@ Datenvertrag, Revisionsverlauf und Modulzugriff `handbook` bleiben erhalten.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
 anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
 den ersten Plan-Text; sie führt kein zusätzliches Datenfeld ein.
-Die PDCA-Bearbeitung ist abschnittsweise getrennt: Plan mit Ziel und Messkriterium,
-Do mit Maßnahmen, Verantwortung und Terminen, Check mit Ergebnissen, Act mit
-Entscheidung und Status. Titel und Status sind zusätzlich über „Thema bearbeiten“
-erreichbar. Nicht bearbeitete Abschnitte bleiben beim Speichern erhalten.
-Auf der Detailseite stehen Ziel, Messkriterium, Verantwortung und Zeitraum kompakt
-über den vier PDCA-Phasen. Besprechungsinhalte sind aufklappbar. Vollständige Inhalte
-bleiben auf der Detailseite erhalten; die Übersicht zeigt gekürzte Auszüge.
+Die Themenseite zeigt alle Durchläufe chronologisch untereinander. Jeder Durchlauf
+hat eine eigene kompakte SMART-Karte mit S (spezifisch), M (messbar), A (erreichbar /
+achievable), R (relevant) und T (terminiert). Die Eingabe erfolgt in einem Modal.
+Plan enthält Problem und Ursachen; Do Maßnahmen, Verantwortung und Umsetzungszeitraum;
+Check Erkenntnisse; Act die Entscheidung Korrigieren, Verwerfen oder Etablieren,
+ein optionales Datum und Bemerkungen. Fragezeichen öffnen kurze
+QMS-Hilfen, fachlich nach [ASQ](https://asq.org/quality-resources/pdca-cycle).
+Die SMART-Begriffe folgen [SMART beim CDC](https://www.cdc.gov/training-development/php/about/design-training-learning-objectives.html).
+
+Der Zyklusstart ist ein eigenes Datum und wird in der oberen Themenkarte sowie
+am Durchlauf angezeigt. Er bezeichnet nicht den Do-Umsetzungszeitraum. „Erledigt“
+schließt das gesamte Thema ab; zum Fortsetzen ist „Wieder öffnen“ erforderlich.
+Lange Phasentexte lassen sich aufklappen. Frühere Durchläufe bleiben lesbar.
 
 Die Menügruppe **Qualität** enthält zwei eigenständige Module:
 
@@ -51,10 +57,11 @@ Folgetreffen entsteht ein neues Protokoll; bestehende Probleme werden weitergepf
 Abteilungen stammen aus der
 zentralen Abteilungsverwaltung, nicht aus einem zweiten Kategorienkatalog.
 
-Ein neuer PDCA-Durchlauf erhöht die Durchlaufnummer und leert Phasen, Ziel,
-Messkriterium und Termine. Titel und Verantwortlicher bleiben erhalten. Vorherige
+Ein neuer PDCA-Durchlauf erhöht die Durchlaufnummer, ergänzt eine weitere Zeile
+und leert Phasen, SMART-Angaben, Act-Entscheidung und Umsetzungstermine. Der
+Zyklusstart wird auf den aktuellen Berliner Kalendertag vorbelegt und ist bearbeitbar. Titel und Verantwortlicher bleiben erhalten. Vorherige
 Fassungen sind im Änderungsverlauf vollständig lesbar. Auf der Detailseite sind
-die Durchläufe separat auswählbar: Der aktuelle Durchlauf lässt sich bearbeiten,
+alle Durchläufe auf derselben Seite sichtbar: Der aktuelle Durchlauf lässt sich bearbeiten,
 frühere Durchläufe sind nur lesbar. Für jeden Durchlauf wird seine jüngste
 gespeicherte Fassung gezeigt; die einzelnen Bearbeitungen bleiben zusätzlich im
 Änderungsverlauf erhalten. Bereits vorhandene Durchläufe werden aus den bestehenden
@@ -80,11 +87,32 @@ sich nicht still. Jede Speicherung erzeugt atomar eine vollständige unveränder
 Fassung unter `revisions/{revision}` mit serverseitiger Zeit und Bearbeiter.
 Abteilungszuordnungen bestehender Datensätze sind unveränderlich.
 
+Optionale Themenfelder: `cycleStartDate`, `smartSpecific`, `smartMeasurable`,
+`smartAchievable`, `smartRelevant`, `smartTimeBound`, `actDecision` und `actDate`.
+Bisherige Ziel-/Messangaben bleiben als Ausgangswerte für S/M sichtbar; neue
+SMART-Speicherungen halten die bisherigen Felder `goal`/`measure` für die Übersicht
+konsistent. Bereits leere strukturierte Werte gelten als bewusst geleert.
+Alt-Clients dürfen die neuen Felder weglassen: Im selben Durchlauf bleiben sie
+erhalten; bei einem neuen Durchlauf werden sie zurückgesetzt. Bestehende
+Revisionsstände bleiben unverändert. Datumswerte und Act-Entscheidungen werden
+serverseitig geprüft; ein Act-Datum verlangt eine ausgewählte Entscheidung.
+
 Technische Lade-, Speicher- und Verlaufsfehler laufen über die zentrale Diagnose
 mit getrennten Modulen `kvp`/`handbook`, festen Aktionen und technischen IDs.
 Protokollinhalte werden nicht in Diagnosemeldungen übertragen.
 
 ## Bereitstellung und offene echte Abnahme
+
+### PDCA-Zeilen und SMART am 29.10.2026
+
+20 gezielte Unit-Tests und 6 echte Firestore-Emulatorprüfungen erfolgreich,
+zusätzlich Lint, Build und Shared-Abgleich (33 Module). Im lokalen Browser mit
+Beispieldaten geprüft: drei Durchläufe auf derselben Adresse untereinander,
+SMART-Bearbeitung mit Erhalt früherer Inhalte, QMS-Hilfe, Act-Entscheidung mit
+Datum sowie Abschließen mit erhaltener Durchlaufhistorie. Keine echte
+Benutzerabnahme oder flächendeckende visuelle Prüfung behauptet.
+`saveQualityRecord` wurde gezielt in `db-bpl-drehpunkt-dev` aktualisiert.
+Frontend folgt über Branch `dev`; Rules, Indizes und Produktion bleiben unverändert.
 
 ### Dev-Release am 29.10.2026
 
@@ -147,8 +175,8 @@ und Firestore Rules. Ziel ausdrücklich `db-bpl-drehpunkt-dev`; keine automatisc
 Veröffentlichung durch diese Implementierung. Abteilungsfilter verwenden einfache
 Firestore-Abfragen ohne zusätzlichen zusammengesetzten Index. Die Problem-Detailseite
 lädt Besprechungen über den einfachen `array-contains`-Index auf `topicIds`.
-Keine neuen Storage-Pfade. Die Detailseiten-Erweiterung ändert weder das gespeicherte
-Datenmodell noch die Berechtigungen oder die Callable-Schnittstelle.
+Keine neuen Storage-Pfade. Die aktuellen optionalen Zyklusfelder erfordern die aktualisierte Callable
+`saveQualityRecord`; Berechtigungen und Rules bleiben unverändert.
 
 Vor echter Abnahme prüfen: Themen und Protokolle mit mehreren Themen anlegen,
 Folgetreffen dokumentieren, Phasen bearbeiten, zweiten Durchlauf und Verlauf öffnen,

@@ -1,6 +1,27 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { qualityValues, nextQualityCycle, searchQualityRecords, groupQualityCycles, qualityTopicUrl, qualityOverviewUrl } from './qualityPresentation.js'
+import { qualityValues, nextQualityCycle, searchQualityRecords, groupQualityCycles, qualityTopicUrl, qualityOverviewUrl, qualitySmartValues, SMART_FIELDS } from './qualityPresentation.js'
+
+test('legacy goals remain visible while explicitly cleared structured goals stay empty', () => {
+  const legacy = { revision: 1, goal: 'Existing goal', measure: '95%' }
+  assert.equal(qualityValues('topic', legacy).smartSpecific, 'Existing goal')
+  assert.equal(qualitySmartValues(legacy).smartMeasurable, '95%')
+  assert.equal(qualitySmartValues({ ...legacy, smartSpecific: '' }).smartSpecific, '')
+  assert.equal(qualityValues('topic', legacy).cycleStartDate, '')
+})
+
+test('a new cycle clears SMART and Act without changing the previous cycle or Do responsibility', () => {
+  const previous = { ...qualityValues('topic', { revision: 1, cycle: 2 }), owner: 'Team', cycleStartDate: '2026-10-01', actDecision: 'establish', actDate: '2026-10-20', ...Object.fromEntries(SMART_FIELDS.map(({ key }) => [key, 'Previous goal'])) }
+  const next = nextQualityCycle(previous)
+  assert.equal(next.cycle, 3)
+  assert.equal(next.owner, 'Team')
+  assert.equal(next.actDecision, '')
+  assert.equal(next.actDate, '')
+  assert.match(next.cycleStartDate, /^\d{4}-\d{2}-\d{2}$/)
+  for (const { key } of SMART_FIELDS) assert.equal(next[key], '')
+  assert.equal(previous.smartSpecific, 'Previous goal')
+  assert.equal(previous.actDecision, 'establish')
+})
 
 test('next cycle retains topic identity and responsibility but resets previous goals and results', () => {
   const previous = { ...qualityValues('topic', {}, 'accounting'), title: 'Missing evidence', owner: 'Team', plan: 'Cause', do: 'Test', check: 'Result', act: 'Adjust', goal: 'Target', measure: '50%', startDate: '2026-10-01', dueDate: '2026-10-29' }

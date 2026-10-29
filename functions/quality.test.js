@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeQualityInput, persistQualityRecord, requireQualityEdit } from './quality.js'
+import { normalizeQualityInput, persistQualityRecord, requireQualityEdit, QUALITY_TOPIC_OPTIONAL_FIELDS } from './quality.js'
 
 const topic = { departmentId: 'accounting', title: 'Missing documents', status: 'active', plan: '', do: '', check: '', act: '', goal: '', measure: '', owner: '', startDate: '', dueDate: '', cycle: 1 }
 const editor = { active: true, role: 'user', permissions: { kvp: 'edit', handbook: 'view' } }
@@ -61,4 +61,80 @@ test('transaction checks current profile and department without writing on failu
   db.records.delete('departments/accounting')
   await assert.rejects(persistQualityRecord(db, input(), { uid: 'editor' }), { code: 'failed-precondition' })
   assert.equal(db.records.has('qualityTopics/topic-1'), false)
+})
+
+test('structured goals, cycle dates and Act decisions validate without rejecting legacy clients', () => {
+  assert.deepEqual(input().values, topic)
+  const values = { ...topic, cycleStartDate: '2026-10-29', smartSpecific: ' Clear goal ', smartMeasurable: '95 %', smartAchievable: 'Team capacity', smartRelevant: 'Fewer mistakes', smartTimeBound: 'November', actDecision: 'establish', actDate: '2026-11-30' }
+  assert.equal(input(values).values.smartSpecific, 'Clear goal')
+  for (const patch of [
+    { cycleStartDate: '2026-02-30' }, { actDate: '2026-13-01', actDecision: 'correct' },
+    { actDecision: 'complete' }, { actDate: '2026-11-30', actDecision: '' },
+    { smartAchievable: 'x'.repeat(2001) }, { smartSpecific: 'x'.repeat(20001) }, { smartMeasurable: null }, { cycleStartDate: 123 },
+  ]) assert.throws(() => input({ ...topic, ...patch }), { code: 'invalid-argument' })
+})
+
+test('legacy goals remain distinguishable from explicitly empty structured goal values', async () => {
+  const db = fakeDb()
+  const legacy = { ...topic, goal: 'Existing legacy goal', measure: 'Existing measure' }
+  await persistQualityRecord(db, input(legacy), { uid: 'editor' })
+  await persistQualityRecord(db, input({ ...legacy, check: 'Later review' }, 'topic', 1), { uid: 'editor' })
+  const saved = db.records.get('qualityTopics/topic-1')
+  assert.equal(saved.goal, legacy.goal)
+  assert.equal(saved.measure, legacy.measure)
+  assert.equal(Object.hasOwn(saved, 'smartSpecific'), false)
+  assert.equal(Object.hasOwn(saved, 'smartMeasurable'), false)
+})
+
+test('legacy long goal and measurement fit their structured counterparts without truncation', () => {
+  const goal = 'g'.repeat(20000)
+  const measure = 'm'.repeat(20000)
+  const normalized = input({ ...topic, goal, measure, smartSpecific: goal, smartMeasurable: measure }).values
+  assert.equal(normalized.smartSpecific, goal)
+  assert.equal(normalized.smartMeasurable, measure)
+})
+
+test('legacy saves preserve structured current-cycle data and immutable earlier snapshots', async () => {
+  const db = fakeDb()
+  const extra = { cycleStartDate: '2026-10-29', smartSpecific: 'Fewer errors', smartMeasurable: '95 %', smartAchievable: 'Team', smartRelevant: 'Quality', smartTimeBound: 'November', actDecision: 'correct', actDate: '2026-11-30' }
+  await persistQualityRecord(db, input({ ...topic, ...extra }), { uid: 'editor' })
+  await persistQualityRecord(db, input({ ...topic, check: 'New finding' }, 'topic', 1), { uid: 'editor' })
+  const saved = db.records.get('qualityTopics/topic-1')
+  for (const [key, value] of Object.entries(extra)) assert.equal(saved[key], value)
+  assert.equal(saved.check, 'New finding')
+  const first = db.records.get('qualityTopics/topic-1/revisions/1')
+  assert.equal(first.check, '')
+  assert.equal(first.smartSpecific, extra.smartSpecific)
+  await persistQualityRecord(db, input({ ...topic, smartSpecific: '', actDecision: '', actDate: '' }, 'topic', 2), { uid: 'editor' })
+  const cleared = db.records.get('qualityTopics/topic-1')
+  assert.equal(cleared.smartSpecific, '')
+  assert.equal(cleared.smartMeasurable, extra.smartMeasurable)
+  assert.equal(cleared.actDecision, '')
+})
+
+test('a legacy new-cycle request resets optional cycle data rather than carrying old decisions', async () => {
+  const db = fakeDb()
+  await persistQualityRecord(db, input({ ...topic, smartSpecific: 'Original goal', actDecision: 'discard', actDate: '2026-10-29' }), { uid: 'editor' })
+  await persistQualityRecord(db, input({ ...topic, cycle: 2 }, 'topic', 1), { uid: 'editor' })
+  const saved = db.records.get('qualityTopics/topic-1')
+  for (const key of QUALITY_TOPIC_OPTIONAL_FIELDS) assert.equal(saved[key], '')
+  assert.equal(db.records.get('qualityTopics/topic-1/revisions/1').actDecision, 'discard')
+})
+
+test('a completed topic requires a separate reopen before another cycle', async () => {
+  const db = fakeDb()
+  await persistQualityRecord(db, input({ ...topic, status: 'completed' }), { uid: 'editor' })
+  await assert.rejects(persistQualityRecord(db, input({ ...topic, status: 'active', cycle: 2 }, 'topic', 1), { uid: 'editor' }), { code: 'failed-precondition' })
+  assert.equal(db.records.get('qualityTopics/topic-1').revision, 1)
+  await persistQualityRecord(db, input({ ...topic, status: 'active' }, 'topic', 1), { uid: 'editor' })
+  await persistQualityRecord(db, input({ ...topic, cycle: 2 }, 'topic', 2), { uid: 'editor' })
+  assert.equal(db.records.get('qualityTopics/topic-1').cycle, 2)
+})
+
+test('clearing an Act decision while retaining its date is rejected atomically', async () => {
+  const db = fakeDb()
+  await persistQualityRecord(db, input({ ...topic, actDecision: 'correct', actDate: '2026-10-29' }), { uid: 'editor' })
+  await assert.rejects(persistQualityRecord(db, input({ ...topic, actDecision: '' }, 'topic', 1), { uid: 'editor' }), { code: 'invalid-argument' })
+  assert.equal(db.records.get('qualityTopics/topic-1').actDecision, 'correct')
+  assert.equal(db.records.get('qualityTopics/topic-1').revision, 1)
 })
