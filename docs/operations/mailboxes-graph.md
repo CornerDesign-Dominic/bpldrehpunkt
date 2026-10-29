@@ -44,8 +44,13 @@ oder Diagnose gespeichert. Für die Suche sind keine zusätzlichen Rechte nötig
 Microsoft Exchange Online führt Nachrichten und Originalanhänge. Drehpunkt
 fragt sie bei Bedarf serverseitig über Microsoft Graph ab. Nachrichtentexte
 werden als Klartext angezeigt; externe Bilder und aktives Mail-HTML werden
-nicht eingebettet. PDF-Anhänge werden vorübergehend im Browser angezeigt,
-andere unterstützte Dateianhänge heruntergeladen. Die erste Version begrenzt
+nicht eingebettet. Dateianhänge stehen direkt unter den Maildetails: zwei sind
+sichtbar, weitere werden über eine aufklappbare Liste zugänglich. Als eingebettet
+gekennzeichnete Bilder (häufig Signaturen/Logos) stehen separat am Mailende;
+normal angehängte Bilder bleiben oben. „Öffnen“ lädt PDF, Rasterbilder und
+Klartext in einen neuen Browser-Tab; andere Dateitypen werden heruntergeladen.
+„Herunterladen“ steht zusätzlich für jeden unterstützten Anhang bereit.
+Eine PDF-Vorschau im Mailbereich gibt es nicht mehr. Die erste Version begrenzt
 Dateianhänge auf 5 MiB. Verknüpfte Cloud-Dateien und angehängte Outlook-Elemente
 sind kein unterstützter Dateiabruf. Die Nachrichtenansicht meldet eine gekürzte
 Anhangsliste, wenn Microsoft weitere Seiten liefert.
@@ -54,9 +59,80 @@ Antworten enthalten bearbeitbare An-/CC-/BCC-Empfänger und Klartext. Der
 Entwurf liegt privat serverseitig in Drehpunkt, nicht als Outlook-Entwurf.
 `Mail.ReadWrite` wird nicht angefordert: Nachrichten werden nicht als gelesen
 markiert, verschoben oder gelöscht. Gemeinsame Postfächer, PDF-Auswertung,
-Auftragserstellung, Übernahme von Trackingdaten und Antwortvorschläge gehören
+Auftragserstellung und Antwortvorschläge gehören
 nicht zum ersten Umfang. Dafür gibt es keine funktionslosen Aktionsangebote.
 Die vorhandene Power-Automate-Anbindung von `status@` bleibt unabhängig.
+
+Die Anhangsanpassung ist ebenfalls nur lokal vorbereitet. Aktive Dateiformate
+wie HTML/SVG werden nicht als Blob mit Anwendungs-Origin geöffnet, sondern als
+Download behandelt. Ein Vorab-Tab wird während des Klicks erzeugt, ohne Opener,
+und bei Ladefehlern oder einem Nachrichtenwechsel während des Abrufs geschlossen.
+Objekt-URLs bereits geöffneter Dateien bleiben bei Mailwechseln verfügbar und
+werden nach Schließen ihres Tabs freigegeben. Die Originale bleiben in Outlook.
+
+Anhangsprüfung mit synthetischen Daten: zwei sichtbare Dateien, Auf-/Zuklappen,
+eingebettetes Bild am Mailende, separater PDF-Blob-Tab, PDF-/Bild-Download mit
+Originaldateinamen, HTML-Download statt aktiver Darstellung, Ladefehler sowie
+Deutsch/Englisch und Light/Dark. Die Testumgebung bestätigte die Tab-Anlage,
+erlaubt aber keine Inspektion von Blob-URLs; die native PDF-Darstellung wurde
+deshalb nicht zusätzlich visuell abgenommen. Acht gezielte Tests prüfen unter
+anderem MIME-Zulassung und die sichere Gruppierung von Inline-Bildern.
+
+## Persönliche Statusübernahme – lokal vorbereitet, nicht veröffentlicht
+
+„Sendungsstatus aktualisieren“ öffnet einen großen Dialog mit Mail links und
+vier aufklappbaren Stationen rechts. Der bisherige Einstieg über zugewiesene
+Mails im Auftrag verwendet denselben Dialograhmen. Persönliche Mails werden
+erst nach „Angaben übernehmen“ in Statuswerte überführt; `status@` behält seinen
+bisherigen automatischen Verarbeitungsweg.
+
+`previewMailboxTracking` benötigt eigene Postfach-Bearbeitung und
+Transportauftrags-Bearbeitung, App Check und die Dev-Umgebung. Die Nachricht
+wird serverseitig frisch über Graph ausschließlich als Text geladen; Anhänge
+werden nicht abgerufen. Die KI bestimmt belegte neunstellige TA-Kandidaten,
+die gegen `transportOrders.externalNumber` geprüft werden. Mehrdeutige oder
+fehlende Treffer führen zur vorgelagerten manuellen TA-Eingabe. Explizite
+TA-Nummern in der neuesten Nachricht haben Vorrang. Zitate dienen als Kontext;
+Statuswerte müssen durch Textstellen der neuesten Nachricht belegt sein.
+
+Die KI verwendet die vorhandene Auswertungslogik mit einem persönlichen Modus
+für explizite Fahrerangaben. Unveränderte Vorschläge erhalten `source: ai_mail`
+und `channel: personal_mailbox`; Korrekturen erhalten `manual` samt ursprünglichem
+KI-Wert. Manuelle/importierte Werte und neuere KI-Werte werden als Konflikt
+angezeigt, einschließlich zusammenhängender Kennzeichenfelder. Der persönliche
+Mailtext, Betreff, Absender und Belegzitate werden nicht am Auftrag gespeichert.
+Die Herkunft enthält Empfangszeit, bestätigenden Nutzer und Bestätigungszeit.
+
+Die privaten Vorschläge sind eine Stunde gültig und liegen in
+`mailboxTrackingPreviews`, ausschließlich serverseitig erreichbar. Die bestehende
+stündliche Bereinigung entfernt abgelaufene Vorschläge. `mailboxTrackingQuotas`
+begrenzt Auswertungen pro Nutzer auf 120 pro Stunde. Beide Collections sowie
+`personalMailTrackingApplications` sind per Default-deny für Get/List/Write
+gesperrt, auch für Superadmins. Ein echter Demo-Firestore-Emulatortest prüft
+das für zehn private Collections mit Eigentümer, anderen Nutzern und Superadmins.
+
+`applyMailboxTracking` prüft Eigentümer, Verbindung, Rechte, Ablaufzeit und den
+seit der Vorschau unveränderten Auftrag/Trackingstand erneut. Erst diese
+Transaktion speichert Werte und Ereignisse und startet bei Bedarf das Tracking.
+Ein privater, verbindungsübergreifend für dasselbe Microsoft-Postfach stabiler
+Beleg auf Basis der Immutable-ID dieser Mail verhindert
+erneute Übernahmen und doppelte Ereignisse. Er enthält keine Mailinhalte.
+Abgeschlossene Sendungsverfolgungen werden nicht wieder geöffnet.
+
+Für einen später ausdrücklich freigegebenen Dev-Release sind die beiden neuen
+Callables und die erweiterte Bereinigung gemeinsam mit dem Client bereitzustellen.
+Die Vorschau bindet zusätzlich `STATUS_MAIL_OPENAI_API_KEY`; Microsoft-Rechte,
+Rules und bestehende Indizes ändern sich nicht. Es gab keinen Deploy oder Push.
+Die bisherigen lokalen Spaltenanpassungen bleiben Bestandteil des offenen Stands.
+
+Prüfung: 131 gezielte Tests, der echte Demo-Firestore-Emulatortest, Build, Lint
+und Shared-Abgleich erfolgreich. Der Browsercheck mit synthetischen Daten
+prüft Vorschläge, Konfliktlösung, manuelle TA-Eingabe mit falscher/richtiger
+Nummer, bestätigte Übernahme, erhaltene Eingaben nach konkurrierender Änderung,
+den bestehenden Auftragseditor sowie Deutsch/Englisch und Light/Dark. Auch der
+ursprüngliche Arbeitsordner baut mit den parallel vorhandenen Änderungen.
+Es gab keine echten Microsoft-/KI-Aufrufe für diese Abnahme; deren fachliche
+Prüfung mit dem Testpostfach folgt nach einem freigegebenen Dev-Deploy.
 
 ## Berechtigungen und persönliche Daten
 

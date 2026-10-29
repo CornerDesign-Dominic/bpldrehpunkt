@@ -45,6 +45,22 @@ const request = data => ({ auth: { uid: 'owner' }, data: { connectionId, proofCh
 const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpunkt-logistik.de'], ccRecipients: [], bccRecipients: [] }
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
 
+test('personal tracking requires both module rights and mailbox ownership; reads only Graph text without attachments', async () => {
+  const denied = fixture()
+  await assert.rejects(denied.handlers.previewMailboxTracking(request({ messageId: 'message-1' })), { code: 'permission-denied' })
+  assert.equal(denied.fetchCount(), 0)
+  const paths = []
+  let seen
+  const f = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'edit', transportOrders: 'edit' } }), fetch: async url => { paths.push(url); return response({ id: 'message-1', receivedDateTime: '2026-10-29T10:00:00Z', body: { contentType: 'text', content: 'Server-side personal message' } }) }, inferOrder: async input => { seen = input; return { candidates: [] } } })
+  const result = await f.handlers.previewMailboxTracking(request({ messageId: 'message-1', bodyText: 'Fake client message' }))
+  assert.equal(result.needsAssignment, true)
+  assert.equal(seen.bodyText, 'Server-side personal message')
+  assert.equal(paths.length, 1)
+  assert.ok(!paths[0].includes('attachments'))
+  await assert.rejects(f.handlers.previewMailboxTracking({ auth: { uid: 'foreign' }, data: { connectionId, messageId: 'message-1' } }), { code: 'permission-denied' })
+  await assert.rejects(f.handlers.applyMailboxTracking({ auth: { uid: 'foreign' }, data: { connectionId } }), { code: 'permission-denied' })
+})
+
 test('mailbox names are owner-only, require edit access and can be cleared without changing Microsoft metadata', async () => {
   const f = fixture()
   const ref = `mailboxConnections/${connectionId}`

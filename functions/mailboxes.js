@@ -7,6 +7,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { runtimeProjectId } from './externalEffects.js'
+import { assertPersonalTrackingAccess, previewPersonalMailTracking, applyPersonalMailTracking } from './personalMailTracking.js'
 
 export const mailboxClientSecret = defineSecret('MAILBOX_CLIENT_SECRET')
 export const mailboxRedirectUri = defineString('MAILBOX_REDIRECT_URI', { default: '' })
@@ -266,6 +267,17 @@ export function createMailboxHandlers(deps = {}) {
       })
       return { customName: normalized }
     }),
+    previewMailboxTracking: guarded('tracking-preview', async request => {
+      const context = await owned(request, true)
+      assertPersonalTrackingAccess(context)
+      const messageId = segment(request.data?.messageId)
+      const mail = await graph(await accessToken(context), `/me/messages/${messageId}?$select=id,subject,body,from,receivedDateTime,internetMessageId`)
+      return previewPersonalMailTracking({ db: db(), context, mail, orderNumber: request.data?.orderNumber, inferOrder: deps.inferOrder, infer: deps.inferTracking, now: now() })
+    }),
+    applyMailboxTracking: guarded('tracking-apply', async request => {
+      const context = await owned(request, true)
+      return applyPersonalMailTracking({ db: db(), context, previewId: request.data?.previewId, changes: request.data?.changes, transitEntries: request.data?.transitEntries, now: now() })
+    }),
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
       const rawSearch = request.data.search ?? ''
@@ -463,6 +475,8 @@ export function createMailboxHandlers(deps = {}) {
     }
     const states = await db().collection('mailboxOAuthStates').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of states.docs) await snapshot.ref.delete()
+    const previews = await db().collection('mailboxTrackingPreviews').where('expiresAt', '<', now()).limit(100).get()
+    for (const snapshot of previews.docs) await snapshot.ref.delete()
     const retired = await db().collection('mailboxSecretRetirements').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of retired.docs) {
       await cleanupStore.destroy(snapshot.data().secretVersion)
@@ -477,6 +491,8 @@ export const beginMailboxConnectionHandler = handlers.beginMailboxConnection
 export const finishMailboxConnectionHandler = handlers.finishMailboxConnection
 export const listMailboxConnectionsHandler = handlers.listMailboxConnections
 export const updateMailboxNameHandler = handlers.updateMailboxName
+export const previewMailboxTrackingHandler = handlers.previewMailboxTracking
+export const applyMailboxTrackingHandler = handlers.applyMailboxTracking
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment

@@ -5,10 +5,10 @@ import { reportTechnicalFailure } from './diagnostics.js'
 export async function mailboxCall(action, data = {}) {
   try {
     await waitForAppCheckToken()
-    return (await httpsCallable(functions, action)(data)).data
+    return (await httpsCallable(functions, action, action === 'previewMailboxTracking' ? { timeout: 240000 } : {})(data)).data
   } catch (error) {
     if (!['functions/invalid-argument', 'functions/permission-denied', 'functions/failed-precondition'].includes(error?.code)) {
-      const stage = ['beginMailboxConnection', 'finishMailboxConnection'].includes(action) ? 'connect' : action === 'getMailboxAttachment' ? 'attachment' : action.includes('Draft') ? 'draft' : action === 'updateMailboxName' ? 'rename' : action === 'sendMailboxReply' ? 'send' : action === 'disconnectMailbox' ? 'disconnect' : 'load'
+      const stage = action === 'previewMailboxTracking' ? 'tracking-preview' : action === 'applyMailboxTracking' ? 'tracking-apply' : ['beginMailboxConnection', 'finishMailboxConnection'].includes(action) ? 'connect' : action === 'getMailboxAttachment' ? 'attachment' : action.includes('Draft') ? 'draft' : action === 'updateMailboxName' ? 'rename' : action === 'sendMailboxReply' ? 'send' : action === 'disconnectMailbox' ? 'disconnect' : 'load'
       void reportTechnicalFailure({ module: 'mailboxes', stage, error })
     }
     throw error

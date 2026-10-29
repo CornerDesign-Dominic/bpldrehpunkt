@@ -22,6 +22,10 @@ const fieldLabels = {
 }
 
 const sourceLabels = { manual: 'Manuelle Eingabe', import: 'TA-Import', manual_mail: 'Manueller Mailversand', automatic: 'Sendungsverfolgungs-Automatik', ai_mail: 'KI · Status-Postfach', phone: 'Telefon', other_mailbox: 'Anderes E-Mail-Postfach', other: 'Sonstiges' }
+export function shipmentTrackingSourceLabel(event) {
+  if (event.channel === 'personal_mailbox') return event.source === 'ai_mail' ? 'KI · Persönliches Postfach' : event.originalAiValue ? 'Manuell korrigiert · KI-Vorschlag' : 'Manuelle Eingabe · Persönliches Postfach'
+  return sourceLabels[event.source] || 'Manuelle Eingabe'
+}
 const proofLabels = { unknown: 'unbekannt', open: 'offen', received: 'erhalten' }
 const timeFormatter = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' })
 const berlinDateTimeFormatter = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })

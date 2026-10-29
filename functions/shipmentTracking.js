@@ -140,7 +140,7 @@ export async function getShipmentTrackingActivationHandler(request) {
   }
 }
 
-function normalizedChanges(input) {
+export function normalizedChanges(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new HttpsError('invalid-argument', 'Ungültige Trackingdaten.')
   const keys = Object.keys(input)
   if (!keys.every((key) => editableFields.includes(key))) throw new HttpsError('invalid-argument', 'Ungültige Trackingdaten.')
