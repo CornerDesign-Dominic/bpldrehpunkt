@@ -933,3 +933,48 @@ Keine zusätzlichen Backend-Funktionen oder SQL-Abfragen erforderlich.
 Der Nutzer hat die Dev-Veröffentlichung dieses Buttons anschließend ausdrücklich freigegeben.
 Es handelt sich ausschließlich um eine Frontend-Ergänzung; keine erneute
 Firebase-Bereitstellung ist dafür erforderlich. Main und Produktion bleiben unberührt.
+
+
+## 24. Kompakte Stammdatenhistorie statt zusätzlicher Importkarte
+
+Die Karte „Weitere importierte Daten“ entfällt. Ihre Angaben werden nicht
+entfernt: IBAN/BIC/Prüfdatum stehen weiterhin in Abrechnung, die DyCoS-Anlage
+im Kopf des Stammdatenblatts. Konflikthinweise bleiben unabhängig davon sichtbar.
+Im Drei-Punkte-Menü öffnet „Historie“ ein Modal mit genau drei Spalten:
+Datum/Uhrzeit/Person, alte Daten und neue Daten. Das Menü ist auch ohne
+Zusammenführungsrecht und auf archivierten Blättern für Stammdaten-Leser
+verfügbar; Zusammenführungsaktionen bleiben separat geschützt.
+
+Neue Blätter erhalten genau einen Anlageeintrag mit Akteur und Zeitpunkt,
+ohne vollständige Startwerte. Initiale DyCoS-Anreicherung zählt nicht als zweite
+Änderung. Erst spätere tatsächliche Änderungen erhalten Vorher-/Nachher-Werte
+unter `metadata.changes` (Pfad, lesbare Bezeichnung, Kategorie, alter/neuer Wert).
+Leere Werte werden als Gedankenstrich dargestellt; false und 0 bleiben echte
+Werte. Ein manueller Speichervorgang wird über eine gemeinsame operationId in
+einer Tabellenzeile gebündelt, auch wenn die vorhandenen CRM-Kategorien mehrere
+Historiedokumente benötigen. Unverändertes Speichern erzeugt keinen Eintrag.
+Portal-Zugangsdaten werden ausschließlich als „Geschützt“ historisiert.
+
+Manuelle Neuanlage und Änderung speichern Daten und Historie atomar. Die
+vorhandenen TA-, Kunden- und Unternehmerimportwege protokollieren ebenfalls
+Akteur und tatsächliche Feldänderungen. Verglichene, aber bewusst nicht
+überschriebene Konflikte werden nicht als Datenänderung dargestellt.
+Die Historie lädt erst beim Öffnen und in Seiten mit 50 Dokumenten, direkt
+für dieses Stammdatenblatt; allgemeine CRM-Aktivitäten/Bewertungen werden nicht
+hineingemischt. Bestehende CRM-Historien bleiben erhalten. Ältere Formate mit
+vorhandenen Vorher-/Nachher-Daten und Zusammenführungsentscheidungen werden
+angezeigt. Ohne damals protokollierte Werte steht „Nicht protokolliert“;
+es werden keine alten Daten oder Personen nachträglich erfunden.
+
+Prüfung: gezielte Unit-Tests für Feldänderungen, Leerwerte, false/0,
+Kontaktidentität, geschützte Zugangsdaten, Legacyformate und Gruppierung.
+Zusätzlich echte Browser-Speicherlogik gegen lokalen Firestore-Emulator:
+Anlage, Bearbeitung, unverändert, Akteur sowie Leser-/Schreibschutz. Bestehende
+TA-/Kunden-/Unternehmer-Integrationsprüfungen ebenfalls erfolgreich.
+Browserprüfung mit Beispieldaten: DE/EN, Light/Dark, kompakte Anlage,
+Nachladen älterer Einträge, Ladefehler, Escape und Fokus-Rückgabe.
+Kein Dev-Push, kein Cloud-Deployment und keine Main-Änderung für diese Ergänzung.
+
+Abschlussprüfung: 45 fokussierte Unit-Tests und 29 Emulator-Integrationsprüfungen
+bestanden; Lint, Build und Shared-Prüfung erfolgreich. Die bekannte
+Chunkgrößenwarnung ist unverändert vorhanden.

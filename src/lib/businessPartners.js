@@ -6,10 +6,11 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  setDoc,
+  runTransaction,
   writeBatch,
 } from 'firebase/firestore'
-import { db } from './firebase.js'
+import { auth, db } from './firebase.js'
+import { businessPartnerHistoryChanges } from '../../shared/businessPartnerHistory.js'
 import { createHistoryPayload } from './partnerHistory.js'
 import { paymentTermText } from './paymentTerms.js'
 import { crmIndustryValue } from './crmIndustry.js'
@@ -149,54 +150,50 @@ export async function getEffectiveBusinessPartner(partnerId) {
 }
 
 
-export async function createBusinessPartner(values, ruleCatalog = null) {
+function historyActor(actor) {
+  const user = auth.currentUser
+  return { id: actor?.id || user?.uid || null, name: actor?.name || user?.displayName || user?.email || null }
+}
+
+export async function createBusinessPartner(values, ruleCatalog = null, actor) {
   const partnerRef = doc(businessPartnersRef)
-  await setDoc(partnerRef, {
-    id: partnerRef.id,
-    ...createPayload(values, { isNew: true, ruleCatalog }),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+  const recordedBy = historyActor(actor)
+  const batch = writeBatch(db)
+  batch.set(partnerRef, {
+    id: partnerRef.id, ...createPayload(values, { isNew: true, ruleCatalog }),
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    createdByUserId: recordedBy.id, createdByName: recordedBy.name,
   })
+  batch.set(doc(collection(partnerRef, 'history')), createHistoryPayload({ category: 'masterData', action: 'created', summary: 'Stammdatenblatt angelegt', actor: recordedBy }))
+  await batch.commit()
   return partnerRef.id
-}
-
-function formatCurrency(value) {
-  return value === null || value === undefined ? '—' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(value)
-}
-
-function changed(left, right) {
-  return JSON.stringify(left ?? null) !== JSON.stringify(right ?? null)
-}
-
-function createBusinessPartnerHistoryEntries(previous, next, actor) {
-  const entries = []
-  const entry = (category, summary, metadata = {}) => entries.push({ category, action: 'updated', summary, metadata, actor })
-
-  if (changed(previous.creditLimit, next.creditLimit)) entry('creditLimit', `Kreditlimit von ${formatCurrency(previous.creditLimit)} auf ${formatCurrency(next.creditLimit)} geändert`, { oldValue: previous.creditLimit ?? null, newValue: next.creditLimit ?? null })
-  if (changed(previous.crmStatus, next.crmStatus)) entry('crm', `CRM-Status von ${previous.crmStatus || '—'} auf ${next.crmStatus || '—'} geändert`, { field: 'crmStatus', oldValue: previous.crmStatus || null, newValue: next.crmStatus || null })
-  if (changed(crmIndustryValue(previous), next.crmIndustry || '')) entry('crm', `Branche von ${crmIndustryValue(previous) || '—'} auf ${next.crmIndustry || '—'} geändert`, { field: 'crmIndustry', oldValue: crmIndustryValue(previous) || null, newValue: next.crmIndustry || null })
-  if (changed(previous.potential, next.potential)) entry('crm', `Potenzial von ${previous.potential || '—'} auf ${next.potential || '—'} geändert`, { field: 'potential', oldValue: previous.potential || null, newValue: next.potential || null })
-  if (changed(previous.address, next.address)) entry('masterData', 'Adresse geändert', { field: 'address' })
-  if (changed(previous.contacts, next.contacts)) entry('contactPerson', 'Ansprechpartner geändert', { field: 'contacts' })
-  if (changed(paymentTermText(previous), next.paymentTermDays)) entry('paymentData', `Zahlungsziel von ${paymentTermText(previous) || '—'} auf ${next.paymentTermDays || '—'} geändert`, { field: 'paymentTermDays', oldValue: paymentTermText(previous) || null, newValue: next.paymentTermDays || null })
-  if (changed(previous.creditNoteProcedure, next.creditNoteProcedure)) entry('paymentData', `Gutschriftverfahren ${next.creditNoteProcedure ? 'aktiviert' : 'deaktiviert'}`, { field: 'creditNoteProcedure', oldValue: Boolean(previous.creditNoteProcedure), newValue: Boolean(next.creditNoteProcedure) })
-  if (changed(normalizeShipmentTrackingPolicy(previous.shipmentTrackingPolicy), next.shipmentTrackingPolicy)) entry('shipmentTrackingPolicy', 'Sendungsverfolgung-Einstellungen geändert')
-
-  const masterDataFields = ['companyName', 'debtorNumber', 'creditorNumber', 'timocomNumber', 'transeuNumber', 'dplNumber', 'pakiNumber', 'status', 'contact', 'companyData', 'portals', 'palletNote']
-  if (masterDataFields.some((field) => changed(previous[field], next[field]))) entry('masterData', 'Stammdaten geändert', { fields: masterDataFields.filter((field) => changed(previous[field], next[field])) })
-  return entries
 }
 
 export async function updateBusinessPartner(partnerId, values, actor) {
   const partnerRef = doc(db, BUSINESS_PARTNERS_COLLECTION, partnerId)
-  const previousSnapshot = await getDoc(partnerRef)
-  if (!previousSnapshot.exists()) throw new Error('Geschäftspartner nicht gefunden')
+  const recordedBy = historyActor(actor)
   const next = createPayload(values)
-  const entries = createBusinessPartnerHistoryEntries(previousSnapshot.data(), next, actor)
-  const batch = writeBatch(db)
-  batch.update(partnerRef, { ...next, updatedAt: serverTimestamp() })
-  entries.forEach((entry) => batch.set(doc(collection(partnerRef, 'history')), createHistoryPayload(entry)))
-  await batch.commit()
+  const operationId = crypto.randomUUID()
+  await runTransaction(db, async (transaction) => {
+    const previousSnapshot = await transaction.get(partnerRef)
+    if (!previousSnapshot.exists()) throw new Error('Geschäftspartner nicht gefunden')
+    const previous = previousSnapshot.data()
+    const comparable = { ...previous, paymentTermDays: paymentTermText(previous), crmIndustry: crmIndustryValue(previous), shipmentTrackingPolicy: normalizeShipmentTrackingPolicy(previous.shipmentTrackingPolicy) }
+    const changes = businessPartnerHistoryChanges(comparable, next)
+    if (!changes.length) return
+    transaction.update(partnerRef, { ...next, updatedAt: serverTimestamp() })
+    for (const category of new Set(changes.map((change) => change.category))) {
+      const selected = changes.filter((change) => change.category === category)
+      const summaries = { creditLimit: 'Kreditlimit geändert', crm: 'CRM-Daten geändert', contactPerson: 'Ansprechpartner geändert', paymentData: 'Zahlungsdaten geändert', shipmentTrackingPolicy: 'Sendungsverfolgung-Einstellungen geändert' }
+      let summary = summaries[category] || 'Stammdaten geändert'
+      if (selected.length === 1 && ['creditLimit', 'crm', 'paymentData'].includes(category)) {
+        const change = selected[0]
+        const shown = (value) => value === null ? '—' : typeof value === 'boolean' ? value ? 'Ja' : 'Nein' : category === 'creditLimit' ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : String(value)
+        summary = `${change.label}: ${shown(change.oldValue)} → ${shown(change.newValue)}`
+      }
+      transaction.set(doc(collection(partnerRef, 'history')), createHistoryPayload({ category, action: 'updated', summary, metadata: { operationId, changes: selected }, actor: recordedBy }))
+    }
+  })
 }
 
 export async function updateBusinessPartnerCrmFields(partnerId, values, actor) {

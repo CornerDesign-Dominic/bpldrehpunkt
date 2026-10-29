@@ -1,3 +1,4 @@
+import { businessPartnerHistoryChanges } from './shared/businessPartnerHistory.js'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -240,8 +241,8 @@ export function fillEmptyCustomerFields(partner, row) {
   return patch
 }
 
-function importHistoryPayload(row, runRef, now) {
-  return { category: 'import', action: 'created', summary: 'Aus TA-Import erstellt', source: 'dycosTransportOrder', transportOrderNumber: row.externalNumber, importRunId: runRef.id, createdAt: now }
+function importHistoryPayload(row, runRef, now, actor) {
+  return { category: 'import', action: 'created', summary: 'Aus TA-Import erstellt', source: 'dycosTransportOrder', transportOrderNumber: row.externalNumber, importRunId: runRef.id, createdAt: now, createdByUserId: actor.userId, createdByName: actor.name }
 }
 
 function carrierNeedsCreditorNotice(partner) {
@@ -281,7 +282,8 @@ export function isSafeImportedCarrierRepair(existingOrder, partner, externalNumb
   )
 }
 
-async function ensureCustomer(db, batch, row, knownCustomers, runRef, now, ruleCatalog) {
+async function ensureCustomer(db, batch, row, knownCustomers, runRef, now, ruleCatalog, actor) {
+  let created = false
   const number = row.imported.customer.debtorNumber; let customer = knownCustomers.get(number)
   if (!customer) {
     const ref = db.doc(`businessPartners/${importPartnerId('debtor', number)}`); const existing = await ref.get()
@@ -289,13 +291,19 @@ async function ensureCustomer(db, batch, row, knownCustomers, runRef, now, ruleC
     else {
       const payload = customerPartnerPayload(row, { partnerId: ref.id, importRunId: runRef.id, now, ruleCatalog })
       batch.set(ref, payload)
-      batch.set(ref.collection('history').doc(), importHistoryPayload(row, runRef, now))
+      created = true
+      batch.set(ref.collection('history').doc(), importHistoryPayload(row, runRef, now, actor))
       customer = { id: ref.id, companyName: payload.companyName, debtorNumber: number, address: payload.address, contact: payload.contact, dycosReferences: payload.dycosReferences }
     }
     knownCustomers.set(number, customer)
   }
   const patch = fillEmptyCustomerFields(customer, row)
-  if (Object.keys(patch).length) { batch.set(db.doc(`businessPartners/${customer.id}`), { ...patch, updatedAt: now }, { merge: true }); customer = { ...customer, ...patch }; knownCustomers.set(number, customer) }
+  if (Object.keys(patch).length) {
+    const ref = db.doc(`businessPartners/${customer.id}`)
+    batch.set(ref, { ...patch, updatedAt: now }, { merge: true })
+    if (!created) batch.set(ref.collection('history').doc(), { category: 'masterData', action: 'updated', summary: 'Leere Stammdaten aus TA-Import ergänzt', metadata: { changes: businessPartnerHistoryChanges(customer, { ...customer, ...patch }) }, source: 'dycosTransportOrder', importRunId: runRef.id, createdAt: now, createdByUserId: actor.userId, createdByName: actor.name })
+    customer = { ...customer, ...patch }; knownCustomers.set(number, customer)
+  }
   return customer
 }
 
@@ -322,7 +330,7 @@ async function repairImportedCarrier(db, row, existingOrder) {
   return isSafeImportedCarrierRepair(existingOrder, original, row.externalNumber) ? activePartnerFor(db, original) : null
 }
 
-async function ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog) {
+async function ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog, actor) {
   const name = row.imported.carrier.originalName; const normalized = normalizePartnerName(name)
   if (resolution?.manual && resolution.partnerId) {
     const selected = await db.doc(`businessPartners/${resolution.partnerId}`).get()
@@ -359,7 +367,7 @@ async function ensureCarrier(db, batch, row, knownCarriers, existingOrder, resol
   if (existing.exists) { const partner = partnerEntry(existing); knownCarriers.set(normalized, partner); return partner }
   const payload = carrierPartnerPayload(row, { partnerId: ref.id, importRunId: runRef.id, now, ruleCatalog })
   batch.set(ref, payload)
-  batch.set(ref.collection('history').doc(), importHistoryPayload(row, runRef, now))
+  batch.set(ref.collection('history').doc(), importHistoryPayload(row, runRef, now, actor))
   const partner = { id: ref.id, companyName: payload.companyName, creditorNumber: '', address: payload.address, contact: payload.contact, dycosReferences: payload.dycosReferences, importOrigin: payload.importOrigin, taImportStatus: payload.taImportStatus }
   knownCarriers.set(normalized, partner)
   return partner
@@ -406,8 +414,8 @@ export async function importTransportOrdersHandler(request) {
     ])
     const customerWasKnown = customers.has(row.imported.customer.debtorNumber) || knownCustomerSnapshot.exists
     const carrierWasKnown = match?.kind === 'exact' || Boolean(existingOrder?.carrierPartnerId) || knownCarrierSnapshot.exists
-    const customer = await ensureCustomer(db, batch, row, customers, runRef, now, ruleCatalog)
-    const carrier = await ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog)
+    const customer = await ensureCustomer(db, batch, row, customers, runRef, now, ruleCatalog, { userId: request.auth.uid, name: importedBy })
+    const carrier = await ensureCarrier(db, batch, row, knownCarriers, existingOrder, resolution, runRef, now, ruleCatalog, { userId: request.auth.uid, name: importedBy })
     const originalCustomer = existingOrder?.customerPartnerId ? await db.doc(`businessPartners/${existingOrder.customerPartnerId}`).get() : null
     const originalCarrier = !resolution?.manual && existingOrder?.carrierPartnerId ? await db.doc(`businessPartners/${existingOrder.carrierPartnerId}`).get() : null
     const customerPartnerId = originalCustomer?.exists ? originalCustomer.id : customer.id

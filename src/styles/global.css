@@ -2372,3 +2372,19 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .shipment-tracking-history-indicator { display: inline-grid; flex: 0 0 auto; width: 26px; height: 26px; place-items: center; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-muted); background: var(--surface-secondary); }
 .transport-orders-attention-icons .shipment-tracking-history-indicator { width: 22px; height: 22px; border-radius: 4px; }
 .transport-orders-forecast-button--unknown, .shipment-tracking-forecast-button--unknown, .shipment-tracking-forecast-modal__arrival--unknown { color: var(--text-muted); background: var(--surface-secondary); }
+
+.partner-history-modal { width: min(1080px, calc(100vw - 48px)); max-height: calc(100vh - 64px); padding: 0; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--section-background); }
+.partner-history-modal::backdrop { background: rgb(0 0 0 / 60%); }
+.partner-history-modal > header, .partner-history-modal > footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; }
+.partner-history-modal > header { border-bottom: 1px solid var(--border); }
+.partner-history-modal > footer { justify-content: flex-end; border-top: 1px solid var(--border); }
+.partner-history-modal h2, .partner-history-modal header p { margin: 0; }
+.partner-history-modal header p { margin-top: 5px; font-size: 13px; color: var(--text-secondary); }
+.partner-history-modal__content { padding: 16px 20px; max-height: calc(100vh - 260px); overflow: auto; }
+.partner-history-table { width: 100%; table-layout: fixed; }
+.partner-history-table th:first-child { width: 25%; }
+.partner-history-table td { vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
+.partner-history-table td:first-child > * { display: block; margin-bottom: 5px; }
+.partner-history-table dl { display: grid; gap: 10px; margin: 0; }
+.partner-history-table dt { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.partner-history-table dd { margin: 3px 0 0; }

@@ -1,3 +1,4 @@
+import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -181,7 +182,12 @@ async function supersedeOpenQueueRows(db, debtorNumber, replacementId = null) {
   await Promise.all(matching.map((entry) => entry.ref.update({ state: 'superseded', ...(replacementId ? { supersededBy: replacementId } : {}), supersededAt: FieldValue.serverTimestamp(), lock: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })))
 }
 
-async function writePartnerHistory(customerRef, payload) { await customerRef.collection('history').doc().set({ ...payload, createdAt: FieldValue.serverTimestamp() }) }
+async function writePartnerHistory(customerRef, payload, partnerUpdate, options) {
+  const batch = customerRef.firestore.batch()
+  batch.set(customerRef, partnerUpdate, options || {})
+  batch.set(customerRef.collection('history').doc(), { ...payload, createdAt: FieldValue.serverTimestamp() })
+  await batch.commit()
+}
 
 export async function processCustomerImportHandler(request) {
   const profile = await access(request)
@@ -208,8 +214,8 @@ export async function processCustomerImportHandler(request) {
     const existing = debtorPartner || creditorPartner; const payload = customerPayload(row, runRef, FieldValue.serverTimestamp(), ruleCatalog); const additions = existing ? customerAdditions(existing, row) : { patch: {}, conflicts: [] }; const details = customerImportDecisionDetails({ row, existing, payload, additions }); const needsReview = details.reasons.length > 0 || details.comparisons.length > 0
     const assignment = customerImportAssignment(debtorPartner, creditorPartner, row.debtorNumber, row.data.linkedCreditorNumber)
     let customerId = existing?.id || payload.id; let automaticAppliedValues = {}
-    if (!existing) { const customerRef = db.collection('businessPartners').doc(payload.id); await customerRef.set(payload); await writePartnerHistory(customerRef, { category: 'import', action: 'created', summary: 'Aus Kundenimport erstellt', source: 'dycosCustomerImport', importRunId: runRef.id }); map.set(row.debtorNumber, { id: payload.id, ...payload }); partners.push({ id: payload.id, ...payload }); automaticAppliedValues = { created: true } }
-    else if (Object.keys(additions.patch).length) { const patch = { ...additions.patch }; if (Object.keys(patch).length) { const customerRef = db.collection('businessPartners').doc(existing.id); await customerRef.set({ ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); await writePartnerHistory(customerRef, { category: 'import', action: 'updated', summary: needsReview ? 'Sichere Felder aus Kundenimport ergänzt; Prüfung offen' : 'Aus Kundenimport ergänzt', source: 'dycosCustomerImport', importRunId: runRef.id, metadata: { fields: Object.keys(patch) } }); automaticAppliedValues = patch } }
+    if (!existing) { const customerRef = db.collection('businessPartners').doc(payload.id); await writePartnerHistory(customerRef, { category: 'import', action: 'created', summary: 'Aus Kundenimport erstellt', source: 'dycosCustomerImport', importRunId: runRef.id, createdByUserId: request.auth.uid, createdByName: actorName(profile) }, payload); map.set(row.debtorNumber, { id: payload.id, ...payload }); partners.push({ id: payload.id, ...payload }); automaticAppliedValues = { created: true } }
+    else if (Object.keys(additions.patch).length) { const patch = { ...additions.patch }; if (Object.keys(patch).length) { const customerRef = db.collection('businessPartners').doc(existing.id); await writePartnerHistory(customerRef, { category: 'import', action: 'updated', summary: needsReview ? 'Sichere Felder aus Kundenimport ergänzt; Prüfung offen' : 'Aus Kundenimport ergänzt', source: 'dycosCustomerImport', importRunId: runRef.id, createdByUserId: request.auth.uid, createdByName: actorName(profile), metadata: { changes: businessPartnerHistoryChanges(existing, mergePartnerHistoryPatch(existing, patch)), fields: Object.keys(patch) } }, { ...patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true }); automaticAppliedValues = patch } }
     const result = { partnerId: customerId, assignment, actions: customerImportActions(existing, row, automaticAppliedValues) }
     if (needsReview) {
       const rowRef = await upsertOpenQueueRow(db, runRef, row, { fileName, state: 'open', kind: 'review', reasons: [...row.warnings, ...details.reasons], comparisons: details.comparisons, customerId, automaticAppliedValues, result })
@@ -325,7 +331,7 @@ export async function approveCustomerImportRowHandler(request) {
       } else assignPath(updates, path, nextValue)
     }
     transaction.set(customerRef, { ...updates, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
-    transaction.set(customerRef.collection('history').doc(), { category: 'import', action: 'reviewed', summary: 'Kundenimport geprüft übernommen', source: 'dycosCustomerImport', importRunId: runId, actor: { userId: request.auth.uid, name: actorName(profile) }, previousValues: Object.fromEntries((row.comparisons || []).map((item) => [item.path, item.currentValue])), appliedValues: updates, createdAt: FieldValue.serverTimestamp() })
+    transaction.set(customerRef.collection('history').doc(), { category: 'import', action: 'reviewed', summary: 'Kundenimport geprüft übernommen', source: 'dycosCustomerImport', importRunId: runId, metadata: { changes: businessPartnerHistoryChanges(customer, mergePartnerHistoryPatch(customer, updates)) }, actor: { userId: request.auth.uid, name: actorName(profile) }, previousValues: Object.fromEntries((row.comparisons || []).map((item) => [item.path, item.currentValue])), appliedValues: updates, createdAt: FieldValue.serverTimestamp() })
     const approval = { type: 'reviewed', at: FieldValue.serverTimestamp(), byUserId: request.auth.uid, byName: actorName(profile), previousValues: Object.fromEntries((row.comparisons || []).map((item) => [item.path, item.currentValue])), appliedValues: updates }
     const result = reviewedCustomerImportResult(row.result, customerRef.id, updates)
     const completed = reviewedQueueRow({ id: rowId, debtorNumber: row.debtorNumber, companyName: row.companyName }, approval)

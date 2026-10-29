@@ -1,3 +1,4 @@
+import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
@@ -185,7 +186,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     for (const plan of [customerPlan, carrierPlan]) if (plan.create) {
       const partnerRef = db.doc(`businessPartners/${plan.partner.id}`)
       transaction.create(partnerRef, plan.partner)
-      transaction.create(partnerRef.collection('history').doc(), { category: 'import', action: 'created', summary: 'Aus DyCoS-Abruf erstellt', source: 'dycosTransportOrder', channel: 'power-automate', transportOrderNumber: data.taNummer, importRunId: runRef.id, createdAt: now })
+      transaction.create(partnerRef.collection('history').doc(), { category: 'import', action: 'created', summary: 'Aus DyCoS-Abruf erstellt', source: 'dycosTransportOrder', channel: 'power-automate', transportOrderNumber: data.taNummer, importRunId: runRef.id, createdAt: now, createdByUserId: request.auth.uid, createdByName: actorName(profile) })
     }
     for (const [partnerId, entry] of partnerUpdates) {
       const partnerRef = db.doc(`businessPartners/${partnerId}`)
@@ -195,9 +196,9 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
       }
       if (entry.additions.changedFields.length) update.updatedAt = now
       if (!entry.plan.create) transaction.update(partnerRef, update)
-      if (entry.additions.changedFields.length || entry.reviewChanged && entry.conflicts.length) transaction.create(partnerRef.collection('history').doc(), {
+      if (!entry.plan.create && (entry.additions.changedFields.length || entry.reviewChanged && entry.conflicts.length)) transaction.create(partnerRef.collection('history').doc(), {
         category: 'masterData', action: 'updated', summary: entry.conflicts.length ? 'DyCoS-Stammdaten geprüft; abweichende Werte bleiben erhalten' : 'Leere Stammdaten aus DyCoS ergänzt',
-        metadata: { addedFields: entry.additions.changedFields, conflictFields: entry.conflicts.map((conflict) => conflict.path), importRunId: runRef.id },
+        metadata: { changes: businessPartnerHistoryChanges(entry.plan.partner, mergePartnerHistoryPatch(entry.plan.partner, entry.additions.patch)), addedFields: entry.additions.changedFields, conflictFields: entry.conflicts.map((conflict) => conflict.path), importRunId: runRef.id },
         source: 'dycos-api', createdAt: now, createdByUserId: request.auth.uid, createdByName: actorName(profile),
       })
     }

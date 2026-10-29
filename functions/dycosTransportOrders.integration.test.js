@@ -256,7 +256,13 @@ test('emulator: rich partner data fills empty fields, preserves manual values an
   assert.doesNotMatch(JSON.stringify(partner), /NEVER_COPY/)
   const order = (await db().doc(`transportOrders/${id(ta)}`).get()).data()
   assert.doesNotMatch(JSON.stringify(order.imported), /NEVER_COPY|DE89370400440532013000/)
-  const historyBefore = (await ref.collection('history').get()).size
+  const savedHistory = await ref.collection('history').get()
+  const historyBefore = savedHistory.size
+  const changes = savedHistory.docs.flatMap((entry) => entry.get('metadata.changes') || [])
+  const websiteChange = changes.find((entry) => entry.path === 'contact.website')
+  assert.deepEqual([websiteChange.oldValue, websiteChange.newValue], [null, 'https://www.example.test'])
+  assert.equal(changes.some((entry) => entry.path === 'companyName'), false)
+  assert.equal(savedHistory.docs[0].get('createdByUserId'), uid)
   const repeat = await fetchDycosTransportOrderHandler(req(uid, ta), deps)
   assert.equal(repeat.partnerUpdates.enriched, 0)
   assert.equal((await ref.collection('history').get()).size, historyBefore)
@@ -276,6 +282,11 @@ test('emulator: brand new partner gets complete mapped data in the same transact
   assert.equal(partner.companyData.taxNumber, '')
   assert.equal(partner.dycosCreatedAt, '2020-01-01')
   assert.equal(partner.creditNoteProcedure, true)
+  const creationHistory = await db().doc(`businessPartners/dycos-debtor-${debtor}`).collection('history').get()
+  assert.equal(creationHistory.size, 1)
+  assert.equal(creationHistory.docs[0].get('action'), 'created')
+  assert.equal(creationHistory.docs[0].get('createdByUserId'), uid)
+  assert.equal(creationHistory.docs[0].get('metadata.changes'), undefined)
   const limited = await user({ dataImports: 'edit', masterData: 'view' }); const otherTa = nextTa(); const otherDebtor = nextAccount()
   const other = { ...response, auftrag: { ...response.auftrag, Nummer: Number(otherTa) }, kunde: { ...response.kunde, Debitorennummer: otherDebtor } }
   const result = await fetchDycosTransportOrderHandler(req(limited, otherTa), dependencies(async () => other))

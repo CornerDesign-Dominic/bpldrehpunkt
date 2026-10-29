@@ -1,3 +1,4 @@
+import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -107,13 +108,17 @@ export async function processCarrierImportHandler(request) {
       const collision = await ref.get()
       if (collision.exists) carrierId = db.collection('businessPartners').doc().id
       const actualRef = db.collection('businessPartners').doc(carrierId)
-      await actualRef.set({ ...payload, id: carrierId })
-      await actualRef.collection('history').doc().set({ category: 'import', action: 'created', summary: 'Aus Unternehmerimport erstellt', source: 'dycosCarrierImport', importRunId: runRef.id, createdAt: FieldValue.serverTimestamp() })
+      const batch = db.batch()
+      batch.set(actualRef, { ...payload, id: carrierId })
+      batch.set(actualRef.collection('history').doc(), { category: 'import', action: 'created', summary: 'Aus Unternehmerimport erstellt', source: 'dycosCarrierImport', importRunId: runRef.id, createdAt: FieldValue.serverTimestamp(), createdByUserId: request.auth.uid, createdByName: actorName(profile) })
+      await batch.commit()
       partners.push({ ...payload, id: carrierId }); automaticAppliedValues = { created: true }
     } else if (Object.keys(additions.patch).length) {
       const ref = db.collection('businessPartners').doc(existing.id)
-      await ref.set({ ...additions.patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
-      await ref.collection('history').doc().set({ category: 'import', action: 'updated', summary: needsReview ? 'Sichere Felder aus Unternehmerimport ergänzt; Prüfung offen' : 'Aus Unternehmerimport ergänzt', source: 'dycosCarrierImport', importRunId: runRef.id, metadata: { fields: Object.keys(additions.patch) }, createdAt: FieldValue.serverTimestamp() })
+      const batch = db.batch()
+      batch.set(ref, { ...additions.patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+      batch.set(ref.collection('history').doc(), { category: 'import', action: 'updated', summary: needsReview ? 'Sichere Felder aus Unternehmerimport ergänzt; Prüfung offen' : 'Aus Unternehmerimport ergänzt', source: 'dycosCarrierImport', importRunId: runRef.id, createdByUserId: request.auth.uid, createdByName: actorName(profile), metadata: { changes: businessPartnerHistoryChanges(existing, mergePartnerHistoryPatch(existing, additions.patch)), fields: Object.keys(additions.patch) }, createdAt: FieldValue.serverTimestamp() })
+      await batch.commit()
       Object.assign(existing, additions.patch); automaticAppliedValues = additions.patch
     }
     const result = { partnerId: carrierId, assignment: found.assignment, actions: carrierActions(existingBefore, row, automaticAppliedValues) }
@@ -230,7 +235,7 @@ export async function approveCarrierImportRowHandler(request) {
     }
     transaction.set(carrierRef, { ...updates, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
     const approval = { type: 'reviewed', at: FieldValue.serverTimestamp(), byUserId: request.auth.uid, byName: actorName(profile), previousValues: Object.fromEntries((row.comparisons || []).map((item) => [item.path, item.currentValue])), appliedValues: updates }
-    transaction.set(carrierRef.collection('history').doc(), { category: 'import', action: 'reviewed', summary: 'Unternehmerimport geprüft übernommen', source: 'dycosCarrierImport', importRunId: runId, actor: { userId: request.auth.uid, name: actorName(profile) }, previousValues: approval.previousValues, appliedValues: updates, createdAt: FieldValue.serverTimestamp() })
+    transaction.set(carrierRef.collection('history').doc(), { category: 'import', action: 'reviewed', summary: 'Unternehmerimport geprüft übernommen', source: 'dycosCarrierImport', importRunId: runId, metadata: { changes: businessPartnerHistoryChanges(carrier, mergePartnerHistoryPatch(carrier, updates)) }, actor: { userId: request.auth.uid, name: actorName(profile) }, previousValues: approval.previousValues, appliedValues: updates, createdAt: FieldValue.serverTimestamp() })
     const reviewed = reviewedCustomerImportResult(row.result, carrierRef.id, updates)
     transaction.update(rowRef, { state: 'accepted', result: reviewed, approval, lock: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })
     return { id: rowId, creditorNumber: row.creditorNumber, companyName: row.companyName, approvalType: 'geprüft übernommen', carrierId: carrierRef.id, result: reviewed, affectedPartner: { id: carrierRef.id, companyName: updates.companyName || carrier.companyName || '' } }

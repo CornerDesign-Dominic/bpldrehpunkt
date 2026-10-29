@@ -1,5 +1,22 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Weitere laden': 'Load more',
+  'Erneut versuchen': 'Try again',
+  'Adresse geändert': 'Address changed',
+  'Stammdaten geändert': 'Master data changed',
+  'Ansprechpartner geändert': 'Contact people changed',
+  'Sendungsverfolgung-Einstellungen geändert': 'Shipment tracking settings changed',
+
+  'Datum / Uhrzeit / Person': 'Date / time / person',
+  'Alte Daten': 'Previous data',
+  'Neue Daten': 'New data',
+  'Stammdatenblatt angelegt': 'Master data record created',
+  'Nicht protokolliert': 'Not recorded',
+  'Historie wird geladen …': 'Loading history …',
+  'Noch keine Änderungen protokolliert.': 'No changes recorded yet.',
+  'Die Stammdaten-Historie konnte nicht geladen werden.': 'The master data history could not be loaded.',
+  'Geschützt': 'Protected',
+
   'Auftrag aktualisieren': 'Update order',
   'Auftrag wird aktualisiert …': 'Updating order …',
   'Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu.': 'The data was saved, but the view could not be updated. Please reload the page.',

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BusinessPartnerForm from '../components/business-partners/BusinessPartnerForm.jsx'
 import BusinessPartnerHeader from '../components/business-partners/BusinessPartnerHeader.jsx'
+import BusinessPartnerHistoryModal from '../components/business-partners/BusinessPartnerHistoryModal.jsx'
 import DycosPartnerDataNotice from '../components/business-partners/DycosPartnerDataNotice.jsx'
 import ManualPartnerMergeFlow from '../components/business-partners/ManualPartnerMergeFlow.jsx'
 import Toast from '../components/ui/Toast.jsx'
@@ -49,6 +50,7 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [palletAccount, setPalletAccount] = useState(null)
   const [mergeMenuOpen, setMergeMenuOpen] = useState(false)
   const [mergeDirection, setMergeDirection] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [partnerFormVersion, setPartnerFormVersion] = useState(0)
   const [ruleCatalog, setRuleCatalog] = useState(fallbackShipmentTrackingRuleCatalog)
   const mergeMenuRef = useRef(null)
@@ -102,7 +104,7 @@ export default function BusinessPartnerFormPage({ mode }) {
     setSubmitting(true)
     setError('')
     try {
-      const savedId = mode === 'create' ? await createBusinessPartner(values, ruleCatalog) : (await updateBusinessPartner(partnerId, values, getHistoryActor(authState)), partnerId)
+      const savedId = mode === 'create' ? await createBusinessPartner(values, ruleCatalog, getHistoryActor(authState)) : (await updateBusinessPartner(partnerId, values, getHistoryActor(authState)), partnerId)
       if (mode === 'create') {
         navigate(businessPartnerDetailPath(savedId), { state: { toast: 'Geschäftspartner erfolgreich angelegt.' } })
       } else {
@@ -160,13 +162,14 @@ export default function BusinessPartnerFormPage({ mode }) {
   return (
     <div className="masterdata-page">
       {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
-      <div className="masterdata-action-row"><div><BackLink to="/kunden-unternehmer" /></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{<StaticText source={isSubmitting ? 'Wird angelegt …' : 'Anlegen'} />}</button>}{!isNew && !archived && canEdit('partnerMerges') && <div className="partner-merge-menu" ref={mergeMenuRef}><TranslatedProps sources={{"aria-label":"Partner-Aktionen öffnen"}}><button className="partner-merge-menu__trigger" type="button" aria-label="Partner-Aktionen öffnen" aria-haspopup="menu" aria-expanded={mergeMenuOpen} onClick={() => setMergeMenuOpen((open) => !open)}>…</button></TranslatedProps>{mergeMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-source'); setMergeMenuOpen(false) }}><StaticText source={"Diesen Partner in anderen zusammenführen …"} /></button><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-target'); setMergeMenuOpen(false) }}><StaticText source={"Anderen Partner hierher zusammenführen …"} /></button></div>}</div>}</div>
+      <div className="masterdata-action-row"><div><BackLink to="/kunden-unternehmer" /></div>{isNew && editable && <button aria-busy={isSubmitting} className="button masterdata-record-actions__save" form="business-partner-form" type="submit" disabled={isSubmitting}>{<StaticText source={isSubmitting ? 'Wird angelegt …' : 'Anlegen'} />}</button>}{!isNew && canView('masterData') && <div className="partner-merge-menu" ref={mergeMenuRef}><TranslatedProps sources={{"aria-label":"Partner-Aktionen öffnen"}}><button className="partner-merge-menu__trigger" type="button" aria-label="Partner-Aktionen öffnen" aria-haspopup="menu" aria-expanded={mergeMenuOpen} onClick={() => setMergeMenuOpen((open) => !open)}>…</button></TranslatedProps>{mergeMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { setHistoryOpen(true); setMergeMenuOpen(false) }}><StaticText source="Historie" /></button>{!archived && canEdit('partnerMerges') && <><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-source'); setMergeMenuOpen(false) }}><StaticText source={"Diesen Partner in anderen zusammenführen …"} /></button><button type="button" role="menuitem" onClick={() => { setMergeDirection('current-target'); setMergeMenuOpen(false) }}><StaticText source={"Anderen Partner hierher zusammenführen …"} /></button></>}</div>}</div>}</div>
       {archived && <aside className="partner-archive-notice"><strong><StaticText source={"Archiviertes Stammdatenblatt"} /></strong><p><StaticText source={"Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten."} /></p><Link to={businessPartnerDetailPath(shownPartner.mergedIntoPartnerId)}><StaticText source={"Aktiven Zielpartner öffnen"} /></Link></aside>}
       {!archived && <MissingCreditorNumberNotice notice={missingCreditorNumberNotice} />}
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={!archived && canView('crm')} canViewPallets={!archived && canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
       {!isNew && canView('masterData') && <DycosPartnerDataNotice partner={shownPartner} />}
       {error && <p className="form-error">{<StaticText source={error} />}</p>}
       <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
+      {historyOpen && <BusinessPartnerHistoryModal key={partnerId} partner={partner} partnerId={partnerId} onClose={() => setHistoryOpen(false)} />}
       {mergeDirection && <ManualPartnerMergeFlow currentPartnerId={partnerId} direction={mergeDirection} onClose={() => setMergeDirection('')} onMerged={handleManualMerge} />}
     </div>
   )

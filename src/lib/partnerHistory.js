@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, startAfter } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { mergedPartnerHistoryEntry } from './partnerReferencePresentation.js'
 import { getPartnerCluster } from './partnerClusterQueries.js'
@@ -21,7 +21,7 @@ export function getHistoryActor(authState) {
   const profile = authState?.profile
   return {
     id: user?.uid ?? null,
-    name: profile?.name?.trim() || user?.displayName?.trim() || user?.email?.trim() || null,
+    name: [profile?.firstName, profile?.lastName].filter(Boolean).join(' ').trim() || profile?.name?.trim() || user?.displayName?.trim() || user?.email?.trim() || null,
   }
 }
 
@@ -56,4 +56,10 @@ export async function listMergedPartnerSources(partnerId) {
     const snapshot = await getDoc(doc(db, 'businessPartners', entry.sourcePartnerId))
     return mergedPartnerHistoryEntry(entry, snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null)
   }))
+}
+
+export async function listMasterDataHistoryPage(partnerId, cursor = null) {
+  const constraints = [orderBy('createdAt', 'desc'), ...(cursor ? [startAfter(cursor)] : []), limit(50)]
+  const snapshot = await getDocs(query(historyRef(partnerId), ...constraints))
+  return { entries: snapshot.docs.map((item) => ({ id: item.id, ...item.data() })), cursor: snapshot.docs.at(-1) || null, hasMore: snapshot.size === 50 }
 }
