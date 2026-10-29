@@ -1,3 +1,5 @@
+import MailInvoiceAction from '../components/mailboxes/MailInvoiceAction.jsx'
+import MailAgbAction from '../components/mailboxes/MailAgbAction.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiSearch } from 'react-icons/fi'
@@ -158,7 +160,7 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef, orderDirtyRe
       <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
       {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}
     </article>
-    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}{canEdit(profile, 'transportOrders') && canView(profile, 'masterData') && <MailOrderAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} dirtyRef={orderDirtyRef} />}</aside>}
+    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}{canEdit(profile, 'transportOrders') && canView(profile, 'masterData') && <MailOrderAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} dirtyRef={orderDirtyRef} />}{canEdit(profile, 'transportOrders') && <MailInvoiceAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />}{canView(profile, 'agbChecker') && <MailAgbAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />}</aside>}
   </div>
 }
 

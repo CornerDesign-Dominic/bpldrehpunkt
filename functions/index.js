@@ -1,3 +1,5 @@
+import { reviewMailboxInvoicesHandler, listTransportInvoiceChecksHandler } from './mailboxes.js'
+import { analyzeMailboxAgbHandler, assignMailboxAgbCustomerHandler } from './mailboxes.js'
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
@@ -76,6 +78,10 @@ export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
 export const previewMailboxTracking = onCall({ ...mailboxOptions, timeoutSeconds: 240, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxTrackingHandler)
+export const reviewMailboxInvoices = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey, ...dycosFlowConfigurationSecrets] }, reviewMailboxInvoicesHandler)
+export const listTransportInvoiceChecks = onCall({ region: 'europe-west3', invoker: 'public', enforceAppCheck: true }, listTransportInvoiceChecksHandler)
+export const analyzeMailboxAgb = onCall({ ...mailboxOptions, timeoutSeconds: 300, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, analyzeMailboxAgbHandler)
+export const assignMailboxAgbCustomer = onCall(mailboxOptions, assignMailboxAgbCustomerHandler)
 export const previewMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 300, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxOrderHandler)
 export const exportMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 120, concurrency: 4 }, exportMailboxOrderHandler)
 export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingHandler)

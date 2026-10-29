@@ -1,3 +1,4 @@
+import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { getApp } from 'firebase-admin/app'
@@ -8,6 +9,7 @@ import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { runtimeProjectId } from './externalEffects.js'
 import { assertPersonalTrackingAccess, previewPersonalMailTracking, applyPersonalMailTracking } from './personalMailTracking.js'
+import { assertMailboxAgbAccess, validateAgbAttachments, analyzeMailboxAgb, assignMailboxAgbCustomer } from './mailboxAgb.js'
 import { assertMailboxOrderAccess, previewMailboxOrderCapture, exportMailboxOrderCapture } from './mailboxOrderCapture.js'
 
 export const mailboxClientSecret = defineSecret('MAILBOX_CLIENT_SECRET')
@@ -216,7 +218,7 @@ export function createMailboxHandlers(deps = {}) {
   const orderPdf = async (token, messageId, attachmentId) => {
     const path = `/me/messages/${segment(messageId)}/attachments/${segment(attachmentId)}`
     const metadata = await graph(token, `${path}?$select=id,name,contentType,size`)
-    if (metadata['@odata.type'] !== '#microsoft.graph.fileAttachment' || !Number.isSafeInteger(metadata.size) || metadata.size <= 0 || metadata.size > MAX_ATTACHMENT || !(metadata.contentType?.split(';')[0].toLowerCase() === 'application/pdf' || /\.pdf$/i.test(metadata.name || ''))) fail('failed-precondition', 'Für die Auftragserfassung sind nur PDF-Dateianhänge bis 5 MiB unterstützt.')
+    if (metadata['@odata.type'] !== '#microsoft.graph.fileAttachment' || !Number.isSafeInteger(metadata.size) || metadata.size <= 0 || metadata.size > MAX_ATTACHMENT || !(metadata.contentType?.split(';')[0].toLowerCase() === 'application/pdf' || /\.pdf$/i.test(metadata.name || ''))) fail('failed-precondition', 'Es sind nur PDF-Dateianhänge bis 5 MiB unterstützt.')
     const file = await graph(token, path)
     if (typeof file.contentBytes !== 'string' || file.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.contentBytes)) fail('failed-precondition', 'Der PDF-Anhang ist ungültig oder zu groß.')
     const bytes = Buffer.from(file.contentBytes, 'base64')
@@ -290,6 +292,45 @@ export function createMailboxHandlers(deps = {}) {
     applyMailboxTracking: guarded('tracking-apply', async request => {
       const context = await owned(request, true)
       return applyPersonalMailTracking({ db: db(), context, previewId: request.data?.previewId, changes: request.data?.changes, transitEntries: request.data?.transitEntries, now: now() })
+    }),
+    reviewMailboxInvoices: guarded('invoice-review', async request => {
+      const context = await owned(request, true)
+      assertInvoiceReviewAccess(context)
+      if (!/^[a-zA-Z0-9_-]{16,80}$/.test(request.data?.operationId || '')) fail('invalid-argument', 'Ungültige Prüfanfrage.')
+      const messageId = id(request.data?.messageId)
+      const token = await accessToken(context)
+      const list = await graph(token, `/me/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      const available = validateAgbAttachments(list, 'Rechnungsprüfung')
+      const files = []
+      for (const file of available) files.push(await orderPdf(token, messageId, file.id))
+      return reviewMailboxInvoices({ db: db(), context, files, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
+    }),
+    listTransportInvoiceChecks: guarded('invoice-history', async request => {
+      assertMailboxEnvironment(deps.config?.project || runtimeProjectId())
+      const profile = await (deps.requireProfile || requireActiveProfile)(request)
+      if (profile.active !== true || !(profile.role === 'superadmin' || ['view', 'edit'].includes(profile.permissions?.transportOrders))) fail('permission-denied', 'Keine Berechtigung für Transportaufträge.')
+      const orderId = id(request.data?.orderId)
+      if (orderId.includes('/')) fail('invalid-argument', 'Ungültiger Auftrag.')
+      const order = await db().doc(`transportOrders/${orderId}`).get()
+      if (!order.exists) fail('not-found', 'Auftrag nicht gefunden.')
+      const entries = await db().collection(`transportOrders/${orderId}/invoiceChecks`).orderBy('createdAt', 'desc').limit(20).get()
+      const reports = await Promise.all(entries.docs.map(async entry => (await db().doc(`invoiceCheckReports/${entry.data().reportId}`).get()).data()?.report))
+      return { reports: reports.filter(Boolean) }
+    }),
+    analyzeMailboxAgb: guarded('agb-analyse', async request => {
+      const context = await owned(request, true)
+      assertMailboxAgbAccess(context)
+      const messageId = id(request.data?.messageId)
+      const token = await accessToken(context)
+      const list = await graph(token, `/me/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      const available = validateAgbAttachments(list)
+      const files = []
+      for (const file of available) files.push(await orderPdf(token, messageId, file.id))
+      return analyzeMailboxAgb({ db: db(), context, files, now: now(), extract: deps.extractAgbPdf, analyze: deps.analyzeAgbText })
+    }),
+    assignMailboxAgbCustomer: guarded('agb-customer', async request => {
+      const context = await owned(request, true)
+      return assignMailboxAgbCustomer({ db: db(), context, data: request.data })
     }),
     previewMailboxOrder: guarded('order-preview', async request => {
       const context = await owned(request, true)
@@ -547,3 +588,9 @@ export const sendMailboxReplyHandler = handlers.sendMailboxReply
 export const disconnectMailboxHandler = handlers.disconnectMailbox
 export const mailboxOAuthCallbackHandler = handlers.mailboxOAuthCallback
 export const cleanupMailboxConnectionsHandler = handlers.cleanupMailboxConnections
+
+export const analyzeMailboxAgbHandler = handlers.analyzeMailboxAgb
+export const assignMailboxAgbCustomerHandler = handlers.assignMailboxAgbCustomer
+
+export const reviewMailboxInvoicesHandler = handlers.reviewMailboxInvoices
+export const listTransportInvoiceChecksHandler = handlers.listTransportInvoiceChecks

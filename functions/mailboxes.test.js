@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -357,4 +358,48 @@ test('OAuth callback reports technical failures without provider payloads, codes
   assert.equal(JSON.stringify(events).includes('provider secret'), false)
   assert.equal(JSON.stringify(events).includes(state), false)
   assert.equal(JSON.stringify(events).includes('secret-code'), false)
+})
+
+test('AGB mail action checks ownership and AGB rights before Graph; reads every PDF and no message body', async () => {
+  const denied = fixture()
+  await assert.rejects(denied.handlers.analyzeMailboxAgb(request({ messageId: 'message' })), { code: 'permission-denied' })
+  assert.equal(denied.fetchCount(), 0)
+  const paths = []
+  const pdf = Buffer.from('%PDF-1.4 synthetic').toString('base64')
+  const f = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'edit', agbChecker: 'view' } }), fetch: async url => {
+    paths.push(url)
+    if (url.includes('/attachments?')) return response({ value: ['one', 'two'].map(id => ({ id, name: `${id}.pdf`, size: 30, contentType: 'application/pdf', '@odata.type': '#microsoft.graph.fileAttachment' })) })
+    if (url.includes('?$select=')) return response({ name: 'file.pdf', size: 30, contentType: 'application/pdf', '@odata.type': '#microsoft.graph.fileAttachment' })
+    return response({ contentBytes: pdf, name: 'file.pdf' })
+  }, extractAgbPdf: async () => ({ text: 'AGB text', pageCount: 1 }), analyzeAgbText: async input => { assert.equal(input.sourceFiles.length, 2); assert.ok(!input.text.includes('forged')); return { historyId: 'history' } } })
+  const result = await f.handlers.analyzeMailboxAgb(request({ messageId: 'message', mailText: 'forged' }))
+  assert.equal(result.historyId, 'history')
+  assert.equal(paths.length, 5)
+  assert.ok(paths.every(path => path.includes('/attachments')))
+  await assert.rejects(f.handlers.analyzeMailboxAgb({ auth: { uid: 'foreign' }, data: { connectionId, messageId: 'message' } }), { code: 'permission-denied' })
+})
+
+test('invoice action uses server PDF data and refuses missing transport edit rights before Graph', async () => {
+  const denied = fixture()
+  await assert.rejects(denied.handlers.reviewMailboxInvoices(request({messageId:'message',operationId:'request-000000001'})), {code:'permission-denied'})
+  assert.equal(denied.fetchCount(),0)
+  const paths=[]
+  const f=fixture({requireProfile:async()=>({...profile,permissions:{mailboxes:'edit',transportOrders:'edit'}}), fetch:async url=>{
+    paths.push(url)
+    if(url.includes('/attachments?'))return response({value:[{id:'pdf',name:'invoice.pdf',size:30,contentType:'application/pdf','@odata.type':'#microsoft.graph.fileAttachment'}]})
+    if(url.includes('?$select='))return response({name:'invoice.pdf',size:30,contentType:'application/pdf','@odata.type':'#microsoft.graph.fileAttachment'})
+    return response({contentBytes:Buffer.from('%PDF-1.4 synthetic').toString('base64'),name:'invoice.pdf'})
+  },extractInvoicePdf:async()=>({text:'Server attachment text',pageCount:1}),inferInvoices:async input=>{assert.equal(input.documents[0].text,'Server attachment text');return {invoices:[]}}})
+  const result=await f.handlers.reviewMailboxInvoices(request({messageId:'message',operationId:'request-000000001',body:'forged client TA'}))
+  assert.match(result.message,/Keine Rechnung/);assert.ok(paths.every(path=>path.includes('/attachments')))
+  await assert.rejects(f.handlers.reviewMailboxInvoices({auth:{uid:'foreign'},data:{connectionId,messageId:'message',operationId:'request-000000001'}}),{code:'permission-denied'})
+})
+test('transport invoice history requires transport access but not personal mailbox access',async()=>{
+  const f=fixture({requireProfile:async()=>({...profile,permissions:{transportOrders:'view'}})})
+  f.db.records.set('transportOrders/order-1',{externalNumber:'260000001'})
+  f.db.records.set('invoiceCheckReports/report-1',{ownerId:'other-user',report:{id:'report-1',status:'match'}})
+  f.db.collection=path=>{assert.equal(path,'transportOrders/order-1/invoiceChecks');return{orderBy:()=>({limit:()=>({get:async()=>({docs:[{data:()=>({reportId:'report-1'})}]})})})}}
+  const result=await f.handlers.listTransportInvoiceChecks({auth:{uid:'owner'},data:{orderId:'order-1'}})
+  assert.equal(result.reports[0].id,'report-1')
+  const denied=fixture();await assert.rejects(denied.handlers.listTransportInvoiceChecks({auth:{uid:'owner'},data:{orderId:'order-1'}}),{code:'permission-denied'})
 })

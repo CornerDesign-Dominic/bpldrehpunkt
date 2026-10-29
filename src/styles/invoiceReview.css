@@ -1,0 +1,22 @@
+.invoice-review-results { display: grid; gap: 14px; min-width: 0; }
+.invoice-review-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.invoice-review-summary small { color: var(--text-secondary); }
+.invoice-review-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
+.invoice-review-status--match { color: var(--status-success-text); }
+.invoice-review-status--mismatch { color: var(--status-danger-text); }
+.invoice-review-status--unknown, .invoice-review-status--unassigned, .invoice-review-warning { color: var(--status-warning-text); }
+.invoice-review-invoice { border: 1px solid var(--border-strong); border-radius: 8px; padding: 12px; min-width: 0; }
+.invoice-review-invoice > h3 { margin: 0 0 8px; }
+.invoice-review-invoice details { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.invoice-review-invoice summary { cursor: pointer; font-size: 13px; }
+.invoice-review-transport > summary { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.invoice-review-comparison { overflow: auto; margin: 12px 0; }
+.invoice-review-comparison table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.invoice-review-comparison th, .invoice-review-comparison td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.invoice-review-results blockquote { margin: 10px 0; padding-left: 10px; border-left: 2px solid var(--border-strong); font-size: 12px; overflow-wrap: anywhere; }
+.invoice-review-results a { color: var(--text-primary); font-size: 12px; }
+.invoice-review-history-item { width: 100%; display: grid; gap: 8px; text-align: left; margin-bottom: 10px; }
+
+.invoice-review-transport-name { display: inline-flex; align-items: center; gap: 8px; }
+.invoice-review-expander::before { content: "+"; }
+.invoice-review-transport[open] > summary .invoice-review-expander::before { content: "−"; }

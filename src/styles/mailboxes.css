@@ -132,3 +132,7 @@
 .mail-work-dialog__spinner { width: 32px; height: 32px; border: 3px solid var(--border-strong); border-top-color: var(--button-background); border-radius: 50%; animation: mail-work-dialog-spin 1s linear infinite; }
 @keyframes mail-work-dialog-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .mail-work-dialog__spinner { animation: none; } }
+
+.mail-agb-customer { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; }
+.mail-agb-customer > summary { cursor: pointer; }
+.mail-agb-customer > label { margin: 10px 0; }
