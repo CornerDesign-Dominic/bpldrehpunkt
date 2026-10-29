@@ -978,3 +978,24 @@ Kein Dev-Push, kein Cloud-Deployment und keine Main-Änderung für diese Ergänz
 Abschlussprüfung: 45 fokussierte Unit-Tests und 29 Emulator-Integrationsprüfungen
 bestanden; Lint, Build und Shared-Prüfung erfolgreich. Die bekannte
 Chunkgrößenwarnung ist unverändert vorhanden.
+
+
+## 25. Freigabe zur Veröffentlichung der Stammdatenhistorie auf Dev
+
+Der Nutzer hat die Veröffentlichung der kompakten Stammdatenhistorie ausdrücklich
+freigegeben. Bereits auf Dev veröffentlichte Postfach- und Qualitätsänderungen
+wurden zuvor übernommen. Die Historie verwendet weiterhin die bestehenden
+Stammdatenrechte; keine Änderung an Rules, Indizes oder Secrets.
+
+Neben dem Frontend werden ausschließlich diese Funktionen im Projekt
+`db-bpl-drehpunkt-dev` aktualisiert, damit auch die bestehenden Importwege
+Akteur und tatsächliche Vorher-/Nachher-Werte protokollieren:
+`fetchDycosTransportOrder`, `importTransportOrders`, `processCustomerImport`,
+`approveCustomerImportRow`, `processCarrierImport`, `approveCarrierImportRow`.
+Main und Produktion bleiben außerhalb der Freigabe.
+
+Für den anschließenden Live-Test: Stammdatenblatt öffnen, über die drei Punkte
+„Historie“ wählen und eine kleine Änderung speichern. Alte und neue Werte
+sowie die Person müssen erscheinen; unverändertes Speichern erzeugt keinen
+zusätzlichen Eintrag. Neuanlagen zeigen nur den Anlageeintrag. Fehlende alte
+Historienwerte werden nicht rückwirkend ergänzt oder erfunden.
