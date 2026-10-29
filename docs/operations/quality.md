@@ -4,6 +4,14 @@ Stand: 29.10.2026. Dev-Release für K.V.P. und Handbuch. Produktionsfreigabe bes
 
 ## Fachlicher Ablauf
 
+Besprechungen werden mit Titel und Datum kurz angelegt und direkt unter
+`/qualitaet/kvp/besprechungen/{meetingId}` geöffnet. Auf der Detailseite lassen
+sich Protokoll, Teilnehmer und Themenzuordnung separat bearbeiten. Ein Protokoll
+kann mehrere Themen derselben Abteilung betreffen. Beim Anlegen aus einer
+Themenseite bleibt dieses Thema vorausgewählt; die Zuordnung wird erst auf der
+Protokollseite erweitert. Listen und Themenseiten öffnen dieselbe Detailseite.
+Der Datenvertrag, die Revisionssicherung und das Modulrecht `kvp` bleiben bestehen.
+
 Die Oberfläche verwendet kurze Feld- und Aktionsnamen ohne dauerhafte Erklärtexte.
 Handbucheinträge werden mit Titel und Prozess/Handlung angelegt. „Anlegen und
 öffnen“ führt direkt zur eigenen Detailseite unter `/qualitaet/handbuch/{entryId}`.

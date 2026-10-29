@@ -19,6 +19,7 @@ async function getQualityRecord(kind, id) {
 
 export const getQualityTopic = (id) => getQualityRecord('topic', id)
 export const getQualityHandbook = (id) => getQualityRecord('handbook', id)
+export const getQualityMeeting = (id) => getQualityRecord('meeting', id)
 
 export async function listQualityMeetingsForTopic(id) {
   try {

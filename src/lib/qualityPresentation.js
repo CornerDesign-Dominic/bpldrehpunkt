@@ -4,6 +4,17 @@ export const HANDBOOK_FIELDS = ['title', 'process', 'situation', 'consequences',
 export const MEETING_FIELDS = ['title', 'date', 'participants', 'notes']
 export const HANDBOOK_SECTIONS = ['situation', 'consequences', 'action', 'prevention']
 
+export function qualityMeetingUrl(id, topicId) {
+  if (typeof id !== 'string' || !id) throw new TypeError('A meeting ID is required')
+  return `/qualitaet/kvp/besprechungen/${encodeURIComponent(id)}${topicId ? `?${new URLSearchParams({ topic: topicId })}` : ''}`
+}
+
+export function qualityMeetingsOverviewUrl(departmentId) {
+  const search = new URLSearchParams({ view: 'meetings' })
+  if (departmentId) search.set('department', departmentId)
+  return `/qualitaet/kvp?${search}`
+}
+
 export function qualityHandbookUrl(id) {
   if (typeof id !== 'string' || !id) throw new TypeError('A handbook entry ID is required')
   return `/qualitaet/handbuch/${encodeURIComponent(id)}`
