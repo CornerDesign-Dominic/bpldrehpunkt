@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { listQualityHistory, saveQualityRecord } from '../../lib/quality.js'
-import { HANDBOOK_FIELDS, MEETING_FIELDS, PHASES, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
+import { HANDBOOK_FIELDS, MEETING_FIELDS, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
 import { qualityLabels as labels } from '../../lib/qualityLabels.js'
 
 export default function QualityEditor({ kind, record, departmentId, topics, focusPhase, newCycle = false, editable, onClose, onSaved, language }) {
@@ -19,6 +19,10 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
   const dirty = JSON.stringify(form) !== initial
   const readOnly = !editable || Boolean(historical)
   const displayed = historical || form
+  const creatingTopic = kind === 'topic' && !record.revision && !newCycle
+  const phaseFields = { plan: ['plan', 'goal', 'measure'], do: ['do', 'owner', 'startDate', 'dueDate'], check: ['check'], act: ['act', 'status'] }
+  const topicFields = creatingTopic ? ['title', 'plan'] : newCycle ? phaseFields.plan : phaseFields[focusPhase] || ['title', 'status']
+  const topicHeading = creatingTopic ? text('Neues Thema', 'New topic') : newCycle ? text('Neuer Durchlauf', 'New cycle') : focusPhase ? text('Bearbeiten', 'Edit') + ' · ' + focusPhase.toUpperCase() : text('Thema bearbeiten', 'Edit topic')
 
   useEffect(() => {
     const previous = document.activeElement
@@ -79,33 +83,30 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
     finally { setHistoryLoading(false) }
   }
 
-  function field(key, rows = 4) {
+  function field(key, rows = 3) {
+    if (key === 'status') return <label className="form-field" key={key}><span>Status</span><select disabled={readOnly} value={displayed.status} onChange={(event) => change('status', event.target.value)}><option value="active">{text('Aktiv', 'Active')}</option><option value="paused">{text('Pausiert', 'Paused')}</option><option value="completed">{text('Abgeschlossen', 'Completed')}</option></select></label>
+    const label = creatingTopic && key === 'plan' ? text('Kurzbeschreibung (optional)', 'Short description (optional)') : labels[key][en ? 1 : 0]
     const date = ['date', 'startDate', 'dueDate'].includes(key)
     const short = ['title', 'process', 'owner', 'participants'].includes(key)
-    return <label className="form-field" key={key}><span>{labels[key][en ? 1 : 0]}</span>{date || short
+    return <label className="form-field" key={key}><span>{label}</span>{date || short
       ? <input type={date ? 'date' : 'text'} required={key === 'title' || key === 'date' || key === 'process'} maxLength={short ? (key === 'title' ? 200 : key === 'participants' ? 20000 : 500) : undefined} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />
       : <textarea name={key} rows={rows} maxLength={20000} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />}</label>
   }
 
-  return <dialog ref={dialog} className="quality-dialog" aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
-    <header className="quality-heading"><h2 id="quality-editor-title">{record.title || text(kind === 'topic' ? 'Neues Problem' : kind === 'meeting' ? 'Neue Besprechung' : 'Neuer Handbucheintrag', kind === 'topic' ? 'New problem' : kind === 'meeting' ? 'New meeting' : 'New handbook entry')}{kind === 'topic' && <small className="quality-editor-cycle">{text('PDCA-Durchlauf', 'PDCA cycle')} {form.cycle}{newCycle ? text(' · neu', ' · new') : ''}</small>}</h2><button className="button button--secondary" type="button" onClick={close} disabled={saving}>{text('Schließen', 'Close')}</button></header>
+  return <dialog ref={dialog} className={`quality-dialog${kind === 'topic' ? ' quality-dialog--topic' : ''}`} aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
+    <header className="quality-heading"><h2 id="quality-editor-title">{kind === 'topic' ? topicHeading : record.title || text(kind === 'meeting' ? 'Neue Besprechung' : 'Neuer Handbucheintrag', kind === 'meeting' ? 'New meeting' : 'New handbook entry')}{kind === 'topic' && !creatingTopic && <small className="quality-editor-cycle">{text('Durchlauf', 'Cycle')} {form.cycle}</small>}</h2><button className="button button--secondary" type="button" onClick={close} disabled={saving}>{text('Schließen', 'Close')}</button></header>
     {discard && <div className="quality-discard" role="alert"><p>{text('Ungespeicherte Änderungen verwerfen?', 'Discard unsaved changes?')}</p><button className="button button--secondary" type="button" onClick={() => setDiscard(false)}>{text('Weiter bearbeiten', 'Keep editing')}</button> <button className="button button--danger" type="button" onClick={() => onClose({ reload: conflict })}>{text('Verwerfen und schließen', 'Discard and close')}</button></div>}
     {record.revision > 0 && <div className="quality-history"><button className="button button--secondary" type="button" disabled={historyLoading} onClick={showHistory}>{text('Verlauf', 'History')}</button>{history && <label>{text('Fassung', 'Revision')} <select value={historical?.revision || ''} onChange={(event) => setHistorical(history.find((item) => String(item.revision) === event.target.value) || null)}><option value="">{text('Aktuelle Bearbeitung', 'Current editing')}</option>{history.map((item) => <option key={item.revision} value={item.revision}>{kind === 'topic' ? `${text('Durchlauf', 'Cycle')} ${item.cycle} · ` : ''}{text('Fassung', 'Revision')} {item.revision} · {item.updatedAt?.toDate?.().toLocaleString(en ? 'en-GB' : 'de-DE')} · {item.updatedByName || item.updatedBy || ''}</option>)}</select></label>}</div>}
     {historical && <p role="status">{text('Frühere Fassung · nur lesbar', 'Previous revision · read only')}</p>}
     <form onSubmit={submit}>
       <fieldset disabled={saving} className="quality-fields">
-        {field('title')}
-        {kind === 'topic' && <>
-          <div className="quality-inline"><label className="form-field"><span>Status</span><select disabled={readOnly} value={displayed.status} onChange={(event) => change('status', event.target.value)}><option value="active">{text('Aktiv', 'Active')}</option><option value="paused">{text('Pausiert', 'Paused')}</option><option value="completed">{text('Abgeschlossen', 'Completed')}</option></select></label></div>
-          {field('plan', 3)}{field('goal')}{field('measure')}
-          <div className="quality-inline">{field('owner')}{field('startDate')}{field('dueDate')}</div>
-          {PHASES.slice(1).map((phase) => field(phase, 3))}
-        </>}
+        {kind !== 'topic' && field('title')}
+        {kind === 'topic' && topicFields.map((key) => field(key))}
         {kind === 'handbook' && HANDBOOK_FIELDS.slice(1).map((key) => field(key, 3))}
-        {kind === 'meeting' && <>{MEETING_FIELDS.slice(1).map((key) => field(key, 6))}<fieldset className="quality-topic-picker"><legend>{text('Besprochene Probleme', 'Problems discussed')}</legend>{topics.length === 0 && <p>{text('Lege zuerst ein Problem an.', 'Create a problem first.')}</p>}{topics.map((topic) => <label key={topic.id}><input type="checkbox" disabled={readOnly} checked={(displayed.topicIds || []).includes(topic.id)} onChange={(event) => change('topicIds', event.target.checked ? [...form.topicIds, topic.id] : form.topicIds.filter((id) => id !== topic.id))} /> {topic.title}</label>)}</fieldset></>}
+        {kind === 'meeting' && <>{MEETING_FIELDS.slice(1).map((key) => field(key, 6))}<fieldset className="quality-topic-picker"><legend>{text('Besprochene Themen', 'Topics discussed')}</legend>{topics.length === 0 && <p>{text('Lege zuerst ein Thema an.', 'Create a topic first.')}</p>}{topics.map((topic) => <label key={topic.id}><input type="checkbox" disabled={readOnly} checked={(displayed.topicIds || []).includes(topic.id)} onChange={(event) => change('topicIds', event.target.checked ? [...form.topicIds, topic.id] : form.topicIds.filter((id) => id !== topic.id))} /> {topic.title}</label>)}</fieldset></>}
       </fieldset>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <footer className="quality-actions">{!readOnly && <button className="button" disabled={saving || !dirty} type="submit">{saving ? text('Wird gespeichert …', 'Saving …') : text('Speichern', 'Save')}</button>}</footer>
+      <footer className="quality-actions">{!readOnly && <button className="button" disabled={saving || !dirty} type="submit">{saving ? text('Wird gespeichert …', 'Saving …') : creatingTopic ? text('Anlegen und öffnen', 'Create and open') : text('Speichern', 'Save')}</button>}</footer>
     </form>
   </dialog>
 }
