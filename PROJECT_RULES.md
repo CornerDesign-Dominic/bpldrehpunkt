@@ -52,6 +52,12 @@ fachlich abgenommen wurde. Historische Releases stehen in
 
 ### Dokumente und fachliche Hilfen
 
+- Qualität mit K.V.P.-Themen im PDCA-Ablauf, abteilungsbezogenen
+  Besprechungsprotokollen und eigenständigem Situationshandbuch.
+  Jeder Problemvorgang besitzt eine Detailseite mit auswählbaren PDCA-Durchläufen;
+  die Abteilungsübersicht zeigt den aktuellen Durchlauf je Problem.
+  Datenvertrag und Entwicklungsgrenzen: [Qualität](docs/operations/quality.md).
+
 - Dokumente
 - Vorlagen einschließlich Haftbarhaltung und Geschäftsdokumenten
 - AGB-Prüfer

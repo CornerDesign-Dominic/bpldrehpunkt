@@ -3,6 +3,8 @@ export const PERMISSION_LEVELS = ['none', 'view', 'edit']
 // Keep every product module in one place. Adding a module is deliberately a
 // small, explicit change: add it here, protect its route and add it to navigation.
 export const MODULES = {
+  kvp: { label: 'K.V.P.' },
+  handbook: { label: 'Handbuch' },
   dashboard: { label: 'Dashboard' },
   mailboxes: { label: 'Postfächer' },
   vacation: { label: 'Urlaub' },

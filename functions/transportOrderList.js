@@ -1,3 +1,4 @@
+import { shipmentTrackingProgress } from './shared/shipmentTrackingProgress.js'
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -35,12 +36,14 @@ function startDate(order) {
   return ''
 }
 function asMillis(value) { return value?.toMillis?.() ?? (value ? new Date(value).getTime() : null) }
-function forecastForList(value, settings, now = new Date(), tracking = null, imported = {}) {
+export function forecastForList(value, settings, now = new Date(), tracking = null, imported = {}) {
   const actualUnloading = asMillis(tracking?.actualArrivalUnloadingAt)
   if (Number.isFinite(actualUnloading)) {
     const slotEnd = asMillis(imported?.unloading?.window?.until) ?? asMillis(imported?.unloading?.window?.from)
     return { kind: 'arrival', state: !Number.isFinite(slotEnd) || actualUnloading <= slotEnd ? 'green' : 'yellow' }
   }
+  const progress = shipmentTrackingProgress(tracking || {})
+  if (progress.reachedUnloading) return { kind: 'completed', state: 'unknown', message: progress.unloaded ? 'Transport beendet · Ankunftszeit fehlt' : 'Entladung läuft · Ankunftszeit fehlt' }
   if (!value || typeof value !== 'object' || value.kind !== 'forecast') return value || null
   const expiresAt = asMillis(value.expiresAt)
   if (Number.isFinite(expiresAt) && now.getTime() > expiresAt) return { ...value, state: 'grey' }

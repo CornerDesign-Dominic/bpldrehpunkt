@@ -13,6 +13,8 @@ import { useMailboxConnections } from '../../mailboxes/useMailboxConnections.js'
 import { mailboxLabel, mailboxUrl } from '../../lib/mailboxHelpers.js'
 
 const navigationItems = [
+  { label: 'K.V.P.', to: '/qualitaet/kvp', icon: TodoIcon, module: 'kvp', group: 'quality' },
+  { label: 'Handbuch', to: '/qualitaet/handbuch', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'general' },
   { label: 'Notizen', to: '/notizen', icon: DocumentsIcon, group: 'general' },
@@ -51,11 +53,13 @@ const navigationGroups = [
   { key: 'partnerSales', label: 'Partner & Vertrieb', icon: UserPlusIcon },
   { key: 'cases', label: 'Fallmanagement', icon: ShieldOutlineIcon },
   { key: 'documents', label: 'Dokumente & Werkzeuge', icon: DocumentsIcon },
+  { key: 'quality', label: 'Qualität', icon: ShieldOutlineIcon },
   { key: 'more', label: 'Weiteres', icon: NewsIcon },
   { key: 'administration', label: 'System', icon: SettingsIcon },
 ]
 
 const navigationLabelKeys = {
+  '/qualitaet/kvp': 'nav.kvp', '/qualitaet/handbuch': 'nav.handbook',
   '/postfaecher': 'nav.mailboxes',
   '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
   '/feiertagskalender': 'nav.holidays', '/news': 'nav.news', '/team': 'nav.team', '/urlaub': 'nav.vacation',

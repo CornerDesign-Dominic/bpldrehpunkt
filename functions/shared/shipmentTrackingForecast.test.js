@@ -65,28 +65,17 @@ test('loading-start and loading-end stopwatch limits remain independent', () => 
   assert.equal(afterStart.items.find((item) => item.id === 'loading-wait').severity, 'success')
 })
 
-test('an actual departure keeps incomplete loading times yellow instead of escalating them', () => {
-  const result = shipmentTrackingAttention({
-    tracking: { actualDepartureLoadingAt: '2026-10-06T12:00:00Z' },
-    imported,
-    now: new Date('2026-10-06T18:00:00Z'),
-  })
-  const loading = result.items.find((item) => item.id === 'loading-wait')
-  assert.equal(loading.severity, 'warning')
-  assert.equal(loading.icon, 'stopwatch')
-  assert.equal(loading.label, 'Beladezeiten ergänzen')
+test('departure preserves current unloading warning and separates historical loading gaps', () => {
+  const result = shipmentTrackingAttention({ tracking: { actualDepartureLoadingAt: '2026-10-06T12:00:00Z' }, imported, now: new Date('2026-10-08T18:00:00Z') })
+  assert.equal(result.items.find((item) => item.id === 'unloading-arrival').severity, 'critical')
+  assert.equal(result.items.some((item) => item.icon === 'stopwatch'), false)
+  assert.deepEqual(result.history.missingFields, ['actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt'])
 })
 
-test('completed transports retain only mail review and yellow loading-time follow-ups', () => {
-  const result = shipmentTrackingAttention({
-    tracking: { lifecycleStatus: 'completed', lifecyclePhase: 'in_progress', automationPaused: true, actualArrivalUnloadingAt: '2026-10-07T18:00:00Z' },
-    imported,
-    receivedMails: [{ ai: { reviewRequired: true } }],
-  })
-  assert.deepEqual(result.items.map((item) => item.id), ['loading-wait', 'mail-review'])
-  const loading = result.items.find((item) => item.id === 'loading-wait')
-  assert.equal(loading.severity, 'warning')
-  assert.equal(loading.icon, 'stopwatch')
+test('completed transports retain mail review and separate neutral history', () => {
+  const result = shipmentTrackingAttention({ tracking: { lifecycleStatus: 'completed', automationPaused: true, actualArrivalUnloadingAt: '2026-10-07T18:00:00Z' }, imported, receivedMails: [{ ai: { reviewRequired: true } }] })
+  assert.deepEqual(result.items.map((item) => item.id), ['mail-review'])
+  assert.equal(result.history.severity, 'neutral')
 })
 
 test('a completed unloading or manually completed tracking suppresses every operational truck prompt', () => {
@@ -142,4 +131,29 @@ test('forecast plans a reduced Sunday rest in optimistic and realistic scenarios
   assert.equal(result.inputs.regulatedRestPlanning.realistic.weeklyRestHours, 24)
   assert.equal(result.inputs.regulatedRestPlanning.pessimistic.weeklyRestHours, 45)
   assert.equal(result.assumptions.some((item) => item.startsWith('Wochenendplanung: Bei einer Fahrt bis Sonntag')), true)
+})
+
+test('later loading facts suppress obsolete arrival prompts without inventing times', () => {
+  for (const tracking of [{ loadingStartedAt: '2026-10-06T08:00:00Z' }, { loadingCompletedAt: '2026-10-06T09:00:00Z' }]) {
+    const result = shipmentTrackingAttention({ tracking, imported, now: new Date('2026-10-06T09:15:00Z') })
+    assert.equal(result.items.some((item) => item.id === 'loading-arrival'), false)
+    assert.ok(result.history.missingFields.includes('actualArrivalLoadingAt'))
+    assert.equal(tracking.actualArrivalLoadingAt, undefined)
+  }
+})
+
+test('unloading progress and final closure suppress obsolete warnings and forecasts', () => {
+  for (const tracking of [{ unloadingStartedAt: '2026-10-07T18:00:00Z' }, { unloadingCompletedAt: '2026-10-07T18:00:00Z' }, { lifecycleStatus: 'completed' }]) {
+    const attention = shipmentTrackingAttention({ tracking, imported })
+    assert.deepEqual(attention.items, [])
+    assert.ok(attention.history.missingFields.includes('actualDepartureLoadingAt'))
+    const forecast = buildShipmentTrackingForecast({ tracking, imported })
+    assert.equal(forecast.kind, 'completed')
+    assert.equal(forecast.state, 'unknown')
+  }
+})
+
+test('complete historical facts remove the history icon', () => {
+  const tracking = { licensePlate: 'B AB 123', actualArrivalLoadingAt: '2026-10-06T08:00:00Z', loadingStartedAt: '2026-10-06T08:10:00Z', loadingCompletedAt: '2026-10-06T09:00:00Z', actualDepartureLoadingAt: '2026-10-06T09:10:00Z', actualArrivalUnloadingAt: '2026-10-07T12:00:00Z', unloadingStartedAt: '2026-10-07T12:10:00Z', unloadingCompletedAt: '2026-10-07T13:00:00Z' }
+  assert.equal(shipmentTrackingAttention({ tracking, imported }).history, null)
 })

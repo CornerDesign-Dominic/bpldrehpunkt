@@ -29,6 +29,14 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Die eigenständigen Qualitätsmodule `kvp` und `handbook` verwenden ebenfalls
+`none`/`view`/`edit`. `qualityTopics` und `qualityMeetings` einschließlich
+`revisions` sind mit `kvp` lesbar, `qualityHandbook` einschließlich Verlauf mit
+`handbook`. Direkte Schreibzugriffe sind gesperrt. `saveQualityRecord` prüft
+aktives Profil, Bearbeitungsrecht, Abteilung und Revision transaktional und
+schreibt unveränderliche Fassungen. Die Rechte gelten abteilungsübergreifend.
+Details: [Qualität](docs/operations/quality.md).
+
 Das zusätzliche Modul `mailboxes` steuert den persönlichen Mailbereich.
 `view` erlaubt lesende Zugriffe auf eigene verbundene Postfächer; `edit`
 zusätzlich Verknüpfen/Trennen, Entwurf speichern und explizites Antworten.

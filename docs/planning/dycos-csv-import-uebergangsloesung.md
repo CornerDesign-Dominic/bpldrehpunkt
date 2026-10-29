@@ -930,4 +930,6 @@ Browserprüfung mit synthetischen Daten: Doppelklick nur ein Abruf, aktualisiert
 unverändert, Verbindungsfehler mit stabiler Wiederholungs-ID, neue Anfrage nach
 Erfolg, Partnerhinweise, Nachladefehler und fehlende Rechte. DE/EN geprüft.
 Keine zusätzlichen Backend-Funktionen oder SQL-Abfragen erforderlich.
-Diese Ergänzung ist zunächst lokal; keine erneute Dev-/Main-Veröffentlichung.
+Der Nutzer hat die Dev-Veröffentlichung dieses Buttons anschließend ausdrücklich freigegeben.
+Es handelt sich ausschließlich um eine Frontend-Ergänzung; keine erneute
+Firebase-Bereitstellung ist dafür erforderlich. Main und Produktion bleiben unberührt.

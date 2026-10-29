@@ -1,3 +1,4 @@
+import { shipmentTrackingProgress } from '../../shared/shipmentTrackingProgress.js'
 import { defaultShipmentTrackingUiModel } from '../components/transport-orders/shipmentTrackingUiModel.js'
 
 const fieldLabels = {
@@ -239,14 +240,15 @@ export function shipmentTrackingStationAssessments({ tracking, imported, custome
 }
 
 function loadingWorkflowLabel(tracking, state) {
-  if (state === 'completed') return 'Abfahrt erfolgt'
-  if (tracking?.loadingStartedAt && !tracking?.loadingCompletedAt) return 'Beladung läuft'
+  if (state === 'completed') return tracking?.actualDepartureLoadingAt ? 'Abfahrt erfolgt' : 'Ladestelle passiert'
+  if (tracking?.loadingCompletedAt) return 'Beladung abgeschlossen'
+  if (tracking?.loadingStartedAt) return 'Beladung läuft'
   if (tracking?.actualArrivalLoadingAt) return 'Ankunft erfolgt'
   return 'Ankunft noch offen'
 }
 
 function transitWorkflowLabel(tracking, state, hasReport = false) {
-  if (state === 'completed') return 'Ankunft erfolgt'
+  if (state === 'completed') return tracking?.actualArrivalUnloadingAt ? 'Ankunft erfolgt' : 'Entladestelle erreicht'
   if (state === 'active' && formatTime(tracking?.actualDepartureLoadingAt)) return `Unterwegs seit ${formatTime(tracking.actualDepartureLoadingAt)}`
   if (hasReport) return 'Fahrtmeldung vorhanden'
   return 'Noch nicht unterwegs'
@@ -279,14 +281,13 @@ export function shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners
   if (!tracking) return ['pending', 'pending', 'pending', 'pending', 'pending']
   if (tracking.lifecycleStatus === 'completed') return ['completed', 'completed', 'completed', 'completed', 'completed']
 
-  const loadingTouched = Boolean(tracking.actualArrivalLoadingAt || tracking.loadingStartedAt || tracking.loadingCompletedAt)
-  const unloadingTouched = Boolean(tracking.actualArrivalUnloadingAt || tracking.unloadingStartedAt)
+  const progress = shipmentTrackingProgress(tracking)
   const rating = shipmentTrackingRatingState(ratings, ratingPartners)
   return [
-    licensePlate(tracking) ? 'completed' : 'active',
-    tracking.actualDepartureLoadingAt ? 'completed' : loadingTouched ? 'active' : 'pending',
-    tracking.actualArrivalUnloadingAt ? 'completed' : tracking.actualDepartureLoadingAt ? 'active' : 'pending',
-    tracking.unloadingCompletedAt ? 'completed' : unloadingTouched ? 'active' : 'pending',
+    licensePlate(tracking) || progress.reachedUnloading ? 'completed' : 'active',
+    progress.departed ? 'completed' : progress.reachedLoading ? 'active' : 'pending',
+    progress.reachedUnloading ? 'completed' : progress.departed ? 'active' : 'pending',
+    progress.unloaded ? 'completed' : progress.reachedUnloading ? 'active' : 'pending',
     rating.state,
   ]
 }
@@ -329,7 +330,7 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
       id: 'preparation',
       label: 'Vorbereitung',
       workflowState: workflowStates[0],
-      workflowLabel: plate ? 'Kennzeichen vorhanden' : 'Kennzeichen noch offen',
+      workflowLabel: plate ? 'Kennzeichen vorhanden' : workflowStates[0] === 'completed' ? 'Frühere Angaben fehlen' : 'Kennzeichen noch offen',
       plan: null,
       actualRows: plate ? [{ kind: 'license-plate', label: 'Kennzeichen', value: plate }] : [],
       forecastRows: [],
@@ -438,10 +439,10 @@ export function shipmentTrackingStationSummary(station, tracking) {
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
     rows = [...actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], row.label === 'Beladung begonnen' ? null : station.assessments?.[rowKeys[row.kind]], row.ai)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
-    if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
+    if (!rows.length) rows = [summaryRow('', station.workflowState === 'completed' ? 'Frühere Angaben fehlen' : 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
   } else if (station.id === 'in_transit') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value, row.kind === 'position' || row.kind === 'pause' ? row.kind : 'actual', null, null, row.ai)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
-    if (!rows.length) rows = [summaryRow('', 'Noch nicht unterwegs', 'missing')]
+    if (!rows.length) rows = [summaryRow('', station.workflowState === 'completed' ? 'Entladestelle erreicht' : 'Noch nicht unterwegs', 'missing')]
   } else if (station.id === 'unloading') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing')]

@@ -8,6 +8,7 @@ import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/fire
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
+import { saveQualityRecordHandler } from './quality.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
@@ -35,6 +36,7 @@ import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } 
 import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
 if (!getApps().length) initializeApp()
+export const saveQualityRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveQualityRecordHandler)
 export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
 export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, async (event) => {
   if (!event.data) return
@@ -42,7 +44,7 @@ export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-w
 })
 // Forecasts are only recalculated for the three agreed loading facts. A later
 // actual unloading arrival merely replaces the current moving truck with its
-// terminal house state; it never creates another forecast history entry.
+// terminal house state; unloading progress and final closure do the same.
 export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ region: 'europe-west3', document: 'transportOrderTrackings/{orderId}', maxInstances: 3 }, async (event) => {
   if (!event.data?.after.exists) return
   const before = event.data.before.exists ? event.data.before.data() : {}
@@ -56,7 +58,7 @@ export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ regio
   const oldUnload = before?.actualArrivalUnloadingAt?.toMillis?.() ?? before?.actualArrivalUnloadingAt ?? null
   const newUnload = after?.actualArrivalUnloadingAt?.toMillis?.() ?? after?.actualArrivalUnloadingAt ?? null
   if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
-  else if (oldUnload !== newUnload) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
+  else if (oldUnload !== newUnload || ['unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some((field) => (before[field]?.toMillis?.() ?? before[field] ?? null) !== (after[field]?.toMillis?.() ?? after[field] ?? null))) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
 })
 export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3 }, async (event) => {
   if (!event.data?.after.exists) return
@@ -86,7 +88,7 @@ export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', sc
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']

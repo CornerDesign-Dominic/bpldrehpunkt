@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { listIconFiltersMatch, loadingStartMatches, normalizeListIconFilters, normalizeTransportOrderListPageSize, relationMatches, trackingStatusMatches, transportOrderListPageSize, transportOrderRelationOptions, transportOrderTrackingStatus } from './transportOrderList.js'
+import { forecastForList, listIconFiltersMatch, loadingStartMatches, normalizeListIconFilters, normalizeTransportOrderListPageSize, relationMatches, trackingStatusMatches, transportOrderListPageSize, transportOrderRelationOptions, transportOrderTrackingStatus } from './transportOrderList.js'
 
 test('list tracking status is derived only from the separate tracking lifecycle', () => {
   assert.equal(transportOrderTrackingStatus(null), 'upcoming')
@@ -42,4 +42,12 @@ test('icon filters combine groups but keep each color selection mutually exclusi
   assert.equal(listIconFiltersMatch(items, { ...filters, stopwatch: 'critical' }), false)
   assert.equal(listIconFiltersMatch(items, { ...filters, automationPaused: true }), false)
   assert.deepEqual(normalizeListIconFilters({ stopwatch: 'warning', truck: 'red', mailReview: 'true' }), { automationPaused: false, mailReview: false, licensePlate: false, stopwatch: 'warning', truck: '' })
+})
+
+test('list replaces even stored red forecasts when unloading is confirmed without arrival time', () => {
+  for (const tracking of [{ unloadingStartedAt: '2026-10-07T12:00:00Z' }, { unloadingCompletedAt: '2026-10-07T13:00:00Z' }, { lifecycleStatus: 'completed' }]) {
+    const forecast = forecastForList({ kind: 'forecast', state: 'red' }, {}, new Date(), tracking)
+    assert.equal(forecast.kind, 'completed')
+    assert.equal(forecast.state, 'unknown')
+  }
 })

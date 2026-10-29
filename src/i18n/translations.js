@@ -11,6 +11,9 @@ export function localeForLanguage(value) {
 
 export const translations = {
   de: {
+    'group.quality': 'Qualität',
+    'nav.kvp': 'K.V.P.',
+    'nav.handbook': 'Handbuch',
     'group.mailboxes': 'Postfächer',
     'mailboxes.settings': 'Postfächer verwalten',
     'mailboxes.loading': 'Postfächer werden geladen …',
@@ -328,6 +331,9 @@ export const translations = {
     'agb.historyMoreError': 'Weitere Prüfungen konnten nicht geladen werden.',
   },
   en: {
+    'group.quality': 'Quality',
+    'nav.kvp': 'Continuous improvement',
+    'nav.handbook': 'Handbook',
     'group.mailboxes': 'Mailboxes',
     'mailboxes.settings': 'Manage mailboxes',
     'mailboxes.loading': 'Loading mailboxes …',

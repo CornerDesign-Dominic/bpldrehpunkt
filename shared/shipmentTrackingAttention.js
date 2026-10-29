@@ -1,3 +1,4 @@
+import { shipmentTrackingProgress } from './shipmentTrackingProgress.js'
 import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, normalizeShipmentTrackingForecastSettings } from './shipmentTrackingForecastSettings.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, subtractWorkingMinutes } from './shipmentTrackingOperatingHours.js'
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
@@ -14,7 +15,7 @@ function issue(id, severity, label, detail) { return { id, severity, label, deta
 const rank = { critical: 0, warning: 1, info: 2, success: 3 }
 
 export function shipmentTrackingAttention({ tracking = null, imported = {}, receivedMails = [], settings: value, operatingHours = DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, now = new Date() } = {}) {
-  if (!tracking) return { items: [], visible: [], moreCount: 0 }
+  if (!tracking) return { items: [], visible: [], moreCount: 0, history: null }
   const settings = normalizeShipmentTrackingForecastSettings(value || DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS)
   const timing = settings.timing
   const items = []
@@ -25,33 +26,23 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
   const loadingCompleted = shipmentTrackingDate(tracking.loadingCompletedAt)
   const estimatedArrivalLoading = shipmentTrackingDate(tracking.estimatedArrivalLoadingAt)
   const estimatedDeparture = shipmentTrackingDate(tracking.estimatedDepartureLoadingAt)
-  const actualDeparture = shipmentTrackingDate(tracking.actualDepartureLoadingAt)
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
-  const unloadingCompleted = shipmentTrackingDate(tracking.unloadingCompletedAt)
-  const transportFinished = Boolean(actualUnloading || unloadingCompleted || tracking.lifecycleStatus === 'completed')
+  const progress = shipmentTrackingProgress(tracking)
+  const history = progress.history
+  const transportFinished = progress.reachedUnloading
   const manuallyReviewableMail = (receivedMails || []).some((mail) => mail?.ai?.reviewRequired === true || ['needs_review', 'error'].includes(mail?.ai?.status))
   if (manuallyReviewableMail) items.push(issue('mail-review', 'warning', 'Eingangsmail manuell prüfen', 'Eine zugeordnete Mail benötigt eine fachliche Prüfung.'))
   // Once the transport has reached or completed the unloading site, none of
   // the operational truck prompts for loading arrival, departure or transit
-  // are still actionable. Keep only manual mail review and yellow data care.
+  // are still actionable. Historical gaps are returned separately.
   if (transportFinished) {
-    if (!loadingStarted || !loadingCompleted) {
-      const missing = !loadingStarted && !loadingCompleted ? 'Beladezeiten' : !loadingStarted ? 'Beladestart' : 'Beladeende'
-      const loading = issue('loading-wait', 'warning', `${missing} ergänzen`, 'Die Entladung ist abgeschlossen. Fehlende Beladezeiten können weiterhin nachgetragen werden.')
-      loading.icon = 'stopwatch'
-      items.push(loading)
-    }
     items.sort((left, right) => rank[left.severity] - rank[right.severity] || left.label.localeCompare(right.label, 'de-DE'))
-    return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3) }
+    return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3), history }
   }
   if (tracking.automationPaused === true) items.push(issue('automation-paused', 'critical', 'Automatik pausiert', 'Fällige Anfragen werden während der Pause nicht ausgeführt.'))
   if (tracking.lifecyclePhase === 'in_progress' && !plate(tracking)) items.push(issue('license-plate', 'warning', 'KZ fehlt', 'Für die laufende Vorbereitung fehlt ein Kennzeichen.'))
   let truck = null
-  if (actualDeparture && (!loadingStarted || !loadingCompleted)) {
-    const missing = !loadingStarted && !loadingCompleted ? 'Beladezeiten' : !loadingStarted ? 'Beladestart' : 'Beladeende'
-    truck = issue('loading-wait', 'warning', `${missing} ergänzen`, 'Die tatsächliche Abfahrt liegt vor. Die Beladezeit bleibt als gelber Hinweis offen, bis Start und Ende nachgetragen sind.')
-    truck.icon = 'stopwatch'
-  } else if (!actualArrivalLoading) {
+  if (!progress.reachedLoading) {
     if (!estimatedArrivalLoading) {
       if (workingHoursReached(now, loadingFrom, timing.noArrivalRedWorkingHours, operatingHours)) truck = issue('loading-arrival', 'critical', 'Ladeankunft fehlt', 'Die rote Frist vor Ladebeginn ist erreicht.')
       else if (workingHoursReached(now, loadingFrom, timing.noArrivalYellowWorkingHours, operatingHours)) truck = issue('loading-arrival', 'warning', 'Ladeankunft fehlt', 'Eine Rückmeldung zur Ladeankunft wird benötigt.')
@@ -59,7 +50,7 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
     } else if (workingHoursReached(now, loadingFrom, timing.estimatedArrivalRedWorkingHours, operatingHours)) truck = issue('loading-arrival', 'critical', 'Ladeankunft bestätigen', 'Die tatsächliche Ankunft fehlt innerhalb der roten Frist.')
     else if (workingHoursReached(now, loadingFrom, timing.estimatedArrivalYellowWorkingHours, operatingHours)) truck = issue('loading-arrival', 'warning', 'Ladeankunft bestätigen', 'Die gemeldete Ankunft muss bestätigt werden.')
     else truck = issue('loading-arrival', 'success', 'Ladeankunft angekündigt', 'Eine voraussichtliche Ankunft liegt vor.')
-  } else if (!loadingCompleted) {
+  } else if (!progress.loaded) {
     const anchor = loadingStarted || actualArrivalLoading
     const elapsedHours = (now.getTime() - anchor.getTime()) / 3600000
     const phase = loadingStarted ? 'Beladung' : 'Beladestart'
@@ -67,7 +58,7 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
     const redAfter = loadingStarted ? timing.loadingEndRedElapsedHours : timing.loadingStartRedElapsedHours
     truck = elapsedHours >= redAfter ? issue('loading-wait', 'critical', `${phase} überfällig`, 'Die Stopuhr zeigt eine überschrittene Frist.') : elapsedHours >= yellowAfter ? issue('loading-wait', 'warning', `${phase} beobachten`, 'Die Stopuhr läuft bereits länger als vorgesehen.') : issue('loading-wait', 'success', loadingStarted ? 'Beladung läuft' : 'LKW an Ladestelle', 'Stopuhr überwacht die Beladung.')
     truck.icon = 'stopwatch'
-  } else if (!actualDeparture) {
+  } else if (!progress.departed) {
     if (!estimatedDeparture) {
       const elapsedHours = (now.getTime() - loadingCompleted.getTime()) / 3600000
       truck = elapsedHours >= timing.departureMissingRedElapsedHours ? issue('departure-missing', 'critical', 'Abfahrt fehlt', 'Nach Beladeende fehlt weiterhin eine Abfahrt.') : issue('departure-missing', 'warning', 'Abfahrt fehlt', 'Nach Beladeende wird eine Abfahrt benötigt.')
@@ -81,5 +72,5 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
   }
   if (truck && !(tracking.automationPaused === true && truck.severity !== 'critical')) items.push(truck)
   items.sort((left, right) => rank[left.severity] - rank[right.severity] || left.label.localeCompare(right.label, 'de-DE'))
-  return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3) }
+  return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3), history }
 }
