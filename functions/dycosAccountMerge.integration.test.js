@@ -14,7 +14,7 @@ const account = (number, sourceId) => ({ entity: 'customer', number, sourceId })
 const actor = { userId: 'account-test', name: 'Account-Test' }
 
 for (const legacy of [false, true]) test(`emulator: ${legacy ? 'historical v1' : 'current v2'} split preserves source IDs learned after merge`, { skip: !enabled }, async () => {
-  const projectId = `${process.env.GCLOUD_PROJECT || 'demo-drehpunkt'}-accountmerge`
+  const projectId = `demo-accountmerge-${legacy ? 'v1' : 'v2'}-${randomUUID().slice(0, 8)}`
   assert.ok(projectId.startsWith('demo-'))
   const suffix = randomUUID(); const app = initializeApp({ projectId }, `account-merge-${suffix}`); const db = getFirestore(app)
   const targetRef = db.doc(`businessPartners/root-${suffix}`); const sourceRef = db.doc(`businessPartners/source-${suffix}`)
