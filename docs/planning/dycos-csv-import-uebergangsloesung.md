@@ -907,3 +907,27 @@ mit dem aktuellen Dev-Stand. Anschließend erfolgt der Live-Test durch den Nutze
 TA erneut abrufen, Partnerergänzungen/Abweichungen und neue Auftragsdetails prüfen.
 Bestehende Aufträge erhalten die zusätzlichen Angaben beim erneuten Abruf;
 eine rückwirkende Massenübernahme ist nicht Teil dieser Veröffentlichung.
+
+
+## 23. Auftrag direkt im Auftragsblatt aktualisieren
+
+Ein einzelner Button „Auftrag aktualisieren“ steht über der Streckenkarte.
+Er verwendet den bestehenden authentifizierten TA-Abruf mit der Nummer des
+offenen Auftrags. Sichtbarkeit und Aufruf bleiben an `dataImports: edit`
+gebunden; bloße Bearbeitungsrechte für Transportaufträge genügen nicht.
+Nach erfolgreichem Abruf werden Auftrag, Route, Tracking und verknüpfte
+Partnerdaten neu geladen. Die bestehenden Importregeln zum Erhalt manueller
+Angaben und zur Konfliktanzeige bleiben maßgeblich.
+
+Während einer Anfrage ist der Button gesperrt. Unterbrochene Antworten werden
+mit derselben Anfrage-ID wiederholt; nach einem abgeschlossenen Abruf führt der
+nächste Klick einen neuen Quellenabruf aus. Ergebnis, Partnerergänzungen und
+Warnungen werden direkt am Button angezeigt. Ein Fehler beim Nachladen der
+Ansicht wird ausdrücklich von einem fehlgeschlagenen Import unterschieden.
+Die Importseite und der neue Button verwenden dieselben Rückmeldungen.
+
+Browserprüfung mit synthetischen Daten: Doppelklick nur ein Abruf, aktualisiert,
+unverändert, Verbindungsfehler mit stabiler Wiederholungs-ID, neue Anfrage nach
+Erfolg, Partnerhinweise, Nachladefehler und fehlende Rechte. DE/EN geprüft.
+Keine zusätzlichen Backend-Funktionen oder SQL-Abfragen erforderlich.
+Diese Ergänzung ist zunächst lokal; keine erneute Dev-/Main-Veröffentlichung.

@@ -1,5 +1,8 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Auftrag aktualisieren': 'Update order',
+  'Auftrag wird aktualisiert …': 'Updating order …',
+  'Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu.': 'The data was saved, but the view could not be updated. Please reload the page.',
   'Position': 'Line',
   'Leistung': 'Service',
   'Menge': 'Quantity',

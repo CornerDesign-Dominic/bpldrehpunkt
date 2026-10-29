@@ -1,5 +1,5 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { calculateTransportOrderRoute, getTransportOrder, getTransportOrderRoute } from '../lib/transportOrders.js'
 import { isCarrierMasterDataIncomplete } from '../lib/importedPartnerStatus.js'
@@ -29,6 +29,7 @@ import TransportOrderTodosCard from '../components/transport-orders/TransportOrd
 import TransportOrderReceivedMails from '../components/transport-orders/TransportOrderReceivedMails.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import TransportOrderImportedDetails from '../components/transport-orders/TransportOrderImportedDetails.jsx'
+import TransportOrderRefreshButton from '../components/transport-orders/TransportOrderRefreshButton.jsx'
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
 
 function Detail({ label, children, emptyFallback = '—' }) { return <div><dt>{label}</dt><dd>{children || emptyFallback}</dd></div> }
@@ -76,14 +77,14 @@ function trackingCarrierRecipient(tracking) {
   const carrier = tracking?.recipients?.carrier
   return ['manual', 'transport-order-import'].includes(carrier?.source) && typeof carrier?.email === 'string' ? carrier.email.trim() : ''
 }
-function usePartnerMasterData(partnerId) {
+function usePartnerMasterData(partnerId, version) {
   const [entry, setEntry] = useState({ partnerId: '', data: null })
   useEffect(() => {
     if (!partnerId) return undefined
     let current = true
     getEffectiveBusinessPartner(partnerId).then((partner) => { if (current) setEntry({ partnerId, data: partner }) }).catch(() => { if (current) setEntry({ partnerId, data: null }) })
     return () => { current = false }
-  }, [partnerId])
+  }, [partnerId, version])
   return entry.partnerId === partnerId ? entry.data : null
 }
 function PartnerLink({ partner, effectivePartner, warning }) {
@@ -95,6 +96,9 @@ function PartnerLink({ partner, effectivePartner, warning }) {
 export default function TransportOrderDetailPage() {
   const { transportOrderId } = useParams()
   const navigate = useNavigate()
+  const activeOrderId = useRef(transportOrderId)
+  useEffect(() => { activeOrderId.current = transportOrderId }, [transportOrderId])
+  const [orderDataVersion, setOrderDataVersion] = useState(0)
   const [order, setOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -135,7 +139,13 @@ export default function TransportOrderDetailPage() {
   const { setTitle } = usePageHeader()
   const { canEdit, canView } = usePermissions()
   const { user, profile } = useAuth()
-  useEffect(() => { getTransportOrder(transportOrderId).then((entry) => { setOrder(entry); if (!entry) setError('Transportauftrag nicht gefunden.') }).catch(() => setError('Der Transportauftrag konnte nicht geladen werden.')).finally(() => setLoading(false)) }, [transportOrderId])
+  useEffect(() => {
+    let current = true
+    getTransportOrder(transportOrderId).then((entry) => {
+      if (current) { setOrder(entry); setError(entry ? '' : 'Transportauftrag nicht gefunden.') }
+    }).catch(() => { if (current) setError('Der Transportauftrag konnte nicht geladen werden.') }).finally(() => { if (current) setLoading(false) })
+    return () => { current = false }
+  }, [transportOrderId])
   async function refreshTracking() {
     setTrackingLoading(true)
     try {
@@ -196,10 +206,20 @@ export default function TransportOrderDetailPage() {
       if (current) setTrackingActivationError({ orderId: order.id, message: 'Der automatische Startzeitpunkt konnte nicht berechnet werden.' })
     })
     return () => { current = false }
-  }, [order?.id, tracking])
+  }, [order?.id, tracking, orderDataVersion])
   async function refreshRoute() {
     const currentRoute = await getTransportOrderRoute(transportOrderId)
     setRoute(currentRoute)
+  }
+  async function refreshImportedOrder() {
+    const [currentOrder, currentRoute, currentTracking] = await Promise.all([
+      getTransportOrder(transportOrderId), getTransportOrderRoute(transportOrderId), getShipmentTracking(transportOrderId),
+    ])
+    if (activeOrderId.current !== transportOrderId) return
+    if (!currentOrder) throw new Error('Transport order not found after import')
+    setOrder(currentOrder); setRoute(currentRoute); setRouteError('')
+    setTracking(currentTracking.tracking); setTrackingEvents(currentTracking.events); setTrackingError('')
+    setOrderDataVersion((version) => version + 1)
   }
   async function refreshOrder() {
     const currentOrder = await getTransportOrder(transportOrderId)
@@ -210,8 +230,8 @@ export default function TransportOrderDetailPage() {
     getTransportOrderRoute(transportOrderId).then((result) => { if (current) { setRoute(result); setRouteError('') } }).catch(() => { if (current) setRouteError('Die gespeicherte Planungsstrecke konnte nicht geladen werden.') })
     return () => { current = false }
   }, [transportOrderId])
-  const customerMasterData = usePartnerMasterData(order?.imported?.customer?.partnerId)
-  const carrierMasterData = usePartnerMasterData(order?.imported?.carrier?.partnerId)
+  const customerMasterData = usePartnerMasterData(order?.imported?.customer?.partnerId, orderDataVersion)
+  const carrierMasterData = usePartnerMasterData(order?.imported?.carrier?.partnerId, orderDataVersion)
   useEffect(() => {
     if (!order?.id || !user?.uid || !canView('transportOrders')) return undefined
     let current = true
@@ -330,6 +350,7 @@ export default function TransportOrderDetailPage() {
     {ratingsModalOpen && <TransportOrderRatingsModal order={order} ratings={ratings} partners={ratingPartners} canEdit={canEdit('transportOrders')} onClose={() => setRatingsModalOpen(false)} onSave={saveRatings} />}
     <div className="transport-order-detail-layout">
       <TranslatedProps sources={{"aria-label":"Verknüpfungen"}}><aside className="transport-order-detail-actions" aria-label="Verknüpfungen">
+        <TransportOrderRefreshButton key={order.id} order={order} allowed={order.id === transportOrderId && canEdit('dataImports') && /^(0|[1-9]\d{0,9})$/.test(order.externalNumber) && Number(order.externalNumber) <= 2147483647} onUpdated={refreshImportedOrder} />
         <TransportOrderRoutePanel route={route} canEdit={canEdit('transportOrders')} calculating={routeCalculating} error={routeError} needsRecalculation={order?.routeNeedsRecalculation === true} onCalculate={() => void calculateRoute()} />
         <TransportOrderLinkedCasesCard transportOrderId={transportOrderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />
         {canView('pallets') && <TransportOrderPalletMovementsCard transportOrder={order} canEdit={canEdit('pallets')} />}

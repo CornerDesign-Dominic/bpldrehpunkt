@@ -2363,3 +2363,8 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-imported-table { max-width: 100%; overflow-x: auto; }
 .transport-order-imported-table .data-table { min-width: 620px; }
 .transport-order-imported-table td { overflow-wrap: anywhere; }
+
+.transport-order-refresh { min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.transport-order-refresh > .button { width: 100%; justify-content: center; }
+.transport-order-refresh p { margin: 8px 0 0; }
+.transport-order-refresh ul { margin: 8px 0 0; padding-left: 18px; }
