@@ -127,6 +127,6 @@ export async function refreshShipmentTrackingAttentionSummary(orderId) {
   ])
   if (!orderSnapshot.exists || !trackingSnapshot.exists) return null
   const attention = shipmentTrackingAttention({ tracking: trackingSnapshot.data(), imported: orderSnapshot.data()?.imported, receivedMails: mailSnapshot.docs.map((item) => item.data()), settings: settingsSnapshot.exists ? settingsSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, operatingHours: operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS })
-  await trackingSnapshot.ref.set({ attentionSummary: { manualReviewOpen: attention.items.some((item) => item.id === 'mail-review'), updatedAt: FieldValue.serverTimestamp() } }, { merge: true })
+  await trackingSnapshot.ref.set({ attentionSummary: { manualReviewOpen: mailSnapshot.docs.some((entry) => { const ai = entry.data()?.ai; return ai?.reviewRequired === true || ['needs_review', 'error'].includes(ai?.status) }), updatedAt: FieldValue.serverTimestamp() } }, { merge: true })
   return attention
 }

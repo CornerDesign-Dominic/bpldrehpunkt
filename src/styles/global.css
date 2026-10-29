@@ -2390,3 +2390,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .record-history-table dd { margin: 3px 0 0; }
 
 .transport-order-detail-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+/* A mail pause is informational; completed tracking has no warning colors. */
+.transport-orders-attention-icons__item--neutral, .shipment-tracking-attention__item--neutral,
+.transport-orders-forecast-button--neutral, .shipment-tracking-forecast-button--neutral,
+.shipment-tracking-forecast-modal__arrival--neutral { color: var(--text-muted); background: var(--surface-secondary); }
