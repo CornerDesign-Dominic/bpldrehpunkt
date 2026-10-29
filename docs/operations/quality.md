@@ -5,6 +5,11 @@ Stand: 29.10.2026. Dev-Release für K.V.P. und Handbuch. Produktionsfreigabe bes
 ## Fachlicher Ablauf
 
 Die Oberfläche verwendet kurze Feld- und Aktionsnamen ohne dauerhafte Erklärtexte.
+Handbucheinträge werden mit Titel und Prozess/Handlung angelegt. „Anlegen und
+öffnen“ führt direkt zur eigenen Detailseite unter `/qualitaet/handbuch/{entryId}`.
+Situation, Folgen, Vorgehen und Vorbeugung werden dort jeweils einzeln bearbeitet;
+Titel und Prozess sind über „Eintrag bearbeiten“ erreichbar. Der bestehende
+Datenvertrag, Revisionsverlauf und Modulzugriff `handbook` bleiben erhalten.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
 anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
 den ersten Plan-Text; sie führt kein zusätzliches Datenfeld ein.

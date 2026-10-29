@@ -23,6 +23,7 @@
 .quality-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
 .quality-card { text-align:left; background:var(--content-background); border:1px solid var(--border); border-radius:8px; padding:20px; color:inherit; font:inherit; cursor:pointer; }
 .quality-card h3,.quality-card h4 { margin:8px 0; }
+.quality-card { text-decoration:none; }
 .quality-process { margin:24px 0; }
 .quality-empty { padding:36px; text-align:center; background:var(--surface-secondary); border-radius:8px; }
 .quality-dialog { width:min(940px,94vw); max-height:90vh; box-sizing:border-box; overflow:auto; background:var(--content-background); color:var(--text-primary); border:1px solid var(--border); border-radius:12px; padding:24px; }
