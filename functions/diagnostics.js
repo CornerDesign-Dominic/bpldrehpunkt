@@ -4,10 +4,12 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'kvp', 'handbook'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
+  kvp: ['load', 'save', 'history'],
+  handbook: ['load', 'save', 'history'],
   mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
@@ -27,12 +29,14 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
+  kvp: { load: 'K.V.P.-Daten konnten nicht geladen werden.', save: 'K.V.P.-Eintrag konnte nicht gespeichert werden.', history: 'K.V.P.-Änderungsverlauf konnte nicht geladen werden.' },
+  handbook: { load: 'Handbucheinträge konnten nicht geladen werden.', save: 'Handbucheintrag konnte nicht gespeichert werden.', history: 'Handbuch-Änderungsverlauf konnte nicht geladen werden.' },
   mailboxes: { connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
 }
 
 export function canReportLinkDiagnostic(profile, module) {
-  if (module !== 'mailboxes') return true
-  return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.mailboxes)
+  if (!['mailboxes', 'kvp', 'handbook'].includes(module)) return true
+  return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[module])
 }
 
 export function buildDiagnosticEvent({ module, stage, code, message, actorId, actorName, orderId, recordId, originCountry, destinationCountry, createdAt }) {
@@ -70,11 +74,13 @@ export function normalizeClientDiagnostic(data) {
   const stage = safeText(data?.stage, 40)
   const code = safeText(data?.code, 80)
   const orderId = safeText(data?.orderId, 240)
+  const recordId = safeText(data?.recordId, 240)
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
-  if (['website', 'document-templates', 'mailboxes'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  return { module, stage, code, orderId, message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['kvp', 'handbook'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
+  return { module, stage, code, orderId, ...(['kvp', 'handbook'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {
@@ -96,7 +102,7 @@ export async function reportClientDiagnosticHandler(request) {
     const previous = quota.exists ? quota.data() : null
     const windowStart = typeof previous?.windowStart === 'number' && now - previous.windowStart < 60 * 60 * 1000 ? previous.windowStart : now
     const count = windowStart === previous?.windowStart ? previous.count || 0 : 0
-    const fingerprint = `${event.module}|${event.stage}|${event.code}|${event.orderId}`
+    const fingerprint = `${event.module}|${event.stage}|${event.code}|${event.orderId}|${event.recordId || ''}`
     const recent = previous?.recent && windowStart === previous.windowStart ? previous.recent : {}
     if (count >= 60 || typeof recent[fingerprint] === 'number' && now - recent[fingerprint] < 60 * 1000) return false
     const currentRecent = Object.fromEntries(Object.entries(recent).filter(([, time]) => now - time < 60 * 1000))

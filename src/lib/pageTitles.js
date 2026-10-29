@@ -1,4 +1,6 @@
 const pageTitles = [
+  { path: '/qualitaet/kvp', title: 'K.V.P.' },
+  { path: '/qualitaet/handbuch', title: 'Handbuch' },
   { path: '/dashboard', title: 'Dashboard' },
   { path: '/postfaecher', title: 'Postfächer' },
   { path: '/team', title: 'Team Brennpunkt' },

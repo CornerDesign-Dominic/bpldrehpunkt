@@ -10,7 +10,7 @@ const stageLabels = {
   authenticate: 'Schnittstellenanmeldung', fetch: 'Quellabruf', mapping: 'Feldzuordnung',
   preparation: 'Vorbereitung', configuration: 'Konfiguration', geocoding_origin: 'Geocoding Start',
   geocoding_destination: 'Geocoding Ziel', routing: 'Routing', load: 'Laden', send: 'Versand',
-  save: 'Speichern', preview: 'Vorschau', dashboard: 'Dashboard', 'transport-orders': 'Transportaufträge',
+  history: 'Verlauf', save: 'Speichern', preview: 'Vorschau', dashboard: 'Dashboard', 'transport-orders': 'Transportaufträge',
   partners: 'Partner', crm: 'CRM', administration: 'Administration', other: 'Sonstige Seite',
   'personal-signature-load': 'Persönliche Unterschrift laden', 'company-stamp-load': 'Firmenstempel laden', 'pdf-create': 'PDF erstellen',
 }

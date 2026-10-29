@@ -51,6 +51,8 @@ export const autoOverrides = {
   'Ladestelle passiert': 'Loading site passed',
   'Entladestelle erreicht': 'Unloading site reached',
 
+  'Handbuch': 'Handbook',
+  'K.V.P.': 'Continuous improvement',
   'Transportauftrag aus DyCoS abrufen': 'Retrieve a transport order from DyCoS',
   'Transportauftrag öffnen': 'Open transport order',
   'TA-Nummer eingeben und den Auftrag abrufen. Vorhandene Aufträge werden aktualisiert; manuelle Angaben bleiben erhalten.': 'Enter the transport order number and retrieve the order. Existing orders are updated; manual entries are preserved.',

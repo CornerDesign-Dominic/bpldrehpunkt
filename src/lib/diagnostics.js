@@ -3,6 +3,8 @@ import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
+  kvp: 'K.V.P.',
+  handbook: 'Handbuch',
   'dycos-import': 'DyCoS-Auftragsabruf',
   mailboxes: 'Postfächer',
   'transport-route': 'Streckenberechnung',
@@ -15,18 +17,18 @@ export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
 
 const recentReports = new Map()
 
-export async function reportTechnicalFailure({ module, stage, error, orderId, code }) {
+export async function reportTechnicalFailure({ module, stage, error, orderId, recordId, code }) {
   if (!auth.currentUser) return false
   const classified = code || diagnosticCode(error)
   if (!classified) return false
-  const fingerprint = `${module}|${stage}|${classified}|${orderId || ''}`
+  const fingerprint = `${module}|${stage}|${classified}|${orderId || ''}|${recordId || ''}`
   const now = Date.now()
   if (now - (recentReports.get(fingerprint) || 0) < 60_000) return false
   recentReports.set(fingerprint, now)
   if (recentReports.size > 100) for (const [key, time] of recentReports) if (now - time > 60_000) recentReports.delete(key)
   try {
     await waitForAppCheckToken()
-    await httpsCallable(functions, 'reportClientDiagnostic')({ module, stage, code: classified, ...(orderId ? { orderId } : {}) })
+    await httpsCallable(functions, 'reportClientDiagnostic')({ module, stage, code: classified, ...(orderId ? { orderId } : {}), ...(recordId ? { recordId } : {}) })
     return true
   } catch {
     // Reporting is best effort and must not hide or alter the original failure.

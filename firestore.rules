@@ -92,6 +92,24 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Quality records and their immutable snapshots are written together by
+    // saveQualityRecord after module, department and revision validation.
+    match /qualityTopics/{id} {
+      allow read: if view('kvp');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('kvp'); allow write: if false; }
+    }
+    match /qualityMeetings/{id} {
+      allow read: if view('kvp');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('kvp'); allow write: if false; }
+    }
+    match /qualityHandbook/{id} {
+      allow read: if view('handbook');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
+    }
+
     match /appSettings/partnerEvaluation {
       // Evaluation colors are part of the signed-in client presentation, but
       // settings may only be changed by the Admin SDK callable function.
