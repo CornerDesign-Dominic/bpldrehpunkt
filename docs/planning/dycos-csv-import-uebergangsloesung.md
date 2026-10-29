@@ -1032,3 +1032,18 @@ Auftragshistorie und Pagination bestanden. Browserprüfung mit Beispieldaten:
 beide Historien, DE/EN, Light/Dark, kompakte Anlage und Nachladen ohne doppelten
 Anlageeintrag. Lint, Build und Shared-Prüfung erfolgreich; bekannte
 Chunkgrößenwarnung unverändert. Keine neue Dev-/Main-Veröffentlichung durchgeführt.
+
+
+## 27. Dev-Freigabe der Auftragshistorie
+
+Der Nutzer hat die Auftragshistorie ausdrücklich zur Veröffentlichung auf Dev
+freigegeben; Main und Produktion bleiben unberührt. Die aktuelle Dev-Anpassung
+der Postfachoberfläche wurde übernommen. Der Umfang enthält das gemeinsame
+Historienmodal für Stammdaten/Aufträge und ausschließlich die beiden
+Importfunktionen `fetchDycosTransportOrder` und `importTransportOrders` im
+Firebase-Projekt `db-bpl-drehpunkt-dev`. Keine Rules-, Index- oder Secret-Änderung.
+
+Für den Live-Test: Auftragsseite neu laden, Drei-Punkte-Menü → Historie öffnen.
+Nach einem Abruf über „Auftrag aktualisieren“ sind tatsächliche Änderungen mit
+alten/neuen Werten und Person sichtbar; ein unveränderter Abruf ergänzt keinen
+Eintrag. Alte bereits gespeicherte Importänderungen erscheinen ebenfalls.
