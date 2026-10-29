@@ -109,6 +109,29 @@ test('a canonical Graph nextLink does not discard the first inbox page and can b
   await assert.rejects(f.handlers.listMailboxMessages(request({ pageToken: `${first.nextPageToken}tampered` })), { code: 'invalid-argument' })
 })
 
+test('inbox search uses Graph, omits ordering, preserves opaque pages and binds them to the search', async () => {
+  const requests = []
+  const nextLink = 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?%24skiptoken=opaque-search'
+  const f = fixture({ fetch: async url => { requests.push(url); return response(requests.length === 1 ? { value: [{ id: 'match' }], '@odata.nextLink': nextLink } : { value: [{ id: 'next-match' }] }) } })
+  const search = '  Rechnung & Auftrag "4711"  '
+  const first = await f.handlers.listMailboxMessages(request({ search }))
+  const url = new URL(requests[0])
+  assert.equal(url.pathname, '/v1.0/me/mailFolders/inbox/messages')
+  assert.equal(url.searchParams.get('$search'), JSON.stringify(search.trim()))
+  assert.equal(url.searchParams.has('$orderby'), false)
+  assert.equal(url.searchParams.get('$top'), '30')
+  await assert.rejects(f.handlers.listMailboxMessages(request({ search: 'andere Suche', pageToken: first.nextPageToken })), { code: 'invalid-argument' })
+  await assert.rejects(f.handlers.listMailboxMessages(request({ pageToken: first.nextPageToken })), { code: 'invalid-argument' })
+  const second = await f.handlers.listMailboxMessages(request({ search, pageToken: first.nextPageToken }))
+  assert.equal(requests[1], nextLink)
+  assert.deepEqual(second.messages, [{ id: 'next-match' }])
+  for (const search of [{}, 'x'.repeat(201), 'Suche\nZeile', 'Suche\u007f']) await assert.rejects(f.handlers.listMailboxMessages(request({ search })), { code: 'invalid-argument' })
+  await f.handlers.listMailboxMessages(request({ search: '  ' }))
+  const inbox = new URL(requests.at(-1))
+  assert.equal(inbox.searchParams.has('$search'), false)
+  assert.equal(inbox.searchParams.get('$orderby'), 'receivedDateTime desc')
+})
+
 test('Graph failure diagnostics retain only status codes, without provider payload or message content', async () => {
   const events = []
   const f = fixture({ fetch: async () => response({ error: { message: 'private provider content must not be logged' } }, 503), diagnostic: async event => { events.push(event) } })

@@ -15,6 +15,20 @@ Der Name bleibt beim erneuten Verbinden erhalten. Die gewählte Verbindung und
 Nachricht stehen in URL-Parametern. Die letzte Auswahl wird je Drehpunkt-Nutzer
 als lokale Navigationseinstellung gemerkt, ohne Mailtexte oder Zugangsdaten.
 
+Die große zusätzliche Postfachüberschrift entfällt; die Navigation zeigt das
+aktive Postfach. Abgegrenzte Nachrichtenkarten und Empfängerbeschriftungen links
+neben den Antwortfeldern nutzen den Platz kompakter. Trennlinien gliedern
+erkannte deutsche/englische Outlook-Antwortköpfe und übliche „schrieb/wrote“-Zeilen.
+Unbekannte Formate bleiben unverändert; alle Textzeichen bleiben erhalten.
+
+Die Suche fragt direkt die Graph-Nachrichtensammlung des Posteingangs ab,
+statt nur geladene Karten zu filtern. Sie erfasst standardmäßig Absender,
+Betreff und Mailtext. Graph begrenzt diese Suche auf bis zu 1.000 Ergebnisse;
+die Oberfläche weist darauf hin. Suche und Zurücksetzen ändern weder die
+geöffnete Nachricht noch deren Antwortentwurf. Folgeseiten sind zusätzlich an
+den Suchbegriff gebunden. Suchbegriffe werden nicht als Navigationseinstellung
+oder Diagnose gespeichert. Für die Suche sind keine zusätzlichen Rechte nötig.
+
 Microsoft Exchange Online führt Nachrichten und Originalanhänge. Drehpunkt
 fragt sie bei Bedarf serverseitig über Microsoft Graph ab. Nachrichtentexte
 werden als Klartext angezeigt; externe Bilder und aktives Mail-HTML werden
@@ -274,10 +288,18 @@ Die bisherige echte Microsoft-Abnahme für Lesen, PDF, gespeicherten Entwurf und
 internen Versand wurde vom Nutzer bestätigt. Der neue Namensablauf wurde noch
 nicht am echten Testpostfach geprüft.
 
+Prüfung der anschließenden Komfortanpassung: 31 gezielte Postfach-/Texttests,
+Projekt-Lint ohne `tmp/`, Build und Shared-Abgleich erfolgreich. Synthetischer
+Browsercheck bestätigt die kompakte Ansicht, zwei erkannte Antwortgrenzen,
+Suche mit/ohne Treffer, Zurücksetzen, unveränderten geöffneten Antwortentwurf,
+Speichern sowie Deutsch/Englisch und Light/Dark. Die neue Suche wurde noch
+nicht mit dem echten Exchange-Testpostfach abgenommen.
+
 ## Führende externe Quellen
 
 - [Microsoft: App registrieren](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app)
 - [Microsoft: Graph-Berechtigungen](https://learn.microsoft.com/en-us/graph/permissions-reference)
+- [Microsoft: Suche in Nachrichtensammlungen](https://learn.microsoft.com/en-us/graph/search-query-parameter#use-search-on-message-collections)
 - [Microsoft: Zuweisung und Zustimmung](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-access-management)
 - [Microsoft: Auf eine Mail antworten](https://learn.microsoft.com/en-us/graph/api/message-reply?view=graph-rest-1.0)
 - [Google: Secret Manager](https://docs.cloud.google.com/secret-manager/docs/creating-and-accessing-secrets)

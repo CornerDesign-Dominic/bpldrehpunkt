@@ -4,7 +4,8 @@ import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { canEdit } from '../lib/permissions.js'
 import { mailboxCall } from '../lib/mailboxes.js'
-import { attachmentBlob, mailboxLabel, parseRecipients, recipientAddress, recipientText, replyRecipients, safeAttachmentName, safeOutlookLink } from '../lib/mailboxHelpers.js'
+import { attachmentBlob, parseRecipients, recipientAddress, recipientText, replyRecipients, safeAttachmentName, safeOutlookLink } from '../lib/mailboxHelpers.js'
+import { splitMailConversation } from '../lib/mailboxConversation.js'
 import MailAttachmentPdf from '../components/mailboxes/MailAttachmentPdf.jsx'
 import { useMailboxConnections } from '../mailboxes/useMailboxConnections.js'
 import { unsavedDrafts, syncDraftCacheGuard } from '../lib/mailboxDraftCache.js'
@@ -60,7 +61,6 @@ export default function MailboxesPage() {
   }
 
   return <section className="mailboxes-page">
-    <header className="mailboxes-heading"><div><h1>{connection ? mailboxLabel(connection) : w('Postfächer', 'Mailboxes')}</h1>{connection?.customName && <p>{connection.email}</p>}</div></header>
     {pending && <p role="status">{w('Postfachverbindung wird bestätigt …', 'Confirming mailbox connection …')}</p>}
     {error && <Failure message={w('Postfächer konnten nicht geladen werden.', 'Could not load mailboxes.')} retry={() => { void refresh() }} />}
     {loading && !connections.length && <p role="status">{w('Postfächer werden geladen …', 'Loading mailboxes …')}</p>}
@@ -81,6 +81,8 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   const [next, setNext] = useState(null)
   const [busy, setBusy] = useState(true)
   const [error, setError] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
   const request = useRef(0)
   const retryPage = useRef(null)
   const load = useCallback(async (pageToken) => {
@@ -88,27 +90,33 @@ function Inbox({ connectionId, selectedId, onSelect }) {
     retryPage.current = pageToken || null
     setBusy(true); setError('')
     try {
-      const result = await mailboxCall('listMailboxMessages', { connectionId, ...(pageToken ? { pageToken } : {}) })
+      const result = await mailboxCall('listMailboxMessages', { connectionId, ...(search ? { search } : {}), ...(pageToken ? { pageToken } : {}) })
       if (version !== request.current) return
       setMessages((current) => pageToken ? [...new Map([...current, ...result.messages].map((item) => [item.id, item])).values()] : result.messages)
       setNext(result.nextPageToken || null)
     } catch { if (version === request.current) setError(w('Nachrichten konnten nicht geladen werden.', 'Could not load messages.')) }
     finally { if (version === request.current) setBusy(false) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connectionId])
+  }, [connectionId, search])
   useEffect(() => {
-    const task = setTimeout(() => { void load() }, 0)
+    const task = setTimeout(() => { setMessages([]); setNext(null); void load() }, 0)
     // Invalidate outstanding requests after this inbox unmounts.
     const currentRequest = request
     return () => { clearTimeout(task); ++currentRequest.current }
   }, [load])
   return <aside className="mailbox-inbox" aria-label={w('Posteingang', 'Inbox')}><div className="mailbox-panel-heading"><h2>{w('Posteingang', 'Inbox')}</h2><button type="button" disabled={busy} onClick={() => load()}>{w('Aktualisieren', 'Refresh')}</button></div>
+    <form className="mailbox-search" role="search" onSubmit={event => { event.preventDefault(); const nextSearch = searchInput.trim(); if (nextSearch === search) void load(); else setSearch(nextSearch) }}>
+      <label htmlFor="mailbox-search">{w('Posteingang durchsuchen', 'Search inbox')}</label>
+      <input id="mailbox-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder={w('Absender, Betreff, Mailtext', 'Sender, subject, message text')} />
+      <div><button type="submit">{w('Suchen', 'Search')}</button>{search && <button type="button" onClick={() => { setSearchInput(''); setSearch('') }}>{w('Zurücksetzen', 'Clear search')}</button>}</div>
+      {search && <small role="status">{w('Suchergebnisse · bis zu 1.000 Treffer', 'Search results · up to 1,000 matches')}</small>}
+    </form>
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
     <div className="mailbox-message-list">{messages.map((message) => <button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
       <span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
     </button>)}</div>
     {busy && <p role="status">{w('Nachrichten werden geladen …', 'Loading messages …')}</p>}
-    {!busy && !error && !messages.length && <p>{w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}
+    {!busy && !error && !messages.length && <p role="status">{search ? w('Keine passenden Nachrichten gefunden.', 'No matching messages found.') : w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}
     {next && <button type="button" disabled={busy} onClick={() => load(next)}>{w('Weitere Nachrichten', 'More messages')}</button>}
   </aside>
 }
@@ -159,7 +167,7 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
   return <div className={`mailbox-workspace mailbox-focus-${focus}`}>
     <article className="mailbox-reader"><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2>{editable && <button type="button" aria-pressed={focus === 'mail'} onClick={() => setFocus('mail')}>{w('Lesebereich vergrößern', 'Expand reading area')}</button>}</div>
       <h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(message.receivedDateTime, language)}</dd></dl>
-      <div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')}</div>
+      <div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div>
       {message.attachments?.length > 0 && <section className="mailbox-attachments"><h3>{w('Anhänge', 'Attachments')}</h3>{message.attachments.map((item) => <div key={item.id}>
         <span>{item.name}</span>
         {item.supported === false ? <small>{w('Über 5 MB oder nicht unterstützter Anhang. Bitte über das Original in Outlook öffnen.', 'Over 5 MB or unsupported attachment. Open the original in Outlook.')}</small> : <>
@@ -283,7 +291,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef, onFocus }) {
       if ((draft.to !== replyRecipients(message, ownEmail, draft.replyAll).to || draft.cc !== replyRecipients(message, ownEmail, draft.replyAll).cc) && !window.confirm(w('Empfänger durch die Auswahl für diesen Antwortmodus ersetzen?', 'Replace recipients with those for this reply mode?'))) return
       changeDraft({ ...draft, ...replyRecipients(message, ownEmail, replyAll), bcc: draft.bcc, replyAll })
     }} />{w('Allen antworten', 'Reply all')}</label>
-      {['to', 'cc', 'bcc'].map((field) => <label key={field}>{field === 'to' ? w('An', 'To') : field.toUpperCase()}<input type="text" disabled={locked} autoComplete="off" value={draft[field]} onChange={(event) => update(field, event.target.value)} placeholder="name@example.com" /></label>)}
+      {['to', 'cc', 'bcc'].map((field) => <label className="mailbox-recipient-field" key={field}><span>{field === 'to' ? w('An', 'To') : field.toUpperCase()}</span><input type="text" disabled={locked} autoComplete="off" value={draft[field]} onChange={(event) => update(field, event.target.value)} placeholder="name@example.com" /></label>)}
       <label>{w('Deine Antwort', 'Your reply')}<textarea disabled={locked} value={draft.body} onChange={(event) => update('body', event.target.value)} rows={14} /></label>
       <p className="mailbox-hint">{w('Der Entwurf wird mit „Entwurf speichern“ in Drehpunkt gespeichert. Er erscheint nicht als Outlook-Entwurf.', 'Use Save draft to store your draft in Drehpunkt. It does not appear in Outlook drafts.')}</p>
       <div className="mailbox-reply-buttons"><button type="button" disabled={locked || !dirty} onClick={save}>{w('Entwurf speichern', 'Save draft')}</button><button type="button" disabled={locked} onClick={send}>{busy ? w('Bitte warten …', 'Please wait …') : w('Antwort senden', 'Send reply')}</button></div>

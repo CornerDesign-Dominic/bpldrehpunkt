@@ -268,7 +268,14 @@ export function createMailboxHandlers(deps = {}) {
     }),
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
-      let path = '/me/mailFolders/inbox/messages?$top=30&$orderby=receivedDateTime%20desc&$select=id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview'
+      const rawSearch = request.data.search ?? ''
+      if (typeof rawSearch !== 'string' || rawSearch.length > 200 || [...rawSearch].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) fail('invalid-argument', 'Der Suchbegriff darf höchstens 200 Zeichen und keine Steuerzeichen enthalten.')
+      const search = rawSearch.trim()
+      const searchHash = digest(search)
+      const query = new URLSearchParams({ '$top': '30', '$select': 'id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview' })
+      if (search) query.set('$search', JSON.stringify(search))
+      else query.set('$orderby', 'receivedDateTime desc')
+      let path = `/me/mailFolders/inbox/messages?${query}`
       if (request.data.pageToken) {
         const token = clean(request.data.pageToken, 16000)
         const [encoded, signature] = token.split('.')
@@ -276,13 +283,14 @@ export function createMailboxHandlers(deps = {}) {
         if (!encoded || signature !== expected) fail('invalid-argument', 'Ungültige Folgeseite.')
         const cursor = JSON.parse(Buffer.from(encoded, 'base64url').toString())
         if (!Number.isFinite(cursor.expiresAt) || cursor.expiresAt < now() || typeof cursor.path !== 'string') fail('invalid-argument', 'Folgeseite ist abgelaufen.')
+        if ((cursor.searchHash || digest('')) !== searchHash) fail('invalid-argument', 'Die Folgeseite gehört zu einer anderen Suche.')
         path = mailboxMessagePagePath(`${GRAPH}${cursor.path}`, context.connection)
       }
       const result = await graph(await accessToken(context), path)
       let nextPageToken = null
       if (result['@odata.nextLink']) {
         const nextPath = mailboxMessagePagePath(result['@odata.nextLink'], context.connection)
-        const encoded = Buffer.from(JSON.stringify({ path: nextPath, expiresAt: now() + 30 * 60000 })).toString('base64url')
+        const encoded = Buffer.from(JSON.stringify({ path: nextPath, searchHash, expiresAt: now() + 30 * 60000 })).toString('base64url')
         nextPageToken = `${encoded}.${createHmac('sha256', config().secret).update(`${context.uid}|${context.connectionId}|${encoded}`).digest('base64url')}`
       }
       return { messages: result.value || [], nextPageToken }
