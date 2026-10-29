@@ -466,6 +466,8 @@ button, a { font: inherit; }
 .sidebar__profile-identity strong { color: var(--sidebar-text-strong); font-size: 12px; font-weight: 700; }
 .sidebar__nav { display: grid; min-height: 0; flex: 1; align-content: start; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 2px solid var(--border-strong); overflow-y: auto; scrollbar-width: thin; }
 .sidebar__nav-group { display: grid; gap: 3px; }
+.sidebar-mailbox-state { display: grid; gap: 6px; margin: 6px 12px; color: var(--sidebar-text); font-size: 12px; }
+.sidebar-mailbox-state button { justify-self: start; border: 1px solid var(--sidebar-text); border-radius: 4px; background: transparent; color: var(--sidebar-text-strong); padding: 4px 7px; cursor: pointer; }
 .sidebar__nav-group + .sidebar__nav-group { padding-top: 3px; }
 .sidebar__nav-group-label, .sidebar__nav-group-toggle { display: flex; width: 100%; min-width: 0; align-items: center; gap: 8px; min-height: 38px; padding: 0 9px; overflow: hidden; border: 0; border-radius: 6px; color: var(--sidebar-text-strong); background: transparent; font-size: 15px; font-weight: 700; letter-spacing: 0; text-align: left; text-overflow: ellipsis; text-transform: none; white-space: nowrap; opacity: .92; }
 .sidebar__nav-group-toggle { justify-content: space-between; cursor: pointer; transition: color 140ms ease, background 140ms ease; }

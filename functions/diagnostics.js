@@ -8,7 +8,7 @@ export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-pr
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
-  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect'],
+  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create'],
@@ -27,7 +27,7 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
-  mailboxes: { connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.' },
+  mailboxes: { connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
 }
 
 export function canReportLinkDiagnostic(profile, module) {

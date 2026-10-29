@@ -1,4 +1,18 @@
 .profile-page { display: grid; gap: 14px; max-width: 880px; margin: 0 auto; }
+.profile-mailboxes { display: grid; gap: 12px; scroll-margin-top: 24px; }
+.profile-mailboxes > p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.profile-mailboxes > button { justify-self: start; }
+.profile-mailboxes__list { display: grid; gap: 12px; }
+.profile-mailbox { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.profile-mailbox__identity { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.profile-mailbox__identity span { font-size: 12px; color: var(--text-secondary); }
+.profile-mailbox__name { display: grid; gap: 6px; }
+.profile-mailbox__name label { font-size: 12px; font-weight: 650; }
+.profile-mailbox__name > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-mailbox__name input { flex: 1 1 220px; min-width: 0; border: 1px solid var(--input-border); border-radius: 5px; padding: 8px; background: var(--input-background); color: var(--text-primary); font: inherit; }
+.profile-mailbox__name small { color: var(--text-muted); }
+.profile-mailbox > button { justify-self: start; }
+.profile-mailbox > a { color: var(--text-primary); text-underline-offset: 3px; justify-self: start; }
 .profile-page__notice { margin: 0; color: var(--text-muted); font-size: 12px; }
 .profile-section { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
 .profile-section:last-child { border-bottom: 0; }

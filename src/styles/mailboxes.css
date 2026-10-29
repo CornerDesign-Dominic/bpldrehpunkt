@@ -1,6 +1,6 @@
 .mailboxes-page { width: 100%; min-width: 0; container-type: inline-size; container-name: mailboxes; }
 .mailboxes-heading { display: flex; gap: 20px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.mailboxes-heading h1 { margin: 0 0 8px; font-size: var(--font-size-page-title); }
+.mailboxes-heading h1 { margin: 0 0 8px; font-size: var(--font-size-page-title); overflow-wrap: anywhere; }
 .mailboxes-heading p, .mailbox-hint { color: var(--text-secondary); }
 .mailboxes-page button { cursor: pointer; border: 1px solid var(--input-border); background: var(--button-secondary-background); color: var(--text-primary); padding: 8px 10px; border-radius: 6px; font: inherit; font-size: 12px; }
 .mailboxes-page button:hover:not(:disabled) { background: var(--button-secondary-hover-background); }
@@ -45,6 +45,7 @@
 .mailbox-error { background: var(--status-danger-background); color: var(--status-danger-text); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; overflow-wrap: anywhere; }
 .mailbox-error p { margin: 0 0 8px; }
 .mailbox-empty { padding: 32px; color: var(--text-secondary); }
+.mailbox-empty > a { color: var(--text-primary); text-underline-offset: 3px; }
 .mailbox-pdf { margin-top: 18px; }
 .mailbox-pdf-viewer { min-width: 0; max-height: 75vh; overflow: auto; }
 .mailbox-pdf-viewer canvas { width: 100%; height: auto; background: white; border: 1px solid var(--border); }

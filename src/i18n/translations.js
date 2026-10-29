@@ -11,6 +11,12 @@ export function localeForLanguage(value) {
 
 export const translations = {
   de: {
+    'group.mailboxes': 'Postfächer',
+    'mailboxes.settings': 'Postfächer verwalten',
+    'mailboxes.loading': 'Postfächer werden geladen …',
+    'mailboxes.loadError': 'Postfächer konnten nicht geladen werden.',
+    'mailboxes.empty': 'Noch kein Postfach verbunden.',
+    'mailboxes.retry': 'Erneut versuchen',
     'nav.mailboxes': 'Postfächer',
     'profile.settings': 'Benutzereinstellungen',
     'profile.language': 'Sprache der Oberfläche',
@@ -322,6 +328,12 @@ export const translations = {
     'agb.historyMoreError': 'Weitere Prüfungen konnten nicht geladen werden.',
   },
   en: {
+    'group.mailboxes': 'Mailboxes',
+    'mailboxes.settings': 'Manage mailboxes',
+    'mailboxes.loading': 'Loading mailboxes …',
+    'mailboxes.loadError': 'Could not load mailboxes.',
+    'mailboxes.empty': 'No mailbox connected yet.',
+    'mailboxes.retry': 'Try again',
     'nav.mailboxes': 'Mailboxes',
     'profile.settings': 'User settings',
     'profile.language': 'Interface language',

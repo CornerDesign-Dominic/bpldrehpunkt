@@ -8,10 +8,12 @@ import { canManageUsers, canManageVacations, canView, canViewSystemCalendars } f
 import { CalendarIcon, ChevronDownIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, SettingsIcon, ShieldIcon, ShieldOutlineIcon, SignOutIcon, StarIcon, TemplatesIcon, TodoIcon, TruckTrailerIcon, UserPlusIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { readSidebarExpandedGroups, readSidebarFavorites, readSidebarFavoritesExpanded, saveSidebarExpandedGroups, saveSidebarFavorites, saveSidebarFavoritesExpanded } from '../../lib/sidebarPreferences.js'
+import { MailIcon } from '../icons.jsx'
+import { useMailboxConnections } from '../../mailboxes/useMailboxConnections.js'
+import { mailboxLabel, mailboxUrl } from '../../lib/mailboxHelpers.js'
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
-  { label: 'Postfächer', to: '/postfaecher', icon: DocumentsIcon, module: 'mailboxes', group: 'general' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'general' },
   { label: 'Notizen', to: '/notizen', icon: DocumentsIcon, group: 'general' },
   { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar', group: 'general' },
@@ -42,6 +44,7 @@ const navigationItems = [
 
 const navigationGroups = [
   { key: 'general', label: 'Allgemein', icon: DashboardIcon },
+  { key: 'mailboxes', label: 'Postfächer', icon: MailIcon },
   { key: 'people', label: 'Team', icon: UsersIcon },
   { key: 'humanResources', label: 'Personalwesen', icon: VacationIcon },
   { key: 'operations', label: 'Disposition', icon: TruckTrailerIcon },
@@ -64,17 +67,18 @@ const navigationLabelKeys = {
   '/admin/ki-prompts': 'nav.ai', '/admin/stammdaten': 'nav.masterData', '/admin/diagnose': 'nav.diagnostics',
 }
 
-function itemIsActive(item, pathname) {
+function itemIsActive(item, pathname, search = '') {
+  if (item.mailboxId) return pathname === '/postfaecher' && new URLSearchParams(search).get('mailbox') === item.mailboxId
   if (item.to === '/admin') return pathname === '/admin'
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
 
-function NavigationItem({ item, collapsed, favorite, onToggleFavorite, showFavoriteControl = false, suppressActive = false, onSelect }) {
+function NavigationItem({ item, collapsed, favorite, onToggleFavorite, showFavoriteControl = false, suppressActive = false, onSelect, activeOverride }) {
   const { t } = useLanguage()
   const { label, to, icon: Icon } = item
 
   return <div className="nav-item-row">
-    <NavLink to={to} end={to === '/admin'} className={({ isActive }) => `nav-item ${isActive && !suppressActive ? 'nav-item--active' : ''}`} title={collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
+    <NavLink to={to} end={to === '/admin'} aria-current={item.mailboxId ? (activeOverride ? 'page' : false) : undefined} className={({ isActive }) => `nav-item ${(activeOverride ?? isActive) && !suppressActive ? 'nav-item--active' : ''}`} title={item.mailboxId ? `${label} · ${item.email}` : collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
       {collapsed && <Icon />}
       {!collapsed && <span className="nav-item__label">{label}</span>}
     </NavLink>
@@ -87,14 +91,18 @@ export default function Sidebar({ collapsed, onToggle }) {
   const location = useLocation()
   const { profile, user } = useAuth()
   const { t } = useLanguage()
+  const { connections, loading: mailboxesLoading, error: mailboxesError, refresh: refreshMailboxes } = useMailboxConnections()
+  const mailboxAccess = canView(profile, 'mailboxes')
+  const mailboxItems = mailboxAccess ? connections.filter(item => item.status === 'connected').map(item => ({ id: `mailbox:${item.id}`, mailboxId: item.id, label: mailboxLabel(item), email: item.email, to: mailboxUrl(item.id), icon: MailIcon, group: 'mailboxes' })) : []
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const visibleItems = navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module))
+  const visibleItems = [...navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module)), ...mailboxItems]
   const visibleItemIds = visibleItems.map((item) => item.id)
   const groupIds = navigationGroups.map((group) => group.key)
-  const activeGroupIds = [...new Set(visibleItems.filter((item) => itemIsActive(item, location.pathname)).map((item) => item.group))]
-  const activeGroupId = activeGroupIds[0] || null
+  const activeGroupIds = [...new Set(visibleItems.filter((item) => itemIsActive(item, location.pathname, location.search)).map((item) => item.group))]
+  const activeGroupId = mailboxAccess && location.pathname === '/postfaecher' ? 'mailboxes' : activeGroupIds[0] || null
   const [favoriteIds, setFavoriteIds] = useState(() => readSidebarFavorites(user?.uid, visibleItemIds))
   const [expandedSection, setExpandedSection] = useState(() => {
+    if (activeGroupId === 'mailboxes') return 'mailboxes'
     const saved = readSidebarExpandedGroups(user?.uid, groupIds).slice(-1)
     if (readSidebarFavoritesExpanded(user?.uid)) return 'favorites'
     return saved[0] || activeGroupId || null
@@ -169,14 +177,20 @@ export default function Sidebar({ collapsed, onToggle }) {
         </section>}
         {navigationGroups.map((group) => {
           const groupItems = visibleItems.filter((item) => item.group === group.key)
-          if (!groupItems.length) return null
+          if (!groupItems.length && !(group.key === 'mailboxes' && mailboxAccess)) return null
           const isActiveGroup = activeGroupId === group.key
           const isExpanded = collapsed || expandedSection === group.key
           const GroupIcon = group.icon
           return <section className={`sidebar__nav-group${isExpanded ? ' sidebar__nav-group--expanded' : ''}${isActiveGroup ? ' sidebar__nav-group--current' : ''}`} key={group.key}>
             {!collapsed && <button className="sidebar__nav-group-toggle" type="button" aria-expanded={isExpanded} aria-controls={`sidebar-group-${group.key}`} onClick={() => toggleGroup(group.key)}><span className="sidebar__nav-group-title"><GroupIcon size={18} /><span>{t(`group.${group.key}`)}</span></span><ChevronDownIcon /></button>}
             <div className={`sidebar__nav-group-items${isExpanded ? '' : ' sidebar__nav-group-items--collapsed'}`} id={`sidebar-group-${group.key}`}><div className="sidebar__nav-group-items-inner">
-              {groupItems.map((item) => <NavigationItem key={item.id} item={item} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
+              {group.key === 'mailboxes' && <>
+                {!collapsed && mailboxesLoading && !groupItems.length && <p className="sidebar-mailbox-state" role="status">{t('mailboxes.loading')}</p>}
+                {!collapsed && mailboxesError && <div className="sidebar-mailbox-state" role="alert"><span>{t('mailboxes.loadError')}</span><button type="button" onClick={() => { void refreshMailboxes() }}>{t('mailboxes.retry')}</button></div>}
+                {!collapsed && !mailboxesLoading && !mailboxesError && !groupItems.length && <p className="sidebar-mailbox-state">{t('mailboxes.empty')}</p>}
+              </>}
+              {groupItems.map((item) => <NavigationItem key={item.id} item={item} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl={group.key !== 'mailboxes'} activeOverride={item.mailboxId ? itemIsActive(item, location.pathname, location.search) : undefined} suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
+              {group.key === 'mailboxes' && <NavLink to="/profil#postfaecher" className="nav-item" title={t('mailboxes.settings')}>{collapsed ? <SettingsIcon /> : <span className="nav-item__label">{t('mailboxes.settings')}</span>}</NavLink>}
             </div></div>
           </section>
         })}

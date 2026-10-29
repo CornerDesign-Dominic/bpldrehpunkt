@@ -5,8 +5,13 @@ und die noch offene echte Exchange-Abnahme werden unten getrennt beschrieben.
 
 ## Umfang und führendes System
 
-`/postfaecher` ist ein eigener Arbeitsbereich mit Postfachauswahl, paginiertem
-Posteingang, Nachrichtenansicht und Antwortbereich. Die gewählte Verbindung und
+`/postfaecher` ist ein eigener Arbeitsbereich mit paginiertem Posteingang,
+Nachrichtenansicht und Antwortbereich. Der eigene Navigationsbereich
+„Postfächer“ enthält die persönlichen verbundenen Postfächer einzeln und markiert
+genau das geöffnete Postfach. Verbinden, Trennen und die Vergabe eines eigenen
+Namens erfolgen in den Benutzereinstellungen unter `/profil#postfaecher`.
+Ohne eigenen Namen erscheint die Mailadresse, nicht der Microsoft-Anzeigename.
+Der Name bleibt beim erneuten Verbinden erhalten. Die gewählte Verbindung und
 Nachricht stehen in URL-Parametern. Die letzte Auswahl wird je Drehpunkt-Nutzer
 als lokale Navigationseinstellung gemerkt, ohne Mailtexte oder Zugangsdaten.
 
@@ -31,7 +36,8 @@ Die vorhandene Power-Automate-Anbindung von `status@` bleibt unabhängig.
 
 Das Modul heißt `mailboxes`. `view` erlaubt nur lesende Abfragen der eigenen
 Verbindungen, Nachrichten, Anhänge und Entwürfe. `edit` erlaubt zusätzlich
-Verbinden, Trennen, Entwurf speichern und ausdrücklich ausgelösten Versand.
+Verbinden, Trennen, den persönlichen Postfachnamen ändern, Entwurf speichern
+und ausdrücklich ausgelösten Versand.
 Die Kontenverwaltung muss das neue Modulrecht bewusst vergeben; bestehende
 Nutzer erhalten nicht automatisch Zugriff.
 
@@ -250,6 +256,23 @@ privater Entwürfe/Versandmetadaten, betriebliche Kontrolle der Bereinigung
 verwaister Secrets, Zuständigkeit und Kostenüberwachung.
 Eine größere Nutzerzahl oder automatische Hintergrundverarbeitung ist nicht
 durch diesen begrenzten Dev-Test freigegeben.
+
+### Navigation und persönliche Namen am 29.10.2026
+
+Die neue Oberfläche verwendet einen gemeinsamen, nutzergebundenen
+Verbindungsstand für Navigation, Arbeitsbereich und Benutzereinstellungen.
+`updateMailboxName` prüft Eigentümer und Bearbeitungsrecht, begrenzt den Namen
+auf 80 Zeichen und verändert weder das Microsoft-Profil noch das Postfach.
+Die vorhandenen Konten- und Versandbeschränkungen des Dev-Tests bleiben bestehen.
+
+38 gezielte Tests, Projekt-Lint ohne ignorierte `tmp/`-Testartefakte, Build und
+Shared-Abgleich sind erfolgreich. Im Browser mit synthetischen Daten geprüft:
+Namensänderung erscheint sofort in der Navigation, Leeren verwendet die
+Mailadresse, Wechsel zwischen zwei Postfächern markiert genau eine Verbindung,
+Benutzereinstellungen sowie deutsche/englische und helle/dunkle Darstellung.
+Die bisherige echte Microsoft-Abnahme für Lesen, PDF, gespeicherten Entwurf und
+internen Versand wurde vom Nutzer bestätigt. Der neue Namensablauf wurde noch
+nicht am echten Testpostfach geprüft.
 
 ## Führende externe Quellen
 

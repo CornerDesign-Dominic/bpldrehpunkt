@@ -54,9 +54,10 @@ import TransportOrderDetailPage from './pages/TransportOrderDetailPage.jsx'
 import MasterDataImportPage from './pages/MasterDataImportPage.jsx'
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 import { CompanyHolidaySettingsProvider } from './company-holidays/CompanyHolidaySettingsProvider.jsx'
+import MailboxConnectionsProvider from './mailboxes/MailboxConnectionsProvider.jsx'
 
 function ProtectedAppLayout() {
-  return <ProtectedRoute><CompanyDataProvider><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></CompanyDataProvider></ProtectedRoute>
+  return <ProtectedRoute><CompanyDataProvider><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><MailboxConnectionsProvider><AppShell><Outlet /></AppShell></MailboxConnectionsProvider></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></CompanyDataProvider></ProtectedRoute>
 }
 
 export default function App() {

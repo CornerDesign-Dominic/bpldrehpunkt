@@ -9,7 +9,7 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
 import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
@@ -71,6 +71,7 @@ const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCh
 export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
 export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)
 export const listMailboxConnections = onCall(mailboxOptions, listMailboxConnectionsHandler)
+export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler)
 export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
 export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
 export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)

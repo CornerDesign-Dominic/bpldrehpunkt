@@ -1,33 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { canEdit } from '../lib/permissions.js'
 import { mailboxCall } from '../lib/mailboxes.js'
-import { attachmentBlob, createConnectionProof, parseRecipients, recipientAddress, recipientText, replyRecipients, safeAttachmentName, safeOutlookLink } from '../lib/mailboxHelpers.js'
+import { attachmentBlob, mailboxLabel, parseRecipients, recipientAddress, recipientText, replyRecipients, safeAttachmentName, safeOutlookLink } from '../lib/mailboxHelpers.js'
 import MailAttachmentPdf from '../components/mailboxes/MailAttachmentPdf.jsx'
+import { useMailboxConnections } from '../mailboxes/useMailboxConnections.js'
+import { unsavedDrafts, syncDraftCacheGuard } from '../lib/mailboxDraftCache.js'
 import '../styles/mailboxes.css'
-
-// Unsaved text survives SPA history navigation without persisting mail content
-// to browser storage. Reload/closing is separately guarded by beforeunload.
-const unsavedDrafts = new Map()
-const pendingConnections = new Map()
-let guardedDraftCache = false
-let draftCacheOwner = null
-function warnUnsavedDrafts(event) {
-  if (!unsavedDrafts.size) return
-  event.preventDefault()
-  event.returnValue = ''
-}
-function syncDraftCacheGuard() {
-  if (unsavedDrafts.size > 0 && !guardedDraftCache) {
-    window.addEventListener('beforeunload', warnUnsavedDrafts)
-    guardedDraftCache = true
-  } else if (!unsavedDrafts.size && guardedDraftCache) {
-    window.removeEventListener('beforeunload', warnUnsavedDrafts)
-    guardedDraftCache = false
-  }
-}
 
 function useWords() {
   const { language } = useLanguage()
@@ -48,73 +29,29 @@ export default function MailboxesPage() {
   const { user, profile } = useAuth()
   const w = useWords()
   const editable = canEdit(profile, 'mailboxes')
+  const { connections, loading, error, refresh } = useMailboxConnections()
   const [params, setParams] = useSearchParams()
-  const [connections, setConnections] = useState(null)
-  const [error, setError] = useState('')
-  const [connecting, setConnecting] = useState(false)
-  const [reload, setReload] = useState(0)
   const dirtyRef = useRef(false)
   const connectionId = params.get('mailbox') || ''
   const messageId = params.get('message') || ''
-  const connection = connections?.find((item) => item.id === connectionId)
-  const storageKey = `drehpunkt.mailboxes.last.${user?.uid}`
-  const proofKey = `drehpunkt.mailboxes.proof.${user?.uid}`
-  const pendingTicket = params.get('connection') === 'pending' ? params.get('ticket') : null
+  const connection = connections.find(item => item.id === connectionId)
+  const pending = params.get('connection') === 'pending'
+  const storageKey = 'drehpunkt.mailboxes.last.' + user?.uid
 
   useEffect(() => {
-    if (draftCacheOwner && draftCacheOwner !== user?.uid) {
-      unsavedDrafts.clear()
-      syncDraftCacheGuard()
-    }
-    draftCacheOwner = user?.uid || null
-  }, [user?.uid])
-
-  useEffect(() => {
-    if (!pendingTicket || !user?.uid) return
-    let active = true
-    async function finish() {
-      let proof
-      try { proof = sessionStorage.getItem(proofKey) } catch { /* Missing proof is handled explicitly below. */ }
-      if (!proof) throw new Error('Missing connection proof')
-      await mailboxCall('finishMailboxConnection', { ticket: pendingTicket, proof })
-      sessionStorage.removeItem(proofKey)
-    }
-    // React StrictMode may mount twice. Share this one-time redemption request.
-    const key = `${user.uid}:${pendingTicket}`
-    if (!pendingConnections.has(key)) pendingConnections.set(key, finish())
-    pendingConnections.get(key).then(() => {
-      if (active) { setParams({ connection: 'success' }, { replace: true }); setReload((value) => value + 1) }
-    }).catch(() => {
-      if (active) { setError(w('Die Postfachverbindung konnte nicht bestätigt werden. Bitte starte die Verbindung in diesem Browser erneut.', 'Could not confirm the mailbox connection. Start the connection again in this browser.')); setParams({ connection: 'error' }, { replace: true }) }
-    })
-    return () => { active = false }
-  // This effect redeems only the OAuth ticket in this tab and account.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTicket, user?.uid, proofKey, setParams])
-
-  useEffect(() => {
-    let active = true
-    mailboxCall('listMailboxConnections').then(({ connections: items }) => {
-      if (active) { setConnections(items); setError('') }
-    }).catch(() => { if (active) setError(w('Postfächer konnten nicht geladen werden.', 'Could not load mailboxes.')) })
-    return () => { active = false }
-  // Reload only on explicit retry or account change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reload, user?.uid])
-
-  useEffect(() => {
-    if (!connections?.length || pendingTicket) return
+    const available = connections.filter(item => item.status === 'connected')
+    if (!available.length || pending) return
     if (connectionId) {
-      if (connection) {
-        try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId })) } catch { /* Remembering selection is optional. */ }
+      if (connection?.status === 'connected') {
+        try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId })) } catch { /* Optional navigation preference. */ }
       }
       return
     }
     let last = null
     try { last = JSON.parse(localStorage.getItem(storageKey)) } catch { /* Invalid or unavailable preference. */ }
-    const selected = connections.find((item) => item.id === last?.mailbox) || connections[0]
+    const selected = available.find(item => item.id === last?.mailbox) || available[0]
     setParams({ mailbox: selected.id, ...(selected.id === last?.mailbox && last?.message ? { message: last.message } : {}) }, { replace: true })
-  }, [connections, connectionId, messageId, connection, storageKey, setParams, pendingTicket])
+  }, [connections, connectionId, messageId, connection, storageKey, setParams, pending])
 
   function navigate(next) {
     if (dirtyRef.current && !window.confirm(w('Der Antwortentwurf ist noch nicht gespeichert. Trotzdem wechseln?', 'The reply draft has not been saved. Leave anyway?'))) return
@@ -122,53 +59,18 @@ export default function MailboxesPage() {
     setParams(next)
   }
 
-  async function connect() {
-    if (dirtyRef.current && !window.confirm(w('Ungespeicherten Entwurf verlassen?', 'Leave the unsaved draft?'))) return
-    setConnecting(true); setError('')
-    try {
-      const { proof, proofChallenge } = await createConnectionProof()
-      sessionStorage.setItem(proofKey, proof)
-      const { authorizationUrl } = await mailboxCall('beginMailboxConnection', { proofChallenge })
-      const url = new URL(authorizationUrl)
-      if (url.protocol !== 'https:' || url.hostname !== 'login.microsoftonline.com') throw new Error('Invalid authorization URL')
-      window.location.assign(url.href)
-    } catch { setError(w('Die Verbindung konnte nicht gestartet werden. Bitte die Einrichtung prüfen oder erneut versuchen.', 'Could not start the connection. Check setup or try again.')); setConnecting(false) }
-  }
-
-  async function disconnect() {
-    if (!connection || !window.confirm(w('Dieses Postfach von Drehpunkt trennen? Ungespeicherte Änderungen werden verworfen. Nachrichten in Outlook bleiben erhalten.', 'Disconnect this mailbox from Drehpunkt? Unsaved changes will be discarded. Messages in Outlook remain.'))) return
-    setConnecting(true); setError('')
-    try {
-      await mailboxCall('disconnectMailbox', { connectionId: connection.id })
-      dirtyRef.current = false
-      for (const key of unsavedDrafts.keys()) if (key.startsWith(`${user.uid}:${connection.id}:`)) unsavedDrafts.delete(key)
-      syncDraftCacheGuard()
-      try { localStorage.removeItem(storageKey) } catch { /* Optional selection preference. */ }
-      setConnections((items) => items.filter((item) => item.id !== connection.id)); setParams({}, { replace: true })
-    } catch { setError(w('Das Postfach konnte nicht getrennt werden. Bitte erneut versuchen.', 'Could not disconnect the mailbox. Please try again.')) }
-    finally { setConnecting(false) }
-  }
-
   return <section className="mailboxes-page">
-    <header className="mailboxes-heading"><div><h1>{w('Postfächer', 'Mailboxes')}</h1><p>{w('Nachrichten lesen und direkt aus deinem Microsoft-Postfach antworten.', 'Read messages and reply from your Microsoft mailbox.')}</p></div>
-      {editable && <button type="button" onClick={connect} disabled={connecting}>{connecting ? w('Verbindung wird gestartet …', 'Connecting …') : w('Microsoft-Postfach verbinden', 'Connect Microsoft mailbox')}</button>}
-    </header>
-    {params.get('connection') === 'success' && <p role="status">{w('Microsoft-Postfach wurde verbunden.', 'Microsoft mailbox connected.')}</p>}
-    {pendingTicket && <p role="status">{w('Postfachverbindung wird bestätigt …', 'Confirming mailbox connection …')}</p>}
-    {params.get('connection') === 'error' && <Failure message={w('Microsoft-Verbindung fehlgeschlagen. Bitte erneut verbinden.', 'Microsoft connection failed. Please connect again.')} />}
-    {error && <Failure message={error} retry={() => setReload((value) => value + 1)} />}
-    {!connections && !error && <p role="status">{w('Postfächer werden geladen …', 'Loading mailboxes …')}</p>}
-    {connections?.length === 0 && <div className="mailbox-empty"><h2>{w('Noch kein Postfach verbunden', 'No mailbox connected')}</h2><p>{editable ? w('Verbinde dein Microsoft-Konto, um deinen Posteingang zu öffnen.', 'Connect your Microsoft account to open your inbox.') : w('Für das Verbinden eines Postfachs ist eine Bearbeitungsberechtigung erforderlich.', 'Editing permission is required to connect a mailbox.')}</p></div>}
-    {Boolean(connections?.length) && <>
-      <div className="mailbox-selector"><label>{w('Postfach', 'Mailbox')}<select value={connectionId} onChange={(event) => navigate({ mailbox: event.target.value })}>{!connection && <option value="">{w('Bitte auswählen', 'Select mailbox')}</option>}{connections.map((item) => <option key={item.id} value={item.id}>{item.displayName ? `${item.displayName} · ` : ''}{item.email}</option>)}</select></label>
-        {connection?.status === 'disconnecting' && <span role="status">{w('Trennung noch nicht abgeschlossen. Bitte erneut „Verbindung trennen“ wählen.', 'Disconnection is incomplete. Select Disconnect again.')}</span>}
-        {connection && editable && <button type="button" onClick={disconnect} disabled={connecting}>{w('Verbindung trennen', 'Disconnect')}</button>}
-      </div>
-      {connection && connection.status !== 'disconnecting' ? <div className="mailbox-layout">
-        <Inbox key={connection.id} connectionId={connection.id} selectedId={messageId} onSelect={(id) => navigate({ mailbox: connection.id, message: id })} />
-        {messageId ? <MailWorkspace key={`${user?.uid}:${connection.id}:${messageId}`} connection={connection} messageId={messageId} editable={editable} dirtyRef={dirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
-      </div> : connection?.status !== 'disconnecting' && <p>{w('Dieses Postfach ist nicht verfügbar. Bitte wähle ein verbundenes Postfach.', 'This mailbox is unavailable. Select a connected mailbox.')}</p>}
-    </>}
+    <header className="mailboxes-heading"><div><h1>{connection ? mailboxLabel(connection) : w('Postfächer', 'Mailboxes')}</h1>{connection?.customName && <p>{connection.email}</p>}</div></header>
+    {pending && <p role="status">{w('Postfachverbindung wird bestätigt …', 'Confirming mailbox connection …')}</p>}
+    {error && <Failure message={w('Postfächer konnten nicht geladen werden.', 'Could not load mailboxes.')} retry={() => { void refresh() }} />}
+    {loading && !connections.length && <p role="status">{w('Postfächer werden geladen …', 'Loading mailboxes …')}</p>}
+    {!loading && !error && !connections.length && <div className="mailbox-empty"><h2>{w('Noch kein Postfach verbunden', 'No mailbox connected')}</h2><p>{w('Deine Postfächer verbindest und benennst du in den Benutzereinstellungen.', 'Connect and name your mailboxes in user settings.')}</p><Link to="/profil#postfaecher">{w('Zu meinen Postfächern in den Einstellungen', 'Open my mailbox settings')}</Link></div>}
+    {connection?.status === 'disconnecting' && <div className="mailbox-empty"><p>{w('Die Postfachverbindung wird getrennt. Eine unvollständige Trennung kannst du in den Benutzereinstellungen fortsetzen.', 'This mailbox is being disconnected. Complete an unfinished disconnection in user settings.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
+    {connection?.status === 'connected' && <div className="mailbox-layout">
+      <Inbox key={connection.id} connectionId={connection.id} selectedId={messageId} onSelect={id => navigate({ mailbox: connection.id, message: id })} />
+      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId} connection={connection} messageId={messageId} editable={editable} dirtyRef={dirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
+    </div>}
+    {!loading && Boolean(connections.length) && connectionId && !connection && <div className="mailbox-empty"><p>{w('Dieses Postfach ist nicht verfügbar. Wähle links ein verbundenes Postfach aus.', 'This mailbox is unavailable. Select a connected mailbox in the sidebar.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
   </section>
 }
 

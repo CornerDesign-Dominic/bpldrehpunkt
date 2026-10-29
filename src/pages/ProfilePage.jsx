@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { localeForLanguage } from '../i18n/translations.js'
 import Toast from '../components/ui/Toast.jsx'
+import ProfileMailboxSettings from '../components/mailboxes/ProfileMailboxSettings.jsx'
 import {
   deleteCurrentUserSignature,
   loadCurrentUserSignature,
@@ -154,5 +155,5 @@ export default function ProfilePage() {
     [t('profile.personnelNumber'), profile?.personnelNumber || '—'],
   ]
 
-  return <div className="profile-page"><p className="profile-page__notice">{t('profile.adminNotice')}</p><ProfileInfoSection title={t('profile.personal')} fields={personalFields} /><ProfileInfoSection title={t('profile.work')} fields={employmentFields} /><LanguageSettingsSection /><SignatureSection user={user} /></div>
+  return <div className="profile-page"><p className="profile-page__notice">{t('profile.adminNotice')}</p><ProfileInfoSection title={t('profile.personal')} fields={personalFields} /><ProfileInfoSection title={t('profile.work')} fields={employmentFields} /><LanguageSettingsSection /><ProfileMailboxSettings /><SignatureSection user={user} /></div>
 }

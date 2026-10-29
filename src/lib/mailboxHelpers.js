@@ -2,6 +2,14 @@ export function recipientAddress(recipient) {
   return recipient?.emailAddress?.address || ''
 }
 
+export function mailboxLabel(connection) {
+  return (typeof connection?.customName === 'string' && connection.customName.trim()) || connection?.email || ''
+}
+
+export function mailboxUrl(connectionId) {
+  return `/postfaecher?${new URLSearchParams({ mailbox: connectionId })}`
+}
+
 export function recipientText(recipients = []) {
   return recipients.map(recipientAddress).filter(Boolean).join('; ')
 }

@@ -45,6 +45,31 @@ const request = data => ({ auth: { uid: 'owner' }, data: { connectionId, proofCh
 const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpunkt-logistik.de'], ccRecipients: [], bccRecipients: [] }
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
 
+test('mailbox names are owner-only, require edit access and can be cleared without changing Microsoft metadata', async () => {
+  const f = fixture()
+  const ref = `mailboxConnections/${connectionId}`
+  f.db.records.get(ref).displayName = 'Microsoft Name'
+  assert.deepEqual(await f.handlers.updateMailboxName(request({ customName: '  Buchhaltung  ' })), { customName: 'Buchhaltung' })
+  assert.equal(f.db.records.get(ref).customName, 'Buchhaltung')
+  assert.equal(f.db.records.get(ref).displayName, 'Microsoft Name')
+  assert.equal(f.fetchCount(), 0)
+  for (const customName of ['x'.repeat(81), 'Name\nZeile', 'Name\u007f', null, { value: 'Test' }]) await assert.rejects(f.handlers.updateMailboxName(request({ customName })), { code: 'invalid-argument' })
+  await assert.rejects(f.handlers.updateMailboxName({ auth: { uid: 'other' }, data: { connectionId, customName: 'Fremd' } }), { code: 'permission-denied' })
+  const viewer = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'view' } }) })
+  await assert.rejects(viewer.handlers.updateMailboxName(request({ customName: 'Nicht erlaubt' })), { code: 'permission-denied' })
+  await f.handlers.updateMailboxName(request({ customName: '' }))
+  assert.equal(f.db.records.get(ref).customName, '')
+})
+
+test('reconnecting preserves the personal mailbox name', async () => {
+  const f = fixture({ secrets: { remove: async () => {} } })
+  f.db.records.get(`mailboxConnections/${connectionId}`).customName = 'Meine Belege'
+  const ticket = 't'.repeat(43)
+  f.db.records.set(`mailboxOAuthPending/${hash(ticket)}`, { ownerId: 'owner', connectionId, proofChallenge, email: config.testAccount, graphUserId: 'graph-user', displayName: 'Microsoft Name', secretName: 'replacement', secretVersion: 'replacement/version', expiresAt: 10000, used: false })
+  await f.handlers.finishMailboxConnection(request({ ticket, proof }))
+  assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).customName, 'Meine Belege')
+})
+
 test('Graph message pagination accepts canonical OData paths and preserves the opaque query', () => {
   const connection = { graphUserId: 'own-graph-user', email: config.testAccount }
   const query = '?%24skiptoken=A%2FB%3D&%24top=30'
@@ -183,6 +208,8 @@ test('OAuth callback validates allowed Microsoft account before storing credenti
   account = config.testAccount
   const connected = await run()
   assert.equal(connected.statusCode, 303)
+  assert.equal(new URL(connected.location).pathname, '/profil')
+  assert.equal(new URL(connected.location).hash, '#postfaecher')
   assert.equal(stored.refreshToken, 'very-private-refresh')
   const ticket = new URL(connected.location).searchParams.get('ticket')
   assert.equal(new URL(connected.location).searchParams.get('connection'), 'pending')

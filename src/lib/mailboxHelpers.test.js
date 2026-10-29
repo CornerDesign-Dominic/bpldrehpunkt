@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createConnectionProof, parseRecipients, replyRecipients, safeAttachmentName, safeOutlookLink } from './mailboxHelpers.js'
+import { createConnectionProof, mailboxLabel, mailboxUrl, parseRecipients, replyRecipients, safeAttachmentName, safeOutlookLink } from './mailboxHelpers.js'
+
+test('navigation uses the personal mailbox name or email, never the Microsoft display name', () => {
+  const mailbox = { email: 'test@example.com', displayName: 'Microsoft Account Name' }
+  assert.equal(mailboxLabel(mailbox), 'test@example.com')
+  assert.equal(mailboxLabel({ ...mailbox, customName: '  Rechnungen  ' }), 'Rechnungen')
+  assert.equal(mailboxLabel({ ...mailbox, customName: '   ' }), 'test@example.com')
+  const url = new URL(mailboxUrl('mailbox+with&characters'), 'https://example.test')
+  assert.equal(url.searchParams.get('mailbox'), 'mailbox+with&characters')
+  assert.equal(url.searchParams.has('message'), false)
+})
 
 const recipient = (address) => ({ emailAddress: { address } })
 

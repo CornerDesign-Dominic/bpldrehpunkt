@@ -235,7 +235,7 @@ export function createMailboxHandlers(deps = {}) {
         const ref = db().doc(`mailboxConnections/${pending.connectionId}`)
         const previous = (await tx.get(ref)).data()
         previousSecret = previous?.secretName || null
-        tx.set(ref, { ownerId: uid, tenantId: TENANT, graphUserId: pending.graphUserId, email: pending.email, displayName: pending.displayName, status: 'connected', secretName: pending.secretName, secretVersion: pending.secretVersion, connectedAt: now(), refreshUntil: 0, refreshLock: '' })
+        tx.set(ref, { ownerId: uid, tenantId: TENANT, graphUserId: pending.graphUserId, email: pending.email, displayName: pending.displayName, customName: typeof previous?.customName === 'string' ? previous.customName : '', status: 'connected', secretName: pending.secretName, secretVersion: pending.secretVersion, connectedAt: now(), refreshUntil: 0, refreshLock: '' })
         tx.update(pendingRef, { used: true, retiredSecretName: previousSecret })
         return pending.connectionId
       })
@@ -252,7 +252,19 @@ export function createMailboxHandlers(deps = {}) {
     listMailboxConnections: guarded('list-connections', async request => {
       const { uid } = await check(request)
       const snapshots = await db().collection('mailboxConnections').where('ownerId', '==', uid).get()
-      return { connections: snapshots.docs.filter(d => d.data().status === 'connected').map(d => ({ id: d.id, email: d.data().email, displayName: d.data().displayName, status: 'connected' })) }
+      return { connections: snapshots.docs.filter(d => ['connected', 'disconnecting'].includes(d.data().status)).map(d => ({ id: d.id, email: d.data().email, displayName: d.data().displayName, customName: typeof d.data().customName === 'string' ? d.data().customName : '', status: d.data().status })) }
+    }),
+    updateMailboxName: guarded('rename', async request => {
+      const context = await owned(request, true)
+      const customName = request.data?.customName
+      if (typeof customName !== 'string' || customName.length > 80 || [...customName].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) fail('invalid-argument', 'Der Postfachname darf höchstens 80 Zeichen und keine Steuerzeichen enthalten.')
+      const normalized = customName.trim()
+      await db().runTransaction(async tx => {
+        const current = (await tx.get(context.ref)).data()
+        if (current?.ownerId !== context.uid || current.status !== 'connected') fail('aborted', 'Die Postfachverbindung wurde inzwischen geändert. Bitte erneut laden.')
+        tx.update(context.ref, { customName: normalized, nameUpdatedAt: now() })
+      })
+      return { customName: normalized }
     }),
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
@@ -416,9 +428,10 @@ export function createMailboxHandlers(deps = {}) {
         await store().remove(secretName)
         throw error
       }
-      const target = new URL('/postfaecher', config().origin)
+      const target = new URL('/profil', config().origin)
       target.searchParams.set('connection', 'pending')
       target.searchParams.set('ticket', ticket)
+      target.hash = 'postfaecher'
       res.redirect(303, target.toString())
     } catch (error) {
       if (!(error instanceof HttpsError) || ['unavailable', 'internal'].includes(error.code)) await diagnose({ stage: 'connect', code: error instanceof HttpsError ? error.code : 'unexpected_error', message: 'Microsoft-Postfachverbindung konnte technisch nicht abgeschlossen werden.', actorId })
@@ -455,6 +468,7 @@ const handlers = createMailboxHandlers()
 export const beginMailboxConnectionHandler = handlers.beginMailboxConnection
 export const finishMailboxConnectionHandler = handlers.finishMailboxConnection
 export const listMailboxConnectionsHandler = handlers.listMailboxConnections
+export const updateMailboxNameHandler = handlers.updateMailboxName
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment

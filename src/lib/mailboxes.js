@@ -8,7 +8,7 @@ export async function mailboxCall(action, data = {}) {
     return (await httpsCallable(functions, action)(data)).data
   } catch (error) {
     if (!['functions/invalid-argument', 'functions/permission-denied', 'functions/failed-precondition'].includes(error?.code)) {
-      const stage = ['beginMailboxConnection', 'finishMailboxConnection'].includes(action) ? 'connect' : action === 'getMailboxAttachment' ? 'attachment' : action.includes('Draft') ? 'draft' : action === 'sendMailboxReply' ? 'send' : action === 'disconnectMailbox' ? 'disconnect' : 'load'
+      const stage = ['beginMailboxConnection', 'finishMailboxConnection'].includes(action) ? 'connect' : action === 'getMailboxAttachment' ? 'attachment' : action.includes('Draft') ? 'draft' : action === 'updateMailboxName' ? 'rename' : action === 'sendMailboxReply' ? 'send' : action === 'disconnectMailbox' ? 'disconnect' : 'load'
       void reportTechnicalFailure({ module: 'mailboxes', stage, error })
     }
     throw error
