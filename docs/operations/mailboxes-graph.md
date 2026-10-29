@@ -6,7 +6,7 @@ und die noch offene echte Exchange-Abnahme werden unten getrennt beschrieben.
 ## Umfang und führendes System
 
 `/postfaecher` ist ein eigener Arbeitsbereich mit paginiertem Posteingang,
-Nachrichtenansicht und Antwortbereich. Der eigene Navigationsbereich
+Nachrichtenansicht und einem großen Antwortdialog. Der eigene Navigationsbereich
 „Postfächer“ enthält die persönlichen verbundenen Postfächer einzeln und markiert
 genau das geöffnete Postfach. Verbinden, Trennen und die Vergabe eines eigenen
 Namens erfolgen in den Benutzereinstellungen unter `/profil#postfaecher`.
@@ -20,6 +20,18 @@ aktive Postfach. Abgegrenzte Nachrichtenkarten und Empfängerbeschriftungen link
 neben den Antwortfeldern nutzen den Platz kompakter. Trennlinien gliedern
 erkannte deutsche/englische Outlook-Antwortköpfe und übliche „schrieb/wrote“-Zeilen.
 Unbekannte Formate bleiben unverändert; alle Textzeichen bleiben erhalten.
+
+Die Hauptansicht zeigt eine breitere Eingangsliste mit zweizeiligen Betreffen
+und die Nachricht. „Antworten“ öffnet einen nativen modalen Dialog: links der
+Schriftverkehr, rechts Empfänger und Antwort, unabhängig scrollbar. Schließen
+oder Escape erhält den Entwurf; während Speichern/Versand bleibt der Dialog
+gegen Schließen gesperrt. Nach bestätigtem `accepted` wird nur der Antworttext
+in der Oberfläche geleert, der Dialog geschlossen und der vorhandene Toast
+oben in der Fenstermitte angezeigt. Gespeicherte Versandmetadaten bleiben
+erhalten; nach erneutem Öffnen einer bereits versendeten Antwort erscheint der
+alte Text nicht erneut im Eingabefeld. Bei abgewiesenem oder unklarem Versand
+bleiben Dialog und Text bestehen. Die vorhandene Sperre gegen erneuten Versand
+derselben Antwort gilt weiter.
 
 Die Suche fragt direkt die Graph-Nachrichtensammlung des Posteingangs ab,
 statt nur geladene Karten zu filtern. Sie erfasst standardmäßig Absender,
@@ -294,6 +306,13 @@ Browsercheck bestätigt die kompakte Ansicht, zwei erkannte Antwortgrenzen,
 Suche mit/ohne Treffer, Zurücksetzen, unveränderten geöffneten Antwortentwurf,
 Speichern sowie Deutsch/Englisch und Light/Dark. Die neue Suche wurde noch
 nicht mit dem echten Exchange-Testpostfach abgenommen.
+
+Antwortdialog zusätzlich mit synthetischen Daten im Browser geprüft: Entwurf
+beim Schließen/Wiederöffnen erhalten, abgewiesener Versand bleibt offen,
+bestätigter Versand leert das Feld/schließt den Dialog/zeigt den Toast,
+unklarer Versand erhält den Text und sperrt erneutes Senden, Escape sowie
+Deutsch/Englisch und Light/Dark. Projekt-Lint ohne `tmp/`, Build und
+Shared-Abgleich erfolgreich. Es wurden keine echten Mails versendet.
 
 ## Führende externe Quellen
 

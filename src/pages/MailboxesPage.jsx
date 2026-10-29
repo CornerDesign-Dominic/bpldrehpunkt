@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
@@ -7,6 +8,7 @@ import { mailboxCall } from '../lib/mailboxes.js'
 import { attachmentBlob, parseRecipients, recipientAddress, recipientText, replyRecipients, safeAttachmentName, safeOutlookLink } from '../lib/mailboxHelpers.js'
 import { splitMailConversation } from '../lib/mailboxConversation.js'
 import MailAttachmentPdf from '../components/mailboxes/MailAttachmentPdf.jsx'
+import Toast from '../components/ui/Toast.jsx'
 import { useMailboxConnections } from '../mailboxes/useMailboxConnections.js'
 import { unsavedDrafts, syncDraftCacheGuard } from '../lib/mailboxDraftCache.js'
 import '../styles/mailboxes.css'
@@ -121,13 +123,18 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   </aside>
 }
 
-function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
+function MessageContent({ message }) {
   const { language } = useLanguage()
+  const w = useWords()
+  return <><h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(message.receivedDateTime, language)}</dd></dl>
+    <div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
+}
+
+function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
   const w = useWords()
   const [message, setMessage] = useState(null)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [focus, setFocus] = useState('mail')
   const [attachment, setAttachment] = useState(null)
   const [attachmentBusy, setAttachmentBusy] = useState('')
   const [attachmentError, setAttachmentError] = useState('')
@@ -156,7 +163,7 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
         setTimeout(() => URL.revokeObjectURL(url), 1000)
       } else {
         if (attachmentUrl.current) URL.revokeObjectURL(attachmentUrl.current)
-        attachmentUrl.current = url; setAttachment({ url, blob, name }); setFocus('mail')
+        attachmentUrl.current = url; setAttachment({ url, blob, name })
       }
     } catch { if (version === attachmentRequest.current) setAttachmentError(w('Anhang konnte nicht geöffnet werden. Bitte erneut versuchen.', 'Could not open attachment. Please try again.')) }
     finally { if (version === attachmentRequest.current) setAttachmentBusy('') }
@@ -164,10 +171,9 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
 
   if (error) return <Failure message={error} retry={() => setReload((value) => value + 1)} />
   if (!message) return <p role="status">{w('Nachricht wird geladen …', 'Loading message …')}</p>
-  return <div className={`mailbox-workspace mailbox-focus-${focus}`}>
-    <article className="mailbox-reader"><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2>{editable && <button type="button" aria-pressed={focus === 'mail'} onClick={() => setFocus('mail')}>{w('Lesebereich vergrößern', 'Expand reading area')}</button>}</div>
-      <h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(message.receivedDateTime, language)}</dd></dl>
-      <div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div>
+  return <div className="mailbox-workspace">
+    <article className="mailbox-reader"><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2>{editable && <ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} />}</div>
+      <MessageContent message={message} />
       {message.attachments?.length > 0 && <section className="mailbox-attachments"><h3>{w('Anhänge', 'Attachments')}</h3>{message.attachments.map((item) => <div key={item.id}>
         <span>{item.name}</span>
         {item.supported === false ? <small>{w('Über 5 MB oder nicht unterstützter Anhang. Bitte über das Original in Outlook öffnen.', 'Over 5 MB or unsupported attachment. Open the original in Outlook.')}</small> : <>
@@ -180,11 +186,10 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef }) {
       {attachmentError && <Failure message={attachmentError} />}
       {attachment && <section className="mailbox-pdf"><div className="mailbox-panel-heading"><strong>{attachment.name}</strong><button type="button" onClick={() => { URL.revokeObjectURL(attachmentUrl.current); attachmentUrl.current = null; setAttachment(null) }}>{w('Vorschau schließen', 'Close preview')}</button></div><MailAttachmentPdf key={attachment.url} blob={attachment.blob} name={attachment.name} /></section>}
     </article>
-    {editable && <ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} onFocus={() => setFocus('reply')} />}
   </div>
 }
 
-function ReplyComposer({ identity, message, ownEmail, dirtyRef, onFocus }) {
+function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   const w = useWords()
   const { user } = useAuth()
   const cacheKey = `${user?.uid}:${identity.connectionId}:${identity.messageId}`
@@ -195,18 +200,31 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef, onFocus }) {
   const [notice, setNotice] = useState('')
   const [sendState, setSendState] = useState('')
   const [reload, setReload] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [toast, setToast] = useState('')
+  const dialogRef = useRef(null)
+  const dismissToast = useCallback(() => setToast(''), [])
   const active = useRef(true)
   const operation = useRef(null)
   const revision = useRef(0)
   const dirty = Boolean(draft && JSON.stringify(draft) !== saved)
 
   useEffect(() => {
+    const dialog = dialogRef.current
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialog.showModal()
+    return () => { dialog.close(); document.body.style.overflow = previousOverflow }
+  }, [open])
+
+  useEffect(() => {
     let mounted = true
     active.current = true
     mailboxCall('getMailboxDraft', identity).then(({ draft: stored }) => {
       if (!mounted) return
-      const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.body || '', replyAll: stored.replyAll === true } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false }
-      const cached = unsavedDrafts.get(cacheKey)
+      const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false }
+      const cached = stored?.sendStatus === 'accepted' ? null : unsavedDrafts.get(cacheKey)
       setDraft(cached?.draft || initial); setSaved(cached?.saved || JSON.stringify(initial)); setError(''); setSendState(stored?.sendStatus || '')
       revision.current = cached?.revision ?? stored?.revision ?? 0
     }).catch(() => { if (mounted) setError(w('Antwortentwurf konnte nicht geladen werden. Bitte erneut versuchen.', 'Could not load reply draft. Please try again.')) })
@@ -261,8 +279,15 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef, onFocus }) {
       if (!active.current) return
       setSendState(result.status)
       unsavedDrafts.delete(cacheKey); syncDraftCacheGuard()
-      setSaved(JSON.stringify(draft)); dirtyRef.current = false
-      setNotice(result.status === 'accepted' ? w('Microsoft hat die Antwort zum Versand angenommen.', 'Microsoft accepted the reply for sending.') : w('Versandstatus unklar. Bitte zuerst in Outlook unter „Gesendete Elemente“ prüfen und nicht erneut senden.', 'Sending status is unclear. Check Sent Items in Outlook before sending anything again.'))
+      dirtyRef.current = false
+      if (result.status === 'accepted') {
+        const cleared = { ...draft, body: '' }
+        setDraft(cleared); setSaved(JSON.stringify(cleared)); setOpen(false)
+        setToast(w('Antwort gesendet.', 'Reply sent.'))
+      } else {
+        setSaved(JSON.stringify(draft))
+        setNotice(w('Versandstatus unklar. Bitte zuerst in Outlook unter „Gesendete Elemente“ prüfen und nicht erneut senden.', 'Sending status is unclear. Check Sent Items in Outlook before sending anything again.'))
+      }
     } catch (error) {
       if (active.current) {
         if (operation.current && !['functions/invalid-argument', 'functions/permission-denied', 'functions/failed-precondition', 'functions/aborted', 'functions/already-exists', 'functions/unauthenticated'].includes(error?.code)) { setSendState('unknown'); setError(w('Versandstatus unklar. Bitte in Outlook unter „Gesendete Elemente“ prüfen. Nicht erneut senden.', 'Sending status is unclear. Check Sent Items in Outlook. Do not send again.')) }
@@ -283,7 +308,11 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef, onFocus }) {
   }
   function update(field, value) { changeDraft({ ...draft, [field]: value }); setNotice('') }
   const locked = busy || ['accepted', 'unknown', 'sending'].includes(sendState)
-  return <aside className="mailbox-reply"><div className="mailbox-panel-heading"><h2>{w('Antworten', 'Reply')}</h2><button type="button" onClick={onFocus}>{w('Schreibbereich vergrößern', 'Expand writing area')}</button></div>
+  return <><button type="button" onClick={() => setOpen(true)} disabled={sendState === 'accepted'}>{sendState === 'accepted' ? w('Antwort gesendet', 'Reply sent') : w('Antworten', 'Reply')}{sendState !== 'accepted' && draft?.body && <span className="mailbox-draft-indicator"> · {w('Entwurf vorhanden', 'Draft available')}</span>}</button>
+    <dialog ref={dialogRef} className="mailbox-reply-dialog" aria-labelledby="mailbox-reply-title" onCancel={event => { event.preventDefault(); if (!busy) setOpen(false) }}>
+      <div className="mailbox-panel-heading mailbox-reply-dialog__heading"><h2 id="mailbox-reply-title">{w('Antworten', 'Reply')}</h2><button type="button" disabled={busy} onClick={() => setOpen(false)}>{w('Schließen', 'Close')}</button></div>
+      <div className="mailbox-reply-dialog__columns"><article className="mailbox-reader" aria-label={w('Schriftverkehr', 'Correspondence')}><MessageContent message={message} /></article>
+      <aside className="mailbox-reply" aria-label={w('Antwort verfassen', 'Compose reply')}>
     {error && <Failure message={error} retry={!draft ? () => setReload((value) => value + 1) : undefined} />}
     {!draft && !error && <p role="status">{w('Entwurf wird geladen …', 'Loading draft …')}</p>}
     {draft && <><label className="mailbox-reply-mode"><input type="checkbox" checked={draft.replyAll} disabled={locked} onChange={(event) => {
@@ -300,5 +329,8 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef, onFocus }) {
       {['unknown', 'sending'].includes(sendState) && !notice && <p role="alert">{w('Der Versand wurde bereits gestartet. Bitte den Status in Outlook prüfen; erneutes Senden ist hier gesperrt.', 'Sending has already started. Check Outlook; sending again is blocked here.')}</p>}
       {sendState === 'accepted' && !notice && <p role="status">{w('Diese Antwort wurde zum Versand angenommen.', 'This reply was accepted for sending.')}</p>}
     </>}
-  </aside>
+      </aside></div>
+    </dialog>
+    {toast && createPortal(<Toast message={toast} onDismiss={dismissToast} />, document.body)}
+  </>
 }
