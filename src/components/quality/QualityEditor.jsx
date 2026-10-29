@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { listQualityHistory, saveQualityRecord } from '../../lib/quality.js'
-import { HANDBOOK_SECTIONS, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
+import { HANDBOOK_SECTIONS, SMART_FIELDS, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
 import { qualityLabels as labels } from '../../lib/qualityLabels.js'
 
 export default function QualityEditor({ kind, record, departmentId, topics, focusPhase, newCycle = false, editable, onClose, onSaved, language }) {
@@ -26,9 +26,9 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
   const creatingHandbook = kind === 'handbook' && !record.revision
   const handbookFields = !creatingHandbook && HANDBOOK_SECTIONS.includes(focusPhase) ? [focusPhase] : ['title', 'process']
   const handbookHeading = creatingHandbook ? text('Neuer Handbucheintrag', 'New handbook entry') : HANDBOOK_SECTIONS.includes(focusPhase) ? labels[focusPhase][en ? 1 : 0] : text('Eintrag bearbeiten', 'Edit entry')
-  const phaseFields = { plan: ['plan', 'goal', 'measure'], do: ['do', 'owner', 'startDate', 'dueDate'], check: ['check'], act: ['act', 'status'] }
-  const topicFields = creatingTopic ? ['title', 'plan'] : newCycle ? phaseFields.plan : phaseFields[focusPhase] || ['title', 'status']
-  const topicHeading = creatingTopic ? text('Neues Thema', 'New topic') : newCycle ? text('Neuer Durchlauf', 'New cycle') : focusPhase ? text('Bearbeiten', 'Edit') + ' · ' + focusPhase.toUpperCase() : text('Thema bearbeiten', 'Edit topic')
+  const phaseFields = { plan: ['plan'], smart: SMART_FIELDS.map(({ key }) => key), cycle: ['cycleStartDate'], do: ['do', 'owner', 'startDate', 'dueDate'], check: ['check'], act: ['actDecision', 'actDate', 'act'] }
+  const topicFields = creatingTopic ? ['title', 'plan'] : newCycle ? phaseFields.cycle : phaseFields[focusPhase] || ['title', 'status']
+  const topicHeading = creatingTopic ? text('Neues Thema', 'New topic') : newCycle ? text('Neuer Durchlauf', 'New cycle') : focusPhase === 'smart' ? text('SMART-Ziel', 'SMART goal') : focusPhase === 'cycle' ? text('Zyklusstart', 'Cycle start') : focusPhase ? text('Bearbeiten', 'Edit') + ' · ' + focusPhase.toUpperCase() : text('Thema bearbeiten', 'Edit topic')
 
   useEffect(() => {
     const previous = document.activeElement
@@ -72,7 +72,8 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
     setSaving(true)
     setError('')
     try {
-      const saved = await saveQualityRecord(kind, record, form)
+      const values = kind === 'topic' ? { ...form, goal: form.smartSpecific, measure: form.smartMeasurable } : form
+      const saved = await saveQualityRecord(kind, record, values)
       onSaved(saved)
     } catch (failure) {
       setConflict(failure.code === 'functions/aborted' || failure.code === 'functions/already-exists')
@@ -90,12 +91,14 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
   }
 
   function field(key, rows = 3) {
+    if (key === 'actDecision') return <label className="form-field" key={key}><span>{labels[key][en ? 1 : 0]}</span><select disabled={readOnly} value={displayed.actDecision || ''} onChange={(event) => change(key, event.target.value)}><option value="">—</option><option value="correct">{text('Korrigieren', 'Correct')}</option><option value="discard">{text('Verwerfen', 'Discard')}</option><option value="establish">{text('Etablieren', 'Standardize')}</option></select></label>
     if (key === 'status') return <label className="form-field" key={key}><span>Status</span><select disabled={readOnly} value={displayed.status} onChange={(event) => change('status', event.target.value)}><option value="active">{text('Aktiv', 'Active')}</option><option value="paused">{text('Pausiert', 'Paused')}</option><option value="completed">{text('Abgeschlossen', 'Completed')}</option></select></label>
     const label = creatingTopic && key === 'plan' ? text('Kurzbeschreibung (optional)', 'Short description (optional)') : labels[key][en ? 1 : 0]
-    const date = ['date', 'startDate', 'dueDate'].includes(key)
-    const short = ['title', 'process', 'owner', 'participants'].includes(key)
+    const date = ['date', 'startDate', 'dueDate', 'cycleStartDate', 'actDate'].includes(key)
+    const smart = key.startsWith('smart')
+    const short = smart || ['title', 'process', 'owner', 'participants'].includes(key)
     return <label className="form-field" key={key}><span>{label}</span>{date || short
-      ? <input type={date ? 'date' : 'text'} required={key === 'title' || key === 'date' || key === 'process'} maxLength={short ? (key === 'title' ? 200 : key === 'participants' ? 20000 : 500) : undefined} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />
+      ? <input type={date ? 'date' : 'text'} required={key === 'title' || key === 'date' || key === 'process'} maxLength={short ? (key === 'title' ? 200 : key === 'participants' ? 20000 : smart ? (['smartSpecific', 'smartMeasurable'].includes(key) ? 20000 : 2000) : 500) : undefined} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />
       : <textarea name={key} rows={rows} maxLength={20000} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />}</label>
   }
 
@@ -105,7 +108,7 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
     {record.revision > 0 && <div className="quality-history"><button className="button button--secondary" type="button" disabled={historyLoading} onClick={showHistory}>{text('Verlauf', 'History')}</button>{history && <label>{text('Fassung', 'Revision')} <select value={historical?.revision || ''} onChange={(event) => setHistorical(history.find((item) => String(item.revision) === event.target.value) || null)}><option value="">{text('Aktuelle Bearbeitung', 'Current editing')}</option>{history.map((item) => <option key={item.revision} value={item.revision}>{kind === 'topic' ? `${text('Durchlauf', 'Cycle')} ${item.cycle} · ` : ''}{text('Fassung', 'Revision')} {item.revision} · {item.updatedAt?.toDate?.().toLocaleString(en ? 'en-GB' : 'de-DE')} · {item.updatedByName || item.updatedBy || ''}</option>)}</select></label>}</div>}
     {historical && <p role="status">{text('Frühere Fassung · nur lesbar', 'Previous revision · read only')}</p>}
     <form onSubmit={submit}>
-      <fieldset disabled={saving} className="quality-fields">
+      <fieldset disabled={saving} className={`quality-fields${focusPhase === 'smart' ? ' quality-fields--smart' : ''}`}>
         {kind === 'meeting' && meetingFields.map((key) => field(key))}
         {kind === 'topic' && topicFields.map((key) => field(key))}
         {kind === 'handbook' && handbookFields.map((key) => field(key))}
