@@ -1,3 +1,4 @@
+import { translateStatic } from '../i18n/autoTranslate.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { FaBan, FaChevronLeft, FaChevronRight, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
@@ -10,6 +11,7 @@ import { formatTransportOrderRelation, formatTransportOrderWindow, transportOrde
 import { defaultTrackingFilter, defaultTransportOrderListPreferences, emptyTrackingFilterMessage, normalizeTransportOrderListPreferences, trackingFilterOptions, trackingStatusForList, transportOrderListPageSizeOptions, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
 import { getShipmentTrackingForecast, refreshShipmentTrackingForecast } from '../lib/shipmentTrackingForecast.js'
 import { getShipmentTracking, sendManualShipmentTrackingMail, shipmentTrackingManualMailErrorMessage } from '../lib/shipmentTracking.js'
+import ShipmentTrackingHistoryIndicator from '../components/transport-orders/ShipmentTrackingHistoryIndicator.jsx'
 import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
 import ShipmentTrackingManualMailModal from '../components/transport-orders/ShipmentTrackingManualMailModal.jsx'
 import { LicensePlateIcon } from '../components/icons.jsx'
@@ -25,7 +27,7 @@ const columns = [
 const transportOrderListPreferenceSavers = new Map()
 
 const attentionIcon = (item) => item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
-const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen' }[state] || 'Unbekannt')
+const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen', unknown: 'Ankunftszeit fehlt' }[state] || 'Unbekannt')
 const trackingCarrierRecipient = (tracking) => {
   const carrier = tracking?.recipients?.carrier
   return ['manual', 'transport-order-import'].includes(carrier?.source) && typeof carrier?.email === 'string' ? carrier.email.trim() : ''
@@ -38,7 +40,7 @@ function IconFilterButton({ active, title, label, children, onClick, tone = '' }
 export default function TransportOrdersPage() {
   const { canEdit } = usePermissions()
   const { user, profile } = useAuth()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const navigate = useNavigate()
   const [preferenceSaver] = useState(() => {
     if (!transportOrderListPreferenceSavers.has(user.uid)) {
@@ -221,8 +223,8 @@ export default function TransportOrdersPage() {
       <td><strong>{order.externalNumber}</strong></td>
       <td title={formatTransportOrderRelation(order.imported?.relation)}>{formatTransportOrderRelation(order.imported?.relation)}</td>
       <td><span className={`transport-orders-tracking-status transport-orders-tracking-status--${trackingStatusForList(order.trackingStatus).className}`}><StaticText source={trackingStatusForList(order.trackingStatus).label} /></span></td>
-      <td><span className="transport-orders-attention-icons">{(order.attention?.visible || []).map((item) => { const Icon = attentionIcon(item); return <span key={item.id} className={`transport-orders-attention-icons__item transport-orders-attention-icons__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}>{item.id === 'license-plate' ? <LicensePlateIcon /> : <Icon aria-hidden="true" />}</span> })}{order.attention?.moreCount > 0 && <span>+{order.attention.moreCount}</span>}</span></td>
-      <td>{order.forecast && <button className={`transport-orders-forecast-button transport-orders-forecast-button--${order.forecast.state}`} type="button" onClick={(event) => void openForecast(event, order.id)} aria-label={`Transportprognose: ${forecastStateLabel(order.forecast.state)}`} title={`Transportprognose: ${forecastStateLabel(order.forecast.state)}`}>{order.forecast.kind === 'arrival' ? <FaHouse aria-hidden="true" /> : <FaTruckFast aria-hidden="true" />}</button>}</td>
+      <td><span className="transport-orders-attention-icons">{(order.attention?.visible || []).map((item) => { const Icon = attentionIcon(item); return <span key={item.id} className={`transport-orders-attention-icons__item transport-orders-attention-icons__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}>{item.id === 'license-plate' ? <LicensePlateIcon /> : <Icon aria-hidden="true" />}</span> })}{order.attention?.moreCount > 0 && <span>+{order.attention.moreCount}</span>}<ShipmentTrackingHistoryIndicator history={order.attention?.history} /></span></td>
+      <td>{order.forecast && <button className={`transport-orders-forecast-button transport-orders-forecast-button--${order.forecast.state}`} type="button" onClick={(event) => void openForecast(event, order.id)} aria-label={`Transportprognose: ${translateStatic(language, forecastStateLabel(order.forecast.state))}`} title={`Transportprognose: ${translateStatic(language, forecastStateLabel(order.forecast.state))}`}>{['arrival', 'completed'].includes(order.forecast.kind) ? <FaHouse aria-hidden="true" /> : <FaTruckFast aria-hidden="true" />}</button>}</td>
       <td title={order.imported?.loading?.city || ''}>{order.imported?.loading?.city || '—'}</td>
       <td>{formatTransportOrderWindow(order.imported?.loading?.window?.from)}</td>
       <td title={order.imported?.unloading?.city || ''}>{order.imported?.unloading?.city || '—'}</td>

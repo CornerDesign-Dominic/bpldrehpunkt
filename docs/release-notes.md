@@ -6,6 +6,28 @@ ersetzt oder wieder eingeführt.
 
 ## Noch keinem neuen Release zugeordnet
 
+
+### 29.10.2026 – Sendungsverfolgung: Fortschritt und Historienlücken, ausschließlich Dev
+
+Spätere bestätigte Transportereignisse lösen überholte operative Warnungen ab.
+Fehlende frühere Angaben erscheinen separat als neutrales Historien-Icon in
+Auftragsliste und Trackingdetail, einschließlich Feldliste im Tooltip. Ohne
+Entladeankunftszeit beendet bestätigter Entladefortschritt die Fahrprognose mit
+neutralem Haus und unbekannter Pünktlichkeit. Uhrzeiten werden nicht ergänzt.
+Ablaufstufen und Hilfe berücksichtigen die sechs vereinbarten Fälle;
+Automatikpause und manueller Nachtrageablauf bleiben unverändert.
+
+Freigabe ausschließlich für Dev. Isolierter Stand geprüft: 101 gezielte Tests,
+Lint, Build und Functions-Shared-Abgleich bestanden. Browserprüfung in beiden
+Themes und mit angemeldetem Nutzer offen; Computer Use konnte die Browseradresse
+nicht sicher erkennen. Keine Rules-, Index- oder Datenmigration erforderlich.
+Backendumfang: `listTransportOrdersPage`, `getShipmentTrackingAttention`,
+`getShipmentTrackingForecast`, `refreshShipmentTrackingForecast` und
+`refreshShipmentTrackingForecastOnUpdate` in `db-bpl-drehpunkt-dev`.
+Alle fünf Functions am 29.10.2026 erfolgreich aktualisiert. Frontendfreigabe
+über den zugehörigen Commit auf `dev`; Vercel-Status separat prüfen.
+
+
 ### 29.10.2026 – Manueller DyCoS-TA-Abruf, ausschließlich Dev
 
 TA-Eingabe auf der Importseite ergänzt, mit serverseitiger Zertifikatsanmeldung,

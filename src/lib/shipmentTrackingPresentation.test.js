@@ -171,9 +171,9 @@ test('an actual unloading arrival completes transit and activates unloading', ()
   assert.deepEqual(stationStates({ lifecycleStatus: 'active', licensePlate: 'AB-CD 123', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00'), actualArrivalUnloadingAt: new Date('2026-09-25T14:28:00') }), ['completed', 'completed', 'completed', 'active', 'pending'])
 })
 
-test('unloading completion marks the transport done without closing tracking or preparation', () => {
+test('unloading completion closes physical stages without closing tracking', () => {
   const tracking = { lifecycleStatus: 'active', actualDepartureLoadingAt: new Date('2026-09-25T09:55:00'), actualArrivalUnloadingAt: new Date('2026-09-25T14:28:00'), unloadingStartedAt: new Date('2026-09-25T14:35:00'), unloadingCompletedAt: new Date('2026-09-25T15:10:00') }
-  assert.deepEqual(stationStates(tracking), ['active', 'completed', 'completed', 'completed', 'pending'])
+  assert.deepEqual(stationStates(tracking), ['completed', 'completed', 'completed', 'completed', 'pending'])
   const model = shipmentTrackingTimelineModel(tracking, imported)
   assert.equal(model.transportCompleted, true)
   assert.equal(model.statusLabel, 'Transport erledigt · Tracking aktiv')
@@ -371,4 +371,24 @@ test('loading departure uses one hour as the warning-to-alert boundary', () => {
   assert.deepEqual(shipmentTrackingStationAssessments({ ...base, tracking: { actualDepartureLoadingAt: new Date('2026-09-25T11:00:00+02:00') } }).loading.departure, { severity: 'notice', text: '1 Std. nach Slotende' })
   assert.deepEqual(shipmentTrackingStationAssessments({ ...base, tracking: { actualDepartureLoadingAt: new Date('2026-09-25T11:20:00+02:00') } }).loading.departure, { severity: 'alert', text: '1 Std. 20 Min. nach Slotende' })
   assert.equal(shipmentTrackingStationAssessments({ tracking: { actualDepartureLoadingAt: new Date('2026-09-25T11:20:00+02:00') }, imported: { loading: { window: {} } } }).loading.departure, undefined)
+})
+
+
+test('later confirmed progress completes passed physical stations without inventing timestamps', () => {
+  for (const tracking of [
+    { unloadingStartedAt: '2026-09-25T15:00' },
+    { unloadingCompletedAt: '2026-09-25T16:00' },
+  ]) {
+    const original = structuredClone(tracking)
+    const stations = shipmentTrackingStations({ tracking, imported })
+    assert.equal(stations.find((station) => station.id === 'loading').workflowState, 'completed')
+    assert.equal(stations.find((station) => station.id === 'in_transit').workflowState, 'completed')
+    assert.deepEqual(tracking, original)
+    assert.equal(stations.find((station) => station.id === 'unloading').workflowState, tracking.unloadingCompletedAt ? 'completed' : 'active')
+  }
+})
+
+test('completed unloading closes physical preparation even when historical plate is missing', () => {
+  const stations = shipmentTrackingStations({ tracking: { unloadingCompletedAt: '2026-09-25T16:00' }, imported })
+  for (const id of ['preparation', 'loading', 'in_transit', 'unloading']) assert.equal(stations.find((station) => station.id === id).workflowState, 'completed')
 })

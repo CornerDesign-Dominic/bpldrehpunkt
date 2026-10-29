@@ -1,8 +1,11 @@
+import { useLanguage } from '../../i18n/useLanguage.js'
+import { translateStatic } from '../../i18n/autoTranslate.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { FaArrowRightFromBracket, FaArrowRightToBracket, FaBan, FaBoxOpen, FaCircleExclamation, FaCircleInfo, FaClipboardCheck, FaClock, FaEnvelope, FaFileCircleCheck, FaHouse, FaLocationDot, FaPause, FaStopwatch, FaTruck, FaTruckFast, FaWarehouse } from 'react-icons/fa6'
 import { defaultShipmentTrackingUiModel, trackingStages } from './shipmentTrackingUiModel.js'
 import { shipmentTrackingStageEvents, shipmentTrackingStationSummary } from '../../lib/shipmentTrackingPresentation.js'
+import ShipmentTrackingHistoryIndicator from './ShipmentTrackingHistoryIndicator.jsx'
 import ShipmentTrackingRecipientsCard from './ShipmentTrackingRecipientsCard.jsx'
 import ShipmentTrackingActionOverview from './ShipmentTrackingActionOverview.jsx'
 import { LicensePlateIcon } from '../icons.jsx'
@@ -58,15 +61,16 @@ function AttentionIcon({ item }) {
   return <span className={`shipment-tracking-attention__item shipment-tracking-attention__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}>{item.id === 'license-plate' ? <LicensePlateIcon /> : <Icon aria-hidden="true" />}<span className="sr-only">{item.label}</span></span>
 }
 function ForecastButton({ forecast, onOpenForecast }) {
+  const { language } = useLanguage()
   if (!onOpenForecast) return null
-  const Icon = forecast?.kind === 'arrival' ? FaHouse : FaTruckFast
+  const Icon = ['arrival', 'completed'].includes(forecast?.kind) ? FaHouse : FaTruckFast
   const state = forecast?.state || 'none'
-  const label = forecast?.kind === 'arrival'
+  const label = forecast?.kind === 'completed' ? forecast.message || 'Transport beendet · Ankunftszeit fehlt' : forecast?.kind === 'arrival'
     ? (forecast.state === 'green' ? 'Transport pünktlich angekommen' : 'Transport verspätet angekommen')
     : forecast?.kind === 'forecast'
       ? `Transportprognose: ${{ green: 'im Plan', yellow: 'beobachten', red: 'kritisch', grey: 'abgelaufen' }[state] || 'nicht verfügbar'}`
       : 'Transportprognose öffnen'
-  return <button type="button" className={`shipment-tracking-forecast-button shipment-tracking-forecast-button--${state}`} onClick={onOpenForecast} aria-label={label} title={label}><Icon aria-hidden="true" /></button>
+  return <button type="button" className={`shipment-tracking-forecast-button shipment-tracking-forecast-button--${state}`} onClick={onOpenForecast} aria-label={translateStatic(language, label)} title={translateStatic(language, label)}><Icon aria-hidden="true" /></button>
 }
 
 export default function ShipmentTrackingTimeline({ model = defaultShipmentTrackingUiModel, tracking = null, events = [], dryRunPreview = null, dryRunLoading = false, dryRunError = '', activation = null, activationLoading = false, activationError = '', canEdit = false, saving = false, ratingsLoading = false, ratingsError = '', attention = null, forecast = null, onOpenForecast, onOpenRatings, onEarlyStart, onEditStage, onSaveRecipient, onShowStageInfo, onManualDispatch }) {
@@ -76,7 +80,7 @@ export default function ShipmentTrackingTimeline({ model = defaultShipmentTracki
 
   return <section className="transport-order-detail-section transport-order-detail-section--tracking" aria-labelledby="shipment-tracking-heading">
       <div className="shipment-tracking-timeline__heading">
-      <div><h3 id="shipment-tracking-heading"><StaticText source={"Sendungsverfolgung"} /> <a className="shipment-tracking-timeline__help" href="/hilfe/sendungsverfolgung" target="_blank" rel="noreferrer" aria-label="Erklärung zur Sendungsverfolgung in neuem Tab öffnen" title="Erklärung zur Sendungsverfolgung">?</a></h3>{attention?.visible?.length > 0 && <div className="shipment-tracking-attention" aria-label="Handlungsempfehlung">{attention.visible.map((item) => <AttentionIcon key={item.id} item={item} />)}{attention.moreCount > 0 && <span className="shipment-tracking-attention__more">+{attention.moreCount}</span>}</div>}</div>
+      <div><h3 id="shipment-tracking-heading"><StaticText source={"Sendungsverfolgung"} /> <a className="shipment-tracking-timeline__help" href="/hilfe/sendungsverfolgung" target="_blank" rel="noreferrer" aria-label="Erklärung zur Sendungsverfolgung in neuem Tab öffnen" title="Erklärung zur Sendungsverfolgung">?</a></h3>{(attention?.visible?.length > 0 || attention?.history) && <div className="shipment-tracking-attention" aria-label="Handlungsempfehlung">{(attention.visible || []).map((item) => <AttentionIcon key={item.id} item={item} />)}{attention.moreCount > 0 && <span className="shipment-tracking-attention__more">+{attention.moreCount}</span>}<ShipmentTrackingHistoryIndicator history={attention.history} /></div>}</div>
       {model.trackingExists && <div className="shipment-tracking-timeline__forecast-control"><ForecastButton forecast={forecast} onOpenForecast={onOpenForecast} /></div>}
       <div className="shipment-tracking-timeline__header-summary"><span><em>Status:</em><strong>{model.lifecycleLabel || 'Bevorstehend'}</strong></span><span><em><StaticText source={"Art:"} /></em><strong>{model.trackingTypeLabel || <StaticText source={"Manuell"} />}</strong></span></div>
     </div>

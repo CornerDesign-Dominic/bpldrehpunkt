@@ -42,7 +42,7 @@ export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-w
 })
 // Forecasts are only recalculated for the three agreed loading facts. A later
 // actual unloading arrival merely replaces the current moving truck with its
-// terminal house state; it never creates another forecast history entry.
+// terminal house state; unloading progress and final closure do the same.
 export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ region: 'europe-west3', document: 'transportOrderTrackings/{orderId}', maxInstances: 3 }, async (event) => {
   if (!event.data?.after.exists) return
   const before = event.data.before.exists ? event.data.before.data() : {}
@@ -56,7 +56,7 @@ export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ regio
   const oldUnload = before?.actualArrivalUnloadingAt?.toMillis?.() ?? before?.actualArrivalUnloadingAt ?? null
   const newUnload = after?.actualArrivalUnloadingAt?.toMillis?.() ?? after?.actualArrivalUnloadingAt ?? null
   if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
-  else if (oldUnload !== newUnload) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
+  else if (oldUnload !== newUnload || ['unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some((field) => (before[field]?.toMillis?.() ?? before[field] ?? null) !== (after[field]?.toMillis?.() ?? after[field] ?? null))) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
 })
 export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3 }, async (event) => {
   if (!event.data?.after.exists) return

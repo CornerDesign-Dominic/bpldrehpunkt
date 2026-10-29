@@ -2363,3 +2363,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-order-imported-table { max-width: 100%; overflow-x: auto; }
 .transport-order-imported-table .data-table { min-width: 620px; }
 .transport-order-imported-table td { overflow-wrap: anywhere; }
+/* Historical gaps remain separate from operational warning colors. */
+.shipment-tracking-history-indicator { display: inline-grid; flex: 0 0 auto; width: 26px; height: 26px; place-items: center; border: 1px solid var(--border-strong); border-radius: 5px; color: var(--text-muted); background: var(--surface-secondary); }
+.transport-orders-attention-icons .shipment-tracking-history-indicator { width: 22px; height: 22px; border-radius: 4px; }
+.transport-orders-forecast-button--unknown, .shipment-tracking-forecast-button--unknown, .shipment-tracking-forecast-modal__arrival--unknown { color: var(--text-muted); background: var(--surface-secondary); }
