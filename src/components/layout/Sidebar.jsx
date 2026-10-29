@@ -11,6 +11,7 @@ import { readSidebarExpandedGroups, readSidebarFavorites, readSidebarFavoritesEx
 
 const navigationItems = [
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
+  { label: 'Postfächer', to: '/postfaecher', icon: DocumentsIcon, module: 'mailboxes', group: 'general' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'general' },
   { label: 'Notizen', to: '/notizen', icon: DocumentsIcon, group: 'general' },
   { label: 'Kalender', to: '/kalender', icon: CalendarIcon, module: 'calendar', group: 'general' },
@@ -52,6 +53,7 @@ const navigationGroups = [
 ]
 
 const navigationLabelKeys = {
+  '/postfaecher': 'nav.mailboxes',
   '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
   '/feiertagskalender': 'nav.holidays', '/news': 'nav.news', '/team': 'nav.team', '/urlaub': 'nav.vacation',
   '/personal': 'nav.personnel', '/urlaubsmanagement': 'nav.vacationManagement', '/transportauftraege': 'nav.orders',

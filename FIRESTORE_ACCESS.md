@@ -29,6 +29,16 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Das zusätzliche Modul `mailboxes` steuert den persönlichen Mailbereich.
+`view` erlaubt lesende Zugriffe auf eigene verbundene Postfächer; `edit`
+zusätzlich Verknüpfen/Trennen, Entwurf speichern und explizites Antworten.
+Auch ein Superadmin darf keine fremden persönlichen Postfächer abrufen.
+Sämtliche `mailbox*`-Collections sind für Browserzugriffe durch Default-deny
+gesperrt und werden nur durch berechtigte Functions verarbeitet. Tokens liegen
+im Secret Manager, nie in Firestore. Der begrenzte Dev-Vertrag einschließlich
+OAuth und Versand ist unter [Graph-Postfächer](docs/operations/mailboxes-graph.md)
+dokumentiert.
+
 | Ebene | Durchsetzung | Zweck |
 | --- | --- | --- |
 | Browserzugriff | Firestore- und Storage-Rules | Erzwingt aktive Profile, Rollen, Modulrechte, Eigentümerschaft und datenbezogene Validierungen für direkte SDK-Zugriffe. Eine ausgeblendete UI ersetzt diese Rules nicht. |

@@ -12,6 +12,11 @@ Vercel-Werte oder aktive externe Flows.
 | Produktion | `main` | Production | `db-bpl-drehpunkt` | Die sieben unten aufgeführten `VITE_`-Variablen für die Produktions-Web-App |
 | Entwicklung | `dev` | Preview/Dev | `db-bpl-drehpunkt-dev` | Dieselben sieben Variablennamen mit den Werten der Entwicklungs-Web-App |
 
+Vom Nutzer am 29.10.2026 bestätigte Dev-Webadresse:
+`https://dev.drehpunktlogistik.de`. Sie ist als Rückkehr-Origin für die
+Graph-Postfachverbindung vorgesehen. Diese Angabe ersetzt keinen Live-Abgleich
+der DNS-, Vercel- oder Firebase-Zuordnung.
+
 In Vercel werden diese Variablennamen getrennt für Production und Preview im
 jeweils passenden Zielbereich hinterlegt. Die zugehörigen Werte bleiben in
 Vercel und werden weder in Git noch in dieser Dokumentation gespeichert. Für
@@ -70,6 +75,7 @@ Pfade benötigen weiterhin passende Secrets, Anbieterzugänge und Berechtigungen
 
 | Integration | Produktion | Entwicklung | Maßgeblicher Code in `functions/` |
 | --- | --- | --- | --- |
+| Persönliche Graph-Postfächer | Gesperrt | Nur konfiguriertes Testpostfach; Antworten ausschließlich an die exakte Domain `brennpunkt-logistik.de`, einschließlich CC/BCC | `mailboxes.js`; Einrichtung unter [Graph-Postfächer](mailboxes-graph.md) |
 | Automatische System-/Tracking-Mails und Fristerinnerungen | Möglich, soweit der Ablauf nicht pausiert ist | Kein automatischer Versand | `systemMails.js`, `shipmentTrackingAutomation.js`, `caseDeadlineReminders.js` |
 | Manueller Tracking-Mailversand | An den hinterlegten geprüften Empfänger möglich | Bewusste Ausnahme nur für hinterlegte Empfänger mit `@brennpunkt-logistik.de`; funktionsfähiger Tracking-Webhook erforderlich | `shipmentTrackingManualDispatch.js`, `systemMails.js` |
 | Systemmail-Test | Admin/Superadmin, kontrollierter eigener Empfänger | Abgewiesen | `systemMails.js` |

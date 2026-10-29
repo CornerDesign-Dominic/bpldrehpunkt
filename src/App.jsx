@@ -21,6 +21,7 @@ import DamageDetailPage from './pages/DamageDetailPage.jsx'
 import NewsPage from './pages/NewsPage.jsx'
 import DocumentsPage from './pages/DocumentsPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import MailboxesPage from './pages/MailboxesPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import TeamPage from './pages/TeamPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
@@ -77,6 +78,7 @@ export default function App() {
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
+        <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
         <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />

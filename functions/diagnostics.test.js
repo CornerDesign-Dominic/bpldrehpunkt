@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
+import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, canReportLinkDiagnostic, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
 
 test('diagnostic entries contain bounded, useful fields and no arbitrary payload', () => {
   const event = buildDiagnosticEvent({
@@ -15,7 +15,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -93,4 +93,15 @@ test('diagnosis is admin-only through App Check and Firestore denies direct clie
   assert.match(source, /diagnosticClientQuotas/)
   assert.match(rules, /match \/diagnosticEvents\/\{eventId\} \{ allow read, write: if false; \}/)
   assert.equal(JSON.parse(indexes).indexes.filter((item) => item.collectionGroup === 'diagnosticEvents').length, 3)
+})
+
+test('mailbox diagnostics require module access and exclude personal mail context', () => {
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'mailboxes'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { mailboxes: 'view' } }, 'mailboxes'), true)
+  const event = normalizeClientDiagnostic({ module: 'mailboxes', stage: 'send', code: 'unavailable', message: 'private mail body' })
+  assert.equal(event.message, 'Antwort konnte nicht zuverlässig übermittelt werden.')
+  assert.equal(event.orderId, '')
+  for (const context of [{ orderId: 'order-1' }, { recordId: 'personal-mail-1' }]) {
+    assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage: 'send', code: 'unavailable', ...context }), { code: 'invalid-argument' })
+  }
 })

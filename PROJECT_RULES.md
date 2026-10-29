@@ -74,6 +74,13 @@ folgt weiterhin dem jeweils zugewiesenen Modulrecht.
 
 ## Zugriffs- und Datenprinzipien
 
+Der neue Bereich **Postfächer** ist als begrenzte Dev-Integration mit Microsoft
+Graph implementiert. Exchange Online führt Nachrichten und Originalanhänge;
+persönliche Antwortentwürfe und Verbindungsmetadaten liegen in Drehpunkt.
+Graph-Tokens liegen ausschließlich im serverseitigen Secret Manager. Modulrechte
+geben keinen Zugriff auf fremde persönliche Postfächer. Umfang, Einrichtung und
+offene echte Abnahme stehen unter [Graph-Postfächer](docs/operations/mailboxes-graph.md).
+
 - Ein nutzbares Konto benötigt Firebase Authentication und ein aktives
   Benutzerprofil. Fehlende oder deaktivierte Profile erhalten keinen
   Anwendungszugriff.

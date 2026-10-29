@@ -4,6 +4,7 @@ import { usePageHeader } from '../../lib/pageHeader.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
 
 const titleKeys = {
+  'Postfächer': 'nav.mailboxes',
   'Dashboard': 'nav.dashboard', 'Team Brennpunkt': 'title.team', 'Personalverwaltung': 'title.personnel',
   'Unternehmer importieren': 'title.carrierImport', 'Stammdaten importieren': 'title.masterImport',
   'Kunden & Unternehmer': 'nav.partners', 'Transportaufträge importieren': 'title.orderImport',

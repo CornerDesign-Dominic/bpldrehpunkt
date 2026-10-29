@@ -6,8 +6,10 @@ import { logger } from 'firebase-functions'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { requireActiveProfile, requireRole } from './access.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
 import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
@@ -65,10 +67,23 @@ export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck:
 export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)
 export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
+const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
+export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
+export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)
+export const listMailboxConnections = onCall(mailboxOptions, listMailboxConnectionsHandler)
+export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
+export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
+export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)
+export const getMailboxDraft = onCall(mailboxOptions, getMailboxDraftHandler)
+export const saveMailboxDraft = onCall(mailboxOptions, saveMailboxDraftHandler)
+export const sendMailboxReply = onCall(mailboxOptions, sendMailboxReplyHandler)
+export const disconnectMailbox = onCall(mailboxOptions, disconnectMailboxHandler)
+export const mailboxOAuthCallback = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }, mailboxOAuthCallbackHandler)
+export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', timeoutSeconds: 120, maxInstances: 1 }, cleanupMailboxConnectionsHandler)
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']

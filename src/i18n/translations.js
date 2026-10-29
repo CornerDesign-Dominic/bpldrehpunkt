@@ -11,6 +11,7 @@ export function localeForLanguage(value) {
 
 export const translations = {
   de: {
+    'nav.mailboxes': 'Postfächer',
     'profile.settings': 'Benutzereinstellungen',
     'profile.language': 'Sprache der Oberfläche',
     'profile.languageHint': 'Diese Einstellung gilt nur für dein Benutzerkonto.',
@@ -321,6 +322,7 @@ export const translations = {
     'agb.historyMoreError': 'Weitere Prüfungen konnten nicht geladen werden.',
   },
   en: {
+    'nav.mailboxes': 'Mailboxes',
     'profile.settings': 'User settings',
     'profile.language': 'Interface language',
     'profile.languageHint': 'This setting applies only to your account.',

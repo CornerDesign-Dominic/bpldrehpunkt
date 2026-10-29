@@ -4,6 +4,7 @@ export const PERMISSION_LEVELS = ['none', 'view', 'edit']
 // small, explicit change: add it here, protect its route and add it to navigation.
 export const MODULES = {
   dashboard: { label: 'Dashboard' },
+  mailboxes: { label: 'Postfächer' },
   vacation: { label: 'Urlaub' },
   feiertagskalender: { label: 'Feiertagskalender' },
   calendar: { label: 'Kalender' },

@@ -3,6 +3,7 @@ import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
+  mailboxes: 'Postfächer',
   'transport-route': 'Streckenberechnung',
   'tracking-preview': 'Tracking-Vorschau',
   'shipment-tracking': 'Sendungsverfolgung',

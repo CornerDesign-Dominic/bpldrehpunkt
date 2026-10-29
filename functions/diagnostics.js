@@ -4,10 +4,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
+  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create'],
@@ -25,7 +26,16 @@ const CLIENT_MESSAGES = {
   website: 'Ein unerwarteter Website-Fehler ist aufgetreten.',
 }
 
-export function buildDiagnosticEvent({ module, stage, code, message, actorId, actorName, orderId, originCountry, destinationCountry, createdAt }) {
+const MAILBOX_MESSAGES = {
+  mailboxes: { connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.' },
+}
+
+export function canReportLinkDiagnostic(profile, module) {
+  if (module !== 'mailboxes') return true
+  return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.mailboxes)
+}
+
+export function buildDiagnosticEvent({ module, stage, code, message, actorId, actorName, orderId, recordId, originCountry, destinationCountry, createdAt }) {
   if (!DIAGNOSTIC_MODULES.includes(module)) throw new Error('Unknown diagnostic module')
   return {
     module,
@@ -35,6 +45,7 @@ export function buildDiagnosticEvent({ module, stage, code, message, actorId, ac
     actorId: safeText(actorId, 128),
     actorName: safeText(actorName, 120) || 'Unbekannt',
     orderId: safeText(orderId, 240),
+    ...(recordId ? { recordId: safeText(recordId, 240) } : {}),
     originCountry: safeText(originCountry, 2),
     destinationCountry: safeText(destinationCountry, 2),
     createdAt,
@@ -61,13 +72,15 @@ export function normalizeClientDiagnostic(data) {
   const orderId = safeText(data?.orderId, 240)
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
-  if (['website', 'document-templates'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  return { module, stage, code, orderId, message: CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['website', 'document-templates', 'mailboxes'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  return { module, stage, code, orderId, message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {
   const profile = await requireActiveProfile(request)
   const event = normalizeClientDiagnostic(request.data)
+  if (!canReportLinkDiagnostic(profile, event.module)) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Diagnose.')
   if (['shipment-tracking', 'shipment-tracking-manual-mail'].includes(event.module) && !hasTrackingViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für die Sendungsverfolgung.')
   const db = getFirestore()
   if (event.orderId) {

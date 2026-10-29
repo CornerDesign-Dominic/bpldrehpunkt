@@ -29,6 +29,10 @@ Diese Leitlinie ist für jede Änderung am Drehpunkt-Projekt verbindlich. Sicher
 - Cloud Functions und Webhooks müssen den Aufrufer bzw. Empfänger authentifizieren, Berechtigungen prüfen und alle Eingaben serverseitig validieren.
 - Event-getriebene Functions müssen idempotent sein, damit Wiederholungen keine doppelten Nebenwirkungen erzeugen.
 - Systemmails dürfen ausschließlich über `functions/systemMails.js` versendet werden. Es darf keine Client-zu-Power-Automate-Mailroute geben.
+- Persönliche, ausdrücklich ausgelöste Postfachantworten laufen gesondert über
+  die eigentümergeschützten Graph-Functions in `functions/mailboxes.js`.
+  Dieser begrenzte Dev-Pfad ist kein automatischer Systemmailversand; seine
+  Freigaben und Testempfänger stehen in `docs/operations/mailboxes-graph.md`.
 - E-Mail-HTML wird ausschließlich serverseitig aus Klartext erzeugt. Vorlagen- und Platzhalterwerte müssen dabei HTML-sicher escaped werden; HTML aus dem Admin-Editor wird niemals ungefiltert übernommen.
 
 ## Neue Schnittstellen und Betriebsfehler
