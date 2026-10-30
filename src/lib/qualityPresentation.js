@@ -7,7 +7,7 @@ export const SMART_FIELDS = [
   { key: 'smartTimeBound', letter: 'T', de: 'Terminiert', en: 'Time-bound' },
 ]
 export const TOPIC_FIELDS = ['title', 'status', 'goal', 'measure', 'owner', 'startDate', 'dueDate', 'cycleStartDate', 'actDecision', 'actDate', ...SMART_FIELDS.map((field) => field.key), ...PHASES]
-export const HANDBOOK_FIELDS = ['title', 'process', 'situation', 'consequences', 'action', 'prevention']
+export const HANDBOOK_FIELDS = ['title', 'process', 'situation', 'consequences', 'action', 'prevention', 'lastReviewedDate', 'nextReviewDate']
 export const MEETING_FIELDS = ['title', 'date', 'participants', 'notes']
 export const HANDBOOK_SECTIONS = ['situation', 'consequences', 'action', 'prevention']
 

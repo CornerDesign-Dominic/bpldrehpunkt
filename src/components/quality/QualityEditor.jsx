@@ -24,8 +24,8 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
   const meetingFields = creatingMeeting ? ['title', 'date'] : focusPhase === 'notes' ? ['notes'] : focusPhase === 'participants' ? ['participants'] : focusPhase === 'topics' ? [] : ['title', 'date']
   const meetingHeading = creatingMeeting ? text('Neue Besprechung', 'New meeting') : focusPhase === 'notes' ? text('Protokoll', 'Minutes') : focusPhase === 'participants' ? text('Teilnehmer', 'Participants') : focusPhase === 'topics' ? text('Themen', 'Topics') : text('Besprechung bearbeiten', 'Edit meeting')
   const creatingHandbook = kind === 'handbook' && !record.revision
-  const handbookFields = !creatingHandbook && HANDBOOK_SECTIONS.includes(focusPhase) ? [focusPhase] : ['title', 'process']
-  const handbookHeading = creatingHandbook ? text('Neuer Handbucheintrag', 'New handbook entry') : HANDBOOK_SECTIONS.includes(focusPhase) ? labels[focusPhase][en ? 1 : 0] : text('Eintrag bearbeiten', 'Edit entry')
+  const handbookFields = !creatingHandbook && HANDBOOK_SECTIONS.includes(focusPhase) ? [focusPhase] : focusPhase === 'review' ? ['lastReviewedDate', 'nextReviewDate'] : ['title', 'process']
+  const handbookHeading = creatingHandbook ? text('Neuer Handbucheintrag', 'New handbook entry') : HANDBOOK_SECTIONS.includes(focusPhase) ? labels[focusPhase][en ? 1 : 0] : focusPhase === 'review' ? text('Kontrolltermine', 'Review dates') : text('Eintrag bearbeiten', 'Edit entry')
   const phaseFields = { plan: ['plan'], smart: SMART_FIELDS.map(({ key }) => key), cycle: ['cycleStartDate'], do: ['do', 'owner', 'startDate', 'dueDate'], check: ['check'], act: ['actDecision', 'actDate', 'act'] }
   const topicFields = creatingTopic ? ['title', 'plan'] : newCycle ? phaseFields.cycle : phaseFields[focusPhase] || ['title', 'status']
   const topicHeading = creatingTopic ? text('Neues Thema', 'New topic') : newCycle ? text('Neuer Durchlauf', 'New cycle') : focusPhase === 'smart' ? text('SMART-Ziel', 'SMART goal') : focusPhase === 'cycle' ? text('Zyklusstart', 'Cycle start') : focusPhase ? text('Bearbeiten', 'Edit') + ' · ' + focusPhase.toUpperCase() : text('Thema bearbeiten', 'Edit topic')
@@ -69,6 +69,10 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
       setError(text('Der Zieltermin darf nicht vor dem Beginn liegen.', 'The due date must not precede the start date.'))
       return
     }
+    if (kind === 'handbook' && form.lastReviewedDate && form.nextReviewDate && form.nextReviewDate < form.lastReviewedDate) {
+      setError(text('Die nächste Kontrolle darf nicht vor der letzten Kontrolle liegen.', 'The next review must not precede the last review.'))
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -94,7 +98,7 @@ export default function QualityEditor({ kind, record, departmentId, topics, focu
     if (key === 'actDecision') return <label className="form-field" key={key}><span>{labels[key][en ? 1 : 0]}</span><select disabled={readOnly} value={displayed.actDecision || ''} onChange={(event) => change(key, event.target.value)}><option value="">—</option><option value="correct">{text('Korrigieren', 'Correct')}</option><option value="discard">{text('Verwerfen', 'Discard')}</option><option value="establish">{text('Etablieren', 'Standardize')}</option></select></label>
     if (key === 'status') return <label className="form-field" key={key}><span>Status</span><select disabled={readOnly} value={displayed.status} onChange={(event) => change('status', event.target.value)}><option value="active">{text('Aktiv', 'Active')}</option><option value="paused">{text('Pausiert', 'Paused')}</option><option value="completed">{text('Abgeschlossen', 'Completed')}</option></select></label>
     const label = creatingTopic && key === 'plan' ? text('Kurzbeschreibung (optional)', 'Short description (optional)') : labels[key][en ? 1 : 0]
-    const date = ['date', 'startDate', 'dueDate', 'cycleStartDate', 'actDate'].includes(key)
+    const date = ['date', 'startDate', 'dueDate', 'cycleStartDate', 'actDate', 'lastReviewedDate', 'nextReviewDate'].includes(key)
     const smart = key.startsWith('smart')
     const short = smart || ['title', 'process', 'owner', 'participants'].includes(key)
     return <label className="form-field" key={key}><span>{label}</span>{date || short

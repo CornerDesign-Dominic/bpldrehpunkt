@@ -102,3 +102,10 @@
 @media(max-width:800px) { .quality-meeting-grid { grid-template-columns:1fr; } }
 @media(max-width:1050px) { .quality-phase-grid,.quality-goal-summary dl { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:650px) { .quality-phase-grid,.quality-goal-summary dl { grid-template-columns:1fr; } .quality-cycle-bar > .quality-inline { margin-left:0; } }
+
+.quality-handbook-sections { display:grid; grid-template-columns:1fr; gap:12px; }
+.quality-handbook-sections .quality-protocol { margin-bottom:0; }
+.quality-handbook-review { margin-top:12px; }
+.quality-handbook-review dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin:16px 0 0; }
+.quality-handbook-review dt { color:var(--text-secondary); font-size:12px; margin-bottom:5px; }
+.quality-handbook-review dd { margin:0; font-size:14px; overflow-wrap:anywhere; }

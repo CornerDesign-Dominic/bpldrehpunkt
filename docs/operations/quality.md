@@ -17,7 +17,14 @@ Handbucheinträge werden mit Titel und Prozess/Handlung angelegt. „Anlegen und
 öffnen“ führt direkt zur eigenen Detailseite unter `/qualitaet/handbuch/{entryId}`.
 Situation, Folgen, Vorgehen und Vorbeugung werden dort jeweils einzeln bearbeitet;
 Titel und Prozess sind über „Eintrag bearbeiten“ erreichbar. Der bestehende
-Datenvertrag, Revisionsverlauf und Modulzugriff `handbook` bleiben erhalten.
+Revisionsverlauf und Modulzugriff `handbook` bleiben erhalten.
+Die vier Inhaltskarten stehen untereinander. Darunter zeigt eine fünfte Karte
+Revision, serverseitige letzte Bearbeitung und Bearbeiter sowie die separat
+bearbeitbaren Kontrolltermine. Optionale Handbuchfelder `lastReviewedDate` und
+`nextReviewDate` enthalten reale ISO-Daten; nächste Kontrolle darf nicht vor der
+letzten liegen. Fehlende Felder aus Alt-Clients bleiben bei Speicherung erhalten.
+Jede Speicherung erhöht wie bisher die technische Revision, auch bei Terminänderungen.
+Eine Textänderung setzt kein Kontrolldatum automatisch.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
 anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
 den ersten Plan-Text; sie führt kein zusätzliches Datenfeld ein.
@@ -183,3 +190,12 @@ Folgetreffen dokumentieren, Phasen bearbeiten, zweiten Durchlauf und Verlauf öf
 Handbuch pflegen/suchen, Parallelbearbeitung und verweigerte Schreibzugriffe,
 ungespeicherte Eingaben, Tastaturbedienung sowie Deutsch/Englisch und beide Themes.
 Ein erfolgreicher Build bestätigt diese echten Benutzerabläufe nicht.
+
+
+### Handbuch-Karten und Kontrolltermine am 30.10.2026
+
+Vier Inhaltskarten untereinander, darunter Revision/Bearbeitungsdaten und
+Kontrolltermine. Lint, Build, Shared-Abgleich (38 Module) und 21 gezielte
+Unit-Tests erfolgreich. Die sechs bestehenden Emulatorprüfungen bestanden;
+der Emulator meldete beim anschließenden Herunterfahren einen Requestfehler.
+Ein angemeldeter Browserdurchlauf für die neuen Kontrolltermine steht noch aus.

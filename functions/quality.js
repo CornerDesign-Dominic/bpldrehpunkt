@@ -5,10 +5,11 @@ import { requireActiveProfile } from './access.js'
 
 export const QUALITY_KINDS = Object.freeze({ topic: { collection: 'qualityTopics', module: 'kvp' }, meeting: { collection: 'qualityMeetings', module: 'kvp' }, handbook: { collection: 'qualityHandbook', module: 'handbook' } })
 export const QUALITY_TOPIC_OPTIONAL_FIELDS = Object.freeze(['cycleStartDate', 'smartSpecific', 'smartMeasurable', 'smartAchievable', 'smartRelevant', 'smartTimeBound', 'actDecision', 'actDate'])
+const handbookOptionalFields = ['lastReviewedDate', 'nextReviewDate']
 const fields = {
   topic: ['departmentId', 'title', 'status', 'plan', 'do', 'check', 'act', 'goal', 'measure', 'owner', 'startDate', 'dueDate', 'cycle', ...QUALITY_TOPIC_OPTIONAL_FIELDS],
   meeting: ['departmentId', 'title', 'date', 'participants', 'notes', 'topicIds'],
-  handbook: ['departmentId', 'title', 'process', 'situation', 'consequences', 'action', 'prevention'],
+  handbook: ['departmentId', 'title', 'process', 'situation', 'consequences', 'action', 'prevention', ...handbookOptionalFields],
 }
 const invalid = (message = 'Ungültige Qualitätsdaten.') => { throw new HttpsError('invalid-argument', message) }
 const validId = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value)
@@ -27,7 +28,7 @@ export function normalizeQualityInput(data) {
   const clean = {}
   for (const key of fields[kind]) {
     // Older clients do not know these fields. Omission is distinct from clearing.
-    if (kind === 'topic' && QUALITY_TOPIC_OPTIONAL_FIELDS.includes(key) && !Object.hasOwn(values, key)) continue
+    if (((kind === 'topic' && QUALITY_TOPIC_OPTIONAL_FIELDS.includes(key)) || (kind === 'handbook' && handbookOptionalFields.includes(key))) && !Object.hasOwn(values, key)) continue
     const value = values[key]
     if (key === 'cycle') {
       if (!Number.isSafeInteger(value) || value < 1) invalid('Ungültiger PDCA-Durchlauf.')
@@ -51,7 +52,11 @@ export function normalizeQualityInput(data) {
     if (clean.startDate && clean.dueDate && clean.startDate > clean.dueDate) invalid('Das Ende darf nicht vor dem Beginn liegen.')
   }
   if (kind === 'meeting') date(clean.date, true)
-  if (kind === 'handbook' && !clean.process) invalid('Ein Prozessabschnitt ist erforderlich.')
+  if (kind === 'handbook') {
+    if (!clean.process) invalid('Ein Prozessabschnitt ist erforderlich.')
+    date(clean.lastReviewedDate); date(clean.nextReviewDate)
+    if (clean.lastReviewedDate && clean.nextReviewDate && clean.nextReviewDate < clean.lastReviewedDate) invalid('Die nächste Kontrolle darf nicht vor der letzten Kontrolle liegen.')
+  }
   return { kind, id, expectedRevision, values: clean }
 }
 
@@ -81,9 +86,10 @@ export async function persistQualityRecord(db, input, actor) {
       // Keep absence on untouched legacy records so the UI can still recognize
       // and display the existing legacy goal/measurement fields.
       return previous && Object.hasOwn(previous, key) ? [[key, previous[key]]] : []
-    })) : {}
+    })) : kind === 'handbook' ? Object.fromEntries(handbookOptionalFields.filter((key) => previous && Object.hasOwn(previous, key)).map((key) => [key, previous[key]])) : {}
     const mergedValues = { ...optionalValues, ...values }
     if (kind === 'topic' && mergedValues.actDate && !mergedValues.actDecision) invalid('Für das Act-Datum ist eine Entscheidung erforderlich.')
+    if (kind === 'handbook' && mergedValues.lastReviewedDate && mergedValues.nextReviewDate && mergedValues.nextReviewDate < mergedValues.lastReviewedDate) invalid('Die nächste Kontrolle darf nicht vor der letzten Kontrolle liegen.')
     if (kind === 'meeting') {
       const topics = await Promise.all(values.topicIds.map((topicId) => transaction.get(db.doc(`qualityTopics/${topicId}`))))
       if (topics.some((topic) => !topic.exists || topic.data().departmentId !== values.departmentId)) throw new HttpsError('failed-precondition', 'Alle besprochenen Themen müssen zur gewählten Abteilung gehören.')

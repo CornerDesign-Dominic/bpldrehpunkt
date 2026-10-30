@@ -138,3 +138,21 @@ test('clearing an Act decision while retaining its date is rejected atomically',
   assert.equal(db.records.get('qualityTopics/topic-1').actDecision, 'correct')
   assert.equal(db.records.get('qualityTopics/topic-1').revision, 1)
 })
+
+
+test('handbook review dates validate and survive older clients with revision history', async () => {
+  const values = { departmentId: 'accounting', title: 'Invoice', process: 'Billing', situation: '', consequences: '', action: '', prevention: '' }
+  for (const patch of [{ lastReviewedDate: '2026-02-30' }, { nextReviewDate: 'invalid' }, { lastReviewedDate: '2026-11-02', nextReviewDate: '2026-11-01' }]) assert.throws(() => input({ ...values, ...patch }, 'handbook'), { code: 'invalid-argument' })
+  const db = fakeDb({ 'users/editor': { ...editor, permissions: { handbook: 'edit' } } })
+  await persistQualityRecord(db, input({ ...values, lastReviewedDate: '2026-10-30', nextReviewDate: '2026-11-30' }, 'handbook'), { uid: 'editor' })
+  await persistQualityRecord(db, input({ ...values, action: 'Updated' }, 'handbook', 1), { uid: 'editor' })
+  const saved = db.records.get('qualityHandbook/topic-1')
+  assert.equal(saved.lastReviewedDate, '2026-10-30')
+  assert.equal(saved.nextReviewDate, '2026-11-30')
+  assert.equal(saved.updatedByName, 'editor')
+  assert.equal(saved.revision, 2)
+  assert.equal(db.records.get('qualityHandbook/topic-1/revisions/1').action, '')
+  await assert.rejects(persistQualityRecord(db, input({ ...values, lastReviewedDate: '2026-12-01' }, 'handbook', 2), { uid: 'editor' }), { code: 'invalid-argument' })
+  await persistQualityRecord(db, input({ ...values, lastReviewedDate: '', nextReviewDate: '' }, 'handbook', 2), { uid: 'editor' })
+  assert.equal(db.records.get('qualityHandbook/topic-1').nextReviewDate, '')
+})

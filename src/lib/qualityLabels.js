@@ -1,4 +1,5 @@
 export const qualityLabels = {
+  lastReviewedDate: ['Zuletzt kontrolliert', 'Last reviewed'], nextReviewDate: ['Nächste Kontrolle', 'Next review'],
   cycleStartDate: ['Zyklusstart', 'Cycle start'], actDate: ['Datum (optional)', 'Date (optional)'],
   actDecision: ['Entscheidung', 'Decision'],
   smartSpecific: ['S · Spezifisch', 'S · Specific'], smartMeasurable: ['M · Messbar', 'M · Measurable'],
