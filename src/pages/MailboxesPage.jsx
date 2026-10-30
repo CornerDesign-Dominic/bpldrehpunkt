@@ -181,6 +181,12 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   const [reload, setReload] = useState(0)
   const [open, setOpen] = useState(false)
   const [toast, setToast] = useState('')
+  const [suggestionBusy, setSuggestionBusy] = useState(false)
+  const [suggestionError, setSuggestionError] = useState('')
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [undoBody, setUndoBody] = useState(null)
+  const latestDraft = useRef(null)
+  const suggestionRequest = useRef(false)
   const dialogRef = useRef(null)
   const dismissToast = useCallback(() => setToast(''), [])
   const active = useRef(true)
@@ -202,8 +208,10 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
     active.current = true
     mailboxCall('getMailboxDraft', identity).then(({ draft: stored }) => {
       if (!mounted) return
-      const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false }
+      const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true, suggestion: stored.sendStatus === 'accepted' ? '' : stored.suggestion || '', suggestionInstruction: stored.sendStatus === 'accepted' ? '' : stored.suggestionInstruction || '' } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false, suggestion: '', suggestionInstruction: '' }
       const cached = stored?.sendStatus === 'accepted' ? null : unsavedDrafts.get(cacheKey)
+      latestDraft.current = cached?.draft || initial
+      setSuggestionsOpen(Boolean(latestDraft.current.suggestion || latestDraft.current.suggestionInstruction))
       setDraft(cached?.draft || initial); setSaved(cached?.saved || JSON.stringify(initial)); setError(''); setSendState(stored?.sendStatus || '')
       revision.current = cached?.revision ?? stored?.revision ?? 0
     }).catch(() => { if (mounted) setError(w('Antwortentwurf konnte nicht geladen werden. Bitte erneut versuchen.', 'Could not load reply draft. Please try again.')) })
@@ -230,7 +238,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   }, [dirty, busy, w])
 
   function payload() {
-    return { body: draft.body, replyAll: draft.replyAll, toRecipients: parseRecipients(draft.to), ccRecipients: parseRecipients(draft.cc), bccRecipients: parseRecipients(draft.bcc), revision: revision.current }
+    return { body: draft.body, replyAll: draft.replyAll, toRecipients: parseRecipients(draft.to), ccRecipients: parseRecipients(draft.cc), bccRecipients: parseRecipients(draft.bcc), revision: revision.current, suggestion: draft.suggestion || '', suggestionInstruction: draft.suggestionInstruction || '' }
   }
   async function save() {
     setError(''); setNotice('')
@@ -260,7 +268,9 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
       unsavedDrafts.delete(cacheKey); syncDraftCacheGuard()
       dirtyRef.current = false
       if (result.status === 'accepted') {
-        const cleared = { ...draft, body: '' }
+        const cleared = { ...draft, body: '', suggestion: '', suggestionInstruction: '' }
+        latestDraft.current = cleared
+        setUndoBody(null); setSuggestionsOpen(false); setSuggestionError('')
         setDraft(cleared); setSaved(JSON.stringify(cleared)); setOpen(false)
         setToast(w('Antwort gesendet.', 'Reply sent.'))
       } else {
@@ -279,11 +289,27 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
     } finally { if (active.current) setBusy(false) }
   }
   function changeDraft(next) {
+    latestDraft.current = next
     if (JSON.stringify(next) !== saved) unsavedDrafts.set(cacheKey, { draft: next, saved, revision: revision.current })
     else unsavedDrafts.delete(cacheKey)
     syncDraftCacheGuard()
     dirtyRef.current = JSON.stringify(next) !== saved
     setDraft(next)
+  }
+  async function suggest() {
+    if (suggestionRequest.current || busy || sendState) return
+    suggestionRequest.current = true
+    setSuggestionsOpen(true); setSuggestionBusy(true); setSuggestionError('')
+    const current = latestDraft.current
+    try {
+      const result = await mailboxCall('suggestMailboxReply', { ...identity, instruction: current.suggestionInstruction || '', currentReply: current.body, previousSuggestion: current.suggestion || '' })
+      if (active.current) changeDraft({ ...latestDraft.current, suggestion: result.suggestion })
+    } catch (error) {
+      if (active.current) setSuggestionError(error?.code === 'functions/resource-exhausted' ? w('Bis zu 20 Vorschläge pro Stunde. Bitte später erneut versuchen.', 'Up to 20 suggestions per hour. Please try again later.') : error?.code === 'functions/already-exists' ? w('Für diese Mail wird bereits ein Vorschlag erstellt. Bitte kurz warten und erneut versuchen.', 'A suggestion is already being generated for this message. Please wait and try again.') : w('Vorschlag konnte nicht erstellt werden. Dein Text und der bisherige Vorschlag bleiben erhalten.', 'Could not generate a suggestion. Your text and previous suggestion are preserved.'))
+    } finally {
+      suggestionRequest.current = false
+      if (active.current) setSuggestionBusy(false)
+    }
   }
   function update(field, value) { changeDraft({ ...draft, [field]: value }); setNotice('') }
   const locked = busy || ['accepted', 'unknown', 'sending'].includes(sendState)
@@ -302,7 +328,18 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
       {['to', 'cc', 'bcc'].map((field) => <label className="mailbox-recipient-field" key={field}><span>{field === 'to' ? w('An', 'To') : field.toUpperCase()}</span><input type="text" disabled={locked} autoComplete="off" value={draft[field]} onChange={(event) => update(field, event.target.value)} placeholder="name@example.com" /></label>)}
       <label>{w('Deine Antwort', 'Your reply')}<textarea disabled={locked} value={draft.body} onChange={(event) => update('body', event.target.value)} rows={14} /></label>
       <p className="mailbox-hint">{w('Der Entwurf wird mit „Entwurf speichern“ in Drehpunkt gespeichert. Er erscheint nicht als Outlook-Entwurf.', 'Use Save draft to store your draft in Drehpunkt. It does not appear in Outlook drafts.')}</p>
-      <div className="mailbox-reply-buttons"><button type="button" disabled={locked || !dirty} onClick={save}>{w('Entwurf speichern', 'Save draft')}</button><button type="button" disabled={locked} onClick={send}>{busy ? w('Bitte warten …', 'Please wait …') : w('Antwort senden', 'Send reply')}</button></div>
+      <div className="mailbox-reply-buttons"><button type="button" disabled={locked || !dirty} onClick={save}>{w('Entwurf speichern', 'Save draft')}</button><button type="button" disabled={locked || suggestionBusy} onClick={send}>{busy ? w('Bitte warten …', 'Please wait …') : w('Antwort senden', 'Send reply')}</button></div>
+      <section className="mailbox-suggestions" aria-label={w('Antwortvorschläge', 'Reply suggestions')} aria-busy={suggestionBusy}>
+        <button type="button" disabled={locked || suggestionBusy} onClick={suggest}>{w('Vorschläge', 'Suggestions')}</button>
+        {suggestionsOpen && <>
+          {suggestionBusy && <p className="mailbox-suggestions__loading" role="status"><span className="mailbox-action-spinner" aria-hidden="true" />{w('Antwortvorschlag wird formuliert …', 'Writing a reply suggestion …')}</p>}
+          {suggestionError && <Failure message={suggestionError} retry={!locked && !suggestionBusy ? suggest : undefined} />}
+          {draft.suggestion && <div className="mailbox-suggestions__proposal"><h3>{w('Antwortvorschlag', 'Suggested reply')}</h3><p>{draft.suggestion}</p><div className="mailbox-reply-buttons"><button type="button" disabled={locked || suggestionBusy} onClick={() => { setUndoBody(draft.body); update('body', draft.suggestion) }}>{w('Übernehmen', 'Use suggestion')}</button>{undoBody !== null && <button type="button" disabled={locked} onClick={() => { update('body', undoBody); setUndoBody(null) }}>{w('Rückgängig', 'Undo')}</button>}</div></div>}
+          <label>{w('Anweisung zum Neuformulieren', 'Instructions for rewriting')}<textarea className="mailbox-suggestions__instruction" rows={2} maxLength={1000} disabled={locked || suggestionBusy} value={draft.suggestionInstruction || ''} onChange={event => update('suggestionInstruction', event.target.value)} placeholder={w('Zum Beispiel: kürzer und etwas lockerer schreiben', 'For example: make it shorter and more casual')} /></label>
+          <button type="button" disabled={locked || suggestionBusy} onClick={suggest}>{w('Neu formulieren', 'Rewrite')}</button>
+          <small className="mailbox-hint">{w('Bis zu 300 Wörter · ohne Anhänge. Vorschlag und Anweisung werden mit „Entwurf speichern“ gespeichert.', 'Up to 300 words · no attachments. Save draft also saves the suggestion and instructions.')}</small>
+        </>}
+      </section>
       {dirty && !locked && <p role="status">{w('Ungespeicherte Änderungen', 'Unsaved changes')}</p>}
       {notice && <p role="status">{notice}</p>}
       {['unknown', 'sending'].includes(sendState) && !notice && <p role="alert">{w('Der Versand wurde bereits gestartet. Bitte den Status in Outlook prüfen; erneutes Senden ist hier gesperrt.', 'Sending has already started. Check Outlook; sending again is blocked here.')}</p>}

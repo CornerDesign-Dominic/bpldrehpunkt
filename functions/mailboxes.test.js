@@ -403,3 +403,77 @@ test('transport invoice history requires transport access but not personal mailb
   assert.equal(result.reports[0].id,'report-1')
   const denied=fixture();await assert.rejects(denied.handlers.listTransportInvoiceChecks({auth:{uid:'owner'},data:{orderId:'order-1'}}),{code:'permission-denied'})
 })
+
+
+test('reply suggestions read owner-scoped Graph text, never attachments or client-supplied mail', async () => {
+  const paths = []
+  let seen
+  const f = fixture({ fetch: async url => { paths.push(url); return response({ subject: 'Eingang', body: { contentType: 'text', content: 'Nur dieser Servertext' } }) }, generateReplySuggestion: async input => { seen = input; return 'Vielen Dank für Ihre Nachricht.' } })
+  const result = await f.handlers.suggestMailboxReply(request({ messageId: 'message-1', instruction: 'Kürzer', currentReply: 'Mein Text', previousSuggestion: 'Alt', body: 'Client Fälschung' }))
+  assert.equal(result.suggestion, 'Vielen Dank für Ihre Nachricht.')
+  assert.equal(seen.mail.body.content, 'Nur dieser Servertext')
+  assert.equal(seen.input.currentReply, 'Mein Text')
+  assert.equal(seen.input.instruction, 'Kürzer')
+  assert.equal(paths.length, 1)
+  assert.ok(!paths[0].includes('attachments'))
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft, null)
+  await assert.rejects(f.handlers.suggestMailboxReply({ auth: { uid: 'other' }, data: { connectionId, messageId: 'message-1' } }), { code: 'permission-denied' })
+  const viewer = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'view' } }) })
+  await assert.rejects(viewer.handlers.suggestMailboxReply(request({ messageId: '1' })), { code: 'permission-denied' })
+})
+
+test('reply quota counts attempts across mailboxes, expires after one hour, and releases failed locks', async () => {
+  let clock = 1000
+  let fail = true
+  const f = fixture({ now: () => clock, fetch: async () => response({}), generateReplySuggestion: async () => { if (fail) throw new Error('Provider down'); return 'Antwort' } })
+  await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: '1' })))
+  fail = false
+  for (let i = 0; i < 19; i++) await f.handlers.suggestMailboxReply(request({ messageId: '1' }))
+  await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: '2' })), { code: 'resource-exhausted' })
+  clock += 3600001
+  // Keep the fixture token valid when advancing the quota clock.
+  f.deps.secrets.read = async () => ({ accessToken: 'test', expiresAt: clock + 1000000 })
+  assert.equal((await f.handlers.suggestMailboxReply(request({ messageId: '1' }))).suggestion, 'Antwort')
+})
+
+test('one generation per mail and no late result after sending', async () => {
+  let complete
+  let entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const f = fixture({ fetch: async () => response({}), generateReplySuggestion: async () => { entered(); return new Promise(resolve => { complete = resolve }) } })
+  const running = f.handlers.suggestMailboxReply(request({ messageId: '1' }))
+  await ready
+  await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: '1' })), { code: 'already-exists' })
+  f.db.records.set(`mailboxDrafts/${hash(`owner|${connectionId}|1`)}`, { operationId: 'sent' })
+  complete('Antwort')
+  await assert.rejects(running, { code: 'aborted' })
+  assert.equal(Object.keys(f.db.records.get(`mailboxReplyQuotas/${hash('owner')}`).running).length, 0)
+  await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: '1' })), { code: 'failed-precondition' })
+})
+
+test('suggestions persist with versioned drafts and clear only after an accepted send', async () => {
+  const f = fixture()
+  const saved = await f.handlers.saveMailboxDraft(request({ messageId: 'message-1', draft: { ...draft, revision: 0, suggestion: 'Vorschlag', suggestionInstruction: 'Locker' } }))
+  assert.equal(saved.draft.suggestion, 'Vorschlag')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft.suggestionInstruction, 'Locker')
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: 'message-1', draft: { ...draft, revision: 1, suggestionInstruction: 'x'.repeat(1001) } })), { code: 'invalid-argument' })
+  await f.handlers.sendMailboxReply(request({ ...reply, revision: 1, suggestion: 'Vorschlag', suggestionInstruction: 'Locker' }))
+  const loaded = (await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft
+  assert.equal(loaded.body, '')
+  assert.equal(loaded.suggestion, '')
+  assert.equal(loaded.suggestionInstruction, '')
+  assert.equal(loaded.sendStatus, 'accepted')
+})
+
+
+test('revoked mailbox connection suppresses a pending suggestion and releases its lock', async () => {
+  let complete, entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const f = fixture({ fetch: async () => response({}), generateReplySuggestion: async () => { entered(); return new Promise(resolve => { complete = resolve }) } })
+  const running = f.handlers.suggestMailboxReply(request({ messageId: '1' }))
+  await ready
+  await f.db.doc(`mailboxConnections/${connectionId}`).update({ status: 'disconnecting' })
+  complete('Antwort')
+  await assert.rejects(running)
+  assert.equal(Object.keys(f.db.records.get(`mailboxReplyQuotas/${hash('owner')}`).running).length, 0)
+})

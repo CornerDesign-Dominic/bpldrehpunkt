@@ -1,3 +1,4 @@
+import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
@@ -49,7 +50,14 @@ export function validateMailboxDraft(data) {
     return data[key].map(value => ({ emailAddress: { address: address(value) } }))
   }
   if (typeof data?.body !== 'string' || data.body.length > 100000 || data.body.includes('\0')) fail('invalid-argument', 'Ungültiger Antworttext.')
-  return { toRecipients: recipients('toRecipients'), ccRecipients: recipients('ccRecipients'), bccRecipients: recipients('bccRecipients'), body: data.body, replyAll: data.replyAll === true }
+  const suggestionFields = {}
+  for (const [key, max] of [['suggestion', 6000], ['suggestionInstruction', 1000]]) {
+    if (data[key] !== undefined) {
+      if (typeof data[key] !== 'string' || data[key].length > max || data[key].includes('\0')) fail('invalid-argument', 'Ungültiger Antwortvorschlag.')
+      suggestionFields[key] = data[key]
+    }
+  }
+  return { ...suggestionFields, toRecipients: recipients('toRecipients'), ccRecipients: recipients('ccRecipients'), bccRecipients: recipients('bccRecipients'), body: data.body, replyAll: data.replyAll === true }
 }
 
 export function assertTestRecipients(draft) {
@@ -419,6 +427,42 @@ export function createMailboxHandlers(deps = {}) {
       if (typeof result.contentBytes !== 'string' || result.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4) fail('resource-exhausted', 'Der Anhang ist zu groß.')
       return { name: clean(result.name, 255), contentType: result.contentType, contentBase64: result.contentBytes }
     }),
+    suggestMailboxReply: guarded('reply-suggestion', async request => {
+      const context = await owned(request, true)
+      const messageId = id(request.data.messageId)
+      const input = validateReplySuggestionInput(request.data)
+      const quotaRef = db().doc(`mailboxReplyQuotas/${digest(context.uid)}`)
+      const mailKey = digest(`${context.connectionId}|${messageId}`)
+      const lock = randomBytes(16).toString('hex')
+      const ref = draftRef({ ...context, messageId })
+      await db().runTransaction(async tx => {
+        const quota = (await tx.get(quotaRef)).data() || {}
+        const draft = (await tx.get(ref)).data()
+        if (draft?.operationId) fail('failed-precondition', 'Für diese Nachricht wurde bereits eine Antwort versendet oder der Versand gestartet.')
+        const attempts = (quota.attempts || []).filter(at => at > now() - 3600000)
+        const running = Object.fromEntries(Object.entries(quota.running || {}).filter(([, value]) => value.until > now()))
+        if (running[mailKey]) fail('already-exists', 'Für diese Nachricht wird bereits ein Vorschlag erstellt.')
+        if (attempts.length >= 20) fail('resource-exhausted', 'Du kannst bis zu 20 Vorschläge pro Stunde erstellen. Bitte später erneut versuchen.')
+        running[mailKey] = { lock, until: now() + 180000 }
+        tx.set(quotaRef, { attempts: [...attempts, now()], running, expiresAt: now() + 7200000 })
+      })
+      try {
+        const mail = await graph(await accessToken(context), `/me/messages/${segment(messageId)}?$select=id,subject,body,from,bodyPreview`)
+        const suggestion = validateReplySuggestion(await (deps.generateReplySuggestion || generateReplySuggestion)({ mail, input, userId: context.uid }))
+        await owned(request, true)
+        if ((await ref.get()).data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
+        return { suggestion }
+      } finally {
+        await db().runTransaction(async tx => {
+          const quota = (await tx.get(quotaRef)).data()
+          if (quota?.running?.[mailKey]?.lock === lock) {
+            const running = { ...quota.running }
+            delete running[mailKey]
+            tx.update(quotaRef, { running })
+          }
+        })
+      }
+    }),
     getMailboxDraft: guarded('draft-load', async request => {
       const context = await owned(request)
       const snapshot = await draftRef({ ...context, messageId: request.data.messageId }).get()
@@ -429,6 +473,7 @@ export function createMailboxHandlers(deps = {}) {
         const operation = await db().doc(`mailboxSendOperations/${digest(`${context.uid}|${data.operationId}`)}`).get()
         result.operationId = data.operationId
         result.sendStatus = operation.exists && operation.data().status === 'accepted' ? 'accepted' : 'unknown'
+        if (result.sendStatus === 'accepted') { result.body = ''; result.suggestion = ''; result.suggestionInstruction = '' }
       }
       return { draft: result }
     }),
@@ -481,6 +526,8 @@ export function createMailboxHandlers(deps = {}) {
         // is checked against every recipient that is actually submitted.
         await graph(token, `/me/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
         await operation.update({ status: 'accepted', finishedAt: now() })
+        // Preserve the send receipt, but remove sent text and AI drafting metadata.
+        try { await persistedDraft.update({ draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } }) } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
         return { status: 'accepted', operationId }
       } catch {
         await operation.update({ status: 'unknown', finishedAt: now() })
@@ -568,7 +615,7 @@ export function createMailboxHandlers(deps = {}) {
     for (const snapshot of states.docs) await snapshot.ref.delete()
     const previews = await db().collection('mailboxTrackingPreviews').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of previews.docs) await snapshot.ref.delete()
-    for (const collection of ['mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns']) {
+    for (const collection of ['mailboxReplyQuotas', 'mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns']) {
       const expired = await db().collection(collection).where('expiresAt', '<', now()).limit(100).get()
       for (const snapshot of expired.docs) await snapshot.ref.delete()
     }
@@ -593,6 +640,7 @@ export const exportMailboxOrderHandler = handlers.exportMailboxOrder
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment
+export const suggestMailboxReplyHandler = handlers.suggestMailboxReply
 export const getMailboxDraftHandler = handlers.getMailboxDraft
 export const saveMailboxDraftHandler = handlers.saveMailboxDraft
 export const sendMailboxReplyHandler = handlers.sendMailboxReply

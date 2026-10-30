@@ -15,7 +15,7 @@ import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMail
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
@@ -108,6 +108,7 @@ export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler
 export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
 export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
 export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)
+export const suggestMailboxReply = onCall({ ...mailboxOptions, timeoutSeconds: 180, secrets: [mailboxClientSecret, statusMailAiApiKey] }, suggestMailboxReplyHandler)
 export const getMailboxDraft = onCall(mailboxOptions, getMailboxDraftHandler)
 export const saveMailboxDraft = onCall(mailboxOptions, saveMailboxDraftHandler)
 export const sendMailboxReply = onCall(mailboxOptions, sendMailboxReplyHandler)

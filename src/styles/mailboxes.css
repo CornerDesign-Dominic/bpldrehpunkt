@@ -186,3 +186,11 @@
 @container mailboxes (max-width: 400px) {
   .mailbox-actions { grid-template-columns: minmax(0, 1fr); }
 }
+
+.mailbox-suggestions { display: grid; gap: 12px; border-top: 1px solid var(--border); padding-top: 14px; min-width: 0; }
+.mailbox-suggestions > button { justify-self: start; }
+.mailbox-suggestions__proposal { background: var(--app-background); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
+.mailbox-suggestions__proposal h3 { margin: 0 0 8px; font-size: 1rem; }
+.mailbox-suggestions__proposal p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 12px; }
+.mailbox-suggestions__loading { display: flex; align-items: center; gap: 10px; }
+.mailbox-reply textarea.mailbox-suggestions__instruction { min-height: 70px; }
