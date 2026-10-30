@@ -2384,8 +2384,9 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .record-history-table { width: 100%; table-layout: fixed; }
 .record-history-table th:first-child { width: 25%; }
 .record-history-table td { vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
-.record-history-table td:first-child > * { display: block; margin-bottom: 5px; }
-.record-history-table dl { display: grid; gap: 10px; margin: 0; }
+.record-history-table__metadata > * { display: block; margin-bottom: 5px; }
+.record-history-table tbody + tbody { border-top: 1px solid var(--border); }
+.record-history-table dl { margin: 0; }
 .record-history-table dt { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .record-history-table dd { margin: 3px 0 0; }
 
