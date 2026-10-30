@@ -55,7 +55,17 @@ function HandbookDetail({ entryId }) {
     <div className="quality-heading">{back}{editable && <button className="button" onClick={() => setEditor({})}>{text('Eintrag bearbeiten', 'Edit entry')}</button>}</div>
     <header className="quality-problem-heading"><p className="quality-eyebrow">{department?.name || text('Abteilung nicht verfügbar', 'Department unavailable')} · {record.process}</p><h2>{record.title}</h2></header>
     {departmentError && <div className="form-error" role="alert"><span>{text('Abteilung konnte nicht geladen werden.', 'Department could not be loaded.')} </span><button className="button button--secondary" onClick={refresh}>{text('Erneut versuchen', 'Retry')}</button></div>}
-    <div className="quality-phase-grid quality-handbook-sections">{HANDBOOK_SECTIONS.map((section) => <section className="quality-phase-panel" key={section} aria-labelledby={`handbook-${section}`}><header><h3 id={`handbook-${section}`}>{sectionLabels[section][en ? 1 : 0]}</h3>{editable && <button className="quality-phase-edit" aria-label={`${sectionLabels[section][en ? 1 : 0]} ${text('bearbeiten', 'edit')}`} title={text('Bearbeiten', 'Edit')} onClick={() => setEditor({ focusPhase: section })}><EditIcon /></button>}</header><p className="quality-protocol">{record[section] || '—'}</p></section>)}</div>
+    <div className="quality-handbook-sections">{HANDBOOK_SECTIONS.map((section) => <section className="quality-phase-panel" key={section} aria-labelledby={`handbook-${section}`}><header><h3 id={`handbook-${section}`}>{sectionLabels[section][en ? 1 : 0]}</h3>{editable && <button className="quality-phase-edit" aria-label={`${sectionLabels[section][en ? 1 : 0]} ${text('bearbeiten', 'edit')}`} title={text('Bearbeiten', 'Edit')} onClick={() => setEditor({ focusPhase: section })}><EditIcon /></button>}</header><p className="quality-protocol">{record[section] || '—'}</p></section>)}</div>
+    <section className="quality-phase-panel quality-handbook-review" aria-labelledby="handbook-review">
+      <header><h3 id="handbook-review">{text('Revision & Kontrolle', 'Revision & review')}</h3>{editable && <button className="quality-phase-edit" aria-label={text('Kontrolltermine bearbeiten', 'Edit review dates')} title={text('Bearbeiten', 'Edit')} onClick={() => setEditor({ focusPhase: 'review' })}><EditIcon /></button>}</header>
+      <dl>{[
+        [text('Revision', 'Revision'), record.revision],
+        [text('Zuletzt bearbeitet am', 'Last edited'), record.updatedAt?.toDate?.().toLocaleString(en ? 'en-GB' : 'de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'medium', timeStyle: 'short' })],
+        [text('Bearbeitet von', 'Edited by'), record.updatedByName],
+        [text('Zuletzt kontrolliert', 'Last reviewed'), record.lastReviewedDate && new Date(`${record.lastReviewedDate}T12:00:00`).toLocaleDateString(en ? 'en-GB' : 'de-DE')],
+        [text('Nächste Kontrolle', 'Next review'), record.nextReviewDate && new Date(`${record.nextReviewDate}T12:00:00`).toLocaleDateString(en ? 'en-GB' : 'de-DE')],
+      ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '—'}</dd></div>)}</dl>
+    </section>
     {editor && <QualityEditor key={editor.focusPhase || 'metadata'} kind="handbook" record={record} {...editor} departmentId={record.departmentId} editable={editable} language={language} onClose={(options) => { setEditor(null); if (options?.reload) refresh() }} onSaved={() => { setEditor(null); refresh() }} />}
   </div>
 }

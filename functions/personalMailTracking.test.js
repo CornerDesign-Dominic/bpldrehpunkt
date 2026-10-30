@@ -158,3 +158,14 @@ test('manual plate aliases are protected and repeated inference is bounded', asy
   await assert.rejects(previewPersonalMailTracking(f.args), { code: 'resource-exhausted' })
 })
 
+
+test('job-bound tracking preview cannot apply after discard or replacement', async () => {
+  for (const state of ['discarded', 'running']) {
+    const f = fixture(); const preview = await previewPersonalMailTracking(f.args)
+    const stored = f.db.records.get(`mailboxTrackingPreviews/${preview.previewId}`)
+    f.db.records.set(`mailboxTrackingPreviews/${preview.previewId}`, { ...stored, actionJobId: 'original-job', actionSlotPath: 'mailboxActionScopes/scope/actions/slot' })
+    f.db.records.set('mailboxActionScopes/scope/actions/slot', { state, jobId: state === 'running' ? 'replacement-job' : 'original-job' })
+    await assert.rejects(f.apply(preview), { code: 'aborted' })
+    assert.equal(f.db.records.has('transportOrderTrackings/order-1'), false)
+  }
+})

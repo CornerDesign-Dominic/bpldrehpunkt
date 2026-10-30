@@ -12,7 +12,7 @@ function workingHoursReached(now, deadline, hours, operatingHours) {
   return berlinKey(now) >= `${threshold.date}T${threshold.time}`
 }
 function issue(id, severity, label, detail) { return { id, severity, label, detail } }
-const rank = { critical: 0, warning: 1, info: 2, success: 3 }
+const rank = { critical: 0, warning: 1, info: 2, success: 3, neutral: 4 }
 
 export function shipmentTrackingAttention({ tracking = null, imported = {}, receivedMails = [], settings: value, operatingHours = DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, now = new Date() } = {}) {
   if (!tracking) return { items: [], visible: [], moreCount: 0, history: null }
@@ -29,6 +29,8 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
   const progress = shipmentTrackingProgress(tracking)
   const history = progress.history
+  if (progress.closed) return { items: [], visible: [], moreCount: 0, history }
+  if (tracking.automationPaused === true) items.push(issue('automation-paused', 'neutral', 'Automatik pausiert', 'Automatische Anfragen sind pausiert. Statusmeldungen und aktuelle Hinweise bleiben aktiv.'))
   const transportFinished = progress.reachedUnloading
   const manuallyReviewableMail = (receivedMails || []).some((mail) => mail?.ai?.reviewRequired === true || ['needs_review', 'error'].includes(mail?.ai?.status))
   if (manuallyReviewableMail) items.push(issue('mail-review', 'warning', 'Eingangsmail manuell prüfen', 'Eine zugeordnete Mail benötigt eine fachliche Prüfung.'))
@@ -39,7 +41,6 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
     items.sort((left, right) => rank[left.severity] - rank[right.severity] || left.label.localeCompare(right.label, 'de-DE'))
     return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3), history }
   }
-  if (tracking.automationPaused === true) items.push(issue('automation-paused', 'critical', 'Automatik pausiert', 'Fällige Anfragen werden während der Pause nicht ausgeführt.'))
   if (tracking.lifecyclePhase === 'in_progress' && !plate(tracking)) items.push(issue('license-plate', 'warning', 'KZ fehlt', 'Für die laufende Vorbereitung fehlt ein Kennzeichen.'))
   let truck = null
   if (!progress.reachedLoading) {
@@ -70,7 +71,7 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
     const hoursToDeadline = unloadingUntil ? (unloadingUntil.getTime() - now.getTime()) / 3600000 : null
     truck = hoursToDeadline !== null && hoursToDeadline <= 0 ? issue('unloading-arrival', 'critical', 'Entladeankunft fehlt', 'Das Entladefenster ist beendet.') : hoursToDeadline !== null && hoursToDeadline <= timing.unloadingYellowElapsedHoursBeforeDeadline ? issue('unloading-arrival', 'warning', 'Entladeankunft beobachten', 'Das Ende des Entladefensters naht.') : issue('in-transit', 'success', 'Unterwegs im Plan', 'Die tatsächliche Abfahrt liegt vor.')
   }
-  if (truck && !(tracking.automationPaused === true && truck.severity !== 'critical')) items.push(truck)
+  if (truck) items.push(truck)
   items.sort((left, right) => rank[left.severity] - rank[right.severity] || left.label.localeCompare(right.label, 'de-DE'))
   return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3), history }
 }

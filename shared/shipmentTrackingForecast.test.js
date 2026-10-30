@@ -72,9 +72,9 @@ test('departure preserves current unloading warning and separates historical loa
   assert.deepEqual(result.history.missingFields, ['actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt'])
 })
 
-test('completed transports retain mail review and separate neutral history', () => {
+test('closed transports hide mail review and pause but retain neutral history', () => {
   const result = shipmentTrackingAttention({ tracking: { lifecycleStatus: 'completed', automationPaused: true, actualArrivalUnloadingAt: '2026-10-07T18:00:00Z' }, imported, receivedMails: [{ ai: { reviewRequired: true } }] })
-  assert.deepEqual(result.items.map((item) => item.id), ['mail-review'])
+  assert.deepEqual(result.items, [])
   assert.equal(result.history.severity, 'neutral')
 })
 
@@ -149,11 +149,50 @@ test('unloading progress and final closure suppress obsolete warnings and foreca
     assert.ok(attention.history.missingFields.includes('actualDepartureLoadingAt'))
     const forecast = buildShipmentTrackingForecast({ tracking, imported })
     assert.equal(forecast.kind, 'completed')
-    assert.equal(forecast.state, 'unknown')
+    assert.equal(forecast.state, tracking.lifecycleStatus === 'completed' ? 'neutral' : 'unknown')
   }
 })
 
 test('complete historical facts remove the history icon', () => {
   const tracking = { licensePlate: 'B AB 123', actualArrivalLoadingAt: '2026-10-06T08:00:00Z', loadingStartedAt: '2026-10-06T08:10:00Z', loadingCompletedAt: '2026-10-06T09:00:00Z', actualDepartureLoadingAt: '2026-10-06T09:10:00Z', actualArrivalUnloadingAt: '2026-10-07T12:00:00Z', unloadingStartedAt: '2026-10-07T12:10:00Z', unloadingCompletedAt: '2026-10-07T13:00:00Z' }
   assert.equal(shipmentTrackingAttention({ tracking, imported }).history, null)
+})
+
+test('mail pause preserves all live warning colors and only adds a neutral pause notice', () => {
+  const scenarios = [
+    [{}, '2026-10-01T01:00:00Z'],
+    [{ estimatedArrivalLoadingAt: '2026-10-06T08:00:00Z' }, '2026-10-01T01:00:00Z'],
+    [{ actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, '2026-10-07T15:30:00Z'],
+    [{ actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, '2026-10-09T18:00:00Z'],
+    [{ actualArrivalLoadingAt: '2026-10-06T08:00:00Z' }, '2026-10-06T08:05:00Z'],
+    [{ actualArrivalLoadingAt: '2026-10-06T08:00:00Z' }, '2026-10-09T18:00:00Z'],
+    [{ unloadingStartedAt: '2026-10-07T12:00:00Z' }, '2026-10-07T13:00:00Z'],
+  ]
+  for (const [facts, at] of scenarios) {
+    const tracking = { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', ...facts }
+    const args = { tracking, imported, now: new Date(at), receivedMails: [{ ai: { reviewRequired: true } }] }
+    const active = shipmentTrackingAttention(args)
+    const paused = shipmentTrackingAttention({ ...args, tracking: { ...tracking, automationPaused: true } })
+    assert.deepEqual(paused.items.filter((item) => item.id !== 'automation-paused'), active.items)
+    assert.equal(paused.items.find((item) => item.id === 'automation-paused').severity, 'neutral')
+    assert.deepEqual(paused.history, active.history)
+  }
+})
+
+test('final closure neutralizes even a late arrival without losing its historical result', () => {
+  const tracking = { lifecycleStatus: 'completed', actualArrivalUnloadingAt: '2026-10-09T18:00:00Z', automationPaused: true }
+  const result = buildShipmentTrackingForecast({ tracking, imported })
+  assert.equal(result.kind, 'completed')
+  assert.equal(result.state, 'neutral')
+  assert.equal(result.arrivalState, 'yellow')
+  assert.equal(result.actualArrivalUnloadingAt, tracking.actualArrivalUnloadingAt.replace('Z', '.000Z'))
+  const attention = shipmentTrackingAttention({ tracking, imported, receivedMails: [{ ai: { status: 'error' } }] })
+  assert.deepEqual(attention.visible, [])
+  assert.ok(attention.history)
+})
+
+test('aftercare and past dates alone never count as final closure', () => {
+  const result = shipmentTrackingAttention({ tracking: { lifecycleStatus: 'active', lifecyclePhase: 'aftercare', automationPaused: true }, imported, now: new Date('2026-10-20T18:00:00Z') })
+  assert.ok(result.items.some((item) => item.severity === 'critical'))
+  assert.ok(result.items.some((item) => item.id === 'automation-paused'))
 })

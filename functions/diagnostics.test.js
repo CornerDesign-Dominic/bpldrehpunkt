@@ -3,6 +3,16 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, canReportLinkDiagnostic, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
 
+test('order capture diagnostics use fixed messages and reject private mail identifiers', () => {
+  for (const [stage, message] of [['order-preview', 'Auftrag aus persönlicher Mail konnte nicht ausgewertet werden.'], ['order-export', 'Geprüfter Auftrag konnte nicht als XML erstellt werden.']]) {
+    const event = normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', message: 'private mail and PDF contents' })
+    assert.equal(event.message, message)
+    assert.equal(event.orderId, '')
+    assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', recordId: 'private-mail' }), { code: 'invalid-argument' })
+    assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', orderId: 'private-order' }), { code: 'invalid-argument' })
+  }
+})
+
 test('diagnostic entries contain bounded, useful fields and no arbitrary payload', () => {
   const event = buildDiagnosticEvent({
     module: 'transport-route', stage: 'geocoding_destination', code: 'place_not_found',

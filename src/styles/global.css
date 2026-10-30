@@ -2384,8 +2384,9 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .record-history-table { width: 100%; table-layout: fixed; }
 .record-history-table th:first-child { width: 25%; }
 .record-history-table td { vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
-.record-history-table td:first-child > * { display: block; margin-bottom: 5px; }
-.record-history-table dl { display: grid; gap: 10px; margin: 0; }
+.record-history-table__metadata > * { display: block; margin-bottom: 5px; }
+.record-history-table tbody + tbody { border-top: 1px solid var(--border); }
+.record-history-table dl { margin: 0; }
 .record-history-table dt { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .record-history-table dd { margin: 3px 0 0; }
 
@@ -2403,3 +2404,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .dycos-bulk-import__progress { border-top:1px solid var(--border); padding-top:16px; margin-top:18px; }
 .dycos-bulk-import__progress progress { width:100%; height:12px; accent-color:var(--accent); }
 .dycos-bulk-import__results { min-width:0; }.dycos-bulk-import__results td { white-space:normal; overflow-wrap:anywhere; }
+/* A mail pause is informational; completed tracking has no warning colors. */
+.transport-orders-attention-icons__item--neutral, .shipment-tracking-attention__item--neutral,
+.transport-orders-forecast-button--neutral, .shipment-tracking-forecast-button--neutral,
+.shipment-tracking-forecast-modal__arrival--neutral { color: var(--text-muted); background: var(--surface-secondary); }

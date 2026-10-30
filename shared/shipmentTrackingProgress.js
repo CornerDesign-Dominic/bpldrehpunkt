@@ -30,3 +30,15 @@ export function shipmentTrackingProgress(tracking = {}) {
   } : null
   return { closed, unloaded, unloading, reachedUnloading, departed, loaded, loading, reachedLoading, history }
 }
+
+// Closure changes presentation, not the recorded arrival or its assessment.
+export function closedShipmentTrackingForecast(tracking = {}, imported = {}) {
+  if (tracking.lifecycleStatus !== 'completed') return null
+  const arrival = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
+  const deadline = shipmentTrackingDate(imported?.unloading?.window?.until) || shipmentTrackingDate(imported?.unloading?.window?.from)
+  return {
+    kind: 'completed', state: 'neutral', message: 'Transport abgeschlossen',
+    actualArrivalUnloadingAt: arrival ? arrival.toISOString() : null,
+    arrivalState: arrival && deadline ? arrival <= deadline ? 'green' : 'yellow' : 'unknown',
+  }
+}

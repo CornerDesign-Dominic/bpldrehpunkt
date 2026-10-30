@@ -1,3 +1,4 @@
+import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { getApp } from 'firebase-admin/app'
@@ -8,11 +9,15 @@ import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { runtimeProjectId } from './externalEffects.js'
 import { assertPersonalTrackingAccess, previewPersonalMailTracking, applyPersonalMailTracking } from './personalMailTracking.js'
+import { assertMailboxAgbAccess, validateAgbAttachments, analyzeMailboxAgb, assignMailboxAgbCustomer } from './mailboxAgb.js'
+import { assertMailboxOrderAccess, previewMailboxOrderCapture, exportMailboxOrderCapture } from './mailboxOrderCapture.js'
 
 export const mailboxClientSecret = defineSecret('MAILBOX_CLIENT_SECRET')
 export const mailboxRedirectUri = defineString('MAILBOX_REDIRECT_URI', { default: '' })
 export const mailboxFrontendOrigin = defineString('MAILBOX_FRONTEND_ORIGIN', { default: '' })
 export const mailboxTestAccount = defineString('MAILBOX_TEST_ACCOUNT', { default: '' })
+// EUR was explicitly confirmed by the user as the DyCoS company currency.
+export const mailboxOrderCompanyCurrency = defineString('MAILBOX_ORDER_COMPANY_CURRENCY', { default: 'EUR' })
 const TENANT = 'b829bbdc-c0b7-4128-a341-6715a67b451b'
 const CLIENT = 'a23dc8d8-e22a-40ef-997c-d28aa753ee29'
 const SCOPES = 'https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send offline_access'
@@ -210,6 +215,16 @@ export function createMailboxHandlers(deps = {}) {
     }
   }
   const draftRef = context => db().doc(`mailboxDrafts/${digest(`${context.uid}|${context.connectionId}|${id(context.messageId)}`)}`)
+  const orderPdf = async (token, messageId, attachmentId) => {
+    const path = `/me/messages/${segment(messageId)}/attachments/${segment(attachmentId)}`
+    const metadata = await graph(token, `${path}?$select=id,name,contentType,size`)
+    if (metadata['@odata.type'] !== '#microsoft.graph.fileAttachment' || !Number.isSafeInteger(metadata.size) || metadata.size <= 0 || metadata.size > MAX_ATTACHMENT || !(metadata.contentType?.split(';')[0].toLowerCase() === 'application/pdf' || /\.pdf$/i.test(metadata.name || ''))) fail('failed-precondition', 'Es sind nur PDF-Dateianhänge bis 5 MiB unterstützt.')
+    const file = await graph(token, path)
+    if (typeof file.contentBytes !== 'string' || file.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.contentBytes)) fail('failed-precondition', 'Der PDF-Anhang ist ungültig oder zu groß.')
+    const bytes = Buffer.from(file.contentBytes, 'base64')
+    if (!bytes.length || bytes.length > MAX_ATTACHMENT || !bytes.subarray(0, 1024).includes(Buffer.from('%PDF-')) || bytes.toString('base64') !== file.contentBytes) fail('failed-precondition', 'Der Anhang enthält keine unterstützte PDF-Datei.')
+    return { id: id(attachmentId), name: clean(file.name || metadata.name, 255) || 'Auftrag.pdf', contentBytes: file.contentBytes }
+  }
   const handlers = {
     beginMailboxConnection: guarded('connect', async request => {
       const { uid } = await check(request, true)
@@ -277,6 +292,71 @@ export function createMailboxHandlers(deps = {}) {
     applyMailboxTracking: guarded('tracking-apply', async request => {
       const context = await owned(request, true)
       return applyPersonalMailTracking({ db: db(), context, previewId: request.data?.previewId, changes: request.data?.changes, transitEntries: request.data?.transitEntries, now: now() })
+    }),
+    reviewMailboxInvoices: guarded('invoice-review', async request => {
+      const context = await owned(request, true)
+      assertInvoiceReviewAccess(context)
+      if (!/^[a-zA-Z0-9_-]{16,80}$/.test(request.data?.operationId || '')) fail('invalid-argument', 'Ungültige Prüfanfrage.')
+      const messageId = id(request.data?.messageId)
+      const token = await accessToken(context)
+      const list = await graph(token, `/me/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      const available = validateAgbAttachments(list, 'Rechnungsprüfung')
+      const files = []
+      for (const file of available) files.push(await orderPdf(token, messageId, file.id))
+      return reviewMailboxInvoices({ db: db(), context, files, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
+    }),
+    listTransportInvoiceChecks: guarded('invoice-history', async request => {
+      assertMailboxEnvironment(deps.config?.project || runtimeProjectId())
+      const profile = await (deps.requireProfile || requireActiveProfile)(request)
+      if (profile.active !== true || !(profile.role === 'superadmin' || ['view', 'edit'].includes(profile.permissions?.transportOrders))) fail('permission-denied', 'Keine Berechtigung für Transportaufträge.')
+      const orderId = id(request.data?.orderId)
+      if (orderId.includes('/')) fail('invalid-argument', 'Ungültiger Auftrag.')
+      const order = await db().doc(`transportOrders/${orderId}`).get()
+      if (!order.exists) fail('not-found', 'Auftrag nicht gefunden.')
+      const entries = await db().collection(`transportOrders/${orderId}/invoiceChecks`).orderBy('createdAt', 'desc').limit(20).get()
+      const reports = await Promise.all(entries.docs.map(async entry => (await db().doc(`invoiceCheckReports/${entry.data().reportId}`).get()).data()?.report))
+      return { reports: reports.filter(Boolean) }
+    }),
+    analyzeMailboxAgb: guarded('agb-analyse', async request => {
+      const context = await owned(request, true)
+      assertMailboxAgbAccess(context)
+      const messageId = id(request.data?.messageId)
+      const token = await accessToken(context)
+      const list = await graph(token, `/me/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      const available = validateAgbAttachments(list)
+      const files = []
+      for (const file of available) files.push(await orderPdf(token, messageId, file.id))
+      return analyzeMailboxAgb({ db: db(), context, files, now: now(), extract: deps.extractAgbPdf, analyze: deps.analyzeAgbText })
+    }),
+    assignMailboxAgbCustomer: guarded('agb-customer', async request => {
+      const context = await owned(request, true)
+      return assignMailboxAgbCustomer({ db: db(), context, data: request.data })
+    }),
+    previewMailboxOrder: guarded('order-preview', async request => {
+      const context = await owned(request, true)
+      assertMailboxOrderAccess(context)
+      const messageId = id(request.data?.messageId)
+      const token = await accessToken(context)
+      const path = `/me/messages/${segment(messageId)}`
+      const mail = await graph(token, `${path}?$select=id,subject,body,from,receivedDateTime`)
+      const list = await graph(token, `${path}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      if (list['@odata.nextLink']) fail('failed-precondition', 'Die Anhangsliste ist unvollständig. Bitte die Nachricht mit weniger Anlagen erneut bereitstellen.')
+      const available = (list.value || []).filter(file => !file.isInline && (file.contentType?.split(';')[0].toLowerCase() === 'application/pdf' || /\.pdf$/i.test(file.name || '')))
+      const selected = request.data?.selectedPdfIds
+      if (selected !== undefined && (!Array.isArray(selected) || selected.length > 5 || selected.some(value => typeof value !== 'string') || new Set(selected).size !== selected.length || selected.some(value => !available.some(file => file.id === value)))) fail('invalid-argument', 'Bitte gültige PDF-Anlagen dieser Nachricht auswählen.')
+      const chosen = selected === undefined ? available : available.filter(file => selected.includes(file.id))
+      if (!chosen.length) fail('failed-precondition', 'Für die Auftragserfassung ist mindestens ein Original-PDF erforderlich.')
+      if (chosen.length > 5 || chosen.reduce((sum, file) => sum + (Number(file.size) || 0), 0) > 15 * 1024 * 1024) fail('failed-precondition', 'Bitte höchstens fünf PDF-Anlagen mit insgesamt maximal 15 MiB auswählen.')
+      const files = []
+      for (const file of chosen) files.push(await orderPdf(token, messageId, file.id))
+      const result = await (deps.previewOrderCapture || previewMailboxOrderCapture)({ db: db(), context, mail, files, infer: deps.inferMailboxOrder, now: now() })
+      return { ...result, companyCurrency: deps.companyCurrency ?? mailboxOrderCompanyCurrency.value() }
+    }),
+    exportMailboxOrder: guarded('order-export', async request => {
+      const context = await owned(request, true)
+      assertMailboxOrderAccess(context)
+      const originalPdf = await orderPdf(await accessToken(context), id(request.data?.messageId), id(request.data?.originalAttachmentId))
+      return (deps.exportOrderCapture || exportMailboxOrderCapture)({ db: db(), context, data: request.data, originalPdf, now: now(), companyCurrency: deps.companyCurrency ?? mailboxOrderCompanyCurrency.value() })
     }),
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
@@ -477,6 +557,10 @@ export function createMailboxHandlers(deps = {}) {
     for (const snapshot of states.docs) await snapshot.ref.delete()
     const previews = await db().collection('mailboxTrackingPreviews').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of previews.docs) await snapshot.ref.delete()
+    for (const collection of ['mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns']) {
+      const expired = await db().collection(collection).where('expiresAt', '<', now()).limit(100).get()
+      for (const snapshot of expired.docs) await snapshot.ref.delete()
+    }
     const retired = await db().collection('mailboxSecretRetirements').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of retired.docs) {
       await cleanupStore.destroy(snapshot.data().secretVersion)
@@ -493,6 +577,8 @@ export const listMailboxConnectionsHandler = handlers.listMailboxConnections
 export const updateMailboxNameHandler = handlers.updateMailboxName
 export const previewMailboxTrackingHandler = handlers.previewMailboxTracking
 export const applyMailboxTrackingHandler = handlers.applyMailboxTracking
+export const previewMailboxOrderHandler = handlers.previewMailboxOrder
+export const exportMailboxOrderHandler = handlers.exportMailboxOrder
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment
@@ -502,3 +588,9 @@ export const sendMailboxReplyHandler = handlers.sendMailboxReply
 export const disconnectMailboxHandler = handlers.disconnectMailbox
 export const mailboxOAuthCallbackHandler = handlers.mailboxOAuthCallback
 export const cleanupMailboxConnectionsHandler = handlers.cleanupMailboxConnections
+
+export const analyzeMailboxAgbHandler = handlers.analyzeMailboxAgb
+export const assignMailboxAgbCustomerHandler = handlers.assignMailboxAgbCustomer
+
+export const reviewMailboxInvoicesHandler = handlers.reviewMailboxInvoices
+export const listTransportInvoiceChecksHandler = handlers.listTransportInvoiceChecks

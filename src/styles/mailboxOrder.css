@@ -1,0 +1,69 @@
+.mail-order-editor { min-width: 0; display: grid; gap: 14px; }
+.mail-order-editor .mail-order-form { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.mail-order-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mail-order-field { min-width: 0; display: grid; align-content: start; gap: 4px; }
+.mail-order-field > label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; }
+.mail-order-editor input:not([type=checkbox]), .mail-order-editor select, .mail-order-editor textarea, .mail-order-source select { box-sizing: border-box; width: 100%; min-width: 0; background: var(--input-background); color: var(--text-primary); border: 1px solid var(--input-border); border-radius: 6px; padding: 8px; font: inherit; font-size: 12px; }
+.mail-order-editor textarea { min-height: 80px; resize: vertical; }
+.mail-order-editor input.mail-order-input--ai, .mail-order-editor textarea.mail-order-input--ai { border-color: var(--color-ai-border); box-shadow: 0 0 0 1px var(--color-ai); }
+.mail-order-editor .mail-order-field--missing input { border-color: var(--status-danger-text); }
+.mail-order-field-hint { display: grid; gap: 3px; font-size: 11px; overflow-wrap: anywhere; }
+.mail-order-field-hint details { font-weight: 400; }
+.mail-order-field-hint summary { cursor: pointer; color: var(--text-secondary); }
+.mail-order-field-hint blockquote { padding-left: 8px; margin: 6px 0; border-left: 2px solid var(--color-ai-border); color: var(--text-secondary); white-space: pre-wrap; }
+.mail-order-label--ai { color: var(--color-ai); font-weight: 600; }
+.mail-order-label--manual { color: var(--text-secondary); }
+.mail-order-label--missing, .mail-order-required { color: var(--status-danger-text); }
+.mail-order-label--warning { color: var(--status-warning-text); }
+.mail-order-missing, .mail-order-warnings, .mail-order-validation { border-radius: 7px; padding: 12px; font-size: 12px; background: var(--status-warning-background); color: var(--status-warning-text); }
+.mail-order-warnings { padding-left: 28px; }
+.mail-order-missing { background: var(--status-danger-background); color: var(--status-danger-text); }
+.mail-order-validation { margin: 12px 0; }
+.mail-order-validation ul { margin: 8px 0 0; padding-left: 18px; }
+.mail-order-checkbox, .mail-order-pdf-selection > label { display: flex !important; align-items: start; gap: 8px; font-size: 12px; line-height: 1.5; margin: 12px 0; }
+.mail-order-checkbox input, .mail-order-pdf-selection input { margin-top: 3px; flex: none; }
+.mail-order-pdf-selection { min-width: 0; padding: 10px; border: 1px solid var(--border-strong); border-radius: 7px; }
+.mail-order-pdf-selection legend { font-size: 12px; font-weight: 600; }
+.mail-order-pdf-selection > label { overflow-wrap: anywhere; margin: 6px 0; }
+.mail-order-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.mail-order-section-heading h3 { font-size: 14px; margin: 0; overflow-wrap: anywhere; }
+.mail-order-stops { display: grid; gap: 14px; }
+.mail-order-stop { border: 1px solid var(--border); border-radius: 7px; padding: 12px; min-width: 0; }
+.mail-order-stop > h4 { font-size: 13px; margin: 16px 0 8px; }
+.mail-order-goods { background: var(--surface-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 10px; min-width: 0; }
+.mail-order-goods strong { font-size: 12px; }
+.mail-order-source > label { margin-bottom: 14px; }
+.mail-order-pdf { display: block; width: 100%; height: 65dvh; min-height: 280px; border: 1px solid var(--border); margin-top: 10px; background: white; }
+.mail-order-source a, .mail-order-editor a { color: var(--text-primary); text-underline-offset: 3px; font-size: 12px; }
+.mail-order-footer { display: grid; gap: 8px; margin: 14px 0; }
+.mail-order-footer small { color: var(--text-secondary); font-size: 11px; }
+.mail-order-notice { padding: 12px; border-radius: 7px; background: var(--surface-secondary); color: var(--text-primary); font-size: 12px; }
+.mail-order-route { padding-left: 24px; margin: 0; }
+.mail-order-route li { padding: 6px 0; font-size: 12px; }
+.mail-order-route li > span { display: inline-block; width: calc(100% - 90px); overflow-wrap: anywhere; vertical-align: middle; }
+.mail-order-route button { margin-left: 5px; padding: 5px 8px; }
+@media (max-width: 1100px) { .mail-order-grid { grid-template-columns: minmax(0, 1fr); } }
+.mail-order-review-header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 8px 0 10px; border-bottom: 1px solid var(--border-strong); background: var(--section-background); }
+.mail-order-review-header strong { font-size: 13px; }
+.mail-order-review-header small { font-size: 11px; color: var(--text-secondary); }
+.mail-order-review-section { min-width: 0; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--section-background); }
+.mail-order-review-section > h3 { margin: 0; }
+.mail-order-editor .mail-order-section-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; width: 100%; min-height: 40px; padding: 9px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--text-primary); box-shadow: none; text-align: left; font-size: 12px; }
+.mail-order-section-toggle > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+.mail-order-section-toggle > span:first-child > span { width: 10px; color: var(--text-secondary); }
+.mail-order-editor .mail-order-section-toggle:hover { background: var(--surface-active); }
+.mail-order-section-toggle:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
+.mail-order-counts { display: inline-flex; flex-wrap: wrap; flex: 0 0 auto; gap: 5px 9px; }
+.mail-order-count { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+.mail-order-count strong { font-size: inherit; font-variant-numeric: tabular-nums; }
+.mail-order-count i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.mail-order-count--green { color: var(--status-success-text); }
+.mail-order-count--yellow { color: var(--status-warning-text); }
+.mail-order-count--red { color: var(--status-danger-text); }
+.mail-order-count--blue { color: var(--button-background); }
+.mail-order-count--gray { color: var(--text-muted); }
+.mail-order-section-content { border-top: 1px solid var(--border); padding: 12px 10px; min-width: 0; }
+.mail-order-section-content[hidden] { display: none; }
+.mail-order-section-content > .mail-order-footer:last-child { margin-bottom: 0; }
+.mail-order-editor .mail-order-field-hint { font-size: 10px; gap: 2px; }
+.mail-order-editor .mail-order-grid { gap: 9px 12px; }

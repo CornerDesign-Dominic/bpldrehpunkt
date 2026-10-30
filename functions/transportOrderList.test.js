@@ -48,6 +48,13 @@ test('list replaces even stored red forecasts when unloading is confirmed withou
   for (const tracking of [{ unloadingStartedAt: '2026-10-07T12:00:00Z' }, { unloadingCompletedAt: '2026-10-07T13:00:00Z' }, { lifecycleStatus: 'completed' }]) {
     const forecast = forecastForList({ kind: 'forecast', state: 'red' }, {}, new Date(), tracking)
     assert.equal(forecast.kind, 'completed')
-    assert.equal(forecast.state, 'unknown')
+    assert.equal(forecast.state, tracking.lifecycleStatus === 'completed' ? 'neutral' : 'unknown')
   }
+})
+
+test('closed list rows always get a neutral house while retaining the arrival result', () => {
+  const result = forecastForList({ kind: 'arrival', state: 'yellow' }, {}, new Date(), { lifecycleStatus: 'completed', actualArrivalUnloadingAt: '2026-10-09T18:00:00Z' }, { unloading: { window: { until: '2026-10-07T18:00:00Z' } } })
+  assert.equal(result.kind, 'completed')
+  assert.equal(result.state, 'neutral')
+  assert.equal(result.arrivalState, 'yellow')
 })

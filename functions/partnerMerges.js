@@ -12,7 +12,67 @@ const text = (value) => value === null || value === undefined ? '' : String(valu
 const empty = (value) => !text(value)
 const actorName = (profile) => [text(profile?.firstName), text(profile?.lastName)].filter(Boolean).join(' ') || text(profile?.email) || 'Unbekannt'
 const unique = (values) => [...new Set(values.map(text).filter(Boolean))]
-const mergedDycosAccounts = (target, source) => [...new Map([...(target?.dycosReferences?.accounts || []), ...(source?.dycosReferences?.accounts || [])].map(account => [`${account.entity}:${account.number}:${account.sourceId}`, account])).values()]
+const sourceIdentityError = () => new HttpsError('failed-precondition', 'Die kontobezogenen DyCoS-Identitäten sind widersprüchlich. Bitte die Stammdaten erneut abrufen und prüfen.')
+const accountKey = account => `${account.entity}:${account.number}`
+const sourceKey = source => `${source.entity}:${source.id}`
+const positiveSqlId = value => typeof value === 'string' && /^[1-9]\d{0,9}$/.test(value) && Number(value) <= 2147483647
+
+function dycosAccountState(partner = {}) {
+  const rawAccounts = partner.dycosReferences?.accounts ?? []
+  const rawSources = partner.dycosImport?.sourceReferences ?? []
+  if (!Array.isArray(rawAccounts) || !Array.isArray(rawSources)) throw sourceIdentityError()
+  const references = new Map()
+  for (const ref of rawSources) {
+    if (!['customer', 'carrier'].includes(ref?.entity) || !positiveSqlId(ref.id)) throw sourceIdentityError()
+    references.set(sourceKey(ref), { entity: ref.entity, id: ref.id })
+  }
+  const accounts = new Map()
+  for (const account of rawAccounts) {
+    if (!['customer', 'carrier'].includes(account?.entity) || typeof account.number !== 'string' || !/^\d{1,30}$/.test(account.number) || !positiveSqlId(account.sourceId)) throw sourceIdentityError()
+    if (!clusterNumbers(partner, account.entity === 'customer' ? 'debtor' : 'creditor').includes(account.number) || !references.has(`${account.entity}:${account.sourceId}`)) throw sourceIdentityError()
+    const key = accountKey(account)
+    if (accounts.has(key) && accounts.get(key).sourceId !== account.sourceId) throw sourceIdentityError()
+    accounts.set(key, { entity: account.entity, number: account.number, sourceId: account.sourceId })
+  }
+  return { accounts: [...accounts.values()], sourceReferences: [...references.values()], hasState: rawAccounts.length > 0 || rawSources.length > 0 }
+}
+
+export function mergeDycosAccountState(target, source) {
+  const left = dycosAccountState(target); const right = dycosAccountState(source)
+  const accounts = new Map()
+  for (const account of [...left.accounts, ...right.accounts]) {
+    const key = accountKey(account)
+    if (accounts.has(key) && accounts.get(key).sourceId !== account.sourceId) throw sourceIdentityError()
+    accounts.set(key, account)
+  }
+  const references = new Map([...left.sourceReferences, ...right.sourceReferences].map(ref => [sourceKey(ref), ref]))
+  return { accounts: [...accounts.values()], sourceReferences: [...references.values()], hasState: left.hasState || right.hasState }
+}
+
+// Bind each returned account to its confirmed source ID. In particular, IDs
+// learned by a later lookup at the merged root must follow their account on split.
+export function splitDycosAccountState(target, sourceBefore, ownedNumbers) {
+  const current = dycosAccountState(target); const archived = dycosAccountState(sourceBefore)
+  const owned = new Set([...(ownedNumbers.debtors || []).map(number => `customer:${number}`), ...(ownedNumbers.creditors || []).map(number => `carrier:${number}`)])
+  const sourceAccounts = new Map()
+  for (const account of [...archived.accounts, ...current.accounts.filter(item => owned.has(accountKey(item)))]) {
+    const key = accountKey(account)
+    if (!owned.has(key) || sourceAccounts.has(key) && sourceAccounts.get(key).sourceId !== account.sourceId) throw sourceIdentityError()
+    sourceAccounts.set(key, account)
+  }
+  const targetAccounts = current.accounts.filter(account => !owned.has(accountKey(account)))
+  const sourceReferences = new Map(archived.sourceReferences.map(ref => [sourceKey(ref), ref]))
+  for (const account of sourceAccounts.values()) sourceReferences.set(`${account.entity}:${account.sourceId}`, { entity: account.entity, id: account.sourceId })
+  // A single SQL identity may not end up owned by both restored partners.
+  if (targetAccounts.some(account => sourceReferences.has(`${account.entity}:${account.sourceId}`))) throw sourceIdentityError()
+  return {
+    target: { accounts: targetAccounts, sourceReferences: current.sourceReferences.filter(ref => !sourceReferences.has(sourceKey(ref))) },
+    source: { accounts: [...sourceAccounts.values()], sourceReferences: [...sourceReferences.values()] },
+    hasState: current.hasState || archived.hasState,
+  }
+}
+
+const isDycosAccountChange = path => path === 'dycosReferences.accounts' || path === 'dycosImport.sourceReferences'
 
 export const PARTNER_REFERENCE_FIELDS = PARTNER_REFERENCE_CATALOG.flatMap(({ collection, fields }) => fields.map((field) => [collection, field]))
 
@@ -41,10 +101,12 @@ function mergedNumbers(target, source, field, referenceField) {
 export function mergePartnerRecords(target, source) {
   const debtors = mergedNumbers(target, source, 'debtorNumber', 'debtorNumbers')
   const creditors = mergedNumbers(target, source, 'creditorNumber', 'creditorNumbers')
+  const identities = mergeDycosAccountState(target, source)
   return {
     debtorNumber: debtors.primary,
     creditorNumber: creditors.primary,
-    dycosReferences: { ...(target?.dycosReferences || {}), ...(source?.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references, ...((target?.dycosReferences?.accounts || source?.dycosReferences?.accounts) ? { accounts: mergedDycosAccounts(target, source) } : {}) },
+    dycosReferences: { ...(target?.dycosReferences || {}), ...(source?.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references, ...(identities.hasState ? { accounts: identities.accounts } : {}) },
+    ...(identities.hasState ? { dycosImport: { ...(target?.dycosImport || source?.dycosImport || {}), sourceReferences: identities.sourceReferences } } : {}),
     address: mergeObject(target?.address, source?.address),
     contact: mergeObject(target?.contact, source?.contact),
     companyData: mergeObject(target?.companyData, source?.companyData),
@@ -109,9 +171,11 @@ export async function performPartnerMerge({ db, targetId, sourceId, partnerVersi
   try { applied = applyPartnerMergeDecisions(target, source, decisions) } catch (error) { throw new HttpsError('invalid-argument', error.message) }
   const debtors = mergedNumbers(target, source, 'debtorNumber', 'debtorNumbers')
   const creditors = mergedNumbers(target, source, 'creditorNumber', 'creditorNumbers')
+  const identities = mergeDycosAccountState(target, source)
   const targetPatch = {
     debtorNumber: debtors.primary, creditorNumber: creditors.primary,
-    dycosReferences: { ...(source.dycosReferences || {}), ...(target.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references, ...((target.dycosReferences?.accounts || source.dycosReferences?.accounts) ? { accounts: mergedDycosAccounts(target, source) } : {}) },
+    dycosReferences: { ...(source.dycosReferences || {}), ...(target.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references, ...(identities.hasState ? { accounts: identities.accounts } : {}) },
+    ...(identities.hasState ? { dycosImport: { ...(target.dycosImport || source.dycosImport || {}), sourceReferences: identities.sourceReferences } } : {}),
     ...applied.patch,
   }
   let carrierFollowup = null
@@ -219,15 +283,21 @@ async function loadFlatMergeReversal(db, operationRef, operationSnapshot, reques
   const activeOthers = partners.filter((partner) => partner.id !== source.id && partner.id !== root.id && !partner.mergedIntoPartnerId)
   if (activeOthers.some((partner) => sourceNumbers.debtors.some((number) => clusterNumbers(partner, 'debtor').includes(number)) || sourceNumbers.creditors.some((number) => clusterNumbers(partner, 'creditor').includes(number)))) return reversalBlocked('Eine zurückzugebende Nummer gehört inzwischen einem anderen aktiven Partner.')
   const latestDirect = root.id === operation.targetPartnerId && root.latestMergeId === operation.mergeId
-  const nonNumberChanges = latestDirect ? operation.targetChanges.filter((change) => !['debtorNumber', 'creditorNumber', 'dycosReferences.debtorNumbers', 'dycosReferences.creditorNumbers'].includes(change.path)) : []
+  const nonNumberChanges = latestDirect ? operation.targetChanges.filter((change) => !['debtorNumber', 'creditorNumber', 'dycosReferences.debtorNumbers', 'dycosReferences.creditorNumbers'].includes(change.path) && !isDycosAccountChange(change.path)) : []
   const dataPlan = planMergeReversalFields(target.data(), nonNumberChanges)
   const numbers = flatNumberPatch(target.data(), operation.movedNumbers)
   const warnings = [...dataPlan.warnings, ...numbers.warnings]
   if (!latestDirect) warnings.push('Das Ziel wurde seitdem weiterverarbeitet. Übernommene Stammdatenwerte bleiben zur sicheren manuellen Prüfung erhalten.')
   const targetPlan = { patch: { ...dataPlan.patch, ...numbers.patch }, warnings }
+  let identities
+  try { identities = splitDycosAccountState(target.data(), operation.sourceBefore, sourceNumbers) } catch (error) { return reversalBlocked(error.message) }
+  if (identities.hasState) {
+    targetPlan.patch['dycosReferences.accounts'] = identities.target.accounts
+    targetPlan.patch['dycosImport.sourceReferences'] = identities.target.sourceReferences
+  }
   const versions = all.docs.map((snapshot) => [snapshot.id, snapshotVersion(snapshot)])
   const fingerprint = createHash('sha256').update(JSON.stringify({ mergeId: operation.mergeId, operationVersion: snapshotVersion(operationSnapshot), versions, targetPlan })).digest('hex')
-  return { canSeparate: true, operationRef, operationSnapshot, operation, source, target, targetPlan, fingerprint, summary: summarizeMergeReversal(operation, [], [], warnings, targetPlan.patch) }
+  return { canSeparate: true, operationRef, operationSnapshot, operation, source, target, targetPlan, sourceDycosAccounts: identities.hasState ? identities.source : null, fingerprint, summary: summarizeMergeReversal(operation, [], [], warnings, targetPlan.patch) }
 }
 
 export async function loadMergeReversal(db, mergeId, targetId) {
@@ -249,9 +319,15 @@ export async function loadMergeReversal(db, mergeId, targetId) {
   const copies = copyDocs.docs.map((doc) => doc.data())
   if (references.some((entry) => !entry.path || !entry.collection || !Array.isArray(entry.changes)) || copies.some((entry) => !entry.path || !entry.sourcePath || !entry.sourceBefore || !entry.after)) return reversalBlocked('Das Merge-Protokoll enthält unvollständige Dokumenteinträge. Eine automatische Trennung wäre unsicher.')
   const [referenceSnapshots, copySnapshots, sourceCopySnapshots] = await Promise.all([getSnapshots(db, references.map((entry) => entry.path)), getSnapshots(db, copies.map((entry) => entry.path)), getSnapshots(db, copies.map((entry) => entry.sourcePath))])
-  const targetPlan = planMergeReversalFields(target.data(), operation.targetChanges, operation.movedNumbers)
+  const targetPlan = planMergeReversalFields(target.data(), operation.targetChanges.filter(change => !isDycosAccountChange(change.path)), operation.movedNumbers)
   const sourceDebtors = partnerNumbers(operation.sourceBefore, 'debtorNumber', 'debtorNumbers')
   const sourceCreditors = partnerNumbers(operation.sourceBefore, 'creditorNumber', 'creditorNumbers')
+  let identities
+  try { identities = splitDycosAccountState(target.data(), operation.sourceBefore, { debtors: sourceDebtors, creditors: sourceCreditors }) } catch (error) { return reversalBlocked(error.message) }
+  if (identities.hasState) {
+    targetPlan.patch['dycosReferences.accounts'] = identities.target.accounts
+    targetPlan.patch['dycosImport.sourceReferences'] = identities.target.sourceReferences
+  }
   const remainingTarget = {
     debtorNumber: Object.hasOwn(targetPlan.patch, 'debtorNumber') ? targetPlan.patch.debtorNumber : target.data().debtorNumber,
     creditorNumber: Object.hasOwn(targetPlan.patch, 'creditorNumber') ? targetPlan.patch.creditorNumber : target.data().creditorNumber,
@@ -288,7 +364,7 @@ export async function loadMergeReversal(db, mergeId, targetId) {
   const versions = [operationSnapshot, source, target, ...referenceSnapshots, ...copySnapshots, ...sourceCopySnapshots, ...(sourceInsolvency ? [sourceInsolvency] : [])].map(snapshotVersion)
   const fingerprint = createHash('sha256').update(JSON.stringify({ mergeId, versions, warnings })).digest('hex')
   const returningReferences = referencePlans.filter(({ patch }) => Object.keys(patch).length).map(({ entry }) => entry)
-  return { canSeparate: true, operationRef, operationSnapshot, operation, source, target, targetPlan, referencePlans, copyPlans, sourceInsolvency, fingerprint, summary: summarizeMergeReversal(operation, returningReferences, copyPlans.filter(({ unchanged }) => unchanged).map(({ entry }) => entry), warnings, targetPlan.patch) }
+  return { canSeparate: true, operationRef, operationSnapshot, operation, source, target, targetPlan, sourceDycosAccounts: identities.hasState ? identities.source : null, referencePlans, copyPlans, sourceInsolvency, fingerprint, summary: summarizeMergeReversal(operation, returningReferences, copyPlans.filter(({ unchanged }) => unchanged).map(({ entry }) => entry), warnings, targetPlan.patch) }
 }
 
 export async function previewPartnerMergeReversalHandler(request) {
@@ -312,6 +388,10 @@ export async function performPartnerMergeReversal({ db, mergeId, targetPartnerId
     sourceRestore.debtorNumber = operation.sourceOwnedNumbers.debtors[0] || ''
     sourceRestore.creditorNumber = operation.sourceOwnedNumbers.creditors[0] || ''
     sourceRestore.dycosReferences = { ...(sourceRestore.dycosReferences || {}), debtorNumbers: operation.sourceOwnedNumbers.debtors, creditorNumbers: operation.sourceOwnedNumbers.creditors }
+    if (preview.sourceDycosAccounts) {
+      sourceRestore.dycosReferences.accounts = preview.sourceDycosAccounts.accounts
+      sourceRestore.dycosImport = { ...(operation.sourceBefore.dycosImport || {}), sourceReferences: preview.sourceDycosAccounts.sourceReferences }
+    }
     const batch = db.batch()
     batch.update(target.ref, updateValues({ ...targetPlan.patch, updatedAt: splitAt }), { lastUpdateTime: target.updateTime })
     batch.update(source.ref, updateValues(sourceRestore), { lastUpdateTime: source.updateTime })
@@ -327,6 +407,10 @@ export async function performPartnerMergeReversal({ db, mergeId, targetPartnerId
   const targetPatch = updateValues({ ...targetPlan.patch, updatedAt: splitAt })
   batch.update(target.ref, targetPatch, { lastUpdateTime: target.updateTime })
   const sourceRestore = restoredMergeSource(operation.sourceBefore, source.data(), mergeId, splitAt)
+  if (preview.sourceDycosAccounts) {
+    sourceRestore.dycosReferences = { ...(sourceRestore.dycosReferences || {}), accounts: preview.sourceDycosAccounts.accounts }
+    sourceRestore.dycosImport = { ...(operation.sourceBefore.dycosImport || {}), sourceReferences: preview.sourceDycosAccounts.sourceReferences }
+  }
   batch.update(source.ref, updateValues(sourceRestore), { lastUpdateTime: source.updateTime })
   referencePlans.forEach(({ snapshot, patch }) => { if (snapshot.exists && Object.keys(patch).length) batch.update(snapshot.ref, { ...updateValues(patch), updatedAt: splitAt }, { lastUpdateTime: snapshot.updateTime }) })
   copyPlans.forEach(({ entry, snapshot, unchanged, restoreSource }) => {

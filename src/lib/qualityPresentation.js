@@ -1,8 +1,23 @@
 export const PHASES = ['plan', 'do', 'check', 'act']
-export const TOPIC_FIELDS = ['title', 'status', 'goal', 'measure', 'owner', 'startDate', 'dueDate', ...PHASES]
-export const HANDBOOK_FIELDS = ['title', 'process', 'situation', 'consequences', 'action', 'prevention']
+export const SMART_FIELDS = [
+  { key: 'smartSpecific', letter: 'S', de: 'Spezifisch', en: 'Specific' },
+  { key: 'smartMeasurable', letter: 'M', de: 'Messbar', en: 'Measurable' },
+  { key: 'smartAchievable', letter: 'A', de: 'Erreichbar', en: 'Achievable' },
+  { key: 'smartRelevant', letter: 'R', de: 'Relevant', en: 'Relevant' },
+  { key: 'smartTimeBound', letter: 'T', de: 'Terminiert', en: 'Time-bound' },
+]
+export const TOPIC_FIELDS = ['title', 'status', 'goal', 'measure', 'owner', 'startDate', 'dueDate', 'cycleStartDate', 'actDecision', 'actDate', ...SMART_FIELDS.map((field) => field.key), ...PHASES]
+export const HANDBOOK_FIELDS = ['title', 'process', 'situation', 'consequences', 'action', 'prevention', 'lastReviewedDate', 'nextReviewDate']
 export const MEETING_FIELDS = ['title', 'date', 'participants', 'notes']
 export const HANDBOOK_SECTIONS = ['situation', 'consequences', 'action', 'prevention']
+
+export function qualityToday() {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+}
+
+export function qualitySmartValues(record) {
+  return { smartSpecific: record.smartSpecific ?? record.goal ?? '', smartMeasurable: record.smartMeasurable ?? record.measure ?? '', smartAchievable: record.smartAchievable ?? '', smartRelevant: record.smartRelevant ?? '', smartTimeBound: record.smartTimeBound ?? '' }
+}
 
 export function qualityMeetingUrl(id, topicId) {
   if (typeof id !== 'string' || !id) throw new TypeError('A meeting ID is required')
@@ -28,13 +43,17 @@ export function qualityValues(kind, record = {}, departmentId = '') {
   const fields = kind === 'topic' ? TOPIC_FIELDS : kind === 'handbook' ? HANDBOOK_FIELDS : MEETING_FIELDS
   const values = Object.fromEntries(fields.map((key) => [key, record[key] || '']))
   values.departmentId = record.departmentId || departmentId
-  if (kind === 'topic') { values.status = record.status || 'active'; values.cycle = record.cycle || 1 }
+  if (kind === 'topic') {
+    values.status = record.status || 'active'; values.cycle = record.cycle || 1
+    Object.assign(values, qualitySmartValues(record))
+    values.cycleStartDate = record.cycleStartDate ?? (!record.revision ? qualityToday() : '')
+  }
   if (kind === 'meeting') values.topicIds = [...(record.topicIds || [])]
   return values
 }
 
 export function nextQualityCycle(values) {
-  return { ...values, cycle: values.cycle + 1, status: 'active', plan: '', do: '', check: '', act: '', goal: '', measure: '', startDate: '', dueDate: '' }
+  return { ...values, cycle: values.cycle + 1, status: 'active', plan: '', do: '', check: '', act: '', goal: '', measure: '', startDate: '', dueDate: '', cycleStartDate: qualityToday(), actDecision: '', actDate: '', ...Object.fromEntries(SMART_FIELDS.map(({ key }) => [key, ''])) }
 }
 
 // A cycle is a business iteration; a revision is one saved edit within it.

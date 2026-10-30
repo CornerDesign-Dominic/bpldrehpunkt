@@ -1,3 +1,6 @@
+import { reviewMailboxInvoicesHandler, listTransportInvoiceChecksHandler } from './mailboxes.js'
+import { startMailboxActionHandler, getMailboxActionHandler, listMailboxActionsHandler, updateMailboxActionHandler, processMailboxActionRunHandler } from './mailboxActions.js'
+import { analyzeMailboxAgbHandler, assignMailboxAgbCustomerHandler } from './mailboxes.js'
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
@@ -7,7 +10,7 @@ import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { previewMailboxTrackingHandler, applyMailboxTrackingHandler } from './mailboxes.js'
+import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
@@ -77,7 +80,21 @@ export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck:
 export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
+const mailboxActionOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, timeoutSeconds: 120, maxInstances: 3 }
+export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
+export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)
+export const listMailboxActions = onCall(mailboxActionOptions, listMailboxActionsHandler)
+export const updateMailboxAction = onCall(mailboxActionOptions, updateMailboxActionHandler)
+export const processMailboxActionRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxActionRuns/{jobId}', secrets: [mailboxClientSecret, statusMailAiApiKey, ...dycosFlowConfigurationSecrets], timeoutSeconds: 540, memory: '1GiB', concurrency: 1, maxInstances: 3, retry: false }, async event => {
+  if (event.data) await processMailboxActionRunHandler(event.params.jobId)
+})
 export const previewMailboxTracking = onCall({ ...mailboxOptions, timeoutSeconds: 240, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxTrackingHandler)
+export const reviewMailboxInvoices = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey, ...dycosFlowConfigurationSecrets] }, reviewMailboxInvoicesHandler)
+export const listTransportInvoiceChecks = onCall({ region: 'europe-west3', invoker: 'public', enforceAppCheck: true }, listTransportInvoiceChecksHandler)
+export const analyzeMailboxAgb = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, analyzeMailboxAgbHandler)
+export const assignMailboxAgbCustomer = onCall(mailboxOptions, assignMailboxAgbCustomerHandler)
+export const previewMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxOrderHandler)
+export const exportMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 120, concurrency: 4 }, exportMailboxOrderHandler)
 export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingHandler)
 export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
 export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)

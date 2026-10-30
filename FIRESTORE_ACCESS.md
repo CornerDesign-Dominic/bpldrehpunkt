@@ -29,6 +29,16 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Die persönliche Postfach-Auftragserfassung verlangt Postfach- und
+Auftragsbearbeitung sowie lesenden Stammdatenzugriff. Private Vorschauen,
+Quoten und Exportbelege sind für direkte Clients gesperrt. Kontobezogene
+DyCoS-IDs (`dycosReferences.accounts`, `dycosImport` und die ältere
+`dycosIdentities`-Darstellung) sind serververwaltet; auch Superadmins dürfen
+sie nicht direkt verändern. Der XML-Export prüft Eigentümer, aktuelle
+Verbindung, genaue Debitorenreferenz und unverändertes Original-PDF erneut.
+[Auftragserfassung](docs/operations/mailbox-order-capture.md) beschreibt den Vertrag.
+
+
 Die eigenständigen Qualitätsmodule `kvp` und `handbook` verwenden ebenfalls
 `none`/`view`/`edit`. `qualityTopics` und `qualityMeetings` einschließlich
 `revisions` sind mit `kvp` lesbar, `qualityHandbook` einschließlich Verlauf mit

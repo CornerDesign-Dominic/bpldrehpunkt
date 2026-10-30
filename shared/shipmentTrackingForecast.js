@@ -1,4 +1,4 @@
-import { shipmentTrackingProgress } from './shipmentTrackingProgress.js'
+import { closedShipmentTrackingForecast, shipmentTrackingProgress } from './shipmentTrackingProgress.js'
 import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, normalizeShipmentTrackingForecastSettings } from './shipmentTrackingForecastSettings.js'
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
@@ -114,6 +114,8 @@ function restPlanningText(label, plan) {
  * carrier ETA into tracking fields and makes every missing input an assumption.
  */
 export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, route = {}, events = [], settings: value, now = new Date() } = {}) {
+  const closed = closedShipmentTrackingForecast(tracking || {}, imported)
+  if (closed) return closed
   const settings = normalizeShipmentTrackingForecastSettings(value)
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
   const earliestLoading = shipmentTrackingDate(imported?.loading?.window?.from) || shipmentTrackingDate(imported?.loading?.window?.until)

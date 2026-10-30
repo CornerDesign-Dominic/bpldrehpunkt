@@ -27,7 +27,7 @@ const columns = [
 const transportOrderListPreferenceSavers = new Map()
 
 const attentionIcon = (item) => item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
-const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen', unknown: 'Ankunftszeit fehlt' }[state] || 'Unbekannt')
+const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen', unknown: 'Ankunftszeit fehlt', neutral: 'Transport abgeschlossen' }[state] || 'Unbekannt')
 const trackingCarrierRecipient = (tracking) => {
   const carrier = tracking?.recipients?.carrier
   return ['manual', 'transport-order-import'].includes(carrier?.source) && typeof carrier?.email === 'string' ? carrier.email.trim() : ''

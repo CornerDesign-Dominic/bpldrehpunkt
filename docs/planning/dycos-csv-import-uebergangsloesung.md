@@ -1181,9 +1181,10 @@ Für eine spätere ausdrücklich freigegebene Dev-Veröffentlichung:
   für den Erhalt der Quellreferenzen und `listDiagnosticsPage` für den neuen
   Diagnosefilter aktualisieren. Die vorhandenen Merge-Endpunkte mit der
   erweiterten Kontenreferenz-Erhaltung gemeinsam berücksichtigen.
-- Frontend gesammelt auf Dev veröffentlichen. Keine neuen Firestore-Regeln
-  oder zusammengesetzten Indizes erforderlich; neue Abrufbelege und Sperren
-  sind ausschließlich serverseitig zugänglich.
+- Frontend gesammelt auf Dev veröffentlichen. Für den gemeinsamen XML-Export
+  zusätzlich die Rules mit geschützten Konten-/Quell-ID-Feldern bereitstellen.
+  Keine neuen zusammengesetzten Indizes erforderlich; neue Abrufbelege und
+  Sperren sind ausschließlich serverseitig zugänglich.
 - Im Live-Test eine bekannte Nummer übernehmen, dasselbe Blatt erneut abrufen
   und anschließend die kompakte Historie und gegebenenfalls Konflikte prüfen.
 

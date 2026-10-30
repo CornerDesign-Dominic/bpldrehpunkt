@@ -7,6 +7,27 @@ ersetzt oder wieder eingeführt.
 ## Noch keinem neuen Release zugeordnet
 
 
+### 29.10.2026 – Mailpause und endgültiger Trackingabschluss, ausschließlich Dev
+
+Laufende Aufträge behalten trotz pausierter automatischer Mails ihre aktuellen
+Transport-, Kennzeichen- und Mailprüfhinweise. Die Pause selbst ist neutral.
+Endgültig abgeschlossene Verfolgungen zeigen ausschließlich ein neutrales Haus
+und gegebenenfalls das graue Historien-Icon. Bekannte Pünktlichkeit bleibt im
+Prognosedialog erhalten, offene Mailprüfungen im Mailbereich. Nachbearbeitung
+und vergangene Termine gelten weiterhin nicht als endgültiger Abschluss.
+
+Freigabe für Dev einschließlich der sechs benötigten Tracking-Functions in
+`db-bpl-drehpunkt-dev`; keine Rules-, Index- oder Datenmigration. Prüfung des
+mit dem aktuellen Dev-Stand zusammengeführten Codes: 106 Tests, Lint, Build und
+Functions-Shared-Abgleich bestanden. Alle sechs Functions erfolgreich in Dev
+aktualisiert: `listTransportOrdersPage`, `getShipmentTrackingAttention`,
+`getShipmentTrackingForecast`, `refreshShipmentTrackingForecast`,
+`refreshShipmentTrackingForecastOnUpdate`, `refreshShipmentTrackingAttentionOnMail`.
+Frontend über den zugehörigen Dev-Commit; Vercel-Status separat prüfen.
+Browserabnahme bleibt offen.
+
+
+
 ### 29.10.2026 – Sendungsverfolgung: Fortschritt und Historienlücken, ausschließlich Dev
 
 Spätere bestätigte Transportereignisse lösen überholte operative Warnungen ab.

@@ -82,6 +82,26 @@ test('quality module rules and transactional department safeguards', { skip: !en
         }
       }
     })
+    await t.test('PDCA transactions preserve optional data for old clients and keep prior cycles immutable', async () => {
+      const topic = { departmentId: 'quality-accounting', title: 'PDCA', status: 'active', plan: '', do: '', check: '', act: '', goal: 'Legacy goal', measure: 'Legacy measure', owner: '', startDate: '', dueDate: '', cycle: 1 }
+      const normalize = (values, expectedRevision) => normalizeQualityInput({ kind: 'topic', id: 'quality-pdca', expectedRevision, values })
+      const actor = { uid: 'quality-editor' }
+      await persistQualityRecord(admin, normalize({ ...topic, cycleStartDate: '2026-10-29', smartSpecific: 'Fewer errors', actDecision: 'establish', actDate: '2026-11-30' }, 0), actor)
+      await persistQualityRecord(admin, normalize({ ...topic, check: 'Verified', status: 'completed' }, 1), actor)
+      const completed = await admin.doc('qualityTopics/quality-pdca').get()
+      assert.equal(completed.get('smartSpecific'), 'Fewer errors')
+      assert.equal(completed.get('actDecision'), 'establish')
+      assert.equal((await admin.doc('qualityTopics/quality-pdca/revisions/1').get()).get('check'), '')
+      await assert.rejects(persistQualityRecord(admin, normalize({ ...topic, cycle: 2 }, 2), actor), { code: 'failed-precondition' })
+      await persistQualityRecord(admin, normalize(topic, 2), actor)
+      await persistQualityRecord(admin, normalize({ ...topic, cycle: 2 }, 3), actor)
+      const next = await admin.doc('qualityTopics/quality-pdca').get()
+      assert.equal(next.get('cycle'), 2)
+      assert.equal(next.get('smartSpecific'), '')
+      assert.equal(next.get('actDecision'), '')
+      assert.equal(next.get('cycleStartDate'), '')
+      assert.equal((await admin.doc('qualityTopics/quality-pdca/revisions/2').get()).get('actDecision'), 'establish')
+    })
     await t.test('inactive departments reject new records while existing records remain maintainable', async () => {
       const normalize = (id, expectedRevision, values = handbook) => normalizeQualityInput({ kind: 'handbook', id, expectedRevision, values })
       const actor = { uid: 'quality-editor' }

@@ -1,3 +1,4 @@
+import TransportInvoiceChecks from '../components/transport-orders/TransportInvoiceChecks.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -363,6 +364,7 @@ export default function TransportOrderDetailPage() {
     {ratingsModalOpen && <TransportOrderRatingsModal order={order} ratings={ratings} partners={ratingPartners} canEdit={canEdit('transportOrders')} onClose={() => setRatingsModalOpen(false)} onSave={saveRatings} />}
     <div className="transport-order-detail-layout">
       <TranslatedProps sources={{"aria-label":"Verknüpfungen"}}><aside className="transport-order-detail-actions" aria-label="Verknüpfungen">
+        <TransportInvoiceChecks key={`invoice-${order.id}`} orderId={order.id} number={order.externalNumber} />
         <TransportOrderRefreshButton key={order.id} order={order} allowed={order.id === transportOrderId && canEdit('dataImports') && /^(0|[1-9]\d{0,9})$/.test(order.externalNumber) && Number(order.externalNumber) <= 2147483647} onUpdated={refreshImportedOrder} />
         <TransportOrderRoutePanel route={route} canEdit={canEdit('transportOrders')} calculating={routeCalculating} error={routeError} needsRecalculation={order?.routeNeedsRecalculation === true} onCalculate={() => void calculateRoute()} />
         <TransportOrderLinkedCasesCard transportOrderId={transportOrderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />

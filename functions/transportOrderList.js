@@ -1,4 +1,4 @@
-import { shipmentTrackingProgress } from './shared/shipmentTrackingProgress.js'
+import { closedShipmentTrackingForecast, shipmentTrackingProgress } from './shared/shipmentTrackingProgress.js'
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -37,6 +37,8 @@ function startDate(order) {
 }
 function asMillis(value) { return value?.toMillis?.() ?? (value ? new Date(value).getTime() : null) }
 export function forecastForList(value, settings, now = new Date(), tracking = null, imported = {}) {
+  const closed = closedShipmentTrackingForecast(tracking || {}, imported)
+  if (closed) return closed
   const actualUnloading = asMillis(tracking?.actualArrivalUnloadingAt)
   if (Number.isFinite(actualUnloading)) {
     const slotEnd = asMillis(imported?.unloading?.window?.until) ?? asMillis(imported?.unloading?.window?.from)

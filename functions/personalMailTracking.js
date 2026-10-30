@@ -148,6 +148,8 @@ export async function applyPersonalMailTracking({ db, context, previewId, change
     const previewRef = db.doc(`mailboxTrackingPreviews/${previewId}`)
     const preview = (await tx.get(previewRef)).data()
     if (!preview || preview.ownerId !== context.uid || preview.connectionId !== context.connectionId) fail('permission-denied', 'Kein Zugriff auf diese Auswertung.')
+    const action = preview.actionSlotPath ? (await tx.get(db.doc(preview.actionSlotPath))).data() : null
+    if (preview.actionJobId && (!action || action.jobId !== preview.actionJobId || !['review', 'completed'].includes(action.state))) fail('aborted', 'Diese Auswertung wurde verworfen oder ersetzt. Bitte die aktuelle Auswertung öffnen.')
     const receiptRef = db.doc(`personalMailTrackingApplications/${preview.messageKey}`)
     const trackingRef = db.doc(`transportOrderTrackings/${preview.orderId}`)
     const [receipt, trackingSnapshot, orderSnapshot, connection] = await Promise.all([tx.get(receiptRef), tx.get(trackingRef), tx.get(db.doc(`transportOrders/${preview.orderId}`)), tx.get(context.ref)])
@@ -183,7 +185,7 @@ export async function applyPersonalMailTracking({ db, context, previewId, change
       tx.create(trackingRef, { ...base, ...next })
       tx.create(trackingRef.collection('events').doc(`personal-start-${preview.messageKey}`), { eventType: 'tracking_started', changedFields: ['lifecycleStatus'], oldValue: {}, newValue: { lifecycleStatus: 'active' }, eventTime: receivedAt, recordedAt, recordedBy: context.uid, recordedByName: actor(context.profile), source: 'manual', ...provenance })
     }
-    tx.create(receiptRef, { ownerId: context.uid, orderId: preview.orderId, orderNumber: preview.orderNumber, confirmedAt: recordedAt })
+    tx.create(receiptRef, { ownerId: context.uid, orderId: preview.orderId, orderNumber: preview.orderNumber, confirmedAt: recordedAt, appliedChanges: effective, appliedTransitEntries: entries })
     tx.update(previewRef, { appliedAt: now })
     return { ok: true, orderId: preview.orderId, orderNumber: preview.orderNumber }
   })

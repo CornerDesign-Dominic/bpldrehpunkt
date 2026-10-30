@@ -283,10 +283,22 @@ service cloud.firestore {
       allow delete: if superadmin() && !systemCalendarId(resource.data.calendarId);
     }
 
+    function trustedPartnerAccounts(data) {
+      let refs = data.get('dycosReferences', {});
+      return refs is map ? refs.get('accounts', []) : [];
+    }
+
     match /businessPartners/{partnerId} {
       allow read: if view('masterData') || view('crm') || view('pallets');
-      allow create, delete: if edit('masterData');
-      allow update: if (edit('masterData') && !resource.data.keys().hasAny(['mergedIntoPartnerId'])) || (edit('crm') && !resource.data.keys().hasAny(['mergedIntoPartnerId']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'crmIndustry', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId);
+      // XML export trusts these SQL-ID mappings. Only validated server imports
+      // may create/change them; a superadmin client has no bypass.
+      allow create: if edit('masterData') && !request.resource.data.keys().hasAny(['dycosIdentities', 'dycosImport'])
+        && trustedPartnerAccounts(request.resource.data).size() == 0;
+      allow delete: if edit('masterData') && resource.data.get('dycosIdentities', {}).size() == 0 && trustedPartnerAccounts(resource.data).size() == 0;
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dycosIdentities', 'dycosImport'])
+        && trustedPartnerAccounts(request.resource.data) == trustedPartnerAccounts(resource.data)
+        && ((resource.data.get('dycosIdentities', {}).size() == 0 && trustedPartnerAccounts(resource.data).size() == 0) || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['debtorNumber', 'creditorNumber', 'dycosReferences']))
+        && ((edit('masterData') && !resource.data.keys().hasAny(['mergedIntoPartnerId'])) || (edit('crm') && !resource.data.keys().hasAny(['mergedIntoPartnerId']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'crmIndustry', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId));
       match /history/{entryId} { allow read: if view('masterData') || view('crm'); allow create: if edit('masterData') || edit('crm'); allow update, delete: if false; }
       match /activities/{entryId} { allow read: if view('crm'); allow create, update: if edit('crm'); allow delete: if false; }
       match /ratings/{ratingId} { allow read: if view('crm'); allow create: if edit('crm'); allow update, delete: if false; }
@@ -1406,6 +1418,10 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
+    // Mail action jobs/results are private server-managed records. The callables
+    // recheck ownership and module permissions, including for superadmins.
+    match /mailboxActionRuns/{id} { allow read, write: if false; }
+    match /mailboxActionScopes/{scope}/{document=**} { allow read, write: if false; }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
   }
 }
