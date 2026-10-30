@@ -7,6 +7,7 @@ import { fetchDycosFlowPartner } from './dycosFlowClient.js'
 import { dycosPartnerAdditions, dycosPartnerReviewFingerprint, hasDycosMasterDataAccess, mapDycosPartnerData } from './dycosPartnerData.js'
 import { resolvePartner } from './dycosTransportOrders.js'
 import { dycosConflictRows, retainedDycosResolutions } from './shared/dycosPartnerConflicts.js'
+import { dycosPartnerRefreshAccounts } from './shared/dycosPartnerRefresh.js'
 import { carrierPartnerPayload, customerPartnerPayload, importPartnerId } from './transportOrderImports.js'
 import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
@@ -20,7 +21,9 @@ export function validateDycosPartnerRequest(data) {
   const typ = text(data?.typ); const nummer = text(data?.nummer); const requestId = text(data?.requestId)
   if (!['kunde', 'utn'].includes(typ) || !sqlId(nummer)) throw new HttpsError('invalid-argument', 'Bitte eine gültige Debitoren- oder Kreditornummer eingeben.')
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)) throw new HttpsError('invalid-argument', 'Ungültige Anfrage-ID. Bitte die Seite neu laden.')
-  return { typ, nummer, requestId }
+  const expectedPartnerId = data?.expectedPartnerId
+  if (expectedPartnerId !== undefined && (typeof expectedPartnerId !== 'string' || !expectedPartnerId || expectedPartnerId.length > 200 || expectedPartnerId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültiges Stammdatenblatt.')
+  return { typ, nummer, requestId, ...(expectedPartnerId === undefined ? {} : { expectedPartnerId }) }
 }
 
 export function mapDycosMasterData(payload, data) {
@@ -88,7 +91,10 @@ export async function saveDycosMasterData({ db, request, data, incoming, claim, 
   return db.runTransaction(async tx => {
     const [receipt, lock, user, catalog] = await Promise.all([tx.get(claim.receiptRef), tx.get(claim.lockRef), tx.get(db.doc(`users/${request.auth.uid}`)), tx.get(db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH))])
     if (user.get('active') !== true || !hasDycosMasterDataAccess(user.data())) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Bearbeitung von Stammdaten.')
-    if (receipt.exists) return receipt.get('result')
+    if (receipt.exists) {
+      if (data.expectedPartnerId && receipt.get('result.partnerId') !== data.expectedPartnerId) throw identityError()
+      return receipt.get('result')
+    }
     if (lock.get('token') !== token || lock.get('expiresAtMs') <= Date.now()) throw new HttpsError('aborted', 'Der Abruf ist abgelaufen. Bitte erneut versuchen.')
     const customer = data.typ === 'kunde'; const kind = customer ? 'debtor' : 'creditor'
     const field = customer ? 'debtorNumber' : 'creditorNumber'; const list = customer ? 'debtorNumbers' : 'creditorNumbers'
@@ -100,6 +106,7 @@ export async function saveDycosMasterData({ db, request, data, incoming, claim, 
     const matches = new Map([byNumber, bySource, counterpart].filter(Boolean).map(partner => [partner.id, partner]))
     if (matches.size > 1) throw identityError()
     const existing = [...matches.values()][0]
+    if (data.expectedPartnerId && (!existing || existing.id !== data.expectedPartnerId || !dycosPartnerRefreshAccounts(existing).some(account => account.typ === data.typ && account.nummer === data.nummer))) throw identityError()
     if ((existing?.dycosReferences?.accounts || []).some(account => account.entity === incoming.sourceKind && account.number === data.nummer && account.sourceId !== incoming.sourceId)) throw identityError()
     const id = existing?.id || importPartnerId(kind, data.nummer)
     const ref = db.doc(`businessPartners/${id}`)
@@ -155,8 +162,16 @@ export async function fetchDycosMasterDataHandler(request, { db = getFirestore()
   const profile = await requireActiveProfile(request)
   if (!hasDycosMasterDataAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Bearbeitung von Stammdaten.')
   const data = validateDycosPartnerRequest(request.data)
+  if (data.expectedPartnerId) {
+    const snapshot = await db.doc(`businessPartners/${data.expectedPartnerId}`).get()
+    const partner = snapshot.data()
+    if (!snapshot.exists || partner.mergedIntoPartnerId || partner.status === 'merged' || !dycosPartnerRefreshAccounts(partner).some(account => account.typ === data.typ && account.nummer === data.nummer)) throw identityError()
+  }
   const token = randomUUID(); const claim = await claimRequest(db, request.auth.uid, data, token)
-  if (claim.result) return claim.result
+  if (claim.result) {
+    if (data.expectedPartnerId && claim.result.partnerId !== data.expectedPartnerId) throw identityError()
+    return claim.result
+  }
   let stage = 'fetch'
   try {
     const payload = await fetchPartner({ typ: data.typ, nummer: data.nummer })

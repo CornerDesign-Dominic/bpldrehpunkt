@@ -1,5 +1,14 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Stammdaten aktualisieren': 'Refresh master data',
+  'Welche Kontonummer soll aus DyCoS abgerufen werden?': 'Which account number should be retrieved from DyCoS?',
+  'Keine gültige Debitoren- oder Kreditornummer hinterlegt.': 'No valid debtor or creditor number is stored.',
+  'Stammdaten aus DyCoS ergänzen': 'Complete master data from DyCoS',
+  'Stammdaten werden aus DyCoS aktualisiert …': 'Refreshing master data from DyCoS …',
+  'Stammdaten wurden aus DyCoS ergänzt.': 'Master data has been completed from DyCoS.',
+  'Stammdaten sind aktuell.': 'Master data is up to date.',
+  'Die Aktualisierung wurde gespeichert. Bitte das Stammdatenblatt neu laden.': 'The refresh was saved. Please reload the master data record.',
+  'Einzelne Quelldaten oder Zuordnungen benötigen eine Prüfung. Bitte die Importhinweise beachten.': 'Some source data or assignments need review. Please check the import notices.',
   'DyCoS-Wert wurde übernommen.': 'The DyCoS value has been applied.',
   'Abweichung wurde verworfen. Drehpunkt-Wert bleibt erhalten.': 'The difference has been dismissed. The Drehpunkt value is preserved.',
   'Vorhandene Werte wurden beibehalten. Entscheide je Feld, ob du den DyCoS-Wert übernehmen oder die Abweichung verwerfen möchtest.': 'Existing values have been kept. For each field, choose whether to apply the DyCoS value or dismiss the difference.',

@@ -1503,3 +1503,34 @@ Die neuen Metadaten und Callable bleiben dabei abwärtskompatibel; vorhandene
 Ablehnungen und Historieneinträge werden durch ein Frontend-Rollback nicht
 gelöscht. Der endgültige Bereitstellungsnachweis folgt im Abschlussfeedback,
 damit kein zweiter Vercel-Build allein für ein Statusprotokoll ausgelöst wird.
+
+## 36. Stammdatenblatt über das Aktionsmenü aktualisieren
+
+Am 30.10.2026 ausdrücklich zur Umsetzung und Dev-Veröffentlichung freigegeben.
+Das Drei-Punkte-Menü des aktiven Stammdatenblatts enthält für Nutzer mit
+Stammdaten-Bearbeitungsrecht „Aktualisieren“. Bei genau einer gültigen
+gespeicherten Kontonummer startet der Abruf sofort. Bei mehreren Debitoren-,
+Kreditoren- oder Aliasnummern wird zuerst die konkrete Quelle ausgewählt.
+Keine Gegenreferenz aus DyCoS wird zusätzlich abgefragt. Ohne gültige Nummer
+bleibt die Aktion mit Erklärung deaktiviert; archivierte Blätter sind gesperrt.
+
+Der bestehende Stammdatenabruf wird wiederverwendet. Leere Felder werden
+ergänzt, manuelle Angaben und Kreditlimit erhalten, neue Abweichungen im
+bekannten Vergleich angezeigt. Verworfene Vergleiche bleiben berücksichtigt.
+Das Stammdatenblatt wird nach erfolgreichem Abruf einschließlich Historien-
+und Konfliktstand neu geladen. Während des Abrufs sind Änderungen gesperrt;
+offene Formularänderungen verhindern einen Refresh. Fehlgeschlagene Versuche
+behalten ihre Anfrage-ID, damit eine bestätigte Übernahme nicht doppelt läuft.
+
+Die Anfrage enthält zusätzlich `expectedPartnerId`. Der Server prüft vor dem
+Quellabruf, dass das aktive Blatt die angefragte Kontonummer besitzt, und
+innerhalb der Speichertransaktion nochmals die konkrete Partnerzuordnung.
+Gelöschte, zusammengeführte, zwischenzeitlich anders zugeordnete oder nicht
+mehr berechtigte Ziele führen zu einem Fehler statt zur Anlage eines
+Ersatzpartners oder Aktualisierung eines anderen Blatts. Alte Aufrufer ohne
+dieses optionale Feld bleiben kompatibel.
+
+Gezielte Bereitstellung: `fetchDycosMasterData` im Projekt
+`db-bpl-drehpunkt-dev`, danach Frontend gemeinsam auf `dev`. Keine neuen
+Secrets, Rules, Indizes oder Power-Automate-Änderungen. Neuere parallele
+Qualitätsänderungen aus Dev werden erhalten; Main bleibt unberührt.

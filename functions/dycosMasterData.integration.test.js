@@ -47,6 +47,7 @@ test('emulator: a keep decision survives real partner fetches and a changed DyCo
 
 test('partner requests and response identities fail closed; counterpart is only an internal ID', () => {
   for (const nummer of ['', '001', '-2', '1e3', '2147483648', 123]) assert.throws(() => validateDycosPartnerRequest({ typ: 'kunde', nummer, requestId: randomUUID() }))
+  for (const expectedPartnerId of ['', '/', 123]) assert.throws(() => validateDycosPartnerRequest({ typ: 'kunde', nummer: '123', requestId: randomUUID(), expectedPartnerId }))
   const req = request('u', '123')
   const raw = response(req, { UnternehmerID: 456, Kreditlimit: 99999, PortalPasswort: 'never-import' })
   const mapped = mapDycosMasterData(raw, req.data)
@@ -54,6 +55,30 @@ test('partner requests and response identities fail closed; counterpart is only 
   assert.equal(mapped.fields.creditLimit, undefined)
   assert.equal(JSON.stringify(mapped).includes('never-import'), false)
   for (const patch of [{ nummer: '456' }, { typ: 'utn' }, { partner: { ID: 123, Debitorennummer: 456 } }, { zahlungsbedingung: { ID: 321 } }]) assert.throws(() => mapDycosMasterData({ ...raw, ...patch }, req.data))
+})
+
+test('emulator: refresh is pinned to an existing owned account and never creates a replacement partner', { skip: !enabled }, async () => {
+  const uid = await user(), nummer = number(), initial = request(uid, nummer)
+  const dependencies = deps(async () => response(initial, { Strasse: 'Quellstraße' }))
+  const created = await fetchDycosMasterDataHandler(initial, dependencies)
+  const refresh = { ...request(uid, nummer), data: { ...request(uid, nummer).data, expectedPartnerId: created.partnerId } }
+  const refreshed = await fetchDycosMasterDataHandler(refresh, dependencies)
+  assert.equal(refreshed.partnerId, created.partnerId); assert.equal(refreshed.status, 'unchanged')
+  assert.deepEqual(await fetchDycosMasterDataHandler(refresh, deps(() => assert.fail('receipt must avoid source call'))), refreshed)
+  for (const expectedPartnerId of [randomUUID(), 'other-partner']) {
+    await assert.rejects(fetchDycosMasterDataHandler({ ...refresh, data: { ...refresh.data, requestId: randomUUID(), expectedPartnerId } }, deps(() => assert.fail('invalid target must not fetch'))), { code: 'failed-precondition' })
+  }
+  const old = await partner(created)
+  await assert.rejects(fetchDycosMasterDataHandler({ ...refresh, data: { ...refresh.data, requestId: randomUUID() } }, deps(async () => {
+    await getFirestore().doc(`businessPartners/${created.partnerId}`).delete()
+    return response(initial)
+  })), { code: 'failed-precondition' })
+  assert.equal((await getFirestore().doc(`businessPartners/${created.partnerId}`).get()).exists, false)
+  await getFirestore().doc(`businessPartners/${created.partnerId}`).set(old)
+  await assert.rejects(fetchDycosMasterDataHandler({ ...refresh, data: { ...refresh.data, requestId: randomUUID() } }, deps(async () => {
+    await getFirestore().doc(`businessPartners/${created.partnerId}`).update({ debtorNumber: number(), 'dycosReferences.debtorNumbers': [], 'dycosReferences.accounts': [] })
+    return response(initial)
+  })), { code: 'failed-precondition' })
 })
 
 test('emulator: permissions and active profile checked before source access', { skip: !enabled }, async () => {
