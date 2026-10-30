@@ -1475,3 +1475,31 @@ einschließlich realer Wiederholungsabläufe über beide Importpfade, Vergleichs
 Status/Kreditlimit. Build, ESLint und Shared-Abgleich erfolgreich (40 Module).
 Browserprüfung mit synthetischen Daten: gemischte Entscheidungen pro Zeile, Auf-/Zuklappen,
 Leserechte, offene Änderungen, veralteter Vergleich sowie DE/EN und Hell/Dunkel.
+
+## 35. Freigegebene Dev-Veröffentlichung der Zeilenentscheidungen
+
+Am 30.10.2026 hat der Nutzer die Veröffentlichung ausdrücklich freigegeben.
+Vorheriger Dev-Stand: `72d533e815c0bc5b1525ff36cbf39d5f6d5c410d`.
+Die zwischenzeitlichen Handbuch- und Auftragserfassungsänderungen wurden ohne
+Konflikte integriert. Main bleibt auf
+`230c2ad86af9700118e2f1456746292241461efc`.
+
+Veröffentlichungsumfang ausschließlich Dev: neue Callable
+`resolveDycosPartnerConflicts`, Updates von `fetchDycosMasterData` und
+`fetchDycosTransportOrder` sowie das Frontend. Keine Rules-/Index-/Secret-
+oder Power-Automate-Änderungen. Gemeinsame Helper sind synchronisiert
+(40 Module). Die gespeicherten Ablehnungen werden bei beiden Importpfaden
+berücksichtigt, auch bei vorübergehend fehlenden Quellfeldern.
+
+Nach Integration erneut bestanden: zehn Modultests, 38 Firestore-Emulatortests,
+vollständiger ESLint-Lauf und Build. Bekannte Build-Chunkgrößenwarnung bleibt.
+Der angemeldete Livecheck kontrolliert die zeilenweisen Schaltflächen und
+das Auf-/Zuklappen am Beispielpartner 13213. Dessen fachliche Entscheidungen
+bleiben beim Nutzer; keine echten Werte allein für eine Veröffentlichungsprobe
+übernehmen oder verwerfen.
+
+Ein Frontend-Rollback ist zum oben genannten vorherigen Dev-Stand möglich.
+Die neuen Metadaten und Callable bleiben dabei abwärtskompatibel; vorhandene
+Ablehnungen und Historieneinträge werden durch ein Frontend-Rollback nicht
+gelöscht. Der endgültige Bereitstellungsnachweis folgt im Abschlussfeedback,
+damit kein zweiter Vercel-Build allein für ein Statusprotokoll ausgelöst wird.
