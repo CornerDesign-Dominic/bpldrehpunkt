@@ -1,3 +1,4 @@
+import { confirmedCustomerSearch } from './mailboxCustomerSearch.js'
 import { extractPdfWithOcr } from './pdfOcr.js'
 import { Buffer } from 'node:buffer'
 import { createHash, randomUUID } from 'node:crypto'
@@ -192,13 +193,13 @@ export async function exportMailboxOrderCapture({ db, context, data, originalPdf
   const issues = validateMailboxOrder(order, { allowMissingPrice: data.allowMissingPrice === true, companyCurrency })
   if (issues.some(issue => issue.severity === 'error')) fail('invalid-argument', 'Bitte die fehlenden oder ungültigen Auftragsangaben korrigieren.', { issues })
   if (order.price !== null && !/^[A-Z]{3}$/.test(companyCurrency || '')) fail('failed-precondition', 'Die DyCoS-Firmenwährung ist noch nicht bestätigt. Bitte vor dem XML-Export einrichten.')
-  const fingerprint = hash(JSON.stringify({ order, customerPartnerId: data.customerPartnerId, customerNumber: data.customerNumber, pdfId: pdf.id, pdfHash: pdf.hash, allowMissingPrice: data.allowMissingPrice === true, companyCurrency: companyCurrency || '', ...(placeholder ? { placeholderConfirmed: true } : {}) }))
+  const fingerprint = hash(JSON.stringify({ ...((placeholder || data.customerPartnerId === 'dycos-search') ? { customerSearchId: data.customerSearchId || '', customerSourceId: data.customerSourceId || '' } : {}), order, customerPartnerId: data.customerPartnerId, customerNumber: data.customerNumber, pdfId: pdf.id, pdfHash: pdf.hash, allowMissingPrice: data.allowMissingPrice === true, companyCurrency: companyCurrency || '', ...(placeholder ? { placeholderConfirmed: true } : {}) }))
   return db.runTransaction(async transaction => {
     const previewRef = db.doc(`mailboxOrderPreviews/${data.previewId}`)
     const receiptRef = db.doc(`mailboxOrderExports/${data.previewId}`)
     const connectionRef = context.ref || db.doc(`mailboxConnections/${context.connectionId}`)
     const [previewSnapshot, receiptSnapshot, customerSnapshot, connectionSnapshot] = await Promise.all([
-      transaction.get(previewRef), transaction.get(receiptRef), transaction.get(db.doc(`businessPartners/${data.customerPartnerId}`)), transaction.get(connectionRef),
+      transaction.get(previewRef), transaction.get(receiptRef), data.customerPartnerId === 'dycos-search' ? Promise.resolve(null) : transaction.get(db.doc(`businessPartners/${data.customerPartnerId}`)), transaction.get(connectionRef),
     ])
     const preview = previewSnapshot.data()
     if (!previewSnapshot.exists || preview.ownerId !== context.uid || preview.connectionId !== context.connectionId || preview.graphUserId !== context.connection.graphUserId || preview.messageId !== data.messageId) fail('permission-denied', 'Diese Auftragsvorschau ist nicht verfügbar.')
@@ -209,7 +210,17 @@ export async function exportMailboxOrderCapture({ db, context, data, originalPdf
     if (preview.multipleOrders) fail('failed-precondition', 'Die Quellen enthalten mehrere Aufträge. Bitte einen eindeutigen Auftrag auswählen und erneut auswerten.')
     const attachment = preview.attachments.find(file => file.id === pdf.id)
     if (!attachment || attachment.hash !== pdf.hash || attachment.name !== pdf.name) fail('failed-precondition', 'Das Original-PDF gehört nicht unverändert zu dieser Auftragsvorschau. Bitte erneut auswerten.')
-    const customer = customerForExport(customerSnapshot, data.customerNumber)
+    let customer
+    if (placeholder) {
+      const proof = confirmedCustomerSearch(preview, data, order, now)
+      if (proof.status !== 'none' || proof.matches.length) fail('failed-precondition', 'In DyCoS wurden Kunden gefunden. Bitte die Zuordnung prüfen, statt den Platzhalter zu verwenden.')
+    }
+    if (data.customerPartnerId === 'dycos-search') {
+      const proof = confirmedCustomerSearch(preview, data, order, now)
+      const chosen = proof.matches.find(match => match.sourceId === data.customerSourceId && match.number === data.customerNumber)
+      if (!chosen || proof.status !== 'found') fail('failed-precondition', 'Bitte einen bestätigten DyCoS-Suchtreffer auswählen.')
+      customer = { sourceId: chosen.sourceId, number: chosen.number, name: chosen.name }
+    } else customer = customerForExport(customerSnapshot, data.customerNumber)
     const receipt = receiptSnapshot.data()
     if (receiptSnapshot.exists && (receipt.ownerId !== context.uid || receipt.fingerprint !== fingerprint || receipt.customerId !== customer.sourceId)) fail('already-exists', 'Für diese Vorschau wurde bereits eine andere XML erstellt. Bitte den gespeicherten Export verwenden oder die Mail erneut auswerten.')
     const exportId = receipt?.exportId || `drehpunkt-${data.previewId}`

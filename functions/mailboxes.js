@@ -1,3 +1,4 @@
+import { searchMailboxOrderCustomers } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 import { Buffer } from 'node:buffer'
@@ -352,6 +353,11 @@ export function createMailboxHandlers(deps = {}) {
       const result = await (deps.previewOrderCapture || previewMailboxOrderCapture)({ db: db(), context, mail, files, infer: deps.inferMailboxOrder, now: now() })
       return { ...result, companyCurrency: deps.companyCurrency ?? mailboxOrderCompanyCurrency.value() }
     }),
+    searchMailboxOrderCustomers: guarded('order-customer-search', async request => {
+      const context = await owned(request, true)
+      assertMailboxOrderAccess(context)
+      return searchMailboxOrderCustomers({ db: db(), context, data: request.data, fetchMatches: deps.fetchCustomerMatches, now: now() })
+    }),
     exportMailboxOrder: guarded('order-export', async request => {
       const context = await owned(request, true)
       assertMailboxOrderAccess(context)
@@ -594,3 +600,5 @@ export const assignMailboxAgbCustomerHandler = handlers.assignMailboxAgbCustomer
 
 export const reviewMailboxInvoicesHandler = handlers.reviewMailboxInvoices
 export const listTransportInvoiceChecksHandler = handlers.listTransportInvoiceChecks
+
+export const searchMailboxOrderCustomersHandler = handlers.searchMailboxOrderCustomers

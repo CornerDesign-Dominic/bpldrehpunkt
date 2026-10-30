@@ -126,6 +126,12 @@ export async function fetchDycosFlowPartner({ typ, nummer }, options = {}) {
   return fetchDycosFlowPayload({ typ, nummer }, { ...options, config })
 }
 
+export async function fetchDycosFlowCustomerSearch({ ustId = '', plz = '', ort = '' }, options = {}) {
+  if (typeof ustId !== 'string' || typeof plz !== 'string' || typeof ort !== 'string' || ustId.length > 40 || plz.length > 40 || ort.length > 255 || (!ustId && (!plz || !ort))) problem('invalid_partner', 'fetch')
+  const config = options.config || { ...Object.fromEntries(Object.entries(parameters).filter(([key]) => key !== 'flowUrl').map(([key, param]) => [key, param.value()])), flowUrl: masterDataFlowUrl.value() }
+  return fetchDycosFlowPayload({ typ: 'kunde', nummer: '0', modus: 'kundensuche', ustId, plz, ort }, { ...options, config })
+}
+
 export async function fetchDycosFlowSearch(payload, options = {}) {
   const config = options.config || { ...Object.fromEntries(Object.entries(parameters).filter(([key]) => key !== 'flowUrl').map(([key, param]) => [key, param.value()])), flowUrl: orderSearchFlowUrl.value() }
   return fetchDycosFlowPayload(payload, { ...options, config })

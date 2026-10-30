@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { Buffer } from 'node:buffer'
 import { constants, generateKeyPairSync, randomUUID, verify } from 'node:crypto'
 import test from 'node:test'
-import { createDycosClientAssertion, DycosFlowError, fetchDycosFlowOrder, fetchDycosFlowPartner, fetchDycosFlowSearch, signDycosClientAssertion, validateDycosFlowConfiguration } from './dycosFlowClient.js'
+import { createDycosClientAssertion, DycosFlowError, fetchDycosFlowOrder, fetchDycosFlowPartner, fetchDycosFlowSearch, fetchDycosFlowCustomerSearch, signDycosClientAssertion, validateDycosFlowConfiguration } from './dycosFlowClient.js'
 
 const now = Date.parse('2026-10-29T12:00:00Z')
 const audience = 'https://service.flow.microsoft.com/'
@@ -143,4 +143,15 @@ test('oversized, malformed and unexpected response content is rejected rather th
     const config = configuration(); let count = 0
     await assert.rejects(fetchDycosFlowOrder('123', options(config, async () => ++count === 1 ? json(token(config)) : response())), rejects('source_invalid_response', 'fetch'))
   }
+})
+
+
+test('customer search uses the same authenticated master-data endpoint with bounded search-only inputs', async () => {
+  const config = configuration(); const calls = []
+  const result = await fetchDycosFlowCustomerSearch({ ustId: 'DE123456789', plz: '', ort: '' }, options(config, async (url, init) => {
+    calls.push({ url, init }); return calls.length === 1 ? json(token(config)) : json({ schemaVersion: 1, modus: 'kundensuche', treffer: [], more: false })
+  }))
+  assert.equal(result.modus, 'kundensuche')
+  assert.deepEqual(JSON.parse(calls[1].init.body), { typ: 'kunde', nummer: '0', modus: 'kundensuche', ustId: 'DE123456789', plz: '', ort: '' })
+  await assert.rejects(fetchDycosFlowCustomerSearch({}, { fetchImpl: () => assert.fail('no empty search') }), rejects('invalid_partner'))
 })

@@ -217,3 +217,47 @@ Bestätigung und XML-Export sowie einem Firestore-Emulatortest für atomare
 Bestätigung und wiederholte Exporte. ESLint, Build und Shared-Abgleich bestehen.
 Die Tests verwenden synthetische Kunden; es wurden dadurch keine echten
 DyCoS-Kunden oder Aufträge angelegt.
+
+## Direkte Kundensuche vor Platzhalterverwendung (30.10.2026)
+
+Der bestehende Power-Automate-Flow „Drehpunkt – DyCoS Stammdaten abrufen“ besitzt
+zusätzlich den begrenzten Modus `kundensuche`. Der bisherige Abruf über
+`typ`/`nummer` bleibt erhalten. Die Suche sendet `typ=kunde`, `nummer=0` und
+entweder `ustId` oder `plz`/`ort`. Das strikte HTTP-Schema erlaubt ausschließlich
+diese zusätzlichen Felder. Die vorhandene Anmeldung und die zulässigen
+Benutzer/Dienstidentitäten bleiben unverändert.
+
+Suchantwort: `{schemaVersion:1, modus:"kundensuche", treffer:[...], more:false}`.
+Der Flow liest nur ID, Firma, Debitorennummer, USTID, PLZ, Ort und Land aus dem
+Adressstamm; maximal 50 Treffer werden ausgegeben. Ein Überlauf ist ausdrücklich
+markiert und wird nie als Nichttreffer gewertet. OData-Zeichenketten werden
+maskiert. Technische SQL-/Gatewayfehler behalten ihre Fehlerantwort.
+
+„Direkt in DyCoS suchen“ im Auftraggeberabschnitt fragt zuerst nach USt-ID.
+Mehrere Treffer werden mit vorhandener PLZ und Ort eingegrenzt. Ohne USt-ID oder
+bei fehlendem USt-ID-Treffer erfolgt die Standortsuche. Widersprüchliche USt-IDs
+am gleichen Standort geben keinen Platzhalter frei. Der Nutzer bestätigt einen
+Suchtreffer; dessen echte interne Adress-ID wird verwendet, auch wenn der Kunde
+noch nicht in Drehpunkt importiert ist. Diese reine Auftragszuordnung schreibt
+keinen Kundenstammsatz und erweitert keine Stammdaten-Bearbeitungsrechte.
+
+Der neue geschützte Aufruf `searchMailboxOrderCustomers` verlangt dieselben
+Postfach-/Auftrags- und Stammdaten-Leserechte wie die Auftragserfassung. Ein
+benutzer- und postfachgebundener Suchnachweis liegt in der privaten
+Auftragsvorschau, gilt 15 Minuten und ist an die aktuellen Suchangaben gebunden.
+Gleichzeitige Suchläufe sind gesperrt, Folgeanfragen gedrosselt. Fehler ersetzen
+einen alten Nachweis durch einen Fehlerstatus. Der XML-Export prüft den Nachweis
+serverseitig: Platzhalter 10001 nur nach erfolgreichem Nichttreffer; keine
+Freigabe bei Fehler, Konflikt, Treffer, abgelaufenem oder geändertem Nachweis.
+
+Live geprüft wurden der unveränderte Nummernabruf für 10001, USt-ID-Suche,
+Standortsuche und die Ablehnung einer leeren Suche. Browserprüfung mit
+synthetischen Daten: Platzhaltersperre vor Suche, Freigabe nach Nichttreffer,
+Sperre bei Fehler/Treffer/geänderten Kriterien und direkte Zuordnung eines
+Kunden ohne lokalen Stammsatz. Die Tests legen keine echten DyCoS-Aufträge an.
+
+Release-Prüfung: 44 gezielte Tests und zwei Firestore-Emulatortests bestanden,
+inklusive konkurrierender Suchen und Exporte. Sieben echte Flow-Aufrufe geprüft:
+bisheriger Nummernabruf, USt-ID-Suche, Standortsuche, leere Suche, echter
+Nichttreffer, fehlende Anmeldung und falsche Partnerart. Die neue Suche liest
+keine Bank-/Kontaktfelder. Build, ESLint und Shared-Abgleich sind erfolgreich.

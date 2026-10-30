@@ -1,3 +1,4 @@
+import { mailboxCustomerSearchKey } from './shared/mailboxCustomerSearch.js'
 import assert from 'node:assert/strict'
 import { Buffer } from 'node:buffer'
 import test from 'node:test'
@@ -249,7 +250,9 @@ test('placeholder debtor 10001 requires explicit acknowledgement and exports its
   const data = exportData(result.previewId, { order, customerPartnerId: 'placeholder', customerNumber: '10001' })
   await assert.rejects(exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'failed-precondition' })
   assert.equal(db.values.has(`mailboxOrderExports/${result.previewId}`), false)
-  const exported = await exportMailboxOrderCapture({ db, context, data: { ...data, placeholderConfirmed: true }, originalPdf: pdfFile(), companyCurrency: 'EUR', now })
+  const proof = { searchId: 'search-proof', status: 'none', matches: [], criteriaKey: mailboxCustomerSearchKey(order), expiresAt: now + 60000 }
+  db.values.get(`mailboxOrderPreviews/${result.previewId}`).customerSearch = proof
+  const exported = await exportMailboxOrderCapture({ db, context, data: { ...data, placeholderConfirmed: true, customerSearchId: proof.searchId }, originalPdf: pdfFile(), companyCurrency: 'EUR', now })
   const xml = Buffer.from(exported.xmlBase64, 'base64').toString('latin1')
   assert.match(xml, /<FrachtzahlerID>91<\/FrachtzahlerID>/)
   assert.doesNotMatch(xml, /<FrachtzahlerID>10001<\/FrachtzahlerID>/)
@@ -268,4 +271,28 @@ test('placeholder cannot bypass a missing verified address mapping', async () =>
   const result = await preview(db)
   const data = exportData(result.previewId, { order: { ...completeOrder(), customerNumber: '10001' }, customerPartnerId: 'placeholder', customerNumber: '10001', placeholderConfirmed: true })
   await assert.rejects(exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'failed-precondition' })
+})
+
+
+test('placeholder export is blocked without a current genuine DyCoS no-match proof', async () => {
+  for (const mode of ['missing', 'found', 'expired', 'criteria', 'conflict']) {
+    const db = dbWithCustomer(); const result = await preview(db)
+    db.values.set('businessPartners/placeholder', { companyName: 'Wir selbst', debtorNumber: '10001', status: 'active', dycosIdentities: { 'debtor-10001': { kind: 'debtor', number: '10001', sourceId: '91' } } })
+    const order = { ...completeOrder(), customerNumber: '10001', customerVatId: 'DE123456789' }
+    const proof = { searchId: 'proof', status: mode === 'found' ? 'found' : mode === 'conflict' ? 'conflict' : 'none', matches: [], criteriaKey: mailboxCustomerSearchKey(order), expiresAt: mode === 'expired' ? now - 1 : now + 60000 }
+    if (mode === 'criteria') proof.criteriaKey = 'other'
+    if (mode !== 'missing') db.values.get(`mailboxOrderPreviews/${result.previewId}`).customerSearch = proof
+    await assert.rejects(exportMailboxOrderCapture({ db, context, data: exportData(result.previewId, { order, customerPartnerId: 'placeholder', customerNumber: '10001', customerSearchId: 'proof', placeholderConfirmed: true }), originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'failed-precondition' })
+    assert.equal(db.values.has(`mailboxOrderExports/${result.previewId}`), false)
+  }
+})
+
+test('a selected DyCoS search match can export without writing a master-data customer', async () => {
+  const db = dbWithCustomer(); const result = await preview(db)
+  const order = { ...completeOrder(), customerVatId: 'DE123456789' }
+  db.values.get(`mailboxOrderPreviews/${result.previewId}`).customerSearch = { searchId: 'proof', status: 'found', matches: [{ sourceId: '777', number: '10042', name: 'Test GmbH' }], criteriaKey: mailboxCustomerSearchKey(order), expiresAt: now + 60000 }
+  const data = exportData(result.previewId, { order, customerPartnerId: 'dycos-search', customerSourceId: '777', customerSearchId: 'proof' })
+  const resultXml = await exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now })
+  assert.match(Buffer.from(resultXml.xmlBase64, 'base64').toString('latin1'), /<FrachtzahlerID>777<\/FrachtzahlerID>/)
+  assert.equal(db.values.has('businessPartners/dycos-search'), false)
 })

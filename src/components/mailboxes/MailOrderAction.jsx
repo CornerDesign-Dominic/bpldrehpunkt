@@ -1,3 +1,4 @@
+import { mailboxCustomerSearchKey } from '../../../shared/mailboxCustomerSearch.js'
 import { mailboxOrderCustomerCandidates } from '../../lib/mailboxOrderCustomerCandidates.js'
 import { orderReviewCounts, orderReviewEntries, orderReviewColors } from '../../lib/orderReviewPresentation.js'
 import MailActionButton from './MailActionButton.jsx'
@@ -101,6 +102,10 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const [allowMissingPrice, setAllowMissingPrice] = useState(cached?.allowMissingPrice || false)
   const [confirmed, setConfirmed] = useState(false)
   const [placeholderConfirmed, setPlaceholderConfirmed] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState(cached?.customerSearch || null)
+  const [dycosSourceId, setDycosSourceId] = useState(cached?.dycosSourceId || '')
+  const [customerSearchError, setCustomerSearchError] = useState('')
+  const [searchClock, setSearchClock] = useState(() => Date.now())
   const [partners, setPartners] = useState([])
   const [partnersLoading, setPartnersLoading] = useState(false)
   const [partnersError, setPartnersError] = useState(false)
@@ -119,16 +124,21 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const pdfGeneration = useRef(0)
   const pdfUrl = useRef(null)
   const operation = useRef(cached?.operationId || null)
-  const current = snapshot({ order, customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, selectedPdfIds })
+  const current = snapshot({ dycosSourceId, order, customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, selectedPdfIds })
   const dirty = Boolean(order && manuallyEdited && current !== saved)
   const customerCandidates = mailboxOrderCustomerCandidates(partners, order)
   const customer = partners.find(partner => partner.id === customerPartnerId)
   const placeholderCustomer = partners.find(partner => numbers(partner).includes(mailboxOrderPlaceholderNumber))
   const usesPlaceholder = customerNumber === mailboxOrderPlaceholderNumber
-  const customerNumbers = numbers(customer)
-  const verifiedId = mailboxOrderCustomerIdentity(customer, customerNumber)
+  let customerSearchKey = ''
+  try { customerSearchKey = mailboxCustomerSearchKey(order || {}) } catch { /* Missing search details remain editable. */ }
+  const searchIsCurrent = Boolean(customerSearchKey && customerSearch?.criteriaKey === customerSearchKey && customerSearch.expiresAt > searchClock)
+  const placeholderAllowed = searchIsCurrent && customerSearch.status === 'none'
+  const directCustomer = customerPartnerId === 'dycos-search' && searchIsCurrent ? customerSearch.matches.find(match => match.sourceId === dycosSourceId && match.number === customerNumber) : null
+  const customerNumbers = directCustomer ? [directCustomer.number] : numbers(customer)
+  const verifiedId = directCustomer ? { kind: 'debtor', number: directCustomer.number, sourceId: directCustomer.sourceId } : mailboxOrderCustomerIdentity(customer, customerNumber)
   const attachments = [...new Map([...availablePdfs, ...(preview?.attachments || [])].map(item => [item.id, item])).values()]
-  const effectiveOrder = order && customer ? { ...order, customerName: usesPlaceholder ? order.customerName : customer.companyName, customerNumber } : order
+  const effectiveOrder = order && (customer || directCustomer) ? { ...order, customerName: usesPlaceholder ? order.customerName : directCustomer?.name || customer.companyName, customerNumber } : order
   const noExtractedData = Boolean(preview && baseline && !hasOrderDetails(baseline))
   let issues = []
   if (order) {
@@ -136,8 +146,13 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   const errors = issues.filter(item => item.severity === 'error')
   const sourceSelectionChanged = Boolean(preview && selectedPdfIds && snapshot([...selectedPdfIds].sort()) !== snapshot([...(preview.selectedPdfIds || preview.attachments.map(item => item.id))].sort()))
-  const canExport = preview?.previewId && !preview.multipleOrders && !errors.length && verifiedId?.sourceId && verifiedId.number === customerNumber && verifiedId.kind === 'debtor' && originalAttachmentId && selectedPdfIds.includes(originalAttachmentId) && confirmed && (!usesPlaceholder || placeholderConfirmed) && !sourceSelectionChanged && action.state === 'review'
+  const canExport = preview?.previewId && !preview.multipleOrders && !errors.length && verifiedId?.sourceId && verifiedId.number === customerNumber && verifiedId.kind === 'debtor' && originalAttachmentId && selectedPdfIds.includes(originalAttachmentId) && confirmed && (!usesPlaceholder || (placeholderConfirmed && placeholderAllowed)) && !sourceSelectionChanged && action.state === 'review'
 
+  useEffect(() => {
+    if (!customerSearch?.expiresAt) return
+    const timer = setTimeout(() => setSearchClock(Date.now()), Math.max(0, customerSearch.expiresAt - Date.now() + 1))
+    return () => clearTimeout(timer)
+  }, [customerSearch])
   useEffect(() => {
     const result = action.result
     if (!result?.previewId || adoptedPreview.current === result.previewId) return
@@ -150,7 +165,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
       setPreview(result); setOrder(initial); setBaseline(structuredClone(initial)); setConfirmed(false); setSaved(''); setManuallyEdited(false); operation.current = null
       setSelectedPdfIds(result.selectedPdfIds || result.attachments.map(item => item.id))
       setOriginalAttachmentId(result.attachments.length === 1 ? result.attachments[0].id : '')
-      setCustomerPartnerId(''); setCustomerNumber(''); setAllowMissingPrice(false); setPlaceholderConfirmed(false)
+      setCustomerPartnerId(''); setCustomerNumber(''); setAllowMissingPrice(false); setPlaceholderConfirmed(false); setCustomerSearch(null); setDycosSourceId(''); setCustomerSearchError('')
     })
     return () => { active = false }
   }, [action.result])
@@ -162,8 +177,8 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }, [open, partnersReload])
   useEffect(() => {
     if (dirtyRef) dirtyRef.current = dirty
-    if (order) drafts.set(cacheKey, { preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, allowMissingPrice, saved, manuallyEdited, operationId: operation.current })
-  }, [dirtyRef, dirty, cacheKey, preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, allowMissingPrice, saved, manuallyEdited])
+    if (order) drafts.set(cacheKey, { preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, customerSearch, dycosSourceId, allowMissingPrice, saved, manuallyEdited, operationId: operation.current })
+  }, [dirtyRef, dirty, cacheKey, preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, customerSearch, dycosSourceId, allowMissingPrice, saved, manuallyEdited])
   useEffect(() => {
     if (!dirty) return
     const unload = event => { event.preventDefault(); event.returnValue = '' }
@@ -238,7 +253,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
     operation.current ||= crypto.randomUUID()
     const version = ++generation.current
     try {
-      const result = await mailboxCall('exportMailboxOrder', { ...identity, previewId: preview.previewId, order: normalizeMailboxOrder(effectiveOrder), customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, confirmed: true, placeholderConfirmed, operationId: operation.current })
+      const result = await mailboxCall('exportMailboxOrder', { ...identity, previewId: preview.previewId, order: normalizeMailboxOrder(effectiveOrder), customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, confirmed: true, placeholderConfirmed, customerSearchId: customerSearch?.searchId, customerSourceId: dycosSourceId, operationId: operation.current })
       if (version !== generation.current) return
       if (typeof result.xmlBase64 !== 'string' || !result.xmlBase64 || typeof result.fileName !== 'string') throw new Error('invalid-export')
       const bytes = Uint8Array.from(atob(result.xmlBase64), char => char.charCodeAt(0))
@@ -257,9 +272,23 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   function field(path, de, en, options = {}) { return <OrderField key={path} path={path} label={w(de, en)} order={order} baseline={baseline} provenance={preview?.provenance || []} attachments={attachments} issues={issues} onChange={update} w={w} {...options} /> }
   function changeCustomer(id) {
-    changed(); setCustomerPartnerId(id); setPlaceholderConfirmed(false)
+    changed(); setCustomerPartnerId(id); setDycosSourceId(''); setPlaceholderConfirmed(false)
     const available = numbers(partners.find(partner => partner.id === id))
     setCustomerNumber(available.length === 1 ? available[0] : '')
+  }
+  async function searchCustomer() {
+    if (busy || !preview?.previewId) return
+    setBusy('customer-search'); setCustomerSearchError(''); setPlaceholderConfirmed(false)
+    const version = ++generation.current
+    try {
+      const result = await mailboxCall('searchMailboxOrderCustomers', { ...identity, previewId: preview.previewId, order: { customerName: order.customerName, customerVatId: order.customerVatId, customerPostalCode: order.customerPostalCode, customerCity: order.customerCity } })
+      if (version === generation.current) { setCustomerSearch(result); setSearchClock(Date.now()) }
+    } catch (caught) {
+      if (version === generation.current) { setCustomerSearch(null); setCustomerSearchError(['functions/invalid-argument', 'functions/failed-precondition'].includes(caught.code) ? caught.message : w('Die direkte DyCoS-Suche konnte nicht abgeschlossen werden. Bitte erneut prüfen. Der Platzhalter bleibt gesperrt.', 'The direct DyCoS search could not finish. Please retry. The placeholder remains blocked.')) }
+    } finally { if (version === generation.current) setBusy('') }
+  }
+  function chooseDirectCustomer(match) {
+    changed(); setCustomerPartnerId('dycos-search'); setCustomerNumber(match.number); setDycosSourceId(match.sourceId); setPlaceholderConfirmed(false)
   }
   function moveStop(index, offset) {
     changed()
@@ -291,14 +320,14 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
     if (['loading', 'unloading'].includes(key) && !entries.length) entries = [{ path: key, color: 'yellow' }]
     if (key === 'route') entries = (order?.stops || []).map((stop, index) => ({ path: `stops.${index}`, value: stop.company, color: stop.company ? 'blue' : 'yellow' }))
     if (key === 'documents') entries = [{ color: sourceSelectionChanged || !selectedPdfIds?.length ? 'yellow' : 'blue' }, ...(preview?.warnings || []).map(() => ({ color: 'yellow' })), ...(preview?.multipleOrders ? [{ color: 'yellow' }] : [])]
-    if (key === 'approval') entries = [{ color: originalAttachmentId && selectedPdfIds?.includes(originalAttachmentId) ? 'green' : 'yellow' }, { color: confirmed && (!usesPlaceholder || placeholderConfirmed) ? 'green' : 'yellow' }]
+    if (key === 'approval') entries = [{ color: originalAttachmentId && selectedPdfIds?.includes(originalAttachmentId) ? 'green' : 'yellow' }, { color: confirmed && (!usesPlaceholder || (placeholderConfirmed && placeholderAllowed)) ? 'green' : 'yellow' }]
     return orderReviewCounts(entries, issues)
   }
   const sectionProps = { expandedKey, setExpandedKey, w }
   const left = <div className="mail-order-source"><label className="form-field"><span>{w('Quelle ansehen', 'View source')}</span><select value={view} onChange={event => void showPdf(event.target.value)}><option value="mail">{w('Mail und Schriftverkehr', 'Email and correspondence')}</option>{attachments.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>{view === 'mail' ? mailContent : <><h3>{attachments.find(item => item.id === view)?.name}</h3>{pdfBusy && <p role="status">{w('PDF wird geladen …', 'Loading PDF …')}</p>}{pdfError && <div role="alert"><p>{pdfError}</p><button type="button" onClick={() => void showPdf(view)}>{w('Erneut versuchen', 'Try again')}</button></div>}{!pdfBusy && pdf?.id === view && <><a href={pdf.url} target="_blank" rel="noopener noreferrer">{w('PDF in neuem Tab öffnen', 'Open PDF in new tab')}</a><object className="mail-order-pdf" data={`${pdf.url}#navpanes=0&pagemode=none`} type="application/pdf" aria-label={pdf.name}><a href={pdf.url} download={pdf.name}>{w('PDF herunterladen', 'Download PDF')}</a></object></>}</>}</div>
 
   return <><MailActionButton kind="order" state={action.state} expanded={open} disabled={Boolean(busy) || action.busy} onClick={activate}>{action.state === 'running' || busy === 'analyse' ? w('Auftrag wird ausgelesen …', 'Reading order …') : action.state === 'review' ? w('Auftragsdaten prüfen', 'Review order data') : action.state === 'completed' ? w('Auftrag erstellt', 'Order created') : action.state === 'failed' ? w('Auftragserfassung prüfen', 'Review order capture') : w('Auftrag erfassen', 'Capture order')}</MailActionButton>
-    <MailWorkDialog open={open} title={w('Auftrag hinzufügen', 'Add order')} left={left} onClose={close} busy={busy === 'export'} rightLoading={Boolean(busy)} loadingLabel={busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Auftragsdaten werden gelesen – bei Bedarf mit OCR …', 'Reading order data – using OCR if needed …')}>
+    <MailWorkDialog open={open} title={w('Auftrag hinzufügen', 'Add order')} left={left} onClose={close} busy={busy === 'export'} rightLoading={Boolean(busy)} loadingLabel={busy === 'customer-search' ? w('Kunde wird direkt in DyCoS gesucht …', 'Searching for the customer directly in DyCoS …') : busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Auftragsdaten werden gelesen – bei Bedarf mit OCR …', 'Reading order data – using OCR if needed …')}>
       <div className="mail-order-editor"><header className="mail-order-review-header"><strong>{w('Auftragsdaten prüfen', 'Review order data')}</strong><small>{w('Abschnitt öffnen und Angaben bestätigen.', 'Open a section and verify its information.')}</small></header>
       {(error || action.error) && <div className="mailbox-error" role="alert">{error || errorText(action.error, w)}</div>}{notice && !order && <p className="mail-order-notice" role="status">{notice}</p>}
       {noExtractedData && <div className="mail-order-missing" role="alert"><strong>{w('Keine Auftragsdaten übernommen', 'No order data extracted')}</strong><p>{w('Die Auswertung hat keine belegbaren Auftragsangaben geliefert. Bitte die ausgewählten PDFs und das Original prüfen und erneut auswerten. Du kannst die Angaben auch manuell ergänzen.', 'The analysis returned no supported order details. Check the selected PDFs and the original document, then analyse again. You can also enter the information manually.')}</p></div>}
@@ -311,11 +340,12 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
       {order && <form onSubmit={exportXml} noValidate><fieldset className="mail-order-form" disabled={Boolean(busy)}>
         <OrderSection sectionKey="customer" title={w('Auftraggeber und Auftrag', 'Customer and order')} counts={sectionCounts('customer')} {...sectionProps}>
           {!partnersLoading && !partnersError && !customerPartnerId && <div className="mail-order-customer-match" role="status">{customerCandidates.length ? <><strong>{w('Passende Kunden aus Stammdaten', 'Matching master data customers')}</strong><ul>{customerCandidates.map(match => <li key={match.partner.id}><span>{match.partner.companyName} · {numbers(match.partner).join(', ')}<small>{[match.numberMatch && w('Kundennummer', 'Customer number'), match.vatMatch && w('USt-ID', 'VAT ID'), match.addressMatch && w('PLZ und Ort', 'Postal code and city'), match.nameMatch && w('Firmenname', 'Company name')].filter(Boolean).join(' · ')}</small></span><button className="button button--secondary" type="button" onClick={() => changeCustomer(match.partner.id)}>{w('Auswählen', 'Select')}</button></li>)}</ul></> : <><strong>{w('Kein passender Kunde in Drehpunkt gefunden', 'No matching customer found in Drehpunkt')}</strong><p>{w('Bitte prüfen, ob der Kunde bereits in DyCoS existiert, und seine Stammdaten nach Drehpunkt abrufen. Ist er neu, muss er zuerst in DyCoS angelegt werden. Der Auftragsimport legt keinen Kunden an.', 'Check whether the customer exists in DyCoS and fetch its master data into Drehpunkt. New customers must first be created in DyCoS. Order import does not create customers.')}</p><Link to="/kunden-unternehmer" target="_blank" rel="noopener noreferrer">{w('Stammdaten öffnen', 'Open master data')}</Link></> }<button className="button button--secondary" type="button" onClick={() => setPartnersReload(value => value + 1)}>{w('Kundenliste aktualisieren', 'Refresh customer list')}</button></div>}
-          {!customerPartnerId && !partnersLoading && !partnersError && <div className="mail-order-customer-match"><strong>{w('Kunde noch nicht vorhanden?', 'Customer not created yet?')}</strong><p>{w('Kunden zuerst in DyCoS anlegen. Für diesen Auftrag kann vorläufig unser eigener Debitor 10001 als Platzhalter verwendet werden. Danach den Auftrag in DyCoS manuell auf den echten Kunden umstellen.', 'Create the customer in DyCoS first. Our own debtor 10001 can temporarily be used as a placeholder. Then manually assign the real customer to this order in DyCoS.')}</p>{placeholderCustomer ? <button className="button button--secondary" type="button" onClick={() => { changeCustomer(placeholderCustomer.id); setCustomerNumber(mailboxOrderPlaceholderNumber) }}>{w('Platzhalter 10001 verwenden', 'Use placeholder 10001')}</button> : <p>{w('Platzhalterkunde 10001 muss zuerst aus DyCoS in die Stammdaten abgerufen werden.', 'Fetch placeholder customer 10001 from DyCoS into master data first.')}</p>}</div>}
-          {usesPlaceholder && <div className="mail-order-customer-match" role="status"><strong>{w('Platzhalter 10001 wird verwendet', 'Placeholder 10001 is being used')}</strong><p>{w('Der echte Kunde muss in DyCoS angelegt und der Auftrag anschließend dort manuell angepasst werden. Der ursprüngliche Auftraggeber wird als Hinweis mitgegeben.', 'Create the real customer in DyCoS and then manually reassign this order there. The original customer is included as a note.')}</p><label className="mail-order-checkbox"><input type="checkbox" checked={placeholderConfirmed} onChange={event => { changed(); setPlaceholderConfirmed(event.target.checked) }} />{w('Ich bestätige die Verwendung des Platzhalters und die notwendige manuelle Anpassung in DyCoS.', 'I confirm use of the placeholder and the required manual reassignment in DyCoS.')}</label></div>}
+          <div className="mail-order-customer-match"><strong>{w('Kunde direkt in DyCoS prüfen', 'Check customer directly in DyCoS')}</strong><p>{w('Vor der Verwendung des Platzhalters muss die Suche in DyCoS erfolgreich ohne Treffer abgeschlossen sein. USt-ID oder PLZ und Ort des Auftraggebers verwenden.', 'Before using the placeholder, a direct DyCoS search must successfully return no matches. Use the customer VAT ID or postal code and city.')}</p><button className="button button--secondary" type="button" disabled={Boolean(busy) || !customerSearchKey} onClick={() => void searchCustomer()}>{w('Direkt in DyCoS suchen', 'Search directly in DyCoS')}</button>{!customerSearchKey && <small>{w('Bitte USt-ID oder PLZ und Ort unten ergänzen.', 'Enter the VAT ID or postal code and city below.')}</small>}{customerSearchError && <p role="alert">{customerSearchError}</p>}{customerSearch && !searchIsCurrent && <p>{w('Suchangaben geändert oder Prüfung abgelaufen. Bitte erneut direkt in DyCoS prüfen.', 'Search details changed or expired. Please search DyCoS again.')}</p>}{searchIsCurrent && <div role="status">{customerSearch.status === 'none' ? <p>{w('Direkt in DyCoS geprüft: kein passender Kunde gefunden. Der Platzhalter kann nach Bestätigung verwendet werden.', 'Checked directly in DyCoS: no matching customer found. The placeholder may be used after confirmation.')}</p> : customerSearch.status === 'conflict' ? <p>{w('Die USt-ID widerspricht den Kunden am gefundenen Standort. Bitte Auftraggeberangaben prüfen. Der Platzhalter bleibt gesperrt.', 'VAT ID conflicts with customers at the matching location. Review customer details. The placeholder remains blocked.')}</p> : <><p>{w('Treffer direkt aus DyCoS – bitte zuordnen:', 'Matches directly from DyCoS – select a customer:')}</p><ul>{customerSearch.matches.map(match => <li key={match.sourceId}><span>{match.name} · {match.number}<small>{[match.vatId, match.postalCode, match.city].filter(Boolean).join(' · ')}</small></span><button className="button button--secondary" type="button" disabled={match.number === mailboxOrderPlaceholderNumber} onClick={() => chooseDirectCustomer(match)}>{w('Zuordnen', 'Assign')}</button></li>)}</ul>{customerSearch.matches.some(match => match.number === mailboxOrderPlaceholderNumber) && <p>{w('Die Suchangaben treffen auf unseren eigenen Debitor 10001 zu. Bitte die Angaben des tatsächlichen Auftraggebers prüfen.', 'The search matches our own debtor 10001. Check the actual customer details.')}</p>}</>}</div>}</div>
+          {!customerPartnerId && !partnersLoading && !partnersError && <div className="mail-order-customer-match"><strong>{w('Kunde noch nicht vorhanden?', 'Customer not created yet?')}</strong><p>{w('Kunden zuerst in DyCoS anlegen. Für diesen Auftrag kann vorläufig unser eigener Debitor 10001 als Platzhalter verwendet werden. Danach den Auftrag in DyCoS manuell auf den echten Kunden umstellen.', 'Create the customer in DyCoS first. Our own debtor 10001 can temporarily be used as a placeholder. Then manually assign the real customer to this order in DyCoS.')}</p>{placeholderCustomer ? <button className="button button--secondary" type="button" disabled={!placeholderAllowed} onClick={() => { changeCustomer(placeholderCustomer.id); setCustomerNumber(mailboxOrderPlaceholderNumber) }}>{w('Platzhalter 10001 verwenden', 'Use placeholder 10001')}</button> : <p>{w('Platzhalterkunde 10001 muss zuerst aus DyCoS in die Stammdaten abgerufen werden.', 'Fetch placeholder customer 10001 from DyCoS into master data first.')}</p>}</div>}
+          {usesPlaceholder && <div className="mail-order-customer-match" role="status"><strong>{w('Platzhalter 10001 wird verwendet', 'Placeholder 10001 is being used')}</strong><p>{w('Der echte Kunde muss in DyCoS angelegt und der Auftrag anschließend dort manuell angepasst werden. Der ursprüngliche Auftraggeber wird als Hinweis mitgegeben.', 'Create the real customer in DyCoS and then manually reassign this order there. The original customer is included as a note.')}</p><label className="mail-order-checkbox"><input type="checkbox" disabled={!placeholderAllowed} checked={placeholderConfirmed} onChange={event => { changed(); setPlaceholderConfirmed(event.target.checked) }} />{w('Ich bestätige die Verwendung des Platzhalters und die notwendige manuelle Anpassung in DyCoS.', 'I confirm use of the placeholder and the required manual reassignment in DyCoS.')}</label></div>}
           <div className="mail-order-grid">
           {field('customerName', 'Auftraggeber laut Quelle', 'Customer from source')}{field('customerNumber', 'Kundennummer laut Quelle', 'Customer number from source')}{field('customerVatId', 'USt-ID Auftraggeber', 'Customer VAT ID')}{field('customerPostalCode', 'PLZ Auftraggeber', 'Customer postal code')}{field('customerCity', 'Ort Auftraggeber', 'Customer city')}
-          <div className="mail-order-field"><label className="form-field"><span>{w('Frachtzahler aus Stammdaten *', 'Freight payer from master data *')}</span><select value={customerPartnerId} disabled={partnersLoading} onChange={event => changeCustomer(event.target.value)}><option value="">{partnersLoading ? w('Kunden werden geladen …', 'Loading customers …') : w('Kunden auswählen', 'Select customer')}</option>{partners.map(partner => <option key={partner.id} value={partner.id}>{partner.companyName} · {numbers(partner).join(', ')}</option>)}</select></label><span className="mail-order-label--manual">{w('Vom Nutzer zu bestätigen', 'Confirm manually')}</span>{partnersError && <div role="alert"><p>{w('Kunden konnten nicht geladen werden.', 'Could not load customers.')}</p><button className="button button--secondary" type="button" onClick={() => setPartnersReload(value => value + 1)}>{w('Erneut versuchen', 'Try again')}</button></div>}</div>
+          <div className="mail-order-field"><label className="form-field"><span>{w('Frachtzahler aus Stammdaten *', 'Freight payer from master data *')}</span><select value={customerPartnerId} disabled={partnersLoading} onChange={event => changeCustomer(event.target.value)}><option value="">{partnersLoading ? w('Kunden werden geladen …', 'Loading customers …') : w('Kunden auswählen', 'Select customer')}</option>{directCustomer && <option value="dycos-search">{directCustomer.name} · {directCustomer.number} (DyCoS)</option>}{partners.map(partner => <option key={partner.id} value={partner.id}>{partner.companyName} · {numbers(partner).join(', ')}</option>)}</select></label><span className="mail-order-label--manual">{w('Vom Nutzer zu bestätigen', 'Confirm manually')}</span>{partnersError && <div role="alert"><p>{w('Kunden konnten nicht geladen werden.', 'Could not load customers.')}</p><button className="button button--secondary" type="button" onClick={() => setPartnersReload(value => value + 1)}>{w('Erneut versuchen', 'Try again')}</button></div>}</div>
           <div className="mail-order-field"><label className="form-field"><span>{w('Debitorenreferenz *', 'Customer account reference *')}</span><select value={customerNumber} onChange={event => { changed(); setPlaceholderConfirmed(false); setCustomerNumber(event.target.value) }} disabled={!customerPartnerId}><option value="">{w('Referenz auswählen', 'Select reference')}</option>{customerNumbers.map(number => <option key={number} value={number}>{number}</option>)}</select></label>{verifiedId ? <small>{w('Verifizierte interne DyCoS-ID:', 'Verified internal DyCoS ID:')} {verifiedId.sourceId}</small> : <small className="mail-order-label--missing">{w('Verifizierte DyCoS-Adress-ID fehlt. Bitte Kunden über die direkte Schnittstelle ergänzen.', 'Verified DyCoS address ID is missing. Update the customer through the direct connection.')}</small>}</div>
           {field('customerReference', 'Kundenreferenz', 'Customer reference', { required: true })}{field('vehicleType', 'Fahrzeugart', 'Vehicle type')}{field('loadingDate', 'Ladedatum', 'Loading date', { type: 'date', required: true })}{field('unloadingDate', 'Entladedatum', 'Unloading date', { type: 'date', required: true })}{field('contactName', 'Ansprechpartner Auftrag', 'Order contact')}
         </div></OrderSection>
