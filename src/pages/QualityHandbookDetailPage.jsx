@@ -4,6 +4,7 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { EditIcon } from '../components/icons.jsx'
 import QualityEditor from '../components/quality/QualityEditor.jsx'
+import QualityHandbookHistory from '../components/quality/QualityHandbookHistory.jsx'
 import { listDepartments } from '../lib/departments.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { getQualityHandbook } from '../lib/quality.js'
@@ -27,6 +28,7 @@ function HandbookDetail({ entryId }) {
   const [state, setState] = useState({ loading: true })
   const [reload, setReload] = useState(0)
   const [editor, setEditor] = useState(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -71,9 +73,10 @@ function HandbookDetail({ entryId }) {
         [text('Zuletzt kontrolliert', 'Last reviewed'), record.lastReviewedDate && new Date(`${record.lastReviewedDate}T12:00:00`).toLocaleDateString(en ? 'en-GB' : 'de-DE')],
         [text('Nächste Kontrolle', 'Next review'), record.nextReviewDate && new Date(`${record.nextReviewDate}T12:00:00`).toLocaleDateString(en ? 'en-GB' : 'de-DE')],
       ].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value || '—'}</dd></div>)}</dl>
-      <button className="quality-history-link" type="button" onClick={() => setEditor({ focusPhase: 'history' })}>{text('Änderungsverlauf', 'Revision history')}</button>
+      <button className="quality-history-link" type="button" onClick={() => setHistoryOpen(true)}>{text('Revisionshistorie', 'Revision history')}</button>
     </section>
     {editor && <QualityEditor key={editor.focusPhase || 'metadata'} kind="handbook" record={record} {...editor} departmentId={record.departmentId} editable={editable} language={language} onClose={(options) => { setEditor(null); if (options?.reload) refresh() }} onSaved={() => { setEditor(null); refresh() }} />}
+    {historyOpen && <QualityHandbookHistory record={record} language={language} onClose={() => setHistoryOpen(false)} />}
   </div>
 }
 

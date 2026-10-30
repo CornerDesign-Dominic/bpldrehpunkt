@@ -44,8 +44,13 @@ Kapitel nutzen das bestehende Feld `process`; vorhandene Inhalte werden unverän
 übernommen. Beim Anlegen und Zuordnen lassen sich bestehende Kapitel derselben
 Abteilung auswählen oder neue Namen eingeben. Es gibt keinen separaten Kapitel-
 Datenspeicher und keine Migration. Neue Artikel verlangen eine aktive Abteilung.
-Die Revisionsnummer ist nur im separaten „Änderungsverlauf“ sichtbar. Auch Leser
+Die Revisionsnummer ist nur in der separaten „Revisionshistorie“ sichtbar. Auch Leser
 können dort vollständige frühere Fassungen ansehen; Speichern ist dort gesperrt.
+Der Einstieg liegt unten in „Stand & Kontrolle“. Die Liste zeigt Nummer, Datum
+und Bearbeiter; ein Klick öffnet die vollständige Fassung als lesbaren Artikel
+im großen Modal. Über „Alle Revisionen“ geht es zur Liste zurück. Handbuch-
+Bearbeitungsmodale enthalten keinen Verlauf mehr, sind bis 1120 Pixel breit
+und bieten große mehrzeilige Textflächen. Die Historie nutzt 88 % der Fensterhöhe.
 Der Katalog liest nur aktuelle Wurzeldokumente, keine historischen Fassungen.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
 anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
@@ -243,3 +248,13 @@ vorhandenes/neues Kapitel, Rückkehr mit Suchzustand und frühere Fassung geprü
 Deutsch und Englisch textlich geprüft, ohne Bildvorschauen. Angemeldeter
 Dev-Browserdurchlauf bleibt offen. Nur Frontend-Veröffentlichung erforderlich;
 Backend, Rules, Indizes und Datenmodell bleiben unverändert.
+
+### Größere Handbuchmodale und Revisionsliste am 30.10.2026
+
+Separater Einstieg „Revisionshistorie“ mit Nummer, Zeitpunkt und Bearbeiter sowie
+großem Lesemodal je Fassung. Bearbeitungsmodale verbreitert und Textflächen
+vergrößert; Verlauf dort entfernt. Lint, Build und Shared-Abgleich (39 Module)
+erfolgreich. Lokaler Browser mit Beispieldaten: 1120 Pixel Modalbreite und große
+Textfläche, kein Verlaufsbutton in der Bearbeitung, Verwerfenschutz, Revisionsliste,
+vollständige frühere Fassung und Fokus-Rückkehr zur Liste/Artikelseite geprüft.
+Kein angemeldeter Dev-Browserdurchlauf. Nur Frontend-Veröffentlichung erforderlich.

@@ -127,4 +127,21 @@
 .quality-article-meta { display:flex; align-items:center; justify-content:flex-end; gap:12px; color:var(--text-secondary); }
 .quality-article-meta .quality-overdue-badge { margin:0; }
 .quality-history-link { margin-top:16px; padding:0; border:0; background:transparent; color:var(--text-secondary); text-decoration:underline; font:inherit; font-size:12px; cursor:pointer; }
+.quality-dialog--handbook { width:min(1120px,94vw); max-height:94vh; }
+.quality-dialog--handbook textarea { min-height:min(42vh,420px); font-size:16px; line-height:1.6; }
+.quality-revisions-dialog { height:88vh; }
+.quality-revision-list { overflow-x:auto; }
+.quality-revision-list table { width:100%; border-collapse:collapse; text-align:left; }
+.quality-revision-list th,.quality-revision-list td { padding:14px 12px; border-bottom:1px solid var(--border); }
+.quality-revision-list th { color:var(--text-secondary); font-size:13px; }
+.quality-revision-open { border:0; background:transparent; padding:0; color:var(--text-primary); text-decoration:underline; font:inherit; cursor:pointer; text-align:left; }
+.quality-revision-article { padding:12px 0; }
+.quality-revision-article h2 { margin:8px 0; overflow-wrap:anywhere; }
+.quality-revision-meta { color:var(--text-secondary); font-size:13px; }
+.quality-revision-article section { padding:20px 0; border-bottom:1px solid var(--border); }
+.quality-revision-article section h3 { margin:0 0 12px; font-size:16px; }
+.quality-revision-article .quality-protocol { margin:0; font-size:16px; line-height:1.6; }
+.quality-revision-details { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; }
+.quality-revision-details dt { color:var(--text-secondary); font-size:12px; margin-bottom:6px; }
+.quality-revision-details dd { margin:0; overflow-wrap:anywhere; }
 @media(max-width:650px) { .quality-article-link { align-items:start; flex-direction:column; gap:6px; } .quality-article-meta { justify-content:start; flex-wrap:wrap; } }

@@ -20,16 +20,15 @@ export default function QualityEditor({ kind, record, departmentId, departments,
   const dialog = useRef(null)
   const [initial] = useState(() => JSON.stringify(qualityValues(kind, record, departmentId)))
   const dirty = JSON.stringify(form) !== initial
-  const historyOnly = kind === 'handbook' && focusPhase === 'history'
-  const readOnly = !editable || Boolean(historical) || historyOnly
+  const readOnly = !editable || Boolean(historical)
   const displayed = historical || form
   const creatingTopic = kind === 'topic' && !record.revision && !newCycle
   const creatingMeeting = kind === 'meeting' && !record.revision
   const meetingFields = creatingMeeting ? ['title', 'date'] : focusPhase === 'notes' ? ['notes'] : focusPhase === 'participants' ? ['participants'] : focusPhase === 'topics' ? [] : ['title', 'date']
   const meetingHeading = creatingMeeting ? text('Neue Besprechung', 'New meeting') : focusPhase === 'notes' ? text('Protokoll', 'Minutes') : focusPhase === 'participants' ? text('Teilnehmer', 'Participants') : focusPhase === 'topics' ? text('Themen', 'Topics') : text('Besprechung bearbeiten', 'Edit meeting')
   const creatingHandbook = kind === 'handbook' && !record.revision
-  const handbookFields = historyOnly ? ['title', 'process', ...HANDBOOK_SECTIONS, 'owner', 'lastReviewedDate', 'nextReviewDate'] : !creatingHandbook && HANDBOOK_SECTIONS.includes(focusPhase) ? [focusPhase] : focusPhase === 'review' ? ['owner', 'lastReviewedDate', 'nextReviewDate'] : ['title', 'process']
-  const handbookHeading = historyOnly ? text('Änderungsverlauf', 'Revision history') : creatingHandbook ? text('Neuer Artikel', 'New article') : HANDBOOK_SECTIONS.includes(focusPhase) ? labels[focusPhase][en ? 1 : 0] : focusPhase === 'review' ? text('Zuständigkeit & Kontrolle', 'Responsibility & review') : text('Artikel bearbeiten', 'Edit article')
+  const handbookFields = !creatingHandbook && HANDBOOK_SECTIONS.includes(focusPhase) ? [focusPhase] : focusPhase === 'review' ? ['owner', 'lastReviewedDate', 'nextReviewDate'] : ['title', 'process']
+  const handbookHeading = creatingHandbook ? text('Neuer Artikel', 'New article') : HANDBOOK_SECTIONS.includes(focusPhase) ? labels[focusPhase][en ? 1 : 0] : focusPhase === 'review' ? text('Zuständigkeit & Kontrolle', 'Responsibility & review') : text('Artikel bearbeiten', 'Edit article')
   const chapters = [...new Set(chapterEntries.filter((item) => item.departmentId === form.departmentId).map((item) => item.process))].sort((left, right) => left.localeCompare(right))
   const phaseFields = { plan: ['plan'], smart: SMART_FIELDS.map(({ key }) => key), cycle: ['cycleStartDate'], do: ['do', 'owner', 'startDate', 'dueDate'], check: ['check'], act: ['actDecision', 'actDate', 'act'] }
   const topicFields = creatingTopic ? ['title', 'plan'] : newCycle ? phaseFields.cycle : phaseFields[focusPhase] || ['title', 'status']
@@ -62,15 +61,6 @@ export default function QualityEditor({ kind, record, departmentId, departments,
     listQualityHandbookCatalog().then((items) => { if (active) { setChapterEntries(items); setChapterError(false) } }).catch(() => { if (active) setChapterError(true) })
     return () => { active = false }
   }, [kind, focusPhase, handbookEntries, chapterRetry])
-
-  useEffect(() => {
-    if (!historyOnly) return undefined
-    let active = true
-    listQualityHistory('handbook', record.id).then((items) => { if (active) setHistory(items) }).catch(() => {
-      if (active) setError(en ? 'History could not be loaded. Please retry.' : 'Der Verlauf konnte nicht geladen werden. Bitte erneut versuchen.')
-    })
-    return () => { active = false }
-  }, [historyOnly, record.id, en])
 
   function close() {
     if (saving) return
@@ -129,19 +119,18 @@ export default function QualityEditor({ kind, record, departmentId, departments,
       : <textarea name={key} rows={rows} maxLength={20000} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />}</label>
   }
 
-  return <dialog ref={dialog} className={`quality-dialog${kind !== 'meeting' || focusPhase !== 'topics' ? ' quality-dialog--topic' : ''}`} aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
+  return <dialog ref={dialog} className={`quality-dialog${kind === 'handbook' ? ' quality-dialog--handbook' : kind !== 'meeting' || focusPhase !== 'topics' ? ' quality-dialog--topic' : ''}`} aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
     <header className="quality-heading"><h2 id="quality-editor-title">{kind === 'topic' ? topicHeading : kind === 'handbook' ? handbookHeading : meetingHeading}{kind === 'topic' && !creatingTopic && <small className="quality-editor-cycle">{text('Durchlauf', 'Cycle')} {form.cycle}</small>}</h2><button className="button button--secondary" type="button" onClick={close} disabled={saving}>{text('Schließen', 'Close')}</button></header>
     {discard && <div className="quality-discard" role="alert"><p>{text('Ungespeicherte Änderungen verwerfen?', 'Discard unsaved changes?')}</p><button className="button button--secondary" type="button" onClick={() => setDiscard(false)}>{text('Weiter bearbeiten', 'Keep editing')}</button> <button className="button button--danger" type="button" onClick={() => onClose({ reload: conflict })}>{text('Verwerfen und schließen', 'Discard and close')}</button></div>}
-    {record.revision > 0 && <div className="quality-history"><button className="button button--secondary" type="button" disabled={historyLoading} onClick={showHistory}>{text('Verlauf', 'History')}</button>{history && <label>{text('Fassung', 'Revision')} <select value={historical?.revision || ''} onChange={(event) => setHistorical(history.find((item) => String(item.revision) === event.target.value) || null)}><option value="">{historyOnly ? text('Aktuelle Fassung', 'Current revision') : text('Aktuelle Bearbeitung', 'Current editing')}</option>{history.filter((item) => !historyOnly || item.revision < record.revision).map((item) => <option key={item.revision} value={item.revision}>{kind === 'topic' ? `${text('Durchlauf', 'Cycle')} ${item.cycle} · ` : ''}{text('Fassung', 'Revision')} {item.revision} · {item.updatedAt?.toDate?.().toLocaleString(en ? 'en-GB' : 'de-DE')} · {item.updatedByName || item.updatedBy || ''}</option>)}</select></label>}</div>}
+    {kind !== 'handbook' && record.revision > 0 && <div className="quality-history"><button className="button button--secondary" type="button" disabled={historyLoading} onClick={showHistory}>{text('Verlauf', 'History')}</button>{history && <label>{text('Fassung', 'Revision')} <select value={historical?.revision || ''} onChange={(event) => setHistorical(history.find((item) => String(item.revision) === event.target.value) || null)}><option value="">{text('Aktuelle Bearbeitung', 'Current editing')}</option>{history.map((item) => <option key={item.revision} value={item.revision}>{kind === 'topic' ? `${text('Durchlauf', 'Cycle')} ${item.cycle} · ` : ''}{text('Fassung', 'Revision')} {item.revision} · {item.updatedAt?.toDate?.().toLocaleString(en ? 'en-GB' : 'de-DE')} · {item.updatedByName || item.updatedBy || ''}</option>)}</select></label>}</div>}
     {historical && <p role="status">{text('Frühere Fassung · nur lesbar', 'Previous revision · read only')}</p>}
-    {historyOnly && <p className="quality-history-note">{text('Aktuelle Fassung', 'Current revision')} {record.revision}</p>}
     {chapterError && <p className="form-error" role="alert">{text('Kapitelvorschläge konnten nicht geladen werden.', 'Chapter suggestions could not be loaded.')} <button type="button" className="button button--secondary" onClick={() => setChapterRetry((value) => value + 1)}>{text('Erneut versuchen', 'Retry')}</button></p>}
     <form onSubmit={submit}>
       <fieldset disabled={saving} className={`quality-fields${focusPhase === 'smart' ? ' quality-fields--smart' : ''}`}>
         {creatingHandbook && departments && <label className="form-field"><span>{text('Abteilung', 'Department')}</span><select required value={form.departmentId} onChange={(event) => change('departmentId', event.target.value)}>{departments.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         {kind === 'meeting' && meetingFields.map((key) => field(key))}
         {kind === 'topic' && topicFields.map((key) => field(key))}
-        {kind === 'handbook' && handbookFields.map((key) => field(key))}
+        {kind === 'handbook' && handbookFields.map((key) => field(key, HANDBOOK_SECTIONS.includes(key) ? 12 : 3))}
         {kind === 'meeting' && !creatingMeeting && focusPhase === 'topics' && <><fieldset className="quality-topic-picker"><legend>{text('Besprochene Themen', 'Topics discussed')}</legend>{topics.length === 0 && <p>{text('Lege zuerst ein Thema an.', 'Create a topic first.')}</p>}{topics.map((topic) => <label key={topic.id}><input type="checkbox" disabled={readOnly} checked={(displayed.topicIds || []).includes(topic.id)} onChange={(event) => change('topicIds', event.target.checked ? [...form.topicIds, topic.id] : form.topicIds.filter((id) => id !== topic.id))} /> {topic.title}</label>)}</fieldset></>}
       </fieldset>
       {error && <p className="form-error" role="alert">{error}</p>}
