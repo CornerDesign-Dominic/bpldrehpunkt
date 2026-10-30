@@ -49,7 +49,7 @@ können dort vollständige frühere Fassungen ansehen; Speichern ist dort gesper
 Der Einstieg liegt unten in „Stand & Kontrolle“. Die Liste zeigt Nummer, Datum
 und Bearbeiter; ein Klick öffnet die vollständige Fassung als lesbaren Artikel
 im großen Modal. Über „Alle Revisionen“ geht es zur Liste zurück. Handbuch-
-Bearbeitungsmodale enthalten keinen Verlauf mehr, sind bis 1120 Pixel breit
+Bearbeitungsmodale enthalten keinen Verlauf mehr, sind bis 1680 Pixel breit
 und bieten große mehrzeilige Textflächen. Die Historie nutzt 88 % der Fensterhöhe.
 Der Katalog liest nur aktuelle Wurzeldokumente, keine historischen Fassungen.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
@@ -261,7 +261,7 @@ Kein angemeldeter Dev-Browserdurchlauf. Nur Frontend-Veröffentlichung erforderl
 
 ### Größere K.V.P.- und Besprechungsmodale am 30.10.2026
 
-Alle Qualitäts-Bearbeitungsmodale verwenden bis 1120 Pixel Breite und maximal
+Alle Qualitäts-Bearbeitungsmodale verwenden bis 1680 Pixel Breite und maximal
 94 % der Fensterhöhe. K.V.P.-Phasentexte und Besprechungsprotokolle bieten große
 mehrzeilige Schreibflächen mit 16-Pixel-Schrift und 1,6-fachem Zeilenabstand.
 Kurzes Anlegen bleibt bei wenigen Feldern. Keine Änderung an Daten oder Rechten.
@@ -270,3 +270,16 @@ Lokaler Browser mit Beispieldaten: Plan und Besprechungsprotokoll jeweils mit
 Lint, Build und Shared-Abgleich (39 Module) erfolgreich. Ein angemeldeter
 Dev-Browserdurchlauf wurde nicht durchgeführt.
 Nur Frontend-Veröffentlichung erforderlich; Produktion bleibt unverändert.
+
+### Inhaltsabhängige Textflächen am 30.10.2026
+
+Arbeits- und Handbuch-Revisionsmodale bis 1680 Pixel (höchstens 96 % der
+Fensterbreite) verbreitert. Textflächen der Bearbeitung verwenden eine höhere
+Mindesthöhe und wachsen mit Inhalt und Zeilenumbruch; sie verkleinern sich bei
+gekürztem Inhalt wieder bis zur Mindesthöhe. Der Scrollbereich bleibt das Modal.
+Kurzes Anlegen behält eine kleinere Mindesthöhe. Lokaler Browser mit Beispieldaten:
+60 Zeilen vollständig ohne inneren Textfeld-Scrollbereich, scrollbares Modal,
+anschließendes Schrumpfen und Verwerfenschutz erfolgreich geprüft.
+Lint, Build und Shared-Abgleich (40 Module) erfolgreich. Handbuch-Bearbeitung
+ebenfalls im lokalen Browser geprüft. Kein angemeldeter Dev-Browserdurchlauf;
+nur Frontend-Veröffentlichung, keine Backend- oder Produktionsänderung.

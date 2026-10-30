@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { listQualityHistory, listQualityHandbookCatalog, saveQualityRecord } from '../../lib/quality.js'
 import { HANDBOOK_SECTIONS, SMART_FIELDS, qualityValues, nextQualityCycle } from '../../lib/qualityPresentation.js'
 import { qualityLabels as labels } from '../../lib/qualityLabels.js'
+import QualityTextarea from './QualityTextarea.jsx'
 
 export default function QualityEditor({ kind, record, departmentId, departments, handbookEntries, topics, focusPhase, newCycle = false, editable, onClose, onSaved, language }) {
   const en = language === 'en'
@@ -116,7 +117,7 @@ export default function QualityEditor({ kind, record, departmentId, departments,
     const short = smart || ['title', 'process', 'owner', 'participants'].includes(key)
     return <label className="form-field" key={key}><span>{label}</span>{date || short
       ? <input type={date ? 'date' : 'text'} required={key === 'title' || key === 'date' || key === 'process'} maxLength={short ? (key === 'title' ? 200 : key === 'participants' ? 20000 : smart ? (['smartSpecific', 'smartMeasurable'].includes(key) ? 20000 : 2000) : 500) : undefined} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />
-      : <textarea name={key} rows={rows} maxLength={20000} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />}</label>
+      : <QualityTextarea name={key} rows={rows} maxLength={20000} readOnly={readOnly} value={displayed[key] || ''} onChange={(event) => change(key, event.target.value)} />}</label>
   }
 
   return <dialog ref={dialog} className={`quality-dialog quality-dialog--editor${kind === 'handbook' ? ' quality-dialog--handbook' : ''}${creatingTopic || creatingMeeting || creatingHandbook ? ' quality-dialog--create' : ''}`} aria-labelledby="quality-editor-title" onCancel={(event) => { event.preventDefault(); close() }}>
