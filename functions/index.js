@@ -1,4 +1,4 @@
-import { searchMailboxOrderCustomersHandler } from './mailboxes.js'
+import { searchMailboxOrderCustomersHandler, assignMailboxOrderCustomerHandler } from './mailboxes.js'
 import { reviewMailboxInvoicesHandler, listTransportInvoiceChecksHandler } from './mailboxes.js'
 import { startMailboxActionHandler, getMailboxActionHandler, listMailboxActionsHandler, updateMailboxActionHandler, processMailboxActionRunHandler } from './mailboxActions.js'
 import { analyzeMailboxAgbHandler, assignMailboxAgbCustomerHandler } from './mailboxes.js'
@@ -97,7 +97,8 @@ export const listTransportInvoiceChecks = onCall({ region: 'europe-west3', invok
 export const analyzeMailboxAgb = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, analyzeMailboxAgbHandler)
 export const assignMailboxAgbCustomer = onCall(mailboxOptions, assignMailboxAgbCustomerHandler)
 export const previewMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxOrderHandler)
-export const searchMailboxOrderCustomers = onCall({ ...mailboxOptions, timeoutSeconds: 300, maxInstances: 3, concurrency: 4, secrets: [mailboxClientSecret, ...dycosMasterDataConfigurationSecrets] }, searchMailboxOrderCustomersHandler)
+export const assignMailboxOrderCustomer = onCall({ ...mailboxOptions, timeoutSeconds: 240, maxInstances: 3, concurrency: 4, secrets: [mailboxClientSecret, ...dycosMasterDataConfigurationSecrets] }, assignMailboxOrderCustomerHandler)
+export const searchMailboxOrderCustomers = onCall({ ...mailboxOptions, timeoutSeconds: 480, maxInstances: 3, concurrency: 4, secrets: [mailboxClientSecret, ...dycosMasterDataConfigurationSecrets] }, searchMailboxOrderCustomersHandler)
 export const exportMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 120, concurrency: 4 }, exportMailboxOrderHandler)
 export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingHandler)
 export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)

@@ -219,7 +219,11 @@ export async function exportMailboxOrderCapture({ db, context, data, originalPdf
       const proof = confirmedCustomerSearch(preview, data, order, now)
       const chosen = proof.matches.find(match => match.sourceId === data.customerSourceId && match.number === data.customerNumber)
       if (!chosen || proof.status !== 'found') fail('failed-precondition', 'Bitte einen bestätigten DyCoS-Suchtreffer auswählen.')
-      customer = { sourceId: chosen.sourceId, number: chosen.number, name: chosen.name }
+      const assignment = proof.assignment
+      if (!assignment || assignment.sourceId !== chosen.sourceId || assignment.number !== chosen.number || typeof assignment.partnerId !== 'string' || assignment.partnerId.includes('/')) fail('failed-precondition', 'Bitte den DyCoS-Kunden zuerst in Drehpunkt übernehmen und zuordnen.')
+      const importedCustomer = await transaction.get(db.doc(`businessPartners/${assignment.partnerId}`))
+      customer = { ...customerForExport(importedCustomer, chosen.number), partnerId: assignment.partnerId }
+      if (customer.sourceId !== chosen.sourceId) fail('failed-precondition', 'Die gespeicherte Kundenzuordnung stimmt nicht mehr mit dem DyCoS-Treffer überein.')
     } else customer = customerForExport(customerSnapshot, data.customerNumber)
     const receipt = receiptSnapshot.data()
     if (receiptSnapshot.exists && (receipt.ownerId !== context.uid || receipt.fingerprint !== fingerprint || receipt.customerId !== customer.sourceId)) fail('already-exists', 'Für diese Vorschau wurde bereits eine andere XML erstellt. Bitte den gespeicherten Export verwenden oder die Mail erneut auswerten.')
@@ -229,7 +233,7 @@ export async function exportMailboxOrderCapture({ db, context, data, originalPdf
     let xml
     try { xml = buildMailboxOrderXml(exportOrder, { customerId: customer.sourceId, originalPdf: pdf, exportId, allowMissingPrice: data.allowMissingPrice === true, companyCurrency }) } catch (error) { fail('invalid-argument', error.message) }
     if (!receiptSnapshot.exists) {
-      transaction.create(receiptRef, { ownerId: context.uid, connectionId: context.connectionId, messageKey: preview.messageKey, previewId: data.previewId, exportId, fingerprint, operationId: data.operationId, customerPartnerId: data.customerPartnerId, customerNumber: customer.number, customerId: customer.sourceId, originalAttachmentId: pdf.id, originalPdfHash: pdf.hash, order, ...(placeholder ? { placeholder: { debtorNumber: mailboxOrderPlaceholderNumber, confirmed: true, requestedCustomerName: order.customerName, notice: placeholderNotice } } : {}), createdAt: FieldValue.serverTimestamp(), createdByName: actorName(context.profile), expiresAt: now + 24 * lifetime })
+      transaction.create(receiptRef, { ownerId: context.uid, connectionId: context.connectionId, messageKey: preview.messageKey, previewId: data.previewId, exportId, fingerprint, operationId: data.operationId, customerPartnerId: customer.partnerId || data.customerPartnerId, customerNumber: customer.number, customerId: customer.sourceId, originalAttachmentId: pdf.id, originalPdfHash: pdf.hash, order, ...(placeholder ? { placeholder: { debtorNumber: mailboxOrderPlaceholderNumber, confirmed: true, requestedCustomerName: order.customerName, notice: placeholderNotice } } : {}), createdAt: FieldValue.serverTimestamp(), createdByName: actorName(context.profile), expiresAt: now + 24 * lifetime })
       transaction.update(previewRef, { exportedAt: FieldValue.serverTimestamp(), exportId })
     }
     return { xmlBase64: Buffer.from(xml, 'latin1').toString('base64'), fileName: `${exportId}.xml`, exportId, status: 'xml-created', alreadyExported: receiptSnapshot.exists }
