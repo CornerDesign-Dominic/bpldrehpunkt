@@ -21,6 +21,16 @@ export const getQualityTopic = (id) => getQualityRecord('topic', id)
 export const getQualityHandbook = (id) => getQualityRecord('handbook', id)
 export const getQualityMeeting = (id) => getQualityRecord('meeting', id)
 
+export async function listQualityHandbookCatalog() {
+  try {
+    const snapshot = await getDocs(collection(db, collections.handbook))
+    return snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }))
+  } catch (error) {
+    void reportTechnicalFailure({ module: 'handbook', stage: 'load', error })
+    throw error
+  }
+}
+
 export async function listQualityMeetingsForTopic(id) {
   try {
     const snapshot = await getDocs(query(collection(db, collections.meeting), where('topicIds', 'array-contains', id)))
