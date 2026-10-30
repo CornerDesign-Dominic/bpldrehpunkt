@@ -34,3 +34,4 @@
 @media (max-width: 560px) { .agb-file { align-items: flex-start; flex-wrap: wrap; }.agb-file__actions { width: 100%; margin-left: 45px; }.agb-file__actions .button { flex: 1; }.agb-summary span + span { padding-left: 0; border-left: 0; }.agb-result-row { gap: 10px; }.agb-result-row__meta { max-width: 100px; }.agb-status { text-align: right; } }
 
 .agb-source__quote[hidden] { display: none; }
+.agb-findings .agb-result-value { margin: 0; font: inherit; color: inherit; }
