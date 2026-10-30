@@ -5,7 +5,7 @@ import { requireActiveProfile } from './access.js'
 
 export const QUALITY_KINDS = Object.freeze({ topic: { collection: 'qualityTopics', module: 'kvp' }, meeting: { collection: 'qualityMeetings', module: 'kvp' }, handbook: { collection: 'qualityHandbook', module: 'handbook' } })
 export const QUALITY_TOPIC_OPTIONAL_FIELDS = Object.freeze(['cycleStartDate', 'smartSpecific', 'smartMeasurable', 'smartAchievable', 'smartRelevant', 'smartTimeBound', 'actDecision', 'actDate'])
-const handbookOptionalFields = ['lastReviewedDate', 'nextReviewDate']
+const handbookOptionalFields = ['lastReviewedDate', 'nextReviewDate', 'owner']
 const fields = {
   topic: ['departmentId', 'title', 'status', 'plan', 'do', 'check', 'act', 'goal', 'measure', 'owner', 'startDate', 'dueDate', 'cycle', ...QUALITY_TOPIC_OPTIONAL_FIELDS],
   meeting: ['departmentId', 'title', 'date', 'participants', 'notes', 'topicIds'],

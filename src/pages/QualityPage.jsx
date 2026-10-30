@@ -3,7 +3,8 @@ import { useLanguage } from '../i18n/useLanguage.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { listDepartments } from '../lib/departments.js'
 import { listQualityRecords } from '../lib/quality.js'
-import { PHASES, qualityTopicUrl, qualityHandbookUrl, qualityMeetingUrl, searchQualityRecords } from '../lib/qualityPresentation.js'
+import { PHASES, qualityTopicUrl, qualityHandbookUrl, qualityMeetingUrl, searchQualityRecords, isQualityReviewOverdue } from '../lib/qualityPresentation.js'
+import { useQualityToday } from '../components/quality/useQualityToday.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import QualityEditor from '../components/quality/QualityEditor.jsx'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -30,6 +31,7 @@ export default function QualityPage({ handbook = false }) {
   const [editor, setEditor] = useState(null)
   const [reload, setReload] = useState(0)
   const [departmentRetry, setDepartmentRetry] = useState(0)
+  const today = useQualityToday()
 
   useEffect(() => {
     let active = true
@@ -58,7 +60,7 @@ export default function QualityPage({ handbook = false }) {
       {visible.length === 0 && <p className="quality-empty">{search || status !== 'all' ? text('Keine passenden Einträge.', 'No matching entries.') : text('Noch keine Einträge für diese Abteilung.', 'No entries for this department yet.')}</p>}
       {!handbook && tab === 'topics' && visible.length > 0 && <div className="quality-board-scroll"><table className="quality-board"><thead><tr>{PHASES.map((phase) => <th key={phase} scope="col">{phase.toUpperCase()}</th>)}</tr></thead><tbody>{visible.map((topic) => <tr key={topic.id}>{PHASES.map((phase, index) => <td key={phase}><Link className="quality-cell" to={qualityTopicUrl(topic.id, { departmentId, phase })}>{index === 0 && <><strong>{topic.title}</strong><small>{text('Durchlauf', 'Cycle')} {topic.cycle} · {text({ active: 'Aktiv', paused: 'Pausiert', completed: 'Abgeschlossen' }[topic.status], { active: 'Active', paused: 'Paused', completed: 'Completed' }[topic.status])}</small></>}{phase === 'act' && topic.actDecision && <small>{({ correct: text('Korrigieren', 'Correct'), discard: text('Verwerfen', 'Discard'), establish: text('Etablieren', 'Standardize') })[topic.actDecision]}{topic.actDate ? ` · ${topic.actDate}` : ''}</small>}<p>{topic[phase] || (phase === 'act' && topic.actDecision ? '' : '—')}</p>{phase === 'plan' && topic.goal && <p><b>{text('Ziel: ', 'Goal: ')}</b>{topic.goal}</p>}{phase === 'do' && <small>{[topic.owner, topic.startDate, topic.dueDate].filter(Boolean).join(' · ')}</small>}</Link></td>)}</tr>)}</tbody></table></div>}
       {!handbook && tab === 'meetings' && <div className="quality-cards">{[...visible].sort((a, b) => b.date.localeCompare(a.date)).map((meeting) => <Link className="quality-card" key={meeting.id} to={qualityMeetingUrl(meeting.id)}><small>{meeting.date} · {meeting.participants}</small><h3>{meeting.title}</h3><p>{meeting.notes}</p><small>{text('Themen: ', 'Topics: ')}{meeting.topicIds.map((id) => records.find((topic) => topic.id === id)?.title || text('Nicht verfügbar', 'Unavailable')).join(', ')}</small></Link>)}</div>}
-      {handbook && groups.map((process) => <section key={process} className="quality-process"><h3>{process}</h3><div className="quality-cards">{visible.filter((item) => item.process === process).map((item) => <Link className="quality-card" key={item.id} to={qualityHandbookUrl(item.id)}><h4>{item.title}</h4><p>{item.situation}</p></Link>)}</div></section>)}
+      {handbook && groups.map((process) => <section key={process} className="quality-process"><h3>{process}</h3><div className="quality-cards">{visible.filter((item) => item.process === process).map((item) => <Link className={`quality-card${isQualityReviewOverdue(item, today) ? ' quality-review--overdue' : ''}`} key={item.id} to={qualityHandbookUrl(item.id)}><h4>{item.title}</h4><p>{item.situation}</p>{item.owner && <small>{text('Zuständig: ', 'Responsible: ')}{item.owner}</small>}{isQualityReviewOverdue(item, today) && <div><span className="quality-overdue-badge">{text('Kontrolle überfällig', 'Review overdue')}</span></div>}</Link>)}</div></section>)}
     </>}
     {editor && <QualityEditor key={editor.record.id} {...editor} departmentId={departmentId} topics={records} meetings={meetings} editable={editable} language={language} onClose={(options) => { setEditor(null); if (options?.reload) { setLoading(true); setReload((value) => value + 1) } }} onSaved={(saved) => { if (editor.kind === 'topic') navigate(qualityTopicUrl(saved.id)); else if (editor.kind === 'handbook') navigate(qualityHandbookUrl(saved.id)); else navigate(qualityMeetingUrl(saved.id)) }} />}
   </div>
