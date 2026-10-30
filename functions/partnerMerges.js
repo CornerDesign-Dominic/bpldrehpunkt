@@ -12,6 +12,7 @@ const text = (value) => value === null || value === undefined ? '' : String(valu
 const empty = (value) => !text(value)
 const actorName = (profile) => [text(profile?.firstName), text(profile?.lastName)].filter(Boolean).join(' ') || text(profile?.email) || 'Unbekannt'
 const unique = (values) => [...new Set(values.map(text).filter(Boolean))]
+const mergedDycosAccounts = (target, source) => [...new Map([...(target?.dycosReferences?.accounts || []), ...(source?.dycosReferences?.accounts || [])].map(account => [`${account.entity}:${account.number}:${account.sourceId}`, account])).values()]
 
 export const PARTNER_REFERENCE_FIELDS = PARTNER_REFERENCE_CATALOG.flatMap(({ collection, fields }) => fields.map((field) => [collection, field]))
 
@@ -43,7 +44,7 @@ export function mergePartnerRecords(target, source) {
   return {
     debtorNumber: debtors.primary,
     creditorNumber: creditors.primary,
-    dycosReferences: { ...(target?.dycosReferences || {}), ...(source?.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references },
+    dycosReferences: { ...(target?.dycosReferences || {}), ...(source?.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references, ...((target?.dycosReferences?.accounts || source?.dycosReferences?.accounts) ? { accounts: mergedDycosAccounts(target, source) } : {}) },
     address: mergeObject(target?.address, source?.address),
     contact: mergeObject(target?.contact, source?.contact),
     companyData: mergeObject(target?.companyData, source?.companyData),
@@ -110,7 +111,7 @@ export async function performPartnerMerge({ db, targetId, sourceId, partnerVersi
   const creditors = mergedNumbers(target, source, 'creditorNumber', 'creditorNumbers')
   const targetPatch = {
     debtorNumber: debtors.primary, creditorNumber: creditors.primary,
-    dycosReferences: { ...(source.dycosReferences || {}), ...(target.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references },
+    dycosReferences: { ...(source.dycosReferences || {}), ...(target.dycosReferences || {}), debtorNumbers: debtors.references, creditorNumbers: creditors.references, ...((target.dycosReferences?.accounts || source.dycosReferences?.accounts) ? { accounts: mergedDycosAccounts(target, source) } : {}) },
     ...applied.patch,
   }
   let carrierFollowup = null

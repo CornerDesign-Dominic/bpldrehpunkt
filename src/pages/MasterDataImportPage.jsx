@@ -1,17 +1,15 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import BackLink from '../components/ui/BackLink.jsx'
 import { usePermissions } from '../auth/usePermissions.js'
-import { approveCustomerImportRow, claimCustomerImportRow, listCustomerImportQueue, mergeCustomerImportPartners, processCustomerImport, releaseCustomerImportRow } from '../lib/customerImports.js'
-import { parseCustomerCsv } from '../lib/customerCsv.js'
-import { approveCarrierImportRow, claimCarrierImportRow, listCarrierImportQueue, mergeCarrierImportPartners, processCarrierImport, releaseCarrierImportRow } from '../lib/carrierImports.js'
-import { parseCarrierCsv } from '../lib/carrierCsv.js'
+import { approveCustomerImportRow, claimCustomerImportRow, listCustomerImportQueue, mergeCustomerImportPartners, releaseCustomerImportRow } from '../lib/customerImports.js'
+import { approveCarrierImportRow, claimCarrierImportRow, listCarrierImportQueue, mergeCarrierImportPartners, releaseCarrierImportRow } from '../lib/carrierImports.js'
 import { customerImportResultView } from '../lib/customerImportPresentation.js'
 import { mergeComparison, mergeDecisionSummary } from '../lib/partnerMergeDecisions.js'
 import PartnerMergeReview from '../components/business-partners/PartnerMergeReview.jsx'
 import CustomerImportHistory from '../components/imports/CustomerImportHistory.jsx'
-import { readCsvFile } from '../lib/csvEncoding.js'
+import DycosPartnerFetchForm from '../components/business-partners/DycosPartnerFetchForm.jsx'
 
 const statusLabel = (row) => row.kind === 'error' ? 'Fehlerhaft' : row.kind === 'merge' ? 'Zusammenführung erforderlich' : 'Prüfung erforderlich'
 const approvalLabel = (row) => row.approval?.type === 'reviewed' ? 'geprüft übernommen' : 'automatisch übernommen'
@@ -19,8 +17,8 @@ const activeLock = (row) => row.lock?.expiresAt?.toMillis?.() > Date.now()
 const editableComparisonValue = (value) => value === true || String(value).toLowerCase() === 'true' ? 'Ja' : value === false || String(value).toLowerCase() === 'false' ? 'Nein' : String(value ?? '')
 const comparisonValues = (row) => Object.fromEntries((row.comparisons || []).map((item) => [item.path, editableComparisonValue(item.incomingValue)]))
 const importApis = {
-  customer: { parse: parseCustomerCsv, process: processCustomerImport, list: listCustomerImportQueue, claim: claimCustomerImportRow, release: releaseCustomerImportRow, approve: approveCustomerImportRow, merge: mergeCustomerImportPartners },
-  carrier: { parse: parseCarrierCsv, process: processCarrierImport, list: listCarrierImportQueue, claim: claimCarrierImportRow, release: releaseCarrierImportRow, approve: approveCarrierImportRow, merge: mergeCarrierImportPartners },
+  customer: { list: listCustomerImportQueue, claim: claimCustomerImportRow, release: releaseCustomerImportRow, approve: approveCustomerImportRow, merge: mergeCustomerImportPartners },
+  carrier: { list: listCarrierImportQueue, claim: claimCarrierImportRow, release: releaseCarrierImportRow, approve: approveCarrierImportRow, merge: mergeCarrierImportPartners },
 }
 const importPath = (kind) => kind === 'carrier' ? '/kunden-unternehmer/import/unternehmer' : '/kunden-unternehmer/import'
 
@@ -33,7 +31,6 @@ function AcceptedRowsTable({ rows, emptyMessage, carrier = false }) {
 }
 
 export default function MasterDataImportPage({ kind = 'customer' }) {
-  const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const showingResults = searchParams.get('view') === 'results'
@@ -44,12 +41,8 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
   const numberKey = carrier ? 'creditorNumber' : 'debtorNumber'
   const numberLabel = carrier ? 'Kreditorennummer' : 'Debitorennummer'
   const { canEdit } = usePermissions()
-  const inputRef = useRef(null)
   const [queue, setQueue] = useState({ open: [], accepted: [], currentAccepted: [], runs: {} })
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [uploadDialog, setUploadDialog] = useState(null)
-  const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [modal, setModal] = useState(null)
@@ -68,31 +61,6 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
     void api.list(selectedRunId).then((nextQueue) => { if (active) setQueue(nextQueue) }).catch((caught) => { if (active) setError(caught instanceof Error ? caught.message : `Die ${subject}prüfungen konnten nicht geladen werden.`) }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [allowed, api, selectedRunId, showingResults, subject])
-
-  function chooseUploadFile(file) {
-    if (!file || uploading) return
-    const validationError = /\.xlsx?$/i.test(file.name)
-      ? 'Excel-Dateien werden noch nicht unterstützt. Bitte exportiere die Datei in DyCoS als CSV.'
-      : !/\.csv$/i.test(file.name) ? 'Bitte wähle einen DyCoS-Export im CSV-Format aus.' : ''
-    setUploadDialog((current) => ({ ...current, file: validationError ? null : file, error: validationError }))
-  }
-
-  async function confirmUpload() {
-    if (!uploadDialog?.file || uploading) return
-    const { file, kind: uploadKind } = uploadDialog
-    const uploadApi = importApis[uploadKind]
-    setUploading(true)
-    setUploadDialog((current) => ({ ...current, error: '' }))
-    try {
-      const parsed = uploadApi.parse(await readCsvFile(file))
-      const rows = parsed.rows.map((row) => ({ ...row, errors: [...row.errors, ...(parsed.missingHeaders.length ? [`CSV-Struktur unvollständig: ${parsed.missingHeaders.join(', ')}.`] : [])] }))
-      const result = await uploadApi.process({ fileName: file.name, rows })
-      setUploadDialog(null)
-      setNotice('')
-      setLoading(true)
-      navigate(`${importPath(uploadKind)}?view=results&runId=${encodeURIComponent(result.runId)}`, { state: { importNotice: `${result.counts.automaticallyAccepted} Zeile(n) automatisch übernommen, ${result.counts.open} Zeile(n) zur Prüfung eingestellt.` } })
-    } catch (caught) { setUploadDialog((current) => ({ ...current, error: caught instanceof Error ? caught.message : 'Die CSV-Datei konnte nicht verarbeitet werden.' })) } finally { setUploading(false) }
-  }
 
   async function openRow(row) {
     setError('')
@@ -156,12 +124,11 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
 
   return <div className="import-page customer-import-page">
     <div className="import-page__navigation"><BackLink to="/kunden-unternehmer" /></div>
-    <div className="import-page__heading"><h2>{<StaticText source={showingResults ? `${subject} importieren` : 'Stammdaten importieren'} />}</h2><p><StaticText source={"Sichere Daten werden direkt übernommen. Fachliche Entscheidungen bleiben für berechtigte Nutzer dauerhaft in einer gemeinsamen Warteschlange."} /></p></div>
-    <div className="masterdata-import-actions">
-      <button className="button" type="button" onClick={() => { setUploadDialog({ kind: 'customer', file: null, error: '' }); setDragOver(false) }}><StaticText source={"KU Daten importieren"} /></button>
-      <button className="button" type="button" onClick={() => { setUploadDialog({ kind: 'carrier', file: null, error: '' }); setDragOver(false) }}><StaticText source={"UTN Daten importieren"} /></button>
-      {!showingResults && <Link className="masterdata-import-actions__history" to={`${importPath(kind)}?view=results`}><StaticText source={"Prüfungen & Importverlauf anzeigen"} /></Link>}
-    </div>
+    <div className="import-page__heading"><h2>{<StaticText source={showingResults ? `${subject}: Prüfungen & Importverlauf` : 'Stammdaten importieren'} />}</h2><p><StaticText source={showingResults ? "Bisherige Importe und offene Prüfungen bleiben hier verfügbar." : "Kunden und Unternehmer über ihre Debitoren- oder Kreditornummer direkt aus DyCoS übernehmen."} /></p></div>
+    {!showingResults && <>
+      <DycosPartnerFetchForm />
+      <div className="masterdata-import-actions"><Link className="masterdata-import-actions__history" to={`${importPath(kind)}?view=results`}><StaticText source="Prüfungen & Importverlauf anzeigen" /></Link></div>
+    </>}
     {showingResults && <>
     <p className="masterdata-import-switch"><Link to={`${importPath(carrier ? 'customer' : 'carrier')}?view=results`} onClick={() => setLoading(true)}>{<StaticText source={carrier ? 'Kundenprüfungen und -verlauf anzeigen' : 'Unternehmerprüfungen und -verlauf anzeigen'} />}</Link></p>
     {error && <p className="form-error">{<StaticText source={error} />}</p>}{(notice || location.state?.importNotice) && <div className="import-result">{notice || location.state.importNotice}</div>}
@@ -169,16 +136,6 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
     {selectedRunId && <section className="import-preparation__section import-preparation__section--muted"><div className="import-preparation__heading"><h2><StaticText source={"Ergebnis dieses Imports"} /></h2><p><StaticText source={"Bereits übernommene Zeilen des aktuellen Importlaufs."} /></p></div>{loading ? null : <AcceptedRowsTable carrier={carrier} rows={queue.currentAccepted || []} emptyMessage="In diesem Importlauf wurde noch keine Zeile übernommen." />}</section>}
     <section className="import-preparation__section import-preparation__section--muted"><div className="import-preparation__heading"><h2><StaticText source={"Importverlauf"} /></h2><p><StaticText source={"Alle automatisch oder geprüft übernommenen Zeilen, nach Importlauf gruppiert."} /></p></div>{loading ? null : <CustomerImportHistory identityLabel={carrier ? 'Kreditor' : 'Debitor'} rows={queue.accepted} runs={queue.runs} />}</section>
     </>}
-    {uploadDialog && <div className="customer-import-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !uploading) setUploadDialog(null) }}>
-      <section className="customer-import-modal masterdata-upload-modal" role="dialog" aria-modal="true" aria-labelledby="masterdata-upload-title" aria-busy={uploading} onKeyDown={(event) => { if (event.key === 'Escape' && !uploading) setUploadDialog(null) }}>
-        <div className="customer-import-modal__heading"><div><h2 id="masterdata-upload-title">{<StaticText source={uploadDialog.kind === 'carrier' ? 'UTN Daten importieren' : 'KU Daten importieren'} />}</h2><p><StaticText source={"DyCoS-CSV mit Semikolon oder Komma auswählen."} /></p></div><TranslatedProps sources={{"aria-label":"Import schließen"}}><button type="button" aria-label="Import schließen" disabled={uploading} onClick={() => setUploadDialog(null)}>×</button></TranslatedProps></div>
-        <input ref={inputRef} className="sr-only" type="file" accept=".csv,text/csv" disabled={uploading} onChange={(event) => { chooseUploadFile(event.target.files?.[0]); event.target.value = '' }} />
-        <button className={`import-dropzone import-dropzone--button masterdata-upload-modal__dropzone${dragOver ? ' masterdata-upload-modal__dropzone--active' : ''}`} type="button" disabled={uploading} onClick={() => inputRef.current?.click()} onDragOver={(event) => { event.preventDefault(); if (!uploading) setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); chooseUploadFile(event.dataTransfer.files?.[0]) }}><strong>{uploadDialog.file?.name || <StaticText source={"CSV hierher ziehen oder zur Auswahl klicken"} />}</strong><span>{<StaticText source={uploadDialog.file ? 'Datei ausgewählt. Mit „Import starten“ bestätigen.' : 'CSV auswählen; UTF-8- und Windows-CSV werden unterstützt.'} />}</span></button>
-        {uploadDialog.error && <p className="form-error" role="alert">{uploadDialog.error}</p>}
-        {uploading && <p className="masterdata-upload-modal__progress" role="status"><StaticText source={"Datei wird geprüft und verarbeitet … Bitte warten."} /></p>}
-        <div className="customer-import-modal__actions"><button className="button button--secondary" type="button" disabled={uploading} onClick={() => setUploadDialog(null)}><StaticText source={"Abbrechen"} /></button><button className="button" type="button" disabled={uploading || !uploadDialog.file} onClick={() => void confirmUpload()}>{<StaticText source={uploading ? 'Import läuft …' : 'Import starten'} />}</button></div>
-      </section>
-    </div>}
     {modal && (
       <div className="customer-import-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) void closeModal() }}>
         <section className={'customer-import-modal' + (modal.row.kind === 'merge' ? ' customer-import-modal--merge' : '')} role="dialog" aria-modal="true" aria-labelledby="customer-import-modal-title">
@@ -190,7 +147,7 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
           {(modal.row.reasons || []).length > 0 && <div className="customer-import-modal__reasons">{modal.row.reasons.map((reason) => <p key={reason}>{reason}</p>)}</div>}
           {modal.row.kind === 'merge' && <PartnerMergeReview merge={modal.row.merge} selectedId={modal.targetPartnerId} onSelect={(partnerId) => setModal((current) => ({ ...current, targetPartnerId: partnerId, mergeComparison: mergeComparison(current.row.merge, partnerId) }))} comparison={modal.mergeComparison} onDecision={(key, decision) => setModal((current) => ({ ...current, mergeComparison: { ...current.mergeComparison, decisions: { ...current.mergeComparison.decisions, [key]: decision } } }))} />}
           {modal.row.kind !== 'merge' && modal.row.comparisons?.length > 0 && <div className="customer-import-comparisons">{modal.row.comparisons.map((item) => <label key={item.path}><span>{item.label}</span><div><output><small><StaticText source={"Aktuell"} /></small>{item.current}</output><span className="customer-import-comparisons__arrow">→</span><span><small><StaticText source={"Neu aus CSV"} /></small><input value={modal.values[item.path] ?? ''} onChange={(event) => setModal((current) => ({ ...current, conflictMessage: '', values: { ...current.values, [item.path]: event.target.value } }))} /></span></div></label>)}</div>}
-          {modal.row.kind === 'error' && <p className="form-error"><StaticText source={"Diese Zeile bleibt offen. Korrigiere die CSV und importiere sie erneut."} /></p>}
+          {modal.row.kind === 'error' && <p className="form-error"><StaticText source={"Diese frühere Importzeile bleibt offen. Prüfe die Quelldaten und rufe den Partner über den DyCoS-Stammdatenabruf ab."} /></p>}
           <div className="customer-import-modal__actions">
             <button className="button button--secondary" type="button" onClick={() => void closeModal()}><StaticText source={"Abbrechen"} /></button>
             {modal.row.kind === 'merge' ? (canEdit('partnerMerges') ? <button className="button" type="button" disabled={savingReview || !modal.targetPartnerId || mergeDecisionSummary(modal.mergeComparison.rows, modal.mergeComparison.decisions).open > 0} onClick={() => void mergePartners()}>{<StaticText source={savingReview ? 'Zusammenführung läuft …' : 'Partner zusammenführen'} />}</button> : <p className="form-error"><StaticText source={"Für die Zusammenführung fehlt die Berechtigung „Partner zusammenführen“."} /></p>) : modal.row.kind !== 'error' && <button className="button" type="button" disabled={savingReview} onClick={() => void approve()}>{<StaticText source={savingReview ? 'Übernahme läuft …' : 'Übernehmen'} />}</button>}

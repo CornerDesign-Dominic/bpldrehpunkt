@@ -21,11 +21,11 @@ const req = (uid, ta, requestId = randomUUID()) => ({ auth: { uid }, data: { taN
 const db = () => getFirestore()
 const id = (ta) => `dycos-${ta}`
 const payload = (ta, extras = {}) => ({
-  auftrag: { ID: 123, Nummer: Number(ta) }, ladeEntladestellen: [], kunde: null,
+  ladeEntladestellen: [], kunde: null,
   tour: null, unternehmerstamm: null, fahrzeugart: null, auftragspreise: [],
   tourkosten: [], relation: null, zahlungsbedingungKunde: null,
   zahlungsbedingungUnternehmer: null, fakturaZeilen: [], fakturaKopf: [],
-  LadeEntladestellen2: [], ...extras,
+  LadeEntladestellen2: [], ...extras, auftrag: { ID: 123, Nummer: Number(ta), Ladedatum: '2026-01-01', ...extras.auftrag },
 })
 async function user(permissions = { dataImports: 'edit' }, active = true) {
   const uid = randomUUID()
@@ -39,6 +39,26 @@ test('request canonicalization prevents duplicate SQL identities and requires a 
   assert.equal(validateDycosRequest({ taNummer: '0', requestId: randomUUID() }).taNummer, '0')
   assert.equal(hasDycosImportAccess({ role: 'admin', permissions: { dataImports: 'view' } }), false)
   assert.equal(hasDycosImportAccess({ role: 'superadmin' }), true)
+})
+
+test('emulator: old orders, missing-date legacy numbers and changed preview identities create nothing', { skip: !enabled }, async () => {
+  const uid = await user()
+  for (const [ta, date, expectedSourceId] of [['270100991', '2025-12-31', 123], ['251200992', null, 123], ['260100993', '2026-01-01', 999]]) {
+    const raw = payload(ta); raw.auftrag.Ladedatum = date
+    await assert.rejects(fetchDycosTransportOrderHandler({ ...req(uid, ta), data: { taNummer: ta, requestId: randomUUID(), expectedSourceId } }, dependencies(async () => raw)), { code: 'failed-precondition' })
+    assert.equal((await db().doc(`transportOrders/${id(ta)}`).get()).exists, false)
+  }
+  const ta = '270100994', raw = payload(ta); delete raw.auftrag.Ladedatum
+  const firstRequest = { ...req(uid, ta), data: { taNummer: ta, requestId: randomUUID(), expectedSourceId: 123 } }
+  const result = await fetchDycosTransportOrderHandler(firstRequest, dependencies(async () => raw))
+  assert.equal(result.status, 'new'); assert.equal(result.sourceId, '123')
+  assert.deepEqual(await fetchDycosTransportOrderHandler(firstRequest, dependencies(async () => assert.fail('receipt replay must not refetch'))), result)
+})
+
+test('emulator: import permission revoked during source read prevents the transaction from saving', { skip: !enabled }, async () => {
+  const uid = await user(), ta = nextTa()
+  await assert.rejects(fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => { await db().doc(`users/${uid}`).update({ 'permissions.dataImports': 'view' }); return payload(ta) })), { code: 'permission-denied' })
+  assert.equal((await db().doc(`transportOrders/${id(ta)}`).get()).exists, false)
 })
 
 test('mapped orders enter the existing routing/tracking model only with its required source data', () => {
@@ -231,7 +251,7 @@ test('emulator: a late CSV commit cannot overwrite a concurrently completed API 
   await orderRef.set({ externalNumber: ta, imported: { customer: { debtorNumber: debtor, name: 'Kunde' }, carrier: { originalName: creditor } }, importMeta: { source: 'dycos', fileName: 'old.csv' } })
   const response = payload(ta)
   const database = db(); const originalBatch = database.batch
-  const csvRow = { rowNumber: 2, externalNumber: ta, imported: { externalNumber: ta, customer: { debtorNumber: debtor, name: 'Kunde' }, carrier: { originalName: creditor } } }
+  const csvRow = { rowNumber: 2, externalNumber: ta, imported: { externalNumber: ta, loading: { window: { from: '2026-01-01' } }, customer: { debtorNumber: debtor, name: 'Kunde' }, carrier: { originalName: creditor } } }
   let intercepted = false
   database.batch = function () {
     const batch = originalBatch.call(this)

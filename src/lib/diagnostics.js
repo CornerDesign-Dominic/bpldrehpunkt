@@ -6,6 +6,7 @@ export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
   kvp: 'K.V.P.',
   handbook: 'Handbuch',
   'dycos-import': 'DyCoS-Auftragsabruf',
+  'dycos-master-data': 'DyCoS-Stammdatenabruf',
   mailboxes: 'Postfächer',
   'transport-route': 'Streckenberechnung',
   'tracking-preview': 'Tracking-Vorschau',

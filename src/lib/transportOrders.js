@@ -67,10 +67,15 @@ export async function importTransportOrderRows({ fileName, rows, rowErrors, carr
   return result.data
 }
 
-export async function fetchDycosTransportOrder({ taNummer, requestId }) {
+export async function fetchDycosTransportOrder({ taNummer, requestId, expectedSourceId }) {
   await waitForAppCheckToken()
-  const result = await httpsCallable(functions, 'fetchDycosTransportOrder', { timeout: 180000 })({ taNummer, requestId })
+  const result = await httpsCallable(functions, 'fetchDycosTransportOrder', { timeout: 180000 })({ taNummer, requestId, ...(expectedSourceId != null ? { expectedSourceId } : {}) })
   return result.data
+}
+
+export async function searchDycosTransportOrders(data) {
+  await waitForAppCheckToken()
+  return (await httpsCallable(functions, 'searchDycosTransportOrders', { timeout: 180000 })(data)).data
 }
 
 export async function listTransportOrderImportRuns(runId = '') {

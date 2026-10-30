@@ -8,6 +8,10 @@ const secretNames = {
 }
 const parameters = Object.fromEntries(Object.entries(secretNames).map(([key, name]) => [key, defineSecret(name)]))
 export const dycosFlowConfigurationSecrets = Object.values(parameters)
+const masterDataFlowUrl = defineSecret('DYCOS_MASTER_DATA_FLOW_URL')
+export const dycosMasterDataConfigurationSecrets = [...Object.entries(parameters).filter(([key]) => key !== 'flowUrl').map(([, value]) => value), masterDataFlowUrl]
+const orderSearchFlowUrl = defineSecret('DYCOS_ORDER_SEARCH_FLOW_URL')
+export const dycosOrderSearchConfigurationSecrets = [...Object.entries(parameters).filter(([key]) => key !== 'flowUrl').map(([, value]) => value), orderSearchFlowUrl]
 const audience = 'https://service.flow.microsoft.com/'
 const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 let tokenCache = null
@@ -20,6 +24,10 @@ const messages = {
   source_unavailable: 'Die DyCoS-Schnittstelle ist derzeit nicht erreichbar. Bitte erneut versuchen.',
   ta_not_found: 'Die angefragte TA-Nummer wurde in DyCoS nicht gefunden.',
   invalid_ta: 'Bitte eine gültige numerische TA-Nummer eingeben.',
+  partner_not_found: 'Die Partnernummer wurde in DyCoS nicht gefunden.',
+  partner_not_unique: 'Die Partnernummer ist in DyCoS nicht eindeutig.',
+  invalid_partner: 'Bitte eine gültige Debitoren- oder Kreditornummer eingeben.',
+  search_page_too_large: 'Die Suchvorschau ist zu umfangreich. Bitte den Zeitraum verkleinern.',
 }
 
 export class DycosFlowError extends Error {
@@ -109,6 +117,21 @@ function checkedToken(response, config, now) {
 
 export async function fetchDycosFlowOrder(taNummer, options = {}) {
   if (typeof taNummer !== 'string' || !/^(?:0|[1-9]\d{0,9})$/.test(taNummer) || Number(taNummer) > 2147483647) problem('invalid_ta', 'fetch')
+  return fetchDycosFlowPayload({ taNummer }, options)
+}
+
+export async function fetchDycosFlowPartner({ typ, nummer }, options = {}) {
+  if (!['kunde', 'utn'].includes(typ) || typeof nummer !== 'string' || !/^(?:0|[1-9]\d{0,9})$/.test(nummer) || Number(nummer) > 2147483647) problem('invalid_partner', 'fetch')
+  const config = options.config || { ...Object.fromEntries(Object.entries(parameters).filter(([key]) => key !== 'flowUrl').map(([key, param]) => [key, param.value()])), flowUrl: masterDataFlowUrl.value() }
+  return fetchDycosFlowPayload({ typ, nummer }, { ...options, config })
+}
+
+export async function fetchDycosFlowSearch(payload, options = {}) {
+  const config = options.config || { ...Object.fromEntries(Object.entries(parameters).filter(([key]) => key !== 'flowUrl').map(([key, param]) => [key, param.value()])), flowUrl: orderSearchFlowUrl.value() }
+  return fetchDycosFlowPayload(payload, { ...options, config })
+}
+
+async function fetchDycosFlowPayload(payload, options) {
   const config = validateDycosFlowConfiguration(options.config || Object.fromEntries(Object.entries(parameters).map(([key, param]) => [key, param.value()])))
   const fetchImpl = options.fetchImpl || fetch
   const now = options.now || Date.now
@@ -127,11 +150,17 @@ export async function fetchDycosFlowOrder(taNummer, options = {}) {
     accessToken = checked.token
   }
   const response = await send(fetchImpl, config.flowUrl, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ taNummer }),
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify(payload),
   }, 110000, 'fetch')
   if (!response.ok) {
-    if ([400, 404].includes(response.status)) {
+    if ([400, 404, 409, 422].includes(response.status)) {
       const error = await boundedJson(response, 128 * 1024, 'fetch')
+      if (response.status === 422 && error?.error === 'SEARCH_PAGE_TOO_LARGE') problem('search_page_too_large', 'fetch')
+      if (payload.typ) {
+        if (response.status === 404 && error?.code === 'PARTNER_NOT_FOUND') problem('partner_not_found', 'fetch')
+        if (response.status === 409 && error?.code === 'PARTNER_NOT_UNIQUE') problem('partner_not_unique', 'fetch')
+        if (response.status === 400 && error?.code === 'INVALID_REQUEST') problem('invalid_partner', 'fetch')
+      }
       if (response.status === 404 && error?.code === 'TA_NOT_FOUND') problem('ta_not_found', 'fetch')
       if (response.status === 400 && error?.code === 'INVALID_TA_NUMBER') problem('invalid_ta', 'fetch')
       problem('source_invalid_response', 'fetch')

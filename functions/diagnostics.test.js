@@ -15,7 +15,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'kvp', 'handbook'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 

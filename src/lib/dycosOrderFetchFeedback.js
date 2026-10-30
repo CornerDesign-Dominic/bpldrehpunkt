@@ -30,7 +30,11 @@ export function errorMessage(error) {
     case 'functions/already-exists': return 'Diese Anfrage wird bereits verarbeitet. Bitte warte kurz und versuche dieselbe TA-Nummer erneut.'
     case 'functions/aborted': return 'Der Auftrag wird gerade bearbeitet. Bitte warte kurz und rufe dieselbe TA-Nummer erneut ab.'
     case 'functions/resource-exhausted': return 'Es wurden zu viele Abrufe gestartet. Bitte warte eine Minute und versuche es erneut.'
-    case 'functions/failed-precondition': return 'Die Partnerzuordnung muss geprüft werden. Bitte prüfe die Stammdaten oder wende dich an die Administration.'
+    case 'functions/failed-precondition': return error.details?.sourceCode === 'SOURCE_ORDER_CHANGED'
+      ? 'Die Auftragszuordnung in DyCoS hat sich geändert. Bitte erneut suchen.'
+      : error.details?.sourceCode === 'ORDER_BEFORE_IMPORT_START'
+      ? 'Es können nur Aufträge ab Januar 2026 übernommen werden. Ohne Ladedatum muss die TA-Nummer einen gültigen Jahres-/Monatspräfix ab 2601 haben.'
+      : 'Die Partnerzuordnung muss geprüft werden. Bitte prüfe die Stammdaten oder wende dich an die Administration.'
     default: return 'Der Auftrag konnte nicht übernommen werden. Bitte versuche es erneut oder wende dich an die Administration.'
   }
 }

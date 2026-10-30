@@ -6,6 +6,7 @@ import { businessPartnerRoles } from './shared/businessPartnerRoles.js'
 import { newShipmentTrackingPartnerPolicy } from './shared/shipmentTrackingPartnerDefaults.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
+import { dycosImportEligibility } from './shared/dycosImportPolicy.js'
 
 const levels = { none: 0, view: 1, edit: 2 }
 const text = (value) => typeof value === 'string' ? value.trim() : ''
@@ -45,6 +46,7 @@ function validatedRow(value, index) {
   const externalNumber = text(value?.externalNumber)
   const imported = safeTree(value?.imported, `Zeile ${index + 1}`)
   if (!Number.isInteger(rowNumber) || rowNumber < 2 || !externalNumber || externalNumber.length > 120 || !imported || imported.externalNumber !== externalNumber) throw new HttpsError('invalid-argument', `Zeile ${index + 1} ist ungültig.`)
+  if (!dycosImportEligibility(imported.loading?.window?.from, externalNumber).allowed) throw new HttpsError('failed-precondition', 'Es können nur Aufträge ab Januar 2026 übernommen werden.', { sourceCode: 'ORDER_BEFORE_IMPORT_START' })
   if (!text(imported?.customer?.debtorNumber) || !text(imported?.customer?.name) || !text(imported?.carrier?.originalName)) throw new HttpsError('invalid-argument', `Zeile ${rowNumber} enthält nicht alle Pflichtwerte.`)
   return { rowNumber, externalNumber, imported }
 }

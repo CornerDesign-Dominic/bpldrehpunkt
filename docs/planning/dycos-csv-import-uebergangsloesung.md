@@ -1047,3 +1047,381 @@ Für den Live-Test: Auftragsseite neu laden, Drei-Punkte-Menü → Historie öff
 Nach einem Abruf über „Auftrag aktualisieren“ sind tatsächliche Änderungen mit
 alten/neuen Werten und Person sichtbar; ein unveränderter Abruf ergänzt keinen
 Eintrag. Alte bereits gespeicherte Importänderungen erscheinen ebenfalls.
+
+## 28. Eigenständiger Stammdatenabruf ohne Transportauftrag
+
+Am 29.10.2026 wurde in der Power-Automate-Lösung „BPL Drehpunkt“ der Flow
+„Drehpunkt – DyCoS Stammdaten abrufen“ angelegt (ID
+`0a4c748a-e0d3-f111-84ea-6045bd93bcb8`). Aktueller Stand: nach ausdrücklicher
+Nutzerfreigabe veröffentlicht; die vorhandene technische Anwendung
+„Drehpunkt DyCoS – Dev“ ist zusätzlich zum Besitzerkonto als Aufrufer zugelassen.
+Die Veröffentlichung wurde im Designer bestätigt. Echte Abrufprüfungen wurden
+anschließend erfolgreich abgeschlossen (siehe unten). Die vorherige
+Entwurfsprüfung meldete 0 Fehler und 0 Warnungen;
+eine erst beim Veröffentlichen erkannte Einschränkung wurde korrigiert:
+Der Trigger unterstützt kein JSON-Schema-`pattern`. Das Schema prüft Typ und
+Länge; die separate Bedingung prüft Integer und Wertebereich vor der SQL-Abfrage.
+Der bisherige TA-Flow wurde nicht verändert.
+
+Anfrage: POST mit `{"typ":"kunde","nummer":"18618"}` beziehungsweise
+`{"typ":"utn","nummer":"74321"}`. Die Nummer ist eine Ziffernfolge als Text
+im Wertebereich einer nicht negativen SQL-Int32-Zahl. Die Abfrage verwendet
+`Adressstamm.Debitorennummer` oder `Unternehmerstamm.Kreditorennummer` und
+höchstens zwei Treffer. Es werden gezielt die bereits unterstützten Stamm-,
+Kontakt-, Bank- und Zahlungsbedingungsfelder ausgewählt; kein Kreditlimit,
+keine Zugangsdaten und keine vollständigen Datenbankzeilen.
+
+Erfolg: `schemaVersion: 1`, `typ`, normalisierte `nummer`, `partner` und
+`zahlungsbedingung` (gegebenenfalls null). Antworten unterscheiden 400 für
+ungültige Eingaben, 404 für keinen Treffer, 409 für mehrdeutige Nummern und
+500 für technische Fehler mit Flow-Lauf-ID. Der Flow liest SQL und schreibt
+selbst keine Drehpunkt-Daten.
+
+Verbindliche Abgrenzung des Nutzers: Der Gegenpartner wird nicht zusätzlich
+abgefragt oder angelegt. Nur die bereits am angefragten Datensatz vorhandene
+interne Referenz (`UnternehmerID` beim Kunden, `KundenID` beim Unternehmer)
+darf zum Abgleich mit einem bereits vorhandenen Drehpunkt-Partner dienen.
+Bei sicherer Zuordnung wird dieser um die angefragte Rolle/Nummer und leere
+Felder ergänzt. Bestehende abweichende Werte bleiben erhalten und werden
+gemeldet; das Kreditlimit bleibt in Drehpunkt gepflegt. Eine unsichere
+Zuordnung darf keine automatische Zusammenführung auslösen.
+
+Die Drehpunkt-Anbindung muss dafür dauerhafte Quell-IDs je
+Debitoren-/Kreditorenreferenz erhalten und die vorhandenen Rechte-,
+Konflikt- und Historienregeln wiederverwenden. Die lokale Umsetzung ist in
+Abschnitt 29 beschrieben; ihre Veröffentlichung steht noch aus.
+
+### Reale Stammdaten-Abrufprüfung vom 29.10.2026
+
+Die technischen Zertifikatsanmeldedaten wurden wiederverwendet. Alle 20
+unterschiedlichen Partner aus den 13 bestehenden TA-Beispielen wurden einzeln
+abgerufen: 11 Kunden und 9 Unternehmer, jeweils HTTP 200 mit korrekter Rolle,
+Nummer, Quell-ID und Antwortstruktur. Sämtliche zurückgegebenen Fachfelder
+stimmen mit den vorhandenen Beispielantworten überein. Auch alle 23
+Zahlungsbedingungszuordnungen der Beispiele stimmen hinsichtlich ID und
+Bezeichnung überein. Laufzeit der erfolgreichen Partnerabrufe: 2,21–2,66 Sekunden
+in dieser Stichprobe. Es wurde kein Gegenpartner zusätzlich abgefragt.
+
+Zusätzlich bestanden: Aufruf ohne Token → 401, `abc` als Nummer → 400
+`INVALID_REQUEST`, nicht vorhandene Nummer `2147483647` → 404
+`PARTNER_NOT_FOUND`. Insgesamt 23 erfolgreiche HTTP-Prüfungen nach Korrektur.
+Der 409-Zweig wurde mangels eines bekannten echten Mehrfachtreffers nicht
+live ausgelöst. Keine Daten in Drehpunkt angelegt oder geändert.
+
+Der erste echte Kundenabruf deckte einen Fehler der Antwortaufbereitung auf:
+Power Automate unterstützt `removeProperty` nicht für den Eigenschaftsnamen
+`@odata.etag` mit Punkt. Die Entfernung dieser Connector-Metadaten entfällt;
+die ausgewählten Fachfelder bleiben begrenzt. Nach Korrektur wurde erneut
+veröffentlicht und die vollständige Serie erfolgreich wiederholt. Der
+technische Fehler wurde zuvor korrekt als HTTP 500 mit `FLOW_FAILED`
+zurückgegeben. Hinweis: Ein behandelter Fehler kann im Power-Automate-Verlauf
+als erfolgreicher Ablauf erscheinen; für den Aufrufer zählt der HTTP-Status.
+Rohantworten, Abrufadresse und Testskripte liegen ausschließlich im vorhandenen
+geschützten lokalen Testverzeichnis außerhalb des Repositorys.
+
+## 29. Standalone-Stammdatenabruf in Drehpunkt
+
+Lokal implementiert am 29.10.2026, noch nicht auf Dev veröffentlicht. Main und
+Produktion bleiben unberührt. Auf „Kunden & Unternehmer“ können Benutzer mit
+Stammdaten-Bearbeitungsrechten Kunde/Unternehmer auswählen, eine Debitoren- oder
+Kreditorennummer eingeben und „Abrufen und übernehmen“ wählen. Das Ergebnis
+verlinkt direkt zum effektiven Stammdatenblatt. Datenimportrechte allein
+berechtigen nicht zur Übernahme von Stammdaten.
+
+Die neue Callable `fetchDycosMasterData` verwendet App Check, aktive Benutzerprofile
+und serverseitige Stammdatenrechte. Sie verwendet dieselbe Zertifikatsidentität
+wie der TA-Abruf, aber die separate Secret-Konfiguration
+`DYCOS_MASTER_DATA_FLOW_URL`. Der bestehende Flow-URL-Secret bleibt unverändert.
+Die Adresse liegt bereits im geschützten lokalen Testverzeichnis und darf
+weder in Frontend-Konfiguration noch in Git übernommen werden.
+
+Zuordnung: exakte angefragte Kontonummer einschließlich vorhandener Aliasnummern,
+gespeicherte angefragte DyCoS-ID und gegebenenfalls die bereits im angefragten
+Datensatz enthaltene Gegenreferenz. Unterschiedliche Zielpartner, mehrere
+Treffer, defekte Merge-Weiterleitungen oder widersprüchliche gespeicherte
+Konten-/SQL-ID-Zuordnungen stoppen die Übernahme atomar. Es wird kein Gegenpartner
+bei DyCoS abgefragt oder aus dessen Referenz angelegt. Fehlt eine passende
+gespeicherte Quell-ID, kann eine Gegenreferenz nicht sicher zugeordnet werden;
+darauf weist das Ergebnis ausdrücklich hin. Firmennamen sind kein Matchkriterium.
+
+Bestehende manuelle Daten, Kreditlimit und Einstellungen bleiben erhalten.
+Leere Felder werden mit dem bestehenden DyCoS-Adapter ergänzt, abweichende Werte
+im vorhandenen Konflikthinweis angezeigt. Die angefragte Rolle und Nummer
+werden ergänzt; weitere Kontonummern bleiben als Alias erhalten. Dauerhafte
+Kontenreferenzen liegen unter `dycosReferences.accounts` als
+`{entity, number, sourceId}`. Der TA-Abruf behält zuvor bekannte Quell-IDs bei;
+Partnerzusammenführungen erhalten die Kontenreferenzen beider Seiten.
+
+Speicherung und Historie erfolgen gemeinsam in einer Transaktion. Neuanlagen
+erhalten nur einen kompakten Anlageeintrag, Ergänzungen tatsächliche
+Vorher-/Nachher-Werte mit Zeitpunkt und Person. Unveränderte Abrufe und reine
+Konflikthinweise erzeugen keinen zusätzlichen Änderungseintrag. Benutzerrechte
+werden vor dem Speichern erneut geprüft. Gleichzeitige Abrufe derselben Nummer
+sind gesperrt; eine wiederholte Anfrage-ID liefert das bereits gespeicherte
+Ergebnis zurück. Das gemeinsame Abruflimit mit TA-Abrufen beträgt zehn pro
+Benutzer und Minute. Fehlgeschlagene Abrufe legen keine leeren Partner an.
+Technische Fehler und Zuordnungskonflikte erscheinen unter „DyCoS-Stammdatenabruf“
+in der bestehenden Diagnose, ohne Rohantworten oder Zugangsdaten.
+
+Prüfung: gezielte Client-, Mapping-, Rechte-, Transaktions-, Merge- und
+Historienprüfungen im lokalen Firestore-Emulator bestanden. Dazu gehören
+Gegenreferenz-Erweiterung, neue Aliasnummern, Merge-Weiterleitungen, Erhalt
+manueller Angaben/Kreditlimits, kompakte Historie, Wiederholungen, Parallelabruf,
+Rechteentzug während des Abrufs und tatsächliche Diagnoseeinträge. Alle 20
+bereits authentifiziert abgerufenen Beispielpartner wurden lokal gespeichert
+und erneut übernommen (40 erfolgreiche Übernahmen). Browserprüfung der echten
+Komponente mit isolierten Testantworten: Kunde/Unternehmer, Erfolg mit
+Konflikthinweis, nicht gefunden, Leserechte sowie DE/EN und Hell/Dunkel.
+Lint, Build und Shared-Modulprüfung bestanden; bekannte Build-Chunkwarnung bleibt.
+
+Für eine spätere ausdrücklich freigegebene Dev-Veröffentlichung:
+
+- Neues URL-Secret ausschließlich im Projekt `db-bpl-drehpunkt-dev` hinterlegen.
+- `fetchDycosMasterData` bereitstellen; außerdem `fetchDycosTransportOrder`
+  für den Erhalt der Quellreferenzen und `listDiagnosticsPage` für den neuen
+  Diagnosefilter aktualisieren. Die vorhandenen Merge-Endpunkte mit der
+  erweiterten Kontenreferenz-Erhaltung gemeinsam berücksichtigen.
+- Frontend gesammelt auf Dev veröffentlichen. Keine neuen Firestore-Regeln
+  oder zusammengesetzten Indizes erforderlich; neue Abrufbelege und Sperren
+  sind ausschließlich serverseitig zugänglich.
+- Im Live-Test eine bekannte Nummer übernehmen, dasselbe Blatt erneut abrufen
+  und anschließend die kompakte Historie und gegebenenfalls Konflikte prüfen.
+
+
+## 30. Zentraler Stammdatenabruf statt CSV-Oberfläche
+
+Am 30.10.2026 lokal angepasst: Der vorhandene DyCoS-Stammdatenabruf ist nur
+noch unter „Stammdaten importieren“ verfügbar. Die Kunden-/Unternehmerübersicht
+behält den Link zur Importseite; das dortige Abrufformular entfällt.
+CSV-Auswahl, Uploaddialog und Uploadverarbeitung wurden aus der Importseite
+entfernt. Bisherige Kunden- und Unternehmerprüfungen, Importläufe,
+Vergleiche und Zusammenführungen bleiben erreichbar. Fehlermeldungen älterer
+Importzeilen verweisen auf den direkten Abruf statt auf einen erneuten CSV-Upload;
+der Abruf erledigt diese alten Prüfzeilen nicht automatisch.
+Die bestehende Übernahme-, Konflikt- und Historienlogik sowie die bestehenden
+Berechtigungsprüfungen werden wiederverwendet. Keine Änderung am Flow oder
+an Main; keine Veröffentlichung im Rahmen dieser Anpassung.
+
+
+## 31. Transportauftragsimport ausschließlich über DyCoS in der Oberfläche
+
+Am 30.10.2026 lokal angepasst: Auf der Transportauftrags-Importseite entfallen
+CSV-Button, Dateiauswahl, Uploaddialog und die zugehörige CSV-Verarbeitung.
+Der direkte Abruf per TA-Nummer verwendet unverändert den vorhandenen Flow
+und aktualisiert nach der Übernahme den Importverlauf. Bestehende CSV- und
+API-Importläufe samt Fehlern und Detailansicht bleiben erhalten; historische
+CSV-Bezeichnungen beschreiben weiterhin die damalige Datenquelle.
+„Auftrag aktualisieren“, bestehende Aufträge, Historie und Berechtigungen
+bleiben erhalten. Die serverseitigen CSV-Funktionen werden durch diese reine
+Oberflächenumstellung nicht entfernt. Kein Push oder Deployment, Main unberührt.
+
+
+## 32. Such-Flow für den Sammelimport nach Ladedatum
+
+Am 30.10.2026 in „BPL Drehpunkt“ erstellt und nach ausdrücklicher Freigabe der
+technischen Anwendung veröffentlicht: **Drehpunkt – DyCoS Aufträge suchen**.
+Flow-ID: `b02f2f53-60d4-f111-84ea-6045bd93bcb8`.
+Die bestehende SQL-Verbindungsreferenz `new_SQLDatenbankDPL` wird wiederverwendet.
+TA-Einzelabruf, Stammdaten-Flow, Strukturtest, Drehpunkt-Frontend und Main werden
+hierdurch nicht verändert. Es erfolgen ausschließlich SQL-Lesezugriffe.
+
+### Authentifizierung und Anfrage
+
+HTTP POST mit bestehender Zertifikatsanmeldung für die Flow-Service-Audience.
+Aufrufer sind ausschließlich der bestehende Besitzer und die ausdrücklich
+bestätigte Service-Principal-Objekt-ID
+`9e4a1b27-1461-46eb-b309-1dbbd5fadb79`.
+Die Aufrufadresse liegt außerhalb des Repositorys in der geschützten Datei
+`C:/Users/domin/.codex/secrets/drehpunkt-dycos-dev/order-search-flow-url.txt`.
+Für die spätere Drehpunkt-Anbindung ist ein eigenes URL-Secret vorzusehen;
+die vorhandenen TA-/Stammdaten-URLs bleiben unverändert.
+
+Beispielanfrage:
+
+```json
+{
+  "ladeDatumVon": "2026-11-02",
+  "ladeDatumBis": "2026-11-02",
+  "relationId": 8,
+  "nachId": 0
+}
+```
+
+Beide Datumswerte sind Pflicht und müssen gültige, unveränderte ISO-Kalendertage
+`JJJJ-MM-TT` sein; Von darf nicht nach Bis liegen. Beide Tage sind eingeschlossen.
+Der Bezug ist `Auftraege.Ladedatum`. Relation ist optional: weglassen oder null
+bedeutet kein Relationsfilter. `relationId` ist die interne `Relationen.ID`,
+**nicht** Relationsnummer oder der führende Code der Bezeichnung. `nachId` ist
+ein optionaler numerischer Fortsetzungswert, Standard 0. JSON-Schema schränkt
+Relation und Cursor auf Ganzzahlen von 0 bis 2147483647 ein.
+
+### Begrenzte SQL-Abfragen und Fortsetzung
+
+- Aufträge nach Ladedatum, optional RelationsID, und ID größer nachId; sortiert
+  nach ID aufsteigend. Es werden 16 Kandidaten gelesen und maximal 15 geliefert.
+- Kunden-, Touren-, Stations- und Relationsfilter werden nur aus diesen 15
+  Aufträgen erzeugt. Wiederholte IDs werden für Lookupfilter dedupliziert.
+- Kunden: ID, Firma, Debitorennummer; Touren: ID, UnternehmerID;
+  Unternehmer: ID, Bezeichnung, Kreditorennummer; Relationen: ID, Nummer, Bezeichnung.
+- Stationen nur für die gefundenen Aufträge: ID, AuftragsID, Lade_Entladestelle,
+  Zeile_In_Auftrag, Firma, Strasse, PLZ, Ort, Land, Ankunft; stabile Sortierung
+  nach AuftragsID, Zeile_In_Auftrag und ID.
+- Keine Bank-/Kontakt-/Preis-/Rechnungsdaten. Keine zusätzlichen Gegenpartner.
+  Leere Zuordnungslisten erzeugen einen Filter ohne Treffer statt einer
+  unbeschränkten Tabellenabfrage.
+
+Der echte Connector-Test hat zwei Einschränkungen gezeigt: Direkte Datums-
+literale erzeugten Text-/DateTime-/DateTimeOffset-Typfehler. Der produktive
+Filter vergleicht deshalb den Kalendertag über die unterstützten OData-
+Funktionen year/month/day als YYYYMMDD-Zahl direkt in der SQL-Connector-Abfrage.
+Das ist keine nachträgliche Filterung einer unbeschränkt abgerufenen Tabelle;
+die Nutzung eines Datumsindexes durch diese Kalenderfunktionen ist jedoch nicht
+belegt. Laufzeiten bei größeren Datenmengen weiter beobachten.
+
+Zusätzlich gilt ein OData-Ausdruckslimit von 100 Knoten. Der erste 50er-
+Seitenentwurf überschritt dieses bei mehreren Kunden-IDs; deshalb verwendet
+der veröffentlichte Flow bewusst 15er-Seiten. Nicht ohne erneuten Test erhöhen.
+Die erste erfolgreiche echte Seite benötigte etwa 12,6 Sekunden.
+
+### Antwort und spätere Drehpunkt-Verarbeitung
+
+HTTP 200 liefert schemaVersion 1, pageSize 15, die Arrays `auftraege`, `kunden`,
+`touren`, `unternehmer`, `stationen`, `relationen` sowie `hasMore` und
+`nextNachId`. Die Daten sind auf Vorschaufelder begrenzt; SQL-Connector-
+Metafelder wie ItemInternalId/@odata.etag können zusätzlich vorkommen.
+Aufträge enthalten nur ID, Nummer, Ladedatum, RelationsID, FrachtzahlerID, TourenID.
+
+Drehpunkt setzt daraus die kompakten Zeilen zusammen: FrachtzahlerID → Kunde,
+TourenID → Tour → Unternehmer, RelationsID → Relation sowie erste Lade-/letzte
+Entladestation anhand Typ und stabiler Stationssortierung. Fehlende Zuordnungen
+bleiben leer. Bei hasMore erneut mit identischem Zeitraum/Relation und
+nachId = nextNachId suchen; Antworten nach Auftrags-ID deduplizieren. Die Suche
+ist keine transaktionale Momentaufnahme paralleler DyCoS-Änderungen.
+
+Ein Lookup mit Connector-nextLink oder mehr als 1.000 Stationszeilen erzeugt
+HTTP 422 / SEARCH_PAGE_TOO_LARGE statt einer unbemerkt unvollständigen Vorschau.
+Ungültige Datumsbereiche erhalten HTTP 400 / INVALID_REQUEST; Schemafehler können
+bereits am Trigger als TriggerInputSchemaMismatch abgelehnt werden.
+SQL-/Gateway-/Verarbeitungsfehler erhalten HTTP 500 / FLOW_FAILED.
+Ohne Authentifizierung liefert die Plattform HTTP 401. Keine Rohfehlermeldungen
+oder SQL-Zugangsdaten in der HTTP-Antwort.
+
+Die spätere Sammelimport-Oberfläche muss alle gewünschten Suchseiten laden,
+bevor „Alle markieren“ eine vollständige Auswahl verspricht. Nur ausgewählte
+TA-Nummern werden über den vorhandenen vollständigen TA-Abruf übernommen;
+Fortschritt, Wiederholungen und das bestehende Abruflimit dabei berücksichtigen.
+Die Suche selbst legt noch keine Firestore-Aufträge an.
+
+Echte Beispieldaten und Testskripte bleiben ausschließlich im geschützten
+lokalen Secret-Verzeichnis. Der finale Fehlerpfad beendet technische Fehler
+nach der HTTP-Antwort mit dem Laufstatus Failed; dadurch erscheinen behandelte
+SQL-/Verarbeitungsfehler nicht irreführend als erfolgreiche Suchläufe.
+
+Abschlussprüfung am 30.10.2026: 38 Prüfungen des vollständigen Ablaufs bestanden
+(HTTP-Aufrufe und Beispielabdeckung), darunter alle 14 vorhandenen Beispiel-TAs,
+ungefilterte Suche, Relation 7/8, unbekannter/umgekehrter Datumsbereich,
+Schemafehler, leere Suche und mehrere Seiten ohne überlappende Auftrags-IDs.
+Beispiele ohne Stationen bleiben auffindbar. Nach der finalen Veröffentlichung
+fünf zusätzliche HTTP-Tests bestanden: gültige Beispielsuche, explizit null als
+Relation, ungültiges Datum, Relations-ID außerhalb int32 und negativer Cursor.
+Zusätzlich wurde bei 25 gespeicherten Vorschauantworten geprüft, dass sämtliche
+Lookup-Zeilen nur zu den jeweiligen Kandidaten gehören. Ausschließlich die
+vereinbarten Vorschaufelder und Connector-Metafelder wurden zurückgegeben.
+Die letzten erfolgreichen Suchaufrufe benötigten rund 11–14 Sekunden pro Seite.
+Designerprüfung nach finaler Veröffentlichung: 0 Fehler, 0 Warnungen.
+Kein Git-Push, kein Drehpunkt-/Firebase-Deployment, Main unberührt.
+
+## 33. Sammelimport in Drehpunkt (30.10.2026, lokal umgesetzt)
+
+Die Auftragsimportseite bietet zusätzlich zum einzelnen TA-Abruf eine Suche
+nach Ladedatum von/bis mit optionaler Relation. Kompakte Zeilen zeigen TA und
+Ladedatum, Kunde, Unternehmer, erste Lade- und letzte Entladestelle. Bereits
+vorhandene Aufträge sind gekennzeichnet. Nur ausgewählte Zeilen werden über
+den bestehenden vollständigen TA-Abruf übernommen bzw. aktualisiert.
+
+„Weitere Aufträge laden“ ergänzt jeweils eine Suchseite. „Alle markieren“ lädt
+zuerst alle verbleibenden Seiten und markiert erst nach erfolgreichem Abschluss
+die vollständige Liste. Bei mehr als 5.000 Treffern muss der Zeitraum eingegrenzt
+werden; es gibt keine stille Begrenzung mit vermeintlich vollständiger Auswahl.
+Fehlende optionale Vorschauangaben bleiben leer. Die Suche schreibt keine
+Aufträge oder Partner.
+
+### Jahresgrenze und verbindlicher Abruf
+
+Mit dem Nutzer geklärt: Ladedatum ab **01.01.2026**, spätere Jahre eingeschlossen.
+Ein vorhandenes tatsächliches Ladedatum ist maßgebend. Fehlt es, gilt beim
+vollständigen Abruf eine TA-Nummer mit gültigem YYMM-Präfix ab 2601 als
+Ersatznachweis, z. B. 2612 oder 2701. Ein vorhandenes älteres oder ungültiges
+Datum wird dadurch nicht überstimmt. Technische 1899-Basisdaten gelten als
+fehlendes Datum. Die Regel gilt serverseitig auch für Einzelabrufe und den
+verbliebenen CSV-Import-Endpunkt, nicht nur für Datumsfelder in der Oberfläche.
+
+Die Datumssuche findet ausschließlich Aufträge mit passendem Ladedatum.
+Aufträge ohne Ladedatum können weiterhin einzeln über ihre TA-Nummer abgerufen
+werden. Vor dem Speichern des Sammelimports wird außerdem die interne
+DyCoS-Auftrags-ID aus der Vorschau mit dem aktuellen vollständigen Abruf
+verglichen. Ein Identitätswechsel erzeugt einen Fehler statt eines falschen
+Imports. Historie, Partnerzuordnung und Tracking verwenden die bestehende
+Importverarbeitung und deren Voraussetzungen.
+
+### Fortsetzen, Fehler und Berechtigungen
+
+Aufträge werden nacheinander mit mindestens 6,5 Sekunden zwischen den Starts
+abgerufen. Abruflimits werden mit begrenzten automatischen Wiederholungen
+beachtet. Ein fachlicher Fehler bei einer TA wird sichtbar protokolliert, die
+übrigen ausgewählten Aufträge können weiterlaufen. Bei unklarem Verbindungs-
+oder Berechtigungsfehler pausiert die Verarbeitung. Pausieren beendet zunächst
+den laufenden Auftrag. Ergebnisse unterscheiden neu, aktualisiert, unverändert
+und fehlgeschlagen; Warnungen bleiben sichtbar.
+
+Die Auswahl wird benutzergebunden in diesem Browser gespeichert: TA-Nummer,
+interne Auftrags-ID, feste Anfrage-ID, Status und Zeitangaben, keine
+Partner-/Stationsvorschauen. Nach Neuladen kann sie fortgesetzt werden. Auch
+ein Abruf mit unklarem Ausgang behält seine Anfrage-ID; vorhandene serverseitige
+Importbelege verhindern eine doppelte Übernahme. Es ist kein Hintergrunddienst:
+Die Seite muss während des Imports geöffnet bleiben.
+
+Aktives Konto und Bearbeitungsrecht für Datenimporte werden vor dem Quellabruf
+und nach der Suche bzw. innerhalb der Speichertransaktion erneut geprüft.
+Die Suche hat ein separates benutzerbezogenes Limit und eine Sperre gegen
+gleichzeitige Suchläufe. Fehler landen bereinigt in der Diagnose, ohne rohe
+SQL-Daten, Endpunktadressen oder Zugangsdaten.
+
+### Such-Flow ergänzt und real geprüft
+
+Der bestehende Such-Flow unterstützt zusätzlich `{ "modus": "relationen" }`.
+Dieser frühe Zweig liest ausschließlich ID, Nummer und Bezeichnung aus
+Relationen und beendet den Lauf ohne Auftragsabfragen. Mehr als 1.000 Relationen
+oder ein Connector-Fortsetzungslink erzeugen einen expliziten Fehler. Drehpunkt
+verwendet die IDs intern und zeigt die Bezeichnungen zur Auswahl an.
+Die Suchvalidierung im Flow lehnt Datumsbereiche vor 2026 ebenfalls ab.
+Die bereits freigegebenen technischen Aufrufer bleiben unverändert.
+
+Nach Veröffentlichung dieser Ergänzung drei echte Lesetests bestanden:
+Relationskatalog mit 18 Einträgen, abgelehnter Zeitraum vor 2026 und Suche am
+02.11.2026 mit Relation 8 (sieben Aufträge). Zusätzlich 45 Modul-/Ablauftests
+und 26 Firestore-Emulatortests bestanden. Oberflächenprüfung mit ausschließlich
+synthetischen Daten: seitenübergreifendes Alle-Markieren, gezielte Auswahl,
+Einzelfehler und Wiederholung mit gleicher Anfrage-ID, Pause/Neuladen/Fortsetzen,
+Ansicht ohne Bearbeitungsrecht, Suchfehler sowie deutsche/englische und
+helle/dunkle Darstellung. Ein vollständiger Liveimport aus der neuen Oberfläche
+steht bis zur Dev-Veröffentlichung noch aus. Build, ESLint und Prüfung der
+34 synchronisierten gemeinsamen Module erfolgreich; der Build meldet die
+bereits bekannte Warnung zu großen JavaScript-Dateien. Finale Flowprüfung:
+0 Fehler, 0 Warnungen.
+
+### Für eine spätere Dev-Veröffentlichung
+
+- Nur im Firebase-Projekt `db-bpl-drehpunkt-dev` das Secret
+  `DYCOS_ORDER_SEARCH_FLOW_URL` aus der oben genannten geschützten lokalen
+  URL-Datei hinterlegen. Vorhandene Zertifikats-/Anmeldesecrets werden verwendet.
+- Functions `searchDycosTransportOrders`, `fetchDycosTransportOrder` und
+  `importTransportOrders` mit den synchronisierten gemeinsamen Modulen
+  veröffentlichen; der Einzelabruf liefert nun auch die interne Quell-ID.
+- Anschließend das Frontend auf Dev veröffentlichen und einen kleinen echten
+  Sammelimport prüfen. Keine zusätzlichen Firestore-Regeln oder Indizes nötig;
+  die neue Quota-Sammlung ist für direkte Clientzugriffe standardmäßig gesperrt.
+
+In diesem Arbeitsschritt kein Git-Push und kein Firebase-/Drehpunkt-Deployment.
+Main bleibt unberührt. Die neue Oberfläche benötigt die genannten Dev-Schritte,
+bevor sie dort live nutzbar ist.

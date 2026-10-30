@@ -6,6 +6,7 @@ import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { fetchDycosFlowOrder } from './dycosFlowClient.js'
 import { mapDycosOrder, preserveDycosUnmappedFields } from './dycosOrderMapping.js'
+import { dycosImportEligibility } from './shared/dycosImportPolicy.js'
 import { mapDycosPartnerData, hasDycosMasterDataAccess, dycosPartnerAdditions, combineDycosPartnerSources, dycosPartnerReviewFingerprint } from './dycosPartnerData.js'
 import { customerPartnerPayload, carrierPartnerPayload, importPartnerId } from './transportOrderImports.js'
 import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
@@ -25,12 +26,13 @@ export function validateDycosRequest(data) {
   if (!/^(0|[1-9]\d{0,9})$/.test(taNummer) || Number(taNummer) > 2147483647) throw new HttpsError('invalid-argument', 'Bitte eine gültige TA-Nummer eingeben.')
   const requestId = text(data?.requestId)
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)) throw new HttpsError('invalid-argument', 'Ungültige Anfrage-ID. Bitte die Seite neu laden.')
-  return { taNummer, requestId }
+  if (data?.expectedSourceId != null && (!Number.isInteger(data.expectedSourceId) || data.expectedSourceId < 0 || data.expectedSourceId > 2147483647)) throw new HttpsError('invalid-argument', 'Ungültige Auftragszuordnung.')
+  return { taNummer, requestId, ...(data?.expectedSourceId != null ? { expectedSourceId: data.expectedSourceId } : {}) }
 }
 
 // Matching by account identity is intentional: a similar company name is not
 // sufficient evidence for linking a different legal/business partner.
-async function resolvePartner(transaction, db, kind, number) {
+export async function resolvePartner(transaction, db, kind, number) {
   if (!number) return null
   const field = kind === 'debtor' ? 'debtorNumber' : 'creditorNumber'
   const refs = kind === 'debtor' ? 'debtorNumbers' : 'creditorNumbers'
@@ -95,12 +97,13 @@ async function claimRequest(db, uid, data, token, nowMs) {
     const [receipt, lock, order, quota] = await Promise.all([transaction.get(receiptRef), transaction.get(lockRef), transaction.get(orderRef), transaction.get(quotaRef)])
     if (receipt.exists) {
       if (receipt.get('externalNumber') !== data.taNummer) throw new HttpsError('invalid-argument', 'Die Anfrage-ID wurde bereits für einen anderen Auftrag verwendet.')
+      if (data.expectedSourceId != null && receipt.get('result.sourceId') !== String(data.expectedSourceId)) throw new HttpsError('failed-precondition', 'Die Auftragszuordnung hat sich geändert. Bitte erneut suchen.', { sourceCode: 'SOURCE_ORDER_CHANGED' })
       return { result: receipt.get('result') }
     }
     if (lock.exists && lock.get('expiresAtMs') > nowMs) throw new HttpsError('aborted', 'Diese TA wird bereits abgerufen. Bitte kurz warten und erneut versuchen.')
     const start = quota.exists && nowMs - quota.get('windowStart') < 60_000 ? quota.get('windowStart') : nowMs
     const count = start === quota.get('windowStart') ? Number(quota.get('count')) || 0 : 0
-    if (count >= 10) throw new HttpsError('resource-exhausted', 'Zu viele Abrufe. Bitte eine Minute warten.')
+    if (count >= 10) throw new HttpsError('resource-exhausted', 'Zu viele Abrufe. Bitte eine Minute warten.', { retryAfterMs: Math.max(1000, start + 60000 - nowMs) })
     transaction.set(quotaRef, { windowStart: start, count: count + 1 })
     transaction.set(lockRef, { token, expiresAtMs: nowMs + leaseMs })
     return { receiptRef, lockRef, orderRef, baseVersion: versionOf(order) }
@@ -119,10 +122,13 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
   const rowRef = runRef.collection('rows').doc('request')
   const now = FieldValue.serverTimestamp()
   return db.runTransaction(async (transaction) => {
-    const [receipt, lock, order, catalog, tracking] = await Promise.all([
+    const [receipt, lock, order, catalog, tracking, currentUser] = await Promise.all([
       transaction.get(claim.receiptRef), transaction.get(claim.lockRef), transaction.get(claim.orderRef),
       transaction.get(db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH)), transaction.get(db.doc(`transportOrderTrackings/${claim.orderRef.id}`)),
+      transaction.get(db.doc(`users/${request.auth.uid}`)),
     ])
+    profile = currentUser.data()
+    if (!profile?.active || !hasDycosImportAccess(profile)) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
     if (receipt.exists) return receipt.get('result')
     if (lock.get('token') !== token || lock.get('expiresAtMs') <= nowMs) throw new HttpsError('aborted', 'Der Abruf ist abgelaufen. Bitte erneut versuchen.')
     if (versionOf(order) !== claim.baseVersion) throw new HttpsError('aborted', 'Der Auftrag wurde während des Abrufs geändert. Bitte erneut abrufen.')
@@ -165,7 +171,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
         // authoritative source master data. Populate mapped fields directly.
         for (const [field, value] of Object.entries(entry.additions.patch)) entry.plan.partner[field] = value && typeof value === 'object' && !Array.isArray(value) ? { ...(entry.plan.partner[field] || {}), ...value } : value
       }
-      entry.metadata = { source: 'dycos-api', sourceReferences: entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId })), lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, addedFields: entry.additions.changedFields }
+      entry.metadata = { source: 'dycos-api', sourceReferences: [...new Map([...(entry.plan.partner.dycosImport?.sourceReferences || []), ...entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId }))].map((ref) => [`${ref.entity}:${ref.id}`, ref])).values()], lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, addedFields: entry.additions.changedFields }
       if (entry.plan.create) entry.plan.partner.dycosImport = entry.metadata
     }
     if (partnerConflictCount) partnerWarningCodes.add('PARTNER_MASTER_DATA_CONFLICTS')
@@ -179,7 +185,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     const linkedIdsUnchanged = previous?.customer?.partnerId === next.customer.partnerId && previous?.carrier?.partnerId === next.carrier.partnerId
     const status = !order.exists ? 'new' : transportOrderImportFingerprint(previous) === transportOrderImportFingerprint(next) && linkedIdsUnchanged ? 'unchanged' : 'updated'
     const counts = { Neu: status === 'new' ? 1 : 0, Aktualisiert: status === 'updated' ? 1 : 0, Unverändert: status === 'unchanged' ? 1 : 0, 'Prüfung erforderlich': 0, Fehlerhaft: 0 }
-    const result = { status, orderId: claim.orderRef.id, externalNumber: data.taNummer, requestId: data.requestId, runId: runRef.id, warningCodes: [...new Set([...imported.source.warningCodes, ...partnerWarningCodes])], partnerUpdates: { enriched: enrichedPartners, conflicts: partnerConflictCount } }
+    const result = { status, orderId: claim.orderRef.id, externalNumber: data.taNummer, sourceId: imported.source.orderId, requestId: data.requestId, runId: runRef.id, warningCodes: [...new Set([...imported.source.warningCodes, ...partnerWarningCodes])], partnerUpdates: { enriched: enrichedPartners, conflicts: partnerConflictCount } }
     const patch = { externalNumber: data.taNummer, source: 'dycos', imported: next, importedFingerprint: transportOrderImportFingerprint(next), importMeta: { ...(order.get('importMeta') || {}), source: 'dycos', channel: 'power-automate', importRunId: runRef.id, requestId: data.requestId, preservedLegacyFields: preserved.preservedPaths, ...(order.exists ? {} : { importedAt: now }), lastImportedAt: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) }
     delete patch.importMeta.fileName
     if (changes.some((change) => change.routeRelevant)) Object.assign(patch, { routeNeedsRecalculation: true, routeNeedsRecalculationAt: now })
@@ -227,6 +233,9 @@ export async function fetchDycosTransportOrderHandler(request, { db = getFiresto
     const payload = await fetchOrder(data.taNummer)
     stage = 'mapping'
     const imported = mapDycosOrder(payload, data.taNummer)
+    if (data.expectedSourceId != null && String(data.expectedSourceId) !== imported.source.orderId) throw new HttpsError('failed-precondition', 'Die Auftragszuordnung hat sich geändert. Bitte erneut suchen.', { sourceCode: 'SOURCE_ORDER_CHANGED' })
+    const eligibility = dycosImportEligibility(payload.auftrag?.Ladedatum, data.taNummer)
+    if (!eligibility.allowed) throw new HttpsError('failed-precondition', 'Es können nur Aufträge ab Januar 2026 übernommen werden. Ohne Ladedatum muss die TA-Nummer einen gültigen Jahres-/Monatspräfix ab 2601 haben.', { sourceCode: 'ORDER_BEFORE_IMPORT_START' })
     const partnerData = hasDycosMasterDataAccess(profile) ? mapDycosPartnerData(payload) : {}
     stage = 'save'
     return await saveDycosTransportOrder({ db, request, profile, data, imported, partnerData, claim, token })

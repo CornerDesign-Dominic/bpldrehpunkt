@@ -23,6 +23,13 @@ test('reference catalogue covers partner-linked modules without requiring a phys
   assert.equal(PARTNER_REFERENCE_FIELDS.length, new Set(PARTNER_REFERENCE_FIELDS.map((entry) => entry.join('/'))).size)
 })
 
+test('a merge preserves SQL identities for every debtor and creditor account', () => {
+  const customer = { entity: 'customer', number: '100', sourceId: '11' }
+  const carrier = { entity: 'carrier', number: '200', sourceId: '22' }
+  const merged = mergePartnerRecords({ dycosReferences: { accounts: [customer] } }, { dycosReferences: { accounts: [customer, carrier] } })
+  assert.deepEqual(merged.dycosReferences.accounts, [customer, carrier])
+})
+
 test('partner merges require their own permission while superadmins remain allowed', () => {
   assert.equal(hasPartnerMergeAccess({ permissions: { partnerMerges: 'edit' } }), true)
   assert.equal(hasPartnerMergeAccess({ permissions: { masterData: 'edit' } }), false)
