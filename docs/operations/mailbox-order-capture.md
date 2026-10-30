@@ -261,3 +261,27 @@ inklusive konkurrierender Suchen und Exporte. Sieben echte Flow-Aufrufe geprüft
 bisheriger Nummernabruf, USt-ID-Suche, Standortsuche, leere Suche, echter
 Nichttreffer, fehlende Anmeldung und falsche Partnerart. Die neue Suche liest
 keine Bank-/Kontaktfelder. Build, ESLint und Shared-Abgleich sind erfolgreich.
+
+## Automatischer Start der direkten Kundensuche (30.10.2026)
+
+Beim Öffnen der Auftragsprüfung wartet die Oberfläche zunächst auf die
+vollständig geladene Drehpunkt-Kundenliste. Gibt es keinen passenden lokalen
+Kandidaten und liegen USt-ID oder PLZ/Ort vor, startet die direkte DyCoS-Suche
+nach einer kurzen Eingabepause automatisch. Der Auftraggeberabschnitt wird
+geöffnet; die vorhandene Ladeanzeige zeigt den Suchlauf. Eine bereits bewusst
+bestätigte echte Kundenzuordnung wird nicht durch eine automatische Suche ersetzt.
+
+Pro Vorschau und Suchangaben wird ein automatischer Versuch durchgeführt.
+Erneutes Öffnen und normale Neudarstellungen lösen keine Doppelanfragen aus.
+Nach geänderten Suchangaben oder nach Ablauf einer erfolgreichen Prüfung kann
+automatisch erneut gesucht werden. Nach einem Fehler ist „Erneut versuchen“
+möglich; es gibt keine automatische Wiederholungsschleife. Fehlende Suchangaben
+sind zuerst zu ergänzen. Fehler beim Laden der lokalen Stammdaten werden nicht
+als „kein Kunde vorhanden“ behandelt. Die serverseitige Platzhaltersperre bleibt
+unverändert.
+
+Lokal im Browser mit synthetischen Daten geprüft: kein lokaler Treffer startet
+einen Suchlauf ohne Suchklick; lokaler Treffer startet keinen; Wiederöffnen nach
+Erfolg oder Fehler bleibt bei einem Aufruf; Änderung der USt-ID startet einen
+weiteren Aufruf; bewusste Fehlerwiederholung startet einen weiteren Aufruf.
+ESLint und Frontend-Build bestanden. Keine Backend-/Flow-Änderung erforderlich.
