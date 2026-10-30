@@ -3,7 +3,8 @@
 Freigabe am 30.10.2026 durch den Nutzer ausschließlich für Dev. Zielprojekt:
 `db-bpl-drehpunkt-dev`; Oberfläche: `https://dev.drehpunktlogistik.de`.
 Main-Baseline: `230c2ad86af9700118e2f1456746292241461efc`.
-Vorheriger Dev-Stand: `698e575a7b2a7b4ee7455e88d534fea28a3868f8`.
+Vorheriger Dev-Stand: `ed31c8ec47dee9c7974a299c2c41996e11405474`
+(einschließlich der zuletzt parallel veröffentlichten Handbuch-Erweiterung).
 
 ## Umfang
 
@@ -39,6 +40,13 @@ Keine neuen Rules, Indizes oder Microsoft-Berechtigungen in diesem Release.
 Der Such-Flow mit Relationskatalog ist bereits veröffentlicht und lesend
 geprüft. Lokaler Dev-Parametersatz enthält die bereits vereinbarte Firmenwährung
 EUR für die gemeinsame Functions-Quellanalyse.
+
+Firebase hat die Erstellung von `searchDycosTransportOrders` sowie die Updates
+von `fetchDycosTransportOrder` und `importTransportOrders` erfolgreich bestätigt.
+Die neue Suchadresse liegt als aktivierte Secret-Version 1 vor. Die bestehende
+aktive Stammdatenfunktion bindet das separate Stammdaten-URL-Secret und die
+fünf erforderlichen Anmeldesecrets. Das Frontend wird danach einmal gemeinsam
+über den freigegebenen Branch `dev` veröffentlicht; kein Push nach Main.
 
 ## Prüfungen
 
