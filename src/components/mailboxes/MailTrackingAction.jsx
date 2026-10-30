@@ -1,3 +1,4 @@
+import MailActionButton from './MailActionButton.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLanguage } from '../../i18n/useLanguage.js'
@@ -94,7 +95,7 @@ export default function MailTrackingAction({ identity, mailContent }) {
     } catch (caught) { setError(errorText(caught, w)) }
     finally { setSaving(false) }
   }
-  return <><button type="button" onClick={() => { setOpen(true); if (!preview?.previewId || applied.current) void analyse() }}>{w('Sendungsstatus aktualisieren', 'Update shipment status')}</button>
+  return <><MailActionButton kind="tracking" expanded={open} onClick={() => { setOpen(true); if (!preview?.previewId || applied.current) void analyse() }}>{w('Sendungsstatus aktualisieren', 'Update shipment status')}</MailActionButton>
     <MailWorkDialog open={open} title={w('Sendungsstatus aktualisieren', 'Update shipment status')} subtitle={preview?.order ? `TA ${preview.order.number} · ${preview.order.loading} → ${preview.order.unloading}` : undefined} left={mailContent} onClose={close} busy={saving} rightLoading={busy || saving} loadingLabel={saving ? w('Angaben werden übernommen …', 'Applying information …') : w('Auftrag wird gesucht – KI wertet die Mail aus …', 'Finding order – AI is analysing the message …')}>
       <div className="mail-tracking-assignment-bar"><strong>{preview?.order ? `TA ${preview.order.number}` : w('Noch kein Auftrag zugeordnet', 'No order assigned')}</strong><button className="button button--secondary" type="button" disabled={busy || saving} onClick={() => setAssignment(true)}>{w('Auftrag wählen', 'Choose order')}</button></div>
       {!busy && preview?.previewId && !Object.keys(preview.proposals).length && !preview.transitProposals.length && <p role="status">{w('Keine eindeutigen neuen Statusangaben erkannt. Du kannst die Angaben manuell ergänzen.', 'No clear new status information found. You can enter details manually.')}</p>}

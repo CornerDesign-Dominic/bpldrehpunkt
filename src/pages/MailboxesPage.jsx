@@ -1,3 +1,4 @@
+import MailActionButton from '../components/mailboxes/MailActionButton.jsx'
 import MailInvoiceAction from '../components/mailboxes/MailInvoiceAction.jsx'
 import MailAgbAction from '../components/mailboxes/MailAgbAction.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -283,7 +284,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   }
   function update(field, value) { changeDraft({ ...draft, [field]: value }); setNotice('') }
   const locked = busy || ['accepted', 'unknown', 'sending'].includes(sendState)
-  return <><button type="button" onClick={() => setOpen(true)} disabled={sendState === 'accepted'}>{sendState === 'accepted' ? w('Antwort gesendet', 'Reply sent') : w('Antworten', 'Reply')}{sendState !== 'accepted' && draft?.body && <span className="mailbox-draft-indicator"> · {w('Entwurf vorhanden', 'Draft available')}</span>}</button>
+  return <><MailActionButton kind="reply" onClick={() => setOpen(true)} expanded={open} disabled={sendState === 'accepted'} hint={sendState !== 'accepted' && draft?.body ? w('Entwurf vorhanden', 'Draft available') : undefined}>{sendState === 'accepted' ? w('Antwort gesendet', 'Reply sent') : w('Antworten', 'Reply')}</MailActionButton>
     <dialog ref={dialogRef} className="mailbox-reply-dialog" aria-labelledby="mailbox-reply-title" onCancel={event => { event.preventDefault(); if (!busy) setOpen(false) }}>
       <div className="mailbox-panel-heading mailbox-reply-dialog__heading"><h2 id="mailbox-reply-title">{w('Antworten', 'Reply')}</h2><button type="button" disabled={busy} onClick={() => setOpen(false)}>{w('Schließen', 'Close')}</button></div>
       <div className="mailbox-reply-dialog__columns"><article className="mailbox-reader" aria-label={w('Schriftverkehr', 'Correspondence')}><MessageContent message={message} /></article>

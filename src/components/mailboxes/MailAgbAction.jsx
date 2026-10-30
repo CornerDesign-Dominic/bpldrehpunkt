@@ -1,3 +1,4 @@
+import MailActionButton from './MailActionButton.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../auth/useAuth.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
@@ -54,7 +55,7 @@ export default function MailAgbAction({ identity, mailContent, attachments = [] 
     } catch { if (active.current) setCustomerError(w('Die Zuordnung konnte nicht gespeichert werden. Bitte den Kunden prüfen.', 'Could not save assignment. Please check the customer.')) }
     finally { if (active.current) setAssigning(false) }
   }
-  return <><button type="button" onClick={() => { setOpen(true); if (!analysis && !busy) void analyse() }}>{w('AGB prüfen', 'Review terms')}</button>
+  return <><MailActionButton kind="terms" expanded={open} onClick={() => { setOpen(true); if (!analysis && !busy) void analyse() }}>{w('AGB prüfen', 'Review terms')}</MailActionButton>
     <MailWorkDialog open={open} title={w('AGB prüfen', 'Review terms')} left={<MailDocumentSources identity={identity} attachments={pdfsOf(attachments)} mailContent={mailContent} w={w} />} onClose={() => setOpen(false)} busy={assigning} rightLoading={busy} loadingLabel={w('PDFs werden gelesen – bei Bedarf mit OCR – und AGB geprüft …', 'Reading PDFs – using OCR if needed – and reviewing terms …')}>
       {error && <div className="mailbox-error" role="alert">{error}<p><button type="button" onClick={() => void analyse()} disabled={busy}>{w('Erneut versuchen', 'Try again')}</button></p></div>}
       {analysis && <><p className="mailbox-hint">{w('Im AGB-Prüfer gespeichert. Geprüfte PDF-Anhänge:', 'Saved in the terms checker. Reviewed PDF attachments:')} {analysis.sourceFiles.map(file => file.name).join(', ')}</p><AgbCheckerResults analysis={analysis} />
