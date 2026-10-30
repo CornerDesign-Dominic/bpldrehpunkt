@@ -200,6 +200,8 @@ export async function exportMailboxOrderCapture({ db, context, data, originalPdf
     ])
     const preview = previewSnapshot.data()
     if (!previewSnapshot.exists || preview.ownerId !== context.uid || preview.connectionId !== context.connectionId || preview.graphUserId !== context.connection.graphUserId || preview.messageId !== data.messageId) fail('permission-denied', 'Diese Auftragsvorschau ist nicht verfügbar.')
+    const action = preview.actionSlotPath ? (await transaction.get(db.doc(preview.actionSlotPath))).data() : null
+    if (preview.actionJobId && (!action || action.jobId !== preview.actionJobId || !['review', 'completed'].includes(action.state))) fail('aborted', 'Diese Auswertung wurde verworfen oder ersetzt. Bitte die aktuelle Auswertung öffnen.')
     if (connectionSnapshot.get('ownerId') !== context.uid || connectionSnapshot.get('status') !== 'connected' || connectionSnapshot.get('graphUserId') !== context.connection.graphUserId) fail('permission-denied', 'Die Postfachverbindung ist nicht mehr verfügbar.')
     if (preview.expiresAt <= now) fail('failed-precondition', 'Die Auftragsvorschau ist abgelaufen. Bitte erneut auswerten.')
     if (preview.multipleOrders) fail('failed-precondition', 'Die Quellen enthalten mehrere Aufträge. Bitte einen eindeutigen Auftrag auswählen und erneut auswerten.')

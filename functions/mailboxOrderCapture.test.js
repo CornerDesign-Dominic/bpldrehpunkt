@@ -229,3 +229,14 @@ test('OCR evidence on uncertain pages remains explicitly unverified',()=>{
  const result=validateMailboxOrderInference({order:{...emptyMailboxOrder(),customerName:'Test GmbH'},provenance:[{path:'customerName',sourceId:'scan',page:1,quote:'Test GmbH'}],warnings:[],multipleOrders:false},mail,[{id:'scan',pageCount:1,pages:['Test GmbH with other document text'],ocrPages:[1],ocrUncertainPages:[1]}])
  assert.equal(result.provenance[0].verified,false);assert.equal(result.provenance[0].ocr,true)
 })
+
+test('job-bound order preview cannot export after it was discarded or replaced', async () => {
+  for (const state of ['discarded', 'running']) {
+    const db = dbWithCustomer(); const result = await preview(db)
+    const stored = db.values.get(`mailboxOrderPreviews/${result.previewId}`)
+    db.values.set(`mailboxOrderPreviews/${result.previewId}`, { ...stored, actionJobId: 'original-job', actionSlotPath: 'mailboxActionScopes/scope/actions/slot' })
+    db.values.set('mailboxActionScopes/scope/actions/slot', { state, jobId: state === 'running' ? 'replacement-job' : 'original-job' })
+    await assert.rejects(exportMailboxOrderCapture({ db, context, data: exportData(result.previewId), originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'aborted' })
+    assert.equal(db.values.has(`mailboxOrderExports/${result.previewId}`), false)
+  }
+})

@@ -1,6 +1,8 @@
 import MailActionButton from '../components/mailboxes/MailActionButton.jsx'
 import MailInvoiceAction from '../components/mailboxes/MailInvoiceAction.jsx'
 import MailAgbAction from '../components/mailboxes/MailAgbAction.jsx'
+import MailActionIndicators from '../components/mailboxes/MailActionIndicators.jsx'
+import { useMailboxActionList } from '../mailboxes/useMailboxAction.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiSearch } from 'react-icons/fi'
@@ -96,6 +98,7 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   const [search, setSearch] = useState('')
   const request = useRef(0)
   const retryPage = useRef(null)
+  const actionStates = useMailboxActionList(connectionId, messages.map(message => message.id))
   const load = useCallback(async (pageToken) => {
     const version = ++request.current
     retryPage.current = pageToken || null
@@ -123,7 +126,7 @@ function Inbox({ connectionId, selectedId, onSelect }) {
     </form>
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
     <div className="mailbox-message-list">{messages.map((message) => <button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
-      <span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
+      <span className="mailbox-message-heading"><span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><MailActionIndicators identity={{ connectionId, messageId: message.id }} actions={actionStates} /></span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
     </button>)}</div>
     {busy && <p role="status">{w('Nachrichten werden geladen …', 'Loading messages …')}</p>}
     {!busy && !error && !messages.length && <p role="status">{search ? w('Keine passenden Nachrichten gefunden.', 'No matching messages found.') : w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}

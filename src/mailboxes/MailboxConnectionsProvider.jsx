@@ -5,6 +5,7 @@ import { canView } from '../lib/permissions.js'
 import { mailboxCall } from '../lib/mailboxes.js'
 import { MailboxConnectionsContext } from './mailboxConnectionsContext.js'
 import { resetMailboxDraftOwner } from '../lib/mailboxDraftCache.js'
+import { resetMailboxActionOwner } from './useMailboxAction.js'
 
 const pendingConnections = new Map()
 
@@ -34,6 +35,7 @@ export default function MailboxConnectionsProvider({ children }) {
 
   useEffect(() => {
     resetMailboxDraftOwner(uid)
+    resetMailboxActionOwner(uid)
     const requests = generation
     const timer = setTimeout(() => { void refresh() }, 0)
     const onFocus = () => { void refresh() }

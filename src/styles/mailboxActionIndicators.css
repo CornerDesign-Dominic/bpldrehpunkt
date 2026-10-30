@@ -1,0 +1,11 @@
+.mailbox-message-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.mailbox-message-heading > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mailbox-action-indicators { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; padding-top: 1px; }
+.mailbox-action-indicator { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; }
+.mailbox-action-indicator svg { width: 17px; height: 17px; }
+.mailbox-action-indicator--running { color: #68b5ff; }
+.mailbox-action-indicator--review { color: #e7b831; }
+.mailbox-action-indicator--completed { color: #48b984; }
+[data-theme='light'] .mailbox-action-indicator--running { color: #176abc; }
+[data-theme='light'] .mailbox-action-indicator--review { color: #986600; }
+[data-theme='light'] .mailbox-action-indicator--completed { color: #167343; }

@@ -557,7 +557,7 @@ export function createMailboxHandlers(deps = {}) {
     for (const snapshot of states.docs) await snapshot.ref.delete()
     const previews = await db().collection('mailboxTrackingPreviews').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of previews.docs) await snapshot.ref.delete()
-    for (const collection of ['mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports']) {
+    for (const collection of ['mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns']) {
       const expired = await db().collection(collection).where('expiresAt', '<', now()).limit(100).get()
       for (const snapshot of expired.docs) await snapshot.ref.delete()
     }

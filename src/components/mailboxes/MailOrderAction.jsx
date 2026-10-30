@@ -1,4 +1,5 @@
 import MailActionButton from './MailActionButton.jsx'
+import { useMailboxAction } from '../../mailboxes/useMailboxAction.js'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
@@ -77,6 +78,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const w = (de, en) => language === 'en' ? en : de
   const cacheKey = `${user?.uid}:${identity.connectionId}:${identity.messageId}`
   const cached = drafts.get(cacheKey)
+  const action = useMailboxAction(identity, 'order')
   const availablePdfs = messageAttachments.filter(item => item.supported !== false && (item.contentType?.split(';')[0].toLowerCase() === 'application/pdf' || /\.pdf$/i.test(item.name || '')))
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(cached?.preview || null)
@@ -96,6 +98,8 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [saved, setSaved] = useState(cached?.saved || '')
+  const [manuallyEdited, setManuallyEdited] = useState(cached?.manuallyEdited || false)
+  const adoptedPreview = useRef(cached?.preview?.previewId || '')
   const [view, setView] = useState('mail')
   const [pdf, setPdf] = useState(null)
   const [pdfBusy, setPdfBusy] = useState(false)
@@ -105,7 +109,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const pdfUrl = useRef(null)
   const operation = useRef(cached?.operationId || null)
   const current = snapshot({ order, customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, selectedPdfIds })
-  const dirty = Boolean(order && current !== saved)
+  const dirty = Boolean(order && manuallyEdited && current !== saved)
   const customer = partners.find(partner => partner.id === customerPartnerId)
   const customerNumbers = numbers(customer)
   const verifiedId = mailboxOrderCustomerIdentity(customer, customerNumber)
@@ -118,8 +122,24 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   const errors = issues.filter(item => item.severity === 'error')
   const sourceSelectionChanged = Boolean(preview && selectedPdfIds && snapshot([...selectedPdfIds].sort()) !== snapshot([...(preview.selectedPdfIds || preview.attachments.map(item => item.id))].sort()))
-  const canExport = preview?.previewId && !preview.multipleOrders && !errors.length && verifiedId?.sourceId && verifiedId.number === customerNumber && verifiedId.kind === 'debtor' && originalAttachmentId && selectedPdfIds.includes(originalAttachmentId) && confirmed && !sourceSelectionChanged
+  const canExport = preview?.previewId && !preview.multipleOrders && !errors.length && verifiedId?.sourceId && verifiedId.number === customerNumber && verifiedId.kind === 'debtor' && originalAttachmentId && selectedPdfIds.includes(originalAttachmentId) && confirmed && !sourceSelectionChanged && action.state === 'review'
 
+  useEffect(() => {
+    const result = action.result
+    if (!result?.previewId || adoptedPreview.current === result.previewId) return
+    let active = true
+    Promise.resolve().then(() => {
+      if (!active) return
+      adoptedPreview.current = result.previewId
+      const initial = normalizeMailboxOrder(result.order)
+      initial.stops = initial.stops.map(stop => ({ ...stop, id: crypto.randomUUID(), goods: stop.goods.map(goods => ({ ...goods, id: crypto.randomUUID() })) }))
+      setPreview(result); setOrder(initial); setBaseline(structuredClone(initial)); setConfirmed(false); setSaved(''); setManuallyEdited(false); operation.current = null
+      setSelectedPdfIds(result.selectedPdfIds || result.attachments.map(item => item.id))
+      setOriginalAttachmentId(result.attachments.length === 1 ? result.attachments[0].id : '')
+      setCustomerPartnerId(''); setCustomerNumber(''); setAllowMissingPrice(false)
+    })
+    return () => { active = false }
+  }, [action.result])
   useEffect(() => {
     if (!open) return
     let active = true
@@ -128,8 +148,8 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }, [open, partnersReload])
   useEffect(() => {
     if (dirtyRef) dirtyRef.current = dirty
-    if (order) drafts.set(cacheKey, { preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, allowMissingPrice, saved, operationId: operation.current })
-  }, [dirtyRef, dirty, cacheKey, preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, allowMissingPrice, saved])
+    if (order) drafts.set(cacheKey, { preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, allowMissingPrice, saved, manuallyEdited, operationId: operation.current })
+  }, [dirtyRef, dirty, cacheKey, preview, order, baseline, selectedPdfIds, originalAttachmentId, customerPartnerId, customerNumber, allowMissingPrice, saved, manuallyEdited])
   useEffect(() => {
     if (!dirty) return
     const unload = event => { event.preventDefault(); event.returnValue = '' }
@@ -145,7 +165,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
     return () => { ++request.current; ++pdfRequest.current; if (pdfUrl.current) URL.revokeObjectURL(pdfUrl.current); if (ref) ref.current = false }
   }, [dirtyRef])
 
-  function changed() { setConfirmed(false); setNotice(''); operation.current = null }
+  function changed() { setManuallyEdited(true); setConfirmed(false); setNotice(''); operation.current = null }
   function update(path, value) {
     changed()
     setOrder(previous => {
@@ -157,21 +177,30 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
     })
   }
   async function analyse() {
-    if (busy) return
-    if (order && dirty && !window.confirm(w('Erneut auswerten ersetzt das aktuelle Prüfformular. Fortfahren?', 'Analysing again replaces the current review form. Continue?'))) return
-    const version = ++generation.current
-    setBusy('analyse'); setError(''); setNotice('')
+    if (busy || action.busy || action.state === 'completed') return
+    if (dirty && !window.confirm(w('Erneut auswerten ersetzt das aktuelle Prüfformular. Fortfahren?', 'Analysing again replaces the current review form. Continue?'))) return
+    setOpen(false); setError(''); setNotice(''); setBusy('analyse')
     try {
-      const result = await mailboxCall('previewMailboxOrder', { ...identity, ...(selectedPdfIds ? { selectedPdfIds } : {}) })
-      if (version !== generation.current) return
-      const initial = normalizeMailboxOrder(result.order)
-      initial.stops = initial.stops.map(stop => ({ ...stop, id: crypto.randomUUID(), goods: stop.goods.map(goods => ({ ...goods, id: crypto.randomUUID() })) }))
-      setPreview(result); setOrder(initial); setBaseline(structuredClone(initial)); setConfirmed(false); setSaved(''); operation.current = null
-      setSelectedPdfIds(result.selectedPdfIds || result.attachments.map(item => item.id))
-      setOriginalAttachmentId(result.attachments.length === 1 ? result.attachments[0].id : '')
-      setCustomerPartnerId(''); setCustomerNumber(''); setAllowMissingPrice(false)
-    } catch (caught) { if (version === generation.current) setError(errorText(caught, w)) }
-    finally { if (version === generation.current) setBusy('') }
+      await action.start({ ...(selectedPdfIds ? { selectedPdfIds } : {}), ...(action.state === 'review' ? { restart: true } : {}) })
+    } catch (caught) { setError(errorText(caught, w)) }
+    finally { setBusy('') }
+  }
+  async function discard() {
+    if (busy || action.busy) return
+    if (dirty && !window.confirm(w('Ergebnis und manuelle Änderungen verwerfen?', 'Discard this result and your manual changes?'))) return
+    setBusy('discard'); setError('')
+    try {
+      await action.discard()
+      drafts.delete(cacheKey); adoptedPreview.current = ''
+      setPreview(null); setOrder(null); setBaseline(null); setManuallyEdited(false); setConfirmed(false); setSaved(''); setOpen(false)
+    } catch (caught) { setError(errorText(caught, w)) }
+    finally { setBusy('') }
+  }
+  function activate() {
+    if (busy || action.busy) return
+    if (action.state === 'completed') { window.alert(w('Auftrag wurde bereits erstellt.', 'Order has already been created.')); return }
+    if (action.state === 'review' || action.state === 'failed') { setOpen(true); return }
+    void analyse()
   }
   async function showPdf(id) {
     setView(id)
@@ -202,12 +231,13 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/xml;charset=iso-8859-1' }))
       const anchor = document.createElement('a'); anchor.href = url; anchor.download = safeAttachmentName(result.fileName); document.body.append(anchor); anchor.click(); anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 30000)
-      setSaved(current); setConfirmed(false); setNotice(w('XML erstellt und Download gestartet. In DyCoS wurde noch kein Auftrag angelegt.', 'XML created and download started. No order has been created in DyCoS yet.'))
+      await action.complete({ previewId: preview.previewId, operationId: operation.current })
+      setSaved(current); setManuallyEdited(false); setConfirmed(false); setOpen(false)
     } catch (caught) { if (version === generation.current) setError(errorText(caught, w)) }
     finally { if (version === generation.current) setBusy('') }
   }
   function close() {
-    if (busy === 'export') return
+    if (busy === 'export' || busy === 'discard') return
     if (busy === 'analyse') { ++generation.current; setBusy('') }
     setOpen(false)
   }
@@ -229,15 +259,15 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   const left = <div className="mail-order-source"><label className="form-field"><span>{w('Quelle ansehen', 'View source')}</span><select value={view} onChange={event => void showPdf(event.target.value)}><option value="mail">{w('Mail und Schriftverkehr', 'Email and correspondence')}</option>{attachments.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>{view === 'mail' ? mailContent : <><h3>{attachments.find(item => item.id === view)?.name}</h3>{pdfBusy && <p role="status">{w('PDF wird geladen …', 'Loading PDF …')}</p>}{pdfError && <div role="alert"><p>{pdfError}</p><button type="button" onClick={() => void showPdf(view)}>{w('Erneut versuchen', 'Try again')}</button></div>}{!pdfBusy && pdf?.id === view && <><a href={pdf.url} target="_blank" rel="noopener noreferrer">{w('PDF in neuem Tab öffnen', 'Open PDF in new tab')}</a><object className="mail-order-pdf" data={pdf.url} type="application/pdf" aria-label={pdf.name}><a href={pdf.url} download={pdf.name}>{w('PDF herunterladen', 'Download PDF')}</a></object></>}</>}</div>
 
-  return <><MailActionButton kind="order" expanded={open} hint={dirty ? w('Erfassung vorhanden', 'Capture available') : undefined} onClick={() => { setOpen(true); if (!preview && !busy && availablePdfs.length <= 5) void analyse() }}>{w('Auftrag hinzufügen', 'Add order')}</MailActionButton>
+  return <><MailActionButton kind="order" state={action.state} expanded={open} disabled={Boolean(busy) || action.busy} onClick={activate}>{action.state === 'running' || busy === 'analyse' ? w('Auftrag wird ausgelesen …', 'Reading order …') : action.state === 'review' ? w('Auftragsdaten prüfen', 'Review order data') : action.state === 'completed' ? w('Auftrag erstellt', 'Order created') : action.state === 'failed' ? w('Auftragserfassung prüfen', 'Review order capture') : w('Auftrag erfassen', 'Capture order')}</MailActionButton>
     <MailWorkDialog open={open} title={w('Auftrag hinzufügen', 'Add order')} left={left} onClose={close} busy={busy === 'export'} rightLoading={Boolean(busy)} loadingLabel={busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Auftragsdaten werden gelesen – bei Bedarf mit OCR …', 'Reading order data – using OCR if needed …')}>
       <div className="mail-order-editor"><p className="mailbox-hint">{w('Prüfe die Angaben aus Mail und PDF. Speichern erstellt eine XML mit Original-PDF zum Herunterladen. Die automatische DyCoS-Übergabe folgt später.', 'Review the email and PDF information. Saving creates an XML download including the original PDF. Automatic DyCoS transfer will follow later.')}</p>
-      {error && <div className="mailbox-error" role="alert">{error}</div>}{notice && !order && <p className="mail-order-notice" role="status">{notice}</p>}
+      {(error || action.error) && <div className="mailbox-error" role="alert">{error || errorText(action.error, w)}</div>}{notice && !order && <p className="mail-order-notice" role="status">{notice}</p>}
       {noExtractedData && <div className="mail-order-missing" role="alert"><strong>{w('Keine Auftragsdaten übernommen', 'No order data extracted')}</strong><p>{w('Die Auswertung hat keine belegbaren Auftragsangaben geliefert. Bitte die ausgewählten PDFs und das Original prüfen und erneut auswerten. Du kannst die Angaben auch manuell ergänzen.', 'The analysis returned no supported order details. Check the selected PDFs and the original document, then analyse again. You can also enter the information manually.')}</p></div>}
       {preview?.warnings?.length > 0 && <ul className="mail-order-warnings">{preview.warnings.map((warning, index) => <li key={index}><OrderMessage source={warning} /></li>)}</ul>}
       {preview?.multipleOrders && <p className="mail-order-missing" role="alert">{w('Mehrere Aufträge erkannt. Bitte nur die PDFs eines Auftrags auswählen und erneut auswerten. Der Export ist bis zur eindeutigen Erfassung gesperrt.', 'Multiple orders detected. Select only the PDFs for one order and analyse again. Export is blocked until one order is identified.')}</p>}
       {attachments.length > 0 && <fieldset disabled={Boolean(busy)} className="mail-order-pdf-selection"><legend>{w('PDFs für die Auswertung', 'PDFs to analyse')}</legend><p className="mailbox-hint">{w('Höchstens fünf PDFs, je 5 MB und zusammen 15 MB. Nur Dokumente desselben Auftrags auswählen.', 'Up to five PDFs, 5 MB each and 15 MB total. Select documents for the same order only.')}</p>{attachments.map(item => <label key={item.id}><input type="checkbox" checked={selectedPdfIds?.includes(item.id) || false} disabled={!selectedPdfIds?.includes(item.id) && selectedPdfIds?.length >= 5} onChange={event => { changed(); setSelectedPdfIds(currentIds => event.target.checked ? [...(currentIds || []), item.id] : (currentIds || []).filter(id => id !== item.id)) }} />{item.name}</label>)}{sourceSelectionChanged && <p className="mail-order-label--warning">{w('PDF-Auswahl geändert. Bitte erneut auswerten.', 'PDF selection changed. Analyse again.')}</p>}</fieldset>}
-      <button className="button button--secondary" type="button" disabled={Boolean(busy)} onClick={() => void analyse()}>{w('Erneut auswerten', 'Analyse again')}</button>
+      <div className="mail-order-footer"><button className="button button--secondary" type="button" disabled={Boolean(busy) || action.busy} onClick={() => void analyse()}>{w('Erneut auswerten', 'Analyse again')}</button>{action.state === 'review' && <button className="button button--secondary" type="button" disabled={Boolean(busy) || action.busy} onClick={() => void discard()}>{w('Ergebnis verwerfen', 'Discard result')}</button>}</div>
       {order && <form onSubmit={exportXml} noValidate><fieldset className="mail-order-form" disabled={Boolean(busy)}>
         <details open><summary>{w('Auftraggeber und Auftrag', 'Customer and order')}</summary><div className="mail-order-grid">
           {field('customerName', 'Auftraggeber laut Quelle', 'Customer from source')}{field('customerNumber', 'Kundennummer laut Quelle', 'Customer number from source')}
@@ -251,7 +281,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
         <details open><summary>{w('Preis und Hinweise', 'Price and instructions')}</summary><div className="mail-order-grid">{field('price', 'Frachtpreis (netto)', 'Freight price (net)', { numeric: true, required: true })}{field('currency', 'Währung (DyCoS: EUR)', 'Currency (DyCoS: EUR)', { required: true })}{field('instructions', 'Vorschriften', 'Transport instructions', { multiline: true })}{field('dispatchNote', 'Dispositionshinweise', 'Dispatch notes', { multiline: true })}</div>{empty(order.price) && <label className="mail-order-checkbox"><input type="checkbox" checked={allowMissingPrice} onChange={event => { changed(); setAllowMissingPrice(event.target.checked) }} />{w('Ich bestätige ausdrücklich die Erfassung ohne Frachtpreis.', 'I explicitly confirm capture without a freight price.')}</label>}</details>
         <details open><summary>{w('Original-PDF und Freigabe', 'Original PDF and approval')}</summary><label className="form-field"><span>{w('Original-Auftragsbeleg für die XML *', 'Original order PDF to embed in XML *')}</span><select value={originalAttachmentId} onChange={event => { changed(); setOriginalAttachmentId(event.target.value) }}><option value="">{w('Original-PDF auswählen', 'Select original PDF')}</option>{attachments.filter(item => selectedPdfIds?.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p className="mailbox-hint">{w('Das gewählte Original-PDF wird unverändert in die XML eingebettet.', 'The selected original PDF is embedded unchanged in the XML.')}</p>{!attachments.length && <p className="mail-order-label--missing">{w('Kein auswertbares Original-PDF vorhanden. Ein XML-Export mit Originalbeleg ist nicht möglich.', 'No readable original PDF is available. XML export with the original document is unavailable.')}</p>}
         {issues.length > 0 && <div className="mail-order-validation" role="status"><strong>{errors.length ? w('Vor dem Export ergänzen oder korrigieren:', 'Complete or correct before export:') : w('Hinweise prüfen:', 'Review notes:')}</strong><ul>{issues.map((item, index) => <li className={item.severity === 'error' ? 'mail-order-label--missing' : 'mail-order-label--warning'} key={`${item.path}-${index}`}><OrderMessage source={item.message} /></li>)}</ul></div>}
-        <label className="mail-order-checkbox"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{w('Ich habe Auftragsdaten, Frachtzahler, fehlende Angaben und Original-PDF geprüft und bestätige den XML-Download.', 'I have reviewed the order data, freight payer, missing information and original PDF and confirm the XML download.')}</label><div className="mail-order-footer">{notice && <p className="mail-order-notice" role="status">{notice}</p>}<button className="button" type="submit" disabled={Boolean(busy) || !canExport}>{busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Speichern und XML herunterladen', 'Save and download XML')}</button>{dirty && <small>{w('Schließen erhält deine Eingaben in dieser Browsersitzung.', 'Closing preserves your input in this browser session.')}</small>}</div><Link to="/kunden-unternehmer">{w('Zur Stammdatenverwaltung', 'Open master data management')}</Link></details>
+        <label className="mail-order-checkbox"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{w('Ich habe Auftragsdaten, Frachtzahler, fehlende Angaben und Original-PDF geprüft und bestätige den XML-Download.', 'I have reviewed the order data, freight payer, missing information and original PDF and confirm the XML download.')}</label><div className="mail-order-footer">{notice && <p className="mail-order-notice" role="status">{notice}</p>}<button className="button" type="submit" disabled={Boolean(busy) || !canExport}>{busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Auftrag anlegen', 'Create order')}</button><small>{w('Aktuell wird die XML mit den zugehörigen Anlagen heruntergeladen. Die automatische Übergabe zur Auftragsanlage wird vorbereitet.', 'Currently, the XML and its attachments are downloaded. Automatic transfer for order creation is being prepared.')}</small>{dirty && <small>{w('Schließen erhält deine Eingaben in dieser Browsersitzung.', 'Closing preserves your input in this browser session.')}</small>}</div><Link to="/kunden-unternehmer">{w('Zur Stammdatenverwaltung', 'Open master data management')}</Link></details>
       </fieldset></form>}
       </div>
     </MailWorkDialog>

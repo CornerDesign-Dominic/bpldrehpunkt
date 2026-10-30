@@ -54,6 +54,16 @@
 .mailbox-action--reply .mailbox-action__hint, .mailbox-action--reply .mailbox-action__arrow { color: inherit; }
 .mailbox-actions > .mailbox-action--reply:hover:not(:disabled) { background: var(--button-hover-background); }
 .mailbox-actions > .mailbox-action:disabled { opacity: .55; box-shadow: none; }
+.mailbox-actions > .mailbox-action--state-running:disabled { color: var(--text-primary); border-color: #3786c7; background: color-mix(in srgb, #3786c7 12%, var(--content-background)); opacity: 1; cursor: wait; }
+.mailbox-actions > .mailbox-action--state-review { color: var(--status-warning-text); border-color: var(--status-warning-text); background: var(--status-warning-background); }
+.mailbox-actions > .mailbox-action--state-completed { color: var(--status-success-text); border-color: var(--status-success-text); background: var(--status-success-background); }
+.mailbox-action:is(.mailbox-action--state-running, .mailbox-action--state-review, .mailbox-action--state-completed) :is(.mailbox-action__icon, .mailbox-action__arrow, .mailbox-action__hint) { color: inherit; }
+.mailbox-action:is(.mailbox-action--state-running, .mailbox-action--state-review, .mailbox-action--state-completed) .mailbox-action__icon { background: color-mix(in srgb, currentColor 12%, transparent); }
+.mailbox-actions > :is(.mailbox-action--state-review, .mailbox-action--state-completed):hover:not(:disabled) { border-color: currentColor; background: color-mix(in srgb, currentColor 13%, var(--content-background)); box-shadow: 0 0 0 1px currentColor; }
+.mailbox-action-spinner { display: inline-block; flex: none; width: 17px; height: 17px; box-sizing: border-box; border: 2px solid color-mix(in srgb, #3786c7 25%, transparent); border-top-color: #3786c7; border-radius: 50%; animation: mailbox-action-spin .8s linear infinite; }
+.mailbox-action-error { margin: -3px 0 12px; color: var(--status-danger-text); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+@keyframes mailbox-action-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mailbox-action-spinner { animation-duration: 2s; } }
 @media (prefers-reduced-motion: reduce) { .mailbox-actions > .mailbox-action { transition: none; } }
 .mail-work-dialog .mail-status-editor { display: block; }
 .mail-work-dialog input.shipment-tracking-editor__input--ai, .mail-work-dialog select.shipment-tracking-editor__input--ai { border-color: var(--color-ai-border); box-shadow: 0 0 0 1px var(--color-ai); }

@@ -1418,6 +1418,10 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
+    // Mail action jobs/results are private server-managed records. The callables
+    // recheck ownership and module permissions, including for superadmins.
+    match /mailboxActionRuns/{id} { allow read, write: if false; }
+    match /mailboxActionScopes/{scope}/{document=**} { allow read, write: if false; }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
   }
 }
