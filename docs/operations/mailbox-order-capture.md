@@ -26,6 +26,29 @@ Original-PDFs als begrenzte `input_file`-Eingaben an die bestehende OpenAI-Anbin
 in der vorhandenen KI-Nutzungserfassung protokolliert, ohne Mail-/PDF-Inhalte.
 PDF-Verarbeitung gemäß [OpenAI-Dateieingaben](https://developers.openai.com/api/docs/guides/file-inputs).
 
+Korrektur vom 30.10.2026: Der serverseitig extrahierte Seitentext einschließlich
+OCR wird zusätzlich als verbindliche Basis für Quellenbelege mitgegeben. Die
+Original-PDFs ergänzen den visuellen Zusammenhang. Die KI verwendet ausschließlich
+kurze, durch das Antwortschema begrenzte Referenzen (`mail`, `pdf-1` usw.);
+erst der Server übersetzt diese zurück in die unveränderten Graph-Anhangskennungen.
+Damit müssen weder lange Kennungen nachgeschrieben noch Belege aus einer anderen
+visuellen Textreihenfolge abgeleitet werden. Ungültige Referenzen scheitern sichtbar;
+die Prüfung wörtlicher Textbelege bleibt unverändert. Quellenpfade werden relativ
+zum Auftragsobjekt geprüft; genau ein optionales `order.`-Wurzelpräfix wird
+vereinheitlicht, unbekannte Pfade werden weiterhin verworfen. Ein tatsächlich leeres
+Prüfformular erhält einen deutlichen Hinweis und kann manuell ergänzt werden.
+
+Echtdokumentprüfung dieser Korrektur: Beim bereits getesteten Kundenauftrag
+bleiben nach Quellenvalidierung 31 von 31 erkannten fachlichen Angaben erhalten
+(33 exakt geprüfte Belege). Beim zweiten Dokument bleiben 20 von 21 Angaben
+erhalten (22 geprüfte Belege), nachdem vorher alle entfernt wurden. Eine
+unbelegte Notiz wird weiterhin verworfen. Der Mehrfachauftragshinweis des
+Dokuments mit drei Teilpartien bleibt zur fachlichen Klärung bestehen. Die
+Reproduktion hat keine Aufträge, Vorschauen oder Mails in der Cloud geschrieben.
+59 fokussierte Backend-/Shared-/OCR-Tests, gezieltes ESLint, Shared-Abgleich
+und Frontend-Build bestehen. Die Oberfläche wurde mit leerem Ergebnis,
+befülltem Ergebnis und explizitem Quellenfehler im Browser geprüft.
+
 ## Prüfformular und Quellen
 
 Das interne Auftragsmodell ist von den XML-Tagnamen getrennt und umfasst

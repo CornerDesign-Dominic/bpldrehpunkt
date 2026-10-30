@@ -53,6 +53,9 @@ const english = {
   'Das Original-PDF gehört nicht unverändert zu dieser Auftragsvorschau. Bitte erneut auswerten.': 'The original PDF does not match this order preview unchanged. Analyse again.',
   'Für diese Vorschau wurde bereits eine andere XML erstellt. Bitte den gespeicherten Export verwenden oder die Mail erneut auswerten.': 'A different XML was already created for this preview. Use the saved export or analyse the email again.',
   'Bitte Angaben und Original-PDF prüfen oder erneut auswerten.': 'Review the information and original PDF or analyse again.',
+  'Die KI hat keine gültigen Quellenbelege geliefert.': 'The AI returned no valid source evidence. Please analyse again.',
+  'Die KI hat keine gültige Auftragsvorschau geliefert.': 'The AI returned no valid order preview. Please analyse again.',
+  'Die KI hat eine ungültige Dokumentreferenz geliefert. Bitte erneut auswerten.': 'The AI returned an invalid document reference. Please analyse again.',
 }
 
 export function mailboxOrderWords(language, message) {

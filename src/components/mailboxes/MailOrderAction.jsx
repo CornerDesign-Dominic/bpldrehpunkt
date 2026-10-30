@@ -23,6 +23,11 @@ const read = (object, path) => path.split('.').reduce((value, key) => value?.[ke
 const snapshot = value => JSON.stringify(value)
 const numbers = partner => [...new Set([partner?.debtorNumber, ...(partner?.dycosReferences?.debtorNumbers || [])].map(value => String(value ?? '').trim()).filter(Boolean))]
 const empty = value => value === '' || value === null || value === undefined
+const hasOrderDetails = value => {
+  if (Array.isArray(value)) return value.some(hasOrderDetails)
+  if (value && typeof value === 'object') return Object.entries(value).some(([key, item]) => !['id', 'type'].includes(key) && hasOrderDetails(item))
+  return typeof value === 'string' ? Boolean(value.trim()) : typeof value === 'number' ? Number.isFinite(value) : value === true
+}
 const sourcePath = (path, order, baseline) => {
   const parts = path.split('.')
   if (parts[0] !== 'stops') return path
@@ -44,7 +49,7 @@ const makeStop = type => ({ id: crypto.randomUUID(), type, company: '', street: 
 function errorText(error, w) {
   if (error?.code === 'functions/permission-denied') return w('Für diese Aktion fehlen Berechtigungen oder die Postfachverbindung ist nicht mehr verfügbar.', 'Permission is missing or the mailbox connection is no longer available.')
   if (error?.code === 'functions/resource-exhausted') return w('Zu viele Auswertungen. Bitte später erneut versuchen.', 'Too many analyses. Try again later.')
-  if (error?.code === 'functions/failed-precondition' || error?.code === 'functions/invalid-argument' || error?.code === 'functions/aborted') return <OrderMessage source={error.message || 'Bitte Angaben und Original-PDF prüfen oder erneut auswerten.'} />
+  if (error?.code === 'functions/failed-precondition' || error?.code === 'functions/invalid-argument' || error?.code === 'functions/aborted' || error?.code === 'functions/data-loss') return <OrderMessage source={error.message || 'Bitte Angaben und Original-PDF prüfen oder erneut auswerten.'} />
   return w('Die Aktion konnte nicht abgeschlossen werden. Deine Eingaben bleiben erhalten. Bitte erneut versuchen.', 'The operation could not be completed. Your input is preserved. Try again.')
 }
 
@@ -106,6 +111,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const verifiedId = mailboxOrderCustomerIdentity(customer, customerNumber)
   const attachments = [...new Map([...availablePdfs, ...(preview?.attachments || [])].map(item => [item.id, item])).values()]
   const effectiveOrder = order && customer ? { ...order, customerName: customer.companyName, customerNumber } : order
+  const noExtractedData = Boolean(preview && baseline && !hasOrderDetails(baseline))
   let issues = []
   if (order) {
     try { issues = validateMailboxOrder(effectiveOrder, { allowMissingPrice, companyCurrency: 'EUR' }) } catch { issues = [{ path: '', message: 'Die Auftragsangaben sind ungültig.', severity: 'error' }] }
@@ -227,6 +233,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
     <MailWorkDialog open={open} title={w('Auftrag hinzufügen', 'Add order')} left={left} onClose={close} busy={busy === 'export'} rightLoading={Boolean(busy)} loadingLabel={busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Auftragsdaten werden gelesen – bei Bedarf mit OCR …', 'Reading order data – using OCR if needed …')}>
       <div className="mail-order-editor"><p className="mailbox-hint">{w('Prüfe die Angaben aus Mail und PDF. Speichern erstellt eine XML mit Original-PDF zum Herunterladen. Die automatische DyCoS-Übergabe folgt später.', 'Review the email and PDF information. Saving creates an XML download including the original PDF. Automatic DyCoS transfer will follow later.')}</p>
       {error && <div className="mailbox-error" role="alert">{error}</div>}{notice && !order && <p className="mail-order-notice" role="status">{notice}</p>}
+      {noExtractedData && <div className="mail-order-missing" role="alert"><strong>{w('Keine Auftragsdaten übernommen', 'No order data extracted')}</strong><p>{w('Die Auswertung hat keine belegbaren Auftragsangaben geliefert. Bitte die ausgewählten PDFs und das Original prüfen und erneut auswerten. Du kannst die Angaben auch manuell ergänzen.', 'The analysis returned no supported order details. Check the selected PDFs and the original document, then analyse again. You can also enter the information manually.')}</p></div>}
       {preview?.warnings?.length > 0 && <ul className="mail-order-warnings">{preview.warnings.map((warning, index) => <li key={index}><OrderMessage source={warning} /></li>)}</ul>}
       {preview?.multipleOrders && <p className="mail-order-missing" role="alert">{w('Mehrere Aufträge erkannt. Bitte nur die PDFs eines Auftrags auswählen und erneut auswerten. Der Export ist bis zur eindeutigen Erfassung gesperrt.', 'Multiple orders detected. Select only the PDFs for one order and analyse again. Export is blocked until one order is identified.')}</p>}
       {attachments.length > 0 && <fieldset disabled={Boolean(busy)} className="mail-order-pdf-selection"><legend>{w('PDFs für die Auswertung', 'PDFs to analyse')}</legend><p className="mailbox-hint">{w('Höchstens fünf PDFs, je 5 MB und zusammen 15 MB. Nur Dokumente desselben Auftrags auswählen.', 'Up to five PDFs, 5 MB each and 15 MB total. Select documents for the same order only.')}</p>{attachments.map(item => <label key={item.id}><input type="checkbox" checked={selectedPdfIds?.includes(item.id) || false} disabled={!selectedPdfIds?.includes(item.id) && selectedPdfIds?.length >= 5} onChange={event => { changed(); setSelectedPdfIds(currentIds => event.target.checked ? [...(currentIds || []), item.id] : (currentIds || []).filter(id => id !== item.id)) }} />{item.name}</label>)}{sourceSelectionChanged && <p className="mail-order-label--warning">{w('PDF-Auswahl geändert. Bitte erneut auswerten.', 'PDF selection changed. Analyse again.')}</p>}</fieldset>}

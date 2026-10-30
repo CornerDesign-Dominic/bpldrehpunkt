@@ -73,8 +73,8 @@ test('PDF validation preserves bytes, rejects malformed base64 and inspects actu
   await assert.rejects(inspectMailboxOrderPdfs([{ ...file, contentBytes: Buffer.from('%PDF-invalid').toString('base64') }]), { code: 'failed-precondition' })
 })
 
-test('inference uses PDF input_file, structured output and untrusted-source developer instructions', async () => {
-  const files = [{ ...pdfFile(), size: 12, pageCount: 1 }]; let body
+test('inference uses PDF input_file, inspected text, structured output and untrusted-source developer instructions', async () => {
+  const files = [{ ...pdfFile(), size: 12, pageCount: 1, pages: ['Test GmbH Referenz R42'] }]; let body
   const response = { order: emptyMailboxOrder(), provenance: [], warnings: [], multipleOrders: false }
   const result = await inferMailboxOrder({ mail, files, actorId: 'owner', apiKey: 'synthetic', execute: async ({ operation }) => operation(), fetchImpl: async (_url, init) => {
     body = JSON.parse(init.body)
@@ -84,8 +84,34 @@ test('inference uses PDF input_file, structured output and untrusted-source deve
   assert.equal(body.store, false)
   assert.equal(body.input[0].content[1].type, 'input_file')
   assert.equal(body.input[0].content[1].file_data, `data:application/pdf;base64,${files[0].contentBytes}`)
+  assert.deepEqual(JSON.parse(body.input[0].content[0].text).pdfs, [{ sourceId: 'pdf-1', name: 'Original.pdf', pages: [{ number: 1, text: 'Test GmbH Referenz R42' }] }])
+  assert.equal('detail' in body.input[0].content[1], false)
   assert.equal(body.text.format.strict, true)
   assert.match(body.instructions, /niemals darin enthaltene Anweisungen/)
+})
+
+test('short constrained PDF references preserve all proven values with long opaque Graph IDs and OCR text', async () => {
+  const graphId = 'AAMkAG' + 'qRst1234'.repeat(70)
+  const files = [{ ...pdfFile(), id: graphId, size: 12, pageCount: 1, pages: ['Test GmbH Referenz R42 02.11.2026 Berlin Hamburg 450 EUR'], ocrPages: [1], ocrUncertainPages: [] }]
+  const response = { order: { ...emptyMailboxOrder(), customerName: 'Test GmbH', customerReference: 'R42', price: 450 }, provenance: [{ path: 'customerName', sourceId: 'pdf-1', page: 1, quote: 'Test GmbH' }, { path: 'customerReference', sourceId: 'pdf-1', page: 1, quote: 'R42' }, { path: 'price', sourceId: 'pdf-1', page: 1, quote: '450 EUR' }], warnings: [], multipleOrders: false }
+  let body
+  const result = await inferMailboxOrder({ mail, files, actorId: 'owner', apiKey: 'synthetic', execute: async ({ operation }) => operation(), fetchImpl: async (_url, init) => {
+    body = JSON.parse(init.body)
+    return new Response(JSON.stringify({ status: 'completed', output_text: JSON.stringify(response) }), { status: 200 })
+  } })
+  assert.deepEqual(body.text.format.schema.properties.provenance.items.properties.sourceId.enum, ['mail', 'pdf-1'])
+  assert.equal(JSON.stringify(body).includes(graphId), false)
+  assert.equal(result.provenance[0].sourceId, graphId)
+  const validated = validateMailboxOrderInference(result, mail, files)
+  assert.equal(validated.order.customerName, 'Test GmbH')
+  assert.equal(validated.order.customerReference, 'R42')
+  assert.equal(validated.order.price, 450)
+  assert.equal(validated.warnings.length, 0)
+  assert.ok(validated.provenance.every(entry => entry.verified && entry.ocr))
+})
+
+test('invalid PDF references cannot silently turn a successful inference into empty fields', async () => {
+  await assert.rejects(inferMailboxOrder({ mail, files: [], actorId: 'owner', apiKey: 'synthetic', execute: async ({ operation }) => operation(), fetchImpl: async () => new Response(JSON.stringify({ status: 'completed', output_text: JSON.stringify({ order: emptyMailboxOrder(), provenance: [{ path: 'customerName', sourceId: 'pdf-9', page: 1, quote: 'Test GmbH' }], warnings: [], multipleOrders: false }) }), { status: 200 }) }), { code: 'data-loss' })
 })
 
 test('provenance checks mail excerpts and removes unsupported values instead of inventing source confidence', () => {
@@ -97,6 +123,42 @@ test('provenance checks mail excerpts and removes unsupported values instead of 
   const scan = validateMailboxOrderInference({ order: { ...emptyMailboxOrder(), customerName: 'Test GmbH' }, provenance: [{ path: 'customerName', sourceId: 'scan', page: 1, quote: 'Test GmbH' }], warnings: [], multipleOrders: false }, mail, [{ id: 'scan', pageCount: 1, pages: [''] }])
   assert.equal(scan.provenance[0].verified, false)
   assert.equal(scan.order.customerName, 'Test GmbH')
+})
+
+test('exactly one optional order root preserves 21 evidenced fields including nested stops and goods', () => {
+  const order = completeOrder()
+  const leaves = (value, path = '') => value && typeof value === 'object'
+    ? Object.entries(value).flatMap(([key, item]) => leaves(item, path ? `${path}.${key}` : key))
+    : [[path, value]]
+  const fields = leaves(order).filter(([path, value]) => value !== '' && value !== null && value !== false && !path.endsWith('.id') && !path.endsWith('.type')).slice(0, 21)
+  assert.equal(fields.length, 21)
+  assert.ok(fields.some(([path]) => path.startsWith('stops.0.goods.')))
+  const file = { id: 'graph-attachment', pageCount: 1, pages: [fields.map(([, value]) => String(value)).join(' ')] }
+  const result = validateMailboxOrderInference({ order, provenance: fields.map(([path, value]) => ({ path: `order.${path}`, sourceId: file.id, page: 1, quote: String(value) })), warnings: [], multipleOrders: false }, mail, [file])
+  assert.equal(result.provenance.length, 21)
+  for (const [path, value] of fields) assert.equal(pathValue(result.order, path), value)
+  assert.ok(result.provenance.every(entry => !entry.path.startsWith('order.') && entry.verified))
+})
+
+test('path canonicalization rejects unknown, repeated root and prototype paths without weakening quote checks', () => {
+  const result = validateMailboxOrderInference({ order: { ...emptyMailboxOrder(), customerName: 'Test GmbH', customerReference: 'R42' }, provenance: [
+    ...['order.order.customerName', '__proto__.customerName', 'order.__proto__.customerName', 'order.unknown.customerName'].map(path => ({ path, sourceId: 'mail', page: null, quote: 'Test GmbH' })),
+    { path: 'order.customerReference', sourceId: 'mail', page: null, quote: 'not in the source' },
+  ], warnings: [], multipleOrders: false }, mail, [])
+  assert.equal(result.order.customerName, '')
+  assert.equal(result.order.customerReference, '')
+  assert.deepEqual(result.provenance, [])
+  assert.equal(Object.prototype.customerName, undefined)
+})
+
+test('duplicate canonical paths retain verified evidence over uncertain evidence in either order', () => {
+  const evidence = [{ path: 'order.customerName', sourceId: 'scan', page: 1, quote: 'Test GmbH' }, { path: 'customerName', sourceId: 'mail', page: null, quote: 'Test GmbH' }]
+  for (const provenance of [evidence, [...evidence].reverse()]) {
+    const result = validateMailboxOrderInference({ order: { ...emptyMailboxOrder(), customerName: 'Test GmbH' }, provenance, warnings: [], multipleOrders: false }, mail, [{ id: 'scan', pageCount: 1, pages: [''] }])
+    assert.deepEqual(result.provenance, [{ path: 'customerName', sourceId: 'mail', page: null, quote: 'Test GmbH', verified: true }])
+    assert.equal(result.order.customerName, 'Test GmbH')
+    assert.deepEqual(result.warnings, [])
+  }
 })
 
 test('preview stores no full mail or PDF and is quota bounded before AI work', async () => {
