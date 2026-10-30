@@ -188,3 +188,32 @@ Export. Diese Prüfung ersetzt keinen echten Graph-/KI-Durchlauf.
 
 Offen bleiben echte Mail-/Scan-Auswertungen, fachliche Prüfung mehrerer
 Musteraufträge und der Import in DyCoS mit lizenzierter KI-Quelle.
+
+## Fehlende Kunden und bestätigter Platzhalter (30.10.2026)
+
+Die Auswertung erfasst belegte USt-ID, PLZ und Ort des Auftraggebers zusätzlich.
+Die Kundenvorschläge gleichen diese Angaben mit den geladenen Drehpunkt-Stammdaten
+ab; USt-ID-Treffer werden durch PLZ/Ort eingegrenzt. Widersprüchliche USt-IDs
+werden nicht über einen Namens-/Ortstreffer übergangen. Der Nutzer bestätigt
+den Kunden. Kein lokaler Treffer beweist nicht, dass der Kunde in DyCoS fehlt:
+Der Hinweis fordert zur Prüfung und zum Stammdatenabruf auf. Neue Kunden müssen
+zuerst in DyCoS angelegt werden; der Auftragsimport legt keine Kunden an.
+
+Als bewusst gewählter Platzhalter darf der eigene Debitor **10001** verwendet
+werden. Dafür muss sein Stammdatensatz samt verifizierter interner Adress-ID
+bereits aus DyCoS abgerufen sein. Die Debitorennummer wird niemals als Adress-ID
+in die XML geschrieben. Vor dem Export ist eine zusätzliche ausdrückliche
+Platzhalterbestätigung erforderlich; diese wird auch serverseitig geprüft.
+
+Formular, Freigabeabschnitt, XML-Dispositionshinweis und Exportbeleg nennen die
+notwendige Nacharbeit: echten Kunden in DyCoS anlegen und den Auftrag dort
+anschließend manuell umstellen. Ursprünglicher Auftraggeber, belegte USt-ID und
+PLZ/Ort bleiben erhalten. Die endgültige Zuordnung wird nicht automatisch
+korrigiert. Bei einem bestätigten Kunden erfolgt der XML-Import weiterhin über
+seine interne Adress-ID; konkurrierende KI-Such-Tags werden nicht mitgegeben.
+
+Validiert mit 32 gezielten Tests für Extraktion, Kundenzuordnung, Platzhalter-
+Bestätigung und XML-Export sowie einem Firestore-Emulatortest für atomare
+Bestätigung und wiederholte Exporte. ESLint, Build und Shared-Abgleich bestehen.
+Die Tests verwenden synthetische Kunden; es wurden dadurch keine echten
+DyCoS-Kunden oder Aufträge angelegt.

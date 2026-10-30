@@ -19,6 +19,17 @@ export function isQualityReviewOverdue(record, today = qualityToday()) {
   return Boolean(record.nextReviewDate && record.nextReviewDate < today)
 }
 
+export function groupHandbookCatalog(records, { departmentId = '', search = '' } = {}) {
+  const filtered = searchQualityRecords(records.filter((record) => !departmentId || record.departmentId === departmentId), search)
+  const chapters = new Map()
+  for (const article of filtered) {
+    const chapter = article.process
+    if (!chapters.has(chapter)) chapters.set(chapter, [])
+    chapters.get(chapter).push(article)
+  }
+  return [...chapters].sort(([left], [right]) => left.localeCompare(right)).map(([chapter, articles]) => ({ chapter, articles: [...articles].sort((left, right) => left.title.localeCompare(right.title)) }))
+}
+
 export function qualitySmartValues(record) {
   return { smartSpecific: record.smartSpecific ?? record.goal ?? '', smartMeasurable: record.smartMeasurable ?? record.measure ?? '', smartAchievable: record.smartAchievable ?? '', smartRelevant: record.smartRelevant ?? '', smartTimeBound: record.smartTimeBound ?? '' }
 }

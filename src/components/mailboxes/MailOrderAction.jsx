@@ -1,3 +1,4 @@
+import { mailboxOrderCustomerCandidates } from '../../lib/mailboxOrderCustomerCandidates.js'
 import { orderReviewCounts, orderReviewEntries, orderReviewColors } from '../../lib/orderReviewPresentation.js'
 import MailActionButton from './MailActionButton.jsx'
 import { useMailboxAction } from '../../mailboxes/useMailboxAction.js'
@@ -9,7 +10,7 @@ import { mailboxOrderWords } from '../../lib/mailboxOrderWords.js'
 import { listBusinessPartners } from '../../lib/businessPartners.js'
 import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 import { normalizeMailboxOrder, validateMailboxOrder } from '../../../shared/mailboxOrder.js'
-import { mailboxOrderCustomerIdentity } from '../../../shared/mailboxOrderCustomerIdentity.js'
+import { mailboxOrderCustomerIdentity, mailboxOrderPlaceholderNumber } from '../../../shared/mailboxOrderCustomerIdentity.js'
 import { attachmentBlob, safeAttachmentName } from '../../lib/mailboxHelpers.js'
 import { mailboxCall } from '../../lib/mailboxes.js'
 import MailWorkDialog from './MailWorkDialog.jsx'
@@ -99,6 +100,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const [customerNumber, setCustomerNumber] = useState(cached?.customerNumber || '')
   const [allowMissingPrice, setAllowMissingPrice] = useState(cached?.allowMissingPrice || false)
   const [confirmed, setConfirmed] = useState(false)
+  const [placeholderConfirmed, setPlaceholderConfirmed] = useState(false)
   const [partners, setPartners] = useState([])
   const [partnersLoading, setPartnersLoading] = useState(false)
   const [partnersError, setPartnersError] = useState(false)
@@ -119,11 +121,14 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   const operation = useRef(cached?.operationId || null)
   const current = snapshot({ order, customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, selectedPdfIds })
   const dirty = Boolean(order && manuallyEdited && current !== saved)
+  const customerCandidates = mailboxOrderCustomerCandidates(partners, order)
   const customer = partners.find(partner => partner.id === customerPartnerId)
+  const placeholderCustomer = partners.find(partner => numbers(partner).includes(mailboxOrderPlaceholderNumber))
+  const usesPlaceholder = customerNumber === mailboxOrderPlaceholderNumber
   const customerNumbers = numbers(customer)
   const verifiedId = mailboxOrderCustomerIdentity(customer, customerNumber)
   const attachments = [...new Map([...availablePdfs, ...(preview?.attachments || [])].map(item => [item.id, item])).values()]
-  const effectiveOrder = order && customer ? { ...order, customerName: customer.companyName, customerNumber } : order
+  const effectiveOrder = order && customer ? { ...order, customerName: usesPlaceholder ? order.customerName : customer.companyName, customerNumber } : order
   const noExtractedData = Boolean(preview && baseline && !hasOrderDetails(baseline))
   let issues = []
   if (order) {
@@ -131,7 +136,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   const errors = issues.filter(item => item.severity === 'error')
   const sourceSelectionChanged = Boolean(preview && selectedPdfIds && snapshot([...selectedPdfIds].sort()) !== snapshot([...(preview.selectedPdfIds || preview.attachments.map(item => item.id))].sort()))
-  const canExport = preview?.previewId && !preview.multipleOrders && !errors.length && verifiedId?.sourceId && verifiedId.number === customerNumber && verifiedId.kind === 'debtor' && originalAttachmentId && selectedPdfIds.includes(originalAttachmentId) && confirmed && !sourceSelectionChanged && action.state === 'review'
+  const canExport = preview?.previewId && !preview.multipleOrders && !errors.length && verifiedId?.sourceId && verifiedId.number === customerNumber && verifiedId.kind === 'debtor' && originalAttachmentId && selectedPdfIds.includes(originalAttachmentId) && confirmed && (!usesPlaceholder || placeholderConfirmed) && !sourceSelectionChanged && action.state === 'review'
 
   useEffect(() => {
     const result = action.result
@@ -145,7 +150,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
       setPreview(result); setOrder(initial); setBaseline(structuredClone(initial)); setConfirmed(false); setSaved(''); setManuallyEdited(false); operation.current = null
       setSelectedPdfIds(result.selectedPdfIds || result.attachments.map(item => item.id))
       setOriginalAttachmentId(result.attachments.length === 1 ? result.attachments[0].id : '')
-      setCustomerPartnerId(''); setCustomerNumber(''); setAllowMissingPrice(false)
+      setCustomerPartnerId(''); setCustomerNumber(''); setAllowMissingPrice(false); setPlaceholderConfirmed(false)
     })
     return () => { active = false }
   }, [action.result])
@@ -233,7 +238,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
     operation.current ||= crypto.randomUUID()
     const version = ++generation.current
     try {
-      const result = await mailboxCall('exportMailboxOrder', { ...identity, previewId: preview.previewId, order: normalizeMailboxOrder(effectiveOrder), customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, confirmed: true, operationId: operation.current })
+      const result = await mailboxCall('exportMailboxOrder', { ...identity, previewId: preview.previewId, order: normalizeMailboxOrder(effectiveOrder), customerPartnerId, customerNumber, originalAttachmentId, allowMissingPrice, confirmed: true, placeholderConfirmed, operationId: operation.current })
       if (version !== generation.current) return
       if (typeof result.xmlBase64 !== 'string' || !result.xmlBase64 || typeof result.fileName !== 'string') throw new Error('invalid-export')
       const bytes = Uint8Array.from(atob(result.xmlBase64), char => char.charCodeAt(0))
@@ -252,7 +257,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   function field(path, de, en, options = {}) { return <OrderField key={path} path={path} label={w(de, en)} order={order} baseline={baseline} provenance={preview?.provenance || []} attachments={attachments} issues={issues} onChange={update} w={w} {...options} /> }
   function changeCustomer(id) {
-    changed(); setCustomerPartnerId(id)
+    changed(); setCustomerPartnerId(id); setPlaceholderConfirmed(false)
     const available = numbers(partners.find(partner => partner.id === id))
     setCustomerNumber(available.length === 1 ? available[0] : '')
   }
@@ -268,7 +273,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
   }
   function sectionCounts(key) {
     let entries = orderReviewEntries(effectiveOrder || {}).filter(entry => {
-      if (key === 'customer') return ['customerName', 'customerNumber', 'customerReference', 'vehicleType', 'loadingDate', 'unloadingDate', 'contactName'].includes(entry.path)
+      if (key === 'customer') return ['customerName', 'customerNumber', 'customerVatId', 'customerPostalCode', 'customerCity', 'customerReference', 'vehicleType', 'loadingDate', 'unloadingDate', 'contactName'].includes(entry.path)
       if (key === 'price') return ['price', 'currency', 'instructions', 'dispatchNote'].includes(entry.path)
       if (key === 'loading' || key === 'unloading') return entry.path.startsWith('stops.') && order?.stops[Number(entry.path.split('.')[1])]?.type === key
       return false
@@ -282,11 +287,11 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
         if (order?.stops[Number(issue.path.split('.')[1])]?.type === key) entries.push({ path: issue.path, color: 'yellow' })
       }
     }
-    if (key === 'customer') entries.push({ path: 'verifiedCustomer', value: verifiedId?.sourceId, color: verifiedId?.sourceId ? 'green' : 'yellow' })
+    if (key === 'customer') entries.push({ path: 'verifiedCustomer', value: verifiedId?.sourceId, color: verifiedId?.sourceId && !usesPlaceholder ? 'green' : 'yellow' })
     if (['loading', 'unloading'].includes(key) && !entries.length) entries = [{ path: key, color: 'yellow' }]
     if (key === 'route') entries = (order?.stops || []).map((stop, index) => ({ path: `stops.${index}`, value: stop.company, color: stop.company ? 'blue' : 'yellow' }))
     if (key === 'documents') entries = [{ color: sourceSelectionChanged || !selectedPdfIds?.length ? 'yellow' : 'blue' }, ...(preview?.warnings || []).map(() => ({ color: 'yellow' })), ...(preview?.multipleOrders ? [{ color: 'yellow' }] : [])]
-    if (key === 'approval') entries = [{ color: originalAttachmentId && selectedPdfIds?.includes(originalAttachmentId) ? 'green' : 'yellow' }, { color: confirmed ? 'green' : 'yellow' }]
+    if (key === 'approval') entries = [{ color: originalAttachmentId && selectedPdfIds?.includes(originalAttachmentId) ? 'green' : 'yellow' }, { color: confirmed && (!usesPlaceholder || placeholderConfirmed) ? 'green' : 'yellow' }]
     return orderReviewCounts(entries, issues)
   }
   const sectionProps = { expandedKey, setExpandedKey, w }
@@ -304,10 +309,14 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
       <div className="mail-order-footer"><button className="button button--secondary" type="button" disabled={Boolean(busy) || action.busy} onClick={() => void analyse()}>{w('Erneut auswerten', 'Analyse again')}</button>{action.state === 'review' && <button className="button button--secondary" type="button" disabled={Boolean(busy) || action.busy} onClick={() => void discard()}>{w('Ergebnis verwerfen', 'Discard result')}</button>}</div>
       </OrderSection>
       {order && <form onSubmit={exportXml} noValidate><fieldset className="mail-order-form" disabled={Boolean(busy)}>
-        <OrderSection sectionKey="customer" title={w('Auftraggeber und Auftrag', 'Customer and order')} counts={sectionCounts('customer')} {...sectionProps}><div className="mail-order-grid">
-          {field('customerName', 'Auftraggeber laut Quelle', 'Customer from source')}{field('customerNumber', 'Kundennummer laut Quelle', 'Customer number from source')}
+        <OrderSection sectionKey="customer" title={w('Auftraggeber und Auftrag', 'Customer and order')} counts={sectionCounts('customer')} {...sectionProps}>
+          {!partnersLoading && !partnersError && !customerPartnerId && <div className="mail-order-customer-match" role="status">{customerCandidates.length ? <><strong>{w('Passende Kunden aus Stammdaten', 'Matching master data customers')}</strong><ul>{customerCandidates.map(match => <li key={match.partner.id}><span>{match.partner.companyName} · {numbers(match.partner).join(', ')}<small>{[match.numberMatch && w('Kundennummer', 'Customer number'), match.vatMatch && w('USt-ID', 'VAT ID'), match.addressMatch && w('PLZ und Ort', 'Postal code and city'), match.nameMatch && w('Firmenname', 'Company name')].filter(Boolean).join(' · ')}</small></span><button className="button button--secondary" type="button" onClick={() => changeCustomer(match.partner.id)}>{w('Auswählen', 'Select')}</button></li>)}</ul></> : <><strong>{w('Kein passender Kunde in Drehpunkt gefunden', 'No matching customer found in Drehpunkt')}</strong><p>{w('Bitte prüfen, ob der Kunde bereits in DyCoS existiert, und seine Stammdaten nach Drehpunkt abrufen. Ist er neu, muss er zuerst in DyCoS angelegt werden. Der Auftragsimport legt keinen Kunden an.', 'Check whether the customer exists in DyCoS and fetch its master data into Drehpunkt. New customers must first be created in DyCoS. Order import does not create customers.')}</p><Link to="/kunden-unternehmer" target="_blank" rel="noopener noreferrer">{w('Stammdaten öffnen', 'Open master data')}</Link></> }<button className="button button--secondary" type="button" onClick={() => setPartnersReload(value => value + 1)}>{w('Kundenliste aktualisieren', 'Refresh customer list')}</button></div>}
+          {!customerPartnerId && !partnersLoading && !partnersError && <div className="mail-order-customer-match"><strong>{w('Kunde noch nicht vorhanden?', 'Customer not created yet?')}</strong><p>{w('Kunden zuerst in DyCoS anlegen. Für diesen Auftrag kann vorläufig unser eigener Debitor 10001 als Platzhalter verwendet werden. Danach den Auftrag in DyCoS manuell auf den echten Kunden umstellen.', 'Create the customer in DyCoS first. Our own debtor 10001 can temporarily be used as a placeholder. Then manually assign the real customer to this order in DyCoS.')}</p>{placeholderCustomer ? <button className="button button--secondary" type="button" onClick={() => { changeCustomer(placeholderCustomer.id); setCustomerNumber(mailboxOrderPlaceholderNumber) }}>{w('Platzhalter 10001 verwenden', 'Use placeholder 10001')}</button> : <p>{w('Platzhalterkunde 10001 muss zuerst aus DyCoS in die Stammdaten abgerufen werden.', 'Fetch placeholder customer 10001 from DyCoS into master data first.')}</p>}</div>}
+          {usesPlaceholder && <div className="mail-order-customer-match" role="status"><strong>{w('Platzhalter 10001 wird verwendet', 'Placeholder 10001 is being used')}</strong><p>{w('Der echte Kunde muss in DyCoS angelegt und der Auftrag anschließend dort manuell angepasst werden. Der ursprüngliche Auftraggeber wird als Hinweis mitgegeben.', 'Create the real customer in DyCoS and then manually reassign this order there. The original customer is included as a note.')}</p><label className="mail-order-checkbox"><input type="checkbox" checked={placeholderConfirmed} onChange={event => { changed(); setPlaceholderConfirmed(event.target.checked) }} />{w('Ich bestätige die Verwendung des Platzhalters und die notwendige manuelle Anpassung in DyCoS.', 'I confirm use of the placeholder and the required manual reassignment in DyCoS.')}</label></div>}
+          <div className="mail-order-grid">
+          {field('customerName', 'Auftraggeber laut Quelle', 'Customer from source')}{field('customerNumber', 'Kundennummer laut Quelle', 'Customer number from source')}{field('customerVatId', 'USt-ID Auftraggeber', 'Customer VAT ID')}{field('customerPostalCode', 'PLZ Auftraggeber', 'Customer postal code')}{field('customerCity', 'Ort Auftraggeber', 'Customer city')}
           <div className="mail-order-field"><label className="form-field"><span>{w('Frachtzahler aus Stammdaten *', 'Freight payer from master data *')}</span><select value={customerPartnerId} disabled={partnersLoading} onChange={event => changeCustomer(event.target.value)}><option value="">{partnersLoading ? w('Kunden werden geladen …', 'Loading customers …') : w('Kunden auswählen', 'Select customer')}</option>{partners.map(partner => <option key={partner.id} value={partner.id}>{partner.companyName} · {numbers(partner).join(', ')}</option>)}</select></label><span className="mail-order-label--manual">{w('Vom Nutzer zu bestätigen', 'Confirm manually')}</span>{partnersError && <div role="alert"><p>{w('Kunden konnten nicht geladen werden.', 'Could not load customers.')}</p><button className="button button--secondary" type="button" onClick={() => setPartnersReload(value => value + 1)}>{w('Erneut versuchen', 'Try again')}</button></div>}</div>
-          <div className="mail-order-field"><label className="form-field"><span>{w('Debitorenreferenz *', 'Customer account reference *')}</span><select value={customerNumber} onChange={event => { changed(); setCustomerNumber(event.target.value) }} disabled={!customerPartnerId}><option value="">{w('Referenz auswählen', 'Select reference')}</option>{customerNumbers.map(number => <option key={number} value={number}>{number}</option>)}</select></label>{verifiedId ? <small>{w('Verifizierte interne DyCoS-ID:', 'Verified internal DyCoS ID:')} {verifiedId.sourceId}</small> : <small className="mail-order-label--missing">{w('Verifizierte DyCoS-Adress-ID fehlt. Bitte Kunden über die direkte Schnittstelle ergänzen.', 'Verified DyCoS address ID is missing. Update the customer through the direct connection.')}</small>}</div>
+          <div className="mail-order-field"><label className="form-field"><span>{w('Debitorenreferenz *', 'Customer account reference *')}</span><select value={customerNumber} onChange={event => { changed(); setPlaceholderConfirmed(false); setCustomerNumber(event.target.value) }} disabled={!customerPartnerId}><option value="">{w('Referenz auswählen', 'Select reference')}</option>{customerNumbers.map(number => <option key={number} value={number}>{number}</option>)}</select></label>{verifiedId ? <small>{w('Verifizierte interne DyCoS-ID:', 'Verified internal DyCoS ID:')} {verifiedId.sourceId}</small> : <small className="mail-order-label--missing">{w('Verifizierte DyCoS-Adress-ID fehlt. Bitte Kunden über die direkte Schnittstelle ergänzen.', 'Verified DyCoS address ID is missing. Update the customer through the direct connection.')}</small>}</div>
           {field('customerReference', 'Kundenreferenz', 'Customer reference', { required: true })}{field('vehicleType', 'Fahrzeugart', 'Vehicle type')}{field('loadingDate', 'Ladedatum', 'Loading date', { type: 'date', required: true })}{field('unloadingDate', 'Entladedatum', 'Unloading date', { type: 'date', required: true })}{field('contactName', 'Ansprechpartner Auftrag', 'Order contact')}
         </div></OrderSection>
         <OrderSection sectionKey="route" title={w('Reihenfolge der Stellen im XML', 'Stop sequence in XML')} counts={sectionCounts('route')} {...sectionProps}><ol className="mail-order-route">{order.stops.map((stop, index) => <li key={stop.id || index}><span>{stop.type === 'loading' ? w('Laden', 'Loading') : w('Entladen', 'Unloading')} · {stop.company || w('(Firma fehlt)', '(Company missing)')}</span><button type="button" className="button button--secondary" disabled={index === 0} onClick={() => moveStop(index, -1)} aria-label={`${w('Stelle nach oben', 'Move stop up')} ${index + 1}`}>↑</button><button type="button" className="button button--secondary" disabled={index === order.stops.length - 1} onClick={() => moveStop(index, 1)} aria-label={`${w('Stelle nach unten', 'Move stop down')} ${index + 1}`}>↓</button></li>)}</ol></OrderSection>
@@ -315,6 +324,7 @@ export default function MailOrderAction({ identity, mailContent, dirtyRef, attac
           <h4>{w('Waren an dieser Stelle', 'Goods at this stop')}</h4>{stop.goods.map((goods, goodsIndex) => <section className="mail-order-goods" key={goods.id || goodsIndex}><div className="mail-order-section-heading"><strong>{w('Warenposition', 'Goods item')} {goodsIndex + 1}</strong><button className="button button--secondary" type="button" onClick={() => update(`stops.${index}.goods`, stop.goods.filter((_, at) => at !== goodsIndex))}>{w('Entfernen', 'Remove')}</button></div><div className="mail-order-grid">{field(`stops.${index}.goods.${goodsIndex}.description`, 'Warenbezeichnung', 'Goods description', { required: true })}{field(`stops.${index}.goods.${goodsIndex}.quantity`, 'Menge / Kolli', 'Quantity / packages', { numeric: true, required: true })}{field(`stops.${index}.goods.${goodsIndex}.packaging`, 'Verpackung', 'Packaging')}{field(`stops.${index}.goods.${goodsIndex}.weightKg`, 'Bruttogewicht (kg)', 'Gross weight (kg)', { numeric: true })}{field(`stops.${index}.goods.${goodsIndex}.loadingMeters`, 'Lademeter', 'Loading metres', { numeric: true })}{field(`stops.${index}.goods.${goodsIndex}.lengthCm`, 'Länge (cm)', 'Length (cm)', { numeric: true })}{field(`stops.${index}.goods.${goodsIndex}.widthCm`, 'Breite (cm)', 'Width (cm)', { numeric: true })}{field(`stops.${index}.goods.${goodsIndex}.heightCm`, 'Höhe (cm)', 'Height (cm)', { numeric: true })}{field(`stops.${index}.goods.${goodsIndex}.volumeM3`, 'Volumen (m³)', 'Volume (m³)', { numeric: true })}</div></section>)}<button className="button button--secondary" type="button" onClick={() => update(`stops.${index}.goods`, [...stop.goods, makeGoods()])}>{w('Warenposition hinzufügen', 'Add goods item')}</button></section>)}<button className="button button--secondary" type="button" onClick={() => { changed(); setOrder(value => ({ ...value, stops: [...value.stops, makeStop(type)] })) }}>{type === 'loading' ? w('Ladestelle hinzufügen', 'Add loading stop') : w('Entladestelle hinzufügen', 'Add unloading stop')}</button></div></OrderSection>)}
         <OrderSection sectionKey="price" title={w('Preis und Hinweise', 'Price and instructions')} counts={sectionCounts('price')} {...sectionProps}><div className="mail-order-grid">{field('price', 'Frachtpreis (netto)', 'Freight price (net)', { numeric: true, required: true })}{field('currency', 'Währung (DyCoS: EUR)', 'Currency (DyCoS: EUR)', { required: true })}{field('instructions', 'Vorschriften', 'Transport instructions', { multiline: true })}{field('dispatchNote', 'Dispositionshinweise', 'Dispatch notes', { multiline: true })}</div>{empty(order.price) && <label className="mail-order-checkbox"><input type="checkbox" checked={allowMissingPrice} onChange={event => { changed(); setAllowMissingPrice(event.target.checked) }} />{w('Ich bestätige ausdrücklich die Erfassung ohne Frachtpreis.', 'I explicitly confirm capture without a freight price.')}</label>}</OrderSection>
         <OrderSection sectionKey="approval" title={w('Original-PDF und Freigabe', 'Original PDF and approval')} counts={sectionCounts('approval')} {...sectionProps}><label className="form-field"><span>{w('Original-Auftragsbeleg für die XML *', 'Original order PDF to embed in XML *')}</span><select value={originalAttachmentId} onChange={event => { changed(); setOriginalAttachmentId(event.target.value) }}><option value="">{w('Original-PDF auswählen', 'Select original PDF')}</option>{attachments.filter(item => selectedPdfIds?.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p className="mailbox-hint">{w('Das gewählte Original-PDF wird unverändert in die XML eingebettet.', 'The selected original PDF is embedded unchanged in the XML.')}</p>{!attachments.length && <p className="mail-order-label--missing">{w('Kein auswertbares Original-PDF vorhanden. Ein XML-Export mit Originalbeleg ist nicht möglich.', 'No readable original PDF is available. XML export with the original document is unavailable.')}</p>}
+        {usesPlaceholder && <p className="mail-order-warnings" role="status">{w('Platzhalter 10001: Kunden in DyCoS anlegen und diesen Auftrag dort anschließend manuell umstellen.', 'Placeholder 10001: Create the customer in DyCoS and manually reassign this order there.')}</p>}
         {issues.length > 0 && <div className="mail-order-validation" role="status"><strong>{errors.length ? w('Vor dem Export ergänzen oder korrigieren:', 'Complete or correct before export:') : w('Hinweise prüfen:', 'Review notes:')}</strong><ul>{issues.map((item, index) => <li className={item.severity === 'error' ? 'mail-order-label--missing' : 'mail-order-label--warning'} key={`${item.path}-${index}`}><OrderMessage source={item.message} /></li>)}</ul></div>}
         <label className="mail-order-checkbox"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{w('Ich habe Auftragsdaten, Frachtzahler, fehlende Angaben und Original-PDF geprüft und bestätige den XML-Download.', 'I have reviewed the order data, freight payer, missing information and original PDF and confirm the XML download.')}</label><div className="mail-order-footer">{notice && <p className="mail-order-notice" role="status">{notice}</p>}<button className="button" type="submit" disabled={Boolean(busy) || !canExport}>{busy === 'export' ? w('XML wird erstellt …', 'Creating XML …') : w('Auftrag anlegen', 'Create order')}</button><small>{w('Aktuell wird die XML mit den zugehörigen Anlagen heruntergeladen. Die automatische Übergabe zur Auftragsanlage wird vorbereitet.', 'Currently, the XML and its attachments are downloaded. Automatic transfer for order creation is being prepared.')}</small>{dirty && <small>{w('Schließen erhält deine Eingaben in dieser Browsersitzung.', 'Closing preserves your input in this browser session.')}</small>}</div><Link to="/kunden-unternehmer">{w('Zur Stammdatenverwaltung', 'Open master data management')}</Link></OrderSection>
       </fieldset></form>}

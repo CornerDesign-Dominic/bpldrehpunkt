@@ -1,7 +1,7 @@
 // Business values stay independent of GEHR tag names. Only the export boundary
 // maps them to the externally documented representation.
 const textLimits = {
-  customerReference: 255, customerName: 255, customerNumber: 30, vehicleType: 255,
+  customerReference: 255, customerName: 255, customerNumber: 30, customerVatId: 40, customerPostalCode: 40, customerCity: 255, vehicleType: 255,
   loadingDate: 10, unloadingDate: 10, currency: 3, contactName: 255,
   instructions: 4000, dispatchNote: 4000,
 }

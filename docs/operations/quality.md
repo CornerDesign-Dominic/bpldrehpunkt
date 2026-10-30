@@ -13,26 +13,45 @@ Protokollseite erweitert. Listen und Themenseiten öffnen dieselbe Detailseite.
 Der Datenvertrag, die Revisionssicherung und das Modulrecht `kvp` bleiben bestehen.
 
 Die Oberfläche verwendet kurze Feld- und Aktionsnamen ohne dauerhafte Erklärtexte.
-Handbucheinträge werden mit Titel und Prozess/Handlung angelegt. „Anlegen und
+Handbuchartikel werden mit Titel und Kapitel angelegt. „Anlegen und
 öffnen“ führt direkt zur eigenen Detailseite unter `/qualitaet/handbuch/{entryId}`.
 Situation, Folgen, Vorgehen und Vorbeugung werden dort jeweils einzeln bearbeitet;
-Titel und Prozess sind über „Eintrag bearbeiten“ erreichbar. Der bestehende
+Titel und Kapitel sind über „Artikel bearbeiten“ erreichbar. Der bestehende
 Revisionsverlauf und Modulzugriff `handbook` bleiben erhalten.
 Die vier Inhaltskarten stehen untereinander. Darunter zeigt eine fünfte Karte
-Revision, serverseitige letzte Bearbeitung und Bearbeiter sowie die separat
+serverseitige letzte Bearbeitung und Bearbeiter sowie die separat
 bearbeitbaren Kontrolltermine. Optionale Handbuchfelder `lastReviewedDate` und
 `nextReviewDate` enthalten reale ISO-Daten; nächste Kontrolle darf nicht vor der
 letzten liegen. Fehlende Felder aus Alt-Clients bleiben bei Speicherung erhalten.
 Jede Speicherung erhöht wie bisher die technische Revision, auch bei Terminänderungen.
 Eine Textänderung setzt kein Kontrolldatum automatisch.
 Die optionale Zuständigkeit (`owner`, Freitextname bis 500 Zeichen) wird in
-derselben Karte bearbeitet und auch in der Übersicht angezeigt und durchsucht.
+derselben Karte bearbeitet und über die Katalogsuche gefunden.
 Ein gesetztes nächstes Kontrolldatum vor dem heutigen Berliner Kalendertag
 markiert den Eintrag in Übersicht und Detail mit farbigem Rahmen und
 „Kontrolle überfällig“. Heute fällige und undatierte Einträge bleiben unmarkiert.
 Offene Seiten aktualisieren die Tagesgrenze minütlich und beim Fensterfokus.
 Ältere Clients erhalten gespeicherte Zuständigkeiten bei ihren Änderungen;
 Kontrolltermine und Zuständigkeit verleihen keine zusätzlichen Zugriffsrechte.
+
+Die Startseite ist ein Katalog: standardmäßig alle Abteilungen, Volltextsuche über
+die aktuellen Artikel, optionaler Abteilungsfilter und alphabetische Kapitel mit
+kompakten, alphabetischen Artikellisten. Die Suche berücksichtigt auch Artikeltext
+und Zuständigkeit. Ergebnisse nennen bei abteilungsübergreifender Ansicht die
+Abteilung; überfällige Kontrollen bleiben markiert. Katalogsuche und Filter stehen
+in der URL und bleiben beim Öffnen eines Artikels und Zurückkehren erhalten.
+Kapitel nutzen das bestehende Feld `process`; vorhandene Inhalte werden unverändert
+übernommen. Beim Anlegen und Zuordnen lassen sich bestehende Kapitel derselben
+Abteilung auswählen oder neue Namen eingeben. Es gibt keinen separaten Kapitel-
+Datenspeicher und keine Migration. Neue Artikel verlangen eine aktive Abteilung.
+Die Revisionsnummer ist nur in der separaten „Revisionshistorie“ sichtbar. Auch Leser
+können dort vollständige frühere Fassungen ansehen; Speichern ist dort gesperrt.
+Der Einstieg liegt unten in „Stand & Kontrolle“. Die Liste zeigt Nummer, Datum
+und Bearbeiter; ein Klick öffnet die vollständige Fassung als lesbaren Artikel
+im großen Modal. Über „Alle Revisionen“ geht es zur Liste zurück. Handbuch-
+Bearbeitungsmodale enthalten keinen Verlauf mehr, sind bis 1120 Pixel breit
+und bieten große mehrzeilige Textflächen. Die Historie nutzt 88 % der Fensterhöhe.
+Der Katalog liest nur aktuelle Wurzeldokumente, keine historischen Fassungen.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
 anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
 den ersten Plan-Text; sie führt kein zusätzliches Datenfeld ein.
@@ -217,3 +236,25 @@ Revisionen, Paralleländerungen und verweigerten Schreibrechten erfolgreich.
 Lint, Build und Shared-Abgleich (38 Module) erfolgreich. Ein angemeldeter
 Browserdurchlauf ist weiterhin offen. Dev benötigt Frontend und die aktualisierte
 `saveQualityRecord`; Rules, Indizes und Produktion werden nicht geändert.
+
+### Handbuchkatalog am 30.10.2026
+
+Katalog mit Kapiteln und Artikellisten, Volltextsuche, Abteilungsfilter,
+Kapitelvorschlägen und separatem lesbarem Änderungsverlauf umgesetzt. Bestehende
+Artikel und Fassungen unverändert erhalten. 23 gezielte Unit-Tests, sieben
+Firestore-Emulatorprüfungen, Lint, Build und Shared-Abgleich (39 Module) erfolgreich.
+Lokaler Browser mit Beispieldaten: Suche, Abteilungsfilter, Artikelerstellung,
+vorhandenes/neues Kapitel, Rückkehr mit Suchzustand und frühere Fassung geprüft;
+Deutsch und Englisch textlich geprüft, ohne Bildvorschauen. Angemeldeter
+Dev-Browserdurchlauf bleibt offen. Nur Frontend-Veröffentlichung erforderlich;
+Backend, Rules, Indizes und Datenmodell bleiben unverändert.
+
+### Größere Handbuchmodale und Revisionsliste am 30.10.2026
+
+Separater Einstieg „Revisionshistorie“ mit Nummer, Zeitpunkt und Bearbeiter sowie
+großem Lesemodal je Fassung. Bearbeitungsmodale verbreitert und Textflächen
+vergrößert; Verlauf dort entfernt. Lint, Build und Shared-Abgleich (39 Module)
+erfolgreich. Lokaler Browser mit Beispieldaten: 1120 Pixel Modalbreite und große
+Textfläche, kein Verlaufsbutton in der Bearbeitung, Verwerfenschutz, Revisionsliste,
+vollständige frühere Fassung und Fokus-Rückkehr zur Liste/Artikelseite geprüft.
+Kein angemeldeter Dev-Browserdurchlauf. Nur Frontend-Veröffentlichung erforderlich.

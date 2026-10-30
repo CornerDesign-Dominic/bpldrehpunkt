@@ -1,6 +1,23 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { qualityValues, nextQualityCycle, searchQualityRecords, groupQualityCycles, qualityTopicUrl, qualityOverviewUrl, qualitySmartValues, SMART_FIELDS, isQualityReviewOverdue } from './qualityPresentation.js'
+import { qualityValues, nextQualityCycle, searchQualityRecords, groupQualityCycles, qualityTopicUrl, qualityOverviewUrl, qualitySmartValues, SMART_FIELDS, isQualityReviewOverdue, groupHandbookCatalog } from './qualityPresentation.js'
+
+test('handbook catalog groups current articles by chapter across departments and searches full content', () => {
+  const records = [
+    { id: 'b', title: 'Zahlung fehlt', process: 'Rechnungen', departmentId: 'billing', action: 'Beleg prüfen', revision: 4 },
+    { id: 'a', title: 'Abweichender Betrag', process: 'Rechnungen', departmentId: 'accounting', prevention: 'Beleg abgleichen', revision: 7 },
+    { id: 'c', title: 'Unternehmer anfragen', process: 'Einkauf', departmentId: 'dispatch', owner: 'Anna' },
+  ]
+  const catalog = groupHandbookCatalog(records)
+  assert.deepEqual(catalog.map((group) => group.chapter), ['Einkauf', 'Rechnungen'])
+  assert.deepEqual(catalog[1].articles.map((article) => article.id), ['a', 'b'])
+  assert.deepEqual(groupHandbookCatalog(records, { departmentId: 'billing' })[0].articles.map((article) => article.id), ['b'])
+  assert.equal(groupHandbookCatalog(records, { search: 'BELEG' })[0].articles.length, 2)
+  assert.equal(groupHandbookCatalog(records, { search: 'anna' })[0].chapter, 'Einkauf')
+  assert.equal(groupHandbookCatalog(records, { search: 'rechnung', departmentId: 'dispatch' }).length, 0)
+  assert.equal(records[0].id, 'b')
+  assert.deepEqual(groupHandbookCatalog([]), [])
+})
 
 test('handbook review becomes overdue after its due day and remains discoverable by owner', () => {
   const record = { nextReviewDate: '2026-10-30', owner: 'Anna Beispiel' }
