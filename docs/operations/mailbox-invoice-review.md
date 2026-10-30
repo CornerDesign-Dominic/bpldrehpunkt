@@ -6,9 +6,10 @@ Produktion und status@ bleiben unverändert.
 
 ## Ablauf und Aussagekraft
 
-Die Mailaktion startet sofort im vorhandenen großen Arbeitsdialog: Mail/PDF
-links, rechts sichtbare Ladeüberlagerung, danach ein Ergebnis je erkannter
-Rechnung mit aufklappbarer Zeile je TA. Mehrere Rechnungspositionen derselben TA
+Die Mailaktion startet als dauerhafte Hintergrundauswertung; der Arbeitsdialog
+öffnet erst nach bewusstem Klick auf das fertige Ergebnis. Mail/PDF stehen links,
+rechts ein Ergebnis je erkannter Rechnung mit aufklappbarer Zeile je TA.
+Mehrere Rechnungspositionen derselben TA
 werden für den Transportvergleich addiert; unterschiedliche TAs bleiben getrennt.
 Kopf-/Summenprüfung und Gesamtstatus der Rechnung sind von den Transportzeilen
 getrennt. Grün bedeutet Übereinstimmung der aufgeführten Prüfpunkte; Rot eine
@@ -137,3 +138,59 @@ belegte neunstellige Auftragsreferenzen werden als unverbindliche Texthinweise
 mitgegeben; sie ersetzen weder die Zuordnung zur konkreten Position noch den
 anschließenden echten Auftragsabgleich. Es gibt keine automatische Übernahme
 einer beliebigen neunstelligen Zahl oder einer Nummer aus dem Dateinamen.
+
+## Prüfregeln Version 2, 30.10.2026
+
+Die Farben je Prüfpunkt sind grau (leer/optional), blau (ergänzende Information),
+grün (abgeglichen/korrekt), gelb (ungeklärt oder unkritische Abweichung) und rot
+(kritische Abweichung). Der grüne Mailaktionsbutton bedeutet weiterhin nur
+„Auswertung abgeschlossen“. Alte Berichte bleiben unverändert lesbar.
+
+Auch unsichere neunstellige Rechnungsreferenzen werden gegen vorhandene Aufträge
+und gegebenenfalls die lesende Schnittstelle geprüft. Mehrere mögliche Aufträge
+werden getrennt nach Übereinstimmung sortiert und gelb als Vorschläge angezeigt;
+alternative Kandidaten werden niemals als mehrere abgerechnete Transporte addiert.
+Bei mehreren Alternativen erfolgt keine feste Auftragsverknüpfung. Fehlt ein
+Auftrag eindeutig, ist die Zuordnung rot; ein fehlgeschlagener Abruf bleibt gelb.
+
+Netto wird gegen die sicheren TA-Kostenpositionen geprüft. MwSt./Brutto erhalten
+einen eigenen Datenbankvergleich und die Rechnungssummen eine rechnerische
+Prüfung. Fehlende Referenzwerte sind gelb, nicht null. Unterschiedliche Währungen
+sind eine Nebeninformation; Beträge werden nicht ohne passende Währungszuordnung
+verglichen oder umgerechnet. Positive MwSt. bei belegtem ausländischem Unternehmer
+ist eine rote betriebliche Prüfregel, keine abschließende steuerrechtliche Aussage.
+
+Aussteller, beide USt-IDs und Empfänger werden geprüft. Fehlende gewünschte Angaben
+sind gelb, fehlendes Rechnungsdatum grau. Die aktuelle Empfängeranschrift ist
+Reinshagenstraße, 42369 Wuppertal; Heinz-Fangmann-Straße wird als frühere Anschrift
+gelb erkannt. Übliche Straßenabkürzungen und ein bis zwei Buchstabenabweichungen
+werden toleriert. Rosenthalstraße wird ausdrücklich noch nicht berücksichtigt.
+
+Das Zahlungsziel nutzt den vollständigen Vertragstext des verknüpften Unternehmers
+und unterscheidet Rechnungsdatum, Rechnungseingang, Belegeingang sowie Kalender-,
+Werk- und Banktage. Ein Fälligkeitsdatum wird nur mit derselben sicheren Grundlage
+verglichen. Fehlende Grundlagen sind gelb, festgestellte Abweichungen rot.
+
+Rechnungs-PDFs durchlaufen immer zusätzlich OCR. Textebene und OCR bleiben getrennt,
+mit Metadaten für reine OCR sowie Unterschiede. Widersprüchlich erkannte Geldwerte
+werden feldbezogen gelb, auch bei rechnerischer Übereinstimmung mit der Datenbank;
+unterschiedliche Telefonnummern verfälschen keine beidseitig bestätigten Beträge.
+AGB-/Auftragserfassung verwenden weiterhin OCR nur bei Bedarf.
+
+Wichtige kurze Hinweise zu Kostenabweichungen, Empfängeranschrift, Zahlungsziel
+und möglichen Abrechnungsbezügen stehen oben im gelben Feld. Der aktuelle sichere
+DyCoS-Mapper übernimmt keine bestätigten Buchungen oder externen Rechnungsreferenzen
+aus den fachlich noch ungeklärten Belegarten. Eine RechKopfID an einer Kostenposition
+ist nur ein qualifizierter Beleg-Hinweis. Prüfberichte sind niemals Buchungsbelege;
+fehlende Buchungsdaten werden ausdrücklich als ungeklärt dargestellt.
+
+Die rechte Dialoghälfte scrollt vollständig unter einem kompakten Kopf. Es ist
+über alle Rechnungen und TA-Abschnitte höchstens ein Abschnitt geöffnet. Geschlossene
+Abschnitte zeigen Zahl und Farbkugel; Modellwarnungen stehen im Zusatzabschnitt.
+
+Echte Tests mit den drei Nutzerrechnungen wurden mit vollständiger zusätzlicher
+OCR, echter KI-Extraktion und lesend geladenen Unternehmerstammdaten wiederholt.
+Die Prüfberichte wurden ausschließlich lokal gespeichert; keine echten Aufträge
+angelegt und keine E-Mails gesendet. Die Oberfläche wurde mit synthetischen Version-1-
+und Version-2-Berichten geprüft. Bereitstellung nur in Dev: `reviewMailboxInvoices`
+und der gemeinsame Worker `processMailboxActionRun` sowie das Frontend.

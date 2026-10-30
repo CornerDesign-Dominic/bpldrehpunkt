@@ -3,6 +3,24 @@ import { executeAiOperation } from './aiUsage.js'
 
 const problem = (message, errorType = 'pdf_ocr_failed') => { const error = new Error(message); error.errorType = errorType; throw error }
 const normal = text => String(text || '').replace(/\s+/gu, ' ').trim()
+const numericToken = value => {
+  value = value.replace(/^−/u, '-')
+  const date = /^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/.exec(value)
+  const reversed = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(value)
+  if (date || reversed) {
+    const [, year, month, day] = date || [null, reversed[3], reversed[2], reversed[1]]
+    const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    const parsed = new Date(iso)
+    if (Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === iso) return iso
+  }
+  if (/^-?\d[\d.,]*[.,]\d{1,2}$/.test(value)) {
+    const decimal = Math.max(value.lastIndexOf(','), value.lastIndexOf('.'))
+    const whole = value.slice(0, decimal).replace(/[.,]/g, '')
+    return `${whole}.${value.slice(decimal + 1).padEnd(2, '0')}`
+  }
+  return value
+}
+const numericSignature = value => (normal(value).match(/[-−]?\d+(?:[.,/−-]\d+)*/gu) || []).map(numericToken).sort().join('|')
 // Very short image captions or scanner headers are not a usable text layer.
 export function needsPdfOcr(text, hasImage = true) {
   const value = normal(text)
@@ -82,21 +100,37 @@ export async function recognizePdfPages({ bytes, pageNumbers, fileName = 'Dokume
   } })
   return response.result
 }
-export async function extractPdfWithOcr(bytes, { actorId, apiKey, fileName = 'Dokument.pdf', cache = new Map(), inspect = readPdfPages, recognize = recognizePdfPages } = {}) {
+export async function extractPdfWithOcr(bytes, { actorId, apiKey, fileName = 'Dokument.pdf', cache = new Map(), inspect = readPdfPages, recognize = recognizePdfPages, alwaysOcr = false } = {}) {
   const inspected = await inspect(bytes)
   const original = Array.isArray(inspected) ? inspected : inspected.pages
-  const pageNumbers = original.flatMap((text, index) => needsPdfOcr(text, Array.isArray(inspected) || inspected.imagePages.includes(index + 1)) ? [index + 1] : [])
+  const usableNativePages = original.map((text, index) => !needsPdfOcr(text, Array.isArray(inspected) || inspected.imagePages.includes(index + 1)))
+  const pageNumbers = original.flatMap((_text, index) => alwaysOcr || !usableNativePages[index] ? [index + 1] : [])
   const pages = [...original]
+  const ocrPageTexts = original.map(() => '')
+  const ocrDifferencePages = []
   let uncertainPages = []
   if (pageNumbers.length) {
     const key = createHash('sha256').update(bytes).digest('hex') + ':' + pageNumbers.join(',')
     if (!cache.has(key)) cache.set(key, Promise.resolve().then(() => recognize({ bytes, pageNumbers, fileName, actorId, apiKey })))
     const recognized = validatePdfOcr({ pages: await cache.get(key) }, pageNumbers)
-    for (const page of recognized) pages[page.number - 1] = page.text
+    for (const page of recognized) {
+      const index = page.number - 1
+      ocrPageTexts[index] = page.text
+      // Preserve native text and OCR independently. A second reading must not
+      // silently overwrite an existing, usable text layer with different values.
+      if (!alwaysOcr || !usableNativePages[index]) pages[index] = page.text
+      if (alwaysOcr && usableNativePages[index]) {
+        if (numericSignature(original[index]) !== numericSignature(page.text)) ocrDifferencePages.push(page.number)
+      }
+    }
     uncertainPages = recognized.filter(page => page.uncertain).map(page => page.number)
   }
   const text = pages.map((page, index) => page ? `[Seite ${index + 1}]\n${page}` : '').filter(Boolean).join('\n\n')
   if (!text.trim()) problem('Die PDF enthält auch nach OCR keinen lesbaren Text.', 'empty_pdf_text')
   if (text.length > 160000) problem('Der Dokumenttext ist nach OCR zu umfangreich.', 'document_too_large')
-  return { text, pageCount: pages.length, pages, ocrPages: pageNumbers, ocrUncertainPages: uncertainPages }
+  const nativeText = original.map((page, index) => page ? `[Seite ${index + 1}]\n${page}` : '').filter(Boolean).join('\n\n')
+  const ocrText = ocrPageTexts.map((page, index) => page ? `[Seite ${index + 1}]\n${page}` : '').filter(Boolean).join('\n\n')
+  if (ocrText.length > 160000) problem('Der OCR-Text ist zu umfangreich.', 'document_too_large')
+  const extractionMethod = !pageNumbers.length ? 'native_text' : usableNativePages.some(Boolean) ? 'text_and_ocr' : 'ocr_only'
+  return { text, pageCount: pages.length, pages, ocrPages: pageNumbers, ocrUncertainPages: uncertainPages, nativeText, nativePages: [...original], ocrText, ocrPageTexts, ocrDifferencePages, extractionMethod, evidenceText: alwaysOcr ? `[PDF-Textebene]\n${nativeText}\n\n[Zusätzliche OCR]\n${ocrText}` : text }
 }

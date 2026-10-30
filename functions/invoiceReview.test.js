@@ -27,18 +27,18 @@ test('money uses exact cents, currencies do not collapse missing amounts to zero
 })
 test('a match compares transport-specific costs, never tour totals or sales revenue',()=>{
   const checked=compareInvoiceTransport({rows:[row()],invoice:invoice(),imported,company})
-  assert.equal(checked.status,'match');assert.equal(checked.checks[0].expected,50000)
+  assert.equal(checked.checks.find(check=>check.key==='net').status,'match');assert.equal(checked.checks.find(check=>check.key==='net').expected,50000);assert.equal(checked.status,'unknown')
   assert.equal(compareInvoiceTransport({rows:[row('260000001','501,00')],invoice:invoice(),imported,company}).status,'mismatch')
   assert.equal(compareInvoiceTransport({rows:[row()],invoice:invoice(),imported:{...imported,financial:{costNet:500,currency:'EUR'}},company}).status,'unknown')
 })
 test('missing comparison facts cannot be green; known differences are red',()=>{
   assert.equal(compareInvoiceTransport({rows:[row()],invoice:invoice(),imported,company:{}}).status,'unknown')
-  const wrong=invoice();wrong.currency=value('PLN');assert.equal(compareInvoiceTransport({rows:[row()],invoice:wrong,imported,company}).status,'mismatch')
-  const plate=row();plate.licensePlate=value('OTHER');assert.equal(compareInvoiceTransport({rows:[plate],invoice:invoice(),imported,company}).status,'mismatch')
+  const wrong=invoice();wrong.currency=value('PLN');const wrongResult=compareInvoiceTransport({rows:[row()],invoice:wrong,imported,company});assert.equal(wrongResult.status,'unknown');assert.equal(wrongResult.checks.find(check=>check.key==='currency').color,'blue');assert.equal(wrongResult.checks.find(check=>check.key==='net').color,'yellow')
+  const plate=row();plate.licensePlate=value('OTHER');assert.equal(compareInvoiceTransport({rows:[plate],invoice:invoice(),imported,company}).checks.find(check=>check.key==='licensePlate-0').color,'blue')
 })
 test('collection invoice combines charges per TA and checks sums, net/tax/gross separately',()=>{
-  assert.equal(compareInvoiceTransport({rows:[row('260000001','300,00'),row('260000001','200,00')],invoice:invoice(),imported,company}).status,'match')
-  const bill=invoice([row('260000001','300,00'),row('260000002','200,00')]);assert.equal(invoiceTotals(bill).status,'match')
+  assert.equal(compareInvoiceTransport({rows:[row('260000001','300,00'),row('260000001','200,00')],invoice:invoice(),imported,company}).checks.find(check=>check.key==='net').status,'match')
+  const bill=invoice([row('260000001','300,00'),row('260000002','200,00')]);assert.equal(invoiceTotals(bill).checks.find(check=>check.key==='positionSum').status,'match');assert.equal(invoiceTotals(bill).checks.find(check=>check.key==='taxSum').status,'match');assert.equal(invoiceTotals(bill).status,'unknown')
   bill.grossTotal=value('999,00');assert.equal(invoiceTotals(bill).status,'mismatch')
   bill.grossTotal=value('');assert.equal(invoiceTotals(bill).status,'unknown')
 })
@@ -58,7 +58,7 @@ test('full report persists once and is attached to every matched TA without copy
  const original=JSON.stringify([...db.records])
  const bill=invoice([row('260000001','500,00'),row('260000002','500,00')]);bill.netTotal=value('1000,00');bill.grossTotal=value('1000,00')
  const args={db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-000000001',now:1000,extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 1000,00 0,00 TA 260000001 TA 260000002',pageCount:1}),infer:async()=>({invoices:[bill]}),fetchOrder:()=>assert.fail('local order complete')}
- const report=await reviewMailboxInvoices(args);assert.equal(report.status,'match');assert.equal(report.invoices[0].transports.length,2)
+ const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,2);assert.equal(report.invoices[0].transports.length,2)
  assert.ok(db.records.has(`transportOrders/a/invoiceChecks/${report.id}`));assert.ok(db.records.has(`transportOrders/b/invoiceChecks/${report.id}`))
  assert.equal(JSON.stringify([...db.records].slice(0,3)),original)
  assert.equal((await reviewMailboxInvoices({...args,infer:()=>assert.fail('duplicate request should use receipt')})).id,report.id)
@@ -66,7 +66,7 @@ test('full report persists once and is attached to every matched TA without copy
 test('no TA in invoice aborts matching even if filenames or other sources contain a TA',async()=>{
  const db=database();let queried=false;db.collection=()=>{queried=true;assert.fail('no lookup without invoice TA')}
  const bill=invoice([row('','500,00')]);const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'TA 260000001.pdf',contentBytes:'YQ=='}],operationId:'request-000000001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00',pageCount:1}),infer:async()=>({invoices:[bill]})})
- assert.equal(queried,false);assert.match(report.message,/Keine Zuordnung/);assert.equal(report.invoices[0].transports[0].status,'unassigned')
+ assert.equal(queried,false);assert.match(report.message,/keine eindeutige TA-Zuordnung/);assert.equal(report.invoices[0].transports[0].status,'unassigned')
  assert.equal([...db.records.keys()].some(key=>key.includes('/invoiceChecks/')),false)
 })
 
@@ -98,4 +98,57 @@ test('external order-number labels remain valid TA hints without accepting invoi
  assert.deepEqual(hints.map(hint=>hint.number),['260000001','260000002'])
  assert.equal(hints[0].quote,'ext. Auftrags-Nr.: 260000001')
  assert.deepEqual(invoiceTaReferenceHints('Rechnung 260999999 ext. Auftrags-Nr.: 2600000019'),[])
+})
+
+test('unlabeled but literal TA candidates are checked, ranked, and never multiply the billed amount', async () => {
+ const db=database();db.records.set('transportOrders/a',{externalNumber:'260000001',imported});db.records.set('transportOrders/b',{externalNumber:'260000002',imported:{...imported,financial:{...imported.financial,costPositions:[{amountNet:700}]}}});db.records.set('appSettings/companyMasterData',company)
+ const bill=invoice([row('','500,00')]);let ocrRequested=false
+ const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-candidates-001',extract:async(_bytes,options)=>{ocrRequested=options.alwaysOcr;return{text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 Referenzen 260000001 oder 260000002',pageCount:1}},infer:async()=>({invoices:[bill]}),fetchOrder:()=>assert.fail('local facts complete')})
+ assert.equal(ocrRequested,true)
+ const transport=report.invoices[0].transports[0]
+ assert.equal(transport.uncertainTa,true);assert.equal(transport.color,'yellow');assert.equal(transport.candidates.length,2)
+ assert.equal(transport.candidates[0].ta,'260000001');assert.ok(transport.candidates[0].score>transport.candidates[1].score)
+ assert.equal(report.invoices[0].totals.checks.find(check=>check.key==='positionSum').actual,50000)
+ assert.equal([...db.records.keys()].some(key=>key.includes('/invoiceChecks/')),false)
+})
+
+test('a single uncertain database match stays yellow but attaches the explicitly uncertain report',async()=>{
+ const db=database();db.records.set('transportOrders/a',{externalNumber:'260000001',imported});db.records.set('appSettings/companyMasterData',company)
+ const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-one-candidate-001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 Referenz 260000001',pageCount:1}),infer:async()=>({invoices:[invoice([row('','500,00')])]}),fetchOrder:()=>assert.fail('local facts complete')})
+ assert.equal(report.invoices[0].transports[0].checks[0].color,'yellow')
+ assert.equal(report.invoices[0].transports[0].orderId,'a')
+ assert.ok(db.records.has(`transportOrders/a/invoiceChecks/${report.id}`))
+ assert.equal(report.invoices[0].totals.checks.find(check=>check.key==='netTotal').color,'yellow')
+})
+
+test('only genuine OCR/native invoice evidence can recover a missing TA; filenames still cannot',()=>{
+ const raw=invoice([row('260000001')]);raw.invoiceEvidence='Rechnung';raw.recipientAddress=value('Reinshagenstraße 1, 42369 Wuppertal')
+ const result=validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',name:'other.pdf',text:'Rechnung',nativeText:'Rechnung',evidenceText:'[Textebene] Rechnung [OCR] TA 260000001 Reinshagenstraße 1, 42369 Wuppertal 500,00',extractionMethod:'text_and_ocr',ocrPages:[1]}])[0]
+ assert.equal(result.transports[0].ta.value,'260000001')
+ assert.equal(result.recipientAddress.value,'Reinshagenstraße 1, 42369 Wuppertal')
+ assert.equal(result.extractionMethod,'text_and_ocr')
+})
+
+test('empty extracted positions still show document TA candidates without assigning the invoice total to them',async()=>{
+ const db=database();db.records.set('transportOrders/a',{externalNumber:'260000001',imported});db.records.set('appSettings/companyMasterData',company)
+ const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-empty-positions-001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 Referenz 260000001',pageCount:1}),infer:async()=>({invoices:[invoice([])]}),fetchOrder:()=>assert.fail('local facts complete')})
+ const transport=report.invoices[0].transports[0]
+ assert.equal(transport.color,'yellow');assert.equal(transport.candidates[0].ta,'260000001');assert.equal(transport.candidates[0].netCents,null)
+ assert.equal(report.invoices[0].totals.checks.find(check=>check.key==='positionSum').actual,null)
+})
+
+test('disputed text/OCR monetary values remain yellow even when the selected channel happens to match the database',()=>{
+ const raw=invoice();const native='Rechnung TA 260000001 Netto 500,00 MwSt 0,00 Brutto 500,00';const ocr='Rechnung TA 260000001 Netto 800,00 MwSt 0,00 Brutto 800,00'
+ const checked=validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',name:'a.pdf',text:native,nativeText:native,ocrText:ocr,evidenceText:native+'\n'+ocr,extractionMethod:'text_and_ocr',ocrDifferencePages:[1]}])[0]
+ assert.deepEqual(checked.amountUncertainKeys,['netTotal','grossTotal']);assert.equal(checked.transports[0].netOcrUncertain,true)
+ assert.equal(compareInvoiceTransport({rows:checked.transports,invoice:checked,imported,company}).checks.find(check=>check.key==='net').color,'yellow')
+ assert.equal(invoiceTotals(checked).checks.find(check=>check.key==='taxSum').color,'yellow')
+ const sameMoney=validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',name:'a.pdf',text:native,nativeText:native+' Telefon 123456',ocrText:native+' Telefon 123457',evidenceText:native,extractionMethod:'text_and_ocr',ocrDifferencePages:[1]}])[0]
+ assert.deepEqual(sameMoney.amountUncertainKeys,[]);assert.equal(sameMoney.transports[0].netOcrUncertain,false)
+})
+
+test('combined native and OCR evidence cannot bypass the total text budget',async()=>{
+ const db=database()
+ await assert.rejects(reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'oversized-ocr.pdf',contentBytes:'YQ=='}],operationId:'request-ocr-budget-001',extract:async()=>({text:'Rechnung',nativeText:'Rechnung',ocrText:'x'.repeat(400000),evidenceText:'Rechnung',pageCount:1}),infer:()=>assert.fail('Oversized OCR must never reach invoice inference')}),{code:'failed-precondition'})
+ assert.equal([...db.records.keys()].some(key=>key.startsWith('invoiceCheckReports/')),false)
 })

@@ -1,22 +1,58 @@
-.invoice-review-results { display: grid; gap: 14px; min-width: 0; }
-.invoice-review-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.invoice-review-summary small { color: var(--text-secondary); }
-.invoice-review-status { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; }
-.invoice-review-status--match { color: var(--status-success-text); }
-.invoice-review-status--mismatch { color: var(--status-danger-text); }
-.invoice-review-status--unknown, .invoice-review-status--unassigned, .invoice-review-warning { color: var(--status-warning-text); }
-.invoice-review-invoice { border: 1px solid var(--border-strong); border-radius: 8px; padding: 12px; min-width: 0; }
-.invoice-review-invoice > h3 { margin: 0 0 8px; }
-.invoice-review-invoice details { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
-.invoice-review-invoice summary { cursor: pointer; font-size: 13px; }
-.invoice-review-transport > summary { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
-.invoice-review-comparison { overflow: auto; margin: 12px 0; }
-.invoice-review-comparison table { border-collapse: collapse; width: 100%; font-size: 12px; }
-.invoice-review-comparison th, .invoice-review-comparison td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
-.invoice-review-results blockquote { margin: 10px 0; padding-left: 10px; border-left: 2px solid var(--border-strong); font-size: 12px; overflow-wrap: anywhere; }
-.invoice-review-results a { color: var(--text-primary); font-size: 12px; }
+.invoice-review-results { min-width: 0; }
+.invoice-review-summary { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px 12px; margin: -1px 0 12px; padding: 10px 0; border-bottom: 1px solid var(--border-strong); background: var(--section-background); }
+.invoice-review-summary > div { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; }
+.invoice-review-summary small, .invoice-review-file, .invoice-review-note, .invoice-review-scope { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.invoice-review-summary strong { font-size: 13px; }
+.invoice-review-body { display: grid; gap: 12px; }
+.invoice-review-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650; line-height: 1.4; }
+.invoice-review-status--green, .invoice-review-status--match { color: var(--status-success-text); }
+.invoice-review-status--red, .invoice-review-status--mismatch { color: var(--status-danger-text); }
+.invoice-review-status--yellow, .invoice-review-status--unknown, .invoice-review-status--unassigned, .invoice-review-warning { color: var(--status-warning-text); }
+.invoice-review-status--blue { color: var(--button-background); }
+.invoice-review-status--gray { color: var(--text-muted); }
+.invoice-review-dot { display: inline-block; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: currentColor; }
+.invoice-review-counts { display: inline-flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 5px 9px; }
+.invoice-review-count { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; white-space: nowrap; }
+.invoice-review-count strong { font-size: inherit; font-variant-numeric: tabular-nums; }
+.invoice-review-important { padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--status-warning-text) 65%, var(--border)); border-radius: 7px; background: var(--status-warning-background); color: var(--text-primary); font-size: 12px; line-height: 1.5; }
+.invoice-review-important strong { font-size: 12px; }
+.invoice-review-important ul { margin: 5px 0 0; padding-left: 17px; }
+.invoice-review-important li + li { margin-top: 4px; }
+.invoice-review-invoice { display: grid; gap: 7px; min-width: 0; }
+.invoice-review-invoice + .invoice-review-invoice { padding-top: 14px; border-top: 1px solid var(--border-strong); }
+.invoice-review-invoice-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 5px 10px; }
+.invoice-review-invoice-heading h3 { margin: 0; font-size: 13px; }
+.invoice-review-file { overflow-wrap: anywhere; margin: 0 0 4px; }
+.invoice-review-section { min-width: 0; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--section-background); }
+.invoice-review-section h4 { margin: 0; }
+.invoice-review-results .invoice-review-section-toggle { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; width: 100%; min-height: 38px; padding: 9px 10px; border: 0; border-radius: 5px; color: var(--text-primary); background: transparent; font: inherit; text-align: left; box-shadow: none; }
+.invoice-review-results .invoice-review-section-toggle:hover { background: var(--surface-active); }
+.invoice-review-results .invoice-review-section-toggle:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
+.invoice-review-section-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; font-weight: 650; line-height: 1.35; }
+.invoice-review-expander { width: 11px; flex: 0 0 11px; color: var(--text-secondary); text-align: center; }
+.invoice-review-section-content { padding: 0 10px 9px; border-top: 1px solid var(--border); }
+.invoice-review-section-content[hidden] { display: none; }
+.invoice-review-check { min-width: 0; padding: 8px 0; }
+.invoice-review-check + .invoice-review-check { border-top: 1px solid var(--border); }
+.invoice-review-check-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 3px 10px; margin-bottom: 4px; }
+.invoice-review-check-heading > strong { color: var(--text-primary); font-size: 11px; line-height: 1.4; }
+.invoice-review-values { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 7px 14px; }
+.invoice-review-values > div { display: grid; align-content: start; gap: 2px; min-width: 0; }
+.invoice-review-values span { color: var(--text-muted); font-size: 10px; }
+.invoice-review-values strong { overflow-wrap: anywhere; color: var(--text-primary); font-size: 12px; font-weight: 450; line-height: 1.4; white-space: pre-wrap; }
+.invoice-review-check-note, .invoice-review-evidence { color: var(--text-secondary); font-size: 11px; line-height: 1.45; margin-top: 5px; }
+.invoice-review-results .invoice-review-source-toggle { display: inline; min-height: 0; height: auto; width: auto; margin-left: 5px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--button-background); font: inherit; text-decoration: underline; cursor: pointer; }
+.invoice-review-results .invoice-review-source-toggle:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
+.invoice-review-results blockquote { margin: 6px 0 0; padding: 4px 0 4px 9px; border-left: 2px solid var(--border-strong); color: var(--text-secondary); font-size: 11px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.invoice-review-note { margin: 8px 0; }
+.invoice-review-empty { margin: 9px 0 0; color: var(--text-muted); font-size: 12px; }
+.invoice-review-results a { color: var(--button-background); font-size: 11px; }
+.invoice-review-order-link { display: inline-block; margin-bottom: 4px; }
+.invoice-review-candidates { display: grid; gap: 8px; margin-top: 10px; }
+.invoice-review-candidates h5 { margin: 0; font-size: 12px; }
+.invoice-review-candidate { min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
+.invoice-review-candidate-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; font-size: 12px; }
+.invoice-review-candidate-heading > span { color: var(--text-secondary); font-size: 10px; }
+.invoice-review-scope { margin: 0; }
 .invoice-review-history-item { width: 100%; display: grid; gap: 8px; text-align: left; margin-bottom: 10px; }
-
-.invoice-review-transport-name { display: inline-flex; align-items: center; gap: 8px; }
-.invoice-review-expander::before { content: "+"; }
-.invoice-review-transport[open] > summary .invoice-review-expander::before { content: "−"; }
+@media (max-width: 760px) { .invoice-review-section-toggle { flex-wrap: wrap; } }
