@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCents, validateInvoiceExtraction, compareInvoiceTransport, invoiceTotals, resolveInvoiceOrder, reviewMailboxInvoices } from './invoiceReview.js'
+import { inferInvoices, invoiceCents, validateInvoiceExtraction, compareInvoiceTransport, invoiceTotals, resolveInvoiceOrder, reviewMailboxInvoices } from './invoiceReview.js'
 const value = (value, quote = value) => ({ value, quote })
 const row = (ta = '260000001', amount = '500,00') => ({ ta: value(ta), net: value(amount), loadingDate: value(''), unloadingDate: value(''), loadingCity: value(''), unloadingCity: value(''), licensePlate: value('') })
 const invoice = (transports = [row()]) => ({ sourceId:'pdf', invoiceEvidence:'Rechnung', number:value('RG1'), date:value('2026-02-10','10.02.2026'), issuer:value('Carrier GmbH'), issuerVatId:value(''), recipient:value('Brennpunkt Logistik GmbH'), recipientVatId:value(''), currency:value('EUR'), netTotal:value('500,00'), vatTotal:value('0,00'), grossTotal:value('500,00'), transports, warnings:[] })
@@ -74,4 +74,21 @@ test('uncertain OCR cannot become a green transport even when recognized amounts
  const db=database();db.records.set('transportOrders/a',{externalNumber:'260000001',imported});db.records.set('appSettings/companyMasterData',company)
  const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'scan.pdf',contentBytes:'YQ=='}],operationId:'request-ocr-00001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 TA 260000001',pageCount:1,ocrPages:[1],ocrUncertainPages:[1]}),infer:async()=>({invoices:[invoice()]}),fetchOrder:()=>assert.fail('local facts complete')})
  assert.equal(report.status,'unknown');assert.equal(report.invoices[0].transports[0].status,'unknown');assert.deepEqual(report.invoices[0].ocrPages,[1]);assert.ok(report.invoices[0].transports[0].checks.some(check=>check.key==='ocr'&&check.status==='unknown'))
+})
+
+test('inference uses schema-constrained short references and maps them back to opaque Graph IDs', async () => {
+ const graphIds = ['A'.repeat(95)+'1', 'A'.repeat(95)+'2']
+ const documents = graphIds.map((id,index)=>({id,name:`document-${index}.pdf`,text:'Rechnung RG1',contentBytes:'cGRm',pageCount:1}))
+ let request
+ const result = await inferInvoices({documents,actorId:'owner',apiKey:'unit-test-only',execute:async({operation})=>operation(),fetchImpl:async(url,options)=>{
+   request=JSON.parse(options.body)
+   return {ok:true,headers:{get:()=>null},json:async()=>({status:'completed',output_text:JSON.stringify({invoices:[{...invoice(),sourceId:'pdf-2'}]})})}
+ }})
+ assert.deepEqual(request.text.format.schema.properties.invoices.items.properties.sourceId.enum,['pdf-1','pdf-2'])
+ assert.deepEqual(JSON.parse(request.input[0].content[0].text).map(doc=>doc.sourceId),['pdf-1','pdf-2'])
+ assert.ok(graphIds.every(id=>!JSON.stringify(request).includes(id)))
+ assert.equal(result.invoices[0].sourceId,graphIds[1])
+})
+test('unknown model references fail closed with a content-free diagnostic code',async()=>{
+ await assert.rejects(inferInvoices({documents:[{id:'opaque-graph-id',name:'invoice.pdf',text:'Rechnung',contentBytes:'cGRm',pageCount:1}],actorId:'owner',apiKey:'unit-test-only',execute:async({operation})=>operation(),fetchImpl:async()=>({ok:true,headers:{get:()=>null},json:async()=>({status:'completed',output_text:JSON.stringify({invoices:[{...invoice(),sourceId:'pdf-9'}]})})})}),error=>error.code==='unavailable'&&error.details?.technicalCode==='invoice_source_reference_invalid')
 })

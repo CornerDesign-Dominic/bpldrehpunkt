@@ -109,3 +109,22 @@ Releaseprüfung: 84 gezielte Tests, Demo-Firestore-Regeltest und separate
 Demo-Firestore-Speicherintegration bestanden; Lint, Build und Abgleich von
 38 deploybaren Shared-Modulen erfolgreich. Der bestehende Hinweis auf große
 JavaScript-Chunks bleibt bestehen.
+
+
+## Korrektur der Dokumentreferenzen am 30.10.2026
+
+Der echte Mailablauf scheiterte nach erfolgreicher KI-Erkennung: Beim Kopieren
+einer langen opaken Microsoft-Anhangs-ID änderte die KI ein Zeichen. Die
+strenge Belegprüfung verwarf den unbekannten Verweis korrekt. Die Analyse
+übergibt deshalb nur kurze serverseitige Aliase (pdf-1, pdf-2 usw.). Das
+Antwortschema beschränkt sourceId auf genau diese Aliase; der Server ordnet sie
+anschließend exakt den ursprünglichen Anhangs-IDs zu. Opaque Graph-IDs werden
+nicht mehr an die KI übermittelt. Die Belegprüfung bleibt unverändert streng;
+es gibt keine unscharfe Reparatur einer beschädigten ID. Unbekannte Referenzen
+und unbelegte Inhalte haben getrennte inhaltsfreie Diagnosecodes.
+
+Die Ursache wurde mit dem betroffenen echten Mailanhang reproduziert. Nach der
+Korrektur war derselbe KI-/Validierungsablauf erfolgreich. Regressionstests
+prüfen zwei fast gleiche lange Anhangs-IDs, exakte Rückzuordnung, Alias-Enum und
+das Abweisen unbekannter Aliase. Private Mail-/PDF-Inhalte und Providerantworten
+werden nicht eingecheckt.
