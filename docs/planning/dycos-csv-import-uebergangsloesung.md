@@ -1534,3 +1534,10 @@ Gezielte Bereitstellung: `fetchDycosMasterData` im Projekt
 `db-bpl-drehpunkt-dev`, danach Frontend gemeinsam auf `dev`. Keine neuen
 Secrets, Rules, Indizes oder Power-Automate-Änderungen. Neuere parallele
 Qualitätsänderungen aus Dev werden erhalten; Main bleibt unberührt.
+
+Vor Veröffentlichung bestanden elf Modultests und 19 Firestore-Emulatortests,
+darunter erfolgreiche Wiederholung, fremde/fehlende Zielpartner, Löschung
+während des Abrufs, geänderte Kontonummer, manuelle Werte, verworfene Konflikte
+und Historie. Vollständiger ESLint-Lauf, Build und Shared-Abgleich erfolgreich
+(41 Module); bekannte Build-Chunkgrößenwarnung bleibt. Implementierungscommit:
+`693ef9e`. Vorheriger Dev-Stand: `53e4c0456a0e20aebe758b379b671f78f78e741e`.
