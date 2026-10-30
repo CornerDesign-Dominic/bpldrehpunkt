@@ -43,7 +43,7 @@ export function mapDycosMasterData(payload, data) {
 
 // Legacy TA imports already stored these source IDs. Follow merge redirects,
 // but never fetch another DyCoS record or infer a partner from its name.
-async function resolveSource(transaction, db, source) {
+export async function resolveSource(transaction, db, source) {
   if (!source) return null
   const snapshots = await transaction.get(db.collection('businessPartners').where('dycosImport.sourceReferences', 'array-contains', { entity: source.entity, id: source.id }).limit(20))
   if (snapshots.size >= 20) throw identityError()

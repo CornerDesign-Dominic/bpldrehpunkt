@@ -1541,3 +1541,43 @@ während des Abrufs, geänderte Kontonummer, manuelle Werte, verworfene Konflikt
 und Historie. Vollständiger ESLint-Lauf, Build und Shared-Abgleich erfolgreich
 (41 Module); bekannte Build-Chunkgrößenwarnung bleibt. Implementierungscommit:
 `693ef9e`. Vorheriger Dev-Stand: `53e4c0456a0e20aebe758b379b671f78f78e741e`.
+
+## 37. Kunde und Unternehmer gemeinsam aktualisieren
+
+Nutzerkorrektur am 30.10.2026, einschließlich ausdrücklicher Dev-Freigabe:
+„Aktualisieren“ liest ohne Auswahl beide vorhandenen Stammdatensätze. Der
+Auswahldialog aus Abschnitt 36 entfällt. Maßgeblich sind die gespeicherte
+Debitoren-Hauptnummer und Kreditoren-Hauptnummer, nicht zusätzlich vorhandene
+Aliasnummern oder erst in DyCoS gefundene Gegenreferenzen. Bei einer Rolle
+wird nur diese gelesen. Fehlt eine Hauptnummer, darf eine einzige eindeutig
+gespeicherte Rollenreferenz verwendet werden; mehrere mögliche Referenzen
+ohne Hauptnummer werden nicht geraten.
+
+Die neue Callable `refreshDycosMasterData` verwendet denselben Stammdaten-Flow
+und dieselben Secrets. Beide lesenden Aufrufe können parallel laufen. Erst
+nach vollständigem Erfolg werden ihre Daten gemeinsam geprüft und atomar auf
+das bestehende Blatt angewendet. Kein zweiter Abruf überschreibt den Vergleich
+des ersten. Gleichlautende Angaben und eindeutig gelieferte Werte ergänzen
+leere Felder; manuelle Werte, Kreditlimit und bestehende Entscheidungen bleiben
+erhalten. Widersprüchliche Quellen erzeugen einen sichtbaren Konflikt und
+keinen durch Abrufreihenfolge bestimmten Gewinner. Tatsächliche Änderungen
+erhalten gemeinsam einen Vorher-/Nachher-Eintrag mit Person und Zeitpunkt.
+
+Bei Fehler eines Stammdatenabrufs wird kein Teilergebnis gespeichert. Aktives
+Konto und Stammdaten-Bearbeitungsrecht werden vor Abruf und beim Speichern
+geprüft. Die Hauptkonten-/Partnerzuordnung wird vor dem Speichern erneut geprüft.
+Kontensperren werden mit Einzelimporten geteilt, beide Abrufe zählen zum
+bestehenden gemeinsamen Limit. Benutzergebundene Refresh-Belege erkennen
+Wiederholungen derselben Anfrage-ID ohne weitere Quellabfragen. Neue Belege
+bleiben durch die bestehenden Regeln für direkte Clientzugriffe gesperrt.
+
+Veröffentlichung ausschließlich Dev: `refreshDycosMasterData` mit bestehenden
+Secrets, synchronisierten Shared-Modulen und Frontend. Bestehender Einzelabruf
+und ältere Clients bleiben kompatibel. Keine Änderungen an Power Automate,
+Rules, Indizes oder neuen Zugangsdaten. Main bleibt unberührt.
+
+Geprüft: zwölf Modultests und 25 Firestore-Emulatortests bestanden, einschließlich
+beider Rollen, Ein-Rollen-Partnern, Ablehnungen, widersprüchlichen Quellen,
+Teilfehlern, unveränderten Wiederholungen, Quoten, Parallelaufrufen und
+Rechte-/Kontenänderungen während des Abrufs. Vollständiger ESLint-Lauf, Build
+und Shared-Abgleich erfolgreich (42 Module). Bekannte Build-Chunkwarnung bleibt.

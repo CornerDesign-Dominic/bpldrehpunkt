@@ -21,6 +21,7 @@ import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
 import { dycosMasterDataConfigurationSecrets } from './dycosFlowClient.js'
 import { fetchDycosMasterDataHandler } from './dycosMasterData.js'
+import { refreshDycosMasterDataHandler } from './dycosPartnerRefresh.js'
 import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
 import { searchDycosTransportOrdersHandler } from './dycosOrderSearch.js'
 import { dycosOrderSearchConfigurationSecrets } from './dycosFlowClient.js'
@@ -1095,6 +1096,7 @@ export const previewTransportOrderImport = onCall({ region: 'europe-west3', enfo
 export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
 export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchDycosTransportOrderHandler)
 export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
+export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, refreshDycosMasterDataHandler)
 export const resolveDycosPartnerConflicts = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, resolveDycosPartnerConflictsHandler)
 export const searchDycosTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosOrderSearchConfigurationSecrets }, searchDycosTransportOrdersHandler)
 export const listTransportOrderImportRuns = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderImportRunsHandler)

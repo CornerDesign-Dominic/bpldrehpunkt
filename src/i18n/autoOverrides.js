@@ -1,5 +1,6 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Kunden- und Unternehmerdaten wurden gemeinsam abgeholt.': 'Customer and carrier data have been retrieved together.',
   'Stammdaten aktualisieren': 'Refresh master data',
   'Welche Kontonummer soll aus DyCoS abgerufen werden?': 'Which account number should be retrieved from DyCoS?',
   'Keine gültige Debitoren- oder Kreditornummer hinterlegt.': 'No valid debtor or creditor number is stored.',

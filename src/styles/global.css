@@ -2408,8 +2408,6 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .partner-import-warning__actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
 .partner-import-warning [hidden] { display:none; }
 .partner-import-warning .data-table td { white-space:normal; overflow-wrap:anywhere; }
-.dycos-partner-refresh-dialog { max-width:540px; }
-.dycos-partner-refresh-dialog__accounts { display:grid; gap:10px; padding:20px; }
 /* A mail pause is informational; completed tracking has no warning colors. */
 .transport-orders-attention-icons__item--neutral, .shipment-tracking-attention__item--neutral,
 .transport-orders-forecast-button--neutral, .shipment-tracking-forecast-button--neutral,

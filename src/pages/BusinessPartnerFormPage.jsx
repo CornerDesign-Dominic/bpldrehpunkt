@@ -5,7 +5,6 @@ import BusinessPartnerForm from '../components/business-partners/BusinessPartner
 import BusinessPartnerHeader from '../components/business-partners/BusinessPartnerHeader.jsx'
 import BusinessPartnerHistoryModal from '../components/business-partners/BusinessPartnerHistoryModal.jsx'
 import DycosPartnerDataNotice from '../components/business-partners/DycosPartnerDataNotice.jsx'
-import DycosPartnerRefreshDialog from '../components/business-partners/DycosPartnerRefreshDialog.jsx'
 import ManualPartnerMergeFlow from '../components/business-partners/ManualPartnerMergeFlow.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import BackLink from '../components/ui/BackLink.jsx'
@@ -19,8 +18,8 @@ import { usePermissions } from '../auth/usePermissions.js'
 import { getMissingCreditorNumberNotice } from '../lib/importedPartnerStatus.js'
 import { watchShipmentTrackingRuleCatalog } from '../lib/shipmentTrackingRuleCatalog.js'
 import { fallbackShipmentTrackingRuleCatalog } from '../../shared/shipmentTrackingRuleCatalog.js'
-import { dycosPartnerRefreshAccounts } from '../../shared/dycosPartnerRefresh.js'
-import { fetchDycosMasterData, dycosMasterDataError } from '../lib/dycosMasterData.js'
+import { dycosPartnerRefreshTargets } from '../../shared/dycosPartnerRefresh.js'
+import { refreshDycosMasterData, dycosMasterDataError } from '../lib/dycosMasterData.js'
 
 function formatImportDate(value) {
   if (value?.toDate) return new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(value.toDate())
@@ -51,7 +50,6 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [formDirty, setFormDirty] = useState(false)
   const [reviewBusy, setReviewBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [refreshChoiceOpen, setRefreshChoiceOpen] = useState(false)
   const [refreshResult, setRefreshResult] = useState(null)
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [crmRatings, setCrmRatings] = useState({})
@@ -168,18 +166,19 @@ export default function BusinessPartnerFormPage({ mode }) {
     setToast(decision === 'accept' ? 'DyCoS-Wert wurde übernommen.' : 'Abweichung wurde verworfen. Drehpunkt-Wert bleibt erhalten.')
   }
 
-  async function refreshFromDycos(account) {
+  async function refreshFromDycos() {
     if (refreshSubmitting.current || formDirty || isSubmitting || reviewBusy || !canEdit('masterData') || partner?.mergedIntoPartnerId) return
     const targetId = partnerId
-    refreshSubmitting.current = true; setRefreshing(true); setRefreshChoiceOpen(false); setMergeMenuOpen(false); setRefreshResult(null); setError('')
+    refreshSubmitting.current = true; setRefreshing(true); setMergeMenuOpen(false); setRefreshResult(null); setError('')
     mergeMenuRef.current?.querySelector('button')?.focus()
-    if (refreshAttempt.current?.expectedPartnerId !== targetId || refreshAttempt.current?.typ !== account.typ || refreshAttempt.current?.nummer !== account.nummer) refreshAttempt.current = { ...account, expectedPartnerId: targetId, requestId: crypto.randomUUID() }
+    if (refreshAttempt.current?.partnerId !== targetId) refreshAttempt.current = { partnerId: targetId, requestId: crypto.randomUUID() }
     let saved = false
     try {
-      const result = await fetchDycosMasterData(refreshAttempt.current)
+      const result = await refreshDycosMasterData(refreshAttempt.current)
       saved = true
       if (result.partnerId !== targetId || !['updated', 'unchanged'].includes(result.status)) throw new Error('Unexpected refresh target')
       const refreshed = await getBusinessPartner(targetId)
+      if (!refreshed) throw new Error('Refreshed record is missing')
       if (refreshPartner.current !== targetId) return
       setPartner(refreshed); setCurrentValues(refreshed); setFormDirty(false); setPartnerFormVersion(value => value + 1)
       setRefreshResult(result); refreshAttempt.current = null
@@ -190,10 +189,8 @@ export default function BusinessPartnerFormPage({ mode }) {
   }
 
   function startDycosRefresh() {
-    const accounts = dycosPartnerRefreshAccounts(partner)
-    if (formDirty || isSubmitting || reviewBusy || refreshing || !accounts.length) return
-    if (accounts.length === 1) void refreshFromDycos(accounts[0])
-    else { setMergeMenuOpen(false); mergeMenuRef.current?.querySelector('button')?.focus(); setRefreshChoiceOpen(true) }
+    if (formDirty || isSubmitting || reviewBusy || refreshing || !dycosPartnerRefreshTargets(partner)?.length) return
+    void refreshFromDycos()
   }
 
   if (loading) return <p className="page-state"><StaticText source={"Stammdaten werden geladen …"} /></p>
@@ -204,7 +201,7 @@ export default function BusinessPartnerFormPage({ mode }) {
   const archived = !isNew && Boolean(shownPartner?.mergedIntoPartnerId)
   const missingCreditorNumberNotice = getMissingCreditorNumberNotice(shownPartner)
   const editable = canEdit('masterData') && !archived
-  const refreshAccounts = dycosPartnerRefreshAccounts(partner || {})
+  const refreshAccounts = dycosPartnerRefreshTargets(partner || {}) || []
 
   return (
     <div className="masterdata-page">
@@ -215,8 +212,7 @@ export default function BusinessPartnerFormPage({ mode }) {
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={!archived && canView('crm')} canViewPallets={!archived && canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
       {!isNew && canView('masterData') && <DycosPartnerDataNotice key={partnerId} partner={shownPartner} partnerId={partnerId} dirty={formDirty || isSubmitting || refreshing} onResolved={handleDycosReview} onBusyChange={setReviewBusy} />}
       {refreshing && <p role="status"><StaticText source="Stammdaten werden aus DyCoS aktualisiert …" /></p>}
-      {refreshResult && <div role="status">{refreshResult.conflicts > 0 && <p><StaticText source="Abweichende Werte wurden beibehalten. Die Unterschiede sind im Stammdatenblatt sichtbar." /></p>}{refreshResult.warningCodes?.length > 0 && <p><StaticText source="Einzelne Quelldaten oder Zuordnungen benötigen eine Prüfung. Bitte die Importhinweise beachten." /></p>}</div>}
-      {refreshChoiceOpen && <DycosPartnerRefreshDialog accounts={refreshAccounts} onChoose={account => void refreshFromDycos(account)} onClose={() => setRefreshChoiceOpen(false)} />}
+      {refreshResult?.partnerId === partnerId && <div role="status"><p><StaticText source={refreshResult.status === 'updated' ? 'Stammdaten wurden aus DyCoS ergänzt.' : 'Stammdaten sind aktuell.'} /></p>{refreshResult.refreshedAccounts?.length === 2 && <p><StaticText source="Kunden- und Unternehmerdaten wurden gemeinsam abgeholt." /></p>}{refreshResult.conflicts > 0 && <p><StaticText source="Abweichende Werte wurden beibehalten. Die Unterschiede sind im Stammdatenblatt sichtbar." /></p>}{refreshResult.warningCodes?.length > 0 && <p><StaticText source="Einzelne Quelldaten oder Zuordnungen benötigen eine Prüfung. Bitte die Importhinweise beachten." /></p>}</div>}
       {error && <p className="form-error">{<StaticText source={error} />}</p>}
       <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} onDirtyChange={setFormDirty} readOnly={!editable || reviewBusy || refreshing} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
       {historyOpen && <BusinessPartnerHistoryModal key={partnerId} partner={partner} partnerId={partnerId} onClose={() => setHistoryOpen(false)} />}

@@ -9,3 +9,14 @@ export function dycosPartnerRefreshAccounts(partner = {}) {
   }
   return accounts
 }
+
+export function dycosPartnerRefreshTargets(partner = {}) {
+  const all = dycosPartnerRefreshAccounts(partner), targets = []
+  for (const [typ, field] of [['kunde', 'debtorNumber'], ['utn', 'creditorNumber']]) {
+    const primary = all.find(account => account.typ === typ && account.nummer === partner[field])
+    const options = all.filter(account => account.typ === typ)
+    if (!primary && options.length > 1) return null
+    if (primary || options[0]) targets.push(primary || options[0])
+  }
+  return targets
+}
