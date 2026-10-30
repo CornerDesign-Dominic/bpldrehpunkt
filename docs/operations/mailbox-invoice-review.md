@@ -128,3 +128,12 @@ Korrektur war derselbe KI-/Validierungsablauf erfolgreich. Regressionstests
 prüfen zwei fast gleiche lange Anhangs-IDs, exakte Rückzuordnung, Alias-Enum und
 das Abweisen unbekannter Aliase. Private Mail-/PDF-Inhalte und Providerantworten
 werden nicht eingecheckt.
+
+
+Der Rechnungsbezug „ext. Auftrags-Nr.“ ist eine mögliche Bezeichnung unserer
+TA auf einer Fremdrechnung. Der Prompt unterscheidet ihn ausdrücklich von
+internen Nummern des Ausstellers sowie Rechnungs-/Kundenkontonummern. Wörtlich
+belegte neunstellige Auftragsreferenzen werden als unverbindliche Texthinweise
+mitgegeben; sie ersetzen weder die Zuordnung zur konkreten Position noch den
+anschließenden echten Auftragsabgleich. Es gibt keine automatische Übernahme
+einer beliebigen neunstelligen Zahl oder einer Nummer aus dem Dateinamen.

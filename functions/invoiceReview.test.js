@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { inferInvoices, invoiceCents, validateInvoiceExtraction, compareInvoiceTransport, invoiceTotals, resolveInvoiceOrder, reviewMailboxInvoices } from './invoiceReview.js'
+import { invoiceTaReferenceHints, inferInvoices, invoiceCents, validateInvoiceExtraction, compareInvoiceTransport, invoiceTotals, resolveInvoiceOrder, reviewMailboxInvoices } from './invoiceReview.js'
 const value = (value, quote = value) => ({ value, quote })
 const row = (ta = '260000001', amount = '500,00') => ({ ta: value(ta), net: value(amount), loadingDate: value(''), unloadingDate: value(''), loadingCity: value(''), unloadingCity: value(''), licensePlate: value('') })
 const invoice = (transports = [row()]) => ({ sourceId:'pdf', invoiceEvidence:'Rechnung', number:value('RG1'), date:value('2026-02-10','10.02.2026'), issuer:value('Carrier GmbH'), issuerVatId:value(''), recipient:value('Brennpunkt Logistik GmbH'), recipientVatId:value(''), currency:value('EUR'), netTotal:value('500,00'), vatTotal:value('0,00'), grossTotal:value('500,00'), transports, warnings:[] })
@@ -91,4 +91,11 @@ test('inference uses schema-constrained short references and maps them back to o
 })
 test('unknown model references fail closed with a content-free diagnostic code',async()=>{
  await assert.rejects(inferInvoices({documents:[{id:'opaque-graph-id',name:'invoice.pdf',text:'Rechnung',contentBytes:'cGRm',pageCount:1}],actorId:'owner',apiKey:'unit-test-only',execute:async({operation})=>operation(),fetchImpl:async()=>({ok:true,headers:{get:()=>null},json:async()=>({status:'completed',output_text:JSON.stringify({invoices:[{...invoice(),sourceId:'pdf-9'}]})})})}),error=>error.code==='unavailable'&&error.details?.technicalCode==='invoice_source_reference_invalid')
+})
+
+test('external order-number labels remain valid TA hints without accepting invoice or account numbers',()=>{
+ const hints=invoiceTaReferenceHints('Rechnung 260999999 Kundenkonto 260888888 Auftrags-Nr.: 1234567 ext. Auftrags-Nr.: 260000001 // 12345 Ihre Auftragsnummer: 260000002 Auftragsnummer: 260000001')
+ assert.deepEqual(hints.map(hint=>hint.number),['260000001','260000002'])
+ assert.equal(hints[0].quote,'ext. Auftrags-Nr.: 260000001')
+ assert.deepEqual(invoiceTaReferenceHints('Rechnung 260999999 ext. Auftrags-Nr.: 2600000019'),[])
 })
