@@ -240,3 +240,32 @@ test('job-bound order preview cannot export after it was discarded or replaced',
     assert.equal(db.values.has(`mailboxOrderExports/${result.previewId}`), false)
   }
 })
+
+test('placeholder debtor 10001 requires explicit acknowledgement and exports its verified internal ID with a permanent warning', async () => {
+  const db = dbWithCustomer()
+  db.values.set('businessPartners/placeholder', { companyName: 'Wir selbst GmbH', debtorNumber: '10001', status: 'active', dycosIdentities: { 'debtor-10001': { kind: 'debtor', number: '10001', sourceId: '91' } } })
+  const result = await preview(db)
+  const order = { ...completeOrder(), customerName: 'Neuer Kunde GmbH', customerNumber: '10001', customerVatId: 'DE123456789', customerPostalCode: '10115', customerCity: 'Berlin', dispatchNote: 'Kran erforderlich' }
+  const data = exportData(result.previewId, { order, customerPartnerId: 'placeholder', customerNumber: '10001' })
+  await assert.rejects(exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'failed-precondition' })
+  assert.equal(db.values.has(`mailboxOrderExports/${result.previewId}`), false)
+  const exported = await exportMailboxOrderCapture({ db, context, data: { ...data, placeholderConfirmed: true }, originalPdf: pdfFile(), companyCurrency: 'EUR', now })
+  const xml = Buffer.from(exported.xmlBase64, 'base64').toString('latin1')
+  assert.match(xml, /<FrachtzahlerID>91<\/FrachtzahlerID>/)
+  assert.doesNotMatch(xml, /<FrachtzahlerID>10001<\/FrachtzahlerID>/)
+  assert.match(xml, /PLATZHALTER DEBITOR 10001/)
+  assert.match(xml, /Neuer Kunde GmbH/)
+  assert.match(xml, /DE123456789/)
+  assert.match(xml, /Kran erforderlich/)
+  const receipt = db.values.get(`mailboxOrderExports/${result.previewId}`)
+  assert.equal(receipt.placeholder.confirmed, true)
+  assert.equal(receipt.placeholder.requestedCustomerName, 'Neuer Kunde GmbH')
+})
+
+test('placeholder cannot bypass a missing verified address mapping', async () => {
+  const db = dbWithCustomer()
+  db.values.set('businessPartners/placeholder', { companyName: 'Wir selbst', debtorNumber: '10001', status: 'active' })
+  const result = await preview(db)
+  const data = exportData(result.previewId, { order: { ...completeOrder(), customerNumber: '10001' }, customerPartnerId: 'placeholder', customerNumber: '10001', placeholderConfirmed: true })
+  await assert.rejects(exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'failed-precondition' })
+})

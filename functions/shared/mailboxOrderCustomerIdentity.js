@@ -1,3 +1,5 @@
+export const mailboxOrderPlaceholderNumber = '10001'
+
 // The order export consumes confirmed account mappings from the stammdaten
 // importer. A source reference without its business account number is not
 // sufficient evidence, especially after partner merges.
