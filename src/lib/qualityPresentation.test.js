@@ -1,6 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { qualityValues, nextQualityCycle, searchQualityRecords, groupQualityCycles, qualityTopicUrl, qualityOverviewUrl, qualitySmartValues, SMART_FIELDS } from './qualityPresentation.js'
+import { qualityValues, nextQualityCycle, searchQualityRecords, groupQualityCycles, qualityTopicUrl, qualityOverviewUrl, qualitySmartValues, SMART_FIELDS, isQualityReviewOverdue } from './qualityPresentation.js'
+
+test('handbook review becomes overdue after its due day and remains discoverable by owner', () => {
+  const record = { nextReviewDate: '2026-10-30', owner: 'Anna Beispiel' }
+  assert.equal(isQualityReviewOverdue(record, '2026-10-29'), false)
+  assert.equal(isQualityReviewOverdue(record, '2026-10-30'), false)
+  assert.equal(isQualityReviewOverdue(record, '2026-10-31'), true)
+  assert.equal(isQualityReviewOverdue({}, '2026-10-31'), false)
+  assert.equal(isQualityReviewOverdue({ nextReviewDate: '' }, '2026-10-31'), false)
+  assert.equal(qualityValues('handbook', record).owner, record.owner)
+  assert.equal(qualityValues('handbook', {}).owner, '')
+  assert.deepEqual(searchQualityRecords([record], 'anna'), [record])
+})
 
 test('legacy goals remain visible while explicitly cleared structured goals stay empty', () => {
   const legacy = { revision: 1, goal: 'Existing goal', measure: '95%' }

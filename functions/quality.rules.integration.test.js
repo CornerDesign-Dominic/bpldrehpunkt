@@ -102,6 +102,21 @@ test('quality module rules and transactional department safeguards', { skip: !en
       assert.equal(next.get('cycleStartDate'), '')
       assert.equal((await admin.doc('qualityTopics/quality-pdca/revisions/2').get()).get('actDecision'), 'establish')
     })
+    await t.test('handbook responsibility and review dates survive old clients and revisions', async () => {
+      const normalize = (values, expectedRevision) => normalizeQualityInput({ kind: 'handbook', id: 'quality-review', expectedRevision, values })
+      const actor = { uid: 'quality-editor' }
+      await persistQualityRecord(admin, normalize({ ...handbook, owner: 'Anna Beispiel', lastReviewedDate: '2026-10-30', nextReviewDate: '2026-11-30' }, 0), actor)
+      await persistQualityRecord(admin, normalize({ ...handbook, action: 'Updated' }, 1), actor)
+      const saved = await admin.doc('qualityHandbook/quality-review').get()
+      assert.equal(saved.get('owner'), 'Anna Beispiel')
+      assert.equal(saved.get('nextReviewDate'), '2026-11-30')
+      assert.equal((await admin.doc('qualityHandbook/quality-review/revisions/1').get()).get('action'), '')
+      await assert.rejects(persistQualityRecord(admin, normalize({ ...handbook, owner: 'Changed' }, 1), actor), { code: 'aborted' })
+      await assert.rejects(persistQualityRecord(admin, normalize({ ...handbook, nextReviewDate: '2026-10-29' }, 2), actor), { code: 'invalid-argument' })
+      await persistQualityRecord(admin, normalize({ ...handbook, owner: '', lastReviewedDate: '', nextReviewDate: '' }, 2), actor)
+      assert.equal((await admin.doc('qualityHandbook/quality-review').get()).get('owner'), '')
+      await assert.rejects(persistQualityRecord(admin, normalize(handbook, 3), { uid: 'quality-handbook' }), { code: 'permission-denied' })
+    })
     await t.test('inactive departments reject new records while existing records remain maintainable', async () => {
       const normalize = (id, expectedRevision, values = handbook) => normalizeQualityInput({ kind: 'handbook', id, expectedRevision, values })
       const actor = { uid: 'quality-editor' }

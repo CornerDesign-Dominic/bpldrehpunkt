@@ -25,6 +25,14 @@ bearbeitbaren Kontrolltermine. Optionale Handbuchfelder `lastReviewedDate` und
 letzten liegen. Fehlende Felder aus Alt-Clients bleiben bei Speicherung erhalten.
 Jede Speicherung erhöht wie bisher die technische Revision, auch bei Terminänderungen.
 Eine Textänderung setzt kein Kontrolldatum automatisch.
+Die optionale Zuständigkeit (`owner`, Freitextname bis 500 Zeichen) wird in
+derselben Karte bearbeitet und auch in der Übersicht angezeigt und durchsucht.
+Ein gesetztes nächstes Kontrolldatum vor dem heutigen Berliner Kalendertag
+markiert den Eintrag in Übersicht und Detail mit farbigem Rahmen und
+„Kontrolle überfällig“. Heute fällige und undatierte Einträge bleiben unmarkiert.
+Offene Seiten aktualisieren die Tagesgrenze minütlich und beim Fensterfokus.
+Ältere Clients erhalten gespeicherte Zuständigkeiten bei ihren Änderungen;
+Kontrolltermine und Zuständigkeit verleihen keine zusätzlichen Zugriffsrechte.
 Neue Themen werden nur mit Titel und optionaler Kurzbeschreibung angelegt und
 anschließend direkt auf der Themenseite geöffnet. Die Kurzbeschreibung bildet
 den ersten Plan-Text; sie führt kein zusätzliches Datenfeld ein.
@@ -199,3 +207,13 @@ Kontrolltermine. Lint, Build, Shared-Abgleich (38 Module) und 21 gezielte
 Unit-Tests erfolgreich. Die sechs bestehenden Emulatorprüfungen bestanden;
 der Emulator meldete beim anschließenden Herunterfahren einen Requestfehler.
 Ein angemeldeter Browserdurchlauf für die neuen Kontrolltermine steht noch aus.
+
+### Zuständigkeit und überfällige Kontrollen am 30.10.2026
+
+Optionale Zuständigkeit sowie farbige und textliche Überfällig-Markierung in
+Handbuchübersicht und Detail ergänzt. 22 gezielte Unit-Tests und sieben echte
+Firestore-Emulatorprüfungen einschließlich alter Clients, unveränderlicher
+Revisionen, Paralleländerungen und verweigerten Schreibrechten erfolgreich.
+Lint, Build und Shared-Abgleich (38 Module) erfolgreich. Ein angemeldeter
+Browserdurchlauf ist weiterhin offen. Dev benötigt Frontend und die aktualisierte
+`saveQualityRecord`; Rules, Indizes und Produktion werden nicht geändert.
