@@ -69,3 +69,9 @@ test('no TA in invoice aborts matching even if filenames or other sources contai
  assert.equal(queried,false);assert.match(report.message,/Keine Zuordnung/);assert.equal(report.invoices[0].transports[0].status,'unassigned')
  assert.equal([...db.records.keys()].some(key=>key.includes('/invoiceChecks/')),false)
 })
+
+test('uncertain OCR cannot become a green transport even when recognized amounts match',async()=>{
+ const db=database();db.records.set('transportOrders/a',{externalNumber:'260000001',imported});db.records.set('appSettings/companyMasterData',company)
+ const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'scan.pdf',contentBytes:'YQ=='}],operationId:'request-ocr-00001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 TA 260000001',pageCount:1,ocrPages:[1],ocrUncertainPages:[1]}),infer:async()=>({invoices:[invoice()]}),fetchOrder:()=>assert.fail('local facts complete')})
+ assert.equal(report.status,'unknown');assert.equal(report.invoices[0].transports[0].status,'unknown');assert.deepEqual(report.invoices[0].ocrPages,[1]);assert.ok(report.invoices[0].transports[0].checks.some(check=>check.key==='ocr'&&check.status==='unknown'))
+})

@@ -1,3 +1,4 @@
+import { extractPdfWithOcr } from './pdfOcr.js'
 import { Buffer } from 'node:buffer'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
@@ -10,7 +11,6 @@ import { agbHistorySearchTokens } from './shared/agbCheckerHistorySearch.js'
 export const openAiApiKey = defineSecret('DREHPUNKT_AGB_CHECKER_KEY')
 const model = 'gpt-5.4'
 const maxPdfBytes = 20 * 1024 * 1024
-const maxTextCharacters = 160_000
 const usageCollection = 'agbCheckerUsage'
 const historyCollection = 'agbCheckerHistory'
 
@@ -76,25 +76,16 @@ function fileName(value) {
   return clean || 'Kundenauftrag.pdf'
 }
 
-export async function extractPdfText(pdfBytes) {
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const loadingTask = getDocument({ data: pdfBytes, disableWorker: true, isEvalSupported: false, enableScripting: false, verbosity: 0 })
-  try {
-    const pdf = await loadingTask.promise
-    if (pdf.numPages > 100) throw errorWithType('Die PDF enthält mehr als 100 Seiten.', 'document_too_large')
-    let text = ''
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber)
-      const textContent = await page.getTextContent()
-      const pageText = textContent.items.map((item) => item.str || '').join(' ').replace(/\s+/g, ' ').trim()
-      if (pageText) text += `${text ? '\n\n' : ''}[Seite ${pageNumber}]\n${pageText}`
-      if (text.length > maxTextCharacters) throw errorWithType('Der auslesbare Dokumenttext ist für diese Prüfung zu umfangreich.', 'document_too_large')
-    }
-    if (!text.trim()) throw errorWithType('Aus der PDF konnte kein auswertbarer Text gelesen werden.', 'empty_pdf_text')
-    return { text, pageCount: pdf.numPages }
-  } finally {
-    await loadingTask.destroy()
+export async function extractPdfText(pdfBytes, options = {}) {
+  return extractPdfWithOcr(pdfBytes, options)
+}
+export function addOcrMetadata(analysis, sourceFiles) {
+  analysis.ocr = sourceFiles.filter(file => file.ocrPages?.length).map(({ name, ocrPages, ocrUncertainPages }) => ({ name, pages: ocrPages, uncertainPages: ocrUncertainPages }))
+  if (sourceFiles.some(file => file.ocrUncertainPages?.length)) {
+    analysis.findings = ['OCR enthält unsichere Stellen. Bitte die gekennzeichneten Scan-Seiten im Original prüfen.', ...analysis.findings].slice(0, 6)
+    for (const item of [...analysis.results, ...(analysis.contacts || [])]) if (item.status === 'found') item.confidence = 'low'
   }
+  return analysis
 }
 
 export function prompt(documentText) {
@@ -205,7 +196,7 @@ async function logUsage({ userId, analyzedFileName, usage, success, errorType, p
   })
 }
 
-export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', enforceAppCheck: true, memory: '1GiB', timeoutSeconds: 120, secrets: [openAiApiKey] }, async (request) => {
+export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', enforceAppCheck: true, memory: '1GiB', timeoutSeconds: 540, secrets: [openAiApiKey] }, async (request) => {
   try {
     const profile = await requireActiveProfile(request)
     if (!hasAgbCheckerAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für den AGB-Prüfer.')
@@ -223,12 +214,12 @@ export const analyzeCustomerOrderTerms = onCall({ region: 'europe-west3', enforc
   let usage; let pageCount; let requestId
   try {
     const pdfBytes = decodePdf(request.data?.pdfBase64)
-    const extraction = await extractPdfText(pdfBytes)
+    const extraction = await extractPdfText(pdfBytes, { actorId: request.auth.uid, apiKey: () => openAiApiKey.value(), fileName: analyzedFileName })
     pageCount = extraction.pageCount
     const ai = await callOpenAi(extraction.text)
     usage = ai.usage; requestId = ai.requestId
     validateModelResult(ai.result)
-    const data = normalizeResult(ai.result)
+    const data = addOcrMetadata(normalizeResult(ai.result), [{ name: analyzedFileName, ...extraction }])
     const historyId = await saveHistory({ userId: request.auth.uid, analyzedFileName, analysis: data })
     try { await logUsage({ userId: request.auth.uid, analyzedFileName, usage, success: true, pageCount, requestId, durationMs: Date.now() - startedAt }) } catch (loggingError) { logger.error('AGB-Prüfer-Nutzung konnte nicht protokolliert werden.', { errorType: loggingError?.errorType || 'internal_error' }) }
     return { ...data, historyId }
@@ -251,6 +242,7 @@ export async function analyzeMailboxAgbText({ userId, text, pageCount, sourceFil
     usage = ai.usage; requestId = ai.requestId
     validateModelResult(ai.result)
     const analysis = normalizeResult(ai.result)
+    addOcrMetadata(analysis, sourceFiles)
     const historyId = await saveHistory({ userId, analyzedFileName, analysis, sourceFiles })
     try { await logUsage({ userId, analyzedFileName, usage, success: true, pageCount, requestId, durationMs: Date.now() - startedAt }) } catch { logger.warn('AGB-Nutzungsprotokoll nicht verfügbar.') }
     return { ...analysis, historyId, sourceFiles }

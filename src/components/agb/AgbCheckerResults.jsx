@@ -27,6 +27,7 @@ export default function AgbCheckerResults({ analysis }) {
   const unclearCount = analysis.results.filter(item => item.status === 'unclear').length
   return (
     <div className="agb-results">
+      {analysis.ocr?.length > 0 && <section className="agb-summary"><span>{analysis.ocr.map(file => `${file.name} · OCR · ${file.pages.join(", ")}`).join("; ")}</span></section>}
       <section className="agb-summary" aria-label={t('agb.summary')}><span><strong>{foundCount}</strong> {t('agb.foundDetails')}</span><span><strong>{analysis.findings.length}</strong> {t('agb.findings')}</span><span><strong>{unclearCount}</strong> {t('agb.unclearDetails')}</span></section>
       {analysis.findings.length > 0 && <section className="agb-findings"><h3>{t('agb.findings')}</h3><ul>{analysis.findings.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul></section>}
       {sections.map(([category, title]) => <section className="agb-result-section" key={category}><h3>{t(title)}</h3>{analysis.results.filter((item) => item.category === category).map((item) => <article className="agb-result-row" key={item.field}><div className="agb-result-row__main"><h4>{item.field}</h4><p>{item.status === 'not_found' ? t('agb.notFound') : item.value || t('agb.noClearDetail')}</p>{item.sourceText && <SourceDisclosure sourceText={item.sourceText} />}</div><div className="agb-result-row__meta"><ResultStatus status={item.status} confidence={item.confidence} /></div></article>)}</section>)}

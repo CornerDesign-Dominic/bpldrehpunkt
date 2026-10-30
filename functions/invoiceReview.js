@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
 import { FieldValue } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
-import { extractPdfText } from './agbChecker.js'
+import { extractPdfWithOcr } from './pdfOcr.js'
 import { executeAiOperation } from './aiUsage.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
 import { fetchDycosFlowOrder } from './dycosFlowClient.js'
@@ -64,7 +64,7 @@ export function validateInvoiceExtraction(raw, documents) {
     if (!file || !hasQuote(file.text, invoice.invoiceEvidence) || !Array.isArray(invoice.transports) || invoice.transports.length > 50) fail('unavailable', 'Die Rechnungserkennung enthält unbelegte Angaben.')
     rowCount += invoice.transports.length
     if (rowCount > 50) fail('failed-precondition', 'Höchstens 50 abgerechnete Transporte können gemeinsam geprüft werden. Es wurde keine Teilprüfung gespeichert.')
-    return { sourceId: file.id, fileName: file.name, ...Object.fromEntries(invoiceFields.map(key => [key, evidenceField(invoice[key], file.text, key)])), transports: invoice.transports.map(row => Object.fromEntries(fields.map(key => [key, evidenceField(row[key], file.text, key)]))), warnings: Array.isArray(invoice.warnings) ? invoice.warnings.filter(value => typeof value === 'string').map(value => value.slice(0, 400)).slice(0, 10) : [] }
+    return { sourceId: file.id, fileName: file.name, ocrPages: file.ocrPages || [], ocrUncertainPages: file.ocrUncertainPages || [], ...Object.fromEntries(invoiceFields.map(key => [key, evidenceField(invoice[key], file.text, key)])), transports: invoice.transports.map(row => Object.fromEntries(fields.map(key => [key, evidenceField(row[key], file.text, key)]))), warnings: Array.isArray(invoice.warnings) ? invoice.warnings.filter(value => typeof value === 'string').map(value => value.slice(0, 400)).slice(0, 10) : [] }
   })
 }
 export async function inferInvoices({ documents, actorId, fetchImpl = fetch, execute = executeAiOperation, apiKey = statusMailAiApiKey.value() }) {
@@ -131,7 +131,7 @@ export async function resolveInvoiceOrder({ db, ta, fetchOrder = fetchDycosFlowO
 export function assertInvoiceReviewAccess(context) {
   if (context.profile?.active !== true || !(context.profile.role === 'superadmin' || context.profile.permissions?.transportOrders === 'edit')) fail('permission-denied', 'Keine Berechtigung für die Rechnungsprüfung.')
 }
-export async function reviewMailboxInvoices({ db, context, files, operationId, now = Date.now(), infer = inferInvoices, extract = extractPdfText, fetchOrder = fetchDycosFlowOrder, revalidate = async () => {} }) {
+export async function reviewMailboxInvoices({ db, context, files, operationId, now = Date.now(), infer = inferInvoices, extract = extractPdfWithOcr, fetchOrder = fetchDycosFlowOrder, revalidate = async () => {} }) {
   assertInvoiceReviewAccess(context)
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId || '')) fail('invalid-argument', 'Ungültige Prüfanfrage.')
   const reportId = hash(`${context.uid}|${operationId}`)
@@ -146,11 +146,12 @@ export async function reviewMailboxInvoices({ db, context, files, operationId, n
     tx.set(quota, { windowStart, count: count + 1, expiresAt: windowStart + 7200000 })
   })
   const lookupDeadline = Date.now() + 300000
+  const ocrCache = new Map()
   const documents = []
   let totalPages = 0, totalText = 0
   for (const file of files) {
     let result
-    try { result = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64'))) } catch { fail('failed-precondition', 'Mindestens ein PDF kann nicht vollständig als Text gelesen werden. Die Prüfung wurde abgebrochen, ohne Teilfreigabe.') }
+    try { result = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64')), { actorId: context.uid, fileName: file.name, cache: ocrCache, ...(extract === extractPdfWithOcr ? { apiKey: statusMailAiApiKey.value() } : {}) }) } catch { fail('failed-precondition', 'Mindestens ein PDF konnte auch mit OCR nicht vollständig gelesen werden. Die Prüfung wurde abgebrochen, ohne Teilfreigabe.') }
     totalPages += result.pageCount; totalText += result.text.length
     if (totalPages > 100 || totalText > 160000) fail('failed-precondition', 'Die Anlagen sind für eine gemeinsame Prüfung zu umfangreich (100 Seiten / 160.000 Zeichen).')
     documents.push({ id: file.id, name: file.name, contentBytes: file.contentBytes, ...result })
@@ -181,13 +182,14 @@ export async function reviewMailboxInvoices({ db, context, files, operationId, n
       let carrierVatId = null
       if (match.imported.carrier?.partnerId) carrierVatId = (await db.doc(`businessPartners/${match.imported.carrier.partnerId}`).get()).data()?.companyData?.vatId || null
       const compared = compareInvoiceTransport({ rows, invoice, imported: match.imported, company, carrierVatId })
+      if (invoice.ocrUncertainPages.length) { compared.checks.push({ key: 'ocr', label: 'OCR-Lesbarkeit', actual: 'Unsichere Zeichen im Scan', expected: 'Vollständig lesbar', status: 'unknown' }); compared.status = compared.status === 'mismatch' ? 'mismatch' : 'unknown' }
       if (match.lookupFailed) { compared.checks.push({ key: 'lookup', label: 'Fehlende Daten aus DyCoS', actual: null, expected: null, status: 'unknown' }); compared.status = compared.status === 'mismatch' ? 'mismatch' : 'unknown' }
       transports.push({ ...compared, orderId: match.orderId, source: match.source, localExists: match.localExists !== false, comparedAt: new Date(now).toISOString() })
       attachments.add(match.orderId)
     }
     const totals = invoiceTotals(invoice)
     const status = transports.length && transports.every(row => row.status === 'match') && totals.status === 'match' && !invoice.warnings.length ? 'match' : transports.some(row => row.status === 'mismatch') || totals.status === 'mismatch' ? 'mismatch' : 'unknown'
-    results.push({ fileName: invoice.fileName, sourceId: invoice.sourceId, number: invoice.number.value, date: invoice.date.value, issuer: invoice.issuer.value, currency: invoice.currency.value, warnings: invoice.warnings, transports, totals, status })
+    results.push({ ocrPages: invoice.ocrPages, ocrUncertainPages: invoice.ocrUncertainPages, fileName: invoice.fileName, sourceId: invoice.sourceId, number: invoice.number.value, date: invoice.date.value, issuer: invoice.issuer.value, currency: invoice.currency.value, warnings: invoice.warnings, transports, totals, status })
   }
   const report = { id: reportId, version: 1, createdAt: new Date(now).toISOString(), invoices: results, status: results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den PDF-Anhängen erkannt. Keine Zuordnung.' : !attachments.size ? 'Keine Zuordnung: keine belegte TA-Nummer mit eindeutigem Auftrag gefunden.' : '', scope: 'Datenabgleich, keine Zahlungsfreigabe. Steuerrecht, Bankverbindung und Ablieferbelege sind nicht geprüft.' }
   if (Buffer.byteLength(JSON.stringify(report), 'utf8') > 750000) fail('failed-precondition', 'Der Prüfbericht ist zu umfangreich. Es wurde keine Teilprüfung gespeichert.')

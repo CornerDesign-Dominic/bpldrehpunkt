@@ -162,3 +162,8 @@ test('a successful preview cannot silently become a different XML export', async
   data.order.price = 999
   await assert.rejects(exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'already-exists' })
 })
+
+test('OCR evidence on uncertain pages remains explicitly unverified',()=>{
+ const result=validateMailboxOrderInference({order:{...emptyMailboxOrder(),customerName:'Test GmbH'},provenance:[{path:'customerName',sourceId:'scan',page:1,quote:'Test GmbH'}],warnings:[],multipleOrders:false},mail,[{id:'scan',pageCount:1,pages:['Test GmbH with other document text'],ocrPages:[1],ocrUncertainPages:[1]}])
+ assert.equal(result.provenance[0].verified,false);assert.equal(result.provenance[0].ocr,true)
+})

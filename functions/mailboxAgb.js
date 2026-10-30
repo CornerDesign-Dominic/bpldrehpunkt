@@ -1,9 +1,10 @@
+import { extractPdfWithOcr } from './pdfOcr.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
 import { Buffer } from 'node:buffer'
 import { businessPartnerRoles } from './shared/businessPartnerRoles.js'
 import { createHash } from 'node:crypto'
 import { HttpsError } from 'firebase-functions/v2/https'
-import { extractPdfText, analyzeMailboxAgbText } from './agbChecker.js'
+import { analyzeMailboxAgbText } from './agbChecker.js'
 
 const fail = (code, message) => { throw new HttpsError(code, message) }
 export function assertMailboxAgbAccess(context) {
@@ -16,7 +17,7 @@ export function validateAgbAttachments(list, purpose = 'AGB-Prüfung') {
   if (files.length > 20 || files.some(file => file['@odata.type'] !== '#microsoft.graph.fileAttachment' || !Number.isSafeInteger(file.size) || file.size <= 0 || file.size > 5 * 1024 * 1024) || files.reduce((sum, file) => sum + file.size, 0) > 20 * 1024 * 1024) fail('failed-precondition', 'Die vollständige Prüfung unterstützt höchstens 20 PDFs, je 5 MB und zusammen 20 MB. Es wurde kein Anhang ausgelassen und keine Prüfung gestartet.')
   return files
 }
-export async function analyzeMailboxAgb({ db, context, files, now, extract = extractPdfText, analyze = analyzeMailboxAgbText }) {
+export async function analyzeMailboxAgb({ db, context, files, now, extract = extractPdfWithOcr, analyze = analyzeMailboxAgbText }) {
   assertMailboxAgbAccess(context)
   const quota = db.doc(`mailboxTrackingQuotas/agb-${createHash('sha256').update(context.uid).digest('hex')}`)
   await db.runTransaction(async tx => {
@@ -28,14 +29,15 @@ export async function analyzeMailboxAgb({ db, context, files, now, extract = ext
   })
   let text = '', pageCount = 0
   const sourceFiles = []
+  const ocrCache = new Map()
   for (const file of files) {
     let result
-    try { result = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64'))) }
-    catch { fail('failed-precondition', 'Mindestens eine PDF ist geschützt, nicht als Text lesbar oder zu umfangreich. Die Prüfung wurde nicht gespeichert. Bitte die Originale prüfen.') }
+    try { result = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64')), { actorId: context.uid, fileName: file.name, cache: ocrCache, ...(extract === extractPdfWithOcr ? { apiKey: statusMailAiApiKey.value() } : {}) }) }
+    catch { fail('failed-precondition', 'Mindestens eine PDF ist geschützt, auch mit OCR nicht lesbar oder zu umfangreich. Die Prüfung wurde nicht gespeichert. Bitte die Originale prüfen.') }
     pageCount += result.pageCount
     text += `\n\n[Datei: ${file.name}]\n${result.text}`
     if (pageCount > 100 || text.length > 160000) fail('failed-precondition', 'Die PDFs überschreiten zusammen 100 Seiten oder den auswertbaren Textumfang. Es wurde keine Teilprüfung gespeichert.')
-    sourceFiles.push({ name: file.name, pageCount: result.pageCount })
+    sourceFiles.push({ name: file.name, pageCount: result.pageCount, ocrPages: result.ocrPages || [], ocrUncertainPages: result.ocrUncertainPages || [] })
   }
   return analyze({ userId: context.uid, text, pageCount, sourceFiles, apiKey: analyze === analyzeMailboxAgbText ? statusMailAiApiKey.value() : undefined })
 }

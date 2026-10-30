@@ -19,8 +19,8 @@ Alle PDF-Dateianhänge werden serverseitig über Graph gelesen. Der Mailtext,
 Dateinamen oder ein anderer Anhang berechtigen nicht zur TA-Zuordnung: Die
 neunstellige TA muss im erkannten Rechnungsdokument selbst belegt sein. Ohne
 TA erfolgt kein Auftragsabruf und keine Verknüpfung. Nicht-Rechnungen werden
-nicht als Rechnung verarbeitet. Geschützte bzw. nicht als Text lesbare PDFs
-brechen mit Hinweis ab; OCR ist noch nicht enthalten. Obergrenzen sind 20 PDFs,
+nicht als Rechnung verarbeitet. Geschützte oder auch nach OCR nicht lesbare PDFs brechen mit Hinweis ab.
+Fehlende Textebenen einzelner Seiten lösen automatisch einen OCR-Durchlauf aus. Obergrenzen sind 20 PDFs,
 je 5 MiB, zusammen 20 MiB, 100 Seiten, 160.000 Textzeichen und 50 Transportzeilen.
 Die Vollständigkeitsgrenzen führen zum Abbruch statt stiller Teilprüfung.
 

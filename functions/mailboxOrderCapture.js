@@ -1,3 +1,4 @@
+import { extractPdfWithOcr } from './pdfOcr.js'
 import { Buffer } from 'node:buffer'
 import { createHash, randomUUID } from 'node:crypto'
 import { FieldValue } from 'firebase-admin/firestore'
@@ -31,32 +32,22 @@ export function validateMailboxOrderPdf(file) {
   return { id: file.id, name: file.name, contentBytes: content, hash: hash(bytes), size: bytes.length }
 }
 
-export async function inspectMailboxOrderPdfs(files) {
+export async function inspectMailboxOrderPdfs(files, { actorId, apiKey, extract = extractPdfWithOcr } = {}) {
   if (!Array.isArray(files) || files.length > 5 || new Set(files.map(file => file?.id)).size !== files.length) fail('invalid-argument', 'Höchstens fünf unterschiedliche PDFs können gemeinsam ausgewertet werden.')
   const checked = files.map(validateMailboxOrderPdf)
   if (checked.reduce((sum, file) => sum + file.size, 0) > 15 * 1024 * 1024) fail('failed-precondition', 'Die ausgewählten PDFs überschreiten zusammen 15 MiB.')
-  if (!checked.length) return []
-  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const result = []
+  const result = [], cache = new Map()
   let totalPages = 0
   for (const file of checked) {
-    const task = getDocument({ data: new Uint8Array(Buffer.from(file.contentBytes, 'base64')), disableWorker: true, isEvalSupported: false, enableScripting: false, verbosity: 0, stopAtErrors: true })
     try {
-      const pdf = await task.promise
-      totalPages += pdf.numPages
-      if (pdf.numPages < 1 || totalPages > 40) fail('failed-precondition', 'Für eine Auswertung sind insgesamt höchstens 40 PDF-Seiten möglich. Bitte weniger Anlagen auswählen.')
-      const pages = []
-      for (let number = 1; number <= pdf.numPages; number++) {
-        const page = await pdf.getPage(number)
-        const content = await page.getTextContent()
-        pages.push(content.items.map(item => item.str || '').join(' ').slice(0, 40_000))
-        page.cleanup()
-      }
-      result.push({ ...file, pageCount: pdf.numPages, pages })
+      const extracted = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64')), { actorId, apiKey: apiKey || (() => statusMailAiApiKey.value()), fileName: file.name, cache })
+      totalPages += extracted.pageCount
+      if (totalPages > 40) fail('failed-precondition', 'Für eine Auswertung sind insgesamt höchstens 40 PDF-Seiten möglich. Bitte weniger Anlagen auswählen.')
+      result.push({ ...file, ...extracted })
     } catch (error) {
       if (error instanceof HttpsError) throw error
-      fail('failed-precondition', 'Eine PDF-Anlage ist geschützt oder nicht lesbar. Bitte die Anlage prüfen oder andere PDFs auswählen.')
-    } finally { await task.destroy() }
+      fail('failed-precondition', 'Eine PDF-Anlage ist geschützt oder konnte auch mit OCR nicht gelesen werden. Bitte das Original prüfen.')
+    }
   }
   return result
 }
@@ -115,11 +106,12 @@ export function validateMailboxOrderInference(result, mail, files) {
       const file = sources.get(entry.sourceId)
       if (!file || !Number.isInteger(entry.page) || entry.page < 1 || entry.page > file.pageCount) continue
       const searchable = normalizedText(file.pages[entry.page - 1])
-      const verified = searchable.includes(normalizedText(entry.quote))
+      const containsQuote = searchable.includes(normalizedText(entry.quote))
+      const verified = containsQuote && !file.ocrUncertainPages?.includes(entry.page)
       // OCR/scan excerpts remain explicitly unverified proposals; searchable
       // pages must contain the claimed excerpt, otherwise that source is rejected.
-      if (!verified && searchable.length >= 30) continue
-      provenance.push({ path: entry.path, sourceId: file.id, page: entry.page, quote: entry.quote, verified })
+      if (!containsQuote && searchable.length >= 30) continue
+      provenance.push({ path: entry.path, sourceId: file.id, page: entry.page, quote: entry.quote, verified, ...(file.ocrPages?.includes(entry.page) ? { ocr: true } : {}) })
     }
   }
   const proven = new Set(provenance.map(entry => entry.path))
@@ -152,12 +144,12 @@ export async function previewMailboxOrderCapture({ db, context, mail, files, inf
   if (!mail || typeof mail.id !== 'string' || !mail.id || mail.body?.contentType?.toLowerCase() !== 'text' || typeof mail.body.content !== 'string' || mail.body.content.length > 150_000 || mail.subject != null && (typeof mail.subject !== 'string' || mail.subject.length > 998)) fail('failed-precondition', 'Die Nachricht ist nicht als begrenzter sicherer Text verfügbar.')
   mail = { ...mail, subject: mail.subject || '' }
   await consumeQuota(db, context.uid, now)
-  const inspected = await inspectPdfs(files)
+  const inspected = await inspectPdfs(files, { actorId: context.uid })
   const result = validateMailboxOrderInference(await infer({ mail, files: inspected, actorId: context.uid }), mail, inspected)
   const previewId = randomUUID()
-  const attachments = inspected.map(({ id, name, hash, size, pageCount }) => ({ id, name, hash, size, pageCount }))
+  const attachments = inspected.map(({ id, name, hash, size, pageCount, ocrPages = [], ocrUncertainPages = [] }) => ({ id, name, hash, size, pageCount, ocrPages, ocrUncertainPages }))
   await db.doc(`mailboxOrderPreviews/${previewId}`).create({ ownerId: context.uid, connectionId: context.connectionId, graphUserId: context.connection.graphUserId, messageId: mail.id, messageKey: hash(`${context.connection.tenantId || ''}|${context.connection.graphUserId}|${mail.id}`), ...result, attachments, createdAt: FieldValue.serverTimestamp(), expiresAt: now + lifetime })
-  return { previewId, ...result, attachments: attachments.map(({ id, name, pageCount }) => ({ id, name, pageCount })), expiresAt: now + lifetime }
+  return { previewId, ...result, attachments: attachments.map(({ id, name, pageCount, ocrPages, ocrUncertainPages }) => ({ id, name, pageCount, ocrPages, ocrUncertainPages })), expiresAt: now + lifetime }
 }
 
 function customerForExport(snapshot, number) {

@@ -21,7 +21,7 @@ export default function MailInvoiceAction({ identity, mailContent, attachments =
   }
   const pdfs=attachments.filter(file=>file.contentType?.split(';')[0].toLowerCase()==='application/pdf'||/\.pdf$/i.test(file.name||''))
   return <><button type="button" onClick={()=>{setOpen(true);if(!report&&!busy)void review()}}>{w('Rechnungsprüfung','Review invoice')}</button>
-    <MailWorkDialog open={open} title={w('Rechnungsprüfung','Invoice review')} left={<MailDocumentSources identity={identity} mailContent={mailContent} attachments={pdfs} w={w}/>} onClose={()=>setOpen(false)} rightLoading={busy} loadingLabel={w('Rechnungen werden erkannt, TA-Nummern gesucht und Auftragsdaten verglichen …','Finding invoices, matching order numbers and comparing order data …')}>
+    <MailWorkDialog open={open} title={w('Rechnungsprüfung','Invoice review')} left={<MailDocumentSources identity={identity} mailContent={mailContent} attachments={pdfs} w={w}/>} onClose={()=>setOpen(false)} rightLoading={busy} loadingLabel={w('Rechnungen werden gelesen und geprüft – bei Bedarf mit OCR …','Reading and reviewing invoices – using OCR if needed …')}>
       {error&&<div className="mailbox-error" role="alert">{error}<p><button type="button" onClick={()=>void review()} disabled={busy}>{w('Erneut versuchen','Try again')}</button></p></div>}
       {report&&<><InvoiceReviewResults report={report}/><button type="button" disabled={busy} onClick={()=>void review(true)}>{w('Mit aktuellen Auftragsdaten erneut prüfen','Review against current order data')}</button></>}
     </MailWorkDialog></>

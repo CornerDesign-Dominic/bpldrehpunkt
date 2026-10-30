@@ -15,10 +15,9 @@ PDF-Dateien. Nicht-PDF-Anhänge werden nicht ausgewertet. Keine clientseitig
 übermittelten Texte oder PDF-Auswahlen fließen in die Analyse ein.
 
 Grenzen: 20 PDFs, 5 MiB pro PDF, insgesamt 20 MiB, 100 Seiten und 160.000
-Textzeichen; höchstens 20 Prüfstarts pro Nutzer und Stunde. Nicht lesbare,
-verschlüsselte oder reine Scan-PDFs sowie unvollständige Anhangslisten brechen
+Textzeichen; höchstens 20 Prüfstarts pro Nutzer und Stunde. Nicht lesbare oder verschlüsselte PDFs sowie unvollständige Anhangslisten brechen
 die gesamte Prüfung mit Hinweis ab. Es werden keine stillen Teilprüfungen
-angelegt. OCR ist wie im bisherigen AGB-Prüfer nicht enthalten.
+angelegt. Bildseiten werden automatisch per OCR gelesen; unsichere Stellen werden markiert.
 
 Die vorhandene AGB-Analyse (Modell, Prüffelder, Normalisierung, Nutzungserfassung)
 prüft den gemeinsamen extrahierten Text samt Dateinamen und Seitenmarkern.
