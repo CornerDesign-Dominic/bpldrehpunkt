@@ -127,8 +127,9 @@
 .quality-article-meta { display:flex; align-items:center; justify-content:flex-end; gap:12px; color:var(--text-secondary); }
 .quality-article-meta .quality-overdue-badge { margin:0; }
 .quality-history-link { margin-top:16px; padding:0; border:0; background:transparent; color:var(--text-secondary); text-decoration:underline; font:inherit; font-size:12px; cursor:pointer; }
-.quality-dialog--handbook { width:min(1120px,94vw); max-height:94vh; }
-.quality-dialog--handbook textarea { min-height:min(42vh,420px); font-size:16px; line-height:1.6; }
+.quality-dialog--editor,.quality-dialog--handbook { width:min(1120px,94vw); max-height:94vh; }
+.quality-dialog--editor textarea { min-height:min(42vh,420px); font-size:16px; line-height:1.6; }
+.quality-dialog--create textarea { min-height:120px; }
 .quality-revisions-dialog { height:88vh; }
 .quality-revision-list { overflow-x:auto; }
 .quality-revision-list table { width:100%; border-collapse:collapse; text-align:left; }

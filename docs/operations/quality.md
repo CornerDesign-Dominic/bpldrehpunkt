@@ -258,3 +258,15 @@ erfolgreich. Lokaler Browser mit Beispieldaten: 1120 Pixel Modalbreite und groß
 Textfläche, kein Verlaufsbutton in der Bearbeitung, Verwerfenschutz, Revisionsliste,
 vollständige frühere Fassung und Fokus-Rückkehr zur Liste/Artikelseite geprüft.
 Kein angemeldeter Dev-Browserdurchlauf. Nur Frontend-Veröffentlichung erforderlich.
+
+### Größere K.V.P.- und Besprechungsmodale am 30.10.2026
+
+Alle Qualitäts-Bearbeitungsmodale verwenden bis 1120 Pixel Breite und maximal
+94 % der Fensterhöhe. K.V.P.-Phasentexte und Besprechungsprotokolle bieten große
+mehrzeilige Schreibflächen mit 16-Pixel-Schrift und 1,6-fachem Zeilenabstand.
+Kurzes Anlegen bleibt bei wenigen Feldern. Keine Änderung an Daten oder Rechten.
+Lokaler Browser mit Beispieldaten: Plan und Besprechungsprotokoll jeweils mit
+1120 Pixel Breite und etwa 327 Pixel hoher Textfläche sowie Schließen geprüft.
+Lint, Build und Shared-Abgleich (39 Module) erfolgreich. Ein angemeldeter
+Dev-Browserdurchlauf wurde nicht durchgeführt.
+Nur Frontend-Veröffentlichung erforderlich; Produktion bleibt unverändert.
