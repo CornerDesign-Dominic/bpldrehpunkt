@@ -1581,3 +1581,15 @@ beider Rollen, Ein-Rollen-Partnern, Ablehnungen, widersprüchlichen Quellen,
 Teilfehlern, unveränderten Wiederholungen, Quoten, Parallelaufrufen und
 Rechte-/Kontenänderungen während des Abrufs. Vollständiger ESLint-Lauf, Build
 und Shared-Abgleich erfolgreich (42 Module). Bekannte Build-Chunkwarnung bleibt.
+
+## 38. Verständlicher Hinweis bei widersprüchlichen Quellen
+
+Am 30.10.2026 zur Dev-Veröffentlichung freigegeben: Bei widersprüchlichen
+Kunden-/Unternehmerangaben lautet der Hinweis nun „Kunden- und Unternehmerdaten
+widersprechen sich in einzelnen Feldern. Bitte diese Angaben prüfen.“
+Ein erneuter Abruf wird hier nicht mehr als Lösung nahegelegt. Alte
+Ansprechpartnervergleiche ohne sichere Kontakt-ID behalten einen eigenen,
+darauf bezogenen Hinweis. Die Meldung bei einer nicht automatisch möglichen
+Übernahme verweist auf die manuelle Prüfung. Übernahme-, Verwerfungs-, Rechte-
+und Historienregeln bleiben unverändert. Reine Frontend-Veröffentlichung auf
+Dev; keine Functions-, Flow-, Secret- oder Main-Änderung erforderlich.

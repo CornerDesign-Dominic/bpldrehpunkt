@@ -1,5 +1,8 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Kunden- und Unternehmerdaten widersprechen sich in einzelnen Feldern. Bitte diese Angaben prüfen.': 'Customer and carrier data conflict in some fields. Please review these details.',
+  'Einzelne Ansprechpartnerangaben benötigen einen erneuten DyCoS-Abruf oder eine manuelle Prüfung.': 'Some contact person details require another DyCoS lookup or manual review.',
+  'Diese Abweichung kann nicht automatisch übernommen werden. Bitte die Angaben manuell prüfen.': 'This difference cannot be applied automatically. Please review the details manually.',
   'Kunden- und Unternehmerdaten wurden gemeinsam abgeholt.': 'Customer and carrier data have been retrieved together.',
   'Stammdaten aktualisieren': 'Refresh master data',
   'Welche Kontonummer soll aus DyCoS abgerufen werden?': 'Which account number should be retrieved from DyCoS?',
