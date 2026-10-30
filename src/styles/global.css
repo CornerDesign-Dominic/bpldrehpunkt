@@ -2404,6 +2404,10 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .dycos-bulk-import__progress { border-top:1px solid var(--border); padding-top:16px; margin-top:18px; }
 .dycos-bulk-import__progress progress { width:100%; height:12px; accent-color:var(--accent); }
 .dycos-bulk-import__results { min-width:0; }.dycos-bulk-import__results td { white-space:normal; overflow-wrap:anywhere; }
+.partner-import-warning__heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; }
+.partner-import-warning__actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.partner-import-warning [hidden] { display:none; }
+.partner-import-warning .data-table td { white-space:normal; overflow-wrap:anywhere; }
 /* A mail pause is informational; completed tracking has no warning colors. */
 .transport-orders-attention-icons__item--neutral, .shipment-tracking-attention__item--neutral,
 .transport-orders-forecast-button--neutral, .shipment-tracking-forecast-button--neutral,

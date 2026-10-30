@@ -8,6 +8,7 @@ import { fetchDycosFlowOrder } from './dycosFlowClient.js'
 import { mapDycosOrder, preserveDycosUnmappedFields } from './dycosOrderMapping.js'
 import { dycosImportEligibility } from './shared/dycosImportPolicy.js'
 import { mapDycosPartnerData, hasDycosMasterDataAccess, dycosPartnerAdditions, combineDycosPartnerSources, dycosPartnerReviewFingerprint } from './dycosPartnerData.js'
+import { dycosConflictRows, retainedDycosResolutions } from './shared/dycosPartnerConflicts.js'
 import { customerPartnerPayload, carrierPartnerPayload, importPartnerId } from './transportOrderImports.js'
 import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
@@ -165,13 +166,13 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
       entry.fingerprint = dycosPartnerReviewFingerprint(entry.conflicts)
       entry.reviewChanged = entry.plan.partner.dycosImport?.conflictFingerprint !== entry.fingerprint
       if (additions.changedFields.length) enrichedPartners++
-      partnerConflictCount += entry.conflicts.length
+      partnerConflictCount += dycosConflictRows(entry.plan.partner, entry.conflicts).length
       if (entry.plan.create) {
         // Newly created base payloads contain operational defaults, but no
         // authoritative source master data. Populate mapped fields directly.
         for (const [field, value] of Object.entries(entry.additions.patch)) entry.plan.partner[field] = value && typeof value === 'object' && !Array.isArray(value) ? { ...(entry.plan.partner[field] || {}), ...value } : value
       }
-      entry.metadata = { source: 'dycos-api', sourceReferences: [...new Map([...(entry.plan.partner.dycosImport?.sourceReferences || []), ...entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId }))].map((ref) => [`${ref.entity}:${ref.id}`, ref])).values()], lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, addedFields: entry.additions.changedFields }
+      entry.metadata = { source: 'dycos-api', sourceReferences: [...new Map([...(entry.plan.partner.dycosImport?.sourceReferences || []), ...entry.sources.map((source) => ({ entity: source.sourceKind, id: source.sourceId }))].map((ref) => [`${ref.entity}:${ref.id}`, ref])).values()], lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: actorName(profile), importRunId: runRef.id, conflictFingerprint: entry.fingerprint, conflicts: entry.conflicts, resolutions: retainedDycosResolutions(entry.plan.partner), addedFields: entry.additions.changedFields }
       if (entry.plan.create) entry.plan.partner.dycosImport = entry.metadata
     }
     if (partnerConflictCount) partnerWarningCodes.add('PARTNER_MASTER_DATA_CONFLICTS')

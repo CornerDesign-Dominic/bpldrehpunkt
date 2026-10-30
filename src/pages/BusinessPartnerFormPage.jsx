@@ -45,6 +45,8 @@ export default function BusinessPartnerFormPage({ mode }) {
   const [loading, setLoading] = useState(mode === 'existing')
   const [error, setError] = useState('')
   const [isSubmitting, setSubmitting] = useState(false)
+  const [formDirty, setFormDirty] = useState(false)
+  const [reviewBusy, setReviewBusy] = useState(false)
   const [toast, setToast] = useState(location.state?.toast ?? '')
   const [crmRatings, setCrmRatings] = useState({})
   const [palletAccount, setPalletAccount] = useState(null)
@@ -150,6 +152,13 @@ export default function BusinessPartnerFormPage({ mode }) {
     } catch { setToast('Zusammenführung getrennt. Bitte das Stammdatenblatt neu laden.') }
   }
 
+  async function handleDycosReview(decision) {
+    const refreshed = await getBusinessPartner(partnerId)
+    setPartner(refreshed); setCurrentValues(refreshed); setFormDirty(false)
+    setPartnerFormVersion(value => value + 1)
+    setToast(decision === 'accept' ? 'DyCoS-Wert wurde übernommen.' : 'Abweichung wurde verworfen. Drehpunkt-Wert bleibt erhalten.')
+  }
+
   if (loading) return <p className="page-state"><StaticText source={"Stammdaten werden geladen …"} /></p>
   if (error && !partner) return <section className="page-state page-state--error"><p>{<StaticText source={error} />}</p><BackLink to="/kunden-unternehmer" /></section>
 
@@ -166,9 +175,9 @@ export default function BusinessPartnerFormPage({ mode }) {
       {archived && <aside className="partner-archive-notice"><strong><StaticText source={"Archiviertes Stammdatenblatt"} /></strong><p><StaticText source={"Dieses Blatt wurde zusammengeführt und ist nur noch lesbar. Seine früheren Daten bleiben erhalten."} /></p><Link to={businessPartnerDetailPath(shownPartner.mergedIntoPartnerId)}><StaticText source={"Aktiven Zielpartner öffnen"} /></Link></aside>}
       {!archived && <MissingCreditorNumberNotice notice={missingCreditorNumberNotice} />}
       {!isNew && <BusinessPartnerHeader account={palletAccount} canViewCrm={!archived && canView('crm')} canViewPallets={!archived && canView('pallets')} partner={shownPartner} partnerId={partnerId} ratings={crmRatings} />}
-      {!isNew && canView('masterData') && <DycosPartnerDataNotice partner={shownPartner} />}
+      {!isNew && canView('masterData') && <DycosPartnerDataNotice key={partnerId} partner={shownPartner} partnerId={partnerId} dirty={formDirty || isSubmitting} onResolved={handleDycosReview} onBusyChange={setReviewBusy} />}
       {error && <p className="form-error">{<StaticText source={error} />}</p>}
-      <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} readOnly={!editable} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
+      <BusinessPartnerForm key={`${partnerId || 'new'}-${partnerFormVersion}`} formId="business-partner-form" initialValue={partner} isNew={isNew} onSubmit={handleSubmit} onFormChange={setCurrentValues} onDirtyChange={setFormDirty} readOnly={!editable || reviewBusy} saving={isSubmitting} canViewArchivedPartner={canView('masterData')} canMerge={canEdit('partnerMerges')} onMergeSeparated={handleMergeSeparated} ruleCatalog={ruleCatalog} />
       {historyOpen && <BusinessPartnerHistoryModal key={partnerId} partner={partner} partnerId={partnerId} onClose={() => setHistoryOpen(false)} />}
       {mergeDirection && <ManualPartnerMergeFlow currentPartnerId={partnerId} direction={mergeDirection} onClose={() => setMergeDirection('')} onMerged={handleManualMerge} />}
     </div>

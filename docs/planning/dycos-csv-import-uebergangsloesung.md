@@ -1426,3 +1426,52 @@ bereits bekannte Warnung zu großen JavaScript-Dateien. Finale Flowprüfung:
 In diesem Arbeitsschritt kein Git-Push und kein Firebase-/Drehpunkt-Deployment.
 Main bleibt unberührt. Die neue Oberfläche benötigt die genannten Dev-Schritte,
 bevor sie dort live nutzbar ist.
+
+## 34. Abweichende Stammdaten direkt entscheiden (30.10.2026)
+
+Lokal ergänzt, noch nicht veröffentlicht: Der Hinweis ist zunächst zugeklappt.
+Titel, kurzer Erklärungstext und „Abweichungen anzeigen“ bleiben sichtbar.
+Nach Nutzerkorrektur wird **pro Zeile** entschieden: „Übernehmen“ ersetzt nur
+den dort gezeigten Wert; „Verwerfen“ erhält nur diesen Drehpunkt-Wert und
+erledigt nur diese Abweichung. Andere Zeilen bleiben unabhängig offen.
+Leseberechtigte können den Vergleich aufklappen, aber keine Entscheidung treffen.
+
+Die neue Callable `resolveDycosPartnerConflicts` verlangt App Check, ein aktives
+Konto und Stammdaten-Bearbeitungsrechte, auch innerhalb der Speichertransaktion.
+Sie akzeptiert genau eine Zeile und vergleicht deren angezeigten Stand erneut
+mit dem gespeicherten Quellwert und aktuellen Partnerwert. Parallele Änderungen
+an dieser Zeile oder archivierte Partner stoppen die Entscheidung; Änderungen
+anderer Felder werden erhalten. Ausschließlich freigegebene Vergleichsfelder werden
+übernommen, niemals Konten-/Quellidentitäten, Status oder Kreditlimit.
+Änderungen und Entscheidung werden atomar mit Zeitpunkt und Person gespeichert;
+tatsächliche Änderungen erscheinen in der bestehenden Vorher-/Nachher-Historie.
+
+„Verwerfen“ speichert eine Ablehnung je Partner und Feld, einschließlich
+Drehpunkt-Wert und DyCoS-Wert. Dieselben Daten
+bleiben auch nach Stammdatenabruf oder „Auftrag aktualisieren“ erledigt; andere
+Quellwerte oder zwischenzeitlich manuell geänderte Werte öffnen einen neuen
+Vergleich. Vorübergehend fehlende Quelldaten löschen die Entscheidung nicht.
+Je Feld bleibt höchstens eine Ablehnung gespeichert; explizites Übernehmen
+entfernt eine frühere Ablehnung desselben Feldes. Ansprechpartner werden über stabile IDs statt allein
+über ihre Listenposition zugeordnet. Alte Kontaktvergleiche ohne ID und
+widersprüchliche Werte aus mehreren Quellen verlangen erneuten Abruf bzw.
+manuelle Prüfung statt einer geratenen Übernahme.
+
+Offene Formularänderungen sperren die Entscheidung. Nach Erfolg wird das
+Stammdatenblatt neu geladen; die Mitteilung verschwindet bei erledigten
+Abweichungen. Technische Speicherfehler werden bereinigt in der Diagnose
+unter dem bestehenden Stammdatenmodul erfasst. Keine neuen Rules, Indizes,
+Secrets oder Power-Automate-Änderungen notwendig.
+
+Für eine spätere Dev-Veröffentlichung gemeinsam berücksichtigen:
+`resolveDycosPartnerConflicts`, `fetchDycosMasterData`,
+`fetchDycosTransportOrder`, synchronisierte Shared-Module und Frontend.
+Main und veröffentlichter Dev-Stand bleiben in diesem Arbeitsschritt unverändert.
+
+Prüfung des korrigierten Stands: 10 fokussierte Modultests und 38
+Firestore-Emulatortests bestanden,
+einschließlich realer Wiederholungsabläufe über beide Importpfade, Vergleichs-
+änderungen, Kontaktreihenfolge, Rechte, Vorher-/Nachher-Historie und Erhalt von
+Status/Kreditlimit. Build, ESLint und Shared-Abgleich erfolgreich (40 Module).
+Browserprüfung mit synthetischen Daten: gemischte Entscheidungen pro Zeile, Auf-/Zuklappen,
+Leserechte, offene Änderungen, veralteter Vergleich sowie DE/EN und Hell/Dunkel.

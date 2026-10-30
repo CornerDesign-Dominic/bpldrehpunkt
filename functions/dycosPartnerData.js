@@ -21,6 +21,7 @@ const labels = {
   paymentTermDays: 'Zahlungsziel', creditNoteProcedure: 'Gutschriftverfahren', dycosCreatedAt: 'Erfasst am DyCoS', 'bankData.iban': 'IBAN', 'bankData.bic': 'BIC', 'bankData.ibanVerifiedAt': 'IBAN geprüft am',
 }
 const fieldPaths = Object.keys(labels)
+export const dycosPartnerFieldPaths = fieldPaths
 const same = (path, left, right) => String(left ?? '').trim().normalize('NFC') === String(right ?? '').trim().normalize('NFC')
   || path.endsWith('email') && String(left).trim().toLowerCase() === String(right).trim().toLowerCase()
 
@@ -137,7 +138,7 @@ export function dycosPartnerAdditions(existing, incoming) {
       if (!candidate[field]) continue
       const path = `contacts.${index}.${field}`
       if (empty(contacts[index][field])) { contacts[index][field] = candidate[field]; changedFields.push(path) }
-      else if (!same(path, contacts[index][field], candidate[field])) conflicts.push({ path, label: 'Ansprechpartner', currentValue: contacts[index][field], incomingValue: candidate[field] })
+      else if (!same(path, contacts[index][field], candidate[field])) conflicts.push({ path, label: 'Ansprechpartner', currentValue: contacts[index][field], incomingValue: candidate[field], ...(contacts[index].id ? { contactId: contacts[index].id } : {}) })
     }
   }
   if (contacts.length > 200) throw new DycosMappingError('partner.contacts')
@@ -156,7 +157,7 @@ export function combineDycosPartnerSources(sources) {
   for (const path of fieldPaths) {
     const values = sources.map((source) => at(source.fields, path)).filter((value) => !empty(value))
     if (!values.length) continue
-    if (values.some((value) => !same(path, value, values[0]))) conflicts.push({ path, label: labels[path], currentValue: null, incomingValue: [...new Set(values)].join(' / ') })
+    if (values.some((value) => !same(path, value, values[0]))) conflicts.push({ path, label: labels[path], currentValue: null, incomingValue: [...new Set(values)].join(' / '), resolvable: false })
     else set(fields, path, values[0])
   }
   return { fields, conflicts }

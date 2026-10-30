@@ -12,6 +12,8 @@ import { transportOrderHistoryRows } from '../src/lib/transportOrderHistoryPrese
 import { shipmentTrackingLifecycle } from './shared/shipmentTrackingLifecycle.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 import { isAutomaticImportedRouteCandidate } from './transportOrderRoutes.js'
+import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
+import { dycosConflictRows } from './shared/dycosPartnerConflicts.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 if (enabled) initializeApp({ projectId: 'demo-drehpunkt-dycos' })
@@ -33,6 +35,24 @@ async function user(permissions = { dataImports: 'edit' }, active = true) {
   return uid
 }
 const dependencies = (fetchOrder, report = async () => {}) => ({ db: db(), fetchOrder, report })
+
+test('emulator: keep decisions also survive partner enrichment through Auftrag aktualisieren', { skip: !enabled }, async () => {
+  const uid = await user({ dataImports: 'edit', masterData: 'edit' }), ta = nextTa()
+  const account = 10000000 + Math.floor(Math.random() * 90000000)
+  let sourceName = 'Quelle A'
+  const source = dependencies(async () => payload(ta, { auftrag: { FrachtzahlerID: account }, kunde: { ID: account, Debitorennummer: account, Firma: sourceName } }))
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  const order = await db().doc(`transportOrders/${id(ta)}`).get()
+  const partnerId = order.get('imported.customer.partnerId'), ref = db().doc(`businessPartners/${partnerId}`)
+  await ref.update({ companyName: 'Manuell' })
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  await resolveDycosPartnerConflictsHandler({ auth: { uid }, data: { partnerId, decision: 'keep', expectedRows: dycosConflictRows((await ref.get()).data()) } })
+  const repeat = await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  assert.equal(repeat.partnerUpdates.conflicts, 0)
+  assert.equal(dycosConflictRows((await ref.get()).data()).length, 0)
+  sourceName = 'Quelle B'
+  assert.equal((await fetchDycosTransportOrderHandler(req(uid, ta), source)).partnerUpdates.conflicts, 1)
+})
 
 test('request canonicalization prevents duplicate SQL identities and requires a bounded request ID', () => {
   for (const taNummer of ['00123', '-1', '1e4', '123.0', '2147483648', '', 123]) assert.throws(() => validateDycosRequest({ taNummer, requestId: randomUUID() }), { code: 'invalid-argument' })

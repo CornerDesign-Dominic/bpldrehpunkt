@@ -6,6 +6,7 @@ import { recordDiagnostic } from './diagnostics.js'
 import { fetchDycosFlowPartner } from './dycosFlowClient.js'
 import { dycosPartnerAdditions, dycosPartnerReviewFingerprint, hasDycosMasterDataAccess, mapDycosPartnerData } from './dycosPartnerData.js'
 import { resolvePartner } from './dycosTransportOrders.js'
+import { dycosConflictRows, retainedDycosResolutions } from './shared/dycosPartnerConflicts.js'
 import { carrierPartnerPayload, customerPartnerPayload, importPartnerId } from './transportOrderImports.js'
 import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
@@ -119,7 +120,7 @@ export async function saveDycosMasterData({ db, request, data, incoming, claim, 
     if (!text(patch[field])) patch[field] = data.nummer
     patch.dycosReferences = references
     patch.dycosImport = { source: 'dycos-api', sourceReferences, lastSyncedAt: now, syncedByUserId: request.auth.uid, syncedByName: name, importRunId: data.requestId,
-      conflicts: additions.conflicts, conflictFingerprint: dycosPartnerReviewFingerprint(additions.conflicts), addedFields: additions.changedFields }
+      conflicts: additions.conflicts, resolutions: retainedDycosResolutions(existing), conflictFingerprint: dycosPartnerReviewFingerprint(additions.conflicts), addedFields: additions.changedFields }
     const changes = existing ? businessPartnerHistoryChanges(existing, patch) : []
     if (existing && text(existing[field]) && existing[field] !== data.nummer && !(existing.dycosReferences?.[list] || []).includes(data.nummer)) changes.push({ path: `dycosReferences.${list}`, label: customer ? 'Weitere Debitorennummern' : 'Weitere Kreditorennummern', category: 'masterData', oldValue: existing.dycosReferences?.[list] || [], newValue: references[list] })
     const status = !existing ? 'new' : changes.length ? 'updated' : 'unchanged'
@@ -143,7 +144,7 @@ export async function saveDycosMasterData({ db, request, data, incoming, claim, 
     })
     const warningCodes = [...incoming.warningCodes]
     if (incoming.counterpart && !counterpart) warningCodes.push('PARTNER_COUNTERPART_NOT_MATCHED')
-    const result = { status, partnerId: id, typ: data.typ, nummer: data.nummer, requestId: data.requestId, conflicts: additions.conflicts.length, warningCodes }
+    const result = { status, partnerId: id, typ: data.typ, nummer: data.nummer, requestId: data.requestId, conflicts: dycosConflictRows(patch).length, warningCodes }
     tx.create(claim.receiptRef, { typ: data.typ, nummer: data.nummer, result, completedAt: now })
     tx.delete(claim.lockRef)
     return result

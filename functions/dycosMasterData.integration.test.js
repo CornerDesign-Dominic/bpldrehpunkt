@@ -6,6 +6,8 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { fetchDycosMasterDataHandler, mapDycosMasterData, validateDycosPartnerRequest } from './dycosMasterData.js'
 import { DycosFlowError } from './dycosFlowClient.js'
+import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
+import { dycosConflictRows } from './shared/dycosPartnerConflicts.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 if (enabled) initializeApp({ projectId: 'demo-drehpunkt-dycos' })
@@ -20,6 +22,28 @@ async function user(permissions = { masterData: 'edit' }, active = true) {
 const deps = fetchPartner => ({ db: getFirestore(), fetchPartner, report: async () => {} })
 const partner = async result => (await getFirestore().doc(`businessPartners/${result.partnerId}`).get()).data()
 const history = result => getFirestore().collection(`businessPartners/${result.partnerId}/history`).get()
+
+test('emulator: a keep decision survives real partner fetches and a changed DyCoS value opens a fresh comparison', { skip: !enabled }, async () => {
+  const uid = await user(), nummer = number(), req = request(uid, nummer)
+  let sourceName = 'Quelle A'
+  const dependencies = deps(async () => response(req, { Firma: sourceName }))
+  const first = await fetchDycosMasterDataHandler(req, dependencies)
+  await getFirestore().doc(`businessPartners/${first.partnerId}`).update({ companyName: 'Manuell' })
+  await fetchDycosMasterDataHandler(request(uid, nummer), dependencies)
+  const saved = await partner(first)
+  await resolveDycosPartnerConflictsHandler({ auth: { uid }, data: { partnerId: first.partnerId, decision: 'keep', expectedRows: dycosConflictRows(saved) } })
+  const repeat = await fetchDycosMasterDataHandler(request(uid, nummer), dependencies)
+  assert.equal(repeat.conflicts, 0); assert.equal((await partner(first)).companyName, 'Manuell')
+  assert.equal(dycosConflictRows(await partner(first)).length, 0)
+  sourceName = ''
+  await fetchDycosMasterDataHandler(request(uid, nummer), dependencies)
+  assert.equal((await partner(first)).dycosImport.resolutions.length, 1)
+  sourceName = 'Quelle A'
+  assert.equal((await fetchDycosMasterDataHandler(request(uid, nummer), dependencies)).conflicts, 0)
+  sourceName = 'Quelle B'
+  const changed = await fetchDycosMasterDataHandler(request(uid, nummer), dependencies)
+  assert.equal(changed.conflicts, 1); assert.equal(dycosConflictRows(await partner(first)).length, 1)
+})
 
 test('partner requests and response identities fail closed; counterpart is only an internal ID', () => {
   for (const nummer of ['', '001', '-2', '1e3', '2147483648', 123]) assert.throws(() => validateDycosPartnerRequest({ typ: 'kunde', nummer, requestId: randomUUID() }))

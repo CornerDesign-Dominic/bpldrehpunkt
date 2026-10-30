@@ -6,4 +6,9 @@ export async function fetchDycosMasterData(data) {
   return (await httpsCallable(functions, 'fetchDycosMasterData', { timeout: 190000 })(data)).data
 }
 
+export async function resolveDycosPartnerConflicts(data) {
+  await waitForAppCheckToken()
+  return (await httpsCallable(functions, 'resolveDycosPartnerConflicts')(data)).data
+}
+
 export { dycosMasterDataError } from './dycosMasterDataFeedback.js'
