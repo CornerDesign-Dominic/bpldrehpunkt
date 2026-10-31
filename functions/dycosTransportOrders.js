@@ -9,7 +9,7 @@ import { mapDycosOrder, preserveDycosUnmappedFields } from './dycosOrderMapping.
 import { dycosImportEligibility } from './shared/dycosImportPolicy.js'
 import { mapDycosPartnerData, hasDycosMasterDataAccess, dycosPartnerAdditions, combineDycosPartnerSources, dycosPartnerReviewFingerprint } from './dycosPartnerData.js'
 import { dycosConflictRows, retainedDycosResolutions } from './shared/dycosPartnerConflicts.js'
-import { customerPartnerPayload, carrierPartnerPayload, importPartnerId } from './transportOrderImports.js'
+import { customerPartnerPayload, carrierPartnerPayload, importPartnerId } from './dycosPartnerPayloads.js'
 import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 

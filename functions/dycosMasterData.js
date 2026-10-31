@@ -8,7 +8,7 @@ import { dycosPartnerAdditions, dycosPartnerReviewFingerprint, hasDycosMasterDat
 import { resolvePartner } from './dycosTransportOrders.js'
 import { dycosConflictRows, retainedDycosResolutions } from './shared/dycosPartnerConflicts.js'
 import { dycosPartnerRefreshAccounts } from './shared/dycosPartnerRefresh.js'
-import { carrierPartnerPayload, customerPartnerPayload, importPartnerId } from './transportOrderImports.js'
+import { carrierPartnerPayload, customerPartnerPayload, importPartnerId } from './dycosPartnerPayloads.js'
 import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 

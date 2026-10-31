@@ -51,22 +51,6 @@ export async function getTomTomUsageSummary(month) {
   return result.data
 }
 
-export async function previewTransportOrderImport(rows) {
-  const result = await httpsCallable(functions, 'previewTransportOrderImport')({
-    rows: rows.map((row) => ({
-      externalNumber: row.externalNumber,
-      customer: { debtorNumber: row.imported.customer.debtorNumber },
-      carrier: { originalName: row.imported.carrier.originalName },
-    })),
-  })
-  return result.data
-}
-
-export async function importTransportOrderRows({ fileName, rows, rowErrors, carrierResolutions }) {
-  const result = await httpsCallable(functions, 'importTransportOrders')({ fileName, rows, rowErrors, carrierResolutions })
-  return result.data
-}
-
 export async function fetchDycosTransportOrder({ taNummer, requestId, expectedSourceId }) {
   await waitForAppCheckToken()
   const result = await httpsCallable(functions, 'fetchDycosTransportOrder', { timeout: 180000 })({ taNummer, requestId, ...(expectedSourceId != null ? { expectedSourceId } : {}) })

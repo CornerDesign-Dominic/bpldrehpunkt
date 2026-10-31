@@ -6,7 +6,6 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { fetchDycosTransportOrderHandler, hasDycosImportAccess, validateDycosRequest } from './dycosTransportOrders.js'
 import { DycosFlowError } from './dycosFlowClient.js'
-import { importTransportOrdersHandler } from './transportOrderImports.js'
 import { mapDycosOrder } from './dycosOrderMapping.js'
 import { transportOrderHistoryRows } from '../src/lib/transportOrderHistoryPresentation.js'
 import { shipmentTrackingLifecycle } from './shared/shipmentTrackingLifecycle.js'
@@ -205,8 +204,6 @@ test('emulator: exact creditor identity overrides similar names; unresolved lega
   assert.equal(order.imported.contacts.carrierStandardEmail, 'dispo@example.test')
   assert.equal(order.importMeta.fileName, undefined)
   assert.deepEqual(order.importMeta.preservedLegacyFields.sort(), ['contacts.carrierStandardEmail', 'loading.reference'])
-  const row = { rowNumber: 2, externalNumber: ta, imported: { externalNumber: ta, customer: { debtorNumber: '100', name: 'Kunde' }, carrier: { originalName: 'Neuer Quellname' } } }
-  await assert.rejects(importTransportOrdersHandler({ auth: { uid }, data: { fileName: 'alt.csv', rows: [row] } }), { code: 'failed-precondition' })
   assert.equal((await orderRef.get()).get('imported.source.orderId'), '123')
 })
 
@@ -263,37 +260,6 @@ test('emulator: a deterministic partner ID cannot override contradictory account
   const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), TourenID: 44 }, tour: { ID: 44, UnternehmerID: 55 }, unternehmerstamm: { ID: 55, Bezeichnung: 'Quelle', Kreditorennummer: creditor } })
   await assert.rejects(fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response)), { code: 'failed-precondition' })
   assert.equal((await db().doc(`transportOrders/${id(ta)}`).get()).exists, false)
-})
-
-test('emulator: a late CSV commit cannot overwrite a concurrently completed API import', { skip: !enabled }, async () => {
-  const uid = await user(); const ta = nextTa(); const creditor = nextAccount(); const debtor = nextAccount()
-  const orderRef = db().doc(`transportOrders/${id(ta)}`)
-  await orderRef.set({ externalNumber: ta, imported: { customer: { debtorNumber: debtor, name: 'Kunde' }, carrier: { originalName: creditor } }, importMeta: { source: 'dycos', fileName: 'old.csv' } })
-  const response = payload(ta)
-  const database = db(); const originalBatch = database.batch
-  const csvRow = { rowNumber: 2, externalNumber: ta, imported: { externalNumber: ta, loading: { window: { from: '2026-01-01' } }, customer: { debtorNumber: debtor, name: 'Kunde' }, carrier: { originalName: creditor } } }
-  let intercepted = false
-  database.batch = function () {
-    const batch = originalBatch.call(this)
-    const commit = batch.commit.bind(batch)
-    batch.commit = async () => {
-      if (!intercepted) {
-        intercepted = true
-        await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
-      }
-      return commit()
-    }
-    return batch
-  }
-  try {
-    await assert.rejects(importTransportOrdersHandler({ auth: { uid }, data: { fileName: 'late.csv', rows: [csvRow] } }), (error) => error.code === 9 || error.code === 'failed-precondition')
-  } finally { database.batch = originalBatch }
-  assert.equal(intercepted, true)
-  const result = (await orderRef.get()).data()
-  assert.equal(result.importMeta.channel, 'power-automate')
-  assert.equal(result.imported.source.orderId, '123')
-  assert.equal(result.imported.customer.name, '')
-  assert.equal((await database.doc(`businessPartners/dycos-debtor-${debtor}`).get()).exists, false)
 })
 
 test('emulator: rich partner data fills empty fields, preserves manual values and is auditable without leaking into TA snapshots', { skip: !enabled }, async () => {

@@ -16,7 +16,7 @@ import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
-import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
+import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
 import { dycosMasterDataConfigurationSecrets } from './dycosFlowClient.js'
@@ -37,8 +37,8 @@ import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrac
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
 import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
 import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
-import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
-import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
+import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, listCustomerImportQueueHandler, releaseCustomerImportRowHandler } from './customerImports.js'
+import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
@@ -1092,8 +1092,6 @@ export { createInkassoCase } from './inkassoCases.js'
 export { recordCaseTransportOrderLinkCreated, recordCaseTransportOrderLinkDeleted } from './caseTransportLinks.js'
 export { scheduledShipmentTrackingAutomation } from './shipmentTrackingAutomation.js'
 export { scheduledCaseDeadlineReminderDispatch } from './caseDeadlineReminders.js'
-export const previewTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewTransportOrderImportHandler)
-export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
 export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchDycosTransportOrderHandler)
 export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
 export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, refreshDycosMasterDataHandler)
@@ -1134,15 +1132,11 @@ export const getShipmentTrackingAttention = onCall({ region: 'europe-west3', enf
 export const refreshShipmentTrackingForecast = onCall({ region: 'europe-west3', enforceAppCheck: true }, refreshShipmentTrackingForecastHandler)
 export const updateShipmentTrackingForecastSettings = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingForecastSettingsHandler)
 export const updateAutomaticMailDelivery = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateAutomaticMailDeliveryHandler)
-export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
-export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)
-export const processCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCustomerImportHandler)
 export const listCustomerImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCustomerImportQueueHandler)
 export const claimCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCustomerImportRowHandler)
 export const releaseCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCustomerImportRowHandler)
 export const approveCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, approveCustomerImportRowHandler)
 export const mergeCustomerImportPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeCustomerImportPartnersHandler)
-export const processCarrierImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCarrierImportHandler)
 export const listCarrierImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCarrierImportQueueHandler)
 export const claimCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCarrierImportRowHandler)
 export const releaseCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCarrierImportRowHandler)

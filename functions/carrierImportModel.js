@@ -4,9 +4,7 @@ import { newShipmentTrackingPartnerPolicy } from './shared/shipmentTrackingPartn
 const text = (value) => value === null || value === undefined ? '' : String(value).trim()
 const empty = (value) => value === '' || value === null || value === undefined
 const normalizeCustomerIdentifier = text
-const matchesDebtorReference = (partner, number) => Boolean(normalizeCustomerIdentifier(number)) && [partner?.debtorNumber, ...(partner?.dycosReferences?.debtorNumbers || [])].some((candidate) => normalizeCustomerIdentifier(candidate) === normalizeCustomerIdentifier(number))
 const unique = (values) => [...new Set(values.map(normalizeCustomerIdentifier).filter(Boolean))]
-export const carrierReviewId = (number) => `carrier-review-${encodeURIComponent(normalizeCustomerIdentifier(number))}`
 export const hasCarrierImportAccess = (profile) => profile?.role === 'superadmin' || (profile?.permissions?.dataImports === 'edit' && profile?.permissions?.masterData === 'edit')
 
 export function resolveActivePartner(partners, candidate) {
@@ -18,22 +16,6 @@ export function resolveActivePartner(partners, candidate) {
     current = partners.find((entry) => entry.id === current.mergedIntoPartnerId)
   }
   return current?.status === 'merged' ? null : current || null
-}
-
-export function carrierIdentity(partners, creditorNumber, debtorNumber) {
-  const creditorMatches = partners.filter((entry) => Boolean(normalizeCustomerIdentifier(creditorNumber)) && [entry.creditorNumber, ...(entry.dycosReferences?.creditorNumbers || [])].some((candidate) => normalizeCustomerIdentifier(candidate) === normalizeCustomerIdentifier(creditorNumber)))
-  const debtorMatches = debtorNumber ? partners.filter((entry) => matchesDebtorReference(entry, debtorNumber)) : []
-  const activeMatches = (entries) => {
-    const direct = entries.filter((entry) => !entry.mergedIntoPartnerId && entry.status !== 'merged')
-    return [...new Map((direct.length ? direct : entries.map((entry) => resolveActivePartner(partners, entry)).filter(Boolean)).map((entry) => [entry.id, entry])).values()]
-  }
-  const creditors = activeMatches(creditorMatches)
-  const debtors = activeMatches(debtorMatches)
-  const creditor = creditors[0] || null
-  const debtor = debtors[0] || null
-  const ambiguity = [...creditorMatches, ...debtorMatches].some((entry) => !resolveActivePartner(partners, entry)) ? 'Die Nummer verweist auf ein archiviertes Stammdatenblatt ohne erreichbaren Zielpartner.' : creditors.length > 1 ? 'Die Kreditorennummer ist mehreren aktiven Stammdatenblättern zugeordnet.' : debtors.length > 1 ? 'Die zugeordnete Debitorennummer ist mehreren aktiven Stammdatenblättern zugeordnet.' : ''
-  const merge = creditor && debtor && creditor.id !== debtor.id ? { partnerIds: [creditor.id, debtor.id], suggestedTargetId: creditor.id, creditorPartnerId: creditor.id, debtorPartnerId: debtor.id } : null
-  return { creditor, debtor, partner: creditor || debtor, merge, ambiguity, assignment: creditor ? { kind: 'creditor', number: normalizeCustomerIdentifier(creditorNumber) } : debtor ? { kind: 'debtor', number: normalizeCustomerIdentifier(debtorNumber) } : { kind: 'new' } }
 }
 
 export function carrierPayload(row, runId, now, ruleCatalog = null) {
@@ -112,14 +94,4 @@ export function carrierDecisionDetails(row, additions, existing = null) {
   const reasons = []
   const comparisons = [...additions.conflicts]
   return { reasons, comparisons }
-}
-
-export function carrierActions(existing, row, applied = {}) {
-  if (applied.created) return ['created']
-  const actions = []
-  if (!existing) return ['unchanged']
-  if (row.creditorNumber && ![existing.creditorNumber, ...(existing.dycosReferences?.creditorNumbers || [])].some((value) => text(value) === text(row.creditorNumber))) actions.push('creditorAdded')
-  if (row.data.linkedDebtorNumber && ![existing.debtorNumber, ...(existing.dycosReferences?.debtorNumbers || [])].some((value) => text(value) === text(row.data.linkedDebtorNumber))) actions.push('debtorAdded')
-  if (Object.keys(applied).some((key) => !['creditorNumber', 'debtorNumber', 'dycosReferences'].includes(key))) actions.push('updated')
-  return actions.length ? actions : ['unchanged']
 }

@@ -1,11 +1,12 @@
 # DyCoS CSV-Import – Übergangslösung
 
-Stand: 28.10.2026. Dieses Dokument führt die fachlichen CSV-Datenverträge und
-die verbleibende Planung. Kunden-, Unternehmer- und Transportauftragsimport
-sowie Partnerzusammenführung sind implementiert. Eine spätere SQL-Datenquelle
-und Mehrstopp-Unterstützung sind keine bereits freigegebenen Funktionen.
-
-**Status dieses Dokuments:** Die als **verbindlich** bezeichneten Punkte sind für die Umsetzung festgelegt. **Offen** bezeichnet Punkte, die erst mit weiteren Daten oder Entscheidungen konkretisiert werden.
+Stand: 31.10.2026. Dieses Dokument beschreibt die Entwicklung vom historischen
+CSV-Import zum aktuellen DyCoS-Abruf über Power Automate. Maßgeblich für den
+aktuellen Stand sind die späteren Abschnitte, insbesondere Abschnitt 39.
+Die früheren CSV-Verträge bleiben zur Erklärung bestehender Daten und
+Importverläufe erhalten; sie beschreiben keinen weiterhin angebotenen Upload.
+Einzelabruf, Sammelimport, eigenständiger Stammdatenabruf und Aktualisierung
+verwenden inzwischen die Schnittstelle.
 
 ## 1. Ziel und Grundprinzip
 
@@ -1593,3 +1594,44 @@ darauf bezogenen Hinweis. Die Meldung bei einer nicht automatisch möglichen
 Übernahme verweist auf die manuelle Prüfung. Übernahme-, Verwerfungs-, Rechte-
 und Historienregeln bleiben unverändert. Reine Frontend-Veröffentlichung auf
 Dev; keine Functions-, Flow-, Secret- oder Main-Änderung erforderlich.
+
+## 39. CSV-Import technisch entfernt (31.10.2026, noch nicht veröffentlicht)
+
+Die CSV-Dateileser für Kunden, Unternehmer und Transportaufträge einschließlich
+Zeichencodierung, unbenutzter Vorbereitungskomponente und Client-Aufrufen sind
+entfernt. Die sechs bisherigen Eingangs-Callables werden nicht mehr exportiert:
+`previewTransportOrderImport`, `importTransportOrders`, `previewCustomerImport`,
+`importCustomers`, `processCustomerImport`, `processCarrierImport`.
+
+Die gemeinsamen Grunddaten für neu angelegte Partner liegen nun in
+`functions/dycosPartnerPayloads.js`. Beide aktuellen DyCoS-Abrufe verwenden diese
+unveränderten Grunddaten, einschließlich Tracking-Vorgaben. Regeln zur Prüfung
+und Zusammenführung alter Stammdatenzeilen bleiben erhalten.
+
+Keine Datenmigration und keine Löschung von Firestore-Dokumenten. Alte
+`customerImportRuns`/`customerImportRows`, `carrierImportRuns`/`carrierImportRows`,
+`transportOrderImportRuns` einschließlich Unterzeilen und bestehende
+Partner-/Auftragshistorien bleiben lesbar. Offene Stammdaten-Prüfzeilen bleiben
+reservierbar und prüfbar; ihre damalige CSV-Herkunft wird weiterhin angezeigt.
+Bestehende CSV-Aufträge können wie bisher über DyCoS aktualisiert werden;
+fehlende, ausdrücklich erhaltene Altwerte werden nicht entfernt.
+
+Tests der entfernten Dateileser und CSV-Erzeugung entfallen. Neue Emulatorfälle
+verwenden bereits gespeicherte Altdaten und prüfen Importverläufe, Berechtigungen,
+Reservierungen, konkurrierende Feldänderungen und geprüfte Übernahme mit Historie.
+Die aktuellen DyCoS- und Partnerzusammenführungsprüfungen bleiben bestehen.
+
+Für eine spätere Dev-Veröffentlichung: Neben dem Frontend müssen die sechs oben
+genannten bereits bereitgestellten Cloud Functions ausdrücklich in
+`db-bpl-drehpunkt-dev` gelöscht werden. Ein reiner Git-Push entfernt laufende
+Functions nicht. Andere Functions, Secrets, Power-Automate-Flows, Rules und
+Indizes benötigen für diese Bereinigung keine Anpassung. Main und Produktion
+bleiben unberührt. Die vorherige Ergänzung der Relationsspalte ist ebenfalls
+noch lokal vorhanden.
+
+Prüfung abgeschlossen: 64 gezielte Backend-Unit-Tests, 38 Client-Unit-Tests und
+59 Emulatorprüfungen bestanden (insgesamt 161, ohne übersprungene Fälle).
+Dazu gezieltes ESLint, Produktionsbuild und Abgleich der 42 gemeinsamen
+Functions-Module bestanden. Der Build meldet weiterhin den bekannten Hinweis
+auf große JavaScript-Dateien. Es wurden ausschließlich lokale Tests gegen den
+Emulator ausgeführt; keine Live-Daten geändert und nichts veröffentlicht.

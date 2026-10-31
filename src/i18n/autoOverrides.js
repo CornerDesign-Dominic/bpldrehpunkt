@@ -32,6 +32,7 @@ export const autoOverrides = {
   "Nach Ladedatum ab Januar 2026 suchen, Aufträge auswählen und gesammelt importieren.": "Search by loading date from January 2026, select orders and import them together.",
   "Ladedatum von": "Loading date from",
   "Ladedatum bis": "Loading date until",
+  "Relation": "Dispatch team",
   "Relation (optional)": "Dispatch team (optional)",
   "Aufträge suchen": "Search orders",
   "Relationen werden geladen …": "Loading dispatch teams …",

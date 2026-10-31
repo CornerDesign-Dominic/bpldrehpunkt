@@ -2,19 +2,17 @@ import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './share
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
-import { canApproveCustomerImportRow, canClaimCustomerImportRow, normalizeCustomerIdentifier } from './customerImports.js'
+import { canApproveCustomerImportRow, canClaimCustomerImportRow } from './customerImports.js'
 import { projectAcceptedCustomerImportRow, reviewedCustomerImportResult } from './customerImportResults.js'
 import { hasPartnerMergeAccess } from './partnerMerges.js'
 import { partnerMergePreview } from './partnerMergeDecisions.js'
-import { carrierActions, carrierAdditions, carrierDecisionDetails, carrierIdentity, carrierPayload, carrierReadPath, carrierReviewId, hasCarrierImportAccess, sameCarrierValue } from './carrierImportModel.js'
-import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
+import { carrierReadPath, hasCarrierImportAccess, sameCarrierValue } from './carrierImportModel.js'
 
 const text = (value) => value === null || value === undefined ? '' : String(value).trim()
 const actorName = (profile) => [text(profile?.firstName), text(profile?.lastName)].filter(Boolean).join(' ') || text(profile?.email) || 'Unbekannt'
 const lockDurationMs = 5 * 60 * 1000
 const rowCollection = 'carrierImportRows'
 const runCollection = 'carrierImportRuns'
-const identity = (row) => normalizeCustomerIdentifier(row.creditorNumber)
 
 async function access(request) {
   const profile = await requireActiveProfile(request)
@@ -25,118 +23,6 @@ async function access(request) {
 const partner = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 const publicRow = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 const millis = (value) => value?.toMillis?.() || 0
-const safeDataKeys = new Set(['linkedDebtorNumber', 'street', 'postalCode', 'city', 'country', 'vatId', 'taxNumber', 'internet', 'website', 'paymentTermsOriginal', 'paymentTermDays', 'iban', 'bic', 'ibanVerifiedAt', 'dycosCreatedAt', 'timocomNumber', 'contacts', 'rawValues'])
-function cleanRow(row, index) {
-  const source = row?.data && typeof row.data === 'object' ? row.data : {}
-  const data = Object.fromEntries(Object.entries(source).filter(([key]) => safeDataKeys.has(key)))
-  if (data.rawValues && typeof data.rawValues === 'object') { data.rawValues = { ...data.rawValues }; delete data.rawValues.infos }
-  data.contacts = Array.isArray(data.contacts) ? data.contacts.slice(0, 50).map((entry, contactIndex) => ({ id: text(entry?.id) || `dycos-carrier-${contactIndex + 1}`, name: text(entry?.name), department: text(entry?.department), phone: text(entry?.phone), mobile: text(entry?.mobile), email: text(entry?.email).toLowerCase() })) : []
-  data.paymentTermDays = text(data.paymentTermsOriginal || data.paymentTermDays)
-  return { rowNumber: Number(row?.rowNumber) || index + 2, creditorNumber: identity(row), companyName: text(row?.companyName), data, errors: Array.isArray(row?.errors) ? row.errors.map(text).filter(Boolean) : [], warnings: Array.isArray(row?.warnings) ? row.warnings.map(text).filter(Boolean) : [] }
-}
-
-function queueData(runRef, row, fields) {
-  const previous = fields.previous || null
-  return { id: fields.id, runId: runRef.id, fileName: fields.fileName, firstImportFileName: previous?.firstImportFileName || previous?.fileName || fields.fileName, lastImportFileName: fields.fileName,
-    source: 'dycosCarrierImport', rowNumber: row.rowNumber, creditorNumber: row.creditorNumber, companyName: row.companyName,
-    sourceRow: { creditorNumber: row.creditorNumber, companyName: row.companyName, data: row.data }, state: fields.state, kind: fields.kind, reasons: fields.reasons || [],
-    comparisons: fields.comparisons || [], carrierId: fields.carrierId || null, merge: fields.merge || null, automaticAppliedValues: fields.automaticAppliedValues || {}, result: fields.result || null,
-    createdAt: previous?.createdAt || FieldValue.serverTimestamp(), lastImportedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-    ...(fields.clearLock ? { lock: FieldValue.delete(), approval: FieldValue.delete() } : {}), ...(fields.approval ? { approval: fields.approval } : {}) }
-}
-
-async function openRowsFor(db, creditorNumber) {
-  if (!creditorNumber) return []
-  const snapshot = await db.collection(rowCollection).where('state', '==', 'open').get()
-  return snapshot.docs.filter((entry) => identity(entry.data()) === creditorNumber)
-}
-
-async function upsertOpen(db, runRef, row, fields) {
-  const matching = await openRowsFor(db, row.creditorNumber)
-  const preferred = row.creditorNumber ? db.collection(rowCollection).doc(carrierReviewId(row.creditorNumber)) : null
-  const currentPreferred = preferred ? await preferred.get() : null
-  const latest = [...matching].sort((a, b) => millis(b.data().lastImportedAt) - millis(a.data().lastImportedAt))[0]
-  const ref = matching.find((entry) => entry.id === preferred?.id)?.ref || latest?.ref || (currentPreferred?.exists ? db.collection(rowCollection).doc() : preferred || db.collection(rowCollection).doc())
-  const previous = matching.find((entry) => entry.id === ref.id)?.data() || latest?.data()
-  await ref.set(queueData(runRef, row, { ...fields, id: ref.id, previous, clearLock: true }), { merge: true })
-  await Promise.all(matching.filter((entry) => entry.id !== ref.id).map((entry) => entry.ref.update({ state: 'superseded', supersededBy: ref.id, lock: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })))
-  return ref.id
-}
-
-async function supersedeOpen(db, number) {
-  const matching = await openRowsFor(db, number)
-  await Promise.all(matching.map((entry) => entry.ref.update({ state: 'superseded', lock: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp() })))
-}
-
-export async function processCarrierImportHandler(request) {
-  const profile = await access(request)
-  const fileName = text(request.data?.fileName)
-  const rows = Array.isArray(request.data?.rows) ? request.data.rows.map(cleanRow) : []
-  if (!fileName || !rows.length) throw new HttpsError('invalid-argument', 'Keine Unternehmer-CSV-Zeilen vorhanden.')
-  const db = getFirestore(); const [catalogSnapshot, partnerSnapshot] = await Promise.all([db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH).get(), db.collection('businessPartners').get()]); const ruleCatalog = catalogSnapshot.exists ? normalizeShipmentTrackingRuleCatalog(catalogSnapshot.data()) : fallbackShipmentTrackingRuleCatalog(); const runRef = db.collection(runCollection).doc()
-  const partners = partnerSnapshot.docs.map(partner)
-  const seen = new Set(); const openIds = new Set(); const counts = { automaticallyAccepted: 0, open: 0, errors: 0 }; const accepted = []
-  await runRef.set({ id: runRef.id, source: 'dycosCarrierImport', fileName, importedAt: FieldValue.serverTimestamp(), importedByUserId: request.auth.uid, importedByName: actorName(profile), status: 'processing' })
-  for (const row of rows) {
-    const duplicate = Boolean(row.creditorNumber && seen.has(row.creditorNumber)); if (row.creditorNumber) seen.add(row.creditorNumber)
-    const errors = [...row.errors, ...(!row.creditorNumber ? ['Kreditorennummer: Pflichtwert fehlt.'] : []), ...(!row.companyName ? ['Unternehmer: Pflichtwert fehlt.'] : []), ...(duplicate ? ['Kreditorennummer kommt in dieser Datei mehrfach vor.'] : [])]
-    if (errors.length) {
-      const id = await upsertOpen(db, runRef, row, { fileName, state: 'open', kind: 'error', reasons: [...new Set(errors)] })
-      if (!openIds.has(id)) { openIds.add(id); counts.open += 1; counts.errors += 1 }
-      continue
-    }
-    const found = carrierIdentity(partners, row.creditorNumber, row.data.linkedDebtorNumber)
-    if (found.ambiguity) {
-      const id = await upsertOpen(db, runRef, row, { fileName, state: 'open', kind: 'error', reasons: [found.ambiguity] })
-      if (!openIds.has(id)) { openIds.add(id); counts.open += 1; counts.errors += 1 }
-      continue
-    }
-    if (found.merge) {
-      const id = await upsertOpen(db, runRef, row, { fileName, state: 'open', kind: 'merge', reasons: ['Passendes separates Stammdatenblatt gefunden – Zusammenführung prüfen.'], carrierId: found.creditor.id, merge: found.merge })
-      if (!openIds.has(id)) { openIds.add(id); counts.open += 1 }
-      continue
-    }
-    const existing = found.partner
-    const existingBefore = existing ? { creditorNumber: existing.creditorNumber, debtorNumber: existing.debtorNumber, dycosReferences: { ...(existing.dycosReferences || {}) } } : null
-    const payload = carrierPayload(row, runRef.id, FieldValue.serverTimestamp(), ruleCatalog)
-    const additions = existing ? carrierAdditions(existing, row) : { patch: {}, conflicts: [] }
-    const details = carrierDecisionDetails(row, additions, existing)
-    const needsReview = details.comparisons.length > 0 || details.reasons.length > 0
-    let carrierId = existing?.id || payload.id; let automaticAppliedValues = {}
-    if (!existing) {
-      const ref = db.collection('businessPartners').doc(payload.id)
-      const collision = await ref.get()
-      if (collision.exists) carrierId = db.collection('businessPartners').doc().id
-      const actualRef = db.collection('businessPartners').doc(carrierId)
-      const batch = db.batch()
-      batch.set(actualRef, { ...payload, id: carrierId })
-      batch.set(actualRef.collection('history').doc(), { category: 'import', action: 'created', summary: 'Aus Unternehmerimport erstellt', source: 'dycosCarrierImport', importRunId: runRef.id, createdAt: FieldValue.serverTimestamp(), createdByUserId: request.auth.uid, createdByName: actorName(profile) })
-      await batch.commit()
-      partners.push({ ...payload, id: carrierId }); automaticAppliedValues = { created: true }
-    } else if (Object.keys(additions.patch).length) {
-      const ref = db.collection('businessPartners').doc(existing.id)
-      const batch = db.batch()
-      batch.set(ref, { ...additions.patch, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
-      batch.set(ref.collection('history').doc(), { category: 'import', action: 'updated', summary: needsReview ? 'Sichere Felder aus Unternehmerimport ergänzt; Prüfung offen' : 'Aus Unternehmerimport ergänzt', source: 'dycosCarrierImport', importRunId: runRef.id, createdByUserId: request.auth.uid, createdByName: actorName(profile), metadata: { changes: businessPartnerHistoryChanges(existing, mergePartnerHistoryPatch(existing, additions.patch)), fields: Object.keys(additions.patch) }, createdAt: FieldValue.serverTimestamp() })
-      await batch.commit()
-      Object.assign(existing, additions.patch); automaticAppliedValues = additions.patch
-    }
-    const result = { partnerId: carrierId, assignment: found.assignment, actions: carrierActions(existingBefore, row, automaticAppliedValues) }
-    if (needsReview) {
-      const id = await upsertOpen(db, runRef, row, { fileName, state: 'open', kind: 'review', reasons: [...row.warnings, ...details.reasons], comparisons: details.comparisons, carrierId, automaticAppliedValues, result })
-      if (!openIds.has(id)) { openIds.add(id); counts.open += 1 }
-      continue
-    }
-    await supersedeOpen(db, row.creditorNumber)
-    const ref = db.collection(rowCollection).doc()
-    const approval = { type: 'automatic', at: FieldValue.serverTimestamp(), byUserId: request.auth.uid, byName: actorName(profile) }
-    await ref.set(queueData(runRef, row, { id: ref.id, fileName, state: 'accepted', kind: 'automatic', carrierId, automaticAppliedValues, approval, result }))
-    counts.automaticallyAccepted += 1; accepted.push({ id: ref.id, creditorNumber: row.creditorNumber, companyName: row.companyName, carrierId, result })
-  }
-  await runRef.set({ status: 'completed', completedAt: FieldValue.serverTimestamp(), counts, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
-  return { runId: runRef.id, counts, accepted }
-}
-
 export async function listCarrierImportQueueHandler(request) {
   await access(request)
   const db = getFirestore(); const runId = text(request.data?.runId)
