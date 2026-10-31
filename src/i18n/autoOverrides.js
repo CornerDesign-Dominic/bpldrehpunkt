@@ -1,5 +1,11 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Transport & Fahrzeug': 'Transport & vehicle',
+  'Ware & Auftragsmengen': 'Cargo & order quantities',
+  'Warenart': 'Type of goods',
+  'Maße (L × B × H)': 'Dimensions (L × W × H)',
+  'Stationsmengen werden nicht addiert.': 'Stop quantities are not added together.',
+  'Palettentausch ist eine Quellenangabe und erzeugt keine Palettenbuchung.': 'Pallet exchange is source information and does not create a pallet account entry.',
   'Tracking aktualisiert': 'Tracking updated',
   'Sendungsverfolgung gestartet': 'Shipment tracking started',
   'Sendungsverfolgung abgeschlossen': 'Shipment tracking completed',

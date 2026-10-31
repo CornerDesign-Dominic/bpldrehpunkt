@@ -33,6 +33,16 @@ Finanzwerte oder Belege werden nicht erfunden. Das Auftragsergebnis ist die
 Differenz der übermittelten Nettoerträge und Nettokosten, kein zusätzlicher
 buchhalterischer Abschlussstatus.
 
+Transport & Ware nutzt die volle Breite ohne rechte Verknüpfungsspalte:
+links eine gemeinsame Stationskarte, rechts Karten für Transport/Fahrzeug,
+Ware/Auftragsmengen und Dispositionsbemerkung. Die bisherige separate Tabelle
+„Warenangaben je Station“ entfällt in diesem Reiter. Gewicht, Kolli, Lademeter
+und Palettentausch stehen direkt bei der jeweiligen Station; ihre Mengen
+werden nicht zu Auftragssummen addiert. Auftragssummen kommen weiterhin allein
+aus `imported.shipment`. Warenart und Einzelmaße sind im aktuellen Importvertrag
+nicht enthalten und werden als nicht übermittelt ausgewiesen, nicht abgeleitet.
+Die bestehende operative Trackingansicht bleibt davon unberührt.
+
 Die Finanzansicht verwendet die veröffentlichte Belegklassifikation aus
 `dycosOrderDocuments.js`: interne Kopf-ID als Identität, interne und externe
 Nummern getrennt, Stornobelege mit Originalbezug. Es gibt keine manuell

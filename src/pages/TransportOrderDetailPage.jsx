@@ -28,7 +28,7 @@ function Card({ title, onDetails, children }) {
   return <section className="order-workspace__card"><div className="order-workspace__card-header"><h3><StaticText source={title} /></h3>{onDetails && <button className="order-workspace__text-button" type="button" onClick={onDetails}><StaticText source="Details" /> →</button>}</div>{children}</section>
 }
 function Values({ entries }) {
-  return <dl>{entries.map(([label, value]) => <div key={label} style={{ display: 'contents' }}><dt><StaticText source={label} /></dt><dd>{value === null || value === undefined || value === '' ? '—' : value}</dd></div>)}</dl>
+  return <dl>{entries.map(([label, value]) => <div key={label}><dt><StaticText source={label} /></dt><dd>{value === null || value === undefined || value === '' ? '—' : value}</dd></div>)}</dl>
 }
 function addressText(address = {}) {
   return [address.company, [address.street, address.houseNumber].filter(Boolean).join(' '), [address.postalCode, address.city].filter(Boolean).join(' '), address.country].filter(Boolean).join(', ')
@@ -47,14 +47,23 @@ function PartnerCard({ type, imported, partner, canOpen, onDetails, full = false
     {full && <><div className="order-workspace__contact"><Values entries={[["Telefon", partner?.contact?.phone], ['E-Mail (Stammdaten)', partner?.contact?.email], ['USt-IdNr.', partner?.companyData?.vatId]]} /></div>{!customer && imported.contacts?.carrierForOrder && <p>{imported.contacts.carrierForOrder}</p>}</>}
   </Card>
 }
-function StationCards({ imported, detailed, date }) {
+function StationCards({ imported, detailed, date, number }) {
   const stops = transportOrderWorkspaceStops(imported)
   return stops.length ? stops.map((stop, index) => <article className="order-workspace__stop" key={`${stop.sourceId || index}-${index}`}>
-    <h4>{index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
+    <h4>{detailed ? stop.sequence ?? index + 1 : index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
     <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>
     <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>
     {stop.deliveryInformation && <p className="order-workspace__muted"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
-    {detailed && <><p><StaticText source="Bemerkung" />: {stop.note || '—'}</p><p><StaticText source="Lieferscheinnummer" />: {stop.deliveryNoteNumber || '—'}</p>{stop.slotUntilTime && !stop.window?.until && <p className="order-workspace__muted"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}</>}
+    {detailed && <>
+      <p><StaticText source="Bemerkung" />: {stop.note || '—'}</p>
+      <p><StaticText source="Lieferscheinnummer" />: {stop.deliveryNoteNumber || '—'}</p>
+      {stop.slotUntilTime && !stop.window?.until && <p className="order-workspace__muted"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
+      <div className="order-workspace__stop-cargo"><Values entries={[
+        ['Kolli', number(stop.cargo?.packages)], ['Gewicht', number(stop.cargo?.weightKg, ' kg')],
+        ['Lademeter', number(stop.cargo?.loadingMeters, ' m')],
+        ['Palettentausch', typeof stop.palletExchange === 'boolean' ? <StaticText source={stop.palletExchange ? 'Ja' : 'Nein'} /> : '—'],
+      ]} /></div>
+    </>}
   </article>) : <p className="order-workspace__muted"><StaticText source="Keine Stationen übermittelt." /></p>
 }
 function ResultCard({ financial, currency, onDetails }) {
@@ -202,13 +211,25 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
     {tab !== 'history' && <div className="order-workspace__toolbar"><div className="order-workspace__update" aria-live="polite"><StaticText source="Letzte Aktualisierung" />: {date(lastSuccess?.completedAt || (scope === 'order' ? order.importMeta?.lastImportedAt : null))}{latest && latest.status !== 'success' && <> · {statusLabels[latest.status] || w('Aktualisierung prüfen', 'Check update')}</>} · <button type="button" className="order-workspace__text-button" onClick={() => selectTab('history')}><StaticText source="Siehe Historie" /></button></div>{scope && canRefresh && <button className="button" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? w('Wird aktualisiert …', 'Updating …') : scope === 'all' ? w('Auftrag aktualisieren', 'Update order') : scope === 'partners' ? w('Stammdaten aktualisieren', 'Update master data') : w('Auftragsdaten aktualisieren', 'Update order data')}</button>}</div>}
     {reloadError && <p className="form-error"><StaticText source="Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu." /></p>}
     {tab !== 'history' && partnerError && <p className="form-error"><StaticText source="Die Geschäftspartnerdaten konnten nicht geladen werden." /></p>}
-    <div className={`order-workspace__layout${tab === 'history' ? ' order-workspace__layout--history' : ''}`}><main className="order-workspace__content"><section role="tabpanel" id={`order-panel-${tab}`} aria-labelledby={`order-tab-${tab}`}>
+    <div className={`order-workspace__layout${tab === 'history' ? ' order-workspace__layout--history' : tab === 'transport' ? ' order-workspace__layout--transport' : ''}`}><main className="order-workspace__content"><section role="tabpanel" id={`order-panel-${tab}`} aria-labelledby={`order-tab-${tab}`}>
       {tab === 'overview' && <div className="order-workspace__overview"><div className="order-workspace__stack"><Card title="Stationen" onDetails={() => selectTab('transport')}><StationCards imported={imported} date={date} /></Card><Card title="Ware & Fahrzeug" onDetails={() => selectTab('transport')}><Values entries={cargoEntries} /></Card></div><div className="order-workspace__stack"><ResultCard financial={imported.financial} currency={currency} onDetails={() => selectTab('finance')} /><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /></div></div>}
-      {tab === 'transport' && <div className="order-workspace__stack"><Card title="Transport & Tour"><Values entries={[["Tour-ID (DyCoS)", imported.source?.tourId], ...cargoEntries, ['Dispositionsbemerkung', imported.dispositionNote]]} /></Card><Card title="Alle Stationen"><StationCards imported={imported} detailed date={date} /></Card><TransportOrderImportedDetails imported={{ stops: transportOrderWorkspaceStops(imported) }} /></div>}
+      {tab === 'transport' && <div className="order-workspace__transport">
+        <Card title="Alle Stationen"><StationCards imported={imported} detailed date={date} number={number} /><p className="order-workspace__muted"><StaticText source="Palettentausch ist eine Quellenangabe und erzeugt keine Palettenbuchung." /></p></Card>
+        <div className="order-workspace__stack">
+          <Card title="Transport & Fahrzeug"><Values entries={[
+            ['Fahrzeugart', shipment.vehicleType], ['Kennzeichen', shipment.licensePlate], ['Tour-ID (DyCoS)', imported.source?.tourId],
+          ]} /></Card>
+          <Card title="Ware & Auftragsmengen"><Values entries={[
+            ['Warenart', w('Nicht übermittelt', 'Not provided')], ['Maße (L × B × H)', w('Nicht übermittelt', 'Not provided')],
+            ['Kolli', number(shipment.packages)], ['Gewicht', number(shipment.weightKg, ' kg')], ['Lademeter', number(shipment.loadingMeters, ' m')],
+          ]} /><p className="order-workspace__cargo-note order-workspace__muted"><StaticText source="Stationsmengen werden nicht addiert." /></p></Card>
+          <Card title="Dispositionsbemerkung"><p>{imported.dispositionNote || '—'}</p></Card>
+        </div>
+      </div>}
       {tab === 'partners' && <div className="order-workspace__stack"><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} full /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} full /><Card title="Auftragsbezogene Angaben"><Values entries={[["Kundenreferenz", imported.customerReference], ['Dispositionsbemerkung', imported.dispositionNote], ['TA zuletzt versendet am', date(imported.dispatch?.sentAt)]]} /></Card></div>}
       {tab === 'finance' && <div className="order-workspace__finance"><TransportInvoiceChecks orderId={orderId} number={order.externalNumber} /><ResultCard financial={imported.financial} currency={currency} /><TransportOrderImportedDetails imported={{ financial: imported.financial }} />{!imported.financial?.documents && <Card title="Rechnungen und Gutschriften"><p><StaticText source="Noch keine Belegdaten übermittelt. Bitte den Auftrag aktualisieren." /></p></Card>}</div>}
       {tab === 'history' && <OrderRecordHistoryTables order={order} history={history} refreshes={refreshes} historyError={historyError} historyLoading={historyLoading} onRetry={() => void loadHistory()} onMore={() => void moreHistory()} tracking={trackingHistory} onTrackingRetry={trackingHistory.retry} onTrackingMore={trackingHistory.more} focusedRefreshId={searchParams.get('refresh')} />}
-    </section></main>{tab !== 'history' && <aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={orderRecordPath(orderId, 'tracking')} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); selectTab('tracking') } }}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside>}</div>
+    </section></main>{tab !== 'history' && tab !== 'transport' && <aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={orderRecordPath(orderId, 'tracking')} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); selectTab('tracking') } }}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside>}</div>
   </div>
 }
 export default function TransportOrderDetailPage({ active = true, showTabs = true, tabOverride }) {
