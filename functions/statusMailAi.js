@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { recordDiagnostic } from './diagnostics.js'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { defineSecret } from 'firebase-functions/params'
@@ -21,7 +23,7 @@ const timeFields = new Set([
 const plateFields = new Set(['licensePlate', 'tractorLicensePlate', 'trailerLicensePlate'])
 const allowedFields = [...plateFields, ...timeFields]
 const actualFields = new Set([...timeFields].filter((field) => !field.startsWith('estimated')))
-const terminalStatuses = new Set(['applied', 'no_change', 'needs_review', 'skipped', 'error'])
+const terminalStatuses = new Set(['applied', 'no_change', 'needs_review', 'reviewed', 'skipped', 'error'])
 const isoTimePattern = /^\d{4}-\d\d-\d\dT\d\d:\d\d(?::\d\d)?(?:Z|[+-]\d\d:\d\d)$/
 
 const resultSchema = {
@@ -265,17 +267,39 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
   const orderRef = db.doc(`transportOrders/${orderId}`)
   const mailRef = orderRef.collection('receivedMails').doc(mailId)
   const trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
-  const [mailSnapshot, orderSnapshot, trackingSnapshot, routeSnapshot] = await Promise.all([mailRef.get(), orderRef.get(), trackingRef.get(), db.doc(`transportOrderRoutes/${orderId}`).get()])
+  const [mailSnapshot, orderSnapshot] = await Promise.all([mailRef.get(), orderRef.get()])
   if (!mailSnapshot.exists || !orderSnapshot.exists) return 'missing'
   const mail = mailSnapshot.data()
   if (terminalStatuses.has(mail.ai?.status) && !(retry && ['no_change', 'needs_review', 'error'].includes(mail.ai.status))) return mail.ai.status
   if (mail.source !== 'powerAutomate' || text(mail.mailbox).toLowerCase() !== mailbox || mail.transportOrderId !== orderId || !timestamp(mail.receivedAt)) return 'ignored'
+  const processingToken = randomUUID()
+  const claim = await db.runTransaction(async (transaction) => {
+    const [freshMail, freshTracking] = await Promise.all([transaction.get(mailRef), transaction.get(trackingRef)])
+    if (!freshMail.exists) return 'missing'
+    const current = freshMail.data()
+    if (terminalStatuses.has(current.ai?.status) && !(retry && ['no_change', 'needs_review', 'error'].includes(current.ai.status))) return current.ai.status
+    if (freshTracking.data()?.lifecycleStatus === 'completed') {
+      transaction.update(mailRef, { aiProcessing: FieldValue.delete(), ai: { status: 'skipped', reason: 'tracking_completed', model, processedAt: FieldValue.serverTimestamp(), updates: [] } })
+      return 'skipped'
+    }
+    if (current.aiProcessing?.expiresAt?.toMillis?.() > Date.now()) return 'processing'
+    // Longer than the function's 120s timeout. A crashed worker cannot hold the
+    // message forever; a later explicit retry may reclaim an expired lease.
+    transaction.update(mailRef, { aiProcessing: { token: processingToken, expiresAt: Timestamp.fromMillis(Date.now() + 5 * 60_000) } })
+    return null
+  })
+  if (claim) {
+    if (claim === 'processing' && retry) throw new HttpsError('aborted', 'Diese Mail wird bereits ausgewertet. Bitte das Ergebnis abwarten.')
+    return claim
+  }
   let updates
   let transitUpdates
   let pauseUpdates
   let reviewRequired = false
   let reviewReason = ''
   try {
+    const trackingSnapshot = await trackingRef.get()
+    const routeSnapshot = await db.doc(`transportOrderRoutes/${orderId}`).get()
     const [history, sentRequests, automaticRequests, events] = await Promise.all([
       recentDocuments(orderRef.collection('receivedMails'), 'receivedAt', 13),
       recentDocuments(trackingRef.collection('manualMailDeliveries'), 'sentAt', 12),
@@ -290,79 +314,99 @@ export async function processStatusMailAi({ db = getFirestore(), orderId, mailId
     pauseUpdates = result.isStatusUpdate ? validateStatusMailPauseUpdates(result, mail) : []
     reviewRequired = result.reviewRequired === true || (result.isStatusUpdate && (result.updates.length > updates.length || (result.transitUpdates || []).length > transitUpdates.length || (result.pauseUpdates || []).length > pauseUpdates.length || (updates.length === 0 && transitUpdates.length === 0 && pauseUpdates.length === 0)))
     reviewReason = text(result.reviewReason).slice(0, 300) || (reviewRequired ? 'Statusangabe konnte nicht sicher zugeordnet werden.' : '')
+    const operatingHoursSnapshot = await db.doc(shipmentTrackingOperatingHoursPath).get()
+    const operatingHours = operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS
+    return await db.runTransaction(async (transaction) => {
+      const [freshMail, freshOrder, freshTracking] = await Promise.all([transaction.get(mailRef), transaction.get(orderRef), transaction.get(trackingRef)])
+      if (!freshMail.exists) return 'missing'
+      if (freshMail.data()?.aiProcessing?.token !== processingToken) return freshMail.data()?.ai?.status || 'processing'
+      if (!freshOrder.exists) { transaction.update(mailRef, { aiProcessing: FieldValue.delete() }); return 'missing' }
+      if (terminalStatuses.has(freshMail.data()?.ai?.status) && !(retry && ['no_change', 'needs_review', 'error'].includes(freshMail.data().ai.status))) {
+        transaction.update(mailRef, { aiProcessing: FieldValue.delete() })
+        return freshMail.data().ai.status
+      }
+      const current = freshTracking.exists ? freshTracking.data() : null
+      if (current?.lifecycleStatus === 'completed') {
+        transaction.update(mailRef, { aiProcessing: FieldValue.delete(), ai: { status: 'skipped', reason: 'tracking_completed', model, processedAt: FieldValue.serverTimestamp(), updates: [] } })
+        return 'skipped'
+      }
+      const lifecycle = shipmentTrackingLifecycle({ earliestLoading: freshOrder.data()?.imported?.loading?.window?.from, latestUnloading: freshOrder.data()?.imported?.unloading?.window?.until, operatingHours })
+      const actualInMail = updates.some((update) => actualFields.has(update.field)) || transitUpdates.length > 0 || pauseUpdates.length > 0
+      const phase = lifecycle.phase === 'upcoming' && !actualInMail ? 'upcoming' : 'in_progress'
+      const base = current || createShipmentTrackingDocument(orderId, 'status-mail-ai', 'KI · Status-Postfach', {
+        trackingMode: 'automatic', lifecyclePhase: phase,
+        trackingStartedEarly: lifecycle.phase === 'upcoming' && actualInMail,
+        carrierRecipientEmail: freshOrder.data()?.imported?.dispatch?.sentTo,
+        importedLicensePlate: freshOrder.data()?.imported?.shipment?.licensePlate,
+      })
+      const { changes, applied } = planStatusMailAiChanges(base, updates, freshMail.data().receivedAt)
+      const appliedFields = new Set(applied.map((item) => item.field))
+      const status = applied.length || transitUpdates.length || pauseUpdates.length ? 'applied' : reviewRequired ? 'needs_review' : 'no_change'
+      transaction.update(mailRef, { aiProcessing: FieldValue.delete(), ai: { status, model, processedAt: FieldValue.serverTimestamp(), reviewRequired, reviewReason, updates: updates.map((item) => ({ ...item, applied: appliedFields.has(item.field) })), transitUpdates, pauseUpdates: pauseUpdates.map((item) => ({ ...item, at: item.at.toDate().toISOString() })) } })
+      if (!applied.length && !transitUpdates.length && !pauseUpdates.length) return status
+      const fieldSources = { ...(base.fieldSources || {}) }
+      for (const item of applied) fieldSources[item.field] = { source: 'ai_mail', mailId, receivedAt: freshMail.data().receivedAt }
+      const position = deriveShipmentTrackingPosition({ ...base, ...changes })
+      if ((transitUpdates.length || pauseUpdates.length) && ['preparation', 'loading'].includes(position.stageId)) position.stageId = 'in_transit'
+      const stageOrder = { preparation: 0, loading: 1, in_transit: 2, unloading: 3, post_transport: 4 }
+      if ((stageOrder[current?.stageId] ?? -1) > (stageOrder[position.stageId] ?? -1)) position.stageId = current.stageId
+      const etaRecording = Object.prototype.hasOwnProperty.call(changes, 'estimatedArrivalLoadingAt')
+        ? { estimatedArrivalLoadingRecordedAt: changes.estimatedArrivalLoadingAt ? freshMail.data().receivedAt : null }
+        : {}
+      if (current) transaction.update(trackingRef, { ...changes, ...etaRecording, ...position, fieldSources, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'status-mail-ai', updatedByName: 'KI · Status-Postfach' })
+      else {
+        transaction.create(trackingRef, { ...base, ...changes, ...etaRecording, ...position, fieldSources })
+        transaction.create(trackingRef.collection('events').doc(`ai-start-${mailId}`), {
+          eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase'], oldValue: {}, newValue: { lifecycleStatus: 'active', lifecyclePhase: phase },
+          eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',
+        })
+      }
+      if (applied.length) transaction.create(trackingRef.collection('events').doc(`ai-${mailId}`), {
+        eventType: 'tracking_updated', changedFields: Object.keys(changes),
+        oldValue: Object.fromEntries(Object.keys(changes).map((field) => [field, base[field] ?? null])), newValue: changes,
+        eventTime: statusMailTrackingEventTime(applied, changes, freshMail.data().receivedAt),
+        recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',
+      })
+      if (transitUpdates.length) {
+        const update = transitUpdates[0]
+        const transitEntry = { kind: 'position', at: freshMail.data().receivedAt, kilometersToDestination: update.kilometersToDestination, location: update.location }
+        transaction.create(trackingRef.collection('events').doc(`ai-position-${mailId}`), {
+          eventType: 'transit_position_reported', changedFields: ['transitEntry'], oldValue: {}, newValue: { transitEntry },
+          eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId,
+          note: update.kind === 'minutes_to_unloading' ? `Ca. ${update.kilometersToDestination} km aus ${update.originalValue} Minuten bei 70 km/h berechnet. Mail: ${update.evidence}` : `Mail: ${update.evidence}`,
+        })
+      }
+      if (pauseUpdates.length) {
+        const update = pauseUpdates[0]
+        const transitEntry = { kind: 'pause', at: update.at, durationMinutes: update.durationMinutes }
+        transaction.create(trackingRef.collection('events').doc(`ai-pause-${mailId}`), {
+          eventType: 'transit_pause_reported', changedFields: ['transitEntry'], oldValue: {}, newValue: { transitEntry },
+          eventTime: update.at, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: `Mail: ${update.evidence}`,
+        })
+      }
+      return status
+    })
   } catch (error) {
     const errorType = getAiErrorType(error)
     logger.error('Status-Mail-KI fehlgeschlagen.', { orderId, mailId, errorType })
-    await mailRef.update({ ai: { status: 'error', errorType, reviewRequired: true, reviewReason: 'KI-Auswertung fehlgeschlagen.', processedAt: FieldValue.serverTimestamp() } })
-    return 'error'
+    await recordDiagnostic({ module: 'shipment-tracking', stage: 'ai', code: errorType, message: 'Status-Mail konnte nicht ausgewertet werden.', actorId: 'system', actorName: 'Status-Mail-KI', orderId, recordId: mailId }, db)
+    try {
+      return await db.runTransaction(async (transaction) => {
+        const fresh = await transaction.get(mailRef)
+        if (!fresh.exists) return 'missing'
+        if (fresh.data()?.aiProcessing?.token !== processingToken) return fresh.data()?.ai?.status || 'processing'
+        if (['applied', 'reviewed', 'skipped'].includes(fresh.data()?.ai?.status)) {
+          transaction.update(mailRef, { aiProcessing: FieldValue.delete() })
+          return fresh.data().ai.status
+        }
+        transaction.update(mailRef, { aiProcessing: FieldValue.delete(), ai: { status: 'error', errorType, reviewRequired: true, reviewReason: 'KI-Auswertung fehlgeschlagen.', processedAt: FieldValue.serverTimestamp() } })
+        return 'error'
+      })
+    } catch (cleanupError) {
+      logger.error('KI-Reservierung konnte nach einem Fehler nicht gelöst werden.', { orderId, mailId, errorType: getAiErrorType(cleanupError) })
+      throw error
+    }
   }
-  const operatingHoursSnapshot = await db.doc(shipmentTrackingOperatingHoursPath).get()
-  const operatingHours = operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS
-  return db.runTransaction(async (transaction) => {
-    const [freshMail, freshOrder, freshTracking] = await Promise.all([transaction.get(mailRef), transaction.get(orderRef), transaction.get(trackingRef)])
-    if (!freshMail.exists || !freshOrder.exists) return 'missing'
-    if (terminalStatuses.has(freshMail.data()?.ai?.status) && !(retry && ['no_change', 'needs_review', 'error'].includes(freshMail.data().ai.status))) return freshMail.data().ai.status
-    const current = freshTracking.exists ? freshTracking.data() : null
-    if (current?.lifecycleStatus === 'completed') {
-      transaction.update(mailRef, { ai: { status: 'skipped', reason: 'tracking_completed', model, processedAt: FieldValue.serverTimestamp(), updates: [] } })
-      return 'skipped'
-    }
-    const lifecycle = shipmentTrackingLifecycle({ earliestLoading: freshOrder.data()?.imported?.loading?.window?.from, latestUnloading: freshOrder.data()?.imported?.unloading?.window?.until, operatingHours })
-    const actualInMail = updates.some((update) => actualFields.has(update.field)) || transitUpdates.length > 0 || pauseUpdates.length > 0
-    const phase = lifecycle.phase === 'upcoming' && !actualInMail ? 'upcoming' : 'in_progress'
-    const base = current || createShipmentTrackingDocument(orderId, 'status-mail-ai', 'KI · Status-Postfach', {
-      trackingMode: 'automatic', lifecyclePhase: phase,
-      trackingStartedEarly: lifecycle.phase === 'upcoming' && actualInMail,
-      carrierRecipientEmail: freshOrder.data()?.imported?.dispatch?.sentTo,
-      importedLicensePlate: freshOrder.data()?.imported?.shipment?.licensePlate,
-    })
-    const { changes, applied } = planStatusMailAiChanges(base, updates, freshMail.data().receivedAt)
-    const appliedFields = new Set(applied.map((item) => item.field))
-    const status = applied.length || transitUpdates.length || pauseUpdates.length ? 'applied' : reviewRequired ? 'needs_review' : 'no_change'
-    transaction.update(mailRef, { ai: { status, model, processedAt: FieldValue.serverTimestamp(), reviewRequired, reviewReason, updates: updates.map((item) => ({ ...item, applied: appliedFields.has(item.field) })), transitUpdates, pauseUpdates: pauseUpdates.map((item) => ({ ...item, at: item.at.toDate().toISOString() })) } })
-    if (!applied.length && !transitUpdates.length && !pauseUpdates.length) return status
-    const fieldSources = { ...(base.fieldSources || {}) }
-    for (const item of applied) fieldSources[item.field] = { source: 'ai_mail', mailId, receivedAt: freshMail.data().receivedAt }
-    const position = deriveShipmentTrackingPosition({ ...base, ...changes })
-    if ((transitUpdates.length || pauseUpdates.length) && ['preparation', 'loading'].includes(position.stageId)) position.stageId = 'in_transit'
-    const stageOrder = { preparation: 0, loading: 1, in_transit: 2, unloading: 3, post_transport: 4 }
-    if ((stageOrder[current?.stageId] ?? -1) > (stageOrder[position.stageId] ?? -1)) position.stageId = current.stageId
-    const etaRecording = Object.prototype.hasOwnProperty.call(changes, 'estimatedArrivalLoadingAt')
-      ? { estimatedArrivalLoadingRecordedAt: changes.estimatedArrivalLoadingAt ? freshMail.data().receivedAt : null }
-      : {}
-    if (current) transaction.update(trackingRef, { ...changes, ...etaRecording, ...position, fieldSources, updatedAt: FieldValue.serverTimestamp(), updatedBy: 'status-mail-ai', updatedByName: 'KI · Status-Postfach' })
-    else {
-      transaction.create(trackingRef, { ...base, ...changes, ...etaRecording, ...position, fieldSources })
-      transaction.create(trackingRef.collection('events').doc(`ai-start-${mailId}`), {
-        eventType: 'tracking_started', changedFields: ['lifecycleStatus', 'lifecyclePhase'], oldValue: {}, newValue: { lifecycleStatus: 'active', lifecyclePhase: phase },
-        eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',
-      })
-    }
-    if (applied.length) transaction.create(trackingRef.collection('events').doc(`ai-${mailId}`), {
-      eventType: 'tracking_updated', changedFields: Object.keys(changes),
-      oldValue: Object.fromEntries(Object.keys(changes).map((field) => [field, base[field] ?? null])), newValue: changes,
-      eventTime: statusMailTrackingEventTime(applied, changes, freshMail.data().receivedAt),
-      recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: '',
-    })
-    if (transitUpdates.length) {
-      const update = transitUpdates[0]
-      const transitEntry = { kind: 'position', at: freshMail.data().receivedAt, kilometersToDestination: update.kilometersToDestination, location: update.location }
-      transaction.create(trackingRef.collection('events').doc(`ai-position-${mailId}`), {
-        eventType: 'transit_position_reported', changedFields: ['transitEntry'], oldValue: {}, newValue: { transitEntry },
-        eventTime: freshMail.data().receivedAt, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId,
-        note: update.kind === 'minutes_to_unloading' ? `Ca. ${update.kilometersToDestination} km aus ${update.originalValue} Minuten bei 70 km/h berechnet. Mail: ${update.evidence}` : `Mail: ${update.evidence}`,
-      })
-    }
-    if (pauseUpdates.length) {
-      const update = pauseUpdates[0]
-      const transitEntry = { kind: 'pause', at: update.at, durationMinutes: update.durationMinutes }
-      transaction.create(trackingRef.collection('events').doc(`ai-pause-${mailId}`), {
-        eventType: 'transit_pause_reported', changedFields: ['transitEntry'], oldValue: {}, newValue: { transitEntry },
-        eventTime: update.at, recordedAt: FieldValue.serverTimestamp(), recordedBy: 'status-mail-ai', recordedByName: 'KI · Status-Postfach', source: 'ai_mail', mailId, note: `Mail: ${update.evidence}`,
-      })
-    }
-    return status
-  })
 }
 
 export async function retryStatusMailAiHandler(request) {

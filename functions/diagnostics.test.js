@@ -25,7 +25,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -114,4 +114,27 @@ test('mailbox diagnostics require module access and exclude personal mail contex
   for (const context of [{ orderId: 'order-1' }, { recordId: 'personal-mail-1' }]) {
     assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage: 'send', code: 'unavailable', ...context }), { code: 'invalid-argument' })
   }
+})
+
+test('calendar and pallet diagnostics preserve module boundaries and fixed messages', () => {
+  const profile = (permissions, role = 'user') => ({ active: true, role, permissions })
+  assert.equal(canReportLinkDiagnostic(profile({}, 'admin'), 'pallets'), false)
+  assert.equal(canReportLinkDiagnostic(profile({ pallets: 'view' }), 'pallets'), true)
+  assert.equal(canReportLinkDiagnostic(profile({ calendar: 'view' }), 'pallets'), false)
+  assert.equal(canReportLinkDiagnostic(profile({ damages: 'view' }), 'calendar'), true)
+  assert.equal(canReportLinkDiagnostic(profile({ pallets: 'edit' }), 'calendar'), false)
+  assert.equal(canReportLinkDiagnostic(profile({}, 'superadmin'), 'calendar'), true)
+  for (const module of ['calendar', 'pallets']) {
+    const event = normalizeClientDiagnostic({ module, stage: 'load', code: 'unavailable', recordId: 'record-1', message: 'private content' })
+    assert.equal(event.recordId, 'record-1')
+    assert.equal(event.message.includes('private'), false)
+    assert.throws(() => normalizeClientDiagnostic({ module, stage: 'load', code: 'unavailable', orderId: 'order-1' }), { code: 'invalid-argument' })
+    for (const recordId of ['parent/child', 'a\nb', 123]) {
+      assert.throws(() => normalizeClientDiagnostic({ module, stage: 'load', code: 'unavailable', recordId }), { code: 'invalid-argument' })
+    }
+  }
+})
+
+test('clients cannot submit privileged background-work diagnostics', () => {
+  assert.throws(() => normalizeClientDiagnostic({ module: 'background-work', stage: 'prepare', code: 'internal' }), { code: 'invalid-argument' })
 })

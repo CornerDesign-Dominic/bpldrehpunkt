@@ -2,7 +2,7 @@ import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writ
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
-import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { calendarDaysUntil, deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const INSOLVENCIES_COLLECTION = 'insolvencies'
 
@@ -155,9 +155,7 @@ export function createEmptyInsolvencyDeadline() {
 
 export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
   if (!deadline?.date) return { kind: 'none', label: 'Keine Frist' }
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const date = new Date(`${deadline.date}T12:00:00`)
-  const days = Math.round((date - today) / 86400000)
+  const days = calendarDaysUntil(deadline.date, now)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig` }
   if (days === 0) return { kind: 'today', label: 'heute' }
   if (days <= 2) return { kind: 'urgent', label: `in ${days} ${days === 1 ? 'Tag' : 'Tagen'}` }

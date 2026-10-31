@@ -1,7 +1,5 @@
-import { listDamageCaseDeadlines, listDamageCases } from './damages.js'
-import { listInsolvencies, listInsolvencyDeadlines } from './insolvencies.js'
-import { listLegalDisputeDeadlines, listLegalDisputes } from './legalDisputes.js'
-import { listInkassoCaseDeadlines, listInkassoCases } from './inkasso.js'
+import { httpsCallable } from 'firebase/functions'
+import { functions, waitForAppCheckToken } from './firebase.js'
 import { canView } from './permissions.js'
 import { insolvencyCasePath } from './businessPartnerLinks.js'
 
@@ -48,12 +46,12 @@ export function listSystemCalendars(profile) {
     .map((calendar) => ({ ...calendar, kind: 'system', accessLevel: 'view', systemCalendar: true }))
 }
 
-async function damageEvents(calendar) {
-  const damageCases = await listDamageCases()
-  const deadlineLists = await Promise.all(damageCases.map(async (damageCase) => ({
+async function damageEvents(calendar, sources) {
+  const damageCases = sources.cases.damageCases || []
+  const deadlineLists = damageCases.map((damageCase) => ({
     damageCase,
-    deadlines: await listDamageCaseDeadlines(damageCase.id),
-  })))
+    deadlines: sources.deadlines.filter((deadline) => deadline.parentPath === `damageCases/${damageCase.id}`),
+  }))
   return deadlineLists.flatMap(({ damageCase, deadlines }) => deadlines
     .filter((deadline) => validDate(deadline.date))
     .map((deadline) => systemEvent(
@@ -67,12 +65,12 @@ async function damageEvents(calendar) {
     )))
 }
 
-async function insolvencyEvents(calendar) {
-  const insolvencies = await listInsolvencies()
-  const deadlineLists = await Promise.all(insolvencies.map(async (insolvency) => ({
+async function insolvencyEvents(calendar, sources) {
+  const insolvencies = sources.cases.insolvencies || []
+  const deadlineLists = insolvencies.map((insolvency) => ({
     insolvency,
-    deadlines: await listInsolvencyDeadlines(insolvency.id),
-  })))
+    deadlines: sources.deadlines.filter((deadline) => deadline.parentPath === `insolvencies/${insolvency.id}`),
+  }))
   const insolvencyDateEvents = insolvencies
     .filter((insolvency) => validDate(insolvency.insolvencyDate))
     .map((insolvency) => systemEvent(
@@ -97,12 +95,12 @@ async function insolvencyEvents(calendar) {
   return [...insolvencyDateEvents, ...deadlineEvents]
 }
 
-async function legalDisputeEvents(calendar) {
-  const legalDisputes = await listLegalDisputes()
-  const deadlineLists = await Promise.all(legalDisputes.map(async (legalDispute) => ({
+async function legalDisputeEvents(calendar, sources) {
+  const legalDisputes = sources.cases.legalDisputes || []
+  const deadlineLists = legalDisputes.map((legalDispute) => ({
     legalDispute,
-    deadlines: await listLegalDisputeDeadlines(legalDispute.id),
-  })))
+    deadlines: sources.deadlines.filter((deadline) => deadline.parentPath === `legalDisputes/${legalDispute.id}`),
+  }))
   return deadlineLists.flatMap(({ legalDispute, deadlines }) => {
     const title = text(legalDispute.caseNumber) || text(legalDispute.title) || 'Gericht / Streit'
     const targetPath = `/legal-disputes/${legalDispute.id}`
@@ -120,8 +118,8 @@ async function legalDisputeEvents(calendar) {
   })
 }
 
-async function inkassoEvents(calendar) {
-  const cases = await listInkassoCases()
+async function inkassoEvents(calendar, sources) {
+  const cases = sources.cases.inkassoCases || []
   const dateFields = [
     ['originalDueDate', 'Fälligkeit'],
     ['lastReminderDate', 'Letzte Mahnung'],
@@ -129,10 +127,10 @@ async function inkassoEvents(calendar) {
     ['paymentOrderDate', 'Mahnbescheid'],
     ['enforcementOrderDate', 'Vollstreckungsbescheid'],
   ]
-  const deadlineLists = await Promise.all(cases.map(async (inkassoCase) => ({
+  const deadlineLists = cases.map((inkassoCase) => ({
     inkassoCase,
-    deadlines: await listInkassoCaseDeadlines(inkassoCase.id),
-  })))
+    deadlines: sources.deadlines.filter((deadline) => deadline.parentPath === `inkassoCases/${inkassoCase.id}`),
+  }))
   const fieldEvents = cases.flatMap((inkassoCase) => dateFields
     .filter(([field]) => validDate(inkassoCase[field]))
     .map(([field, label]) => systemEvent(
@@ -157,13 +155,20 @@ async function inkassoEvents(calendar) {
   return [...fieldEvents, ...deadlineEvents]
 }
 
-export async function listSystemCalendarEvents(calendars) {
+export async function listSystemCalendarEvents(calendars, range) {
+  if (!calendars.length) return []
+  await waitForAppCheckToken()
+  const result = await httpsCallable(functions, 'listSystemCalendarSources')({ ...range, calendarIds: calendars.map((calendar) => calendar.id) })
+  return systemCalendarEventsFromSources(calendars, result.data)
+}
+
+export async function systemCalendarEventsFromSources(calendars, sources) {
   const selected = new Map(calendars.map((calendar) => [calendar.id, calendar]))
   const eventLists = await Promise.all([
-    selected.has('system-damages') ? damageEvents(selected.get('system-damages')) : [],
-    selected.has('system-insolvencies') ? insolvencyEvents(selected.get('system-insolvencies')) : [],
-    selected.has('system-legal-disputes') ? legalDisputeEvents(selected.get('system-legal-disputes')) : [],
-    selected.has('system-inkasso') ? inkassoEvents(selected.get('system-inkasso')) : [],
+    selected.has('system-damages') ? damageEvents(selected.get('system-damages'), sources) : [],
+    selected.has('system-insolvencies') ? insolvencyEvents(selected.get('system-insolvencies'), sources) : [],
+    selected.has('system-legal-disputes') ? legalDisputeEvents(selected.get('system-legal-disputes'), sources) : [],
+    selected.has('system-inkasso') ? inkassoEvents(selected.get('system-inkasso'), sources) : [],
   ])
   return eventLists.flat()
 }

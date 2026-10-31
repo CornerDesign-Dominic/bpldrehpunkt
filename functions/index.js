@@ -1,3 +1,9 @@
+import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
+import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
+import { advanceTransportOrderListProjection } from './transportOrderListProjection.js'
+import { reportBackgroundFailure, withBackgroundDiagnostic } from './backgroundWork.js'
+import { listSystemCalendarSourcesHandler } from './calendarQueries.js'
+import { savePalletRecordHandler, listPalletAccountSummariesHandler, rebuildPalletSummariesHandler, listTransportOrderPalletMovementsHandler } from './palletSummaries.js'
 import { searchMailboxOrderCustomersHandler, assignMailboxOrderCustomerHandler } from './mailboxes.js'
 import { reviewMailboxInvoicesHandler, listTransportInvoiceChecksHandler } from './mailboxes.js'
 import { startMailboxActionHandler, getMailboxActionHandler, listMailboxActionsHandler, updateMailboxActionHandler, processMailboxActionRunHandler } from './mailboxActions.js'
@@ -36,7 +42,7 @@ import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHand
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
-import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
+import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, shipmentTrackingMailAttentionChanged, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
 import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
 import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, listCustomerImportQueueHandler, releaseCustomerImportRowHandler } from './customerImports.js'
 import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
@@ -48,6 +54,22 @@ import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } 
 import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
 if (!getApps().length) initializeApp()
+const palletOptions = { region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }
+export const savePalletRecord = onCall(palletOptions, savePalletRecordHandler)
+export const listPalletAccountSummaries = onCall({ ...palletOptions, timeoutSeconds: 120 }, listPalletAccountSummariesHandler)
+export const rebuildPalletSummaries = onCall({ ...palletOptions, timeoutSeconds: 120, maxInstances: 1, concurrency: 1 }, rebuildPalletSummariesHandler)
+export const listTransportOrderPalletMovements = onCall(palletOptions, listTransportOrderPalletMovementsHandler)
+export const listSystemCalendarSources = onCall({ region: 'europe-west3', enforceAppCheck: true }, listSystemCalendarSourcesHandler)
+export const prepareBackgroundWork = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540, maxInstances: 1, concurrency: 1 }, async (request) => {
+  await requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen die Arbeitsprojektionen vorbereiten.')
+  const db = getFirestore()
+  try {
+    const tracking = await advanceShipmentTrackingWork(db)
+    const reminders = await advanceDeadlineReminderWork(db)
+    const list = await advanceTransportOrderListProjection(db)
+    return { tracking, reminders, list }
+  } catch (error) { await reportBackgroundFailure(db, 'prepare', error); throw new HttpsError('internal', 'Der Aufbau wurde unterbrochen. Ein erneuter Aufruf setzt ihn fort.') }
+})
 export const saveQualityRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveQualityRecordHandler)
 export const saveKnowledgeRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveKnowledgeRecordHandler)
 export const updateKnowledgeGap = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateKnowledgeGapHandler)
@@ -74,9 +96,10 @@ export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ regio
   if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
   else if (oldUnload !== newUnload || ['unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some((field) => (before[field]?.toMillis?.() ?? before[field] ?? null) !== (after[field]?.toMillis?.() ?? after[field] ?? null))) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
 })
-export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3 }, async (event) => {
-  if (!event.data?.after.exists) return
-  await refreshShipmentTrackingAttentionSummary(event.params.orderId)
+export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3, retry: true }, async (event) => {
+  if (!event.data) return
+  if (!shipmentTrackingMailAttentionChanged(event.data.before, event.data.after)) return
+  await withBackgroundDiagnostic(getFirestore(), 'mail-attention', () => refreshShipmentTrackingAttentionSummary(event.params.orderId))
 })
 export const retryStatusMailAi = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, retryStatusMailAiHandler)
 export const resolveStatusMailReview = onCall({ region: 'europe-west3', enforceAppCheck: true }, resolveStatusMailReviewHandler)
@@ -1096,8 +1119,8 @@ export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPr
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export { createInkassoCase } from './inkassoCases.js'
 export { recordCaseTransportOrderLinkCreated, recordCaseTransportOrderLinkDeleted } from './caseTransportLinks.js'
-export { scheduledShipmentTrackingAutomation } from './shipmentTrackingAutomation.js'
-export { scheduledCaseDeadlineReminderDispatch } from './caseDeadlineReminders.js'
+export { scheduledShipmentTrackingAutomation, maintainShipmentTrackingOrderWork, maintainShipmentTrackingStateWork, rebuildShipmentTrackingWorkOnSettings, rebuildShipmentTrackingWorkOnPartner, rebuildShipmentTrackingWork } from './shipmentTrackingAutomation.js'
+export { scheduledCaseDeadlineReminderDispatch, maintainCaseDeadlineReminderWork } from './caseDeadlineReminders.js'
 export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchDycosTransportOrderHandler)
 export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
 export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, refreshDycosMasterDataHandler)

@@ -375,6 +375,17 @@ export async function previewPartnerMergeReversalHandler(request) {
   return preview.canSeparate ? { canSeparate: true, mergeId, fingerprint: preview.fingerprint, ...preview.summary } : preview
 }
 
+export async function invalidatePalletSummariesForReversal(db, batch, referencePlans) {
+  const affectsPallets = referencePlans.some(({ snapshot, patch }) => snapshot.exists && Object.keys(patch).length && ['palletMovements', 'palletClosings'].includes(snapshot.ref.parent.id))
+  if (!affectsPallets) return
+  const ref = db.doc('palletSummaryState/current')
+  const state = await ref.get()
+  if (state.data()?.status === 'building') throw new HttpsError('failed-precondition', 'Die Palettenkonten werden gerade aufgebaut. Bitte die Trennung danach erneut prüfen.')
+  const values = { status: 'dirty', tourCoverage: false, updatedAt: FieldValue.serverTimestamp() }
+  if (state.exists) batch.update(ref, values, { lastUpdateTime: state.updateTime })
+  else batch.create(ref, values)
+}
+
 export async function performPartnerMergeReversal({ db, mergeId, targetPartnerId, fingerprint, actor }) {
   if (!mergeId || !targetPartnerId || !fingerprint) throw new HttpsError('invalid-argument', 'Bestätigte Zusammenführung oder Vorschau fehlt.')
   const preview = await loadMergeReversal(db, mergeId, targetPartnerId)
@@ -404,6 +415,7 @@ export async function performPartnerMergeReversal({ db, mergeId, targetPartnerId
   const { operation, operationRef, operationSnapshot, source, target, targetPlan, referencePlans, copyPlans, sourceInsolvency } = preview
   const splitAt = Timestamp.now()
   const batch = db.batch()
+  await invalidatePalletSummariesForReversal(db, batch, referencePlans)
   const targetPatch = updateValues({ ...targetPlan.patch, updatedAt: splitAt })
   batch.update(target.ref, targetPatch, { lastUpdateTime: target.updateTime })
   const sourceRestore = restoredMergeSource(operation.sourceBefore, source.data(), mergeId, splitAt)

@@ -1,5 +1,6 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
+import { calendarWindowAndUpcoming } from './calendarQueryPages.js'
 
 export const CALENDARS_COLLECTION = 'calendars'
 export const CALENDAR_PERMISSIONS_COLLECTION = 'calendarPermissions'
@@ -159,10 +160,18 @@ export async function setCalendarPermissions(calendarId, permissionsByUser) {
   }
 }
 
-export async function listCalendarEvents(calendars) {
+export async function listCalendarEvents(calendars, range = null) {
   const eventLists = await Promise.all(calendars.map(async (calendar) => {
-    const snapshot = await getDocs(collection(db, CALENDARS_COLLECTION, calendar.id, 'events'))
-    return snapshot.docs.map((item) => normalizeEvent(item.id, item.data(), calendar))
+    const reference = collection(db, CALENDARS_COLLECTION, calendar.id, 'events')
+    if (!range) {
+      const snapshot = await getDocs(reference)
+      return snapshot.docs.map((item) => normalizeEvent(item.id, item.data(), calendar))
+    }
+    const snapshots = await calendarWindowAndUpcoming(
+      async () => (await getDocs(query(reference, where('startDate', '<=', range.until), where('endDate', '>=', range.from)))).docs,
+      async (cursor) => (await getDocs(query(reference, where('startDate', '>=', ''), where('endDate', '>=', range.upcomingFrom), orderBy('startDate'), ...(cursor ? [startAfter(cursor)] : []), limit(20)))).docs,
+    )
+    return snapshots.map((item) => normalizeEvent(item.id, item.data(), calendar))
   }))
   return eventLists.flat()
 }

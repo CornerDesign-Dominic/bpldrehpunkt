@@ -41,8 +41,8 @@ export async function addPartnerHistoryEntry(partnerId, entry, actor) {
   await addDoc(historyRef(partnerId), createHistoryPayload({ ...entry, actor }))
 }
 
-export async function listPartnerHistory(partnerId) {
-  const cluster = await getPartnerCluster(partnerId)
+export async function listPartnerHistory(partnerId, knownCluster = null) {
+  const cluster = knownCluster || await getPartnerCluster(partnerId)
   const snapshots = await Promise.all(cluster.members.map((partner) => getDocs(query(historyRef(partner.id), orderBy('createdAt', 'desc')))))
   return snapshots.flatMap((snapshot, index) => snapshot.docs.map((item) => ({ id: `${cluster.members[index].id}/${item.id}`, originPartnerId: cluster.members[index].id, ...item.data() })))
     .sort((left, right) => (right.createdAt?.toMillis?.() || 0) - (left.createdAt?.toMillis?.() || 0))

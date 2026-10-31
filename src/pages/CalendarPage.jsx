@@ -10,6 +10,9 @@ import { createCalendarEvent, deleteCalendarEvent, listCalendarEvents, listUserC
 import { listSystemCalendarEvents, listSystemCalendars } from '../lib/systemCalendars.js'
 import { listTodoCalendarEntries } from '../lib/todos.js'
 import { canView } from '../lib/permissions.js'
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import { calendarQueryRange } from '../lib/calendarQueryRange.js'
+import { resolveVisibleCalendarIds } from '../lib/calendarSelection.js'
 import '../styles/calendar.css'
 
 const weekdayLabels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
@@ -38,17 +41,16 @@ function overlaps(event, start, end) {
   return event.startDate <= end && event.endDate >= start
 }
 
-async function loadCalendarData(userId, isSuperadmin, profile) {
-  const canUseCalendar = canView(profile, 'calendar')
-  const regularCalendars = canUseCalendar ? await listUserCalendars(userId, isSuperadmin) : []
-  const systemCalendars = listSystemCalendars(profile)
+async function loadCalendarData(userId, profile, calendars, range, calendarIds) {
+  const selected = calendars.filter((calendar) => calendarIds.includes(calendar.id))
+  const regularCalendars = selected.filter((calendar) => !calendar.systemCalendar)
+  const systemCalendars = selected.filter((calendar) => calendar.systemCalendar)
   const [regularEvents, systemEvents, todoEntries] = await Promise.all([
-    regularCalendars.length ? listCalendarEvents(regularCalendars) : [],
-    listSystemCalendarEvents(systemCalendars),
-    canUseCalendar ? listTodoCalendarEntries(userId) : [],
+    regularCalendars.length ? listCalendarEvents(regularCalendars, range) : [],
+    listSystemCalendarEvents(systemCalendars, range),
+    regularCalendars.some((calendar) => calendar.ownerUserId === userId) && canView(profile, 'calendar') ? listTodoCalendarEntries(userId, range) : [],
   ])
   const ownCalendars = regularCalendars.filter((calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId)
-  const assignedCalendars = regularCalendars.filter((calendar) => !ownCalendars.some((ownCalendar) => ownCalendar.id === calendar.id))
   const personalCalendar = ownCalendars[0]
   const todoEvents = personalCalendar ? todoEntries.map((entry) => ({
     id: `todo-deadline:${entry.id}`,
@@ -67,14 +69,7 @@ async function loadCalendarData(userId, isSuperadmin, profile) {
     todoDeadline: true,
     targetPath: `/todos/${entry.todoId}`,
   })) : []
-  return { availableCalendars: [...ownCalendars, ...systemCalendars, ...assignedCalendars], calendarEvents: [...regularEvents, ...systemEvents, ...todoEvents] }
-}
-
-function resolvedVisibleCalendarIds(availableCalendars, current, storageKey) {
-  const availableIds = availableCalendars.map((calendar) => calendar.id)
-  const stored = current.length ? current : (() => { try { return JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { return [] } })()
-  const valid = stored.filter((id) => availableIds.includes(id))
-  return valid.length ? valid : availableIds
+  return [...regularEvents, ...systemEvents, ...todoEvents]
 }
 
 function weekBars(events, week, weekIndex) {
@@ -127,41 +122,61 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(now.getMonth())
   const [calendars, setCalendars] = useState([])
   const [events, setEvents] = useState([])
-  const [visibleCalendarIds, setVisibleCalendarIds] = useState([])
+  const [visibleCalendarIds, setVisibleCalendarIds] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [modal, setModal] = useState(null)
   const [toast, setToast] = useState('')
+  const [metadataReady, setMetadataReady] = useState(false)
+  const [reloadVersion, setReloadVersion] = useState(0)
   const isSuperadmin = profile?.role === 'superadmin'
   const userId = user?.uid || ''
   const storageKey = userId ? `drehpunkt.calendar.visible.${userId}` : ''
-
-  async function reload() {
-    const { availableCalendars, calendarEvents } = await loadCalendarData(userId, isSuperadmin, profile)
-    setCalendars(availableCalendars)
-    setEvents(calendarEvents)
-    setVisibleCalendarIds((current) => resolvedVisibleCalendarIds(availableCalendars, current, storageKey))
-  }
+  const selectedIds = useMemo(() => visibleCalendarIds ?? [], [visibleCalendarIds])
+  const selectedIdsKey = JSON.stringify([...selectedIds].sort())
+  const range = useMemo(() => calendarQueryRange(year, month, todayValue()), [year, month])
 
   useEffect(() => {
     let active = true
-    loadCalendarData(userId, isSuperadmin, profile)
-      .then(({ availableCalendars, calendarEvents }) => {
+    Promise.resolve().then(async () => {
+      if (active) { setMetadataReady(false); setLoading(true) }
+      const regular = canView(profile, 'calendar') ? await listUserCalendars(userId, isSuperadmin) : []
+      const own = regular.filter((calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId)
+      return [...own, ...listSystemCalendars(profile), ...regular.filter((calendar) => !own.includes(calendar))]
+    })
+      .then((availableCalendars) => {
         if (!active) return
         setCalendars(availableCalendars)
-        setEvents(calendarEvents)
-        setVisibleCalendarIds((current) => resolvedVisibleCalendarIds(availableCalendars, current, storageKey))
+        let stored = null
+        try { stored = localStorage.getItem(storageKey) } catch { /* Use the default selection when browser storage is unavailable. */ }
+        setVisibleCalendarIds((current) => resolveVisibleCalendarIds(availableCalendars, current, stored))
+        setMetadataReady(true)
       })
-      .catch(() => { if (active) setError('Kalenderdaten konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
-      .finally(() => { if (active) setLoading(false) })
+      .catch((error) => { void reportTechnicalFailure({ module: 'calendar', stage: 'load', error }); if (active) { setError('Kalenderdaten konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.'); setLoading(false) } })
     return () => { active = false }
   }, [isSuperadmin, profile, storageKey, userId])
 
   useEffect(() => {
-    if (storageKey && visibleCalendarIds.length) localStorage.setItem(storageKey, JSON.stringify(visibleCalendarIds))
+    if (!metadataReady) return undefined
+    let active = true
+    Promise.resolve().then(() => {
+      if (!active) return null
+      setLoading(true)
+      setError('')
+      return loadCalendarData(userId, profile, calendars, range, JSON.parse(selectedIdsKey))
+    }).then((calendarEvents) => { if (active && calendarEvents) setEvents(calendarEvents) })
+      .catch((error) => { void reportTechnicalFailure({ module: 'calendar', stage: 'load', error }); if (active) setError('Kalenderdaten konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [calendars, metadataReady, profile, range, reloadVersion, selectedIdsKey, userId])
+
+  useEffect(() => {
+    if (storageKey && Array.isArray(visibleCalendarIds)) {
+      try { localStorage.setItem(storageKey, JSON.stringify(visibleCalendarIds)) } catch { /* Selection still works for this visit. */ }
+    }
   }, [storageKey, visibleCalendarIds])
 
-  const visibleEvents = useMemo(() => [...events.filter((event) => visibleCalendarIds.includes(event.calendarId)), ...companyHolidayEntries], [companyHolidayEntries, events, visibleCalendarIds])
+  const visibleEvents = useMemo(() => [...events.filter((event) => selectedIds.includes(event.calendarId)), ...companyHolidayEntries], [companyHolidayEntries, events, selectedIds])
   const editableCalendars = useMemo(() => calendars.filter((calendar) => calendar.accessLevel === 'edit' || calendar.ownerUserId === userId || isSuperadmin), [calendars, isSuperadmin, userId])
   const monthStart = dateValue(year, month, 1)
   const monthEnd = dateValue(year, month + 1, 0)
@@ -176,7 +191,7 @@ export default function CalendarPage() {
   }
 
   function toggleCalendar(id) {
-    setVisibleCalendarIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+    setVisibleCalendarIds((current) => (current || []).includes(id) ? current.filter((item) => item !== id) : [...(current || []), id])
   }
 
   async function saveEvent(values) {
@@ -188,13 +203,13 @@ export default function CalendarPage() {
       setToast('Termin angelegt.')
     }
     setModal(null)
-    await reload()
+    setReloadVersion((version) => version + 1)
   }
 
   async function removeEvent() {
     await deleteCalendarEvent(modal.event.calendarId, modal.event.id)
     setModal(null)
-    await reload()
+    setReloadVersion((version) => version + 1)
     setToast('Termin gelöscht.')
   }
 
@@ -217,5 +232,5 @@ export default function CalendarPage() {
   }
 
   const eventCanEdit = (event) => editableCalendars.some((calendar) => calendar.id === event.calendarId)
-  return <div className="calendar-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{modal && <CalendarEventModal event={modal.event} calendars={editableCalendars} initialDate={modal.initialDate} editable={!modal.event || eventCanEdit(modal.event)} onClose={() => setModal(null)} onSave={saveEvent} onDelete={removeEvent} />}<section className="calendar-workspace"><aside className="calendar-sidebar"><div className="calendar-sidebar__heading"><h2><StaticText source={"Termine anzeigen"} /></h2></div><div className="calendar-selector">{calendars.map((calendar) => <label key={calendar.id} className="calendar-selector__item"><input type="checkbox" checked={visibleCalendarIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /><span className="calendar-color-dot" style={{ background: calendar.color }} /><span>{calendar.name}</span>{calendar.kind === 'personal' && <small><StaticText source={"Persönlich"} /></small>}{calendar.systemCalendar && <small><StaticText source={"Systemkalender"} /></small>}</label>)}</div></aside><main className="calendar-main"><div className="calendar-toolbar"><CalendarNavigation onPrevious={() => moveMonth(-1)} onToday={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }} onNext={() => moveMonth(1)}><label><span className="sr-only"><StaticText source={"Monat"} /></span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{monthOptions.map((option) => <option key={option.value} value={option.value}>{<StaticText source={option.label} />}</option>)}</select></label><label><span className="sr-only"><StaticText source={"Jahr"} /></span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{selectableYears.map((option) => <option key={option} value={option}>{option}</option>)}</select></label></CalendarNavigation><h2>{monthFormatter.format(new Date(year, month, 1))}</h2></div>{loading ? <p className="calendar-state"><StaticText source={"Kalender werden geladen …"} /></p> : error ? <p className="calendar-state">{<StaticText source={error} />}</p> : <MonthGrid year={year} month={month} events={monthEvents} onDayClick={openDay} onEventClick={openEvent} />}</main><div className="calendar-upcoming-column">{editableCalendars.length > 0 && <button className="button calendar-upcoming-column__new" type="button" onClick={() => setModal({ initialDate: todayValue() })}><StaticText source={"Termin anlegen"} /></button>}<aside className="calendar-upcoming"><div className="calendar-sidebar__heading"><h2><StaticText source={"Nächste Termine"} /></h2><p><StaticText source={"Aus den eingeblendeten Kalendern."} /></p></div><div className="calendar-upcoming__list">{loading ? <p><StaticText source={"Termine werden geladen …"} /></p> : upcoming.length ? upcoming.map((event) => <button type="button" key={event.id} className="calendar-upcoming__item" onClick={() => openEvent(event)}><span className="calendar-color-dot" style={{ background: event.calendarColor }} /><span><strong>{event.title}</strong><small>{formatPeriod(event)} · {event.calendarName}</small></span></button>) : <p><StaticText source={"Keine anstehenden Termine."} /></p>}</div></aside></div></section></div>
+  return <div className="calendar-page">{toast && <Toast message={toast} onDismiss={() => setToast('')} />}{modal && <CalendarEventModal event={modal.event} calendars={editableCalendars} initialDate={modal.initialDate} editable={!modal.event || eventCanEdit(modal.event)} onClose={() => setModal(null)} onSave={saveEvent} onDelete={removeEvent} />}<section className="calendar-workspace"><aside className="calendar-sidebar"><div className="calendar-sidebar__heading"><h2><StaticText source={"Termine anzeigen"} /></h2></div><div className="calendar-selector">{calendars.map((calendar) => <label key={calendar.id} className="calendar-selector__item"><input type="checkbox" checked={selectedIds.includes(calendar.id)} onChange={() => toggleCalendar(calendar.id)} /><span className="calendar-color-dot" style={{ background: calendar.color }} /><span>{calendar.name}</span>{calendar.kind === 'personal' && <small><StaticText source={"Persönlich"} /></small>}{calendar.systemCalendar && <small><StaticText source={"Systemkalender"} /></small>}</label>)}</div></aside><main className="calendar-main"><div className="calendar-toolbar"><CalendarNavigation onPrevious={() => moveMonth(-1)} onToday={() => { setYear(now.getFullYear()); setMonth(now.getMonth()) }} onNext={() => moveMonth(1)}><label><span className="sr-only"><StaticText source={"Monat"} /></span><select value={month} onChange={(event) => setMonth(Number(event.target.value))}>{monthOptions.map((option) => <option key={option.value} value={option.value}>{<StaticText source={option.label} />}</option>)}</select></label><label><span className="sr-only"><StaticText source={"Jahr"} /></span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{selectableYears.map((option) => <option key={option} value={option}>{option}</option>)}</select></label></CalendarNavigation><h2>{monthFormatter.format(new Date(year, month, 1))}</h2></div>{loading ? <p className="calendar-state"><StaticText source={"Kalender werden geladen …"} /></p> : error ? <p className="calendar-state">{<StaticText source={error} />}</p> : <MonthGrid year={year} month={month} events={monthEvents} onDayClick={openDay} onEventClick={openEvent} />}</main><div className="calendar-upcoming-column">{editableCalendars.length > 0 && <button className="button calendar-upcoming-column__new" type="button" onClick={() => setModal({ initialDate: todayValue() })}><StaticText source={"Termin anlegen"} /></button>}<aside className="calendar-upcoming"><div className="calendar-sidebar__heading"><h2><StaticText source={"Nächste Termine"} /></h2><p><StaticText source={"Aus den eingeblendeten Kalendern."} /></p></div><div className="calendar-upcoming__list">{loading ? <p><StaticText source={"Termine werden geladen …"} /></p> : error ? <p className="form-error"><StaticText source={error} /></p> : upcoming.length ? upcoming.map((event) => <button type="button" key={event.id} className="calendar-upcoming__item" onClick={() => openEvent(event)}><span className="calendar-color-dot" style={{ background: event.calendarColor }} /><span><strong>{event.title}</strong><small>{formatPeriod(event)} · {event.calendarName}</small></span></button>) : <p><StaticText source={"Keine anstehenden Termine."} /></p>}</div></aside></div></section></div>
 }

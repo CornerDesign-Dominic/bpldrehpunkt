@@ -143,6 +143,29 @@ Folgende Änderungen erfolgen nicht über direkte Browser-Schreibrechte:
 
 ## Pre-Live-Tests
 
+### Kostenoptimierungen: Paletten, Kalender und Hintergrundarbeit
+
+Direkte Clientwrites auf `palletMovements` und `palletClosings` sind gesperrt;
+die bisherigen modulabhängigen Leserechte bleiben erhalten. `savePalletRecord`
+verlangt aktives Profil, App Check und `pallets: edit` bzw. Superadmin. Buchung,
+Revision, Historie, Summen und Wiederholungsbeleg entstehen atomar. Die
+Übersichts-Callable verlangt Paletten-Leserecht; auftragsbezogene Bewegungen
+verlangen zusätzlich Transportauftrags-Leserecht. Der Summenaufbau ist allein
+aktiven Superadmins erlaubt. Alte Clients mit direkten Writes benötigen eine
+Aktualisierung; der Übergang steht im [Dev-Releaseplan](docs/operations/cost-efficiency-dev-release.md).
+
+Arbeitsmengen, Aufbauzustände, Relationsverzeichnis/-belege,
+Palettensummengenerationen und Mutationsbelege erhalten keine direkten
+Clientrechte, auch nicht für Superadmins. `prepareBackgroundWork` ist eine
+App-Check- und Superadmin-geschützte Callable; Scheduler und Trigger arbeiten
+serverseitig. Keine Fachhistorie wird als Kostenmaßnahme gelöscht.
+
+`listSystemCalendarSources` prüft die Leserechte aller angeforderten Fachmodule
+und liefert nur die für Kalenderereignisse benötigten Daten im Bereich bzw.
+die nächsten Termine. Kalenderrechte allein gewähren keinen Fallzugriff.
+Paletten-/Kalender-Clientdiagnosen prüfen Modulrechte und feste Meldungstexte;
+`background-work` ist kein erlaubtes Client-Diagnosemodul.
+
 | Profil | Mindestprüfung |
 | --- | --- |
 | Standardnutzer | Anmeldung mit aktivem Profil; Zugriff ausschließlich auf zugewiesene Module; kein Zugriff auf fremde Vollprofile, HR-Daten, Systemmail-Vorlagen oder gesperrte Historien. |

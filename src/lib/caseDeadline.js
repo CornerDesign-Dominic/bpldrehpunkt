@@ -2,7 +2,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export function optionalDeadlineTime(value) {
   const time = typeof value === 'string' ? value.trim() : ''
-  if (time && !/^\d{2}:\d{2}$/.test(time)) throw new Error('Bitte eine gültige Uhrzeit erfassen.')
+  if (time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new Error('Bitte eine gültige Uhrzeit erfassen.')
   return time || null
 }
 
@@ -29,4 +29,17 @@ export function shortReminderRecipient(deadline) {
 export function deadlineDateTimeLabel(date, time) {
   const formattedDate = date ? new Intl.DateTimeFormat('de-DE').format(new Date(`${date}T12:00:00`)) : '—'
   return time ? `${formattedDate} · ${time}` : formattedDate
+}
+
+
+/** Compare local calendar dates, not elapsed hours. Noon-versus-midnight
+ * rounding shifts today's deadline to tomorrow and behaves differently at DST. */
+export function calendarDaysUntil(date, now = new Date()) {
+  const due = new Date(`${date}T12:00:00`)
+  const day = (value) => {
+    const serial = new Date(0)
+    serial.setUTCFullYear(value.getFullYear(), value.getMonth(), value.getDate())
+    return serial.getTime()
+  }
+  return Math.round((day(due) - day(now)) / 86400000)
 }

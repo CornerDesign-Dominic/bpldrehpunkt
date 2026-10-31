@@ -2,7 +2,7 @@ import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestam
 import { CASE_TRANSPORT_CASE_TYPES, CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, caseTransportLinkId, filterTransportOrders, linkedCaseLabel, loadCaseTransportLinks, parseBusinessPartnerRoleSelection, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from '../../shared/caseTransportLinks.js'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
-import { getTransportOrder, listTransportOrders } from './transportOrders.js'
+import { getTransportOrder } from './transportOrders.js'
 
 export { CASE_TRANSPORT_CASE_TYPES, CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, filterTransportOrders, linkedCaseLabel, parseBusinessPartnerRoleSelection, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes }
 
@@ -55,10 +55,6 @@ export async function listCaseLinksForTransportOrder(transportOrderId, caseTypes
   })
   if (ignored.length) console.warn('TA-Fallverknüpfungen wurden teilweise übersprungen.', { transportOrderId, ignored: ignored.map(({ link, reason }) => ({ linkId: link?.id || null, caseType: link?.caseType || null, reason })) })
   return entries.map((link) => ({ ...link, href: caseDetailPath(link.caseType, link.caseId), label: linkedCaseLabel(link.caseType, link.caseItem) }))
-}
-
-export async function searchTransportOrders(search) {
-  return filterTransportOrders(await listTransportOrders(), search)
 }
 
 export async function linkTransportOrderToCase({ caseType, caseId, transportOrderId, actor }) {

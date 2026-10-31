@@ -15,7 +15,7 @@ test('client and packaged Functions share byte-identical rating rules', async ()
   const [source, deployed, clientImport, functionImport, index, targetInfo] = await Promise.all([
     readFile(new URL('../shared/transportOrderRatings.js', import.meta.url)),
     readFile(new URL('./shared/transportOrderRatings.js', import.meta.url)),
-    readFile(new URL('../src/components/transport-orders/TransportOrderRatingModal.jsx', import.meta.url), 'utf8'),
+    readFile(new URL('../src/components/transport-orders/TransportOrderRatingsModal.jsx', import.meta.url), 'utf8'),
     readFile(new URL('./transportOrderRatings.js', import.meta.url), 'utf8'),
     readFile(new URL('./index.js', import.meta.url), 'utf8'),
     lstat(new URL('./shared/', import.meta.url)),

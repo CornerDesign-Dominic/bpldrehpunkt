@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { deadlineReminderDeliveryId, deadlineReminderMetadata, deadlineReminderQuery, isDeadlineReminderDue } from './caseDeadlineReminders.js'
+import { claimDeadlineReminderDelivery, deadlineReminderDeliveryId, deadlineReminderMetadata, deadlineReminderQuery, isDeadlineReminderDue } from './caseDeadlineReminders.js'
 
 function deadlineRef(root, caseId, deadlineId) {
   return {
@@ -20,6 +20,27 @@ test('case deadline reminder uses the stored creator address and Berlin deadline
   assert.equal(metadata.dueAt, '2026-09-28T12:30:00.000Z')
   assert.equal(isDeadlineReminderDue(metadata, new Date('2026-09-28T12:29:59.999Z')), false)
   assert.equal(isDeadlineReminderDue(metadata, new Date('2026-09-28T12:30:00.000Z')), true)
+})
+
+test('a retried reminder transaction returns only the claim from its final successful attempt', async () => {
+  const ref = deadlineRef('todos', 'T-1', 'D-1')
+  const deadline = { date: '2026-09-28', time: '09:00', reminderEnabled: true, reminderRecipientEmail: 'owner@example.test' }
+  const metadata = deadlineReminderMetadata(ref, deadline)
+  let writes = 0
+  const db = { doc: (path) => ({ path }), runTransaction: async (operation) => {
+    const attempt = (alreadySent) => operation({
+      get: async (reference) => reference === ref
+        ? { exists: true, data: () => deadline }
+        : reference === metadata.caseRef
+          ? { exists: true, data: () => ({ title: 'Test' }) }
+          : { exists: alreadySent, data: () => alreadySent ? { status: 'sent' } : undefined },
+      set: () => { writes += 1 },
+    })
+    assert(await attempt(false)) // callback writes are aborted, not committed
+    return attempt(true)
+  } }
+  assert.equal(await claimDeadlineReminderDelivery(db, ref, metadata, new Date('2026-09-28T10:00:00Z')), null)
+  assert.equal(writes, 1)
 })
 
 test('case deadline reminder rejects all-day, disabled and malformed deadlines', () => {
@@ -47,20 +68,17 @@ test('case deadline reminder delivery identity is stable but changes for a resch
   assert.notEqual(deadlineReminderDeliveryId(ref, original), deadlineReminderDeliveryId(ref, rescheduled))
 })
 
-test('the reminder query filters up to the Berlin-local date and has deterministic paging order', () => {
+test('the reminder query scans only outstanding jobs due at the exact instant', () => {
   const calls = []
   const query = {
     where(...args) { calls.push(['where', ...args]); return this },
     orderBy(...args) { calls.push(['orderBy', ...args]); return this },
   }
-  deadlineReminderQuery({ collectionGroup: (name) => { calls.push(['collectionGroup', name]); return query } }, new Date('2026-09-30T10:00:00.000Z'))
-  assert.deepEqual(calls, [
-    ['collectionGroup', 'deadlines'],
-    ['where', 'reminderEnabled', '==', true],
-    ['where', 'date', '<=', '2026-09-30'],
-    ['orderBy', 'date', 'asc'],
-    ['orderBy', 'time', 'asc'],
-  ])
+  deadlineReminderQuery({ collection: (name) => { calls.push(['collection', name]); return query } }, new Date('2026-09-30T10:00:00.000Z'))
+  assert.deepEqual(calls[0], ['collection', 'caseDeadlineReminderWork'])
+  assert.equal(calls[1][1], 'dueAt')
+  assert.equal(calls[1][3].toDate().toISOString(), '2026-09-30T10:00:00.000Z')
+  assert.deepEqual(calls[2], ['orderBy', 'dueAt', 'asc'])
 })
 
 test('the required collection-group index stays versioned with the scheduler query', async () => {

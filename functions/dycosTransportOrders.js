@@ -1,3 +1,4 @@
+import { transportOrderListProjection } from './transportOrderListProjection.js'
 import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
@@ -187,7 +188,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     const status = !order.exists ? 'new' : transportOrderImportFingerprint(previous) === transportOrderImportFingerprint(next) && linkedIdsUnchanged ? 'unchanged' : 'updated'
     const counts = { Neu: status === 'new' ? 1 : 0, Aktualisiert: status === 'updated' ? 1 : 0, Unverändert: status === 'unchanged' ? 1 : 0, 'Prüfung erforderlich': 0, Fehlerhaft: 0 }
     const result = { status, orderId: claim.orderRef.id, externalNumber: data.taNummer, sourceId: imported.source.orderId, requestId: data.requestId, runId: runRef.id, warningCodes: [...new Set([...imported.source.warningCodes, ...partnerWarningCodes])], partnerUpdates: { enriched: enrichedPartners, conflicts: partnerConflictCount } }
-    const patch = { externalNumber: data.taNummer, source: 'dycos', imported: next, importedFingerprint: transportOrderImportFingerprint(next), importMeta: { ...(order.get('importMeta') || {}), source: 'dycos', channel: 'power-automate', importRunId: runRef.id, requestId: data.requestId, preservedLegacyFields: preserved.preservedPaths, ...(order.exists ? {} : { importedAt: now }), lastImportedAt: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) }
+    const patch = { externalNumber: data.taNummer, source: 'dycos', imported: next, listQuery: transportOrderListProjection({ imported: next }), importedFingerprint: transportOrderImportFingerprint(next), importMeta: { ...(order.get('importMeta') || {}), source: 'dycos', channel: 'power-automate', importRunId: runRef.id, requestId: data.requestId, preservedLegacyFields: preserved.preservedPaths, ...(order.exists ? {} : { importedAt: now }), lastImportedAt: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) }
     delete patch.importMeta.fileName
     if (changes.some((change) => change.routeRelevant)) Object.assign(patch, { routeNeedsRecalculation: true, routeNeedsRecalculationAt: now })
     for (const plan of [customerPlan, carrierPlan]) if (plan.create) {

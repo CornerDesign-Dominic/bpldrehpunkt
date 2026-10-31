@@ -12,7 +12,7 @@ import {
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 import { setTransportOrderCaseLink } from './caseTransportLinks.js'
-import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { calendarDaysUntil, deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const DAMAGE_CASES_COLLECTION = 'damageCases'
 export const DAMAGE_CASE_STATUSES = [
@@ -259,9 +259,7 @@ export function createEmptyDamageDeadline() {
 
 export function damageDeadlinePresentation(deadline, now = new Date()) {
   if (!deadline?.date) return { kind: 'none', label: 'Keine Frist', days: null }
-  const today = new Date(now); today.setHours(0, 0, 0, 0)
-  const due = new Date(`${deadline.date}T12:00:00`)
-  const days = Math.round((due - today) / 86400000)
+  const days = calendarDaysUntil(deadline.date, now)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
   if (days === 0) return { kind: 'today', label: 'Heute', days }
   if (days <= 2) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }

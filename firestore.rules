@@ -577,8 +577,9 @@ service cloud.firestore {
       }
     }
 
-    match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
-    match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
+    // Source and summaries are committed atomically by savePalletRecord.
+    match /palletMovements/{id} { allow read: if view('pallets'); allow write: if false; }
+    match /palletClosings/{id} { allow read: if view('pallets'); allow write: if false; }
     match /newsItems/{id} {
       allow read: if view('news');
       allow create, update, delete: if edit('news');

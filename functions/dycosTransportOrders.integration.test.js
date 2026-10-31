@@ -13,9 +13,12 @@ import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrac
 import { isAutomaticImportedRouteCandidate } from './transportOrderRoutes.js'
 import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
 import { dycosConflictRows } from './shared/dycosPartnerConflicts.js'
+import { transportOrderListProjection } from './transportOrderListProjection.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
-if (enabled) initializeApp({ projectId: 'demo-drehpunkt-dycos' })
+// Fixed business identities below must start with an empty test database even
+// when the same emulator is reused for several release checks.
+if (enabled) initializeApp({ projectId: `demo-drehpunkt-dycos-${randomUUID().slice(0, 8)}` })
 const nextTa = () => String(100000000 + Math.floor(Math.random() * 900000000))
 const nextAccount = () => String(100000000000000 + Math.floor(Math.random() * 900000000000000))
 const req = (uid, ta, requestId = randomUUID()) => ({ auth: { uid }, data: { taNummer: ta, requestId } })
@@ -114,6 +117,7 @@ test('emulator: sparse TA imports atomically, replay avoids another source call,
   assert.equal(first.status, 'new')
   const ref = db().doc(`transportOrders/${id(ta)}`)
   const original = (await ref.get()).data()
+  assert.deepEqual(original.listQuery, transportOrderListProjection(original), 'the current DyCoS writer must commit query projection atomically')
   assert.equal(original.imported.financial.revenueNet, 0)
   assert.equal(original.imported.carrier.partnerId, '')
   assert.deepEqual(original.imported.stops, [])

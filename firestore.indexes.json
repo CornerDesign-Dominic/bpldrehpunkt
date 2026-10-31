@@ -99,7 +99,519 @@
         { "fieldPath": "countryCode", "order": "ASCENDING" },
         { "fieldPath": "loggedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "palletClosings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "partnerId", "order": "ASCENDING"},
+        {"fieldPath": "date", "order": "DESCENDING"},
+        {"fieldPath": "createdAt", "order": "DESCENDING"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "externalNumber"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "externalNumber"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "externalNumber"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "externalNumber"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "externalNumber"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "externalNumber"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.loading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.loading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.loading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.loading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.loading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.loading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.loading.window.from"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.loading.window.from"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.loading.window.from"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.loading.window.from"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.loading.window.from"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.loading.window.from"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.unloading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.unloading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.unloading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.unloading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.unloading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.unloading.city"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.unloading.window.until"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.unloading.window.until"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.unloading.window.until"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.unloading.window.until"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.unloading.window.until"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.unloading.window.until"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.customer.name"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.customer.name"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.customer.name"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.customer.name"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.customer.name"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.customer.name"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.carrier.originalName"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.carrier.originalName"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.carrier.originalName"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.carrier.originalName"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.carrier.originalName"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.carrier.originalName"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "imported.relation"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.relation"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "imported.relation"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "imported.relation"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.relation"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "imported.relation"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "importMeta.lastImportedAt"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "importMeta.lastImportedAt"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "ASCENDING", "fieldPath": "importMeta.lastImportedAt"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "DESCENDING", "fieldPath": "importMeta.lastImportedAt"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "importMeta.lastImportedAt"}
+      ]
+    },
+    {
+      "collectionGroup": "transportOrders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "listQuery.relation"},
+        {"order": "ASCENDING", "fieldPath": "listQuery.loadingMonth"},
+        {"order": "DESCENDING", "fieldPath": "importMeta.lastImportedAt"}
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "endDate"},
+        {"order": "ASCENDING", "fieldPath": "startDate"}
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "startDate"},
+        {"order": "ASCENDING", "fieldPath": "endDate"}
+      ]
+    },
+    {
+      "collectionGroup": "todoCalendarEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "ownerUserId"},
+        {"order": "ASCENDING", "fieldPath": "endDate"},
+        {"order": "ASCENDING", "fieldPath": "startDate"}
+      ]
+    },
+    {
+      "collectionGroup": "todoCalendarEntries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"order": "ASCENDING", "fieldPath": "ownerUserId"},
+        {"order": "ASCENDING", "fieldPath": "startDate"},
+        {"order": "ASCENDING", "fieldPath": "endDate"}
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+  {
+    "indexes": [
+      {
+        "order": "ASCENDING",
+        "queryScope": "COLLECTION"
+      },
+      {
+        "order": "DESCENDING",
+        "queryScope": "COLLECTION"
+      },
+      {
+        "order": "ASCENDING",
+        "queryScope": "COLLECTION_GROUP"
+      }
+    ],
+    "collectionGroup": "deadlines",
+    "fieldPath": "date"
+  }
+]
 }

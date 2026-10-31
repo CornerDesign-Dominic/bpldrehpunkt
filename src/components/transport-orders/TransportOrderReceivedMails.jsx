@@ -5,6 +5,7 @@ import { httpsCallable } from 'firebase/functions'
 import { db, functions, waitForAppCheckToken } from '../../lib/firebase.js'
 import MailWorkDialog from '../mailboxes/MailWorkDialog.jsx'
 import ShipmentTrackingMailEditor from './ShipmentTrackingMailEditor.jsx'
+import { canRetryStatusMailAi, statusMailAiLeaseExpiresAt } from '../../lib/statusMailAiRetry.js'
 
 function receivedLabel(value) {
   const date = value?.toDate?.()
@@ -22,7 +23,18 @@ export default function TransportOrderReceivedMails({ transportOrderId, tracking
   const [retryError, setRetryError] = useState('')
   const [resolvingId, setResolvingId] = useState(null)
   const [savedNotice, setSavedNotice] = useState(false)
+  const [, refreshLeaseClock] = useState(0)
   const selected = mails.find((mail) => mail.id === selectedId)
+  const selectedLeaseExpiresAt = statusMailAiLeaseExpiresAt(selected)
+  const expiredPending = selected?.ai?.status === 'pending' && canRetryStatusMailAi(selected)
+
+  useEffect(() => {
+    if (!selectedId || selectedLeaseExpiresAt === null || selectedLeaseExpiresAt <= Date.now()) return
+    // One timer while a dialog contains an actual lease. Initial pending mails
+    // without a lease never acquire an invented timeout/retry policy.
+    const timer = setTimeout(() => refreshLeaseClock((value) => value + 1), Math.min(selectedLeaseExpiresAt - Date.now() + 1, 2_147_483_647))
+    return () => clearTimeout(timer)
+  }, [selectedId, selectedLeaseExpiresAt])
 
   async function retryAi(mailId) {
     setRetryingId(mailId)
@@ -30,7 +42,7 @@ export default function TransportOrderReceivedMails({ transportOrderId, tracking
     try {
       await waitForAppCheckToken()
       const { data } = await httpsCallable(functions, 'retryStatusMailAi', { timeout: 120000 })({ orderId: transportOrderId, mailId })
-      if (!['applied', 'no_change', 'needs_review', 'skipped'].includes(data?.status)) setRetryError('Die KI-Auswertung konnte nicht abgeschlossen werden.')
+      if (!['applied', 'no_change', 'needs_review', 'reviewed', 'skipped'].includes(data?.status)) setRetryError('Die KI-Auswertung konnte nicht abgeschlossen werden.')
     } catch {
       setRetryError('Die KI-Auswertung konnte nicht gestartet werden. Bitte erneut versuchen.')
     } finally {
@@ -58,11 +70,11 @@ export default function TransportOrderReceivedMails({ transportOrderId, tracking
       {loading ? <p><StaticText source={"Mails werden geladen …"} /></p> : error ? <p className="form-error"><StaticText source={"Mails konnten nicht geladen werden."} /></p> : mails.length === 0 ? <p><StaticText source={"Noch keine zugeordneten Mails."} /></p> : <ol className="transport-order-received-mails__list">{mails.map((mail) => <li key={mail.id}><button className={mail.ai?.reviewRequired || ['needs_review', 'error'].includes(mail.ai?.status) ? 'transport-order-received-mails__needs-review' : ''} type="button" onClick={() => { setSelectedId(mail.id); setSavedNotice(false); setRetryError('') }}><span>{mail.subject}</span><small>{receivedLabel(mail.receivedAt)} · {mail.sender}</small>{aiLabels[mail.ai?.status] && <small className={mail.ai.status === 'applied' ? 'transport-order-received-mails__ai' : ''}>{<StaticText source={aiLabels[mail.ai.status]} />}</small>}{mail.ai?.reviewRequired && <small><StaticText source={"Manuelle Prüfung nötig"} /></small>}</button></li>)}</ol>}
     </section>
     {selected && <MailWorkDialog open title={selected.subject} subtitle={`${selected.sender} · ${receivedLabel(selected.receivedAt)}`} busy={trackingSaving} onClose={() => setSelectedId(null)} left={<>
-            {aiLabels[selected.ai?.status] && <p><StaticText source={aiLabels[selected.ai.status]} /></p>}
+            {aiLabels[selected.ai?.status] && <p><StaticText source={expiredPending ? 'Die vorherige KI-Auswertung wurde unterbrochen. Du kannst sie erneut starten.' : aiLabels[selected.ai.status]} /></p>}
             {selected.ai?.reviewRequired && <p className="shipment-tracking-recipients__warning">{selected.ai.reviewReason || <StaticText source={"Statusangabe bitte manuell prüfen."} />}</p>}
             <pre className="transport-order-received-mail-modal__body">{selected.bodyText || <StaticText source={"Kein Textinhalt vorhanden."} />}</pre>
             {retryError && <p className="form-error">{retryError}</p>}
-            <div className="shipment-tracking-editor__actions">{canEdit && selected.ai?.reviewRequired && <button className="button" type="button" disabled={resolvingId === selected.id} onClick={() => void resolveReview(selected.id)}>{resolvingId === selected.id ? 'Wird abgeschlossen …' : 'Manuelle Prüfung abschließen'}</button>}{canEdit && ['no_change', 'needs_review', 'error'].includes(selected.ai?.status) && <button className="button button--secondary" type="button" disabled={retryingId === selected.id} onClick={() => void retryAi(selected.id)}>{<StaticText source={retryingId === selected.id ? 'KI wertet aus …' : 'KI erneut auswerten'} />}</button>}</div>
+            <div className="shipment-tracking-editor__actions">{canEdit && selected.ai?.reviewRequired && <button className="button" type="button" disabled={resolvingId === selected.id} onClick={() => void resolveReview(selected.id)}>{resolvingId === selected.id ? 'Wird abgeschlossen …' : 'Manuelle Prüfung abschließen'}</button>}{canEdit && canRetryStatusMailAi(selected) && <button className="button button--secondary" type="button" disabled={retryingId === selected.id} onClick={() => void retryAi(selected.id)}>{<StaticText source={retryingId === selected.id ? 'KI wertet aus …' : 'KI erneut auswerten'} />}</button>}</div>
           </>}>
           {trackingLoading && !tracking ? <p><StaticText source="Sendungsverfolgung wird geladen …" /></p> : <ShipmentTrackingMailEditor key={selected.id} tracking={tracking} events={trackingEvents} saving={trackingSaving} saved={savedNotice} canEdit={canEdit} onSave={onSaveTracking} onSaved={() => setSavedNotice(true)} onEdit={() => setSavedNotice(false)} />}
     </MailWorkDialog>}

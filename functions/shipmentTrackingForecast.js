@@ -120,13 +120,21 @@ export async function finalizeShipmentTrackingForecastArrival(orderId) {
   return result.forecast
 }
 
-export async function refreshShipmentTrackingAttentionSummary(orderId) {
-  const db = getFirestore()
-  const [orderSnapshot, trackingSnapshot, settingsSnapshot, operatingHoursSnapshot, mailSnapshot] = await Promise.all([
-    db.doc(`transportOrders/${orderId}`).get(), db.doc(`transportOrderTrackings/${orderId}`).get(), db.doc(SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH).get(), db.doc(shipmentTrackingOperatingHoursPath).get(), db.collection(`transportOrders/${orderId}/receivedMails`).orderBy('receivedAt', 'desc').limit(50).get(),
-  ])
-  if (!orderSnapshot.exists || !trackingSnapshot.exists) return null
-  const attention = shipmentTrackingAttention({ tracking: trackingSnapshot.data(), imported: orderSnapshot.data()?.imported, receivedMails: mailSnapshot.docs.map((item) => item.data()), settings: settingsSnapshot.exists ? settingsSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, operatingHours: operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS })
-  await trackingSnapshot.ref.set({ attentionSummary: { manualReviewOpen: mailSnapshot.docs.some((entry) => { const ai = entry.data()?.ai; return ai?.reviewRequired === true || ['needs_review', 'error'].includes(ai?.status) }), updatedAt: FieldValue.serverTimestamp() } }, { merge: true })
-  return attention
+export function shipmentTrackingMailAttentionChanged(before, after) {
+  const review = (snapshot) => snapshot.exists && (snapshot.data()?.ai?.reviewRequired === true || ['needs_review', 'error'].includes(snapshot.data()?.ai?.status))
+  const receivedAt = (snapshot) => snapshot.data()?.receivedAt?.toMillis?.() ?? snapshot.data()?.receivedAt ?? null
+  return before.exists !== after.exists || review(before) !== review(after) || receivedAt(before) !== receivedAt(after)
+}
+
+export async function refreshShipmentTrackingAttentionSummary(orderId, { db = getFirestore() } = {}) {
+  return db.runTransaction(async (transaction) => {
+    const [orderSnapshot, trackingSnapshot, settingsSnapshot, operatingHoursSnapshot, mailSnapshot] = await Promise.all([
+      transaction.get(db.doc(`transportOrders/${orderId}`)), transaction.get(db.doc(`transportOrderTrackings/${orderId}`)), transaction.get(db.doc(SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH)), transaction.get(db.doc(shipmentTrackingOperatingHoursPath)), transaction.get(db.collection(`transportOrders/${orderId}/receivedMails`).orderBy('receivedAt', 'desc').limit(50)),
+    ])
+    if (!orderSnapshot.exists || !trackingSnapshot.exists) return null
+    const attention = shipmentTrackingAttention({ tracking: trackingSnapshot.data(), imported: orderSnapshot.data()?.imported, receivedMails: mailSnapshot.docs.map((item) => item.data()), settings: settingsSnapshot.exists ? settingsSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, operatingHours: operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS })
+    const manualReviewOpen = mailSnapshot.docs.some((entry) => { const ai = entry.data()?.ai; return ai?.reviewRequired === true || ['needs_review', 'error'].includes(ai?.status) })
+    if (trackingSnapshot.data()?.attentionSummary?.manualReviewOpen !== manualReviewOpen) transaction.set(trackingSnapshot.ref, { attentionSummary: { manualReviewOpen, updatedAt: FieldValue.serverTimestamp() } }, { merge: true })
+    return attention
+  })
 }
