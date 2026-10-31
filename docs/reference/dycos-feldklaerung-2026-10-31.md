@@ -2,7 +2,7 @@
 
 Stand: 31.10.2026. Untersuchung auf Nutzerwunsch mit drei parallelen
 Teilprüfungen und anschließender autorisierter lokaler Umsetzung.
-Noch nicht veröffentlicht; Main bleibt unberührt.
+Zur Dev-Veröffentlichung freigegeben; Main bleibt unberührt.
 
 Der bestehende authentifizierte TA-Flow wurde einmal lesend für `260600100`
 abgerufen; Antwortnummer geprüft. Produktions-Firestore `db-bpl-drehpunkt`
@@ -295,3 +295,15 @@ Für eine spätere Umsetzung zwei getrennte Merkmale führen:
 
 Zahlungsdaten werden in diesem Schritt noch nicht gespeichert oder angezeigt;
 insbesondere erhalten vorhandene Belege keinen erfundenen Standardstatus „offen“.
+
+
+## Dev-Veröffentlichung der bisherigen Umsetzung
+
+Am 31.10.2026 hat der Nutzer sämtliche bisherigen Änderungen einschließlich
+Kunden-Stornorechnungen ausdrücklich zur Dev-Veröffentlichung freigegeben.
+Die sieben betroffenen Serverfunktionen sind erfolgreich aktualisiert und
+aktiv. Der Bestandsvergleich bestätigt unveränderte Secret-Bindungen und
+unveränderte übrige Endpunkte. Der aktuelle Dev-Stand einschließlich
+Kostenoptimierungen wurde integriert. Prüfergebnisse und Veröffentlichungsumfang:
+[Dev-Veröffentlichung](../operations/dycos-order-fields-dev-release.md).
+Die früheren lokalen Abnahmen oben bleiben als Entwicklungsschritte erhalten.
