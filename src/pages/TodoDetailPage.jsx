@@ -6,6 +6,7 @@ import TodoDeadlinesCard from "../components/todos/TodoDeadlinesCard.jsx";
 import { TodoPriority } from "../components/todos/TodoPriority.jsx";
 import ConfirmDialog from "../components/ui/ConfirmDialog.jsx";
 import BackLink from "../components/ui/BackLink.jsx";
+import ContextLink from "../components/ui/ContextLink.jsx";
 import Toast from "../components/ui/Toast.jsx";
 import { EditIcon } from "../components/icons.jsx";
 import { useAuth } from "../auth/useAuth.js";
@@ -738,9 +739,9 @@ export default function TodoDetailPage() {
                     ? linkedTransportOrders.map((link, index) => (
                         <span key={link.id}>
                           {<StaticText source={index > 0 && ", "} />}
-                          <Link to={transportOrderPath(link.id)}>
+                          <ContextLink to={transportOrderPath(link.id)}>
                             TA {link.number || link.id}
-                          </Link>
+                          </ContextLink>
                         </span>
                       ))
                     : null}

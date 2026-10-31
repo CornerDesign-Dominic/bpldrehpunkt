@@ -3,6 +3,13 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, canReportLinkDiagnostic, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
 
+test('order workspace diagnostics require order access and keep fixed messages', () => {
+  assert.equal(canReportLinkDiagnostic({ permissions: { transportOrders: 'view' } }, 'transport-orders'), true)
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'transport-orders'), false)
+  const event = normalizeClientDiagnostic({ module: 'transport-orders', stage: 'history', code: 'unavailable', orderId: 'dycos-123', message: 'Do not copy source data' })
+  assert.equal(event.message, 'Auftragshistorie konnte nicht geladen werden.')
+})
+
 test('order capture diagnostics use fixed messages and reject private mail identifiers', () => {
   for (const [stage, message] of [['order-preview', 'Auftrag aus persönlicher Mail konnte nicht ausgewertet werden.'], ['order-export', 'Geprüfter Auftrag konnte nicht als XML erstellt werden.']]) {
     const event = normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', message: 'private mail and PDF contents' })
@@ -25,7 +32,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 

@@ -25,6 +25,7 @@ import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './dia
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
+import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
 import { dycosMasterDataConfigurationSecrets } from './dycosFlowClient.js'
 import { fetchDycosMasterDataHandler } from './dycosMasterData.js'
@@ -1122,6 +1123,8 @@ export { recordCaseTransportOrderLinkCreated, recordCaseTransportOrderLinkDelete
 export { scheduledShipmentTrackingAutomation, maintainShipmentTrackingOrderWork, maintainShipmentTrackingStateWork, rebuildShipmentTrackingWorkOnSettings, rebuildShipmentTrackingWorkOnPartner, rebuildShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 export { scheduledCaseDeadlineReminderDispatch, maintainCaseDeadlineReminderWork } from './caseDeadlineReminders.js'
 export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchDycosTransportOrderHandler)
+export const listTransportOrderRecordsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listTransportOrderRecordsPageHandler)
+export const refreshTransportOrderWorkspace = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 540, maxInstances: 3, concurrency: 4, secrets: [...new Map([...dycosFlowConfigurationSecrets, ...dycosMasterDataConfigurationSecrets].map(secret => [secret.name, secret])).values()] }, refreshTransportOrderWorkspaceHandler)
 export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
 export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, refreshDycosMasterDataHandler)
 export const resolveDycosPartnerConflicts = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, resolveDycosPartnerConflictsHandler)

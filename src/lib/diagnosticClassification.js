@@ -27,7 +27,7 @@ export function diagnosticCode(error) {
 
 export function websiteDiagnosticStage(pathname) {
   if (pathname.startsWith('/dashboard')) return 'dashboard'
-  if (pathname.startsWith('/transportauftraege')) return 'transport-orders'
+  if (pathname.startsWith('/sendungsverfolgung') || pathname.startsWith('/transportauftraege')) return 'transport-orders'
   if (pathname.startsWith('/kunden-unternehmer')) return 'partners'
   if (pathname.startsWith('/crm')) return 'crm'
   if (pathname.startsWith('/admin')) return 'administration'

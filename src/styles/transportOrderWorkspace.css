@@ -1,0 +1,52 @@
+.order-workspace { width:100%; max-width:1600px; margin:0 auto; }
+.order-workspace__head { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 20px; margin:16px 0 6px; }
+.order-workspace__head h2 { margin:0; font-size:24px; }
+.order-workspace__meta { display:flex; flex-wrap:wrap; gap:6px 24px; color:var(--text-secondary); font-size:12px; }
+.order-workspace__tabs { display:flex; flex-wrap:wrap; gap:0 22px; border-bottom:1px solid var(--border); margin-top:20px; }
+.order-workspace__tabs button { border:0; background:transparent; color:var(--text-secondary); border-bottom:2px solid transparent; padding:10px 0; font:inherit; font-size:13px; cursor:pointer; }
+.order-workspace__tabs button[aria-selected="true"] { color:var(--button-background); border-bottom-color:var(--button-background); font-weight:700; }
+.order-workspace__toolbar { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; align-items:center; min-height:38px; margin:14px 0; }
+.order-workspace__update { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--text-secondary); font-size:12px; }
+.order-workspace__text-button { padding:0; border:0; background:transparent; font:inherit; color:var(--button-background); cursor:pointer; text-align:left; }
+.order-workspace__layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(210px,24%); gap:16px; align-items:start; }
+.order-workspace__content { min-width:0; }
+.order-workspace__overview { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:16px; align-items:start; }
+.order-workspace__stack { display:grid; gap:16px; min-width:0; }
+.order-workspace__card { border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--content-background); min-width:0; }
+.order-workspace__card h3 { font-size:14px; margin:0 0 12px; }
+.order-workspace__card h4 { font-size:13px; margin:0 0 5px; }
+.order-workspace__card p { margin:4px 0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.order-workspace__card-header { display:flex; flex-wrap:wrap; gap:6px 12px; justify-content:space-between; align-items:baseline; }
+.order-workspace__card-header button { font-size:12px; }
+.order-workspace__card dl { display:grid; grid-template-columns:minmax(75px,.8fr) minmax(0,1fr); gap:7px 12px; margin:0; }
+.order-workspace__card dt { color:var(--text-secondary); font-size:12px; }
+.order-workspace__card dd { margin:0; overflow-wrap:anywhere; white-space:pre-wrap; }
+.order-workspace__stop { border-left:2px solid var(--border); padding-left:12px; margin:0 0 18px 3px; }
+.order-workspace__stop:last-child { margin-bottom:0; }
+.order-workspace__stop p { font-size:12px; }
+.order-workspace__muted { color:var(--text-secondary); font-size:12px; }
+.order-workspace__money { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-variant-numeric:tabular-nums; }
+.order-workspace__money--result { border-top:1px solid var(--border); margin-top:8px; padding-top:12px; font-weight:700; }
+.order-workspace__money--negative { color:var(--status-danger-text); }
+.order-workspace__partner { font-weight:700; }
+.order-workspace__contact { border-top:1px solid var(--border); margin-top:10px; padding-top:9px; }
+.order-workspace__links { display:grid; gap:16px; min-width:0; }
+.order-workspace__links .transport-order-detail-section { margin:0; min-width:0; padding:14px; border:1px solid var(--border); border-radius:8px; background:var(--content-background); }
+.order-workspace__links .transport-order-detail-actions__buttons { display:grid; gap:8px; }
+.order-workspace__links .button { white-space:normal; }
+.order-workspace__links h3 { margin:0 0 12px; font-size:14px; }
+.order-workspace__links .order-workspace__card .button { margin-top:10px; }
+.order-workspace__history { display:grid; gap:12px; }
+.order-workspace__history details { border:1px solid var(--border); border-radius:7px; background:var(--content-background); padding:13px; }
+.order-workspace__history summary { cursor:pointer; font-size:13px; }
+.order-workspace__history details[open] summary { margin-bottom:12px; }
+.order-workspace__history details[data-focused="true"] { outline:2px solid var(--button-background); outline-offset:2px; }
+.order-workspace__history .data-table { font-size:12px; }
+.order-workspace__history .data-table td { white-space:pre-wrap; overflow-wrap:anywhere; }
+.order-workspace__scroll { overflow-x:auto; }
+.order-workspace__finance { display:grid; gap:16px; }
+.order-workspace__finance .transport-order-detail-section { border:1px solid var(--border); border-radius:8px; padding:16px; margin:0; background:var(--content-background); }
+@media(max-width:1100px) { .order-workspace__layout { grid-template-columns:minmax(0,1fr) 210px; } .order-workspace__overview { grid-template-columns:1fr; } }
+@media(max-width:760px) { .order-workspace__layout { grid-template-columns:1fr; } .order-workspace__links { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); } .order-workspace__tabs { gap:0 14px; } }
+
+.order-workspace a:not(.button) { color:var(--button-background); }

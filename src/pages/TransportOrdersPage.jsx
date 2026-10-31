@@ -1,238 +1,79 @@
-import { translateStatic } from '../i18n/autoTranslate.js'
-import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { FaBan, FaChevronLeft, FaChevronRight, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
-import { Link, useNavigate } from 'react-router-dom'
-import { usePermissions } from '../auth/usePermissions.js'
-import { useAuth } from '../auth/useAuth.js'
+import { useEffect, useState } from 'react'
+import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useLanguage } from '../i18n/useLanguage.js'
-import { listTransportOrderRelations, listTransportOrdersPage, saveOwnTransportOrderListPreferences } from '../lib/transportOrders.js'
-import { formatTransportOrderRelation, formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
-import { defaultTrackingFilter, defaultTransportOrderListPreferences, emptyTrackingFilterMessage, normalizeTransportOrderListPreferences, trackingFilterOptions, trackingStatusForList, transportOrderListPageSizeOptions, visibleTransportOrderPage } from '../lib/transportOrderListPresentation.js'
-import { getShipmentTrackingForecast, refreshShipmentTrackingForecast } from '../lib/shipmentTrackingForecast.js'
-import { getShipmentTracking, sendManualShipmentTrackingMail, shipmentTrackingManualMailErrorMessage } from '../lib/shipmentTracking.js'
-import ShipmentTrackingHistoryIndicator from '../components/transport-orders/ShipmentTrackingHistoryIndicator.jsx'
-import ShipmentTrackingForecastModal from '../components/transport-orders/ShipmentTrackingForecastModal.jsx'
-import ShipmentTrackingManualMailModal from '../components/transport-orders/ShipmentTrackingManualMailModal.jsx'
-import { LicensePlateIcon } from '../components/icons.jsx'
-import { createTransportOrderPreferenceSaver } from '../lib/transportOrderPreferenceSaver.js'
+import { useAuth } from '../auth/useAuth.js'
+import { usePermissions } from '../auth/usePermissions.js'
+import Link from '../components/ui/ContextLink.jsx'
+import { listTransportOrderRecordsPage } from '../lib/transportOrderWorkspace.js'
+import { normalizeOrderListPreferences, orderListStorageKey } from '../lib/orderListPreferences.js'
+import { formatTransportOrderWindow, transportOrderPath } from '../lib/transportOrderPresentation.js'
+import '../styles/transportOrderList.css'
 
-const columns = [
-  { key: 'externalNumber', label: 'TA-Nummer' }, { key: 'relation', label: 'Relation' }, { key: 'tracking', label: 'Verfolgung' }, { key: 'attention', label: 'Empfehlung' }, { key: 'forecast', label: 'Prognose' },
-  { key: 'loading', label: 'Ladestelle' }, { key: 'loadingFrom', label: 'Ladetermin' },
-  { key: 'unloading', label: 'Entladestelle' }, { key: 'unloadingUntil', label: 'Entladetermin' },
-  { key: 'customer', label: 'Kunde' }, { key: 'carrier', label: 'Unternehmer' },
-]
+const columns = [['externalNumber', 'Auftrag / Referenz'], ['customer', 'Kunde'], ['carrier', 'Unternehmer'], ['relation', 'Relation'], ['loadingFrom', 'Laden'], ['unloadingUntil', 'Entladen']]
 
-const transportOrderListPreferenceSavers = new Map()
-
-const attentionIcon = (item) => item.icon === 'stopwatch' ? FaStopwatch : item.id === 'mail-review' ? FaEnvelope : item.id === 'automation-paused' ? FaBan : FaTruck
-const forecastStateLabel = (state) => ({ green: 'Im Plan', yellow: 'Knapp', red: 'Verspätet', grey: 'Abgelaufen', unknown: 'Ankunftszeit fehlt', neutral: 'Transport abgeschlossen' }[state] || 'Unbekannt')
-const trackingCarrierRecipient = (tracking) => {
-  const carrier = tracking?.recipients?.carrier
-  return ['manual', 'transport-order-import'].includes(carrier?.source) && typeof carrier?.email === 'string' ? carrier.email.trim() : ''
-}
-
-function IconFilterButton({ active, title, label, children, onClick, tone = '' }) {
-  return <button className={`transport-orders-icon-filter${active ? ' transport-orders-icon-filter--active' : ''}${tone ? ` transport-orders-icon-filter--${tone}` : ''}`} type="button" aria-pressed={active} title={title} onClick={onClick}><span aria-hidden="true">{children}</span><span className="sr-only">{label}</span></button>
+function OrderList({ uid }) {
+  const { language } = useLanguage()
+  const { canEdit } = usePermissions()
+  const [storageError, setStorageError] = useState(false)
+  const [filters, setFilters] = useState(() => {
+    try { return normalizeOrderListPreferences(JSON.parse(localStorage.getItem(orderListStorageKey(uid)) || '{}')) } catch { return normalizeOrderListPreferences() }
+  })
+  const [queryFilters, setQueryFilters] = useState(filters)
+  const [cursors, setCursors] = useState([null])
+  const [pageIndex, setPageIndex] = useState(0)
+  const [data, setData] = useState({ orders: [], hasMore: false, nextCursor: null })
+  const [loadedKey, setLoadedKey] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+  const [reload, setReload] = useState(0)
+  const cursor = cursors[pageIndex]
+  const queryKey = JSON.stringify({ ...queryFilters, cursor, reload })
+  const pending = loading || queryFilters !== filters || loadedKey !== queryKey
+  useEffect(() => {
+    const timer = setTimeout(() => { setQueryFilters(filters); setCursors([null]); setPageIndex(0) }, 300)
+    return () => clearTimeout(timer)
+  }, [filters])
+  useEffect(() => {
+    let current = true
+    listTransportOrderRecordsPage({ ...queryFilters, cursor }).then(result => {
+      if (current) { setData(result); setError(false) }
+    }).catch(() => { if (current) { setError(true); setData({ orders: [], hasMore: false }) } }).finally(() => { if (current) { setLoading(false); setLoadedKey(queryKey) } })
+    return () => { current = false }
+  }, [queryFilters, cursor, reload, queryKey])
+  useEffect(() => {
+    document.title = language === 'en' ? 'Drehpunkt · Transport orders' : 'Drehpunkt · Aufträge'
+    return () => { document.title = 'Drehpunkt' }
+  }, [language])
+  function saveFilters(next) {
+    setLoading(true); setFilters(next)
+    try { localStorage.setItem(orderListStorageKey(uid), JSON.stringify(next)); setStorageError(false) } catch { setStorageError(true) }
+  }
+  function change(key, value) { saveFilters({ ...filters, [key]: value }) }
+  function sort(key) { change('sort', { key, direction: filters.sort.key === key && filters.sort.direction === 'asc' ? 'desc' : 'asc' }) }
+  function next() { setLoading(true); setCursors(current => [...current.slice(0, pageIndex + 1), data.nextCursor]); setPageIndex(current => current + 1) }
+  return <div className="order-record-list">
+    <div className="list-toolbar"><div className="order-record-list__filters">
+      <label><span><StaticText source="Aufträge suchen" /></span><input type="search" value={filters.search} maxLength={180} aria-label={language === 'en' ? 'Search transport orders' : 'Aufträge suchen'} placeholder={language === 'en' ? 'Order, reference, customer or carrier' : 'TA, Referenz, Kunde oder Unternehmer'} onChange={event => change('search', event.target.value)} /></label>
+      <label><span><StaticText source="Relation" /></span><input value={filters.relation} maxLength={180} onChange={event => change('relation', event.target.value)} /></label>
+      <label><span><StaticText source="Start von" /></span><input type="date" value={filters.loadingFrom} max={filters.loadingUntil || undefined} onChange={event => change('loadingFrom', event.target.value)} /></label>
+      <label><span><StaticText source="Start bis" /></span><input type="date" value={filters.loadingUntil} min={filters.loadingFrom || undefined} onChange={event => change('loadingUntil', event.target.value)} /></label>
+      <button className="button button--secondary" type="button" onClick={() => saveFilters(normalizeOrderListPreferences())}><StaticText source="Filter zurücksetzen" /></button>
+    </div>{canEdit('dataImports') && <Link className="button" to="/transportauftraege/import"><StaticText source="Transportaufträge importieren" /></Link>}</div>
+    {storageError && <p className="form-error"><StaticText source="Die Listenansicht konnte auf diesem Gerät nicht gespeichert werden." /></p>}
+    {error && <div className="form-error" role="alert"><p><StaticText source="Die Auftragsliste konnte nicht geladen werden." /></p><button type="button" className="button button--secondary" onClick={() => { setLoading(true); setReload(value => value + 1) }}><StaticText source="Erneut versuchen" /></button></div>}
+    <div className="order-record-list__table"><table className="data-table"><thead><tr>{columns.map(([key, title]) => <th key={key} aria-sort={filters.sort.key !== key ? 'none' : filters.sort.direction === 'asc' ? 'ascending' : 'descending'}><button type="button" className="table-sort-button" onClick={() => sort(key)}><StaticText source={title} />{filters.sort.key === key && (filters.sort.direction === 'asc' ? ' ↑' : ' ↓')}</button></th>)}<th><StaticText source="Sendungsverfolgung" /></th></tr></thead><tbody>
+      {pending ? <tr><td colSpan={7}><StaticText source="Aufträge werden geladen …" /></td></tr> : !data.orders.length ? <tr><td colSpan={7}><StaticText source="Keine Transportaufträge gefunden." /></td></tr> : data.orders.map(order => <tr key={order.id}>
+        <td><Link to={transportOrderPath(order.id)}>{order.externalNumber}</Link><small>{order.imported?.customerReference || '—'}</small></td>
+        <td>{order.imported?.customer?.name || '—'}</td><td>{order.imported?.carrier?.originalName || '—'}</td><td>{order.imported?.relation || '—'}</td>
+        <td>{order.imported?.loading?.city || '—'}<small>{formatTransportOrderWindow(order.imported?.loading?.window?.from)}</small></td><td>{order.imported?.unloading?.city || '—'}<small>{formatTransportOrderWindow(order.imported?.unloading?.window?.until)}</small></td>
+        <td><Link to={`/sendungsverfolgung/${encodeURIComponent(order.id)}`}><StaticText source="Verfolgung öffnen" /></Link></td>
+      </tr>)}
+    </tbody></table></div>
+    <nav className="order-record-list__pagination" aria-label={language === 'en' ? 'Order pagination' : 'Auftragsseitennavigation'}><label><StaticText source="Einträge pro Seite" /> <select value={filters.pageSize} onChange={event => change('pageSize', Number(event.target.value))}>{[25, 50, 100].map(size => <option key={size}>{size}</option>)}</select></label><button type="button" className="button button--secondary" disabled={pending || pageIndex === 0} onClick={() => { setLoading(true); setPageIndex(value => value - 1) }}><StaticText source="Zurück" /></button><span><StaticText source="Seite" /> {pageIndex + 1}</span><button type="button" className="button button--secondary" disabled={pending || !data.hasMore} onClick={next}><StaticText source="Weiter" /></button></nav>
+  </div>
 }
 
 export default function TransportOrdersPage() {
-  const { canEdit } = usePermissions()
-  const { user, profile } = useAuth()
-  const { t, language } = useLanguage()
-  const navigate = useNavigate()
-  const [preferenceSaver] = useState(() => {
-    if (!transportOrderListPreferenceSavers.has(user.uid)) {
-      transportOrderListPreferenceSavers.set(user.uid, createTransportOrderPreferenceSaver(
-        (preferences) => saveOwnTransportOrderListPreferences(preferences, user.uid),
-        normalizeTransportOrderListPreferences(profile?.userPreferences?.transportOrderList),
-      ))
-    }
-    return transportOrderListPreferenceSavers.get(user.uid)
-  })
-  const initialPreferences = () => preferenceSaver.getPreferences()
-  const [search, setSearch] = useState(() => initialPreferences().search)
-  const [trackingFilter, setTrackingFilter] = useState(() => initialPreferences().trackingFilter)
-  const [attentionFilter, setAttentionFilter] = useState(() => initialPreferences().attentionFilter)
-  const [iconFilters, setIconFilters] = useState(() => initialPreferences().iconFilters)
-  const [relationFilter, setRelationFilter] = useState(() => initialPreferences().relation)
-  const [loadingFrom, setLoadingFrom] = useState(() => initialPreferences().loadingFrom)
-  const [loadingUntil, setLoadingUntil] = useState(() => initialPreferences().loadingUntil)
-  const [relations, setRelations] = useState([])
-  const [sort, setSort] = useState(() => initialPreferences().sort)
-  const [pageSize, setPageSize] = useState(() => initialPreferences().pageSize)
-  const [cursors, setCursors] = useState([null])
-  const [pageIndex, setPageIndex] = useState(0)
-  const [page, setPage] = useState({ orders: [], hasMore: false, nextCursor: null })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [forecastModal, setForecastModal] = useState(null)
-  const [forecastLoading, setForecastLoading] = useState(false)
-  const [forecastRefreshing, setForecastRefreshing] = useState(false)
-  const [forecastRequestMail, setForecastRequestMail] = useState(null)
-  const [forecastRequestMailSaving, setForecastRequestMailSaving] = useState(false)
-  const tableRef = useRef(null)
-  const preferenceSaveStatus = useSyncExternalStore(preferenceSaver.subscribe, preferenceSaver.getStatus)
-  const cursor = cursors[pageIndex]
-  const preferences = useMemo(() => ({ search, trackingFilter, attentionFilter, iconFilters, relation: relationFilter, loadingFrom, loadingUntil, sort, pageSize }), [search, trackingFilter, attentionFilter, iconFilters, relationFilter, loadingFrom, loadingUntil, sort, pageSize])
-
-  useEffect(() => {
-    if (!user?.uid) return undefined
-    const savedPreferences = normalizeTransportOrderListPreferences(preferences)
-    preferenceSaver.update(savedPreferences)
-    const timeout = window.setTimeout(() => { void preferenceSaver.flush() }, 350)
-    return () => window.clearTimeout(timeout)
-  }, [preferences, user?.uid, preferenceSaver])
-
-  useEffect(() => () => {
-    void preferenceSaver.flush()
-  }, [preferenceSaver])
-
-  useEffect(() => {
-    let cancelled = false
-    listTransportOrdersPage({ cursor, pageSize, search, relation: relationFilter, loadingFrom, loadingUntil, sort, trackingStatus: trackingFilter, attention: attentionFilter, iconFilters })
-      .then((result) => {
-        if (cancelled) return
-        setPage(visibleTransportOrderPage(result, pageSize))
-        setError('')
-        if (pageIndex > 0) tableRef.current?.scrollIntoView({ block: 'start' })
-      })
-      .catch(() => { if (!cancelled) setError('Die Auftragsliste konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [cursor, pageIndex, pageSize, search, sort, trackingFilter, attentionFilter, iconFilters, relationFilter, loadingFrom, loadingUntil])
-
-  useEffect(() => {
-    let cancelled = false
-    listTransportOrderRelations().then((values) => { if (!cancelled) setRelations(values) }).catch(() => { if (!cancelled) setRelations([]) })
-    return () => { cancelled = true }
-  }, [])
-
-  function resetList(update) {
-    setLoading(true)
-    setError('')
-    setCursors([null])
-    setPageIndex(0)
-    update()
-  }
-  function toggleSort(key) { resetList(() => setSort((current) => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }))) }
-  function selectTrackingFilter(value) { resetList(() => setTrackingFilter(value)) }
-  function selectAttentionFilter(value) { resetList(() => setAttentionFilter(value)) }
-  function toggleIconFilter(key, value = true) { resetList(() => setIconFilters((current) => ({ ...current, [key]: typeof value === 'boolean' ? !current[key] : current[key] === value ? '' : value }))) }
-  function updateSearch(value) { resetList(() => setSearch(value)) }
-  function updateRelation(value) { resetList(() => setRelationFilter(value)) }
-  function updateLoadingFrom(value) { resetList(() => setLoadingFrom(value)) }
-  function updateLoadingUntil(value) { resetList(() => setLoadingUntil(value)) }
-  function updatePageSize(value) { resetList(() => setPageSize(Number(value))) }
-  function resetFilters() { resetList(() => { const defaults = defaultTransportOrderListPreferences(); setSearch(defaults.search); setTrackingFilter(defaults.trackingFilter); setAttentionFilter(defaults.attentionFilter); setIconFilters(defaults.iconFilters); setRelationFilter(defaults.relation); setLoadingFrom(defaults.loadingFrom); setLoadingUntil(defaults.loadingUntil) }) }
-  async function openForecast(event, orderId) {
-    event.stopPropagation()
-    setForecastLoading(true)
-    setForecastModal({ orderId, data: null, error: '', recipient: '' })
-    try {
-      const [data, tracking] = await Promise.all([getShipmentTrackingForecast(orderId), getShipmentTracking(orderId)])
-      setForecastModal({ orderId, data, error: '', recipient: trackingCarrierRecipient(tracking.tracking) })
-    } catch {
-      setForecastModal({ orderId, data: null, error: 'Die Transportprognose konnte nicht geladen werden.', recipient: '' })
-    } finally { setForecastLoading(false) }
-  }
-  async function refreshForecast() {
-    const orderId = forecastModal?.orderId
-    if (!orderId) return
-    setForecastRefreshing(true)
-    setForecastModal((current) => current?.orderId === orderId ? { ...current, error: '' } : current)
-    try {
-      await refreshShipmentTrackingForecast(orderId)
-      const data = await getShipmentTrackingForecast(orderId)
-      setForecastModal((current) => current?.orderId === orderId ? { ...current, data, error: '' } : current)
-    } catch {
-      setForecastModal((current) => current?.orderId === orderId ? { ...current, error: 'Die Transportprognose konnte nicht aktualisiert werden.' } : current)
-    } finally { setForecastRefreshing(false) }
-  }
-  async function sendForecastRequestMail(payload) {
-    const orderId = forecastRequestMail?.orderId
-    if (!orderId) return
-    setForecastRequestMailSaving(true)
-    setError('')
-    try {
-      await sendManualShipmentTrackingMail(orderId, payload)
-      setForecastRequestMail(null)
-    } catch (caught) {
-      setError(shipmentTrackingManualMailErrorMessage(caught))
-    } finally { setForecastRequestMailSaving(false) }
-  }
-  function goToNextPage() {
-    if (!page.hasMore || !page.nextCursor) return
-    setLoading(true)
-    setCursors((current) => [...current.slice(0, pageIndex + 1), page.nextCursor])
-    setPageIndex((current) => current + 1)
-  }
-  function goToPreviousPage() {
-    if (pageIndex === 0) return
-    setLoading(true)
-    setPageIndex((current) => current - 1)
-  }
-  function renderSortableHeader({ key, label }) {
-    const direction = sort.key === key ? sort.direction : 'none'
-    return <th key={key} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}><span><StaticText source={label} /></span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{t(direction === 'none' ? 'orders.sort' : direction === 'asc' ? 'orders.sortAscending' : 'orders.sortDescending')}</span></button></th>
-  }
-  const openOrder = (orderId) => navigate(transportOrderPath(orderId))
-
-  return <div className="transport-orders-page">
-    <div className="list-toolbar">
-      <div className="transport-orders-filter-stack">
-        <div className="list-controls transport-orders-filters">
-          <label className="search-field"><span className="sr-only"><StaticText source="Transportaufträge suchen" /></span><TranslatedProps sources={{ placeholder: 'TA-Nummer, Kunde oder Unternehmer suchen' }}><input type="search" value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="TA-Nummer, Kunde oder Unternehmer suchen" /></TranslatedProps></label>
-          <label className="transport-orders-tracking-filter"><span><StaticText source="Sendungsverfolgung" /></span><select value={trackingFilter} onChange={(event) => selectTrackingFilter(event.target.value)}>{trackingFilterOptions.map((option) => <option key={option.value} value={option.value}><StaticText source={option.label} /></option>)}</select></label>
-          <label className="transport-orders-tracking-filter"><span>Handlung</span><select value={attentionFilter} onChange={(event) => selectAttentionFilter(event.target.value)}><option value="all">Alle</option><option value="action">Handlung offen</option><option value="critical">Kritisch</option></select></label>
-          <label className="transport-orders-tracking-filter"><span><StaticText source="Relation" /></span><select value={relationFilter} onChange={(event) => updateRelation(event.target.value)}><option value=""><StaticText source="Alle Relationen" /></option>{relations.map((relation) => <option key={relation} value={relation}>{relation}</option>)}</select></label>
-          <label className="transport-orders-tracking-filter"><span><StaticText source="Start von" /></span><input type="date" value={loadingFrom} max={loadingUntil || undefined} onChange={(event) => updateLoadingFrom(event.target.value)} /></label>
-          <label className="transport-orders-tracking-filter"><span><StaticText source="Start bis" /></span><input type="date" value={loadingUntil} min={loadingFrom || undefined} onChange={(event) => updateLoadingUntil(event.target.value)} /></label>
-          <button className="button button--secondary transport-orders-filters__reset" type="button" disabled={!search && trackingFilter === defaultTrackingFilter && attentionFilter === 'all' && !iconFilters.automationPaused && !iconFilters.mailReview && !iconFilters.licensePlate && !iconFilters.stopwatch && !iconFilters.truck && !relationFilter && !loadingFrom && !loadingUntil} onClick={resetFilters}><StaticText source="Filter zurücksetzen" /></button>
-        </div>
-        <section className="transport-orders-icon-filters" aria-label="Filter-Verfolgung">
-          <span className="transport-orders-icon-filters__label">Filter-Verfolgung</span>
-          <div className="transport-orders-icon-filter-group transport-orders-icon-filter-group--single" aria-label="Pausierte Automatik">
-            <IconFilterButton active={iconFilters.automationPaused} title="Pausierte Automatik" label="Pausierte Automatik" onClick={() => toggleIconFilter('automationPaused')} tone="critical"><FaBan /></IconFilterButton>
-          </div>
-          <div className="transport-orders-icon-filter-group transport-orders-icon-filter-group--single" aria-label="Eingangsmail manuell prüfen">
-            <IconFilterButton active={iconFilters.mailReview} title="Eingangsmail manuell prüfen" label="Eingangsmail manuell prüfen" onClick={() => toggleIconFilter('mailReview')} tone="warning"><FaEnvelope /></IconFilterButton>
-          </div>
-          <div className="transport-orders-icon-filter-group transport-orders-icon-filter-group--single" aria-label="Kennzeichen fehlt">
-            <IconFilterButton active={iconFilters.licensePlate} title="Kennzeichen fehlt" label="Kennzeichen fehlt" onClick={() => toggleIconFilter('licensePlate')} tone="warning"><LicensePlateIcon /></IconFilterButton>
-          </div>
-          <div className="transport-orders-icon-filter-group" aria-label="Stopuhr">
-            <IconFilterButton active={iconFilters.stopwatch === 'success'} title="Grüne Stopuhr" label="Grüne Stopuhr" onClick={() => toggleIconFilter('stopwatch', 'success')} tone="success"><FaStopwatch /></IconFilterButton>
-            <IconFilterButton active={iconFilters.stopwatch === 'warning'} title="Gelbe Stopuhr" label="Gelbe Stopuhr" onClick={() => toggleIconFilter('stopwatch', 'warning')} tone="warning"><FaStopwatch /></IconFilterButton>
-            <IconFilterButton active={iconFilters.stopwatch === 'critical'} title="Rote Stopuhr" label="Rote Stopuhr" onClick={() => toggleIconFilter('stopwatch', 'critical')} tone="critical"><FaStopwatch /></IconFilterButton>
-          </div>
-          <div className="transport-orders-icon-filter-group" aria-label="LKW-Hinweis">
-            <IconFilterButton active={iconFilters.truck === 'info'} title="Blauer LKW-Hinweis" label="Blauer LKW-Hinweis" onClick={() => toggleIconFilter('truck', 'info')} tone="info"><FaTruck /></IconFilterButton>
-            <IconFilterButton active={iconFilters.truck === 'success'} title="Grüner LKW-Hinweis" label="Grüner LKW-Hinweis" onClick={() => toggleIconFilter('truck', 'success')} tone="success"><FaTruck /></IconFilterButton>
-            <IconFilterButton active={iconFilters.truck === 'warning'} title="Gelber LKW-Hinweis" label="Gelber LKW-Hinweis" onClick={() => toggleIconFilter('truck', 'warning')} tone="warning"><FaTruck /></IconFilterButton>
-            <IconFilterButton active={iconFilters.truck === 'critical'} title="Roter LKW-Hinweis" label="Roter LKW-Hinweis" onClick={() => toggleIconFilter('truck', 'critical')} tone="critical"><FaTruck /></IconFilterButton>
-          </div>
-        </section>
-      </div>
-      {canEdit('dataImports') && <Link className="button" to="/transportauftraege/import"><StaticText source="Transportaufträge importieren" /></Link>}
-    </div>
-    {error && <p className="form-error">{<StaticText source={error} />}</p>}
-    {preferenceSaveStatus === 'error' && <div className="form-error" role="alert"><p>{t('orders.preferencesSaveError')}</p><button className="button button--secondary" type="button" onClick={() => { void preferenceSaver.flush() }}>{t('orders.preferencesRetry')}</button></div>}
-    <div className="transport-orders-table-frame" ref={tableRef}><table className="data-table transport-orders-table transport-orders-table--list"><thead><tr>{columns.map(renderSortableHeader)}</tr></thead><tbody>{loading ? <tr><td className="table-state" colSpan={columns.length}><StaticText source={"Transportaufträge werden geladen …"} /></td></tr> : !page.orders.length ? <tr><td className="table-state" colSpan={columns.length}><div className="transport-orders-empty"><span><StaticText source={emptyTrackingFilterMessage(trackingFilter)} /></span>{trackingFilter !== 'all' && <button className="button button--secondary" type="button" onClick={() => selectTrackingFilter('all')}><StaticText source={"Filter zurücksetzen"} /></button>}</div></td></tr> : page.orders.map((order) => <tr className="transport-orders-table__row" key={order.id} role="link" tabIndex="0" aria-label={t('orders.open', { number: order.externalNumber })} onClick={() => openOrder(order.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openOrder(order.id) } }}>
-      <td><strong>{order.externalNumber}</strong></td>
-      <td title={formatTransportOrderRelation(order.imported?.relation)}>{formatTransportOrderRelation(order.imported?.relation)}</td>
-      <td><span className={`transport-orders-tracking-status transport-orders-tracking-status--${trackingStatusForList(order.trackingStatus).className}`}><StaticText source={trackingStatusForList(order.trackingStatus).label} /></span></td>
-      <td><span className="transport-orders-attention-icons">{(order.attention?.visible || []).map((item) => { const Icon = attentionIcon(item); return <span key={item.id} className={`transport-orders-attention-icons__item transport-orders-attention-icons__item--${item.severity}`} title={`${item.label}: ${item.detail}`} aria-label={`${item.label}: ${item.detail}`}>{item.id === 'license-plate' ? <LicensePlateIcon /> : <Icon aria-hidden="true" />}</span> })}{order.attention?.moreCount > 0 && <span>+{order.attention.moreCount}</span>}<ShipmentTrackingHistoryIndicator history={order.attention?.history} /></span></td>
-      <td>{order.forecast && <button className={`transport-orders-forecast-button transport-orders-forecast-button--${order.forecast.state}`} type="button" onClick={(event) => void openForecast(event, order.id)} aria-label={`Transportprognose: ${translateStatic(language, forecastStateLabel(order.forecast.state))}`} title={`Transportprognose: ${translateStatic(language, forecastStateLabel(order.forecast.state))}`}>{['arrival', 'completed'].includes(order.forecast.kind) ? <FaHouse aria-hidden="true" /> : <FaTruckFast aria-hidden="true" />}</button>}</td>
-      <td title={order.imported?.loading?.city || ''}>{order.imported?.loading?.city || '—'}</td>
-      <td>{formatTransportOrderWindow(order.imported?.loading?.window?.from)}</td>
-      <td title={order.imported?.unloading?.city || ''}>{order.imported?.unloading?.city || '—'}</td>
-      <td>{formatTransportOrderWindow(order.imported?.unloading?.window?.until)}</td>
-      <td className="transport-orders-table__partner" title={order.imported?.customer?.name || ''}>{order.imported?.customer?.name || '—'}</td>
-      <td className="transport-orders-table__partner" title={order.imported?.carrier?.originalName || ''}>{order.imported?.carrier?.originalName || '—'}</td>
-    </tr>)}</tbody></table></div>
-    {!loading && !error && page.orders.length > 0 && <TranslatedProps sources={{"aria-label":"Seitennavigation für Transportaufträge"}}><nav className="transport-orders-pagination" aria-label="Seitennavigation für Transportaufträge"><label className="transport-orders-pagination__page-size"><span><StaticText source="Einträge pro Seite" /></span><select value={pageSize} onChange={(event) => updatePageSize(event.target.value)}>{transportOrderListPageSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><div className="transport-orders-pagination__controls"><TranslatedProps sources={{"aria-label":"Vorherige Seite","title":"Vorherige Seite"}}><button className="button button--secondary transport-orders-pagination__button" type="button" disabled={pageIndex === 0} onClick={goToPreviousPage} aria-label="Vorherige Seite" title="Vorherige Seite"><FaChevronLeft aria-hidden="true" /><span className="sr-only"><StaticText source="Vorherige Seite" /></span></button></TranslatedProps><span className="transport-orders-pagination__current"><span><StaticText source="Seite" /></span><strong>{pageIndex + 1}</strong></span><TranslatedProps sources={{"aria-label":"Nächste Seite","title":"Nächste Seite"}}><button className="button button--secondary transport-orders-pagination__button" type="button" disabled={!page.hasMore} onClick={goToNextPage} aria-label="Nächste Seite" title="Nächste Seite"><FaChevronRight aria-hidden="true" /><span className="sr-only"><StaticText source="Nächste Seite" /></span></button></TranslatedProps></div></nav></TranslatedProps>}
-    {forecastModal && <ShipmentTrackingForecastModal data={forecastModal.data} loading={forecastLoading} error={forecastModal.error} refreshing={forecastRefreshing} onRefresh={forecastModal.data?.forecast?.kind === 'arrival' ? undefined : () => void refreshForecast()} onRequestForecastUpdate={(templateId) => setForecastRequestMail({ orderId: forecastModal.orderId, recipient: forecastModal.recipient, templateId })} requestDisabled={!canEdit('transportOrders') || !forecastModal.recipient} onClose={() => setForecastModal(null)} />}
-    {forecastRequestMail && <ShipmentTrackingManualMailModal orderId={forecastRequestMail.orderId} initialTemplateId={forecastRequestMail.templateId} defaultRecipient={forecastRequestMail.recipient} saving={forecastRequestMailSaving} onClose={() => setForecastRequestMail(null)} onSend={(payload) => void sendForecastRequestMail(payload)} />}</div>
+  const { user } = useAuth()
+  return <OrderList key={user.uid} uid={user.uid} />
 }

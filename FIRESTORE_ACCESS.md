@@ -176,3 +176,14 @@ Paletten-/Kalender-Clientdiagnosen prüfen Modulrechte und feste Meldungstexte;
 ## Betriebsgrenzen
 
 Die Rules und Functions beschreiben den Anwendungszugriff. Die erstmalige Einrichtung eines vertrauenswürdigen Superadmin-Kontos, die konkrete Produktions-Identitätsverwaltung sowie Console-seitige Enforcement-Schalter sind nicht aus dem Repository ableitbar und werden hier nicht festgelegt.
+
+## Eigenständiger Auftragsbereich (lokale Erweiterung)
+
+Aufträge und Sendungsverfolgung verwenden gemeinsam `transportOrders`.
+Die neue Auftragsliste lädt keine Trackingdaten. Auftragsaktualisierungen
+verlangen zusätzlich `dataImports: edit`, Stammdatenaktualisierungen
+`masterData: edit`; Gesamtaktualisierung verlangt beide Rechte. Refreshbelege
+unter `transportOrders/{id}/refreshes` sind für Auftragsleser lesbar und nur
+serverseitig schreibbar. Reservierungen bleiben direkt gesperrt. Diagnose
+`transport-orders` verlangt Auftragsleserecht. Details und Releaseumfang:
+[Auftragsbereich](docs/operations/order-workspace.md).

@@ -10,7 +10,7 @@ const titleKeys = {
   'Dashboard': 'nav.dashboard', 'Team Brennpunkt': 'title.team', 'Personalverwaltung': 'title.personnel',
   'Unternehmer importieren': 'title.carrierImport', 'Stammdaten importieren': 'title.masterImport',
   'Kunden & Unternehmer': 'nav.partners', 'Transportaufträge importieren': 'title.orderImport',
-  'Auftragsliste': 'nav.orders', 'Palettenmanagement': 'nav.pallets', 'News': 'nav.news',
+  'Sendungsverfolgung': 'nav.shipmentTracking', 'Auftragsliste': 'nav.orders', 'Palettenmanagement': 'nav.pallets', 'News': 'nav.news',
   'Dokumente': 'nav.documents', 'Vorlagen': 'nav.templates', 'To-dos': 'nav.todos',
   'Notizen': 'nav.notes', 'Schäden': 'nav.damages', 'Insolvenzen': 'nav.insolvencies',
   'Gericht / Streit': 'nav.disputes', 'Inkasso': 'nav.collections', 'AGB-Prüfer': 'nav.termsChecker',

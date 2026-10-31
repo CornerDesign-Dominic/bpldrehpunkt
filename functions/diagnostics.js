@@ -4,10 +4,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
+  'transport-orders': ['load', 'list', 'history', 'refresh'],
   pallets: ['load', 'save', 'rebuild'],
   calendar: ['load', 'save', 'delete'],
   kvp: ['load', 'save', 'history'],
@@ -34,6 +35,7 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
+  'transport-orders': { load: 'Auftrag konnte nicht geladen werden.', list: 'Auftragsliste konnte nicht geladen werden.', history: 'Auftragshistorie konnte nicht geladen werden.', refresh: 'Auftrag konnte nicht aktualisiert werden.' },
   pallets: { load: 'Palettenkonten konnten nicht geladen werden.', save: 'Palettenbuchung konnte nicht gespeichert werden.', rebuild: 'Palettenkonten konnten nicht aufgebaut werden.' },
   calendar: { load: 'Kalenderdaten konnten nicht geladen werden.', save: 'Kalendertermin konnte nicht gespeichert werden.', delete: 'Kalendertermin konnte nicht gelöscht werden.' },
   kvp: { load: 'K.V.P.-Daten konnten nicht geladen werden.', save: 'K.V.P.-Eintrag konnte nicht gespeichert werden.', history: 'K.V.P.-Änderungsverlauf konnte nicht geladen werden.' },
@@ -44,6 +46,7 @@ const MAILBOX_MESSAGES = {
 
 export function canReportLinkDiagnostic(profile, module) {
   const view = (key) => profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[key])
+  if (module === 'transport-orders') return view('transportOrders')
   if (module === 'pallets') return view('pallets')
   if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
   if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps'].includes(module)) return true

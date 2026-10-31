@@ -39,8 +39,12 @@ fachlich abgenommen wurde. Historische Releases stehen in
   zusätzlich manueller TA-Abruf über Power Automate (Einrichtung und Prüfstand
   unter [DyCoS-Schnittstelle](docs/planning/dycos-csv-import-uebergangsloesung.md#18-manueller-ta-abruf-in-drehpunkt)).
 - Kontrollierte Partnerzusammenführung und Trennung mit eigener Berechtigung
-- Transportaufträge mit Auftragsliste, persönlichen Listenansichten und
+- Transportaufträge mit eigener dreispaltiger Auftragsakte und Fachreitern,
+  eigenständiger Auftragsliste, persönlichen Listenansichten und
   Verknüpfungen zu Aufgaben, Fällen und Palettenbewegungen
+- Eigenständige Sendungsverfolgung unter `/sendungsverfolgung`; gegenseitige
+  Auftragsverknüpfung, vorerst vollständiger bisheriger Funktionsumfang.
+  Ablauf, Daten- und Aktualisierungsvertrag: [Auftragsbereich](docs/operations/order-workspace.md).
 - Sendungsverfolgung mit manueller Erfassung, Statusmail-Eingang,
   KI-Auswertung, Handlungshinweisen, Prognose und Routenberechnung
 - CRM einschließlich Aktivitäten und Bewertungen

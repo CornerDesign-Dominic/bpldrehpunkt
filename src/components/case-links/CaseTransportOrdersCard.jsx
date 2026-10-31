@@ -1,6 +1,6 @@
 import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import Link from '../ui/ContextLink.jsx'
 import { EditIcon } from '../icons.jsx'
 import TodoTransportOrderPicker from '../todos/TodoTransportOrderPicker.jsx'
 import { linkTransportOrderToCase, listTransportOrderLinksForCase, unlinkTransportOrderFromCase } from '../../lib/caseTransportLinks.js'
