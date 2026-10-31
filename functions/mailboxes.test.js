@@ -208,7 +208,74 @@ test('uncertain send never automatically retries and survives reloading the draf
   assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft.sendStatus, 'unknown')
   assert.equal(attempts, 1)
   await assert.rejects(f.handlers.sendMailboxReply(request({ ...reply, operationId: 'new-operation-123456' })), { code: 'aborted' })
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, revision: 0 } })), { code: 'aborted' })
   assert.equal(attempts, 1)
+})
+
+test('five distinct replies to one incoming message preserve receipts and reject stale windows and replays', async () => {
+  const f = fixture()
+  let revision = 0
+  const receipts = []
+  for (let index = 0; index < 5; index++) {
+    const saved = await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: `Antwort ${index + 1}`, revision } }))
+    revision = saved.draft.revision
+    const next = { ...reply, body: saved.draft.body, revision, operationId: `separate-reply-${index}-0123456789` }
+    const statuses = await Promise.all([f.handlers.sendMailboxReply(request(next)), f.handlers.sendMailboxReply(request(next))])
+    assert.ok(statuses.every(result => ['accepted', 'unknown'].includes(result.status)))
+    assert.equal((await f.handlers.getMailboxDraft(request({ messageId: reply.messageId }))).draft.body, '')
+    receipts.push(next)
+  }
+  assert.equal(f.fetchCount(), 5)
+  for (const old of receipts) assert.equal((await f.handlers.sendMailboxReply(request(old))).status, 'accepted')
+  assert.equal(f.fetchCount(), 5)
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, revision: 1 } })), { code: 'aborted' })
+  await assert.rejects(f.handlers.sendMailboxReply(request({ ...reply, revision: 1, operationId: 'stale-window-0123456789' })), { code: 'aborted' })
+  assert.equal(f.fetchCount(), 5)
+  assert.equal([...f.db.records.keys()].filter(key => key.startsWith('mailboxSendOperations/')).length, 5)
+})
+
+test('new replies allow fresh suggestions without carrying the previous reply evidence or late suggestions', async () => {
+  let complete, entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const f = fixture({ fetch: async () => response({}), generateReplySuggestion: async () => { entered(); return new Promise(resolve => { complete = resolve }) } })
+  const running = f.handlers.suggestMailboxReply(request({ messageId: reply.messageId }))
+  await ready
+  await f.handlers.sendMailboxReply(request(reply))
+  const key = `mailboxDrafts/${hash(`owner|${connectionId}|${reply.messageId}`)}`
+  Object.assign(f.db.records.get(key), { knowledgeEvidenceId: 'e'.repeat(64), lastSuggestion: { hash: 'old' } })
+  const next = await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: '', revision: 0 } }))
+  assert.equal(next.draft.revision, 1)
+  assert.equal(f.db.records.get(key).operationId, undefined)
+  assert.equal(f.db.records.get(key).knowledgeEvidenceId, undefined)
+  assert.equal(f.db.records.get(key).lastSuggestion, undefined)
+  complete('Veralteter Vorschlag')
+  await assert.rejects(running, { code: 'aborted' })
+  f.deps.generateReplySuggestion = async () => 'Neuer Vorschlag'
+  assert.equal((await f.handlers.suggestMailboxReply(request({ messageId: reply.messageId }))).suggestion, 'Neuer Vorschlag')
+})
+
+test('late cleanup of an accepted send cannot erase the next reply draft', async () => {
+  let release, entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const f = fixture({ diagnostic: async event => {
+    if (event.code === 'knowledge_evidence_ack_failed') { entered(); await new Promise(resolve => { release = resolve }) }
+  } })
+  const key = `mailboxDrafts/${hash(`owner|${connectionId}|${reply.messageId}`)}`
+  const evidenceId = 'e'.repeat(64)
+  f.db.records.set(key, { knowledgeEvidenceId: evidenceId })
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, {})
+  const originalDoc = f.db.doc
+  f.db.doc = path => {
+    const reference = originalDoc(path)
+    if (path === `knowledgeGapEvidence/${evidenceId}`) reference.update = async () => { throw new Error('acknowledgement unavailable') }
+    return reference
+  }
+  const sending = f.handlers.sendMailboxReply(request(reply))
+  await ready
+  await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: 'Nächste Antwort', revision: 0 } }))
+  release()
+  assert.equal((await sending).status, 'accepted')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: reply.messageId }))).draft.body, 'Nächste Antwort')
 })
 
 test('OAuth state has encrypted PKCE, expires, and is consumed once even when permission is revoked', async () => {
@@ -289,6 +356,8 @@ test('draft optimistic revision rejects stale saves and stale sends without losi
   assert.equal(f.fetchCount(), 0)
   assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft.body, draft.body)
   await f.handlers.sendMailboxReply(request({ ...reply, revision: 1 }))
+  const next = await f.handlers.saveMailboxDraft(request({ messageId: 'message-1', draft: { ...draft, body: 'Weitere Antwort', revision: 1 } }))
+  assert.equal(next.draft.revision, 2)
   await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: 'message-1', draft: { ...draft, revision: 1 } })), { code: 'aborted' })
 })
 

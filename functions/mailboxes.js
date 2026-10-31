@@ -483,7 +483,7 @@ export function createMailboxHandlers(deps = {}) {
       const mailKey = digest(`${context.connectionId}|${messageId}`)
       const lock = randomBytes(16).toString('hex')
       const ref = draftRef({ ...context, messageId })
-      await db().runTransaction(async tx => {
+      const replyGeneration = await db().runTransaction(async tx => {
         const quota = (await tx.get(quotaRef)).data() || {}
         const draft = (await tx.get(ref)).data()
         if (draft?.operationId) fail('failed-precondition', 'Für diese Nachricht wurde bereits eine Antwort versendet oder der Versand gestartet.')
@@ -493,6 +493,7 @@ export function createMailboxHandlers(deps = {}) {
         if (attempts.length >= 20) fail('resource-exhausted', 'Du kannst bis zu 20 Vorschläge pro Stunde erstellen. Bitte später erneut versuchen.')
         running[mailKey] = { lock, until: now() + 180000 }
         tx.set(quotaRef, { attempts: [...attempts, now()], running, expiresAt: now() + 7200000 })
+        return draft?.replyGeneration || 0
       })
       try {
         const mail = await graph(await accessToken(context), `${mailboxPath(context)}/messages/${segment(messageId)}?$select=id,subject,body,from,bodyPreview`)
@@ -500,7 +501,8 @@ export function createMailboxHandlers(deps = {}) {
         const selection = catalog ? await (deps.selectReplyKnowledge || selectReplyKnowledge)({ catalog, mail, userId: context.uid }) : null
         const suggestion = validateReplySuggestion(await (deps.generateReplySuggestion || generateReplySuggestion)({ mail, input, userId: context.uid, knowledge: selection }))
         const current = await owned(request, true)
-        if ((await ref.get()).data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
+        const currentDraft = (await ref.get()).data()
+        if (currentDraft?.operationId || (currentDraft?.replyGeneration || 0) !== replyGeneration) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
         if (selection && !hasReplyKnowledgeAccess(current.profile)) fail('permission-denied', 'Die Wissensberechtigung wurde inzwischen geändert.')
         const knowledge = { status: !selection || selection.limited || selection.coverage === 'uncertain' ? 'unavailable' : selection.coverage === 'full' ? 'grounded' : 'unmatched', sources: (selection?.sources || []).map(({ id, kind, revision, title }) => ({ id, kind, revision, title })), warnings: [...(!selection ? ['knowledge_access_unavailable'] : []), ...(selection?.limited ? ['knowledge_search_limited'] : []), ...(selection?.coverage === 'uncertain' ? ['knowledge_match_uncertain'] : [])] }
         await db().runTransaction(async tx => {
@@ -508,7 +510,7 @@ export function createMailboxHandlers(deps = {}) {
           const [draftSnapshot, connectionSnapshot, profileSnapshot, ...sources] = await Promise.all([
             tx.get(ref), tx.get(context.ref), ...(selection ? [tx.get(db().doc(`users/${context.uid}`))] : [Promise.resolve(null)]), ...sourceRefs.map(reference => tx.get(reference)),
           ])
-          if (draftSnapshot.data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
+          if (draftSnapshot.data()?.operationId || (draftSnapshot.data()?.replyGeneration || 0) !== replyGeneration) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
           if (connectionSnapshot.data()?.ownerId !== context.uid || connectionSnapshot.data()?.status !== 'connected') fail('permission-denied', 'Die Postfachverbindung wurde inzwischen geändert.')
           if (selection) {
             assertMailboxAccess(profileSnapshot.data(), true)
@@ -559,10 +561,14 @@ export function createMailboxHandlers(deps = {}) {
       const ref = draftRef({ ...context, messageId: request.data.messageId })
       await db().runTransaction(async tx => {
         const previous = (await tx.get(ref)).data()
-        const lastSuggestion = previous?.lastSuggestion?.hash === replySuggestionHash(draft.suggestion || '') ? previous.lastSuggestion : null
-        if ((previous?.draft?.revision || 0) !== revision || previous?.operationId) fail('aborted', 'Der Entwurf wurde bereits geändert oder versendet. Bitte neu laden; Ihr Text bleibt erhalten.')
+        const previousSend = previous?.operationId ? (await tx.get(db().doc(`mailboxSendOperations/${digest(`${context.uid}|${previous.operationId}`)}`))).data() : null
+        const newReply = Boolean(previous?.operationId)
+        const lastSuggestion = !newReply && previous?.lastSuggestion?.hash === replySuggestionHash(draft.suggestion || '') ? previous.lastSuggestion : null
+        if ((previous?.draft?.revision || 0) !== revision || (newReply && previousSend?.status !== 'accepted')) fail('aborted', 'Der Entwurf wurde bereits geändert oder der Versandstatus ist unklar. Bitte neu laden; Ihr Text bleibt erhalten.')
         draft.revision = revision + 1
-        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}), ...(/^[a-f0-9]{64}$/.test(previous?.knowledgeEvidenceId || '') ? { knowledgeEvidenceId: previous.knowledgeEvidenceId } : {}) })
+        // A confirmed send closes one reply, not the incoming message. Keep its receipt
+        // immutable, and start a fresh versioned draft without the previous AI evidence.
+        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, replyGeneration: (previous?.replyGeneration || 0) + (newReply ? 1 : 0), updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}), ...(!newReply && /^[a-f0-9]{64}$/.test(previous?.knowledgeEvidenceId || '') ? { knowledgeEvidenceId: previous.knowledgeEvidenceId } : {}) })
       })
       return { draft }
     }),
@@ -616,7 +622,13 @@ export function createMailboxHandlers(deps = {}) {
           await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
         }
         // Preserve the send receipt, but remove sent text and AI drafting metadata.
-        try { await persistedDraft.update({ draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } }) } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
+        try {
+          await db().runTransaction(async tx => {
+            const current = (await tx.get(persistedDraft)).data()
+            // Another window may already have started the next reply after acceptance.
+            if (current?.operationId === operationId && current.draft?.revision === revision) tx.update(persistedDraft, { draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } })
+          })
+        } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
         return { status: 'accepted', operationId }
       } catch {
         await operation.update({ status: 'unknown', finishedAt: now() })

@@ -249,6 +249,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   const dismissToast = useCallback(() => setToast(''), [])
   const active = useRef(true)
   const operation = useRef(null)
+  const sending = useRef(false)
   const revision = useRef(0)
   const dirty = Boolean(draft && JSON.stringify(draft) !== saved)
 
@@ -264,10 +265,18 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   useEffect(() => {
     let mounted = true
     active.current = true
-    mailboxCall('getMailboxDraft', identity).then(({ draft: stored }) => {
+    mailboxCall('getMailboxDraft', identity).then(async ({ draft: stored }) => {
       if (!mounted) return
+      const previouslySent = stored?.sendStatus === 'accepted'
+      if (previouslySent) {
+        // Also prepare a fresh reply when returning to a previously answered mail.
+        // This completes before exposing the draft, including an already opened dialog.
+        const result = await mailboxCall('saveMailboxDraft', { ...identity, draft: { ...stored, body: '', suggestion: '', suggestionInstruction: '' } })
+        if (!mounted) return
+        stored = result.draft
+      }
       const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true, suggestion: stored.sendStatus === 'accepted' ? '' : stored.suggestion || '', suggestionInstruction: stored.sendStatus === 'accepted' ? '' : stored.suggestionInstruction || '', suggestionKnowledge: stored.sendStatus === 'accepted' ? null : stored.suggestionKnowledge || null } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false, suggestion: '', suggestionInstruction: '', suggestionKnowledge: null }
-      const cached = stored?.sendStatus === 'accepted' ? null : unsavedDrafts.get(cacheKey)
+      const cached = previouslySent ? null : unsavedDrafts.get(cacheKey)
       latestDraft.current = cached?.draft || initial
       setSuggestionsOpen(Boolean(latestDraft.current.suggestion || latestDraft.current.suggestionInstruction))
       setDraft(cached?.draft || initial); setSaved(cached?.saved || JSON.stringify(initial)); setError(''); setSendState(stored?.sendStatus || '')
@@ -309,12 +318,14 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
     finally { if (active.current) setBusy(false) }
   }
   async function send() {
+    if (sending.current) return
     setError(''); setNotice('')
     let value
     try {
       value = payload()
       if (!value.toRecipients.length || !value.body.trim()) throw new Error('empty')
     } catch { setError(w('Bitte Empfänger und Antworttext prüfen. Adressen mit Semikolon trennen.', 'Check recipients and reply text. Separate addresses with semicolons.')); return }
+    sending.current = true
     setBusy(true)
     try {
       const savedResult = await mailboxCall('saveMailboxDraft', { ...identity, draft: value })
@@ -345,6 +356,21 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
         }
         else setError(error?.code === 'functions/aborted' ? w('Der Entwurf wurde in einem anderen Fenster geändert. Es wurde keine Antwort gesendet. Dein Text bleibt erhalten.', 'The draft changed in another window. No reply was sent. Your text remains here.') : error?.code === 'functions/invalid-argument' ? w('Die Antwort wurde abgelehnt. Bitte Eingaben prüfen.', 'The reply was rejected. Check your input.') : w('Entwurf konnte vor dem Versand nicht gespeichert werden. Der Text bleibt erhalten.', 'Could not save draft before sending. Your text remains here.'))
       }
+    } finally { sending.current = false; if (active.current) setBusy(false) }
+  }
+  async function openReply() {
+    setOpen(true)
+    if (sendState !== 'accepted' || busy || !draft) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      // A new draft releases only a confirmed previous send. Unknown sends stay locked.
+      const result = await mailboxCall('saveMailboxDraft', { ...identity, draft: payload() })
+      if (!active.current) return
+      revision.current = result.draft.revision
+      operation.current = null
+      setSendState('')
+    } catch {
+      if (active.current) setError(w('Eine weitere Antwort konnte nicht vorbereitet werden. Bitte schließen und erneut versuchen oder die Seite aktualisieren.', 'Could not prepare another reply. Close and try again, or refresh the page.'))
     } finally { if (active.current) setBusy(false) }
   }
   function changeDraft(next) {
@@ -372,7 +398,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   }
   function update(field, value) { changeDraft({ ...draft, [field]: value }); setNotice('') }
   const locked = busy || ['accepted', 'unknown', 'sending'].includes(sendState)
-  return <><MailActionButton kind="reply" onClick={() => setOpen(true)} expanded={open} disabled={sendState === 'accepted'} hint={sendState !== 'accepted' && draft?.body ? w('Entwurf vorhanden', 'Draft available') : undefined}>{sendState === 'accepted' ? w('Antwort gesendet', 'Reply sent') : w('Antworten', 'Reply')}</MailActionButton>
+  return <><MailActionButton kind="reply" onClick={openReply} expanded={open} disabled={busy} hint={sendState !== 'accepted' && draft?.body ? w('Entwurf vorhanden', 'Draft available') : undefined}>{w('Antworten', 'Reply')}</MailActionButton>
     <dialog ref={dialogRef} className="mailbox-reply-dialog" aria-labelledby="mailbox-reply-title" onCancel={event => { event.preventDefault(); if (!busy) setOpen(false) }}>
       <div className="mailbox-panel-heading mailbox-reply-dialog__heading"><h2 id="mailbox-reply-title">{w('Antworten', 'Reply')}</h2><button type="button" disabled={busy} onClick={() => setOpen(false)}>{w('Schließen', 'Close')}</button></div>
       <div className="mailbox-reply-dialog__columns"><article className="mailbox-reader" aria-label={w('Schriftverkehr', 'Correspondence')}><MessageContent message={message} /></article>
