@@ -14,10 +14,11 @@ nicht auf eine Zusicherung des internen direkten CreateFlow-REST-Endpunkts.
 
 ## Erzeugen
 
-`workflow-bindings.example.json` nach `bindings.local.json` kopieren. Die fünf
+`workflow-bindings.example.json` nach `bindings.local.json` kopieren. Die sieben
 Felder müssen feste bestehende Bindungen enthalten: zwei Connector-Verbindungs-
 **namen** (nicht Tokens oder Callback-URLs), eine HTTPS-SharePoint-Site und zwei
-verschiedene Listen-GUIDs. Die aktuelle API-Hülle erwartet diese Namen als
+verschiedene Listen-GUIDs sowie die beiden unten genannten registrierten
+Service-Principal-Objekt-IDs. Die aktuelle API-Hülle erwartet Verbindungsnamen als
 `connectionReferences.*.connectionName`; die tatsächliche Umgebung muss diese
 Zuordnung bestätigen. Ohne vollständige gültige Bindungen entstehen keine Dateien.
 
@@ -42,7 +43,8 @@ Conditional Access gehört zu diesem Werkzeug. Es läuft ohne .NET-SDK mit dem
 vorhandenen `pac.exe`; die tatsächliche lokale CLI-Version muss unterstützt sein.
 
 `solution-bindings.example.json` nach `solution-bindings.local.json` kopieren und
-nur Site sowie zwei verschiedene Listen-GUIDs eintragen. Die embedded Connection-
+Site, zwei verschiedene Listen-GUIDs und die beiden registrierten Service-
+Principal-Objekt-IDs eintragen. Die embedded Connection-
 IDs aus dem anderen Generator werden in diesem Modus ausdrücklich abgelehnt.
 Die Site und beide Listen müssen vollständig feststehen; kein fiktiver Ersatzwert
 wird für fehlende Produktionsdaten verwendet.
@@ -88,15 +90,41 @@ deren [Importverhalten](https://learn.microsoft.com/en-us/power-automate/import-
 berücksichtigt Exportzustand und zugeordnete Verbindungen. App, Firebase, Secrets
 und der vorhandene allgemeine Mailflow werden vom Paket nicht berührt.
 
+### Persistente umgebungsspezifische Aufrufer
+
+Beide Generatorwege setzen im HTTP-Trigger die nativ bestätigten Inputs
+`triggerAuthenticationType: "User"` und `triggerAllowedUsers` als einzelne
+Service-Principal-Objekt-ID im Stringformat. Diese Freigabe wird mit importiert;
+ein späterer Import darf nicht auf den gesamten Mandanten zurückfallen.
+
+| Umgebung | Client-ID (nur Zuordnung) | erforderliche Objekt-ID / Binding |
+| --- | --- | --- |
+| Dev | `01c10015-3c0c-4e57-b96a-407248cfba05` | `developmentServicePrincipalId`: `21b826ba-2b19-41da-8018-6af43f5c3e38` |
+| Produktion | `4c4c751c-5536-4050-9f8f-c7ad01c52419` | `productionServicePrincipalId`: `af348c83-0710-4ea0-88e9-ac460472cff1` |
+
+Diese IDs sind öffentliche Kennungen, keine Credentials. Der Builder verlangt
+die beiden Bindings ausdrücklich und prüft sie gegen die registrierte Zuordnung.
+Fehlende, vertauschte oder fremde IDs und Client-IDs anstelle der Objekt-IDs
+brechen die Erzeugung ab. Ein Identitätswechsel erfordert eine bewusste Anpassung
+dieser Zuordnung; kein leerer oder tenantweiter Ersatzwert wird erzeugt.
+
+Paketversion `1.0.0.2` enthält außerdem die unterstützte Secure-Data-Konfiguration:
+`Compose`, `ParseJson` und `Response` verwenden nur `secureData.properties:
+["inputs"]`. Microsoft dokumentiert für diese drei nativen Aktionen ausschließlich
+Secure Inputs; damit werden auch ihre Outputs verborgen. Managed Connectoren und
+der HTTP-Trigger behalten die passenden Ein-/Ausgabeschutzoptionen.
+[Microsoft: unterstützte Secure-Data-Einstellungen](https://learn.microsoft.com/en-us/azure/logic-apps/set-up-security-permissions#considerations-for-securing-inputs-and-outputs)
+
 ## Vor Aktivierung
 
 - Tatsächlicher Importstand und Authentifizierungsfreigaben stehen führend in
   [Mailflow-Vorbereitung](../../../docs/operations/reminder-mailflow-preparation.md).
   Der Reminder-Adapter verlangt eine eigene zertifikatsbasierte Dienstanmeldung.
-  Die importierten, ausgeschalteten Kandidaten sind noch nicht auf die zukünftigen
-  separaten Service-Principal-IDs beschränkt: Vor Aktivierung im HTTP-Trigger
-  ausschließlich die jeweilige neue ID unter „Spezifische Benutzer in meinem
-  Mandanten“ zulassen. Eine leere Liste reicht nicht. Keine SAS-Ausweichlösung.
+  Neue Pakete enthalten die oben festgelegten separaten Objekt-IDs. Nach dem
+  Import vor Aktivierung nativ prüfen, dass ausschließlich die jeweilige ID unter
+  „Spezifische Benutzer in meinem Mandanten“ gespeichert ist. Eine ältere
+  Veröffentlichung oder ein bloßer UI-Entwurf ersetzt diesen Nachweis nicht.
+  Eine leere Liste reicht nicht. Keine SAS-Ausweichlösung.
 - Die Listen müssen die internen Spaltennamen aus den Plänen besitzen:
   `Title`, `DeliveryId`, `PayloadDigest`, `Outcome`, `DueAt`, `ExpiresAt`, `OutcomeAt`.
   `Title` muss required, indexed und EnforceUniqueValues sein. Nur Flowidentität

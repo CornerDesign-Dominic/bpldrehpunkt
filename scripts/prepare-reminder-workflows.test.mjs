@@ -5,8 +5,9 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createReminderWorkflowResources, prepareReminderWorkflows, validateReminderWorkflowBindings } from './prepare-reminder-workflows.mjs'
 import { buildReminderProviderRequest, parseReminderProviderResponse } from '../functions/reminderProviderContract.js'
+import { reminderFlowCallers } from './prepare-reminder-flows.mjs'
 
-const bindings = { outlookConnectionId: 'shared-office365-local-fixture', sharePointConnectionId: 'shared-sharepoint-local-fixture', siteUrl: 'https://fixture.sharepoint.com/sites/Reminders', developmentListId: '11111111-1111-4111-8111-111111111111', productionListId: '22222222-2222-4222-8222-222222222222' }
+const bindings = { outlookConnectionId: 'shared-office365-local-fixture', sharePointConnectionId: 'shared-sharepoint-local-fixture', siteUrl: 'https://fixture.sharepoint.com/sites/Reminders', developmentListId: '11111111-1111-4111-8111-111111111111', productionListId: '22222222-2222-4222-8222-222222222222', developmentServicePrincipalId: reminderFlowCallers.development.servicePrincipalId, productionServicePrincipalId: reminderFlowCallers.production.servicePrincipalId }
 const resources = createReminderWorkflowResources(bindings)
 const request = (environment = 'development', patch = {}) => ({ ...buildReminderProviderRequest({ environment, recipient: 'df@brennpunkt-logistik.de', deliveryId: 'a'.repeat(64), dueAt: '2026-10-31T12:00:00.000Z', subject: 'Title', message: 'Plain <text>', messageHtml: '<p>Plain &lt;text&gt;</p>' }), ...patch })
 
@@ -170,6 +171,8 @@ test('resources use real WDL control/connector envelopes, fixed bindings and sto
     assert.match(definition.$schema, /workflowdefinition\.json#$/)
     assert.equal(definition.triggers.manual.type, 'Request')
     assert.equal(definition.triggers.manual.kind, 'Http')
+    assert.equal(definition.triggers.manual.inputs.triggerAuthenticationType, 'User')
+    assert.equal(definition.triggers.manual.inputs.triggerAllowedUsers, name === 'dev' ? bindings.developmentServicePrincipalId : bindings.productionServicePrincipalId)
     const nodes = collect(definition.actions)
     function validateTree(actions, depth = 0) {
       assert.ok(depth <= 8, `Power Automate nesting exceeds 8 at depth ${depth}`)
@@ -185,6 +188,7 @@ test('resources use real WDL control/connector envelopes, fixed bindings and sto
       }
     }
     validateTree(definition.actions)
+    for (const action of Object.values(nodes).filter(node => ['Compose', 'ParseJson', 'Response'].includes(node.type))) assert.deepEqual(action.runtimeConfiguration.secureData.properties, ['inputs'])
     assert.equal(Object.values(nodes).filter(node => node.type === 'Response').length, 1)
     assert.deepEqual(nodes.Respond.runAfter.Dispatch, ['Succeeded', 'Failed', 'TimedOut', 'Skipped'])
     assert.equal(nodes.Initialize_outcome.inputs.variables[0].value, 'uncertain')
@@ -212,6 +216,10 @@ test('resources use real WDL control/connector envelopes, fixed bindings and sto
     assert.equal(connectionReferences.shared_office365.connectionName, bindings.outlookConnectionId)
     assert.equal(connectionReferences.shared_sharepointonline.connectionName, bindings.sharePointConnectionId)
   }
+})
+
+test('caller bindings cannot disappear, use client IDs, swap environments or widen to arbitrary GUIDs', () => {
+  for (const patch of [{ developmentServicePrincipalId: undefined }, { productionServicePrincipalId: null }, { developmentServicePrincipalId: reminderFlowCallers.development.clientId }, { productionServicePrincipalId: reminderFlowCallers.production.clientId }, { developmentServicePrincipalId: bindings.productionServicePrincipalId }, { productionServicePrincipalId: bindings.developmentServicePrincipalId }, { developmentServicePrincipalId: '33333333-3333-4333-8333-333333333333' }, { productionServicePrincipalId: '' }]) assert.throws(() => createReminderWorkflowResources({ ...bindings, ...patch }), /registered/)
 })
 
 test('successful actual WDL path sends HTML once and acknowledges only after durable accepted update', () => {

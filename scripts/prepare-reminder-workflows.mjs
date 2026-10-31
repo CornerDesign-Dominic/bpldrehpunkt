@@ -2,13 +2,14 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import * as contract from '../functions/reminderProviderContract.js'
-import { createReminderFlowPlans } from './prepare-reminder-flows.mjs'
+import { createReminderFlowPlans, reminderFlowCallers } from './prepare-reminder-flows.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const defaultOutput = resolve(root, 'integrations/power-automate/reminders/local-workflows')
 const guid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i
 const statuses = ['Succeeded', 'Failed', 'TimedOut', 'Skipped']
 const secure = { secureData: { properties: ['inputs', 'outputs'] } }
+const secureInputs = { secureData: { properties: ['inputs'] } }
 const b = name => `triggerBody()?['${name}']`
 const success = name => ({ [name]: ['Succeeded'] })
 const condition = (expression, actions, otherwise = {}, runAfter = {}) => ({ type: 'If', expression, actions, else: { actions: otherwise }, runAfter })
@@ -18,7 +19,7 @@ const setVariable = (name, value, runAfter = {}) => ({ type: 'SetVariable', inpu
 /** Only identifiers, never endpoint credentials, may be supplied here. */
 export function validateReminderWorkflowBindings(value, { requireConnections = true } = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Fixed workflow bindings are required')
-  const allowed = ['outlookConnectionId', 'sharePointConnectionId', 'siteUrl', 'developmentListId', 'productionListId']
+  const allowed = ['outlookConnectionId', 'sharePointConnectionId', 'siteUrl', 'developmentListId', 'productionListId', 'developmentServicePrincipalId', 'productionServicePrincipalId']
   if (Object.keys(value).some(key => !allowed.includes(key))) throw new Error('Unsupported binding field; never supply credentials or callback URLs')
   for (const name of ['outlookConnectionId', 'sharePointConnectionId']) {
     if (!requireConnections) {
@@ -30,7 +31,11 @@ export function validateReminderWorkflowBindings(value, { requireConnections = t
   if (site.protocol !== 'https:' || !/^[a-zA-Z0-9-]+\.sharepoint\.com$/.test(site.hostname) || site.username || site.password || site.search || site.hash || !/^\/(?:sites|teams)\/[^/]+\/?$/.test(site.pathname)) throw new Error('Use a fixed HTTPS SharePoint Online /sites/name or /teams/name URL without credentials/query')
   for (const name of ['developmentListId', 'productionListId']) if (typeof value[name] !== 'string' || !guid.test(value[name])) throw new Error(`Missing/invalid fixed ${name}`)
   if (value.developmentListId.toLowerCase() === value.productionListId.toLowerCase()) throw new Error('Development and production ledger lists must be distinct')
-  return { ...value, siteUrl: site.href.replace(/\/$/, ''), developmentListId: value.developmentListId.toLowerCase(), productionListId: value.productionListId.toLowerCase() }
+  for (const environment of ['development', 'production']) {
+    const name = `${environment}ServicePrincipalId`
+    if (typeof value[name] !== 'string' || !guid.test(value[name]) || value[name].toLowerCase() !== reminderFlowCallers[environment].servicePrincipalId) throw new Error(`Missing or unregistered ${name}: require the registered service-principal object ID, not client ID or tenant access`)
+  }
+  return { ...value, siteUrl: site.href.replace(/\/$/, ''), developmentListId: value.developmentListId.toLowerCase(), productionListId: value.productionListId.toLowerCase(), developmentServicePrincipalId: value.developmentServicePrincipalId.toLowerCase(), productionServicePrincipalId: value.productionServicePrincipalId.toLowerCase() }
 }
 
 function hexExpression(value) {
@@ -109,14 +114,14 @@ export function createReminderWorkflowResources(rawBindings, { testOnly = true, 
     })
     const contentExpression = `@and(${hexExpression(b('deliveryId'))},${hexExpression(b('payloadDigest'))},endsWith(${b('dueAt')},'Z'),endsWith(${b('expiresAt')},'Z'),equals(length(split(${b('to')},'@')),2),contains(last(split(${b('to')},'@')),'.'),${noToCharacters.join(',')},greater(length(trim(${b('subject')})),0),lessOrEquals(length(${b('subject')}),1000),not(contains(${b('subject')},decodeUriComponent('%0A'))),not(contains(${b('subject')},decodeUriComponent('%0D'))),greater(length(trim(${b('message')})),0),lessOrEquals(length(${b('message')}),40000),greater(length(trim(${b('messageHtml')})),0),lessOrEquals(length(${b('messageHtml')}),200000))`
     const parseTime = {
-      Parse_time: { type: 'Compose', inputs: `@sub(ticks(${b('expiresAt')}),ticks(${b('dueAt')}))`, runtimeConfiguration: secure, runAfter: {} },
+      Parse_time: { type: 'Compose', inputs: `@sub(ticks(${b('expiresAt')}),ticks(${b('dueAt')}))`, runtimeConfiguration: secureInputs, runAfter: {} },
       Invalid_time: scope(rejection('Invalid_time', 422), { Parse_time: ['Failed', 'TimedOut'] }),
       Check_duration: condition(`@and(equals(outputs('Parse_time'),600000000),equals(mod(ticks(${b('dueAt')}),600000000),0),lessOrEquals(ticks(${b('dueAt')}),ticks(utcNow())))`, {
         Mark_request_valid: setVariable('requestValid', true),
       }, rejection('Invalid_duration', 422), success('Parse_time')),
     }
     const main = {
-      Parse_request: { type: 'ParseJson', inputs: { content: '@triggerBody()', schema: plan.requestSchema }, runtimeConfiguration: secure, runAfter: {} },
+      Parse_request: { type: 'ParseJson', inputs: { content: '@triggerBody()', schema: plan.requestSchema }, runtimeConfiguration: secureInputs, runAfter: {} },
       Malformed_request: scope(rejection('Malformed_request', 422), { Parse_request: ['Failed', 'TimedOut'] }),
       Check_identity: condition(identityExpression, {
         Check_test_recipient: condition("@or(equals(parameters('testOnly'),false),contains(createArray('bb@brennpunkt-logistik.de','no-reply@brennpunkt-logistik.de','df@brennpunkt-logistik.de'),toLower(triggerBody()?['to'])))", {
@@ -127,7 +132,7 @@ export function createReminderWorkflowResources(rawBindings, { testOnly = true, 
     const definition = {
       $schema: 'https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#', contentVersion: '1.0.0.0',
       parameters: { $authentication: { defaultValue: {}, type: 'SecureObject' }, $connections: { defaultValue: {}, type: 'Object' }, testOnly: { defaultValue: testOnly, type: 'Bool' } },
-      triggers: { manual: { type: 'Request', kind: 'Http', inputs: { method: 'POST', schema: { type: 'object' } }, runtimeConfiguration: secure } },
+      triggers: { manual: { type: 'Request', kind: 'Http', inputs: { method: 'POST', schema: { type: 'object' }, triggerAuthenticationType: 'User', triggerAllowedUsers: bindings[`${environment}ServicePrincipalId`] }, runtimeConfiguration: secure } },
       actions: {
         Initialize_outcome: { type: 'InitializeVariable', inputs: { variables: [{ name: 'outcome', type: 'string', value: 'uncertain' }] }, runAfter: {} },
         Initialize_response_code: { type: 'InitializeVariable', inputs: { variables: [{ name: 'responseCode', type: 'integer', value: 200 }] }, runAfter: success('Initialize_outcome') },
@@ -139,7 +144,7 @@ export function createReminderWorkflowResources(rawBindings, { testOnly = true, 
         Respond: { type: 'Response', kind: 'Http', inputs: {
           statusCode: "@variables('responseCode')", headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
           body: { contractVersion, projectId, environment, deliveryId: `@${b('deliveryId')}`, payloadDigest: `@${b('payloadDigest')}`, sender, accepted: "@equals(variables('outcome'),'accepted')", outcome: "@variables('outcome')" },
-        }, runtimeConfiguration: secure, runAfter: { Dispatch: statuses } },
+        }, runtimeConfiguration: secureInputs, runAfter: { Dispatch: statuses } },
       }, outputs: {},
     }
     if (connectionMode === 'solution') {

@@ -4,7 +4,7 @@ Stand: 31.10.2026. Der **erste Audit war ausschließlich lesend**; seine
 Editorsitzung wurde verworfen. Danach wurden ein ausdrücklich freigegebener
 Einzeltest des bestehenden Flows ausgeführt und zwei getrennte SharePoint-
 Versandlisten angelegt. Das neue unmanaged Solution-ZIP wurde lokal gepackt und
-wieder entpackt; die neue Lösung **DrehpunktReminderTransport 1.0.0.1** wurde
+wieder entpackt; die neue Lösung **DrehpunktReminderTransport 1.0.0.2** wurde
 erfolgreich importiert. Beide neuen Flows bleiben ausgeschaltet und auf die drei
 Testempfänger begrenzt. Die Microsoft-Flowprüfung und die lokale Vorbereitung
 ersetzen keine echte Versandabnahme der neuen Flows. Der bestehende allgemeine
@@ -109,7 +109,7 @@ Die SharePoint-Website zeigt Zeitwerte standardmäßig in Pacific-Zeit an. Der
 Versandvertrag verwendet ausschließlich ISO-UTC-Zeitpunkte; diese Anzeige ist
 keine fachliche Terminberechnung. Die Website-Zeitzone wurde nicht geändert.
 
-### Technische Aufrufer: konkrete Vorbereitung zur Freigabe
+### Technische Aufrufer: registrierte getrennte Identitäten
 
 Für diese Umsetzung wird Power Automate mit eigener zertifikatsbasierter
 Microsoft-Dienstidentität verwendet. Der direkte Graph-Versand ist eine mögliche
@@ -119,32 +119,37 @@ Die vorhandenen persönlichen Graph-Postfachverbindungen werden nicht für den
 unbeaufsichtigten Erinnerungsdienst zweckentfremdet. Auch die bestehende
 DyCoS-Identität erhält keine zusätzlichen Erinnerungsrechte.
 
-Die zwei neuen HTTP-Trigger zeigen aktuell „Jeder Benutzer in meinem Mandanten“.
-Dieser Microsoft-Standard reicht für die spätere Freigabe nicht: Vor Aktivierung
-muss „Spezifische Benutzer in meinem Mandanten“ mit ausschließlich der jeweiligen
-neuen Service-Principal-Objekt-ID eingerichtet sein. Die native Codeansicht
-bestätigt dafür `triggerAuthenticationType: User`; eine leere Aufruferliste
-schränkt den Mandanten nicht ein. „Jeder“/SAS bleibt ausgeschlossen.
+Die zunächst importierten HTTP-Trigger zeigten „Jeder Benutzer in meinem
+Mandanten“. Version 1.0.0.2 bindet stattdessen ausschließlich die jeweilige neue
+Service-Principal-Objekt-ID in `triggerAllowedUsers` bei
+`triggerAuthenticationType: User`. Eine leere Aufruferliste schränkt den
+Mandanten nicht ein. „Jeder“/SAS bleibt ausgeschlossen. Der Generator verweigert
+fehlende, vertauschte oder von den registrierten Identitäten abweichende IDs;
+ein späterer Import darf die Einschränkung nicht unbemerkt aufheben.
 
-| Vorgesehene neue Identität | Einziger vorgesehener Flowzugriff | Firebase-Ziel |
-| --- | --- | --- |
-| Drehpunkt Erinnerungen Dev | `6e3adb39-5442-4594-a57b-cb812be70f9b` | `db-bpl-drehpunkt-dev` |
-| Drehpunkt Erinnerungen Produktion | `c1c89a9c-8c98-46c5-9d8d-cbfad7177d65` | `db-bpl-drehpunkt` |
+| Registrierte Identität | Client-ID | Service-Principal-Objekt-ID | Einziger vorgesehener Flowzugriff |
+| --- | --- | --- | --- |
+| Drehpunkt Erinnerungen Dev | `01c10015-3c0c-4e57-b96a-407248cfba05` | `21b826ba-2b19-41da-8018-6af43f5c3e38` | `6e3adb39-5442-4594-a57b-cb812be70f9b` |
+| Drehpunkt Erinnerungen Produktion | `4c4c751c-5536-4050-9f8f-c7ad01c52419` | `af348c83-0710-4ea0-88e9-ac460472cff1` | `c1c89a9c-8c98-46c5-9d8d-cbfad7177d65` |
 
 Mandant: `b829bbdc-c0b7-4128-a341-6715a67b451b`. Je Identität ist ein eigenes
 RSA-Zertifikat mit getrenntem privaten Schlüssel vorgesehen. Kein zusätzlicher
 Graph-/Mail-/SQL-Zugriff und keine Flow-Verwaltungsrolle werden benötigt. Die
 bestehende df-Outlook-Verbindung übernimmt weiterhin den autorisierten Versand.
-Neue App-Registrierungen, Zertifikatsbindungen und Aufruferberechtigungen wurden
-noch nicht angelegt oder erteilt; dieser konkrete dauerhafte Zugriff benötigt
-vor seiner Einrichtung eine ausdrückliche Freigabe. Die Entra-Liste wurde vor
-der Neuanlage nach Drehpunkt gefiltert: vorhanden sind nur die getrennten
-DyCoS-Dev- und Mail-Dev-Anwendungen, keine Erinnerungsidentitäten. Für Dev und
-Produktion sind zwei ungespeicherte Registrierungsformulare mit den oben
-genannten Namen, ausschließlich diesem Mandanten und ohne Umleitungs-URI
-vorbereitet. „Registrieren“ wurde nicht betätigt; der Dialog verweist auf die
-Zustimmung zu den Microsoft-Plattformrichtlinien. Zwei unterschiedliche
-RSA-3072-Zertifikate sind inzwischen ausschließlich lokal vorbereitet, gültig
+Beide App-Registrierungen und zugehörigen Enterprise-Apps wurden nach konkreter
+Nutzerfreigabe angelegt: ausschließlich dieser Mandant, ohne Umleitungs-URI.
+Die automatisch vorgeschlagene delegierte Graph-Berechtigung `User.Read` wurde
+bei beiden entfernt; die native Ansicht bestätigt jeweils keine konfigurierten
+API-Berechtigungen. Die Registrierungsobjekte sind Dev
+`ae6549d5-757c-4c6e-94c4-ec5610222d79` und Produktion
+`0e70e286-6a70-4762-ac33-b2cd88c90271`; für die Triggerfreigabe ist ausdrücklich
+die oben genannte **Service-Principal-Objekt-ID** maßgeblich.
+
+Die Zertifikatsbindung ist noch offen. Beide Uploadfenster sind vorbereitet;
+gemäß Browser-Sicherheitsregel muss der Nutzer die neue Anmeldemöglichkeit selbst
+hinterlegen. Es wurden noch keine Tokens mit den neuen Identitäten angefordert
+und keine echten neuen Reminder-Testmails versendet. Zwei unterschiedliche
+RSA-3072-Zertifikate sind ausschließlich lokal vorbereitet, gültig
 bis `2027-10-31T21:36:44Z`. Ablage außerhalb des Repositorys unter
 `%LOCALAPPDATA%/Drehpunkt/reminder-identities/fcaf916d45bd466b984443bd4365ec8c/`,
 getrennt in `development` und `production`; jeweils `public-certificate.pem`
@@ -174,6 +179,24 @@ Weiterleitungen werden verweigert. Anmeldung und Versand teilen sich das
 bestehende maximal zehnsekündige Zeitbudget. Zuständigkeit, Mailpause und
 Fälligkeitsminute werden nach der Anmeldung unmittelbar vor dem einmaligen
 Versandversuch geprüft. Ein reiner Anmeldefehler verursacht keinen Mailaufruf.
+
+Für die manuelle Abnahme steht `scripts/test-reminder-provider.mjs` bereit.
+Standard ist eine Vorschau ohne Anmeldung oder Netzwerkzugriff. Echte Ausführung
+erfordert ausdrücklich `--execute`, getrennte private Konfiguration und einen
+Versuchsjournalordner außerhalb jedes Git-Arbeitsbaums. Standardempfänger ist
+`no-reply@brennpunkt-logistik.de`; weitere Empfänger sind ausschließlich die oben
+freigegebenen Adressen. Pro Aufruf wird genau ein gewählter Fall ausgeführt:
+neuer Versand, identische Wiederholung, geänderter Inhalt bei derselben ID,
+abgelaufene Anforderung oder Aufruf des anderen Flows mit der falschen Identität.
+Jeder echte Versuch wird vor der Anmeldung dauerhaft reserviert; ein unklarer
+Ausgang darf nicht automatisch wiederholt werden. Das Werkzeug gibt weder
+Callbackadresse noch Tokens oder Schlüssel aus. Die lokalen zehn Mocktests
+bestätigen diese Schutzregeln, keinen echten Microsoft-Versand.
+
+Ein HTTP-401/403 bei der falschen Identität allein belegt die Zugriffstrennung
+noch nicht: Zusätzlich muss der Ausführungsverlauf zeigen, dass kein Flowlauf
+gestartet ist. Auch ein passendes Versand-ACK ersetzt weder die Kontrolle der
+tatsächlichen Outlook-Aktion und des Ledgers noch einen bestätigten Posteingang.
 
 Quellen: [Microsoft-HTTP-Authentifizierung](https://learn.microsoft.com/en-us/power-automate/oauth-authentication),
 [Microsoft-Sicherheitsempfehlung](https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/use-secure-inputs-outputs-triggers).
@@ -212,15 +235,27 @@ neue Flows und neue `dpr_...`-Verbindungsreferenzen, die im Importdialog den
 bestehenden erlaubten Verbindungen zugeordnet werden. Es enthält keine
 Callback-Secrets oder fiktiven Live-Verbindungs-IDs. XML setzt Draft/Off
 (`StateCode=0`, `StatusCode=1`), JSON setzt `Stopped`, `testOnly` bleibt `true`.
-Der Import von Version 1.0.0.1 ist erfolgreich. Beide Flows sind im Zielsystem
-als **Aus** nachgewiesen, beide Verbindungsreferenzen verwenden die vorhandenen
-als gültig angezeigten df-Verbindungen. Beide Microsoft-Flowprüfungen melden
-**Fehler (0), Warnungen (1)**; die einzige Warnung lautet „Flow ist deaktiviert“.
-Die echte neue Versandabnahme und die konkreten Aufruferbindungen bleiben offen.
+Der Import von Version 1.0.0.2 ist erfolgreich. Die beiden gespeicherten Trigger
+wurden danach nativ geprüft: jeweils „Spezifische Benutzer in meinem Mandanten“
+und ausschließlich die passende Service-Principal-ID aus der Tabelle oben.
+Beide Flows sind nach dem Update im Zielsystem als **Aus** nachgewiesen; beim
+Import wurde die Aktivierungsoption abgewählt. Die bestehenden eigenen
+Verbindungsreferenzen wurden beibehalten; der Import erforderte keine
+Verbindungsupdates. Beide Microsoft-Flowprüfungen melden nach diesem Import
+**Fehler (0), Warnungen (0)**. Diese Prüfung allein beweist keinen echten Lauf.
+Die echte neue Versandabnahme bleibt bis zur Zertifikatsbindung offen.
 Die native Metadatenprüfung hat einen lokalen Choice-Bindungsfehler aufgedeckt:
 SharePoint benötigt `item/Outcome/Value`, der alte Kandidat verwendete
 `item/Outcome`. Version 1.0.0.1 korrigiert Create/Patch und das Lesen des
 Value-Unterpfads im Duplikatzweig. Ungespeicherte Designerproben wurden verworfen.
+Eine spätere native Speicherprüfung entdeckte außerdem
+`InvalidSecureDataConfiguration`: `Response`, `Compose` und `ParseJson`
+unterstützen keine explizit sicheren Ausgaben. Version 1.0.0.2 setzt für diese
+Typen ausschließlich sichere Eingaben; Microsoft verbirgt damit auch deren
+Ausgaben. Request und verwaltete Connectoraktionen behalten sichere Ein- und
+Ausgaben. Der fehlgeschlagene UI-Entwurf wurde verworfen, anschließend das
+korrigierte Paket mit beiden Aufruferbindungen importiert. Quelle:
+[Microsoft-Schutz unterstützter Aktionstypen](https://learn.microsoft.com/en-us/azure/logic-apps/set-up-security-permissions#considerations-for-securing-inputs-and-outputs).
 Details:
 [Lokale Workflow- und Solutionpakete](../../integrations/power-automate/reminders/WORKFLOWS.md).
 

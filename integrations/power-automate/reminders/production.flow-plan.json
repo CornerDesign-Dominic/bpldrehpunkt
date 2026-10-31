@@ -30,7 +30,12 @@
     "action": "Request",
     "kind": "Http",
     "method": "POST",
-    "authentication": "Dedicated secret endpoint per Firebase project; never check in callback URL or SAS token.",
+    "authentication": {
+      "triggerAuthenticationType": "User",
+      "triggerAllowedUsers": "af348c83-0710-4ea0-88e9-ac460472cff1",
+      "expectedClientId": "4c4c751c-5536-4050-9f8f-c7ad01c52419",
+      "policy": "Only the registered environment-specific service-principal object ID may invoke. No tenant-wide or SAS fallback. Verify native trigger binding after import."
+    },
     "secure": {
       "inputs": true,
       "outputs": true
@@ -272,8 +277,7 @@
       "content": "@triggerBody()",
       "schemaRef": "requestSchema",
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "next": {
         "succeeded": "guard_identity",
@@ -294,8 +298,7 @@
       "action": "Compose",
       "expression": "@sub(ticks(triggerBody()?['expiresAt']),ticks(triggerBody()?['dueAt']))",
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "next": {
         "succeeded": "guard_duration",
@@ -554,8 +557,7 @@
       "action": "Response",
       "statusCode": 200,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,
@@ -573,8 +575,7 @@
       "action": "Response",
       "statusCode": 200,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,
@@ -592,8 +593,7 @@
       "action": "Response",
       "statusCode": 200,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,
@@ -611,8 +611,7 @@
       "action": "Response",
       "statusCode": 200,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,
@@ -630,8 +629,7 @@
       "action": "Response",
       "statusCode": 422,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,
@@ -649,8 +647,7 @@
       "action": "Response",
       "statusCode": 403,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,
@@ -668,8 +665,7 @@
       "action": "Response",
       "statusCode": 422,
       "secure": {
-        "inputs": true,
-        "outputs": true
+        "inputs": true
       },
       "body": {
         "contractVersion": 1,

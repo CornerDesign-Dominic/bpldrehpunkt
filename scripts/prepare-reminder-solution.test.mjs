@@ -7,8 +7,9 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { createReminderSolutionAssets, packReminderSolution, reminderWorkflowIds, verifyReminderSolutionRoundtrip } from './prepare-reminder-solution.mjs'
 import { reminderSolutionConnectionReferences } from './prepare-reminder-workflows.mjs'
+import { reminderFlowCallers } from './prepare-reminder-flows.mjs'
 
-const bindings = { siteUrl: 'https://fixture.sharepoint.com/sites/Reminders', developmentListId: '11111111-1111-4111-8111-111111111111', productionListId: '22222222-2222-4222-8222-222222222222' }
+const bindings = { siteUrl: 'https://fixture.sharepoint.com/sites/Reminders', developmentListId: '11111111-1111-4111-8111-111111111111', productionListId: '22222222-2222-4222-8222-222222222222', developmentServicePrincipalId: reminderFlowCallers.development.servicePrincipalId, productionServicePrincipalId: reminderFlowCallers.production.servicePrincipalId }
 const templates = {
   solutionXmlTemplate: '<ImportExportXml><SolutionManifest><UniqueName>Test</UniqueName><LocalizedNames><LocalizedName description="Test" languagecode="1033" /></LocalizedNames><Version>1.0</Version><Managed>2</Managed><Publisher><UniqueName>DrehpunktReminders</UniqueName><CustomizationPrefix>dpr</CustomizationPrefix></Publisher><RootComponents /><MissingDependencies /></SolutionManifest></ImportExportXml>',
   customizationsXmlTemplate: '<ImportExportXml><Entities /><Workflows /><Languages><Language>1033</Language></Languages></ImportExportXml>',
@@ -37,6 +38,8 @@ test('solution factory uses separate fixed lists and new wizard connection refer
     assert.equal(workflow.schemaVersion, '1.0.0.0')
     assert.equal(workflow.properties.state, 'Stopped')
     assert.equal(workflow.properties.definition.parameters.testOnly.defaultValue, true)
+    assert.equal(workflow.properties.definition.triggers.manual.inputs.triggerAuthenticationType, 'User')
+    assert.equal(workflow.properties.definition.triggers.manual.inputs.triggerAllowedUsers, name === 'dev' ? bindings.developmentServicePrincipalId : bindings.productionServicePrincipalId)
     for (const [key, reference] of Object.entries(workflow.properties.connectionReferences)) {
       assert.deepEqual(reference, { api: { name: key }, connection: { connectionReferenceLogicalName: reminderSolutionConnectionReferences[key] }, runtimeSource: 'embedded' })
       assert.ok(reference.connection.connectionReferenceLogicalName.startsWith('dpr_'))

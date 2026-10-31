@@ -9,7 +9,15 @@ const input = name => `triggerBody()?['${name}']`
 const tick = name => `ticks(${input(name)})`
 const minuteWindow = `@and(lessOrEquals(${tick('dueAt')},ticks(utcNow())),less(ticks(utcNow()),${tick('expiresAt')}))`
 const secure = { inputs: true, outputs: true }
+const secureInputs = { inputs: true }
 const retry = { type: 'none' }
+
+// Public identifiers, not credentials. A deliberate registration/rotation change
+// must update this mapping; import must never widen callers to the whole tenant.
+export const reminderFlowCallers = Object.freeze({
+  development: Object.freeze({ clientId: '01c10015-3c0c-4e57-b96a-407248cfba05', servicePrincipalId: '21b826ba-2b19-41da-8018-6af43f5c3e38' }),
+  production: Object.freeze({ clientId: '4c4c751c-5536-4050-9f8f-c7ad01c52419', servicePrincipalId: 'af348c83-0710-4ea0-88e9-ac460472cff1' }),
+})
 
 function stringSchema(extra = {}) { return { type: 'string', minLength: 1, ...extra } }
 
@@ -30,7 +38,7 @@ export function createReminderFlowPlan({ environment, projectId, sender, contrac
     payloadDigest: `@${input('payloadDigest')}`, sender,
   }
   const response = (id, statusCode, outcome, extra = {}) => ({
-    id, action: 'Response', statusCode, secure,
+    id, action: 'Response', statusCode, secure: secureInputs,
     body: { ...replyIdentity, accepted: outcome === 'accepted', outcome }, ...extra,
   })
   const sp = (id, operationId, parameters, next) => ({ id, action: 'ApiConnection', connector: 'shared_sharepointonline', operationId, binding: 'sharePoint', retryPolicy: retry, secure, parameters, next })
@@ -39,9 +47,9 @@ export function createReminderFlowPlan({ environment, projectId, sender, contrac
     item: { Title: `@${input('deliveryKey')}`, Outcome: outcome, OutcomeAt: '@utcNow()' },
   }, next)
   const nodes = [
-    { id: 'parse_request', action: 'ParseJson', content: '@triggerBody()', schemaRef: 'requestSchema', secure, next: { succeeded: 'guard_identity', failed: 'reply_malformed' } },
+    { id: 'parse_request', action: 'ParseJson', content: '@triggerBody()', schemaRef: 'requestSchema', secure: secureInputs, next: { succeeded: 'guard_identity', failed: 'reply_malformed' } },
     { id: 'guard_identity', action: 'If', expression: `@and(equals(${input('contractVersion')},${contractVersion}),equals(${input('projectId')},'${projectId}'),equals(${input('environment')},'${environment}'),equals(${input('from')},'${sender}'),equals(${input('type')},'central_reminder'),equals(${input('deliveryKey')},concat('${projectId}:',${input('deliveryId')})),equals(triggerOutputs()?['headers']?['Idempotency-Key'],${input('deliveryKey')}))`, next: { true: 'parse_time', false: 'reply_wrong_target' } },
-    { id: 'parse_time', action: 'Compose', expression: `@sub(${tick('expiresAt')},${tick('dueAt')})`, secure, next: { succeeded: 'guard_duration', failed: 'reply_rejected' } },
+    { id: 'parse_time', action: 'Compose', expression: `@sub(${tick('expiresAt')},${tick('dueAt')})`, secure: secureInputs, next: { succeeded: 'guard_duration', failed: 'reply_rejected' } },
     { id: 'guard_duration', action: 'If', expression: `@and(equals(outputs('parse_time'),600000000),equals(mod(${tick('dueAt')},600000000),0))`, next: { true: 'guard_not_early', false: 'reply_rejected' } },
     { id: 'guard_not_early', action: 'If', expression: `@lessOrEquals(${tick('dueAt')},ticks(utcNow()))`, next: { true: 'check_before_create', false: 'reply_rejected' } },
     { id: 'check_before_create', action: 'If', expression: minuteWindow, next: { true: 'create_claim', false: 'reply_missed' } },
@@ -66,7 +74,7 @@ export function createReminderFlowPlan({ environment, projectId, sender, contrac
     warning: 'LOCAL DRAFT ONLY. Not a Power Automate export, ARM template or importable flow. No live validation, publication, connection or mail execution has occurred. Expressions, connector envelopes, schema enforcement and dynamic SharePoint column bindings require target-designer verification.',
     target: { environment, projectId, contractVersion, sender, secretName: 'POWER_AUTOMATE_REMINDER_URL', flowDisplayName: `Drehpunkt central reminders ${environment}`, existingGeneralFlow: 'Leave unchanged' },
     bindings: { httpTriggerUrl: null, sharePoint: { siteUrl: null, listId: null, connectionReference: null }, outlookDf: { connectionReference: null, expectedAccount: 'df@', mailboxAddress: sender }, verifiedUniqueConflictPredicate: null },
-    trigger: { id: 'request', action: 'Request', kind: 'Http', method: 'POST', authentication: 'Dedicated secret endpoint per Firebase project; never check in callback URL or SAS token.', secure, schemaRef: 'requestSchema', next: 'parse_request', splitOn: false, concurrency: { degreeOfParallelism: null, policy: 'Choose bounded parallelism after quota review. Concurrency=1 is not the idempotency mechanism; queued runs must still expire.' } },
+    trigger: { id: 'request', action: 'Request', kind: 'Http', method: 'POST', authentication: { triggerAuthenticationType: 'User', triggerAllowedUsers: reminderFlowCallers[environment].servicePrincipalId, expectedClientId: reminderFlowCallers[environment].clientId, policy: 'Only the registered environment-specific service-principal object ID may invoke. No tenant-wide or SAS fallback. Verify native trigger binding after import.' }, secure, schemaRef: 'requestSchema', next: 'parse_request', splitOn: false, concurrency: { degreeOfParallelism: null, policy: 'Choose bounded parallelism after quota review. Concurrency=1 is not the idempotency mechanism; queued runs must still expire.' } },
     requestSchema: { type: 'object', additionalProperties: false, required: Object.keys(requestProperties), properties: requestProperties },
     responseSchema: { type: 'object', additionalProperties: false, required: ['contractVersion', 'projectId', 'environment', 'deliveryId', 'payloadDigest', 'sender', 'accepted', 'outcome'], properties: { ...Object.fromEntries(Object.entries(replyIdentity).map(([key, value]) => [key, key === 'contractVersion' ? { type: 'integer', enum: [value] } : key === 'deliveryId' || key === 'payloadDigest' ? stringSchema({ pattern: hex64 }) : stringSchema({ enum: [value] })])), accepted: { type: 'boolean' }, outcome: { enum: ['accepted', 'missed', 'uncertain', 'rejected'] } }, invariant: 'accepted is true iff outcome is accepted. Malformed-request rejection may have null deliveryId/payloadDigest and is never accepted.' },
     ledger: { fixedPerEnvironment: true, listId: null, columns: { Title: { type: 'Text', required: true, indexed: true, enforceUniqueValues: true, source: 'deliveryKey' }, DeliveryId: { type: 'Text', required: true }, PayloadDigest: { type: 'Text', required: true }, Outcome: { type: 'Choice', required: true, values: ['sending', 'accepted', 'missed', 'uncertain'] }, DueAt: { type: 'DateTime', required: true }, ExpiresAt: { type: 'DateTime', required: true }, OutcomeAt: { type: 'DateTime', required: true } }, forbiddenData: ['email addresses', 'subject', 'message', 'messageHtml', 'notes'], permissions: 'Only dedicated flow service identity and specifically authorized operators; no general member write/edit/delete. Protect claims against mutation, deletion and alternate writers.', retention: 'No automatic claim deletion in this draft. Any later retention policy must preserve replay/expiry guarantees; never delete live or unresolved claims to enable retries.' },

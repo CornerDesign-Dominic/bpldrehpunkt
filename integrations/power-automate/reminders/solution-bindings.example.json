@@ -1,5 +1,7 @@
 {
   "siteUrl": null,
   "developmentListId": null,
-  "productionListId": null
+  "productionListId": null,
+  "developmentServicePrincipalId": "21b826ba-2b19-41da-8018-6af43f5c3e38",
+  "productionServicePrincipalId": "af348c83-0710-4ea0-88e9-ac460472cff1"
 }

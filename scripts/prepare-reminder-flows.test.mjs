@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import * as contract from '../functions/reminderProviderContract.js'
-import { createReminderFlowPlan, createReminderFlowPlans, prepareReminderFlows } from './prepare-reminder-flows.mjs'
+import { createReminderFlowPlan, createReminderFlowPlans, prepareReminderFlows, reminderFlowCallers } from './prepare-reminder-flows.mjs'
 
 const plans = createReminderFlowPlans(contract)
 const byId = plan => Object.fromEntries(plan.nodes.map(node => [node.id, node]))
@@ -46,6 +46,8 @@ test('namespace/schema/bindings prohibit cross-environment requests and dynamic 
     assert.equal(plan.target.projectId, projectId)
     assert.deepEqual(plan.requestSchema.properties.environment.enum, [environment])
     assert.deepEqual(plan.requestSchema.properties.projectId.enum, [projectId])
+    assert.equal(plan.trigger.authentication.triggerAuthenticationType, 'User')
+    assert.equal(plan.trigger.authentication.triggerAllowedUsers, reminderFlowCallers[environment].servicePrincipalId)
     const keyPattern = new RegExp(plan.requestSchema.properties.deliveryKey.pattern)
     assert.ok(keyPattern.test(`${projectId}:${'a'.repeat(64)}`))
     const other = name === 'dev' ? plans.production : plans.dev
@@ -165,7 +167,7 @@ test('mail uses HTML directly; all sensitive actions are secured and every mutat
     assert.equal(mail.parameters.emailMessage.Body, "@triggerBody()?['messageHtml']")
     assert.deepEqual(mail.retryPolicy, { type: 'none' })
     assert.deepEqual(plan.trigger.secure, { inputs: true, outputs: true })
-    for (const node of plan.nodes.filter(node => ['ApiConnection', 'ParseJson', 'Response'].includes(node.action))) assert.deepEqual(node.secure, { inputs: true, outputs: true })
+    for (const node of plan.nodes.filter(node => ['ApiConnection', 'ParseJson', 'Response', 'Compose'].includes(node.action))) assert.deepEqual(node.secure, node.action === 'ApiConnection' ? { inputs: true, outputs: true } : { inputs: true })
     assert.ok(plan.nodes.every(node => !['Delay', 'Until', 'Foreach'].includes(node.action)))
     const schema = plan.requestSchema
     assert.deepEqual([...schema.required].sort(), Object.keys(schema.properties).sort())
