@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { associateMailboxReplies, listMailboxReplies } from './mailboxReplies.js'
@@ -59,4 +60,26 @@ test('subrequest errors fail visibly, oversized input is rejected, and nextLink 
   await assert.rejects(listMailboxReplies({ ids: ['x'], base: '/me', graph: async () => ({ responses: [{ id: '0', status: 403 }] }) }), { code: 'permission-denied' })
   let calls = 0
   await assert.rejects(listMailboxReplies({ ids: ['x'], base: '/me', graph: async () => ({ responses: [{ id: '0', status: 200, body: ++calls === 1 ? { ...source('x', '<x>'), conversationId: 'c' } : { value: [], '@odata.nextLink': 'https://attacker.example/me/mailFolders/sentitems/messages' } }] }) }), { code: 'unavailable' })
+})
+
+
+test('Outlook replies without RFC headers are recognized using the exact conversation-index parent', () => {
+  const root = Buffer.alloc(22, 1)
+  const child = Buffer.concat([root, Buffer.alloc(5, 2)])
+  const nextIncoming = Buffer.concat([child, Buffer.alloc(5, 3)])
+  const nextReply = Buffer.concat([nextIncoming, Buffer.alloc(5, 4)])
+  const indexed = (mail, bytes) => ({ ...mail, conversationId: 'conversation', conversationIndex: bytes.toString('base64'), internetMessageHeaders: [] })
+  const original = indexed(source('original', '<original>'), root)
+  const firstReply = indexed(reply('first', ''), child)
+  assert.equal(associateMailboxReplies([original], [firstReply]).original.length, 1)
+  assert.equal(associateMailboxReplies([original], [{...firstReply,subject:'WG: Weiterleitung'}]).original.length, 0)
+  // A missing newer incoming branch must not mark an old card as replied.
+  const laterReply = indexed(reply('later', ''), nextReply)
+  assert.deepEqual(associateMailboxReplies([original], [laterReply, firstReply]).original.map(row=>row.id), ['first'])
+  const newer = indexed(source('newer', '<newer>'), nextIncoming)
+  assert.equal(associateMailboxReplies([original,newer],[firstReply,laterReply]).newer[0].id,'later')
+  assert.equal(associateMailboxReplies([original],[{...firstReply,conversationId:'different'}]).original.length,0)
+  assert.equal(associateMailboxReplies([original],[{...firstReply,conversationIndex:root.toString('base64')}]).original.length,0)
+  const explicitUnknown = {...firstReply,internetMessageHeaders:[{name:'In-Reply-To',value:'<unloaded-newer>'}]}
+  assert.equal(associateMailboxReplies([original],[explicitUnknown]).original.length,0)
 })

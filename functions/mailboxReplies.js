@@ -1,17 +1,51 @@
+import { Buffer } from 'node:buffer'
 import { HttpsError } from 'firebase-functions/v2/https'
 
 const messageIds = value => String(value || '').match(/<[^<>\s]+>/g) || []
 const header = (mail, name) => (mail.internetMessageHeaders || []).filter(item => item.name?.toLowerCase() === name).map(item => item.value || '').join(' ')
 
+// Outlook reply branches contain a 22-byte root followed by 5 bytes per reply.
+// Decode bytes before comparing: base64 string prefixes do not preserve byte boundaries.
+function indexKey(mail) {
+  const value = mail.conversationIndex
+  if (typeof value !== 'string' || value.length > 4096 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return null
+  const bytes = Buffer.from(value, 'base64')
+  if (bytes.length < 22 || (bytes.length - 22) % 5 !== 0 || bytes.toString('base64').replace(/=+$/, '') !== value.replace(/=+$/, '') || !mail.conversationId) return null
+  return `${mail.conversationId}|${bytes.toString('hex')}`
+}
+
 // Match RFC message references, never subject alone or simply the latest message in a conversation.
 export function associateMailboxReplies(incoming, sent) {
   const ids = new Map(incoming.filter(mail => mail.internetMessageId).map(mail => [mail.internetMessageId.trim(), mail]))
   const outgoing = new Map(sent.filter(mail => mail.internetMessageId).map(mail => [mail.internetMessageId.trim(), mail]))
+  const indexedIncoming = new Map()
+  for (const mail of incoming) {
+    const key = indexKey(mail)
+    if (key) indexedIncoming.set(key, indexedIncoming.has(key) ? null : mail)
+  }
+  const indexedSent = new Map(sent.map(mail => [indexKey(mail), mail]).filter(([key]) => key))
+  const indexParent = (mail, visited = new Set()) => {
+    const key = indexKey(mail)
+    if (!key || visited.has(key) || visited.size >= 50) return null
+    const separator = key.lastIndexOf('|')
+    if (key.length - separator - 1 <= 44) return null
+    const parentKey = key.slice(0, -10)
+    if (indexedIncoming.has(parentKey)) return indexedIncoming.get(parentKey)
+    const parent = indexedSent.get(parentKey)
+    if (!parent) return null // Unknown intermediate incoming message: never skip it.
+    visited.add(key)
+    return indexParent(parent, visited)
+  }
   const result = Object.fromEntries(incoming.map(mail => [mail.id, []]))
   const seen = new Set()
   const parentOf = (reply, visited = new Set()) => {
     const direct = messageIds(header(reply, 'in-reply-to'))
-    const parentId = direct.length === 1 ? direct[0] : direct.length ? null : messageIds(header(reply, 'references')).at(-1)
+    const refs = messageIds(header(reply, 'references'))
+    if (!direct.length && !refs.length) {
+      if (/^\s*(?:fw|fwd|wg|tr|rv|vs)\s*:/i.test(reply.subject || '')) return null
+      return indexParent(reply)
+    }
+    const parentId = direct.length === 1 ? direct[0] : direct.length ? null : refs.at(-1)
     if (!parentId || visited.has(parentId) || visited.size >= 50) return null
     if (ids.has(parentId)) return ids.get(parentId)
     // An unknown reference may be a newer incoming mail that isn't on this page.
@@ -48,7 +82,7 @@ export async function listMailboxReplies({ ids, base, graph, validatePage }) {
     }
     return results
   }
-  const incoming = await batch([...new Set(ids)].map(id => `${base}/messages/${encodeURIComponent(id)}?$select=id,internetMessageId,conversationId,receivedDateTime`))
+  const incoming = await batch([...new Set(ids)].map(id => `${base}/messages/${encodeURIComponent(id)}?$select=id,internetMessageId,conversationId,conversationIndex,receivedDateTime`))
   const conversations = [...new Set(incoming.map(mail => mail.conversationId).filter(value => typeof value === 'string' && value.length <= 1024))]
   const paths = conversations.map(id => `${base}/mailFolders/sentitems/messages?${new URLSearchParams({ '$filter': `conversationId eq '${id.replaceAll("'", "''")}'`, '$select': 'id,internetMessageId,sentDateTime,isDraft', '$top': '100' })}`)
   const sent = []
@@ -73,6 +107,6 @@ export async function listMailboxReplies({ ids, base, graph, validatePage }) {
   }
   if (pending.length) partial = true
   const unique = [...new Map(sent.filter(mail => mail.id).map(mail => [mail.id, mail])).values()]
-  const headers = await batch(unique.slice(0, 200).map(mail => `${base}/messages/${encodeURIComponent(mail.id)}?$select=id,internetMessageId,internetMessageHeaders,sentDateTime,isDraft`))
+  const headers = await batch(unique.slice(0, 200).map(mail => `${base}/messages/${encodeURIComponent(mail.id)}?$select=id,internetMessageId,internetMessageHeaders,subject,conversationId,conversationIndex,sentDateTime,isDraft`))
   return { replies: associateMailboxReplies(incoming, headers), partial }
 }
