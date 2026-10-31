@@ -210,8 +210,9 @@
 
 .mailbox-message-group { min-width: 0; }
 .mailbox-message-group:has(.mailbox-replied-row) .mailbox-message-item { border-radius: 8px 8px 0 0; }
-.mailboxes-page .mailbox-replied-row { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 4px 9px; border: 1px solid var(--border-strong); border-top: 0; border-radius: 0; background: var(--app-background); color: var(--text-secondary); font-size: 11px; text-align: left; }
+.mailboxes-page .mailbox-replied-row { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 4px 9px; border: 1px solid var(--border-strong); border-top: 0; border-radius: 0; background: color-mix(in srgb, var(--surface-secondary) 65%, var(--content-background)); color: var(--text-secondary); font-size: 11px; text-align: left; }
+.mailboxes-page .mailbox-replied-row:hover:not(:disabled), .mailboxes-page .mailbox-replied-row.is-selected { background: var(--surface-active); color: var(--text-primary); }
+.mailboxes-page .mailbox-replied-row.is-selected { box-shadow: inset 3px 0 var(--button-background); }
 .mailbox-replied-row time { margin-left: auto; white-space: nowrap; }
 .mailbox-replied-row:last-child { border-radius: 0 0 7px 7px; }
 .mailbox-replies-warning { color: var(--text-secondary); font-size: 11px; }
-.mailbox-sent-reader { flex: 1; min-height: 0; overflow: auto; }

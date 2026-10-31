@@ -48,6 +48,7 @@ export default function MailboxesPage() {
   const orderDirtyRef = useRef(false)
   const connectionId = params.get('mailbox') || ''
   const messageId = params.get('message') || ''
+  const replyId = params.get('reply') || ''
   const connection = connections.find(item => item.id === connectionId)
   const pending = params.get('connection') === 'pending'
   const storageKey = 'drehpunkt.mailboxes.last.' + user?.uid
@@ -57,15 +58,15 @@ export default function MailboxesPage() {
     if (!available.length || pending) return
     if (connectionId) {
       if (connection?.status === 'connected') {
-        try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId })) } catch { /* Optional navigation preference. */ }
+        try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId, reply: replyId })) } catch { /* Optional navigation preference. */ }
       }
       return
     }
     let last = null
     try { last = JSON.parse(localStorage.getItem(storageKey)) } catch { /* Invalid or unavailable preference. */ }
     const selected = available.find(item => item.id === last?.mailbox) || available[0]
-    setParams({ mailbox: selected.id, ...(selected.id === last?.mailbox && last?.message ? { message: last.message } : {}) }, { replace: true })
-  }, [connections, connectionId, messageId, connection, storageKey, setParams, pending])
+    setParams({ mailbox: selected.id, ...(selected.id === last?.mailbox && last?.message ? { message: last.message, ...(last.reply ? { reply: last.reply } : {}) } : {}) }, { replace: true })
+  }, [connections, connectionId, messageId, replyId, connection, storageKey, setParams, pending])
 
   function navigate(next) {
     if ((dirtyRef.current || orderDirtyRef.current) && !window.confirm(w('Es gibt ungespeicherte Eingaben. Trotzdem wechseln?', 'There are unsaved changes. Leave anyway?'))) return
@@ -81,14 +82,14 @@ export default function MailboxesPage() {
     {!loading && !error && !connections.length && <div className="mailbox-empty"><h2>{w('Noch kein Postfach verbunden', 'No mailbox connected')}</h2><p>{w('Deine Postfächer verbindest und benennst du in den Benutzereinstellungen.', 'Connect and name your mailboxes in user settings.')}</p><Link to="/profil#postfaecher">{w('Zu meinen Postfächern in den Einstellungen', 'Open my mailbox settings')}</Link></div>}
     {connection?.status === 'disconnecting' && <div className="mailbox-empty"><p>{w('Die Postfachverbindung wird getrennt. Eine unvollständige Trennung kannst du in den Benutzereinstellungen fortsetzen.', 'This mailbox is being disconnected. Complete an unfinished disconnection in user settings.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
     {connection?.status === 'connected' && <div className="mailbox-layout">
-      <Inbox key={connection.id} connectionId={connection.id} selectedId={messageId} onSelect={id => navigate({ mailbox: connection.id, message: id })} />
-      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId} connection={connection} messageId={messageId} editable={editable} dirtyRef={dirtyRef} orderDirtyRef={orderDirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
+      <Inbox key={connection.id} connectionId={connection.id} selectedId={replyId || messageId} onSelect={id => navigate({ mailbox: connection.id, message: id })} onSelectReply={(sourceId, id) => navigate({ mailbox: connection.id, message: sourceId, reply: id })} />
+      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId + ':' + replyId} connection={connection} messageId={replyId || messageId} sent={Boolean(replyId)} onShowIncoming={() => navigate({ mailbox: connection.id, message: messageId })} editable={editable && !replyId} dirtyRef={dirtyRef} orderDirtyRef={orderDirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
     </div>}
     {!loading && Boolean(connections.length) && connectionId && !connection && <div className="mailbox-empty"><p>{w('Dieses Postfach ist nicht verfügbar. Wähle links ein verbundenes Postfach aus.', 'This mailbox is unavailable. Select a connected mailbox in the sidebar.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
   </section>
 }
 
-function Inbox({ connectionId, selectedId, onSelect }) {
+function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
   const { language } = useLanguage()
   const w = useWords()
   const [messages, setMessages] = useState([])
@@ -103,7 +104,6 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   const [replyError, setReplyError] = useState(false)
   const [replyPartial, setReplyPartial] = useState(false)
   const [replyReload, setReplyReload] = useState(0)
-  const [openedReply, setOpenedReply] = useState(null)
   const replyIds = messages.map(message => message.id).join('\n')
   const actionStates = useMailboxActionList(connectionId, messages.map(message => message.id))
   const load = useCallback(async (pageToken) => {
@@ -161,35 +161,12 @@ function Inbox({ connectionId, selectedId, onSelect }) {
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
     <div className="mailbox-message-list">{messages.map((message) => <div className="mailbox-message-group" key={message.id}><button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
       <span className="mailbox-message-heading"><span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><MailActionIndicators identity={{ connectionId, messageId: message.id }} actions={actionStates} /></span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
-    </button>{(replies[message.id] || []).map(reply => <button className="mailbox-replied-row" type="button" key={reply.id} onClick={() => setOpenedReply(reply.id)} aria-label={`${w('Beantwortet', 'Replied')} · ${mailDate(reply.sentDateTime, language)}`}><span>{w('Beantwortet', 'Replied')}</span><time dateTime={reply.sentDateTime}>{mailDate(reply.sentDateTime, language)}</time><span aria-hidden="true">✓</span></button>)}</div>)}</div>
+    </button>{(replies[message.id] || []).map(reply => <button className={`mailbox-replied-row ${selectedId === reply.id ? 'is-selected' : ''}`} type="button" key={reply.id} onClick={() => onSelectReply(message.id, reply.id)} aria-current={selectedId === reply.id ? 'true' : undefined} aria-label={`${w('Beantwortet', 'Replied')} · ${mailDate(reply.sentDateTime, language)}`}><span>{w('Beantwortet', 'Replied')}</span><time dateTime={reply.sentDateTime}>{mailDate(reply.sentDateTime, language)}</time><span aria-hidden="true">✓</span></button>)}</div>)}</div>
     {busy && <p role="status">{w('Nachrichten werden geladen …', 'Loading messages …')}</p>}
     {!busy && !error && !messages.length && <p role="status">{search ? w('Keine passenden Nachrichten gefunden.', 'No matching messages found.') : w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}
     {(replyError || replyPartial) && <small className="mailbox-replies-warning" role="status">{w('Antworten konnten noch nicht vollständig geprüft werden.', 'Replies could not yet be fully checked.')} <button type="button" onClick={() => setReplyReload(value => value + 1)}>{w('Erneut prüfen', 'Check again')}</button></small>}
-    {openedReply && <SentReplyDialog identity={{connectionId, messageId: openedReply}} onClose={() => setOpenedReply(null)} />}
     {next && <button type="button" disabled={busy} onClick={() => load(next)}>{w('Weitere Nachrichten', 'More messages')}</button>}
   </aside>
-}
-
-function SentReplyDialog({ identity, onClose }) {
-  const w = useWords()
-  const dialog = useRef(null)
-  const [message, setMessage] = useState(null)
-  const [error, setError] = useState(false)
-  const [retry, setRetry] = useState(0)
-  useEffect(() => {
-    const element = dialog.current
-    element.showModal()
-    return () => element.close()
-  }, [])
-  useEffect(() => {
-    let active = true
-    mailboxCall('getMailboxMessage', identity).then(result => { if (active) { setMessage(result.message); setError(false) } }).catch(() => { if (active) setError(true) })
-    return () => { active = false }
-  }, [identity.connectionId, identity.messageId, retry]) // eslint-disable-line react-hooks/exhaustive-deps
-  const files = groupMailboxAttachments(message?.attachments || [])
-  return <dialog ref={dialog} className="mailbox-reply-dialog mailbox-sent-dialog" aria-label={w('Gesendete Antwort', 'Sent reply')} onCancel={event => { event.preventDefault(); onClose() }}><div className="mailbox-panel-heading"><h2>{w('Gesendete Antwort', 'Sent reply')}</h2><button type="button" onClick={onClose}>{w('Schließen', 'Close')}</button></div><article className="mailbox-reader mailbox-sent-reader">
-    {error ? <Failure message={w('Diese Antwort konnte nicht geladen werden.', 'Could not load this reply.')} retry={() => setRetry(value => value + 1)} /> : !message ? <p role="status">{w('Antwort wird geladen …', 'Loading reply …')}</p> : <><MessageContent message={message} sent beforeBody={<MailboxAttachmentList identity={identity} attachments={files.files} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} /><MailboxAttachmentList identity={identity} attachments={files.inlineImages} inline outlookUrl={safeOutlookLink(message.webLink)} /></>}
-  </article></dialog>
 }
 
 function MessageContent({ message, beforeBody, sent = false }) {
@@ -199,7 +176,7 @@ function MessageContent({ message, beforeBody, sent = false }) {
     {beforeBody}<div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
 }
 
-function MailWorkspace({ connection, messageId, editable, dirtyRef, orderDirtyRef }) {
+function MailWorkspace({ connection, messageId, sent = false, onShowIncoming, editable, dirtyRef, orderDirtyRef }) {
   const { profile } = useAuth()
   const w = useWords()
   const [message, setMessage] = useState(null)
@@ -217,8 +194,8 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef, orderDirtyRe
   if (!message) return <p role="status">{w('Nachricht wird geladen …', 'Loading message …')}</p>
   const { files, inlineImages } = groupMailboxAttachments(message.attachments)
   return <div className="mailbox-workspace">
-    <article className="mailbox-reader" tabIndex={0} aria-label={w('Schriftverkehr', 'Correspondence')}><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2></div>
-      <MessageContent message={message} beforeBody={<MailboxAttachmentList attachments={files} identity={identity} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} />
+    <article className="mailbox-reader" tabIndex={0} aria-label={sent ? w('Gesendete Antwort', 'Sent reply') : w('Schriftverkehr', 'Correspondence')}><div className="mailbox-panel-heading"><h2>{sent ? w('Gesendete Antwort', 'Sent reply') : w('Nachricht', 'Message')}</h2>{sent && <button type="button" onClick={onShowIncoming}>{w('Eingangsmail anzeigen', 'Show incoming message')}</button>}</div>
+      <MessageContent message={message} sent={sent} beforeBody={<MailboxAttachmentList attachments={files} identity={identity} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} />
       <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
       {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}
     </article>
