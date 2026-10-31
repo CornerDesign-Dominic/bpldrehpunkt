@@ -1,5 +1,8 @@
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
+import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
+import { reminderParentChanged, reminderSourceChanged } from './reminderSources.js'
+import { listCaseReminderUsersHandler, setReminderResponsibilityHandler } from './reminderAdmin.js'
 import { advanceTransportOrderListProjection } from './transportOrderListProjection.js'
 import { reportBackgroundFailure, withBackgroundDiagnostic } from './backgroundWork.js'
 import { listSystemCalendarSourcesHandler } from './calendarQueries.js'
@@ -21,7 +24,7 @@ import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMail
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
-import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
+import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
@@ -54,6 +57,59 @@ import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } 
 import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
 if (!getApps().length) initializeApp()
+const reminderOptions = { region: 'europe-west3', enforceAppCheck: true }
+export const listReminderStatuses = onCall(reminderOptions, async (request) => {
+  try { return await listReminderStatusesHandler(request) }
+  catch (error) {
+    if (!(error instanceof HttpsError)) {
+      try { await recordDiagnostic({ module: 'reminders', stage: 'status', code: 'reminder-status-failed', message: 'Erinnerungsstatus konnte nicht geladen werden.', actorId: request.auth?.uid || 'unknown' }) } catch { /* Keep the original status failure. */ }
+    }
+    throw error
+  }
+})
+export const listCaseReminderUsers = onCall(reminderOptions, listCaseReminderUsersHandler)
+export const setReminderResponsibility = onCall(reminderOptions, setReminderResponsibilityHandler)
+export const prepareReminders = onCall({ ...reminderOptions, timeoutSeconds: 120, maxInstances: 1, concurrency: 1 }, async (request) => {
+  await requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen Erinnerungen vorbereiten.')
+  const db = getFirestore()
+  return withBackgroundDiagnostic(db, 'reminder-preparation', () => advanceReminderPreparation(db))
+})
+
+async function projectReminderParent(event, { refreshMain = true } = {}) {
+  if (!reminderParentChanged(event.data.before.data(), event.data.after.data())) return
+  const db = getFirestore(), startedAt = Date.now()
+  await withBackgroundDiagnostic(db, 'reminder-parent-projection', async () => {
+    while (true) {
+      const page = await refreshReminderParent(db, event.data.after.ref.path, { refreshMain })
+      if (page.complete) return
+      // The per-parent cursor survives trigger retries. Never restart a global
+      // archive scan or block the independently scheduled due-work dispatcher.
+      if (Date.now() - startedAt > 240_000) throw Object.assign(new Error('reminder-parent-projection-incomplete'), { code: 'unavailable' })
+    }
+  })
+}
+const reminderParentOptions = { region: 'europe-west3', retry: true, maxInstances: 3, timeoutSeconds: 300 }
+export const maintainCalendarReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'calendars/{id}' }, projectReminderParent)
+export const maintainDamageReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'damageCases/{id}' }, projectReminderParent)
+export const maintainInkassoReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'inkassoCases/{id}' }, projectReminderParent)
+export const maintainLegalReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'legalDisputes/{id}' }, projectReminderParent)
+export const maintainInsolvencyReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'insolvencies/{id}' }, projectReminderParent)
+export const maintainCalendarEventReminder = onDocumentWritten({ ...reminderParentOptions, document: 'calendars/{calendarId}/events/{eventId}' }, async (event) => {
+  if (!reminderSourceChanged(event.data.before.data(), event.data.after.data())) return
+  const db = getFirestore()
+  await withBackgroundDiagnostic(db, 'calendar-reminder-projection', () => refreshReminderSource(db, event.data.after.ref.path))
+})
+export const maintainTodoReminders = onDocumentWritten({ ...reminderParentOptions, document: 'todos/{id}' }, async (event) => {
+  const before = event.data.before.data(), after = event.data.after.data()
+  if (reminderSourceChanged(before, after) || reminderParentChanged(before, after)) {
+    const db = getFirestore()
+    await withBackgroundDiagnostic(db, 'todo-reminder-projection', () => refreshReminderSource(db, event.data.after.ref.path))
+  }
+  await projectReminderParent(event, { refreshMain: false })
+})
+// No global User/permission rebuild: future valid jobs stay indexed even while
+// access is blocked. Status, claim and beforeSend each load today's canonical
+// profile and permission; caches never survive one status request.
 const palletOptions = { region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }
 export const savePalletRecord = onCall(palletOptions, savePalletRecordHandler)
 export const listPalletAccountSummaries = onCall({ ...palletOptions, timeoutSeconds: 120 }, listPalletAccountSummariesHandler)

@@ -9,6 +9,7 @@ import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js
 import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsSkipped } from './externalEffects.js'
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 import { shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shared/shipmentTrackingArrivalConfirmation.js'
+import { reminderMinuteState } from './shared/reminderTime.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
@@ -24,6 +25,12 @@ const shipmentTrackingAllowedPlaceholders = Object.freeze([
 ])
 
 export const systemMailTemplateDefinitions = {
+  central_reminder: {
+    displayName: 'Kalender- und Fristerinnerung',
+    subject: '{{sourceType}} – {{title}} – Erinnerung',
+    message: 'Erinnerung: {{title}}\n\nTermin / Frist: {{dueDateTime}}\nBemerkung: {{note}}\n\nBitte im Drehpunkt prüfen.',
+    allowedPlaceholders: ['title', 'dueDateTime', 'sourceType', 'note'],
+  },
   vacation_request_confirmation: {
     displayName: 'Antrag – Bestätigung',
     subject: 'Urlaub [Antrag] - {{employeeName}}',
@@ -309,6 +316,46 @@ export async function sendSystemMailTemplate({ recipient, templateId, values, su
   const hasOverride = subject !== undefined || message !== undefined
   if (hasOverride && !validTemplate(templateId, { subject, message })) throw new HttpsError('invalid-argument', 'Betreff oder Nachricht enthalten unzulässige Platzhalter oder sind leer.')
   return sendWebhook(recipient, templateId, values, { allowDevelopment, automatic, templateOverride: hasOverride ? { subject: cleanText(subject, 240), message: cleanText(message, 12000) } : null })
+}
+
+export const reminderSenderAddress = 'drehpunkt@brennpunkt-logistik.de'
+
+/** Reminder-only transport contract. Other system and tracking mail paths keep
+ * their existing environment/sender rules. No response body or secret URL is
+ * logged; an ambiguous provider outcome must never provoke an automatic resend. */
+export async function sendReminderMail({ recipient, templateId = 'central_reminder', values, deliveryId, dueAt, beforeSend }, {
+  environment = externalEffectsEnvironment(),
+  paused = () => areAutomaticMailsPaused(),
+  notificationUrl = () => systemMailNotificationUrl.value(),
+  render = async (input) => renderTemplate(await loadTemplate('central_reminder'), input),
+  fetchImpl = fetch,
+  now = () => new Date(),
+  timeoutMs = 10000,
+} = {}) {
+  if (!['production', 'development'].includes(environment)) return { status: 'blocked', reason: 'unsupported-environment' }
+  if (templateId !== 'central_reminder' || !emailPattern.test(recipient || '') || !/^[a-f0-9]{64}$/.test(deliveryId || '') || typeof beforeSend !== 'function') return { status: 'failed', reason: 'invalid-dispatch-contract' }
+  if (await paused()) return { status: 'blocked', reason: 'global-paused' }
+  if (reminderMinuteState(dueAt, now()) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
+  const url = notificationUrl()
+  if (!url) return { status: 'failed', reason: 'provider-not-configured' }
+  const { subject, message, messageHtml } = await render({ ...values, note: values?.note || '–' })
+  if (await paused()) return { status: 'blocked', reason: 'global-paused' }
+  if (!await beforeSend()) return { status: 'blocked', reason: 'no-longer-eligible' }
+  const clock = now()
+  if (reminderMinuteState(dueAt, clock) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
+  const remaining = new Date(dueAt).getTime() + 60000 - clock.getTime()
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(10000, timeoutMs, remaining)))
+  try {
+    const response = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': deliveryId }, signal: abort.signal, body: JSON.stringify({ from: reminderSenderAddress, to: recipient, subject, message, messageHtml, type: 'central_reminder', deliveryId, dueAt }) })
+    if (!response.ok) return { status: 'failed', reason: 'provider-http-error' }
+    let receipt
+    try { receipt = await response.json() } catch { return { status: 'uncertain', reason: 'provider-acknowledgement-missing' } }
+    if (receipt?.accepted !== true || receipt?.deliveryId !== deliveryId) return { status: 'uncertain', reason: 'provider-acknowledgement-missing' }
+    if (receipt?.sender?.toLowerCase?.() !== reminderSenderAddress) return { status: 'uncertain', reason: 'sender-mismatch' }
+    return { status: 'accepted' }
+  } catch { return { status: 'uncertain', reason: 'provider-outcome-unknown' } }
+  finally { clearTimeout(timer) }
 }
 
 export async function previewSystemMailTemplate({ templateId, values }) {
