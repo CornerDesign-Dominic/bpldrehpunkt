@@ -199,3 +199,6 @@
 .mailboxes-page .mailbox-suggestions button:focus-visible { outline: 1px solid var(--border-strong); outline-offset: 1px; }
 .mailbox-suggestions .mailbox-action-spinner { border-color: var(--border); border-top-color: var(--text-secondary); }
 .mailboxes-page textarea.mailbox-suggestions__instruction:focus { outline: none; box-shadow: none; border-color: var(--input-border); }
+
+.mailboxes-page .mailbox-suggestions__generate { color: #fff; background: var(--color-ai); border-color: var(--color-ai-border); }
+.mailboxes-page .mailbox-suggestions__generate:hover:not(:disabled) { background: var(--color-ai-hover); }
