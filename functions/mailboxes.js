@@ -1,4 +1,8 @@
 import { listMailboxReplies } from './mailboxReplies.js'
+import { applyMailboxRecord, previewMailboxRecord, searchRecordTargets } from './mailboxRecords.js'
+import { assertRecordAccess } from './mailboxRecordData.js'
+import { recordAttachmentType, validateRecordAttachments } from './mailboxRecordAi.js'
+import { statusMailAiApiKey } from './statusMailAi.js'
 import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
@@ -438,6 +442,32 @@ export function createMailboxHandlers(deps = {}) {
       const reports = await Promise.all(entries.docs.map(async entry => (await db().doc(`invoiceCheckReports/${entry.data().reportId}`).get()).data()?.report))
       return { reports: reports.filter(Boolean) }
     }),
+    previewMailboxRecord: guarded('record-preview', async request => {
+      const context = await owned(request, true)
+      const kind = request.data.kind
+      assertRecordAccess(context, kind)
+      const messageId = id(request.data.messageId)
+      const token = await accessToken(context)
+      const base = `${mailboxPath(context)}/messages/${segment(messageId)}`
+      const mail = await graph(token, `${base}?$select=id,subject,from,receivedDateTime,body,bodyPreview,webLink`)
+      const list = await graph(token, `${base}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      const files = []
+      for (const file of validateRecordAttachments(list)) {
+        if (recordAttachmentType(file) === 'unsupported' || file['@odata.type'] !== '#microsoft.graph.fileAttachment') { files.push(file); continue }
+        const full = await graph(token, `${base}/attachments/${segment(file.id)}`)
+        if (typeof full.contentBytes !== 'string' || full.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4) fail('failed-precondition', 'Ein Anhang ist nicht lesbar oder zu groß.')
+        files.push({ ...file, contentBytes: full.contentBytes })
+      }
+      return previewMailboxRecord({ db: db(), actor: context, kind, messageId, mail, files, apiKey: deps.recordApiKey || statusMailAiApiKey.value(), now: now(), extract: deps.extractRecordSources, infer: deps.inferMailboxRecord })
+    }),
+    searchMailboxRecordTargets: guarded('record-search', async request => {
+      const context = await owned(request, true)
+      return searchRecordTargets({ db: db(), actor: context, kind: request.data.kind, data: request.data })
+    }),
+    applyMailboxRecord: guarded('record-apply', async request => {
+      const context = await owned(request, true)
+      return applyMailboxRecord({ db: db(), actor: context, data: request.data, now: now() })
+    }),
     analyzeMailboxAgb: guarded('agb-analyse', async request => {
       const context = await owned(request, true)
       assertMailboxAgbAccess(context)
@@ -733,7 +763,7 @@ export function createMailboxHandlers(deps = {}) {
     for (const snapshot of states.docs) await snapshot.ref.delete()
     const previews = await db().collection('mailboxTrackingPreviews').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of previews.docs) await snapshot.ref.delete()
-    for (const collection of ['mailboxReplyQuotas', 'mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns']) {
+    for (const collection of ['mailboxReplyQuotas', 'mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns', 'mailboxRecordPreviews', 'mailboxRecordQuotas']) {
       const expired = await db().collection(collection).where('expiresAt', '<', now()).limit(100).get()
       for (const snapshot of expired.docs) await snapshot.ref.delete()
     }
@@ -765,6 +795,8 @@ export const getMailboxDraftHandler = handlers.getMailboxDraft
 export const saveMailboxDraftHandler = handlers.saveMailboxDraft
 export const sendMailboxReplyHandler = handlers.sendMailboxReply
 export const sendMailboxMessageHandler = handlers.sendMailboxMessage
+export const searchMailboxRecordTargetsHandler = handlers.searchMailboxRecordTargets
+export const applyMailboxRecordHandler = handlers.applyMailboxRecord
 export const disconnectMailboxHandler = handlers.disconnectMailbox
 export const mailboxOAuthCallbackHandler = handlers.mailboxOAuthCallback
 export const cleanupMailboxConnectionsHandler = handlers.cleanupMailboxConnections

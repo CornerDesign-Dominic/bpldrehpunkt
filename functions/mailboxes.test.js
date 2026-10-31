@@ -23,7 +23,7 @@ function database() {
   return {
     records, doc,
     collection(path) {
-      const query = { field: '', value: 0, where(field, op, value) { assert.ok(['<', '=='].includes(op)); this.op = op; this.field = field; this.value = value; return this }, limit() { return this }, async get() { return { docs: [...records].filter(([key, value]) => key.startsWith(`${path}/`) && (!this.field || (this.op === '==' ? value[this.field] === this.value : value[this.field] < this.value))).map(([key, value]) => ({ id: key.split('/').at(-1), ref: doc(key), data: () => structuredClone(value) })) } } }
+      const query = { field: '', value: 0, where(field, op, value) { assert.ok(['<', '=='].includes(op)); this.op = op; this.field = field; this.value = value; return this }, orderBy() { return this }, limit() { return this }, async get() { return { docs: [...records].filter(([key, value]) => key.startsWith(`${path}/`) && (!this.field || (this.op === '==' ? value[this.field] === this.value : value[this.field] < this.value))).map(([key, value]) => ({ id: key.split('/').at(-1), ref: doc(key), data: () => structuredClone(value) })) } } }
       return query
     },
     runTransaction(fn) {
@@ -46,6 +46,24 @@ const request = data => ({ auth: { uid: 'owner' }, data: { connectionId, proofCh
 const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpunkt-logistik.de'], ccRecipients: [], bccRecipients: [] }
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
 const newMail = { ...draft, subject: 'Neue unabhängige Mail', revision: 0, operationId: 'new-mail-0123456789' }
+
+test('record extraction uses owned server mail and attachments, never client-injected content or target routing', async () => {
+  const paths = []
+  let extracted
+  const f = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'edit', todos: 'edit' } }), recordApiKey: 'synthetic', fetch: async url => {
+    paths.push(url)
+    if (url.includes('/attachments?')) return response({ value: [{ id: 'file', name: 'Beleg.pdf', contentType: 'application/pdf', size: 100, '@odata.type': '#microsoft.graph.fileAttachment' }] })
+    if (url.includes('/attachments/file')) return response({ contentBytes: 'cGRm' })
+    return response({ subject: 'Servermail', body: { contentType: 'text', content: 'Vertrauenswürdige Serverquelle' } })
+  }, extractRecordSources: async input => { extracted = input; return { sources: [], sourceFiles: [], warnings: [] } }, inferMailboxRecord: async () => ({ values: { title: 'Aufgabe' }, evidence: {}, summary: 'Test', references: [], warnings: [] }) })
+  const result = await f.handlers.previewMailboxRecord(request({ kind: 'todo', messageId: 'source', body: 'Client manipulation', graphUserId: 'foreign', files: [{ name: 'fake' }] }))
+  assert.equal(result.kind, 'todo')
+  assert.equal(extracted.mail.body.content, 'Vertrauenswürdige Serverquelle')
+  assert.equal(extracted.files[0].contentBytes, 'cGRm')
+  assert.ok(paths.every(path => path.includes('/me/messages/source')))
+  await assert.rejects(f.handlers.previewMailboxRecord({ auth: { uid: 'other' }, data: { connectionId, kind: 'todo', messageId: 'source' } }), { code: 'permission-denied' })
+  assert.equal(paths.length, 3)
+})
 
 test('new mail uses sendMail without a source message and preserves subject, recipients and plain text', async () => {
   const calls = []

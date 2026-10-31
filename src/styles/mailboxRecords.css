@@ -1,0 +1,27 @@
+.mail-record-choice, .mail-record-editor { display: grid; gap: 14px; }
+.mail-record-choice h3, .mail-record-choice h4, .mail-record-completed h3 { margin: 10px 0 0; }
+.mail-record-buttons, .mail-record-search, .mail-record-editor-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.mail-record-search { margin: 12px 0; flex-wrap: nowrap; }
+.mail-record-search input { flex: 1; }
+.mail-record-targets { display: grid; gap: 8px; margin: 10px 0; }
+.mailboxes-page .mail-record-targets button { display: grid; gap: 5px; padding: 12px; text-align: left; background: var(--surface-secondary); }
+.mail-record-targets small, .mail-record-sources, .mail-record-field small { color: var(--text-secondary); }
+.mail-record-warnings { padding: 12px; border: 1px solid var(--status-warning-text); border-radius: 8px; background: var(--status-warning-background); color: var(--status-warning-text); }
+.mail-record-warnings ul { padding-left: 18px; }
+.mail-record-warnings label { display: flex; align-items: start; gap: 8px; }
+.mail-record-sources { margin: 8px 0 14px; font-size: 12px; }
+.mail-record-sources summary, .mail-record-evidence summary { cursor: pointer; }
+.mail-record-field { min-width: 0; display: grid; gap: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.mail-record-field-heading { display: flex; gap: 8px; align-items: center; grid-column: 1 / -1; }
+.mail-record-field.has-comparison { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.mail-record-previous { padding: 8px; background: var(--surface-secondary); border-radius: 6px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mail-record-previous p { margin: 6px 0 0; }
+.mail-record-proposal { min-width: 0; }
+.mail-record-proposal textarea { resize: vertical; }
+.mail-record-evidence { margin-top: 6px; font-size: 12px; overflow-wrap: anywhere; }
+.mail-record-evidence summary, .mail-record-completed a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
+.mail-record-proposal p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-record-evidence p { white-space: pre-wrap; }
+.mail-record-error { padding: 12px; border: 1px solid var(--status-error-text); background: var(--status-error-background); border-radius: 7px; }
+.mailboxes-page .mail-record-apply { background: var(--button-background); color: var(--button-text); }
+@media (max-width: 760px) { .mail-record-field.has-comparison { grid-template-columns: minmax(0, 1fr); } }

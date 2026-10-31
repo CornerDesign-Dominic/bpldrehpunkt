@@ -1,10 +1,12 @@
 # Mailaktionen im Hintergrund
 
-Stand: 30.10.2026. Ausschließlich Dev (`db-bpl-drehpunkt-dev`).
+Stand: 01.11.2026. Ausschließlich Dev (`db-bpl-drehpunkt-dev`).
 
 ## Bedienung
 
-Auftragserfassung, Sendungsstatus, AGB- und Rechnungsprüfung starten ohne Dialog.
+Auftragserfassung, Sendungsstatus, AGB- und Rechnungsprüfung sowie To-do, Schaden,
+Inkasso, Gericht und Kalender starten ohne Dialog. Die fünf neuen Vorgangsaktionen
+sind unter [Mailbasierte Vorgänge](mailbox-record-actions.md) dokumentiert.
 Jede Aktion hat einen eigenen Zustand pro persönlichem Postfach und Nachricht;
 mehrere Aktionen können gleichzeitig laufen. In der Mailliste erscheinen nur
 Symbole, ohne Ergebnistext oder Warnungszähler. Der entsprechende Aktionsbutton
@@ -12,7 +14,9 @@ Symbole, ohne Ergebnistext oder Warnungszähler. Der entsprechende Aktionsbutton
 
 - Laufend: blauer Ladekreis; Button gesperrt.
 - Auftrag/Sendungsstatus zur Bestätigung: gelbes Formular/Uhrsymbol.
+- To-do/Schaden/Inkasso/Gericht/Kalender zur Bestätigung: gelber Koffer.
 - AGB/Rechnung fertig oder Auftrag/Status übernommen: grünes Aktionssymbol.
+- Bestätigte Vorgangsübernahme: grüner Koffer; gespeichertes Ergebnis erneut öffnen.
 - Fehler: verständliche Meldung und erneuter Start bzw. gezieltes Ergebnisladen.
 
 Grün bedeutet abgeschlossen, unabhängig vom fachlichen Prüfungsergebnis. Dieses
