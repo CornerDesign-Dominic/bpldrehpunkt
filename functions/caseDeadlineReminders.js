@@ -2,7 +2,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { withBackgroundDiagnostic } from './backgroundWork.js'
-import { systemMailNotificationUrl } from './systemMails.js'
+import { reminderMailNotificationUrl } from './systemMails.js'
 import { advanceReminderPreparation, refreshReminderSource, runReminderDispatch } from './reminders.js'
 import { reminderSourceChanged, reminderSourceDescriptor } from './reminderSources.js'
 
@@ -17,4 +17,4 @@ export const maintainCaseDeadlineReminderWork = onDocumentWritten({ region: 'eur
 
 export const advanceDeadlineReminderWork = advanceReminderPreparation
 export const runCaseDeadlineReminderDispatch = runReminderDispatch
-export const scheduledCaseDeadlineReminderDispatch = onSchedule({ region: 'europe-west3', schedule: '* * * * *', timeZone: 'Europe/Berlin', maxInstances: 1, concurrency: 1, timeoutSeconds: 120, secrets: [systemMailNotificationUrl] }, async () => runReminderDispatch())
+export const scheduledCaseDeadlineReminderDispatch = onSchedule({ region: 'europe-west3', schedule: '* * * * *', timeZone: 'Europe/Berlin', maxInstances: 1, concurrency: 1, timeoutSeconds: 120, secrets: [reminderMailNotificationUrl] }, async () => runReminderDispatch())

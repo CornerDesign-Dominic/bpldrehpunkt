@@ -10,10 +10,13 @@ import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsS
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 import { shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shared/shipmentTrackingArrivalConfirmation.js'
 import { reminderMinuteState } from './shared/reminderTime.js'
+import { buildReminderProviderRequest, parseReminderProviderResponse } from './reminderProviderContract.js'
+export { reminderSenderAddress } from './reminderProviderContract.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
 export const systemMailNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
+export const reminderMailNotificationUrl = defineSecret('POWER_AUTOMATE_REMINDER_URL')
 export const shipmentTrackingMailNotificationUrl = defineSecret('POWER_AUTOMATE_TRACKING_NOTIFICATION_URL')
 const region = 'europe-west3'
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -318,15 +321,13 @@ export async function sendSystemMailTemplate({ recipient, templateId, values, su
   return sendWebhook(recipient, templateId, values, { allowDevelopment, automatic, templateOverride: hasOverride ? { subject: cleanText(subject, 240), message: cleanText(message, 12000) } : null })
 }
 
-export const reminderSenderAddress = 'drehpunkt@brennpunkt-logistik.de'
-
 /** Reminder-only transport contract. Other system and tracking mail paths keep
  * their existing environment/sender rules. No response body or secret URL is
  * logged; an ambiguous provider outcome must never provoke an automatic resend. */
 export async function sendReminderMail({ recipient, templateId = 'central_reminder', values, deliveryId, dueAt, beforeSend }, {
   environment = externalEffectsEnvironment(),
   paused = () => areAutomaticMailsPaused(),
-  notificationUrl = () => systemMailNotificationUrl.value(),
+  notificationUrl = () => reminderMailNotificationUrl.value(),
   render = async (input) => renderTemplate(await loadTemplate('central_reminder'), input),
   fetchImpl = fetch,
   now = () => new Date(),
@@ -338,7 +339,12 @@ export async function sendReminderMail({ recipient, templateId = 'central_remind
   if (reminderMinuteState(dueAt, now()) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
   const url = notificationUrl()
   if (!url) return { status: 'failed', reason: 'provider-not-configured' }
+  try { if (new URL(url).protocol !== 'https:') return { status: 'failed', reason: 'provider-url-invalid' } }
+  catch { return { status: 'failed', reason: 'provider-url-invalid' } }
   const { subject, message, messageHtml } = await render({ ...values, note: values?.note || '–' })
+  let payload
+  try { payload = buildReminderProviderRequest({ environment, recipient, deliveryId, dueAt, subject, message, messageHtml }) }
+  catch { return { status: 'failed', reason: 'invalid-dispatch-contract' } }
   if (await paused()) return { status: 'blocked', reason: 'global-paused' }
   if (!await beforeSend()) return { status: 'blocked', reason: 'no-longer-eligible' }
   const clock = now()
@@ -347,13 +353,10 @@ export async function sendReminderMail({ recipient, templateId = 'central_remind
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(10000, timeoutMs, remaining)))
   try {
-    const response = await fetchImpl(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': deliveryId }, signal: abort.signal, body: JSON.stringify({ from: reminderSenderAddress, to: recipient, subject, message, messageHtml, type: 'central_reminder', deliveryId, dueAt }) })
-    if (!response.ok) return { status: 'failed', reason: 'provider-http-error' }
+    const response = await fetchImpl(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': payload.deliveryKey }, signal: abort.signal, body: JSON.stringify(payload) })
     let receipt
     try { receipt = await response.json() } catch { return { status: 'uncertain', reason: 'provider-acknowledgement-missing' } }
-    if (receipt?.accepted !== true || receipt?.deliveryId !== deliveryId) return { status: 'uncertain', reason: 'provider-acknowledgement-missing' }
-    if (receipt?.sender?.toLowerCase?.() !== reminderSenderAddress) return { status: 'uncertain', reason: 'sender-mismatch' }
-    return { status: 'accepted' }
+    return parseReminderProviderResponse(receipt, payload, response.status)
   } catch { return { status: 'uncertain', reason: 'provider-outcome-unknown' } }
   finally { clearTimeout(timer) }
 }

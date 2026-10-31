@@ -1,0 +1,740 @@
+{
+  "artifactType": "NON_IMPORTABLE_POWER_AUTOMATE_IMPLEMENTATION_PLAN",
+  "planVersion": 1,
+  "warning": "LOCAL DRAFT ONLY. Not a Power Automate export, ARM template or importable flow. No live validation, publication, connection or mail execution has occurred. Expressions, connector envelopes, schema enforcement and dynamic SharePoint column bindings require target-designer verification.",
+  "target": {
+    "environment": "development",
+    "projectId": "db-bpl-drehpunkt-dev",
+    "contractVersion": 1,
+    "sender": "drehpunkt@brennpunkt-logistik.de",
+    "secretName": "POWER_AUTOMATE_REMINDER_URL",
+    "flowDisplayName": "Drehpunkt central reminders development",
+    "existingGeneralFlow": "Leave unchanged"
+  },
+  "bindings": {
+    "httpTriggerUrl": null,
+    "sharePoint": {
+      "siteUrl": null,
+      "listId": null,
+      "connectionReference": null
+    },
+    "outlookDf": {
+      "connectionReference": null,
+      "expectedAccount": "df@",
+      "mailboxAddress": "drehpunkt@brennpunkt-logistik.de"
+    },
+    "verifiedUniqueConflictPredicate": null
+  },
+  "trigger": {
+    "id": "request",
+    "action": "Request",
+    "kind": "Http",
+    "method": "POST",
+    "authentication": "Dedicated secret endpoint per Firebase project; never check in callback URL or SAS token.",
+    "secure": {
+      "inputs": true,
+      "outputs": true
+    },
+    "schemaRef": "requestSchema",
+    "next": "parse_request",
+    "splitOn": false,
+    "concurrency": {
+      "degreeOfParallelism": null,
+      "policy": "Choose bounded parallelism after quota review. Concurrency=1 is not the idempotency mechanism; queued runs must still expire."
+    }
+  },
+  "requestSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "contractVersion",
+      "projectId",
+      "environment",
+      "deliveryId",
+      "deliveryKey",
+      "payloadDigest",
+      "dueAt",
+      "expiresAt",
+      "from",
+      "to",
+      "subject",
+      "message",
+      "messageHtml",
+      "type"
+    ],
+    "properties": {
+      "contractVersion": {
+        "type": "integer",
+        "enum": [
+          1
+        ]
+      },
+      "projectId": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "db-bpl-drehpunkt-dev"
+        ]
+      },
+      "environment": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "development"
+        ]
+      },
+      "deliveryId": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "deliveryKey": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^db-bpl-drehpunkt-dev:[a-f0-9]{64}$"
+      },
+      "payloadDigest": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "dueAt": {
+        "type": "string",
+        "minLength": 1,
+        "format": "date-time",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,7})?Z$"
+      },
+      "expiresAt": {
+        "type": "string",
+        "minLength": 1,
+        "format": "date-time",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,7})?Z$"
+      },
+      "from": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "drehpunkt@brennpunkt-logistik.de"
+        ]
+      },
+      "to": {
+        "type": "string",
+        "minLength": 1,
+        "format": "email",
+        "pattern": "^[^<>(),;:\\s@]+@[^<>(),;:\\s@]+\\.[^<>(),;:\\s@]+$"
+      },
+      "subject": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1000,
+        "pattern": "^[^\\r\\n]+$"
+      },
+      "message": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40000
+      },
+      "messageHtml": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200000
+      },
+      "type": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "central_reminder"
+        ]
+      }
+    }
+  },
+  "responseSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "contractVersion",
+      "projectId",
+      "environment",
+      "deliveryId",
+      "payloadDigest",
+      "sender",
+      "accepted",
+      "outcome"
+    ],
+    "properties": {
+      "contractVersion": {
+        "type": "integer",
+        "enum": [
+          1
+        ]
+      },
+      "projectId": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "db-bpl-drehpunkt-dev"
+        ]
+      },
+      "environment": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "development"
+        ]
+      },
+      "deliveryId": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "payloadDigest": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-f0-9]{64}$"
+      },
+      "sender": {
+        "type": "string",
+        "minLength": 1,
+        "enum": [
+          "drehpunkt@brennpunkt-logistik.de"
+        ]
+      },
+      "accepted": {
+        "type": "boolean"
+      },
+      "outcome": {
+        "enum": [
+          "accepted",
+          "missed",
+          "uncertain",
+          "rejected"
+        ]
+      }
+    },
+    "invariant": "accepted is true iff outcome is accepted. Malformed-request rejection may have null deliveryId/payloadDigest and is never accepted."
+  },
+  "ledger": {
+    "fixedPerEnvironment": true,
+    "listId": null,
+    "columns": {
+      "Title": {
+        "type": "Text",
+        "required": true,
+        "indexed": true,
+        "enforceUniqueValues": true,
+        "source": "deliveryKey"
+      },
+      "DeliveryId": {
+        "type": "Text",
+        "required": true
+      },
+      "PayloadDigest": {
+        "type": "Text",
+        "required": true
+      },
+      "Outcome": {
+        "type": "Choice",
+        "required": true,
+        "values": [
+          "sending",
+          "accepted",
+          "missed",
+          "uncertain"
+        ]
+      },
+      "DueAt": {
+        "type": "DateTime",
+        "required": true
+      },
+      "ExpiresAt": {
+        "type": "DateTime",
+        "required": true
+      },
+      "OutcomeAt": {
+        "type": "DateTime",
+        "required": true
+      }
+    },
+    "forbiddenData": [
+      "email addresses",
+      "subject",
+      "message",
+      "messageHtml",
+      "notes"
+    ],
+    "permissions": "Only dedicated flow service identity and specifically authorized operators; no general member write/edit/delete. Protect claims against mutation, deletion and alternate writers.",
+    "retention": "No automatic claim deletion in this draft. Any later retention policy must preserve replay/expiry guarantees; never delete live or unresolved claims to enable retries."
+  },
+  "nodes": [
+    {
+      "id": "parse_request",
+      "action": "ParseJson",
+      "content": "@triggerBody()",
+      "schemaRef": "requestSchema",
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "next": {
+        "succeeded": "guard_identity",
+        "failed": "reply_malformed"
+      }
+    },
+    {
+      "id": "guard_identity",
+      "action": "If",
+      "expression": "@and(equals(triggerBody()?['contractVersion'],1),equals(triggerBody()?['projectId'],'db-bpl-drehpunkt-dev'),equals(triggerBody()?['environment'],'development'),equals(triggerBody()?['from'],'drehpunkt@brennpunkt-logistik.de'),equals(triggerBody()?['type'],'central_reminder'),equals(triggerBody()?['deliveryKey'],concat('db-bpl-drehpunkt-dev:',triggerBody()?['deliveryId'])),equals(triggerOutputs()?['headers']?['Idempotency-Key'],triggerBody()?['deliveryKey']))",
+      "next": {
+        "true": "parse_time",
+        "false": "reply_wrong_target"
+      }
+    },
+    {
+      "id": "parse_time",
+      "action": "Compose",
+      "expression": "@sub(ticks(triggerBody()?['expiresAt']),ticks(triggerBody()?['dueAt']))",
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "next": {
+        "succeeded": "guard_duration",
+        "failed": "reply_rejected"
+      }
+    },
+    {
+      "id": "guard_duration",
+      "action": "If",
+      "expression": "@and(equals(outputs('parse_time'),600000000),equals(mod(ticks(triggerBody()?['dueAt']),600000000),0))",
+      "next": {
+        "true": "guard_not_early",
+        "false": "reply_rejected"
+      }
+    },
+    {
+      "id": "guard_not_early",
+      "action": "If",
+      "expression": "@lessOrEquals(ticks(triggerBody()?['dueAt']),ticks(utcNow()))",
+      "next": {
+        "true": "check_before_create",
+        "false": "reply_rejected"
+      }
+    },
+    {
+      "id": "check_before_create",
+      "action": "If",
+      "expression": "@and(lessOrEquals(ticks(triggerBody()?['dueAt']),ticks(utcNow())),less(ticks(utcNow()),ticks(triggerBody()?['expiresAt'])))",
+      "next": {
+        "true": "create_claim",
+        "false": "reply_missed"
+      }
+    },
+    {
+      "id": "create_claim",
+      "action": "ApiConnection",
+      "connector": "shared_sharepointonline",
+      "operationId": "PostItem",
+      "binding": "sharePoint",
+      "retryPolicy": {
+        "type": "none"
+      },
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "parameters": {
+        "dataset": null,
+        "table": null,
+        "item": {
+          "Title": "@triggerBody()?['deliveryKey']",
+          "DeliveryId": "@triggerBody()?['deliveryId']",
+          "PayloadDigest": "@triggerBody()?['payloadDigest']",
+          "Outcome": "sending",
+          "DueAt": "@triggerBody()?['dueAt']",
+          "ExpiresAt": "@triggerBody()?['expiresAt']",
+          "OutcomeAt": "@utcNow()"
+        }
+      },
+      "next": {
+        "succeeded": "guard_created_id",
+        "failed": "classify_claim_error",
+        "timedOut": "reply_uncertain"
+      }
+    },
+    {
+      "id": "guard_created_id",
+      "action": "If",
+      "expression": "@greater(int(coalesce(body('create_claim')?['ID'],0)),0)",
+      "next": {
+        "true": "check_before_send",
+        "false": "reply_uncertain",
+        "failed": "reply_uncertain"
+      }
+    },
+    {
+      "id": "classify_claim_error",
+      "action": "ImplementationGate",
+      "binding": "verifiedUniqueConflictPredicate",
+      "rule": "Only a verified SharePoint unique-constraint violation may enter duplicate lookup. Unknown failures, throttling, timeout and ambiguous create responses never acquire ownership.",
+      "next": {
+        "verifiedUniqueConflict": "read_duplicate",
+        "other": "reply_uncertain"
+      }
+    },
+    {
+      "id": "read_duplicate",
+      "action": "ApiConnection",
+      "connector": "shared_sharepointonline",
+      "operationId": "GetItems",
+      "binding": "sharePoint",
+      "retryPolicy": {
+        "type": "none"
+      },
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "parameters": {
+        "dataset": null,
+        "table": null,
+        "$filter": "@concat('Title eq ',decodeUriComponent('%27'),triggerBody()?['deliveryKey'],decodeUriComponent('%27'))",
+        "$top": 2
+      },
+      "next": {
+        "succeeded": "guard_duplicate_count",
+        "failed": "reply_uncertain",
+        "timedOut": "reply_uncertain"
+      }
+    },
+    {
+      "id": "guard_duplicate_count",
+      "action": "If",
+      "expression": "@equals(length(body('read_duplicate')?['value']),1)",
+      "next": {
+        "true": "guard_duplicate_receipt",
+        "false": "reply_uncertain"
+      }
+    },
+    {
+      "id": "guard_duplicate_receipt",
+      "action": "If",
+      "expression": "@and(equals(first(body('read_duplicate')?['value'])?['Title'],triggerBody()?['deliveryKey']),equals(first(body('read_duplicate')?['value'])?['DeliveryId'],triggerBody()?['deliveryId']),equals(first(body('read_duplicate')?['value'])?['PayloadDigest'],triggerBody()?['payloadDigest']),equals(first(body('read_duplicate')?['value'])?['Outcome'],'accepted'))",
+      "next": {
+        "true": "reply_duplicate_accepted",
+        "false": "reply_uncertain"
+      }
+    },
+    {
+      "id": "check_before_send",
+      "action": "If",
+      "expression": "@and(lessOrEquals(ticks(triggerBody()?['dueAt']),ticks(utcNow())),less(ticks(utcNow()),ticks(triggerBody()?['expiresAt'])))",
+      "next": {
+        "true": "send_mail",
+        "false": "store_missed"
+      },
+      "placement": "Direct predecessor of send_mail; no intervening connector, delay, loop or retry."
+    },
+    {
+      "id": "send_mail",
+      "action": "ApiConnection",
+      "connector": "shared_office365",
+      "operationId": "SharedMailboxSendEmailV2",
+      "binding": "outlookDf",
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "retryPolicy": {
+        "type": "none"
+      },
+      "parameters": {
+        "emailMessage": {
+          "MailboxAddress": "drehpunkt@brennpunkt-logistik.de",
+          "To": "@triggerBody()?['to']",
+          "Subject": "@triggerBody()?['subject']",
+          "Body": "@triggerBody()?['messageHtml']"
+        }
+      },
+      "next": {
+        "succeeded": "store_accepted",
+        "failed": "store_uncertain",
+        "timedOut": "store_uncertain"
+      },
+      "failurePolicy": "Never infer non-delivery from connector failure. No resend, resubmit or lease reclamation."
+    },
+    {
+      "id": "store_accepted",
+      "action": "ApiConnection",
+      "connector": "shared_sharepointonline",
+      "operationId": "PatchItem",
+      "binding": "sharePoint",
+      "retryPolicy": {
+        "type": "none"
+      },
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "parameters": {
+        "dataset": null,
+        "table": null,
+        "id": "@body('create_claim')?['ID']",
+        "item": {
+          "Title": "@triggerBody()?['deliveryKey']",
+          "Outcome": "accepted",
+          "OutcomeAt": "@utcNow()"
+        }
+      },
+      "next": {
+        "succeeded": "reply_accepted",
+        "failed": "reply_uncertain",
+        "timedOut": "reply_uncertain"
+      }
+    },
+    {
+      "id": "store_missed",
+      "action": "ApiConnection",
+      "connector": "shared_sharepointonline",
+      "operationId": "PatchItem",
+      "binding": "sharePoint",
+      "retryPolicy": {
+        "type": "none"
+      },
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "parameters": {
+        "dataset": null,
+        "table": null,
+        "id": "@body('create_claim')?['ID']",
+        "item": {
+          "Title": "@triggerBody()?['deliveryKey']",
+          "Outcome": "missed",
+          "OutcomeAt": "@utcNow()"
+        }
+      },
+      "next": {
+        "succeeded": "reply_missed",
+        "failed": "reply_uncertain",
+        "timedOut": "reply_uncertain"
+      }
+    },
+    {
+      "id": "store_uncertain",
+      "action": "ApiConnection",
+      "connector": "shared_sharepointonline",
+      "operationId": "PatchItem",
+      "binding": "sharePoint",
+      "retryPolicy": {
+        "type": "none"
+      },
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "parameters": {
+        "dataset": null,
+        "table": null,
+        "id": "@body('create_claim')?['ID']",
+        "item": {
+          "Title": "@triggerBody()?['deliveryKey']",
+          "Outcome": "uncertain",
+          "OutcomeAt": "@utcNow()"
+        }
+      },
+      "next": {
+        "succeeded": "reply_uncertain",
+        "failed": "reply_uncertain",
+        "timedOut": "reply_uncertain"
+      }
+    },
+    {
+      "id": "reply_accepted",
+      "action": "Response",
+      "statusCode": 200,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": "@triggerBody()?['deliveryId']",
+        "payloadDigest": "@triggerBody()?['payloadDigest']",
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": true,
+        "outcome": "accepted"
+      }
+    },
+    {
+      "id": "reply_duplicate_accepted",
+      "action": "Response",
+      "statusCode": 200,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": "@triggerBody()?['deliveryId']",
+        "payloadDigest": "@triggerBody()?['payloadDigest']",
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": true,
+        "outcome": "accepted"
+      }
+    },
+    {
+      "id": "reply_missed",
+      "action": "Response",
+      "statusCode": 200,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": "@triggerBody()?['deliveryId']",
+        "payloadDigest": "@triggerBody()?['payloadDigest']",
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": false,
+        "outcome": "missed"
+      }
+    },
+    {
+      "id": "reply_uncertain",
+      "action": "Response",
+      "statusCode": 200,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": "@triggerBody()?['deliveryId']",
+        "payloadDigest": "@triggerBody()?['payloadDigest']",
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": false,
+        "outcome": "uncertain"
+      }
+    },
+    {
+      "id": "reply_rejected",
+      "action": "Response",
+      "statusCode": 422,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": "@triggerBody()?['deliveryId']",
+        "payloadDigest": "@triggerBody()?['payloadDigest']",
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": false,
+        "outcome": "rejected"
+      }
+    },
+    {
+      "id": "reply_wrong_target",
+      "action": "Response",
+      "statusCode": 403,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": "@triggerBody()?['deliveryId']",
+        "payloadDigest": "@triggerBody()?['payloadDigest']",
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": false,
+        "outcome": "rejected"
+      }
+    },
+    {
+      "id": "reply_malformed",
+      "action": "Response",
+      "statusCode": 422,
+      "secure": {
+        "inputs": true,
+        "outputs": true
+      },
+      "body": {
+        "contractVersion": 1,
+        "projectId": "db-bpl-drehpunkt-dev",
+        "environment": "development",
+        "deliveryId": null,
+        "payloadDigest": null,
+        "sender": "drehpunkt@brennpunkt-logistik.de",
+        "accepted": false,
+        "outcome": "rejected"
+      },
+      "note": "Missing/untrusted request identifiers are not echoed; this rejection is not a valid accepted receipt."
+    }
+  ],
+  "implementationRequirements": [
+    "Preserve each branch and run-after failure route when translating this plan into the designer. ImplementationGate is deliberately unresolved and not a native Power Automate action.",
+    "Verify trigger/Parse JSON enforces pattern, enum, additionalProperties and date-time validation; otherwise add equivalent explicit validation before using values in OData or sending. Reject rather than silently bypass validation.",
+    "Idempotency-Key header must equal namespaced deliveryKey. HTTP header casing/normalization must be verified in the target trigger.",
+    "payloadDigest is SHA-256 of UTF-8 JSON.stringify(request without payloadDigest), in the exact field insertion order defined by functions/reminderProviderContract.js. This plan does not invent a native WDL SHA-256 function or verify canonicalization; secure dedicated endpoint and digest equality fence duplicate receipts. The digest is not authentication.",
+    "SharePoint columns use the stated internal names; provision/verify required, indexed, enforced-unique Title before enabling the HTTP flow. Fix site/list GUID and connection refs rather than accepting request bindings.",
+    "Create, mail and ledger updates all have retryPolicy none. Read errors fail closed. No child flow, delayed branch or manual resubmission may send from an existing claim.",
+    "Accepted ACK follows successful Outlook connector completion AND successful accepted ledger update; accepted does not assert inbox delivery. Ledger failure after mail leaves sending/uncertain permanently and must never cause another mail.",
+    "All request/mail/ledger actions and responses use secure inputs/outputs. No mail bodies or addresses in ledger, custom telemetry or failure messages.",
+    "A caller abort cannot cancel the provider. utcNow checks prevent starting the mail action outside the requested window, but connector queueing and mailbox delivery are not hard real-time guarantees.",
+    "If the run fails outside modeled branches, return no accepted ACK. The backend records uncertainty; operators investigate without retrying the mail."
+  ],
+  "prePublicationChecks": [
+    {
+      "check": "Tenant licenses, HTTP request trigger rights, SharePoint capacity, connector limits and DLP/conditional-access compatibility",
+      "status": "pending"
+    },
+    {
+      "check": "Distinct Dev/Prod site-list GUID bindings, dedicated secret URLs and expected project identities",
+      "status": "pending"
+    },
+    {
+      "check": "Title required/indexed/EnforceUniqueValues read back; exactly one created item under concurrent same-key requests",
+      "status": "pending"
+    },
+    {
+      "check": "Real connector unique-conflict error classified narrowly; all other claim outcomes fail closed",
+      "status": "pending"
+    },
+    {
+      "check": "Correct fixed df@ connection and drehpunkt@ mailbox; no dynamic From, HTML fallback, CC or BCC",
+      "status": "pending"
+    },
+    {
+      "check": "Designer validates expressions, schema, actual connector parameter envelopes, internal column names, secure IO and retry none",
+      "status": "pending"
+    },
+    {
+      "check": "Controlled approved provider acceptance tests: namespace rejection, duplicate, overlap, expired input, timeout and failed accepted-write; never send twice",
+      "status": "pending"
+    },
+    {
+      "check": "No publication or live test authorized by this generator; obtain separate release/test authorization",
+      "status": "pending"
+    }
+  ],
+  "sources": [
+    "https://learn.microsoft.com/en-us/connectors/sharepoint/",
+    "https://support.microsoft.com/en-us/sharepoint/lists/data-and-lists/create-list-relationships-by-using-lookup-columns",
+    "https://learn.microsoft.com/en-us/connectors/office365/",
+    "https://learn.microsoft.com/en-us/azure/logic-apps/error-exception-handling#none---no-retry-policy",
+    "https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-workflow-actions-triggers#response-action"
+  ]
+}

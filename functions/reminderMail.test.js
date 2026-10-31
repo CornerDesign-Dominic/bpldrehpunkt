@@ -1,19 +1,32 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { reminderSenderAddress, sendReminderMail, systemMailTemplateDefinitions } from './systemMails.js'
+import { notifyVacationRequestCreated, reminderSenderAddress, sendReminderMail, systemMailTemplateDefinitions } from './systemMails.js'
+import { buildReminderProviderRequest } from './reminderProviderContract.js'
+import { scheduledCaseDeadlineReminderDispatch } from './caseDeadlineReminders.js'
 const deliveryId = 'a'.repeat(64)
 const request = { recipient: 'recipient@example.test', deliveryId, dueAt: '2026-10-31T08:00:00.000Z', values: { title: 'Test', dueDateTime: '31.10.2026, 09:00 MEZ', sourceType: 'To-do' }, beforeSend: async () => true }
 const dependencies = { environment: 'development', paused: async () => false, notificationUrl: () => 'https://example.test/mail', render: async () => ({ subject: 'Test', message: 'Text', messageHtml: '<p>Text</p>' }), now: () => new Date('2026-10-31T08:00:04Z') }
+const acceptedReceipt = (payload) => ({ contractVersion: payload.contractVersion, projectId: payload.projectId, environment: payload.environment, deliveryId: payload.deliveryId, payloadDigest: payload.payloadDigest, sender: reminderSenderAddress, accepted: true, outcome: 'accepted' })
+const expectedPayload = (environment = 'development') => buildReminderProviderRequest({ ...request, environment, subject: 'Test', message: 'Text', messageHtml: '<p>Text</p>' })
+
+test('the existing scheduler export binds its isolated reminder secret while other system mail keeps its secret', () => {
+  const secrets = (entry) => entry.__endpoint.secretEnvironmentVariables.map((value) => value.key)
+  assert.deepEqual(secrets(scheduledCaseDeadlineReminderDispatch), ['POWER_AUTOMATE_REMINDER_URL'])
+  assert.deepEqual(secrets(notifyVacationRequestCreated), ['POWER_AUTOMATE_NOTIFICATION_URL'])
+})
 
 test('reminders use the fixed sender in both environments and retain delivery identity', async () => {
   for (const environment of ['development', 'production']) {
     let actual
-    const result = await sendReminderMail(request, { ...dependencies, environment, fetchImpl: async (url, options) => { actual = { url, options, body: JSON.parse(options.body) }; return { ok: true, json: async () => ({ accepted: true, sender: reminderSenderAddress, deliveryId }) } } })
+    const result = await sendReminderMail(request, { ...dependencies, environment, fetchImpl: async (url, options) => { actual = { url, options, body: JSON.parse(options.body) }; return { status: 200, json: async () => acceptedReceipt(actual.body) } } })
     assert.equal(result.status, 'accepted')
     assert.equal(actual.body.from, 'drehpunkt@brennpunkt-logistik.de')
     assert.equal(actual.body.to, request.recipient)
     assert.equal(actual.body.deliveryId, deliveryId)
-    assert.equal(actual.options.headers['Idempotency-Key'], deliveryId)
+    assert.equal(actual.options.headers['Idempotency-Key'], actual.body.deliveryKey)
+    assert.equal(actual.body.environment, environment)
+    assert.equal(actual.body.expiresAt, '2026-10-31T08:01:00.000Z')
+    assert.equal(actual.options.redirect, 'error')
     assert.ok(actual.options.signal)
   }
   assert.ok(systemMailTemplateDefinitions.central_reminder.allowedPlaceholders.includes('note'))
@@ -27,6 +40,8 @@ test('a blocked, stale or invalid dispatch never reaches the mail provider', asy
     [{ beforeSend: async () => false }, {}, 'no-longer-eligible'],
     [{ templateId: 'shipment_tracking_general_status_update' }, {}, 'invalid-dispatch-contract'],
     [{}, { notificationUrl: () => '' }, 'provider-not-configured'],
+    [{}, { notificationUrl: () => 'http://example.test/mail' }, 'provider-url-invalid'],
+    [{}, { notificationUrl: () => 'invalid' }, 'provider-url-invalid'],
   ]
   for (const [input, overrides, reason] of checks) assert.equal((await sendReminderMail({ ...request, ...input }, { ...dependencies, ...overrides, fetchImpl: neverFetch })).reason, reason)
 })
@@ -36,12 +51,20 @@ test('a render/check delay past the minute cancels dispatch rather than catching
   assert.equal(result.reason, 'outside-delivery-minute')
 })
 test('HTTP acceptance without matching identity and sender is explicitly uncertain', async () => {
-  for (const receipt of [{}, { accepted: true, deliveryId, sender: 'other@example.test' }, { accepted: true, deliveryId: 'different', sender: reminderSenderAddress }]) {
-    const result = await sendReminderMail(request, { ...dependencies, fetchImpl: async () => ({ ok: true, json: async () => receipt }) })
+  for (const receipt of [{}, { ...acceptedReceipt(expectedPayload()), sender: 'other@example.test' }, { ...acceptedReceipt(expectedPayload()), deliveryId: 'different' }, { ...acceptedReceipt(expectedPayload()), environment: 'production' }]) {
+    const result = await sendReminderMail(request, { ...dependencies, fetchImpl: async () => ({ status: 200, json: async () => receipt }) })
     assert.equal(result.status, 'uncertain')
   }
   assert.equal((await sendReminderMail(request, { ...dependencies, fetchImpl: async () => { throw new Error('lost response') } })).status, 'uncertain')
-  assert.equal((await sendReminderMail(request, { ...dependencies, fetchImpl: async () => ({ ok: false }) })).status, 'failed')
+  assert.equal((await sendReminderMail(request, { ...dependencies, fetchImpl: async () => ({ status: 500, json: async () => acceptedReceipt(expectedPayload()) }) })).status, 'uncertain')
+  assert.equal((await sendReminderMail(request, { ...dependencies, fetchImpl: async () => ({ status: 202, json: async () => acceptedReceipt(expectedPayload()) }) })).status, 'uncertain')
+})
+
+test('an explicit expiry or uncertain duplicate is never reported as accepted', async () => {
+  for (const [outcome, expected] of [['missed', 'missed'], ['uncertain', 'uncertain']]) {
+    const result = await sendReminderMail(request, { ...dependencies, fetchImpl: async () => ({ status: 200, json: async () => ({ ...acceptedReceipt(expectedPayload()), accepted: false, outcome }) }) })
+    assert.equal(result.status, expected)
+  }
 })
 
 test('a stalled provider request is aborted and never retried', async () => {

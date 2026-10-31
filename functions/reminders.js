@@ -64,7 +64,7 @@ async function currentStatus(db, context, now, cache) {
   else if (states.includes('accepted')) status = 'partial'
   else if (states.includes('uncertain') || states.includes('sending')) status = 'uncertain'
   else if (states.includes('failed')) status = 'failed'
-  else if (missed) status = 'missed'
+  else if (missed || (states.includes('missed') && states.every((item) => ['missed', 'cancelled', 'blocked'].includes(item)))) status = 'missed'
   else if (states.length && states.every((item) => item === 'blocked')) { status = 'configuration_required'; reason = 'Der Versand wurde blockiert. Die Versandkonfiguration und den automatischen Mail-Stopp prüfen.' }
   else if (states.length && states.every((item) => item === 'cancelled')) { status = 'suppressed'; reason = 'Quelle oder Zuständigkeit wurde vor dem Versand geändert.' }
   else if (context.configuration || !recipients.length || !recipients.some((item) => item.eligible)) { status = 'configuration_required'; reason = context.configuration || recipients[0]?.reason || 'Es gibt keine aktive Person mit Lesezugriff und gültiger Profil-E-Mail-Adresse.' }

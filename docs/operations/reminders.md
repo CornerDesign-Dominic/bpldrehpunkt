@@ -73,8 +73,9 @@ Antworten dürfen keinen automatischen zweiten Versand erzeugen. Das schützt
 vor Doppelversand, kann bei einem Prozessabbruch vor dem HTTP-Aufruf aber auch
 einen unklaren, tatsächlich nicht versandten Vorgang hinterlassen.
 
-Der Adapter nutzt das vorhandene serverseitige Mail-Secret und die zentrale
-Vorlage `central_reminder`. Die bisherigen Fall-/To-do-Fristvorlagen bleiben im
+Der Adapter verwendet das neue, pro Umgebung getrennte serverseitige Secret
+`POWER_AUTOMATE_REMINDER_URL` und die zentrale Vorlage `central_reminder`.
+Die bisherigen Fall-/To-do-Fristvorlagen bleiben im
 Katalog erhalten; der neue Dienst verwendet sie nicht mehr. Bestehende
 individuelle Formulierungen müssen bei einer späteren Umstellung bewusst in
 die zentrale Vorlage übernommen werden. Fristbemerkungen bleiben als
@@ -83,19 +84,28 @@ folgenden Vertrag erfüllen:
 
 - `from` tatsächlich als autorisierten Absender verwenden; passende
   Postfach-/Send-as-Rechte für `drehpunkt@brennpunkt-logistik.de` sicherstellen.
-- `deliveryId` und Header `Idempotency-Key` beachten und Wiederholungen ohne
+- Version, feste Projektkennung und Umgebung prüfen. `deliveryId` und den
+  projektgebundenen Header `Idempotency-Key` beachten und Wiederholungen ohne
   erneute Mailwirkung behandeln. Absender und Empfänger dürfen nicht aus
   unberechtigten externen Aufrufen übernommen werden.
-- Erst nach Annahme durch den Maildienst erfolgreich antworten, mit JSON
-  `{ "accepted": true, "sender": "drehpunkt@brennpunkt-logistik.de", "deliveryId": "<identische ID>" }`.
+- Ein eigenes dauerhaftes Provider-Reservierungsverfahren sowie die Prüfung
+  von `dueAt` und `expiresAt` direkt vor Outlook verwenden; keine Wiederholung
+  der Mailaktion nach unklarem Ausgang.
+- Erst nach Annahme durch den Maildienst und gespeicherter Bestätigung mit
+  HTTP 200, `accepted: true`, `outcome: "accepted"` sowie passender Version,
+  Projektkennung, Umgebung, Versand-ID, Inhaltsfingerabdruck und festem Absender
+  antworten. HTTP 202 genügt nicht. Vollständiger Vertrag und lokale Pläne:
+  [Mailflow-Prüfung und Vorbereitung](reminder-mailflow-preparation.md).
 
 Ein leeres HTTP 200 oder eine abweichende Bestätigung ist **unklar**, nicht
 erfolgreich. Netzwerkverlust/Timeout ebenfalls. Der HTTP-Aufruf wird spätestens
 nach zehn Sekunden bzw. am Ende der Minute abgebrochen; ein bereits ausgelöster
 externer Versand kann dadurch nicht zurückgenommen werden. Eine Bestätigung
 belegt nur die Anbieterannahme, niemals die Zustellung im Posteingang.
-Der bestehende externe Flow wurde während der lokalen Arbeit weder verändert
-noch aufgerufen. Seine Eignung für diesen erweiterten Vertrag ist noch offen.
+Der bestehende externe Flow und seine gebundenen Zugänge wurden inzwischen
+lesend geprüft. Absender und Send-as-Rechte sind vorhanden; der Zweiknotenflow
+erfüllt den neuen Providervertrag nicht. Zwei gesonderte Abläufe sind nur lokal
+vorbereitet. Kein Mailtrigger wurde aufgerufen und kein Flow geändert.
 
 Die Oberfläche unterscheidet unter anderem geplant, Konfiguration erforderlich,
 verpasst, unterdrückt, angenommen, teilweise angenommen, fehlgeschlagen und
@@ -140,8 +150,9 @@ Benötigte Functions des neuen Umfangs (keine Ausführungsfreigabe):
 - Dazu die gemeinsame Functions-Zeitlogik, aktualisierte Firestore Rules und
   das gesamte betroffene Kalender-/To-do-/Fachfall-Frontend. Der neue Code
   benötigt keine zusätzlichen zusammengesetzten Indizes; bestehende werden
-  nicht entfernt. Das Mail-Secret bleibt serverseitig und muss pro Umgebung
-  zum zuvor geprüften Flow passen.
+  nicht entfernt. Das neue Mail-Secret bleibt serverseitig und muss pro Umgebung
+  zum passenden, zuvor geprüften Erinnerungsflow passen. Der allgemeine
+  Systemmailflow und dessen Secret werden weiter für die übrigen Pfade verwendet.
 
 Während einer freigegebenen Migration automatischen Versand kontrolliert
 pausieren, alte/neue Worker nicht gleichzeitig auf dieselbe Versandminute
@@ -169,6 +180,9 @@ bauen. Eine tatsächliche Browserabnahme fand jedoch nicht statt: Die
 automatische Sicherheitsprüfung blockierte Computer Use wegen nicht zuverlässig
 bestimmbarer Browseradresse. Offen bleiben die realen Abläufe in Deutsch und
 Englisch, Light-/Dark-Mode, Speichern/Neuladen, Zuständigkeitskonflikte sowie
-DST-Eingaben im Browser. Ebenso offen sind App Check/IAM/Scheduler im Ziel,
-Provider-Idempotenz, tatsächlicher Absender und die echte Mailannahme. Dieser
+DST-Eingaben im Browser. Die spätere lesende Microsoft-Prüfung hat Absender,
+Send-as-Recht und beide bestehenden Zielbindungen bestätigt; siehe
+[aktueller Nachweis und lokale Provideranpassung](reminder-mailflow-preparation.md).
+Offen sind App Check/IAM/Scheduler des neuen Stands im Ziel,
+die neuen Providerabläufe mit Idempotenz und eine echte Mailannahme. Dieser
 Prüfstand ist keine Veröffentlichungsfreigabe und kein Zustellnachweis.
