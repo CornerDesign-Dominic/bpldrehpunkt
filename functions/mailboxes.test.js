@@ -45,6 +45,74 @@ const proofChallenge = createHash('sha256').update(proof).digest('base64url')
 const request = data => ({ auth: { uid: 'owner' }, data: { connectionId, proofChallenge, ...data } })
 const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpunkt-logistik.de'], ccRecipients: [], bccRecipients: [] }
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
+const newMail = { ...draft, subject: 'Neue unabhängige Mail', revision: 0, operationId: 'new-mail-0123456789' }
+
+test('new mail uses sendMail without a source message and preserves subject, recipients and plain text', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return response(null, 202) } })
+  const value = { ...newMail, ccRecipients: ['cc@brennpunkt-logistik.de'], bccRecipients: ['bcc@brennpunkt-logistik.de'] }
+  const saved = await f.handlers.saveMailboxDraft(request({ messageId: 'compose:new', draft: value }))
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'compose:new' }))).draft.subject, value.subject)
+  assert.equal((await f.handlers.sendMailboxMessage(request({ ...value, revision: saved.draft.revision, messageId: 'ignored-source', from: 'attacker@example.org' }))).status, 'accepted')
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, 'https://graph.microsoft.com/v1.0/me/sendMail')
+  assert.equal(calls[0].body.message.subject, value.subject)
+  assert.deepEqual(calls[0].body.message.body, { contentType: 'Text', content: value.body })
+  assert.equal(calls[0].body.message.from, undefined)
+  assert.equal(calls[0].body.saveToSentItems, undefined) // Graph defaults to saving in Sent Items.
+  assert.equal(calls[0].body.message.bccRecipients[0].emailAddress.address, value.bccRecipients[0])
+  const loaded = (await f.handlers.getMailboxDraft(request({ messageId: 'compose:new' }))).draft
+  assert.equal(loaded.sendStatus, 'accepted')
+  assert.equal(loaded.body, '')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'ignored-source' }))).draft, null)
+})
+
+test('new mail validates subject, body, all recipient domains, ownership and edit access before any Graph request', async () => {
+  const f = fixture()
+  for (const subject of ['', '  ', 'x'.repeat(256), 'Betreff\nBcc: attacker@example.org', null]) {
+    await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, subject })), { code: 'invalid-argument' })
+  }
+  for (const key of ['toRecipients', 'ccRecipients', 'bccRecipients']) await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, [key]: ['external@example.org'] })), { code: 'permission-denied' })
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, toRecipients: [] })), { code: 'permission-denied' })
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, body: '' })), { code: 'invalid-argument' })
+  await assert.rejects(f.handlers.sendMailboxMessage({ auth: { uid: 'other' }, data: { connectionId, ...newMail } }), { code: 'permission-denied' })
+  const viewer = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'view' } }) })
+  await assert.rejects(viewer.handlers.sendMailboxMessage(request(newMail)), { code: 'permission-denied' })
+  assert.equal(f.fetchCount(), 0)
+  assert.equal(viewer.fetchCount(), 0)
+})
+
+test('new mail concurrent and replayed operations send once; fresh drafts allow subsequent independent messages', async () => {
+  const f = fixture()
+  await Promise.all([f.handlers.sendMailboxMessage(request(newMail)), f.handlers.sendMailboxMessage(request(newMail))])
+  assert.equal(f.fetchCount(), 1)
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'accepted')
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, subject: 'Changed' })), { code: 'already-exists' })
+  const saved = await f.handlers.saveMailboxDraft(request({ messageId: 'compose:new', draft: { ...newMail, subject: 'Zweite Mail', revision: 0 } }))
+  await f.handlers.sendMailboxMessage(request({ ...newMail, subject: 'Zweite Mail', revision: saved.draft.revision, operationId: 'another-new-mail-0123456789' }))
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'accepted')
+  assert.equal(f.fetchCount(), 2)
+})
+
+test('an uncertain new mail remains locked after reload and cannot be resent using a new operation', async () => {
+  const f = fixture({ fetch: async () => { throw new Error('Possibly delivered') } })
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'unknown')
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'unknown')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'compose:new' }))).draft.sendStatus, 'unknown')
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: 'compose:new', draft: newMail })), { code: 'aborted' })
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, operationId: 'unsafe-new-operation-0123' })), { code: 'aborted' })
+})
+
+test('shared new mail uses only the stored shared sender and cannot use a disconnected parent', async () => {
+  const calls = []
+  const f = sharedFixture({ fetch: async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return response(null, 202) } })
+  await f.handlers.sendMailboxMessage(sharedRequest({ ...newMail, from: 'spoof@example.org', graphUserId: 'spoof' }))
+  assert.ok(calls[0].url.includes(`/users/${encodeURIComponent(sharedEmail)}/sendMail`))
+  assert.equal(calls[0].body.message.from.emailAddress.address, sharedEmail)
+  f.db.records.get(`mailboxConnections/${connectionId}`).status = 'disconnected'
+  await assert.rejects(f.handlers.sendMailboxMessage(sharedRequest({ ...newMail, operationId: 'another-new-operation-0123' })), { code: 'failed-precondition' })
+  assert.equal(calls.length, 1)
+})
 
 test('personal tracking requires both module rights and mailbox ownership; reads only Graph text without attachments', async () => {
   const denied = fixture()

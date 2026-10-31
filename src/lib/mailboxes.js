@@ -9,7 +9,7 @@ export async function mailboxCall(action, data = {}) {
   } catch (error) {
     if (!['functions/invalid-argument', 'functions/permission-denied', 'functions/failed-precondition'].includes(error?.code)) {
       const stage = action === 'suggestMailboxReply' ? 'reply-suggestion' : action === 'reviewMailboxInvoices' ? 'invoice-review' : action === 'listTransportInvoiceChecks' ? 'invoice-history' : action === 'analyzeMailboxAgb' ? 'agb-analyse' : action === 'assignMailboxAgbCustomer' ? 'agb-customer' : action === 'previewMailboxOrder' ? 'order-preview' : action === 'exportMailboxOrder' ? 'order-export' : action === 'previewMailboxTracking' ? 'tracking-preview' : action === 'applyMailboxTracking' ? 'tracking-apply' : ['beginMailboxConnection', 'finishMailboxConnection'].includes(action) ? 'connect' : action === 'getMailboxAttachment' ? 'attachment' : action.includes('Draft') ? 'draft' : action === 'updateMailboxName' ? 'rename' : action === 'sendMailboxReply' ? 'send' : action === 'disconnectMailbox' ? 'disconnect' : 'load'
-      void reportTechnicalFailure({ module: 'mailboxes', stage, error })
+      void reportTechnicalFailure({ module: 'mailboxes', stage: action === 'sendMailboxMessage' ? 'send' : stage, error })
     }
     throw error
   }

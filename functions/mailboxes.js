@@ -54,6 +54,10 @@ export function validateMailboxDraft(data) {
   }
   if (typeof data?.body !== 'string' || data.body.length > 100000 || data.body.includes('\0')) fail('invalid-argument', 'Ungültiger Antworttext.')
   const suggestionFields = {}
+  if (data.subject !== undefined) {
+    if (typeof data.subject !== 'string' || data.subject.length > 255 || [...data.subject].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) fail('invalid-argument', 'Ungültiger Betreff.')
+    suggestionFields.subject = data.subject.trim()
+  }
   for (const [key, max] of [['suggestion', 6000], ['suggestionInstruction', 1000]]) {
     if (data[key] !== undefined) {
       if (typeof data[key] !== 'string' || data[key].length > max || data[key].includes('\0')) fail('invalid-argument', 'Ungültiger Antwortvorschlag.')
@@ -248,6 +252,71 @@ export function createMailboxHandlers(deps = {}) {
     const bytes = Buffer.from(file.contentBytes, 'base64')
     if (!bytes.length || bytes.length > MAX_ATTACHMENT || !bytes.subarray(0, 1024).includes(Buffer.from('%PDF-')) || bytes.toString('base64') !== file.contentBytes) fail('failed-precondition', 'Der Anhang enthält keine unterstützte PDF-Datei.')
     return { id: id(attachmentId), name: clean(file.name || metadata.name, 255) || 'Auftrag.pdf', contentBytes: file.contentBytes }
+  }
+  const sendMessage = async (request, compose = false) => {
+    const context = await owned(request, true)
+    const draft = validateMailboxDraft(request.data)
+    assertTestRecipients(draft)
+    if (!draft.body.trim()) fail('invalid-argument', 'Bitte einen Antworttext eingeben.')
+    const operationId = clean(request.data.operationId, 80)
+    if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId)) fail('invalid-argument', 'Ungültige Versandreferenz.')
+    const messageId = compose ? 'compose:new' : id(request.data.messageId)
+    if (compose && !draft.subject) fail('invalid-argument', 'Bitte einen Betreff eingeben.')
+    const revision = request.data.revision
+    if (!Number.isSafeInteger(revision) || revision < 0) fail('invalid-argument', 'Ungültiger Entwurfsstand.')
+    const fingerprint = digest(JSON.stringify({ connectionId: context.connectionId, messageId, draft, ...(compose ? { kind: 'new-message' } : {}) }))
+    const operation = db().doc(`mailboxSendOperations/${digest(`${context.uid}|${operationId}`)}`)
+    const persistedDraft = draftRef({ ...context, messageId })
+    const token = await accessToken(context)
+    const existing = await db().runTransaction(async tx => {
+      const previous = await tx.get(operation)
+      if (previous.exists) {
+        if (previous.data().fingerprint !== fingerprint) fail('already-exists', 'Diese Versandreferenz gehört zu einer anderen Antwort.')
+        return previous.data().status === 'accepted' ? 'accepted' : 'unknown'
+      }
+      const liveConnection = (await tx.get(context.ref)).data()
+      if (liveConnection?.status !== 'connected' || liveConnection.ownerId !== context.uid || liveConnection.secretVersion !== context.connection.secretVersion) fail('aborted', 'Postfachverbindung wurde geändert. Bitte erneut laden.')
+      if (context.credential) {
+        const parent = (await tx.get(context.credential.ref)).data()
+        if (parent?.ownerId !== context.uid || parent.status !== 'connected' || parent.secretVersion !== context.credential.connection.secretVersion || liveConnection.parentConnectionId !== context.credential.connectionId) fail('aborted', 'Das persönliche Microsoft-Konto wurde geändert. Bitte erneut laden.')
+      }
+      const previousDraft = (await tx.get(persistedDraft)).data()
+      if ((previousDraft?.draft?.revision || 0) !== revision || previousDraft?.operationId) fail('aborted', 'Diese Nachricht wurde bereits bearbeitet oder eine Antwort wurde versendet. Bitte zuerst neu laden und den Versandstatus prüfen.')
+      const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
+      const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
+      draft.revision = revision
+      if (evidence?.exists) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), { ...evidence.data(), sentReply: draft.body, sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() })
+      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(evidence?.exists ? { knowledgeEvidenceId: evidenceId } : {}) })
+      tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
+      return null
+    })
+    if (existing) return { status: existing, operationId }
+    try {
+      // Explicit recipient arrays also override reply-all defaults: the domain restriction
+      // is checked against every recipient that is actually submitted.
+      await graph(token, compose ? `${mailboxPath(context)}/sendMail` : `${mailboxPath(context)}/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { ...(compose ? { subject: draft.subject } : {}), ...(context.connection.kind === 'shared' ? { from: { emailAddress: { address: context.connection.email } } } : {}), body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
+      await operation.update({ status: 'accepted', finishedAt: now() })
+      // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
+      try {
+        const receipt = (await operation.get()).data()
+        if (receipt?.knowledgeEvidenceId) await db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`).update({ sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+      } catch {
+        await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
+      }
+      // Preserve the send receipt, but remove sent text and AI drafting metadata.
+      try {
+        await db().runTransaction(async tx => {
+          const current = (await tx.get(persistedDraft)).data()
+          // Another window may already have started the next reply after acceptance.
+          if (current?.operationId === operationId && current.draft?.revision === revision) tx.update(persistedDraft, { draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } })
+        })
+      } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
+      return { status: 'accepted', operationId }
+    } catch {
+      await operation.update({ status: 'unknown', finishedAt: now() })
+      await diagnose({ stage: 'send', code: 'send_outcome_unknown', message: 'Versandstatus unklar. Vor erneutem Versand in Outlook prüfen.', actorId: context.uid, recordId: operationId })
+      return { status: 'unknown', operationId }
+    }
   }
   const handlers = {
     beginMailboxConnection: guarded('connect', async request => {
@@ -572,70 +641,8 @@ export function createMailboxHandlers(deps = {}) {
       })
       return { draft }
     }),
-    sendMailboxReply: guarded('send', async request => {
-      const context = await owned(request, true)
-      const draft = validateMailboxDraft(request.data)
-      assertTestRecipients(draft)
-      if (!draft.body.trim()) fail('invalid-argument', 'Bitte einen Antworttext eingeben.')
-      const operationId = clean(request.data.operationId, 80)
-      if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId)) fail('invalid-argument', 'Ungültige Versandreferenz.')
-      const messageId = id(request.data.messageId)
-      const revision = request.data.revision
-      if (!Number.isSafeInteger(revision) || revision < 0) fail('invalid-argument', 'Ungültiger Entwurfsstand.')
-      const fingerprint = digest(JSON.stringify({ connectionId: context.connectionId, messageId, draft }))
-      const operation = db().doc(`mailboxSendOperations/${digest(`${context.uid}|${operationId}`)}`)
-      const persistedDraft = draftRef({ ...context, messageId })
-      const token = await accessToken(context)
-      const existing = await db().runTransaction(async tx => {
-        const previous = await tx.get(operation)
-        if (previous.exists) {
-          if (previous.data().fingerprint !== fingerprint) fail('already-exists', 'Diese Versandreferenz gehört zu einer anderen Antwort.')
-          return previous.data().status === 'accepted' ? 'accepted' : 'unknown'
-        }
-        const liveConnection = (await tx.get(context.ref)).data()
-        if (liveConnection?.status !== 'connected' || liveConnection.ownerId !== context.uid || liveConnection.secretVersion !== context.connection.secretVersion) fail('aborted', 'Postfachverbindung wurde geändert. Bitte erneut laden.')
-        if (context.credential) {
-          const parent = (await tx.get(context.credential.ref)).data()
-          if (parent?.ownerId !== context.uid || parent.status !== 'connected' || parent.secretVersion !== context.credential.connection.secretVersion || liveConnection.parentConnectionId !== context.credential.connectionId) fail('aborted', 'Das persönliche Microsoft-Konto wurde geändert. Bitte erneut laden.')
-        }
-        const previousDraft = (await tx.get(persistedDraft)).data()
-        if ((previousDraft?.draft?.revision || 0) !== revision || previousDraft?.operationId) fail('aborted', 'Diese Nachricht wurde bereits bearbeitet oder eine Antwort wurde versendet. Bitte zuerst neu laden und den Versandstatus prüfen.')
-        const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
-        const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
-        draft.revision = revision
-        if (evidence?.exists) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), { ...evidence.data(), sentReply: draft.body, sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() })
-        tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(evidence?.exists ? { knowledgeEvidenceId: evidenceId } : {}) })
-        tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
-        return null
-      })
-      if (existing) return { status: existing, operationId }
-      try {
-        // Explicit recipient arrays also override reply-all defaults: the domain restriction
-        // is checked against every recipient that is actually submitted.
-        await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { ...(context.connection.kind === 'shared' ? { from: { emailAddress: { address: context.connection.email } } } : {}), body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
-        await operation.update({ status: 'accepted', finishedAt: now() })
-        // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
-        try {
-          const receipt = (await operation.get()).data()
-          if (receipt?.knowledgeEvidenceId) await db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`).update({ sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
-        } catch {
-          await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
-        }
-        // Preserve the send receipt, but remove sent text and AI drafting metadata.
-        try {
-          await db().runTransaction(async tx => {
-            const current = (await tx.get(persistedDraft)).data()
-            // Another window may already have started the next reply after acceptance.
-            if (current?.operationId === operationId && current.draft?.revision === revision) tx.update(persistedDraft, { draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } })
-          })
-        } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
-        return { status: 'accepted', operationId }
-      } catch {
-        await operation.update({ status: 'unknown', finishedAt: now() })
-        await diagnose({ stage: 'send', code: 'send_outcome_unknown', message: 'Versandstatus unklar. Vor erneutem Versand in Outlook prüfen.', actorId: context.uid, recordId: operationId })
-        return { status: 'unknown', operationId }
-      }
-    }),
+    sendMailboxReply: guarded('send', request => sendMessage(request)),
+    sendMailboxMessage: guarded('send', request => sendMessage(request, true)),
     disconnectMailbox: guarded('disconnect', async request => {
       const context = await owned(request, true, true)
       if (context.connection.kind === 'shared') {
@@ -757,6 +764,7 @@ export const suggestMailboxReplyHandler = handlers.suggestMailboxReply
 export const getMailboxDraftHandler = handlers.getMailboxDraft
 export const saveMailboxDraftHandler = handlers.saveMailboxDraft
 export const sendMailboxReplyHandler = handlers.sendMailboxReply
+export const sendMailboxMessageHandler = handlers.sendMailboxMessage
 export const disconnectMailboxHandler = handlers.disconnectMailbox
 export const mailboxOAuthCallbackHandler = handlers.mailboxOAuthCallback
 export const cleanupMailboxConnectionsHandler = handlers.cleanupMailboxConnections

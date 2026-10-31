@@ -22,7 +22,7 @@ import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
@@ -141,6 +141,7 @@ export const suggestMailboxReply = onCall({ ...mailboxOptions, timeoutSeconds: 1
 export const getMailboxDraft = onCall(mailboxOptions, getMailboxDraftHandler)
 export const saveMailboxDraft = onCall(mailboxOptions, saveMailboxDraftHandler)
 export const sendMailboxReply = onCall(mailboxOptions, sendMailboxReplyHandler)
+export const sendMailboxMessage = onCall(mailboxOptions, sendMailboxMessageHandler)
 export const disconnectMailbox = onCall(mailboxOptions, disconnectMailboxHandler)
 export const mailboxOAuthCallback = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }, mailboxOAuthCallbackHandler)
 export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', timeoutSeconds: 120, maxInstances: 1 }, cleanupMailboxConnectionsHandler)

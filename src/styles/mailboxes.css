@@ -103,6 +103,10 @@
 .mailbox-reply-dialog[open] { display: flex; flex-direction: column; gap: 14px; }
 .mailbox-reply-dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .mailbox-reply-dialog__heading { flex: none; margin: 0; }
+.mailbox-compose-dialog { width: min(800px, 96vw); height: min(850px, 92dvh); }
+.mailbox-compose-fields { display: grid; align-content: start; gap: 12px; min-height: 0; overflow: auto; padding: 2px; }
+.mailbox-compose-fields .mailbox-recipient-field { grid-template-columns: 52px minmax(0, 1fr); }
+.mailbox-compose-sender { margin: 0 0 4px; font-size: 13px; overflow-wrap: anywhere; }
 .mailbox-reply-dialog__columns { min-height: 0; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; flex: 1; }
 .mailbox-reply-dialog__columns > .mailbox-reader, .mailbox-reply-dialog__columns > .mailbox-reply { overflow: auto; overscroll-behavior: contain; }
 .mailbox-reply-dialog .mailbox-reply { align-content: start; }
