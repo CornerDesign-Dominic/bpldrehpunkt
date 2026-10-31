@@ -189,8 +189,9 @@
 
 .mailbox-suggestions { display: grid; gap: 12px; border-top: 1px solid var(--border); padding-top: 14px; min-width: 0; }
 .mailbox-suggestions > button { justify-self: start; }
-.mailbox-suggestions__proposal { background: var(--app-background); border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-width: 0; }
-.mailbox-suggestions__proposal h3 { margin: 0 0 8px; font-size: 1rem; }
-.mailbox-suggestions__proposal p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 12px; }
+.mailbox-suggestions__proposal { display: grid; gap: 10px; min-width: 0; }
+.mailbox-suggestions__proposal h3 { margin: 0; font-size: 1rem; }
+.mailbox-suggestions__text { background: var(--app-background); border: 1px solid var(--border); border-radius: 8px; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; font-size: 13px; line-height: 1.65; font-weight: 400; }
+.mailbox-reply-buttons--send { justify-content: flex-end; }
 .mailbox-suggestions__loading { display: flex; align-items: center; gap: 10px; }
 .mailbox-reply textarea.mailbox-suggestions__instruction { min-height: 70px; }
