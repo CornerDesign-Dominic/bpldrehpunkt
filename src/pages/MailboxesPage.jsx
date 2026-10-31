@@ -336,7 +336,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
           {suggestionBusy && <p className="mailbox-suggestions__loading" role="status"><span className="mailbox-action-spinner" aria-hidden="true" />{w('Antwortvorschlag wird formuliert …', 'Writing a reply suggestion …')}</p>}
           {suggestionError && <Failure message={suggestionError} retry={!locked && !suggestionBusy ? suggest : undefined} />}
           {draft.suggestion && <div className="mailbox-suggestions__proposal"><h3>{w('Antwortvorschlag', 'Suggested reply')}</h3><p className="mailbox-suggestions__text">{draft.suggestion}</p><div className="mailbox-reply-buttons"><button type="button" disabled={locked || suggestionBusy} onClick={() => { setUndoBody(draft.body); update('body', draft.suggestion) }}>{w('Übernehmen', 'Use suggestion')}</button>{undoBody !== null && <button type="button" disabled={locked} onClick={() => { update('body', undoBody); setUndoBody(null) }}>{w('Rückgängig', 'Undo')}</button>}</div></div>}
-          <button type="button" disabled={locked || suggestionBusy} onClick={suggest}>{w('Neu formulieren', 'Rewrite')}</button>
+          <button type="button" className="mailbox-suggestions__generate" disabled={locked || suggestionBusy} onClick={suggest}>{w('Neu formulieren', 'Rewrite')}</button>
           <small className="mailbox-hint">{w('Bis zu 300 Wörter · ohne Anhänge. Vorschlag und Anweisung werden mit „Entwurf speichern“ gespeichert.', 'Up to 300 words · no attachments. Save draft also saves the suggestion and instructions.')}</small>
         </>}
       </section>
