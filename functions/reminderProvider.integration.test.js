@@ -28,7 +28,8 @@ async function localScenario(environment, execute) {
 }
 const transport = (environment, fetchImpl) => (message) => sendReminderMail(message, {
   environment, now: () => instant, paused: async () => false,
-  notificationUrl: () => 'https://example.test/no-real-provider',
+  notificationUrl: () => 'https://defaultb829bbdcc0b74128a3416715a67b45.1b.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/synthetic/triggers/manual/paths/invoke?api-version=1',
+  authorize: async () => 'Bearer synthetic-token',
   render: async () => ({ subject: 'Synthetic reminder', message: 'Synthetic only', messageHtml: '<p>Synthetic only</p>' }),
   fetchImpl,
 })

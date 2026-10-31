@@ -7,9 +7,12 @@ Für Eingangsmails und KI-Auswertung gilt separat
 Ergänzung 31.10.2026: Der neue lokale zentrale Erinnerungsdienst ist noch nicht
 veröffentlicht. Er verwendet künftig ein eigenes
 `POWER_AUTOMATE_REMINDER_URL` je Umgebung und darf in Dev und Produktion über
-`drehpunkt@brennpunkt-logistik.de` senden. Tatsächlicher allgemeiner Flow,
-Send-as-Rechte und aktuelle Bindungen sind lesend geprüft; lokale Anpassungen
-und offene Providerabnahme stehen in
+`drehpunkt@brennpunkt-logistik.de` senden. Zusätzlich sind getrennte
+`REMINDER_*`-Zertifikats-/Identitätssecrets und Bearer-Anmeldung lokal vorbereitet;
+ein anonymer/SAS-Aufruf ist ausgeschlossen. Zwei neue Erinnerungsflows und
+Versandlisten sind angelegt; die Flows bleiben aus. Bestehender allgemeiner Flow,
+Send-as-Rechte, der freigegebene Altflow-Einzeltest sowie die noch offenen
+Identitätsbindungen und die echte Providerabnahme stehen in
 [`reminder-mailflow-preparation.md`](../docs/operations/reminder-mailflow-preparation.md).
 Die übrigen System-/Tracking-Mailpfade behalten die nachfolgenden Guards und
 Secrets. Aussagen über den bisherigen Fristworker beschreiben den Altstand.

@@ -1,15 +1,20 @@
 # Prüfung und Vorbereitung des Erinnerungs-Mailflows
 
-Stand: 31.10.2026. **Lesend an den echten Umgebungen geprüft; Anpassungen nur
-lokal vorbereitet.** Kein Flow gespeichert, erstellt oder veröffentlicht, keine
-Rechte oder Secrets geändert, keine Mail versandt und kein HTTP-Mailtrigger
-aufgerufen. Die eigene Editorsitzung wurde verworfen; das Änderungsdatum des
-bestehenden Flows blieb bei 30.09.2026. Führender Fachvertrag:
+Stand: 31.10.2026. Der **erste Audit war ausschließlich lesend**; seine
+Editorsitzung wurde verworfen. Danach wurden ein ausdrücklich freigegebener
+Einzeltest des bestehenden Flows ausgeführt und zwei getrennte SharePoint-
+Versandlisten angelegt. Das neue unmanaged Solution-ZIP wurde lokal gepackt und
+wieder entpackt; die neue Lösung **DrehpunktReminderTransport 1.0.0.1** wurde
+erfolgreich importiert. Beide neuen Flows bleiben ausgeschaltet und auf die drei
+Testempfänger begrenzt. Die Microsoft-Flowprüfung und die lokale Vorbereitung
+ersetzen keine echte Versandabnahme der neuen Flows. Der bestehende allgemeine
+Mailflow blieb unverändert, sein Änderungsdatum bei 30.09.2026. App, Firebase und
+`main` wurden in dieser Vorbereitung nicht veröffentlicht. Führender Fachvertrag:
 [Zentrale Erinnerungen](reminders.md).
 
 ## Bestätigter Ist-Stand
 
-| Gegenstand | Lesend festgestellter Stand |
+| Gegenstand | Bestätigter Stand |
 | --- | --- |
 | Power-Automate-Umgebung | Brennpunkt Logistik GmbH (default) |
 | Allgemeiner Mailflow | [drehpunkt@ Drehpunkt auto-mail](https://make.powerautomate.com/environments/Default-b829bbdc-c0b7-4128-a341-6715a67b451b/solutions/~preferred/flows/77d7020e-076e-631f-b52d-2e14a91a523e/details), aktiv; letzte Änderung 30.09.2026 |
@@ -17,7 +22,7 @@ bestehenden Flows blieb bei 30.09.2026. Führender Fachvertrag:
 | Festes Absenderpostfach | `drehpunkt@brennpunkt-logistik.de`, Typ SharedMailbox |
 | Outlook-Verbindung | `df@brennpunkt-logistik.de` |
 | Exchange-Delegierung | Für dieses Verbindungskonto sind **Senden als** und **Lesen und Verwalten (Vollzugriff)** am Drehpunkt-Postfach vorhanden; keine neue Berechtigung erforderlich |
-| Vorhandene Ausführungen | Erfolgreiche ältere Läufe, zuletzt sichtbar am 19.10.2026; keine neue Testausführung |
+| Vorhandene Ausführungen | Erfolgreiche ältere Läufe sowie ein ausdrücklich freigegebener Einzeltest am 31.10.2026, siehe Testbeleg unten |
 | Aktueller Text | `message` mit Ersetzung der Zeilenumbrüche durch `<br>`; `messageHtml` wird nicht verwendet |
 | Mailaktion | Standard-Wiederholungsrichtlinie mit exponentiellen Wiederholungen; sichere Ein-/Ausgaben aus |
 | Neuer Providervertrag | Keine eigene HTTP-Response, Ablaufprüfung oder dauerhafte Deduplizierung im Zweiknotenflow |
@@ -36,9 +41,10 @@ Secretversionen geprüft, nicht nur ein lokaler Konfigurationswert:
 | `db-bpl-drehpunkt-dev` | `POWER_AUTOMATE_NOTIFICATION_URL`, Version 2 | Gebundene Adresse entspricht dem oben gelesenen Flow | `POWER_AUTOMATE_REMINDER_URL`: API 404, noch nicht angelegt |
 | `db-bpl-drehpunkt` | `POWER_AUTOMATE_NOTIFICATION_URL`, Version 2 | Ebenfalls derselbe Flow | `POWER_AUTOMATE_REMINDER_URL`: API 404, noch nicht angelegt |
 
-Die geschützten Adressen wurden nur im Arbeitsspeicher verglichen und weder
+Die geschützten Adressen wurden beim Audit nur im Arbeitsspeicher verglichen und weder
 ausgegeben noch in diesen Beleg oder Git übernommen. Der Abgleich rief nur
-lesende Google-Verwaltungsendpunkte auf, niemals den Mailtrigger. Ein vorhandener
+lesende Google-Verwaltungsendpunkte auf; der spätere freigegebene Mailtest ist
+nachfolgend separat belegt. Ein vorhandener
 erfolgreicher Altversand bestätigt weder die neue Erinnerungslogik noch eine
 Zustellung an alle künftigen Empfänger.
 
@@ -53,13 +59,124 @@ SharePoint-Einträge. Es wurde nichts neu verbunden, umgestellt oder gelöscht.
 Der konkrete Drehpunkt-Mailflow verwendet die Lösungsreferenz
 `new_sharedoffice365_cbdfb`. Deren gespeicherter Wähler zeigt `df@` an, enthält
 aber mehrere gleich benannte Einträge ohne eindeutige technische Zuordnung in
-der gelesenen Ansicht. Ein akuter Verbindungsausfall dieses Flows ist damit
-**nicht bestätigt**, seine genaue physische Verbindungszuordnung aber auch noch
-nicht abschließend als gesund nachgewiesen. Bei der späteren Einrichtung die
-aktive Verbindung gezielt anhand ihrer ID zuordnen und prüfen; nicht allein
-nach dem mehrfach vorkommenden Anzeigenamen auswählen. Das ist von den bereits
-bestätigten Exchange-Send-as-Rechten zu unterscheiden. Eine Bereinigung alter
-Einträge ist eine separate Aufgabe nach Prüfung ihrer Abhängigkeiten.
+der gelesenen Ansicht. Der folgende echte Einzeltest hat die im bestehenden
+Flow tatsächlich gebundene Referenz inzwischen funktional bestätigt. Er macht
+ältere getrennte Verbindungseinträge nicht automatisch gesund. Neue Referenzen
+beim Import gezielt der vorhandenen autorisierten Verbindung zuordnen; eine
+Bereinigung alter Einträge bleibt eine separate Aufgabe.
+
+### Freigegebener Einzeltest des bestehenden Flows
+
+| Beleg | Ergebnis |
+| --- | --- |
+| Zeitpunkt | `2026-10-31T20:50:48.437Z` |
+| Test-ID | `4fdbf0cb-6511-44d9-affa-6994deb91621` |
+| Empfänger | ausschließlich `df@brennpunkt-logistik.de` |
+| Ziel | exakt der an beide bisherigen Scheduler gebundene allgemeine Altflow |
+| HTTP-Ergebnis | 202; dieser Altflow besitzt weiterhin kein neues Provider-ACK |
+| Eindeutiger Run | `08584081270364504820381711452cU14` |
+| UI-Ergebnis | erfolgreich; Outlook-Aktion 0,6 Sekunden, Gesamtlauf 0,8 Sekunden |
+
+Der Test bestätigt die Ausführung des gebundenen Flows samt Outlook-Aktion,
+**keinen nachgewiesenen Eingang im Empfängerpostfach**. Er bestätigt weder die
+neuen Reminderdefinitionen noch deren Gesamtlatenz. Der Altflow wurde dafür
+nicht geändert. Weitere reale Tests sind ausschließlich für
+`bb@brennpunkt-logistik.de`, `no-reply@brennpunkt-logistik.de` und
+`df@brennpunkt-logistik.de` freigegeben; es gibt keine Empfängerumleitung.
+
+### Angelegte Versandlisten und Anmeldung
+
+Site: `https://brennpunktlogistik.sharepoint.com/sites/AdminCenter`.
+
+| Umgebung | Listen-GUID | Spalten und Indexnachweis |
+| --- | --- | --- |
+| Dev | `35707354-5bed-42fc-87ee-9f301887ff05` | alle sieben Felder erforderlich angelegt; `Title` indiziert und eindeutig verifiziert |
+| Produktion | `8641596a-b8f4-4746-bcc4-04533db14b2a` | alle sieben Felder erforderlich angelegt; `Title` indiziert und eindeutig im gespeicherten Formular verifiziert |
+
+Die sieben internen Felder sind `Title`, `DeliveryId`, `PayloadDigest`, `Outcome`,
+`DueAt`, `ExpiresAt` und `OutcomeAt`. Beide Listen besitzen eigene Berechtigungen;
+nur die Besitzergruppe von AdminCenter ist berechtigt, derzeit ausschließlich
+Dominic Franz. Es wurden keine allgemeinen Mitgliederrechte als Schreibzugang
+zum Ledger übernommen.
+
+Die aktuelle Oberfläche zeigt **Power Automate Premium**. Es wurde keine Lizenz
+gekauft; die tatsächlichen Requestbudgets und nutzbaren Verbindungen bleiben vor
+Normalbetrieb zu prüfen. Die PAC-Devicecode-Anmeldung wurde von Conditional Access
+abgewiesen. Es erfolgte keine Richtlinienänderung oder Umgehung; Cloudaktionen
+werden ausschließlich im erlaubten vorhandenen Browserzugang durchgeführt.
+
+Die SharePoint-Website zeigt Zeitwerte standardmäßig in Pacific-Zeit an. Der
+Versandvertrag verwendet ausschließlich ISO-UTC-Zeitpunkte; diese Anzeige ist
+keine fachliche Terminberechnung. Die Website-Zeitzone wurde nicht geändert.
+
+### Technische Aufrufer: konkrete Vorbereitung zur Freigabe
+
+Für diese Umsetzung wird Power Automate mit eigener zertifikatsbasierter
+Microsoft-Dienstidentität verwendet. Der direkte Graph-Versand ist eine mögliche
+Alternative, würde aber einen anderen Providervertrag und eng auf das
+Drehpunkt-Postfach begrenzte Graph-/Exchange-Anwendungsrechte benötigen.
+Die vorhandenen persönlichen Graph-Postfachverbindungen werden nicht für den
+unbeaufsichtigten Erinnerungsdienst zweckentfremdet. Auch die bestehende
+DyCoS-Identität erhält keine zusätzlichen Erinnerungsrechte.
+
+Die zwei neuen HTTP-Trigger zeigen aktuell „Jeder Benutzer in meinem Mandanten“.
+Dieser Microsoft-Standard reicht für die spätere Freigabe nicht: Vor Aktivierung
+muss „Spezifische Benutzer in meinem Mandanten“ mit ausschließlich der jeweiligen
+neuen Service-Principal-Objekt-ID eingerichtet sein. Die native Codeansicht
+bestätigt dafür `triggerAuthenticationType: User`; eine leere Aufruferliste
+schränkt den Mandanten nicht ein. „Jeder“/SAS bleibt ausgeschlossen.
+
+| Vorgesehene neue Identität | Einziger vorgesehener Flowzugriff | Firebase-Ziel |
+| --- | --- | --- |
+| Drehpunkt Erinnerungen Dev | `6e3adb39-5442-4594-a57b-cb812be70f9b` | `db-bpl-drehpunkt-dev` |
+| Drehpunkt Erinnerungen Produktion | `c1c89a9c-8c98-46c5-9d8d-cbfad7177d65` | `db-bpl-drehpunkt` |
+
+Mandant: `b829bbdc-c0b7-4128-a341-6715a67b451b`. Je Identität ist ein eigenes
+RSA-Zertifikat mit getrenntem privaten Schlüssel vorgesehen. Kein zusätzlicher
+Graph-/Mail-/SQL-Zugriff und keine Flow-Verwaltungsrolle werden benötigt. Die
+bestehende df-Outlook-Verbindung übernimmt weiterhin den autorisierten Versand.
+Neue App-Registrierungen, Zertifikatsbindungen und Aufruferberechtigungen wurden
+noch nicht angelegt oder erteilt; dieser konkrete dauerhafte Zugriff benötigt
+vor seiner Einrichtung eine ausdrückliche Freigabe. Die Entra-Liste wurde vor
+der Neuanlage nach Drehpunkt gefiltert: vorhanden sind nur die getrennten
+DyCoS-Dev- und Mail-Dev-Anwendungen, keine Erinnerungsidentitäten. Für Dev und
+Produktion sind zwei ungespeicherte Registrierungsformulare mit den oben
+genannten Namen, ausschließlich diesem Mandanten und ohne Umleitungs-URI
+vorbereitet. „Registrieren“ wurde nicht betätigt; der Dialog verweist auf die
+Zustimmung zu den Microsoft-Plattformrichtlinien. Zwei unterschiedliche
+RSA-3072-Zertifikate sind inzwischen ausschließlich lokal vorbereitet, gültig
+bis `2027-10-31T21:36:44Z`. Ablage außerhalb des Repositorys unter
+`%LOCALAPPDATA%/Drehpunkt/reminder-identities/fcaf916d45bd466b984443bd4365ec8c/`,
+getrennt in `development` und `production`; jeweils `public-certificate.pem`
+und `private-key.pem`. Windows-Dateirechte lassen ausschließlich den aktuellen
+Benutzer zu. Die öffentlichen Zertifikate sind noch nirgends hochgeladen.
+Anzeige-Thumbprints: Dev `DE9CA84D9D3D4DDC73E4E1DD5C168B15FD3D9ACD`, Produktion
+`DD0215961D988E3AEC34B644870192AEF8D1C89E`. Private Schlüssel werden später
+ausschließlich im jeweiligen Secret Manager verwaltet. Rechtzeitiger Austausch,
+Ablaufüberwachung und Widerruf müssen zum Betriebsübergang festgelegt werden.
+
+Lokal bindet nur der Reminder-Scheduler zusätzlich zum getrennten Callback
+die Secrets `REMINDER_TENANT_ID`, `REMINDER_CLIENT_ID`,
+`REMINDER_SERVICE_PRINCIPAL_ID`, `REMINDER_CERTIFICATE_PEM` und
+`REMINDER_PRIVATE_KEY_PEM`. Die Werte sind je Firebase-Projekt getrennt; keine
+dieser Cloudkonfigurationen wurde bereits geschrieben oder veröffentlicht.
+`entraClientCredentials.js` enthält den wiederverwendbaren PS256-Signaturbaustein;
+die bestehenden DyCoS-Wrapper behalten ihr Verhalten. Der Reminder-Tokenprovider
+begrenzt Abrufe einschließlich Antwortlesen auf fünf Sekunden, fasst parallele
+Erneuerungen zusammen und verwirft den Cache bei Konfigurations-/Schlüsselwechsel.
+Audience ist fest `https://service.flow.microsoft.com/`, Scope
+`https://service.flow.microsoft.com//.default`. Token, Assertions, private Schlüssel
+und unbereinigte Fehlerantworten werden nicht protokolliert.
+
+Der Reminder-Adapter versendet nur mit Bearer-Anmeldung an den gebundenen
+Power-Platform-Host dieses Mandanten; SAS-Parameter, andere Hosts und
+Weiterleitungen werden verweigert. Anmeldung und Versand teilen sich das
+bestehende maximal zehnsekündige Zeitbudget. Zuständigkeit, Mailpause und
+Fälligkeitsminute werden nach der Anmeldung unmittelbar vor dem einmaligen
+Versandversuch geprüft. Ein reiner Anmeldefehler verursacht keinen Mailaufruf.
+
+Quellen: [Microsoft-HTTP-Authentifizierung](https://learn.microsoft.com/en-us/power-automate/oauth-authentication),
+[Microsoft-Sicherheitsempfehlung](https://learn.microsoft.com/en-us/power-automate/guidance/coding-guidelines/use-secure-inputs-outputs-triggers).
 
 ## Lokale Anpassung
 
@@ -85,6 +202,27 @@ node scripts/prepare-reminder-flows.mjs --write
 node scripts/prepare-reminder-flows.mjs --check
 node --test scripts/prepare-reminder-flows.test.mjs
 ```
+
+Zusätzlich liegen inzwischen vollständige WDL- und Solution-Generatoren vor:
+`scripts/prepare-reminder-workflows.mjs` und
+`scripts/prepare-reminder-solution.mjs`. Letzterer erstellt mit lokalem Microsoft
+PAC ein neues unmanaged Solution-ZIP und prüft es durch erneutes Entpacken.
+Diese lokale Init-/Pack-/Unpack-Prüfung war erfolgreich. Das ZIP enthält zwei
+neue Flows und neue `dpr_...`-Verbindungsreferenzen, die im Importdialog den
+bestehenden erlaubten Verbindungen zugeordnet werden. Es enthält keine
+Callback-Secrets oder fiktiven Live-Verbindungs-IDs. XML setzt Draft/Off
+(`StateCode=0`, `StatusCode=1`), JSON setzt `Stopped`, `testOnly` bleibt `true`.
+Der Import von Version 1.0.0.1 ist erfolgreich. Beide Flows sind im Zielsystem
+als **Aus** nachgewiesen, beide Verbindungsreferenzen verwenden die vorhandenen
+als gültig angezeigten df-Verbindungen. Beide Microsoft-Flowprüfungen melden
+**Fehler (0), Warnungen (1)**; die einzige Warnung lautet „Flow ist deaktiviert“.
+Die echte neue Versandabnahme und die konkreten Aufruferbindungen bleiben offen.
+Die native Metadatenprüfung hat einen lokalen Choice-Bindungsfehler aufgedeckt:
+SharePoint benötigt `item/Outcome/Value`, der alte Kandidat verwendete
+`item/Outcome`. Version 1.0.0.1 korrigiert Create/Patch und das Lesen des
+Value-Unterpfads im Duplikatzweig. Ungespeicherte Designerproben wurden verworfen.
+Details:
+[Lokale Workflow- und Solutionpakete](../../integrations/power-automate/reminders/WORKFLOWS.md).
 
 Der lokale Scheduler bindet nun ausschließlich das neue Erinnerungssecret;
 es gibt keinen Rückfall auf den allgemeinen Mailflow. Vorlage und Empfänger
@@ -114,12 +252,13 @@ Es gibt keinen automatischen Wiederholungsversuch bei unklarem Ausgang.
    indiziert und eindeutig** sein. Nur eindeutig erfolgreiche Neuanlage mit
    Item-ID berechtigt zum einmaligen Versandversuch. Kein „suchen, dann anlegen“
    und kein Überschreiben eines vorhandenen Belegs als Reservierung.
-4. Bei belegtem Duplikat darf nur ein bereits gespeichertes, zum
-   Inhaltsfingerabdruck passendes `accepted` erneut bestätigt werden – ohne
+4. Nach einem Create-Fehler darf höchstens ein lesender Lookup des exakten
+   Schlüssels erfolgen. Nur ein bereits gespeichertes, zum
+   Inhaltsfingerabdruck passendes `accepted` darf erneut bestätigt werden – ohne
    neue Mail. Jeder andere Zustand oder unklarer Create-Ausgang darf niemals
-   in den Versandpfad führen. Die genaue Unique-Conflict-Fehlerkennung muss am
-   vorgesehenen Connector geprüft werden; ein pauschal angenommener HTTP 409
-   reicht nicht. Diese Bindung ist im lokalen Plan noch offen.
+   in den Versandpfad führen. Bei Create-Timeout bleibt der Ausgang unklar.
+   Die vollständige WDL benötigt daher keine pauschal angenommene HTTP-409-
+   oder noch ungebundene Unique-Conflict-Erkennung aus den älteren Plänen.
 5. Direkt vor Outlook nochmals das Zeitfenster prüfen. Die
    [Shared-Mailbox-Aktion](https://learn.microsoft.com/en-us/connectors/office365/#send-an-email-from-a-shared-mailbox-(v2))
    verwendet das feste Drehpunkt-Postfach, `to`, `subject` und **`messageHtml`**.
@@ -135,10 +274,10 @@ SharePoint ist hierfür als
 [Standardconnector](https://learn.microsoft.com/en-us/connectors/sharepoint/)
 eine vorbereitete Alternative zu einer zusätzlichen Dataverse-Abhängigkeit.
 [Eindeutige Spalten](https://support.microsoft.com/en-us/sharepoint/lists/data-and-lists/create-list-relationships-by-using-lookup-columns)
-verhindern doppelte Werte und benötigen einen Index. Die konkrete nutzbare
-Site, Listen und Lizenzabdeckung wurden **noch nicht festgelegt oder geprüft**.
-Eine Kostenfreiheit des gesamten HTTP-Flows wird daraus nicht abgeleitet.
-Es werden jetzt keine Listen angelegt und keine Lizenzen erworben.
+verhindern doppelte Werte und benötigen einen Index. Die konkrete Site und beide
+Listen wurden inzwischen wie oben beschrieben angelegt. Eine Kostenfreiheit des
+gesamten HTTP-Flows wird aus dem Standardconnector nicht abgeleitet; die UI zeigt
+eine vorhandene Premiumlizenz. Es gab keinen Lizenzneukauf.
 
 Der zusätzliche Regelaufwand je erfolgreicher Empfängererinnerung ist eine
 Beleganlage plus eine Ergebnisaktualisierung. Die genaue Duplikatsuche wird nur
@@ -146,7 +285,44 @@ im Fehler-/Duplikatszweig verwendet. Die Listen wachsen pro Empfänger, nicht
 pro Auftrag. Ihre Zugriffstrennung, indizierte Suche, Connectorlimits und
 Aufbewahrung gehören zur späteren Betriebsprüfung. Der Ledger speichert nur
 IDs, Fingerabdruck, Zeitpunkte und Status, keine Mailadresse, Betreff oder Texte.
-Sichere Ein-/Ausgaben sind für inhaltführende Flowaktionen vorzusehen.
+Sichere Ein-/Ausgaben sind in der erzeugten WDL für inhaltführende Flowaktionen
+gesetzt und nach Import im tatsächlichen Flow zu prüfen.
+
+### Kosten, Spitzenlast und Aufbewahrung
+
+Der normale erfolgreiche Pfad umfasst **22 WDL-Aktionen plus einen HTTP-Trigger,
+also 23 Ausführungen pro Empfänger**. Darunter sind zwei SharePoint-Aufrufe
+(Create und Update) sowie ein Outlook-Versand. Gemeinsame Kalender vervielfachen
+diesen Aufwand pro berechtigtem Empfänger: 1.000 Empfänger bedeuten ungefähr
+23.000 Ausführungen, 2.000 SharePoint-Aufrufe und 1.000 Mails. Auch interne
+Variablen-, Prüf- und Kontrollaktionen sind beim tatsächlichen Requestverbrauch
+zu berücksichtigen; die Messung in den Power-Automate-Analysen ist maßgeblich.
+[Microsoft-Requestlimits](https://learn.microsoft.com/en-us/power-automate/limits-and-config)
+
+Die dokumentierten Verbindungsgrenzen betragen
+[600 SharePoint-Aufrufe je 60 Sekunden](https://learn.microsoft.com/en-us/connectors/sharepoint/)
+und [300 Outlook-Aufrufe je 60 Sekunden](https://learn.microsoft.com/en-us/connectors/office365/).
+Damit liegen höchstens theoretisch 300 erfolgreiche Empfängerversände pro Minute
+innerhalb dieser beiden Grenzen. Das ist keine zugesicherte Leistung: Andere
+Flows auf derselben Verbindung sowie zusätzliche SharePoint-/Exchange-Limits
+reduzieren den Spielraum. Getrennte Listen und Flows trennen die Daten, erzeugen
+bei gemeinsam genutzter Verbindung aber keine zusätzliche Quote.
+
+Vor Normalbetrieb sind tatsächliche Spitzenempfängerzahl, gemeinsames
+Requestbudget und Latenz des neuen vollständigen Ablaufs zu messen. Der Caller
+wartet höchstens zehn Sekunden und höchstens bis zum Ende des Minutenfensters;
+der alte Zweiknotenlauf ist dafür kein Lasttest. Überlast oder verspätete
+Verarbeitung führt gemäß Fachvertrag zu verpassten beziehungsweise unklaren
+Erinnerungen, nicht zur späteren Nachholung.
+
+Die Ledgerlisten wachsen dauerhaft; eine automatische Aufbewahrungs-/Löschregel
+ist noch nicht eingerichtet. Der Versandpfad verwendet den indizierten exakten
+Schlüssel, keinen Archivscan. Die 5.000er Listenschwelle ist keine maximale
+Listengröße, muss aber bei künftigen Verwaltungsansichten und Aufräumabfragen
+berücksichtigt werden. Eine spätere Aufbewahrungspolitik muss Nachvollziehbarkeit,
+Replay-/Zeitfensterverhalten und dauerhaft unsichere Belege berücksichtigen;
+keine Löschung laufender Claims als Wiederholungsweg.
+[Microsoft-Listenschwelle](https://support.microsoft.com/en-us/sharepoint/lists/data-and-lists/list-view-threshold-for-large-lists-and-libraries)
 
 SharePoint und Outlook bilden keine gemeinsame Transaktion. Daher wird keine
 globale Exactly-once-Zustellung behauptet. Ein Abbruch kann eine tatsächlich
@@ -156,14 +332,14 @@ bricht einen schon laufenden Microsoft-Flow nicht zuverlässig ab, weshalb die
 zweite Zeitprüfung im Provider erforderlich ist. Der Zeitpunkt der tatsächlichen
 Posteingangszustellung bleibt außerhalb dieser Versandfreigabe.
 
-## Offen vor einer später freigegebenen Veröffentlichung
+## Offen vor Testaktivierung und Normalbetrieb
 
-- Konkrete SharePoint-Site und zwei getrennte Ledgerlisten auswählen; passende
-  Serviceverbindung, minimale Listenrechte und eindeutigen Index nachweisen.
-  Bestehende Send-as-Rechte weiterverwenden, keine Rechte pauschal erweitern.
-- Beide Abläufe im vorgesehenen Designer erstellen und Parameterbindung,
-  Schemaauswertung, Header-Groß-/Kleinschreibung, sichere Ein-/Ausgaben sowie
-  Create-Conflict-/Timeout-/Replay-Pfade prüfen. Kein Connector darf ungeplant
+- Die oben konkret beschriebenen zwei Dienstidentitäten nach Freigabe anlegen,
+  jeweils ausschließlich den passenden neuen HTTP-Trigger zulassen und die
+  getrennten Zertifikate binden. Keine allgemeinen Graph-/Mailboxrechte erteilen.
+- Nach der Identitätsbindung Parameterbindung, Schemaauswertung,
+  Header-Groß-/Kleinschreibung, sichere Ein-/Ausgaben sowie
+  Claimfehler-/Timeout-/Replay-Pfade prüfen. Kein Connector darf ungeplant
   den Versand wiederholen; Queue-Verzögerung muss zur Ablaufprüfung führen.
 - Neue geschützte Callback-Adressen ausschließlich im jeweiligen neuen
   Firebase-Secret hinterlegen. Die beiden Ziele dürfen nicht dieselbe Adresse
@@ -171,9 +347,12 @@ Posteingangszustellung bleibt außerhalb dieser Versandfreigabe.
 - Erst nach separater Freigabe die betroffenen Functions und den neuen
   Secretbezug gegen das ausdrücklich genannte Ziel veröffentlichen. Der
   ursprüngliche zentrale Datenaufbau und seine Freigabe bleiben erforderlich.
-- Ein echter kontrollierter Versandtest benötigt eine eigene Freigabe. Dieser
-  Auftrag hat ausdrücklich keinen Versandtest erlaubt. Dev- und
-  Produktionsveröffentlichung bleiben getrennte Entscheidungen.
+- Neue Flows dürfen für erforderliche Tests im ausdrücklich freigegebenen Rahmen
+  veröffentlicht/aktiviert werden; echte Testmails ausschließlich an die drei
+  oben genannten Adressen. Dieser Rahmen erlaubt keine App-/Firebase-/`main`-
+  Veröffentlichung und keinen allgemeinen Versand an andere Empfänger.
+- Vor Normalbetrieb Last, vorhandene Lizenz-/Requestbudgets und Aufbewahrung
+  festlegen; nach Annahme durch Outlook keine Postfachzustellung behaupten.
 
 ## Prüfung dieses lokalen Pakets
 
@@ -183,10 +362,11 @@ Inhalte unter gleicher Versand-ID, unzulässige Empfängerlisten, Zeitfenster,
 fehlerhafte/202-Antworten, explizites Verpassen und abgebrochene Aufrufe.
 Die Pläne werden auf ihre gefährlichen Pfade geprüft: kein Versand nach
 Claimfehler, keine positive Bestätigung vor gespeicherter Annahme und keine
-stillen Wiederholungen. Diese Prüfungen führen keine Microsoft-Ausdrücke aus
-und ersetzen keine spätere Designer-/Providerabnahme.
+stillen Wiederholungen. Die WDL-Tests interpretieren den erzeugten Kontrollfluss
+lokal gegen simulierte Connectoren; sie verwenden keine echte Microsoft-Runtime
+und ersetzen keine Designer-/Providerabnahme.
 
-Aktueller lokaler Nachweis: **31 Unit-/Vertrags-/Planprüfungen** und
+Frühere lokale Abnahme vor der OAuth-Erweiterung: **31 Unit-/Vertrags-/Planprüfungen** und
 **16 Emulatorprüfungen** erfolgreich, keine übersprungen. Der Emulator umfasst
 den echten Dispatcher mit echtem Adapter und simuliertem Provider, getrennte
 Dev-/Produktionsbestätigungen, HTTP 202, Zeitversatz bei Providerablauf,
@@ -197,3 +377,24 @@ stehen. Lint, Syntax-/Exportprüfung und Abgleich der 44 Shared-Module sind
 erfolgreich. Das Frontend wurde in diesem Paket nicht verändert; dessen zuvor
 erfolgreicher Build wurde nicht erneut ausgeführt. Keine echte Microsoft-
 Connectoraktion wurde durch diese Tests ausgeführt.
+
+Zusätzlicher Nachweis der späteren Paketvorbereitung: **22 Plan-/WDL-/Solution-
+Prüfungen** erfolgreich, einschließlich echtem lokalem Microsoft-PAC-Init, Pack
+und Unpack mit fiktiven Test-GUIDs. Dabei bleiben beide Definitionen, Draft-
+Zustände und Solutionreferenzen erhalten. Diese Paketprüfungen führen keine
+Cloudanmeldung, keinen Import und keinen Versand aus. Der oben separat belegte
+autorisierte Altflow-Einzeltest ist ein realer Connectornachweis und gehört nicht
+zu den simulierten oder lokalen Pakettests. Der neue Solution-UI-Import ist
+inzwischen erfolgreich; die neue echte Versandabnahme bleibt offen.
+
+Aktueller zusätzlicher Prüfstand nach Choice-/OAuth-Änderungen: **34 gezielte
+Unit-/Adapter-/Auth-/DyCoS-/Vertragsprüfungen** und **22 Plan-/WDL-/Solutionprüfungen**
+erfolgreich, keine übersprungen. Außerdem **3 Dispatcher-/Provider-Integrationstests**
+mit echtem lokalen Firestore-Emulator und simulierten Anmelde-/Mailantworten
+erfolgreich; sie prüfen beide Umgebungen, Identität, Ablauf und unterbliebene
+Wiederholung. Hier wurden bewusst keine Security Rules getestet, da der
+serverseitige Admin-Dispatcher geprüft wurde. Der Emulator ist anschließend
+beendet. Lint, Ladeprüfung aller 181 Function-Exporte und Abgleich der 44
+Shared-Module erfolgreich. Keine
+Frontendänderung in diesem Schritt; Build und neue Browserabnahme der Website
+wurden nicht wiederholt. Neue echte Reminder-Mails wurden noch nicht versandt.

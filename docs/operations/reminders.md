@@ -75,6 +75,14 @@ einen unklaren, tatsächlich nicht versandten Vorgang hinterlassen.
 
 Der Adapter verwendet das neue, pro Umgebung getrennte serverseitige Secret
 `POWER_AUTOMATE_REMINDER_URL` und die zentrale Vorlage `central_reminder`.
+Die zusätzlich lokal vorbereitete zertifikatsbasierte Dienstanmeldung verwendet
+getrennte `REMINDER_*`-Secrets je Umgebung und einen wiederverwendbaren
+Entra-Anmeldebaustein. Ein Token wird nur an den festen Power-Platform-Host des
+Mandanten gesendet; SAS-Parameter und anonyme Ersatzaufrufe sind ausgeschlossen.
+Nach der Anmeldung werden aktuelle Zuständigkeit, Mailpause und Fälligkeitsminute
+erneut vor dem Versand geprüft. Die Cloud-Identitäten und konkreten
+Aufruferbindungen sind vor Aktivierung noch freizugeben und einzurichten;
+Details stehen in der [Mailflow-Vorbereitung](reminder-mailflow-preparation.md).
 Die bisherigen Fall-/To-do-Fristvorlagen bleiben im
 Katalog erhalten; der neue Dienst verwendet sie nicht mehr. Bestehende
 individuelle Formulierungen müssen bei einer späteren Umstellung bewusst in

@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer'
-import { constants, createHash, createPrivateKey, createPublicKey, randomUUID, sign, X509Certificate } from 'node:crypto'
+import { createHash } from 'node:crypto'
+import { signEntraClientAssertion, createEntraClientAssertion } from './entraClientCredentials.js'
 import { defineSecret } from 'firebase-functions/params'
 
 const secretNames = {
@@ -34,7 +35,6 @@ export class DycosFlowError extends Error {
   constructor(code, stage) { super(messages[code]); this.name = 'DycosFlowError'; this.code = code; this.stage = stage }
 }
 const problem = (code, stage) => { throw new DycosFlowError(code, stage) }
-const jsonPart = (value) => Buffer.from(JSON.stringify(value)).toString('base64url')
 const tokenEndpoint = (tenantId) => `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`
 
 export function validateDycosFlowConfiguration(config) {
@@ -49,25 +49,13 @@ export function validateDycosFlowConfiguration(config) {
   return config
 }
 
-export function signDycosClientAssertion({ tenantId, clientId, privateKey, thumbprint }, now = Date.now()) {
-  const seconds = Math.floor(now / 1000)
-  const unsigned = `${jsonPart({ alg: 'PS256', typ: 'JWT', 'x5t#S256': thumbprint })}.${jsonPart({
-    aud: tokenEndpoint(tenantId), iss: clientId, sub: clientId, jti: randomUUID(), nbf: seconds - 30, iat: seconds, exp: seconds + 300,
-  })}`
-  const signature = sign('sha256', Buffer.from(unsigned), { key: privateKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: 32 })
-  return `${unsigned}.${signature.toString('base64url')}`
+export function signDycosClientAssertion(config, now = Date.now()) {
+  return signEntraClientAssertion(config, now)
 }
 
 export function createDycosClientAssertion(config, now = Date.now()) {
-  try {
-    const certificate = new X509Certificate(config.certificatePem)
-    const privateKey = createPrivateKey(config.privateKeyPem)
-    if (certificate.publicKey.asymmetricKeyType !== 'rsa' || privateKey.asymmetricKeyType !== 'rsa'
-      || privateKey.asymmetricKeyDetails.modulusLength < 2048
-      || now < Date.parse(certificate.validFrom) || now >= Date.parse(certificate.validTo)
-      || !certificate.publicKey.equals(createPublicKey(privateKey))) throw new Error()
-    return signDycosClientAssertion({ ...config, privateKey, thumbprint: createHash('sha256').update(certificate.raw).digest('base64url') }, now)
-  } catch { problem('source_configuration', 'authenticate') }
+  try { return createEntraClientAssertion(config, now) }
+  catch { problem('source_configuration', 'authenticate') }
 }
 
 async function boundedJson(response, maximum, stage) {

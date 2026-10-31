@@ -11,6 +11,7 @@ import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 import { shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shared/shipmentTrackingArrivalConfirmation.js'
 import { reminderMinuteState } from './shared/reminderTime.js'
 import { buildReminderProviderRequest, parseReminderProviderResponse } from './reminderProviderContract.js'
+import { getReminderFlowAuthorization } from './reminderFlowAuth.js'
 export { reminderSenderAddress } from './reminderProviderContract.js'
 
 if (!getApps().length) initializeApp()
@@ -328,6 +329,7 @@ export async function sendReminderMail({ recipient, templateId = 'central_remind
   environment = externalEffectsEnvironment(),
   paused = () => areAutomaticMailsPaused(),
   notificationUrl = () => reminderMailNotificationUrl.value(),
+  authorize = getReminderFlowAuthorization,
   render = async (input) => renderTemplate(await loadTemplate('central_reminder'), input),
   fetchImpl = fetch,
   now = () => new Date(),
@@ -339,21 +341,37 @@ export async function sendReminderMail({ recipient, templateId = 'central_remind
   if (reminderMinuteState(dueAt, now()) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
   const url = notificationUrl()
   if (!url) return { status: 'failed', reason: 'provider-not-configured' }
-  try { if (new URL(url).protocol !== 'https:') return { status: 'failed', reason: 'provider-url-invalid' } }
+  try {
+    const endpoint = new URL(url)
+    // OAuth tokens must never leave the approved tenant endpoint or be mixed
+    // with a legacy SAS credential. The callback path itself stays server-only.
+    if (endpoint.protocol !== 'https:' || endpoint.hostname !== 'defaultb829bbdcc0b74128a3416715a67b45.1b.environment.api.powerplatform.com'
+      || endpoint.port || endpoint.username || endpoint.password || endpoint.hash || !endpoint.pathname.endsWith('/invoke')
+      || [...endpoint.searchParams.keys()].some(key => key !== 'api-version')) return { status: 'failed', reason: 'provider-url-invalid' }
+  }
   catch { return { status: 'failed', reason: 'provider-url-invalid' } }
   const { subject, message, messageHtml } = await render({ ...values, note: values?.note || '–' })
   let payload
   try { payload = buildReminderProviderRequest({ environment, recipient, deliveryId, dueAt, subject, message, messageHtml }) }
   catch { return { status: 'failed', reason: 'invalid-dispatch-contract' } }
   if (await paused()) return { status: 'blocked', reason: 'global-paused' }
-  if (!await beforeSend()) return { status: 'blocked', reason: 'no-longer-eligible' }
   const clock = now()
   if (reminderMinuteState(dueAt, clock) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
   const remaining = new Date(dueAt).getTime() + 60000 - clock.getTime()
   const abort = new AbortController()
   const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(10000, timeoutMs, remaining)))
   try {
-    const response = await fetchImpl(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': payload.deliveryKey }, signal: abort.signal, body: JSON.stringify(payload) })
+    let authorization
+    try { authorization = await authorize({ signal: abort.signal }) }
+    catch { return { status: 'failed', reason: 'provider-authentication-failed' } }
+    if (typeof authorization !== 'string' || !/^Bearer [A-Za-z0-9._~-]{1,64000}$/.test(authorization)) return { status: 'failed', reason: 'provider-authentication-failed' }
+    // Authentication can take time. Check current responsibility and the due
+    // minute afterwards, immediately before the one permitted provider attempt.
+    if (await paused()) return { status: 'blocked', reason: 'global-paused' }
+    if (!await beforeSend()) return { status: 'blocked', reason: 'no-longer-eligible' }
+    if (reminderMinuteState(dueAt, now()) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
+    if (abort.signal.aborted) return { status: 'failed', reason: 'provider-time-budget-expired' }
+    const response = await fetchImpl(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': payload.deliveryKey, Authorization: authorization }, signal: abort.signal, body: JSON.stringify(payload) })
     let receipt
     try { receipt = await response.json() } catch { return { status: 'uncertain', reason: 'provider-acknowledgement-missing' } }
     return parseReminderProviderResponse(receipt, payload, response.status)
