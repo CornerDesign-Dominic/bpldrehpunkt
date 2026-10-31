@@ -1,3 +1,4 @@
+import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
@@ -448,10 +449,29 @@ export function createMailboxHandlers(deps = {}) {
       })
       try {
         const mail = await graph(await accessToken(context), `/me/messages/${segment(messageId)}?$select=id,subject,body,from,bodyPreview`)
-        const suggestion = validateReplySuggestion(await (deps.generateReplySuggestion || generateReplySuggestion)({ mail, input, userId: context.uid }))
-        await owned(request, true)
+        const catalog = await (deps.loadReplyKnowledge || loadReplyKnowledge)(db(), context.profile)
+        const selection = catalog ? await (deps.selectReplyKnowledge || selectReplyKnowledge)({ catalog, mail, userId: context.uid }) : null
+        const suggestion = validateReplySuggestion(await (deps.generateReplySuggestion || generateReplySuggestion)({ mail, input, userId: context.uid, knowledge: selection }))
+        const current = await owned(request, true)
         if ((await ref.get()).data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
-        return { suggestion }
+        if (selection && !hasReplyKnowledgeAccess(current.profile)) fail('permission-denied', 'Die Wissensberechtigung wurde inzwischen geändert.')
+        const gap = selection ? await (deps.recordReplyKnowledgeGap || recordReplyKnowledgeGap)({ db: db(), profile: current.profile, context, mail: { ...mail, id: mail.id || messageId }, selection, catalog }) : null
+        const knowledge = { status: !selection || selection.limited || selection.coverage === 'uncertain' ? 'unavailable' : selection.coverage === 'full' ? 'grounded' : 'gap', sources: (selection?.sources || []).map(({ id, kind, revision, title }) => ({ id, kind, revision, title })), gap: gap?.notRecorded ? null : gap, warnings: [...(!selection ? ['knowledge_access_unavailable'] : []), ...(selection?.limited ? ['knowledge_search_limited'] : []), ...(selection?.coverage === 'uncertain' ? ['knowledge_match_uncertain'] : []), ...(gap?.notRecorded ? ['knowledge_gap_not_recorded'] : []), ...(gap?.broad ? ['knowledge_gap_broad_category'] : [])] }
+        await db().runTransaction(async tx => {
+          const sourceRefs = (selection?.sources || []).map(source => db().doc(`${source.kind === 'article' ? 'knowledgeArticles' : 'knowledgeRules'}/${source.id}`))
+          const [draftSnapshot, connectionSnapshot, profileSnapshot, ...sources] = await Promise.all([
+            tx.get(ref), tx.get(context.ref), ...(selection ? [tx.get(db().doc(`users/${context.uid}`))] : [Promise.resolve(null)]), ...sourceRefs.map(reference => tx.get(reference)),
+          ])
+          if (draftSnapshot.data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
+          if (connectionSnapshot.data()?.ownerId !== context.uid || connectionSnapshot.data()?.status !== 'connected') fail('permission-denied', 'Die Postfachverbindung wurde inzwischen geändert.')
+          if (selection) {
+            assertMailboxAccess(profileSnapshot.data(), true)
+            if (!hasReplyKnowledgeAccess(profileSnapshot.data())) fail('permission-denied', 'Die Wissensberechtigung wurde inzwischen geändert.')
+            if (sources.some((snapshot, index) => snapshot.data()?.status !== 'valid' || snapshot.data()?.revision !== selection.sources[index].revision)) fail('aborted', 'Das verwendete Wissen wurde inzwischen geändert. Bitte einen neuen Vorschlag erstellen.')
+          }
+          tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge } }, { merge: true })
+        })
+        return { suggestion, knowledge }
       } finally {
         await db().runTransaction(async tx => {
           const quota = (await tx.get(quotaRef)).data()
@@ -468,12 +488,14 @@ export function createMailboxHandlers(deps = {}) {
       const snapshot = await draftRef({ ...context, messageId: request.data.messageId }).get()
       if (!snapshot.exists) return { draft: null }
       const data = snapshot.data()
+      if (!data.draft) return { draft: null }
       const result = { ...data.draft }
+      if (hasReplyKnowledgeAccess(context.profile) && data.lastSuggestion?.hash === replySuggestionHash(result.suggestion || '')) result.suggestionKnowledge = data.lastSuggestion.knowledge
       if (data.operationId) {
         const operation = await db().doc(`mailboxSendOperations/${digest(`${context.uid}|${data.operationId}`)}`).get()
         result.operationId = data.operationId
         result.sendStatus = operation.exists && operation.data().status === 'accepted' ? 'accepted' : 'unknown'
-        if (result.sendStatus === 'accepted') { result.body = ''; result.suggestion = ''; result.suggestionInstruction = '' }
+        if (result.sendStatus === 'accepted') { result.body = ''; result.suggestion = ''; result.suggestionInstruction = ''; delete result.suggestionKnowledge }
       }
       return { draft: result }
     }),
@@ -485,9 +507,10 @@ export function createMailboxHandlers(deps = {}) {
       const ref = draftRef({ ...context, messageId: request.data.messageId })
       await db().runTransaction(async tx => {
         const previous = (await tx.get(ref)).data()
+        const lastSuggestion = previous?.lastSuggestion?.hash === replySuggestionHash(draft.suggestion || '') ? previous.lastSuggestion : null
         if ((previous?.draft?.revision || 0) !== revision || previous?.operationId) fail('aborted', 'Der Entwurf wurde bereits geändert oder versendet. Bitte neu laden; Ihr Text bleibt erhalten.')
         draft.revision = revision + 1
-        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, updatedAt: now() })
+        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}) })
       })
       return { draft }
     }),

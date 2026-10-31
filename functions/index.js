@@ -14,6 +14,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
+import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
@@ -48,6 +49,8 @@ import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiH
 
 if (!getApps().length) initializeApp()
 export const saveQualityRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveQualityRecordHandler)
+export const saveKnowledgeRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveKnowledgeRecordHandler)
+export const updateKnowledgeGap = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateKnowledgeGapHandler)
 export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
 export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, async (event) => {
   if (!event.data) return

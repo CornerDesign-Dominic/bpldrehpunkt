@@ -1,0 +1,16 @@
+.knowledge-topic { display:block; margin-top:4px; color:var(--text-secondary); font-size:12px; font-weight:400; }
+.knowledge-related-rules { margin-top:12px; }
+.knowledge-rule-picker { display:grid; gap:12px; }
+.knowledge-rule-picker label { display:flex; gap:10px; align-items:center; }
+.knowledge-rule-picker small { color:var(--text-secondary); }
+.knowledge-history-dialog { height:88vh; }
+.knowledge-gaps { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+.knowledge-gaps > li { display:flex; align-items:start; gap:16px; padding:16px; background:var(--content-background); border:1px solid var(--border); border-radius:8px; }
+.knowledge-gap-count { color:var(--text-primary); font-size:22px; font-weight:700; min-width:46px; }
+.knowledge-gap-content { flex:1; min-width:0; }
+.knowledge-gap-content h3 { margin:0; font-size:15px; overflow-wrap:anywhere; }
+.knowledge-gap-content p { margin:7px 0; overflow-wrap:anywhere; }
+.knowledge-gap-content small { color:var(--text-secondary); font-size:12px; }
+.knowledge-gap-content a { color:var(--text-primary); font-size:13px; }
+.knowledge-gap-actions { display:flex; gap:8px; flex-wrap:wrap; }
+@media(max-width:700px) { .knowledge-gaps > li { flex-wrap:wrap; } .knowledge-gap-actions { width:100%; } }

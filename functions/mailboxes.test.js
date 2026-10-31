@@ -477,3 +477,46 @@ test('revoked mailbox connection suppresses a pending suggestion and releases it
   await assert.rejects(running)
   assert.equal(Object.keys(f.db.records.get(`mailboxReplyQuotas/${hash('owner')}`).running).length, 0)
 })
+
+test('knowledge-backed suggestions preserve server provenance across draft save and reload, but not after manual changes or revoked access', async () => {
+  let currentProfile = { ...profile, permissions: { mailboxes: 'edit', handbook: 'view' } }
+  const sources = [{ kind: 'article', id: 'article', revision: 2, title: 'Artikel' }]
+  const f = fixture({ requireProfile: async () => currentProfile, fetch: async () => response({ id: 'mail-knowledge', body: { contentType: 'text', content: 'Servertext' } }), loadReplyKnowledge: async () => ({ articles: [], rules: [], gaps: [] }), selectReplyKnowledge: async () => ({ sources, coverage: 'full' }), generateReplySuggestion: async () => 'Geprüfter Entwurf' })
+  f.db.records.set('users/owner', currentProfile)
+  f.db.records.set('knowledgeArticles/article', { status: 'valid', revision: 2 })
+  const result = await f.handlers.suggestMailboxReply(request({ messageId: 'mail-knowledge' }))
+  assert.equal(result.knowledge.status, 'grounded')
+  assert.deepEqual(result.knowledge.sources, sources)
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'mail-knowledge' }))).draft, null)
+  await f.handlers.saveMailboxDraft(request({ messageId: 'mail-knowledge', draft: { ...draft, revision: 0, suggestion: result.suggestion, suggestionKnowledge: { sources: ['forged'] } } }))
+  assert.deepEqual((await f.handlers.getMailboxDraft(request({ messageId: 'mail-knowledge' }))).draft.suggestionKnowledge, result.knowledge)
+  currentProfile = profile
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'mail-knowledge' }))).draft.suggestionKnowledge, undefined)
+  currentProfile = { ...profile, permissions: { mailboxes: 'edit', handbook: 'view' } }
+  await f.handlers.saveMailboxDraft(request({ messageId: 'mail-knowledge', draft: { ...draft, revision: 1, suggestion: 'Manuell verändert' } }))
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'mail-knowledge' }))).draft.suggestionKnowledge, undefined)
+})
+
+test('concurrent knowledge archival and permission revocation prevent late grounded replies', async () => {
+  for (const revoke of ['knowledge', 'profile']) {
+    const knowledgeProfile = { ...profile, permissions: { mailboxes: 'edit', handbook: 'view' } }
+    let f
+    f = fixture({ requireProfile: async () => knowledgeProfile, fetch: async () => response({ body: { contentType: 'text', content: 'Servertext' } }), loadReplyKnowledge: async () => ({}), selectReplyKnowledge: async () => ({ sources: [{ kind: 'article', id: 'article', revision: 1, title: 'Artikel' }], coverage: 'full' }), generateReplySuggestion: async () => {
+      if (revoke === 'knowledge') f.db.records.set('knowledgeArticles/article', { status: 'archived', revision: 2 })
+      else f.db.records.set('users/owner', { ...knowledgeProfile, active: false })
+      return 'Nicht veröffentlichen'
+    } })
+    f.db.records.set('users/owner', knowledgeProfile)
+    f.db.records.set('knowledgeArticles/article', { status: 'valid', revision: 1 })
+    await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: 'late-result' })), { code: revoke === 'knowledge' ? 'aborted' : 'permission-denied' })
+    assert.equal([...f.db.records.values()].some(value => value.lastSuggestion), false)
+  }
+})
+
+test('knowledge retrieval failures are technical errors and never missing-knowledge events', async () => {
+  let recorded = false, generated = false
+  const f = fixture({ fetch: async () => response({}), loadReplyKnowledge: async () => { throw new Error('Firestore unavailable') }, recordReplyKnowledgeGap: async () => { recorded = true }, generateReplySuggestion: async () => { generated = true; return 'Antwort' } })
+  await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: 'failed-search' })), { code: 'unavailable' })
+  assert.equal(recorded, false)
+  assert.equal(generated, false)
+})

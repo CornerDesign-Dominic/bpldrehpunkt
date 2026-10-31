@@ -110,6 +110,27 @@ service cloud.firestore {
       match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
     }
 
+    // Process knowledge and rules share the existing handbook permission.
+    // Validated callables own all writes and immutable revision snapshots.
+    match /knowledgeArticles/{id} {
+      allow read: if view('handbook');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
+    }
+    match /knowledgeRules/{id} {
+      allow read: if view('handbook');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
+    }
+    match /knowledgeGaps/{id} {
+      allow read: if view('handbook');
+      allow write: if false;
+      match /{document=**} { allow read, write: if false; }
+    }
+    match /knowledgeGapOccurrences/{id} {
+      allow read, write: if false;
+    }
+
     match /appSettings/partnerEvaluation {
       // Evaluation colors are part of the signed-in client presentation, but
       // settings may only be changed by the Admin SDK callable function.

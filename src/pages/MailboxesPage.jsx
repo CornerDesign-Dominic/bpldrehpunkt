@@ -1,3 +1,4 @@
+import MailboxKnowledgeNote from '../components/mailboxes/MailboxKnowledgeNote.jsx'
 import MailActionButton from '../components/mailboxes/MailActionButton.jsx'
 import MailInvoiceAction from '../components/mailboxes/MailInvoiceAction.jsx'
 import MailAgbAction from '../components/mailboxes/MailAgbAction.jsx'
@@ -208,7 +209,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
     active.current = true
     mailboxCall('getMailboxDraft', identity).then(({ draft: stored }) => {
       if (!mounted) return
-      const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true, suggestion: stored.sendStatus === 'accepted' ? '' : stored.suggestion || '', suggestionInstruction: stored.sendStatus === 'accepted' ? '' : stored.suggestionInstruction || '' } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false, suggestion: '', suggestionInstruction: '' }
+      const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true, suggestion: stored.sendStatus === 'accepted' ? '' : stored.suggestion || '', suggestionInstruction: stored.sendStatus === 'accepted' ? '' : stored.suggestionInstruction || '', suggestionKnowledge: stored.sendStatus === 'accepted' ? null : stored.suggestionKnowledge || null } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false, suggestion: '', suggestionInstruction: '', suggestionKnowledge: null }
       const cached = stored?.sendStatus === 'accepted' ? null : unsavedDrafts.get(cacheKey)
       latestDraft.current = cached?.draft || initial
       setSuggestionsOpen(Boolean(latestDraft.current.suggestion || latestDraft.current.suggestionInstruction))
@@ -268,7 +269,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
       unsavedDrafts.delete(cacheKey); syncDraftCacheGuard()
       dirtyRef.current = false
       if (result.status === 'accepted') {
-        const cleared = { ...draft, body: '', suggestion: '', suggestionInstruction: '' }
+        const cleared = { ...draft, body: '', suggestion: '', suggestionInstruction: '', suggestionKnowledge: null }
         latestDraft.current = cleared
         setUndoBody(null); setSuggestionsOpen(false); setSuggestionError('')
         setDraft(cleared); setSaved(JSON.stringify(cleared)); setOpen(false)
@@ -303,7 +304,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
     const current = latestDraft.current
     try {
       const result = await mailboxCall('suggestMailboxReply', { ...identity, instruction: current.suggestionInstruction || '', currentReply: current.body, previousSuggestion: current.suggestion || '' })
-      if (active.current) changeDraft({ ...latestDraft.current, suggestion: result.suggestion })
+      if (active.current) changeDraft({ ...latestDraft.current, suggestion: result.suggestion, suggestionKnowledge: result.knowledge || null })
     } catch (error) {
       if (active.current) setSuggestionError(error?.code === 'functions/resource-exhausted' ? w('Bis zu 20 Vorschläge pro Stunde. Bitte später erneut versuchen.', 'Up to 20 suggestions per hour. Please try again later.') : error?.code === 'functions/already-exists' ? w('Für diese Mail wird bereits ein Vorschlag erstellt. Bitte kurz warten und erneut versuchen.', 'A suggestion is already being generated for this message. Please wait and try again.') : w('Vorschlag konnte nicht erstellt werden. Dein Text und der bisherige Vorschlag bleiben erhalten.', 'Could not generate a suggestion. Your text and previous suggestion are preserved.'))
     } finally {
@@ -335,6 +336,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
         {suggestionsOpen && <>
           {suggestionBusy && <p className="mailbox-suggestions__loading" role="status"><span className="mailbox-action-spinner" aria-hidden="true" />{w('Antwortvorschlag wird formuliert …', 'Writing a reply suggestion …')}</p>}
           {suggestionError && <Failure message={suggestionError} retry={!locked && !suggestionBusy ? suggest : undefined} />}
+          {draft.suggestion && <MailboxKnowledgeNote knowledge={draft.suggestionKnowledge} />}
           {draft.suggestion && <div className="mailbox-suggestions__proposal"><h3>{w('Antwortvorschlag', 'Suggested reply')}</h3><p className="mailbox-suggestions__text">{draft.suggestion}</p><div className="mailbox-reply-buttons"><button type="button" disabled={locked || suggestionBusy} onClick={() => { setUndoBody(draft.body); update('body', draft.suggestion) }}>{w('Übernehmen', 'Use suggestion')}</button>{undoBody !== null && <button type="button" disabled={locked} onClick={() => { update('body', undoBody); setUndoBody(null) }}>{w('Rückgängig', 'Undo')}</button>}</div></div>}
           <button type="button" className="mailbox-suggestions__generate" disabled={locked || suggestionBusy} onClick={suggest}>{w('Neu formulieren', 'Rewrite')}</button>
           <small className="mailbox-hint">{w('Bis zu 300 Wörter · ohne Anhänge. Vorschlag und Anweisung werden mit „Entwurf speichern“ gespeichert.', 'Up to 300 words · no attachments. Save draft also saves the suggestion and instructions.')}</small>

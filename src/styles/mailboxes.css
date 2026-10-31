@@ -129,6 +129,11 @@
 .mailbox-reply { display: grid; gap: 14px; }
 .mailbox-reply .mailbox-panel-heading { margin: 0; }
 .mailbox-reply textarea { resize: vertical; min-height: 220px; font-weight: 400; }
+.mailbox-knowledge-note { padding:10px 12px; border:1px solid var(--border); border-radius:6px; background:var(--surface-secondary); font-size:12px; }
+.mailbox-knowledge-note p { margin:4px 0; }
+.mailbox-knowledge-note a { color:var(--text-primary); }
+.mailbox-knowledge-note small { display:block; margin-top:6px; color:var(--text-secondary); }
+.mailbox-knowledge-sources { display:flex; flex-wrap:wrap; gap:5px 12px; }
 .mailbox-reply label.mailbox-reply-mode { display: flex; align-items: center; gap: 8px; }
 .mailbox-reply label.mailbox-recipient-field { grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 8px; }
 .mailbox-hint { font-size: 11px; line-height: 1.5; margin: 0; }
