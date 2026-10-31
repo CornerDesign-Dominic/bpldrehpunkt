@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
+import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getFunctions } from 'firebase/functions'
@@ -62,7 +62,10 @@ export async function waitForAppCheckToken() {
 }
 
 export const auth = getAuth(firebaseApp)
-export const authPersistenceReady = setPersistence(auth, browserLocalPersistence).catch(() => undefined)
+// getAuth already restores the browser's persistent session. Reapplying
+// setPersistence during every page start can clear another tab's live session.
+// Wait for restoration without migrating or rewriting that shared auth state.
+export const authPersistenceReady = auth.authStateReady()
 export const db = getFirestore(firebaseApp)
 export const storage = getStorage(firebaseApp)
 export const functions = getFunctions(firebaseApp, 'europe-west3')

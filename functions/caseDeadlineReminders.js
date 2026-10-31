@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { shipmentTrackingBerlinIso, shipmentTrackingBerlinLocal } from './shared/shipmentTrackingDryRun.js'
+import { onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { advanceBackgroundRebuild, reportBackgroundFailure, withBackgroundDiagnostic } from './backgroundWork.js'
+import { shipmentTrackingBerlinIso } from './shared/shipmentTrackingDryRun.js'
 import { sendSystemMailTemplate, systemMailNotificationUrl } from './systemMails.js'
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 
@@ -10,6 +12,7 @@ const region = 'europe-west3'
 const reminderPageSize = 500
 const reminderDispatchConcurrency = 10
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const workCollection = 'caseDeadlineReminderWork'
 const deadlineCollections = Object.freeze({
   damageCases: { type: 'Schadenfall', templateId: 'case_deadline_reminder' },
   inkassoCases: { type: 'Inkassofall', templateId: 'case_deadline_reminder' },
@@ -40,6 +43,33 @@ export function deadlineReminderDeliveryId(deadlineRef, metadata) {
   return createHash('sha256').update(version).digest('hex')
 }
 
+function reminderWorkRef(db, deadlineRef) {
+  return db.collection(workCollection).doc(createHash('sha256').update(deadlineRef.path).digest('hex'))
+}
+
+export async function refreshDeadlineReminderWork(db, deadlineRef) {
+  const workRef = reminderWorkRef(db, deadlineRef)
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(deadlineRef)
+    const metadata = snapshot.exists ? deadlineReminderMetadata(deadlineRef, snapshot.data()) : null
+    if (!metadata) { transaction.delete(workRef); return }
+    const deliveryId = deadlineReminderDeliveryId(deadlineRef, metadata)
+    const [delivery, parent] = await Promise.all([transaction.get(db.doc(`caseDeadlineReminderDeliveries/${deliveryId}`)), transaction.get(metadata.caseRef)])
+    if (!parent.exists || ['sent', 'delivered'].includes(delivery.data()?.status)) { transaction.delete(workRef); return }
+    transaction.set(workRef, { deadlinePath: deadlineRef.path, deliveryId, dueAt: Timestamp.fromDate(new Date(metadata.dueAt)) })
+  })
+}
+
+export const maintainCaseDeadlineReminderWork = onDocumentWritten({ region, document: '{collection}/{caseId}/deadlines/{deadlineId}', retry: true, maxInstances: 3 }, async (event) => {
+  if (!deadlineCollections[event.params.collection]) return
+  const db = getFirestore()
+  await withBackgroundDiagnostic(db, 'deadline-projection', () => refreshDeadlineReminderWork(db, event.data.after.ref))
+})
+
+export function advanceDeadlineReminderWork(db) {
+  return advanceBackgroundRebuild(db, 'deadline-reminders-v1', db.collectionGroup('deadlines'), (item) => refreshDeadlineReminderWork(db, item.ref))
+}
+
 export function isDeadlineReminderDue(metadata, now = new Date()) {
   const dueAt = new Date(metadata?.dueAt || '')
   return !Number.isNaN(dueAt.getTime()) && dueAt.getTime() <= now.getTime()
@@ -54,70 +84,67 @@ function caseLabel(caseData) {
   return text(caseData?.caseNumber) || text(caseData?.title) || text(caseData?.partnerName) || text(caseData?.debtorName) || 'Fallakte'
 }
 
-async function claimDelivery(db, deadlineRef, metadata, now) {
+export async function claimDeadlineReminderDelivery(db, deadlineRef, metadata, now) {
   const deliveryRef = db.doc(`caseDeadlineReminderDeliveries/${deadlineReminderDeliveryId(deadlineRef, metadata)}`)
-  let claimed = false
-  let caseData = null
-  await db.runTransaction(async (transaction) => {
+  return db.runTransaction(async (transaction) => {
     const [currentDeadline, currentDelivery, currentCase] = await Promise.all([
       transaction.get(deadlineRef), transaction.get(deliveryRef), transaction.get(metadata.caseRef),
     ])
     const current = currentDeadline.exists ? deadlineReminderMetadata(deadlineRef, currentDeadline.data()) : null
     const delivery = currentDelivery.exists ? currentDelivery.data() : null
-    if (!current || current.dueAt !== metadata.dueAt || !isDeadlineReminderDue(current, now) || !currentCase.exists) return
-    if (delivery?.status === 'sent') return
-    if (delivery?.status === 'sending' && delivery.lockedAt?.toMillis?.() > now.getTime() - 10 * 60 * 1000) return
-    caseData = currentCase.data()
-    claimed = true
+    if (!current || deadlineReminderDeliveryId(deadlineRef, current) !== deadlineReminderDeliveryId(deadlineRef, metadata) || !isDeadlineReminderDue(current, now) || !currentCase.exists) return null
+    if (['sent', 'delivered'].includes(delivery?.status)) return null
+    if (delivery?.status === 'sending' && delivery.lockedAt?.toMillis?.() > now.getTime() - 10 * 60 * 1000) return null
     transaction.set(deliveryRef, {
       status: 'sending', deadlinePath: deadlineRef.path, casePath: metadata.caseRef.path, recipient: current.recipient,
       dueAt: current.dueAt, attempts: (delivery?.attempts || 0) + 1, lockedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true })
+    return { deliveryRef, caseData: currentCase.data() }
   })
-  return claimed ? { deliveryRef, caseData } : null
 }
 
 async function dispatchReminder(db, deadlineSnapshot, now, sendMail) {
   const metadata = deadlineReminderMetadata(deadlineSnapshot.ref, deadlineSnapshot.data())
   if (!metadata || !isDeadlineReminderDue(metadata, now)) return { skipped: true }
-  const claimed = await claimDelivery(db, deadlineSnapshot.ref, metadata, now)
+  const claimed = await claimDeadlineReminderDelivery(db, deadlineSnapshot.ref, metadata, now)
   if (!claimed) return { skipped: true }
+  const [freshDeadline, freshCase] = await Promise.all([deadlineSnapshot.ref.get(), metadata.caseRef.get()])
+  const freshMetadata = freshDeadline.exists ? deadlineReminderMetadata(deadlineSnapshot.ref, freshDeadline.data()) : null
+  if (!freshCase.exists || !freshMetadata || deadlineReminderDeliveryId(deadlineSnapshot.ref, freshMetadata) !== deadlineReminderDeliveryId(deadlineSnapshot.ref, metadata)) {
+    await claimed.deliveryRef.set({ status: 'cancelled', updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+    return { skipped: true }
+  }
   const values = metadata.templateId === 'todo_deadline_reminder'
-    ? { todoTitle: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
-    : { caseType: metadata.type, caseNumber: caseLabel(claimed.caseData), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(deadlineSnapshot.data()?.note) || '–' }
+    ? { todoTitle: caseLabel(freshCase.data()), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(freshDeadline.data()?.note) || '–' }
+    : { caseType: metadata.type, caseNumber: caseLabel(freshCase.data()), dueDateTime: germanDateTime(metadata.date, metadata.time), note: text(freshDeadline.data()?.note) || '–' }
+  let deliveryAccepted = false
   try {
     const delivered = await sendMail({ recipient: metadata.recipient, templateId: metadata.templateId, values, automatic: true })
     if (!delivered) {
       await claimed.deliveryRef.set({ status: 'paused', pausedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: 'automatic-mail-delivery-paused' }, { merge: true })
       return { paused: true }
     }
+    deliveryAccepted = true
     await claimed.deliveryRef.set({ status: 'sent', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: FieldValue.delete() }, { merge: true })
     return { sent: true }
   } catch (error) {
-    await claimed.deliveryRef.set({ status: 'failed', failedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), lastError: error instanceof Error ? error.message.slice(0, 240) : 'delivery-failed' }, { merge: true })
-    logger.error('Fallfrist-Erinnerung konnte nicht zugestellt werden.', { deadlinePath: deadlineSnapshot.ref.path, error: error instanceof Error ? error.message : 'unknown' })
+    await claimed.deliveryRef.set({ status: deliveryAccepted ? 'delivered' : 'failed', updatedAt: FieldValue.serverTimestamp(), lastError: deliveryAccepted ? 'accepted-receipt-incomplete' : 'delivery-failed' }, { merge: true }).catch(() => {})
+    await reportBackgroundFailure(db, 'deadline-dispatch', error)
     return { failed: true }
   }
 }
 
-/** Returns the versioned collection-group query used by the scheduler.
- * Date-only filtering retains all already overdue entries, while excluding
- * future dates. `startAfter` below makes every due entry reachable even when
- * an individual scheduler run crosses the page size. */
+/** Only outstanding jobs enter the hot query; sent history never does. */
 export function deadlineReminderQuery(db, now = new Date()) {
-  const today = shipmentTrackingBerlinLocal(now)?.date
-  if (!today) throw new Error('deadline-reminder-clock-invalid')
-  return db.collectionGroup('deadlines')
-    .where('reminderEnabled', '==', true)
-    .where('date', '<=', today)
-    .orderBy('date', 'asc')
-    .orderBy('time', 'asc')
+  if (Number.isNaN(now.getTime())) throw new Error('deadline-reminder-clock-invalid')
+  return db.collection(workCollection).where('dueAt', '<=', Timestamp.fromDate(now)).orderBy('dueAt', 'asc')
 }
 
-/** Scans reminder-enabled, due deadline subcollections in deterministic pages.
- * A deterministic delivery record provides at-most-once semantics across
- * scheduler retries and later pages cannot be hidden behind the first 500. */
+/** Pages outstanding jobs. Deterministic receipts deduplicate completed sends;
+ * provider timeouts and process loss still need provider-side idempotency for
+ * an absolute at-most-once guarantee (the current webhook has no such contract). */
 export async function runCaseDeadlineReminderDispatch(now = new Date(), { db = getFirestore(), sendMail = sendSystemMailTemplate } = {}) {
+  await advanceDeadlineReminderWork(db)
   const paused = await areAutomaticMailsPaused(db)
   const result = { scanned: 0, sent: 0, failed: 0, paused }
   if (paused) {
@@ -133,7 +160,13 @@ export async function runCaseDeadlineReminderDispatch(now = new Date(), { db = g
     for (let offset = 0; offset < deadlines.docs.length; offset += reminderDispatchConcurrency) {
       const pageResults = await Promise.all(deadlines.docs
         .slice(offset, offset + reminderDispatchConcurrency)
-        .map((deadline) => dispatchReminder(db, deadline, now, sendMail)))
+        .map(async (job) => {
+          const deadlineRef = db.doc(job.data().deadlinePath)
+          const deadline = await deadlineRef.get()
+          const result = deadline.exists ? await dispatchReminder(db, deadline, now, sendMail) : { skipped: true }
+          await refreshDeadlineReminderWork(db, deadlineRef)
+          return result
+        }))
       for (const dispatched of pageResults) {
         if (dispatched.sent) result.sent += 1
         if (dispatched.failed) result.failed += 1
@@ -147,4 +180,6 @@ export async function runCaseDeadlineReminderDispatch(now = new Date(), { db = g
   return result
 }
 
-export const scheduledCaseDeadlineReminderDispatch = onSchedule({ region, schedule: '* * * * *', timeZone: 'Europe/Berlin', secrets: [systemMailNotificationUrl] }, async () => runCaseDeadlineReminderDispatch())
+export const scheduledCaseDeadlineReminderDispatch = onSchedule({ region, schedule: '* * * * *', timeZone: 'Europe/Berlin', maxInstances: 1, secrets: [systemMailNotificationUrl] }, async () => {
+  try { return await runCaseDeadlineReminderDispatch() } catch (error) { await reportBackgroundFailure(getFirestore(), 'deadline-reminders', error); throw error }
+})

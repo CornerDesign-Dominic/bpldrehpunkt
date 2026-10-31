@@ -110,6 +110,31 @@ service cloud.firestore {
       match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
     }
 
+    // Process knowledge and rules share the existing handbook permission.
+    // Validated callables own all writes and immutable revision snapshots.
+    match /knowledgeArticles/{id} {
+      allow read: if view('handbook');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
+    }
+    match /knowledgeRules/{id} {
+      allow read: if view('handbook');
+      allow write: if false;
+      match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
+    }
+    match /knowledgeGaps/{id} {
+      allow read: if view('knowledgeGaps');
+      allow write: if false;
+      match /{document=**} { allow read, write: if false; }
+    }
+    match /knowledgeGapEvidence/{id} {
+      allow read: if view('knowledgeGaps');
+      allow write: if false;
+    }
+    match /knowledgeGapOccurrences/{id} {
+      allow read, write: if false;
+    }
+
     match /appSettings/partnerEvaluation {
       // Evaluation colors are part of the signed-in client presentation, but
       // settings may only be changed by the Admin SDK callable function.
@@ -552,8 +577,9 @@ service cloud.firestore {
       }
     }
 
-    match /palletMovements/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
-    match /palletClosings/{id} { allow read: if view('pallets'); allow create, update, delete: if edit('pallets'); }
+    // Source and summaries are committed atomically by savePalletRecord.
+    match /palletMovements/{id} { allow read: if view('pallets'); allow write: if false; }
+    match /palletClosings/{id} { allow read: if view('pallets'); allow write: if false; }
     match /newsItems/{id} {
       allow read: if view('news');
       allow create, update, delete: if edit('news');

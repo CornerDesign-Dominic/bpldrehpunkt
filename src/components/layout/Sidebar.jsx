@@ -15,6 +15,8 @@ import { mailboxLabel, mailboxUrl } from '../../lib/mailboxHelpers.js'
 const navigationItems = [
   { label: 'K.V.P.', to: '/qualitaet/kvp', icon: TodoIcon, module: 'kvp', group: 'quality' },
   { label: 'Handbuch', to: '/qualitaet/handbuch', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
+  { label: 'Grundregeln', to: '/qualitaet/grundregeln', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
+  { label: 'Wissenslücken', to: '/qualitaet/wissensluecken', icon: DocumentsIcon, module: 'knowledgeGaps', group: 'quality' },
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'general' },
   { label: 'Notizen', to: '/notizen', icon: DocumentsIcon, group: 'general' },
@@ -60,6 +62,7 @@ const navigationGroups = [
 
 const navigationLabelKeys = {
   '/qualitaet/kvp': 'nav.kvp', '/qualitaet/handbuch': 'nav.handbook',
+  '/qualitaet/grundregeln': 'nav.groundRules', '/qualitaet/wissensluecken': 'nav.knowledgeGaps',
   '/postfaecher': 'nav.mailboxes',
   '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
   '/feiertagskalender': 'nav.holidays', '/news': 'nav.news', '/team': 'nav.team', '/urlaub': 'nav.vacation',

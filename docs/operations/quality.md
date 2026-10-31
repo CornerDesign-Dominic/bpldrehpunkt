@@ -1,5 +1,10 @@
 # Qualität: K.V.P. und Handbuch
 
+Der aktuelle Prozessumbau von Handbuch, Grundregeln und Wissenslücken einschließlich
+Postfach-KI ist in [Wissensmanagement](knowledge.md) beschrieben. Die folgenden
+Handbuchabschnitte und Releasebelege dokumentieren den vorherigen Aufbau;
+K.V.P. und Besprechungen bleiben weiterhin wie hier beschrieben.
+
 Stand: 29.10.2026. Dev-Release für K.V.P. und Handbuch. Produktionsfreigabe besteht nicht.
 
 ## Fachlicher Ablauf

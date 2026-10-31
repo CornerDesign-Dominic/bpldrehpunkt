@@ -3,8 +3,12 @@ import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
+  pallets: 'Paletten',
+  calendar: 'Kalender',
+  'background-work': 'Hintergrundverarbeitung',
   kvp: 'K.V.P.',
   handbook: 'Handbuch',
+  knowledgeGaps: 'Wissenslücken',
   'dycos-import': 'DyCoS-Auftragsabruf',
   'dycos-master-data': 'DyCoS-Stammdatenabruf',
   mailboxes: 'Postfächer',

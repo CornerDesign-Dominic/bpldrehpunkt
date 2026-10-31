@@ -5,6 +5,7 @@ export const PERMISSION_LEVELS = ['none', 'view', 'edit']
 export const MODULES = {
   kvp: { label: 'K.V.P.' },
   handbook: { label: 'Handbuch' },
+  knowledgeGaps: { label: 'Wissenslücken' },
   dashboard: { label: 'Dashboard' },
   mailboxes: { label: 'Postfächer' },
   vacation: { label: 'Urlaub' },

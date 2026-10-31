@@ -6,6 +6,8 @@ import { shipmentTrackingAttention } from './shared/shipmentTrackingAttention.js
 import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH } from './shared/shipmentTrackingForecastSettings.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 import { shipmentTrackingOperatingHoursPath } from './shipmentTrackingOperatingHours.js'
+import { transportOrderListProjectionState, transportOrderRelationsCollection } from './transportOrderListProjection.js'
+import { recordDiagnostic } from './diagnostics.js'
 
 export const transportOrderListPageSize = 25
 export const transportOrderListPageSizeOptions = new Set([25, 50, 100])
@@ -89,6 +91,31 @@ export function listIconFiltersMatch(items, filters) {
 
 export function normalizeTransportOrderListPageSize(value) { return transportOrderListPageSizeOptions.has(Number(value)) ? Number(value) : transportOrderListPageSize }
 
+export function transportOrderLoadingMonths(from, until) {
+  if (!from || !until) return null
+  const parseMonth = (value) => /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(value) ? Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7)) - 1 : null
+  const first = parseMonth(from); const last = parseMonth(until)
+  // One additional branch preserves malformed historical date strings. Longer
+  // or open ranges keep the exact local filter and original global sort.
+  if (first === null || last === null || last < first || last - first >= 29) return null
+  return [...Array.from({ length: last - first + 1 }, (_, offset) => {
+    const month = first + offset
+    return `${String(Math.floor(month / 12)).padStart(4, '0')}-${String(month % 12 + 1).padStart(2, '0')}`
+  }), 'legacy']
+}
+
+export function applyTransportOrderQueryFilters(query, { relation, loadingFrom, loadingUntil }, projectionComplete) {
+  if (!projectionComplete) return query
+  if (relation) query = query.where('listQuery.relation', '==', relation)
+  const months = transportOrderLoadingMonths(loadingFrom, loadingUntil)
+  if (months) query = query.where('listQuery.loadingMonth', 'in', months)
+  return query
+}
+
+export function transportOrderFieldsMatch(order, { search, relation, loadingFrom, loadingUntil }) {
+  return (!search || searchableText(order).includes(search)) && relationMatches(order, relation) && loadingStartMatches(order, loadingFrom, loadingUntil)
+}
+
 export async function listTransportOrdersPageHandler(request) {
   const profile = await requireActiveProfile(request)
   if (!hasViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Transportaufträge.')
@@ -107,7 +134,9 @@ export async function listTransportOrdersPageHandler(request) {
   if (!statusValues.has(filter) || !attentionValues.has(attentionFilter) || search.length > 180 || relation.length > 180 || (loadingFrom && !datePattern.test(loadingFrom)) || (loadingUntil && !datePattern.test(loadingUntil)) || (loadingFrom && loadingUntil && loadingFrom > loadingUntil) || (cursorId && cursorId.length > 240)) throw new HttpsError('invalid-argument', 'Ungültige Listenabfrage.')
 
   const db = getFirestore(); const orders = db.collection('transportOrders')
-  const [forecastSettingsSnapshot, operatingHoursSnapshot] = await Promise.all([db.doc(SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH).get(), db.doc(shipmentTrackingOperatingHoursPath).get()])
+  const [forecastSettingsSnapshot, operatingHoursSnapshot, projectionState] = await Promise.all([db.doc(SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH).get(), db.doc(shipmentTrackingOperatingHoursPath).get(), db.doc(transportOrderListProjectionState).get()])
+  const projectionComplete = projectionState.get('complete') === true
+  const orderFilters = { search, relation, loadingFrom, loadingUntil }
   const forecastSettings = forecastSettingsSnapshot.exists ? forecastSettingsSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS
   const operatingHours = operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS
   let cursor = null
@@ -118,19 +147,23 @@ export async function listTransportOrdersPageHandler(request) {
   }
   const results = []; let lastResultCursor = null
   while (true) {
-    let query = orders.orderBy(sortKey ? sortFields[sortKey] : 'importMeta.lastImportedAt', sortKey ? sortDirection : 'desc').limit(pageSize + 1)
+    let query = applyTransportOrderQueryFilters(orders, orderFilters, projectionComplete).orderBy(sortKey ? sortFields[sortKey] : 'importMeta.lastImportedAt', sortKey ? sortDirection : 'desc').limit(pageSize + 1)
     if (cursor) query = query.startAfter(cursor)
     const batch = await query.get()
     if (!batch.docs.length) break
     const candidates = batch.docs.slice(0, pageSize)
-    const trackingSnapshots = candidates.length ? await db.getAll(...candidates.map((entry) => db.doc(`transportOrderTrackings/${entry.id}`))) : []
+    // Apply source-only filters before loading the separate tracking documents.
+    // Substring search remains exact even for historical data; it cannot be
+    // replaced by a prefix query without changing the user's search results.
+    const matchingCandidates = candidates.filter((entry) => transportOrderFieldsMatch({ ...entry.data(), id: entry.id }, orderFilters))
+    const trackingSnapshots = matchingCandidates.length ? await db.getAll(...matchingCandidates.map((entry) => db.doc(`transportOrderTrackings/${entry.id}`))) : []
     const trackingByOrder = new Map(trackingSnapshots.filter((entry) => entry.exists).map((entry) => [entry.id, entry.data()]))
-    for (const entry of candidates) {
+    for (const entry of matchingCandidates) {
       const order = { id: entry.id, ...entry.data() }; const trackingStatus = statusForTracking(trackingByOrder.get(entry.id))
       const tracking = trackingByOrder.get(entry.id) || null
       const attention = shipmentTrackingAttention({ tracking, imported: order.imported, receivedMails: tracking?.attentionSummary?.manualReviewOpen ? [{ ai: { reviewRequired: true } }] : [], settings: forecastSettings, operatingHours })
       const attentionMatches = attentionFilter === 'all' || (attentionFilter === 'critical' ? attention.items.some((item) => item.severity === 'critical') : attention.items.some((item) => ['critical', 'warning'].includes(item.severity)))
-      if (trackingStatusMatches(trackingStatus, filter) && attentionMatches && listIconFiltersMatch(attention.items, iconFilters) && (!search || searchableText(order).includes(search)) && relationMatches(order, relation) && loadingStartMatches(order, loadingFrom, loadingUntil)) {
+      if (trackingStatusMatches(trackingStatus, filter) && attentionMatches && listIconFiltersMatch(attention.items, iconFilters)) {
         if (results.length === pageSize) return { orders: results, nextCursor: lastResultCursor, hasMore: true }
         results.push({ ...order, trackingStatus, attention, forecast: forecastForList(tracking?.currentForecast, forecastSettings, new Date(), tracking, order.imported) })
         lastResultCursor = entry.id
@@ -145,6 +178,24 @@ export async function listTransportOrdersPageHandler(request) {
 export async function listTransportOrderRelationsHandler(request) {
   const profile = await requireActiveProfile(request)
   if (!hasViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Transportaufträge.')
-  const snapshots = await getFirestore().collection('transportOrders').select('imported.relation').get()
-  return { relations: transportOrderRelationOptions(snapshots.docs.map((entry) => entry.data())) }
+  try { return await loadTransportOrderRelations(getFirestore()) }
+  catch (error) {
+    await recordDiagnostic({ module: 'website', stage: 'transport-orders', code: String(error?.code || 'relation-catalog-failed'), message: 'Relationsauswahl konnte serverseitig nicht geladen werden.', actorId: request.auth.uid, actorName: [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.email || 'Unbekannt' })
+    throw new HttpsError('unavailable', 'Die Relationsauswahl konnte nicht geladen werden. Bitte erneut versuchen.')
+  }
+}
+
+export async function loadTransportOrderRelations(db) {
+  const state = await db.doc(transportOrderListProjectionState).get()
+  if (state.get('complete') !== true) {
+    const snapshots = await db.collection('transportOrders').select('imported.relation').get()
+    return { relations: transportOrderRelationOptions(snapshots.docs.map((entry) => entry.data())), mode: 'legacy' }
+  }
+  const catalog = await db.collection(transportOrderRelationsCollection).get()
+  const relations = catalog.docs.map((entry) => {
+    const data = entry.data()
+    if (typeof data.relation !== 'string' || !data.relation || !Number.isInteger(data.count) || data.count < 1) throw new Error('Inkonsistentes Relationsverzeichnis.')
+    return data.relation
+  })
+  return { relations: [...new Set(relations)].sort((left, right) => left.localeCompare(right, 'de-DE', { numeric: true })), mode: 'indexed' }
 }

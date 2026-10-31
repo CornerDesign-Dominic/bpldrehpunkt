@@ -1,3 +1,4 @@
+import { loadEffectiveTrackingPartner as effectivePartner } from './partnerCluster.js'
 import { createHash } from 'node:crypto'
 import process from 'node:process'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
@@ -51,22 +52,7 @@ function assertPermittedRecipient(tracking, requestedRecipient) {
   return stored
 }
 
-async function effectivePartner(db, partnerId) {
-  if (!partnerId || typeof partnerId !== 'string' || partnerId.includes('/')) return null
-  const visited = new Set()
-  let currentId = partnerId
-  for (let depth = 0; depth < 5; depth += 1) {
-    if (visited.has(currentId)) return null
-    visited.add(currentId)
-    const snapshot = await db.doc(`businessPartners/${currentId}`).get()
-    if (!snapshot.exists) return null
-    const partner = { id: snapshot.id, ...snapshot.data() }
-    if (!partner.mergedIntoPartnerId && partner.status !== 'merged') return partner
-    if (typeof partner.mergedIntoPartnerId !== 'string' || !partner.mergedIntoPartnerId || partner.mergedIntoPartnerId.includes('/')) return null
-    currentId = partner.mergedIntoPartnerId
-  }
-  return null
-}
+
 
 export function canManuallyDispatchShipmentTracking(tracking) {
   return tracking?.lifecycleStatus === 'active' || tracking?.lifecycleStatus === 'completed'

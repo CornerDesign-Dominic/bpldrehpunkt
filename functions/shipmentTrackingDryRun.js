@@ -1,3 +1,4 @@
+import { loadEffectiveTrackingPartner as effectivePartner } from './partnerCluster.js'
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -17,22 +18,7 @@ export function hasShipmentTrackingDryRunAccess(profile) {
   return hasTrackingViewAccess(profile)
 }
 
-async function effectivePartner(db, partnerId) {
-  if (!partnerId || typeof partnerId !== 'string' || partnerId.includes('/')) return null
-  const visited = new Set()
-  let currentId = partnerId
-  for (let depth = 0; depth < 5; depth += 1) {
-    if (visited.has(currentId)) return null
-    visited.add(currentId)
-    const snapshot = await db.doc(`businessPartners/${currentId}`).get()
-    if (!snapshot.exists) return null
-    const partner = { id: snapshot.id, ...snapshot.data() }
-    if (!partner.mergedIntoPartnerId && partner.status !== 'merged') return partner
-    if (typeof partner.mergedIntoPartnerId !== 'string' || !partner.mergedIntoPartnerId || partner.mergedIntoPartnerId.includes('/')) return null
-    currentId = partner.mergedIntoPartnerId
-  }
-  return null
-}
+
 
 /** Read-only source adapter for the pure shared dry-run calculation. */
 export async function getShipmentTrackingDryRunHandler(request) {

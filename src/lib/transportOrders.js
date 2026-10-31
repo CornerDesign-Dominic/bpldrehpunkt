@@ -6,11 +6,6 @@ export const TRANSPORT_ORDERS_COLLECTION = 'transportOrders'
 
 function mapSnapshot(snapshot) { return { id: snapshot.id, ...snapshot.data() } }
 
-export async function listTransportOrders() {
-  const snapshots = await getDocs(query(collection(db, TRANSPORT_ORDERS_COLLECTION), orderBy('importMeta.lastImportedAt', 'desc')))
-  return snapshots.docs.map(mapSnapshot)
-}
-
 export async function listTransportOrdersPage({ trackingStatus, attention = 'all', iconFilters, search, relation, loadingFrom, loadingUntil, sort, cursor = null, pageSize }) {
   await waitForAppCheckToken()
   const result = await httpsCallable(functions, 'listTransportOrdersPage')({ trackingStatus, attention, iconFilters, search, relation, loadingFrom, loadingUntil, sort, cursor, pageSize })

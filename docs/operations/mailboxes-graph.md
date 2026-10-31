@@ -1,7 +1,45 @@
 # Persönliche Postfächer über Microsoft Graph
 
-Stand: 29.10.2026. Implementierung und Dev-Release; Veröffentlichungsnachweise
+Stand: 31.10.2026. Implementierung und Dev-Release; Veröffentlichungsnachweise
 und die noch offene echte Exchange-Abnahme werden unten getrennt beschrieben.
+
+## Persönliche und freigegebene Postfächer (Erweiterung 31.10.2026)
+
+Die frühere Beschränkung auf `bb@` ist im Code entfernt. Aktive Drehpunkt-Nutzer
+mit Postfach-Bearbeitung können im eigenen Profil mehrere persönliche Konten
+innerhalb des bestehenden Entra-Mandanten verbinden. Die Unternehmensanwendung
+muss diesen Microsoft-Benutzern weiterhin zugewiesen sein, wenn Zuweisung erforderlich ist.
+
+Freigegebene Postfächer werden per Adresse und optionalem Navigationsnamen
+hinzugefügt. Die Oberfläche zeigt, welches persönliche Konto den Zugriff
+ermöglicht. `addSharedMailbox` prüft den delegierten Lesezugriff auf den
+Posteingang serverseitig; das Senderecht kann ohne Versand nicht vorab geprüft
+werden. Microsoft Graph liefert keine Liste aller dem Nutzer freigegebenen
+Postfächer, daher erfolgt das Hinzufügen gezielt per Adresse.
+
+Erforderlich sind zusätzlich die **delegierten** Berechtigungen `Mail.Read.Shared`
+und `Mail.Send.Shared` mit Zustimmung. Bestehende Konten werden einmal über
+„Microsoft-Verbindung erneuern“ verbunden. In Exchange braucht die Person für
+die hier verwendeten vollständigen Postfachzugriffe **Vollzugriff** und zum
+Antworten **Senden als** oder **Senden im Auftrag von**. Freigegebene Postfächer
+verwenden die Zugangsdaten der persönlichen Verbindung; sie haben keine eigenen
+Geheimnisse. Ihre serverseitigen Datensätze sind ebenfalls nutzerspezifisch.
+Graph-Aufrufe einschließlich Suche, Anhängen, KI-Aktionen und Antworten verwenden
+das serverseitig gespeicherte Zielpostfach; ein Client kann kein fremdes Ziel angeben.
+
+Entfernen eines freigegebenen Postfachs lässt die persönliche Verbindung bestehen.
+Trennen des persönlichen Kontos sperrt seine freigegebenen Postfächer atomar mit.
+Erneutes Verbinden desselben persönlichen Kontos erhält dessen Namen und bestehende
+aktive Freigabeverknüpfungen. Nachrichten und Originalanhänge bleiben in Exchange.
+Die Dev-Beschränkung beim Versand auf `@brennpunkt-logistik.de` gilt unverändert.
+Produktion und unbekannte Projekte bleiben serverseitig gesperrt.
+
+Verifikation: 55 gezielte Tests zu Graph-/Postfachaktionen einschließlich
+Besitzprüfung, neuen OAuth-Konten, Freigabeablehnung, Zielrouting, Sender,
+Tokenrotation und Trennen; zusätzlich vier Firestore-Emulatortests für private
+Sammlungen, doppelte Anlage, Trennung während Zugriffstest und getrennte Entwürfe.
+Die UI wird mit synthetischen Konten geprüft. Ein echter Microsoft-Login und
+Exchange-Freigabetest erfordern die Benutzeranmeldung und Freigaben im Mandanten.
 
 ## Umfang und führendes System
 
@@ -59,8 +97,8 @@ Antworten enthalten bearbeitbare An-/CC-/BCC-Empfänger und Klartext. Der
 Entwurf liegt privat serverseitig in Drehpunkt, nicht als Outlook-Entwurf.
 `Mail.ReadWrite` wird nicht angefordert: Nachrichten werden nicht als gelesen
 markiert, verschoben oder gelöscht. Gemeinsame Postfächer, PDF-Auswertung,
-Auftragserstellung und Antwortvorschläge gehören
-nicht zum ersten Umfang. Dafür gibt es keine funktionslosen Aktionsangebote.
+Auftragserstellung und Antwortvorschläge gehörten
+nicht zum ursprünglichen ersten Umfang; sie wurden später ergänzt. Dafür gibt es keine funktionslosen Aktionsangebote.
 Die vorhandene Power-Automate-Anbindung von `status@` bleibt unabhängig.
 
 Aktive Dateiformate
@@ -157,9 +195,9 @@ Registrierung **Drehpunkt Mail – Dev**, nur eigener Mandant:
 
 - Mandant: `b829bbdc-c0b7-4128-a341-6715a67b451b`
 - Client-ID: `a23dc8d8-e22a-40ef-997c-d28aa753ee29`
-- Delegiert: `User.Read`, `Mail.Read`, `Mail.Send`, `offline_access`
-- Unternehmensanwendung: Zuweisung erforderlich; ausschließlich Testnutzer
-  zugewiesen. Die vollständige Testadresse wird als Serverparameter gesetzt.
+- Delegiert: `User.Read`, `Mail.Read`, `Mail.Send`, `Mail.Read.Shared`, `Mail.Send.Shared`, `offline_access`
+- Unternehmensanwendung: Bei erforderlicher Zuweisung die freigegebenen
+  Benutzer oder Gruppen hinzufügen; die frühere Code-Beschränkung auf den Testnutzer entfällt.
 - Wegen erforderlicher Zuweisung Administratorzustimmung für die obigen
   Berechtigungen erteilen. Dies gewährt keine organisationsweiten
   Anwendungsberechtigungen auf sämtliche Postfächer.
@@ -183,7 +221,7 @@ Parameter für **db-bpl-drehpunkt-dev**:
 | --- | --- |
 | `MAILBOX_REDIRECT_URI` | `https://europe-west3-db-bpl-drehpunkt-dev.cloudfunctions.net/mailboxOAuthCallback` |
 | `MAILBOX_FRONTEND_ORIGIN` | `https://dev.drehpunktlogistik.de` (vom Nutzer bestätigte Dev-Adresse) |
-| `MAILBOX_TEST_ACCOUNT` | `bb@brennpunkt-logistik.de` (vom Nutzer bestätigtes Testpostfach) |
+| `MAILBOX_TEST_ACCOUNT` | Altparameter aus der Testphase; beschränkt die Konten nicht mehr |
 
 Die drei nicht geheimen Werte sind lokal in der ignorierten Datei
 `functions/.env.db-bpl-drehpunkt-dev` für das explizite Firebase-Dev-Ziel

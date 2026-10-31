@@ -1,0 +1,54 @@
+{
+  "id": "cost-efficiency-dev-2026-10-31",
+  "status": "deployed-to-dev",
+  "project": "db-bpl-drehpunkt-dev",
+  "region": "europe-west3",
+  "branch": "codex/cost-efficiency-dev-release",
+  "baseCommit": "5e9586145b2df0c939d10fa455f699653e1f40ba",
+  "publication": {
+    "backendSourceCommit": "1379bf30c95d297fe31f91cdbec3b727ae75bad3",
+    "dataPrepared": true,
+    "report": "cost-efficiency-dev-2026-10-31-status.md",
+    "productionUnchanged": true
+  },
+  "frontend": { "target": "https://dev.drehpunktlogistik.de", "gitTarget": "dev", "requiresExplicitPublicationInstruction": true },
+  "firestore": {
+    "indexes": "firestore.indexes.json",
+    "compositeCount": 71,
+    "addedComposites": 59,
+    "fieldOverrides": ["deadlines.date: COLLECTION ASC/DESC and COLLECTION_GROUP ASC"],
+    "rules": "firestore.rules",
+    "rulesChange": "Direct client writes to palletMovements and palletClosings denied; reads unchanged; internal collections remain server-only"
+  },
+  "storage": "unchanged-no-deploy",
+  "secrets": "no-new-secrets-preserve-existing-bindings",
+  "functionPhases": [
+    { "id": "worker", "functions": ["rebuildShipmentTrackingWork"] },
+    { "id": "preparation", "functions": [
+      "maintainShipmentTrackingOrderWork", "maintainShipmentTrackingStateWork",
+      "rebuildShipmentTrackingWorkOnSettings", "rebuildShipmentTrackingWorkOnPartner",
+      "maintainCaseDeadlineReminderWork", "prepareBackgroundWork", "separatePartnerMerge",
+      "savePalletRecord", "listPalletAccountSummaries", "rebuildPalletSummaries",
+      "listTransportOrderPalletMovements", "listSystemCalendarSources"
+    ] },
+    { "id": "switch-after-readiness", "functions": [
+      "scheduledShipmentTrackingAutomation", "scheduledCaseDeadlineReminderDispatch",
+      "processStatusMailAiOnCreate", "retryStatusMailAi", "refreshShipmentTrackingAttentionOnMail",
+      "listTransportOrdersPage", "listTransportOrderRelations", "fetchDycosTransportOrder",
+      "getShipmentTrackingDryRun", "previewManualShipmentTrackingMail", "sendManualShipmentTrackingMail",
+      "reportClientDiagnostic", "listDiagnosticsPage"
+    ] },
+    { "id": "shared-ai-usage", "functions": [
+      "analyzeLiabilityTransportOrder", "analyzeCustomerOrderTerms", "suggestMailboxReply",
+      "previewMailboxTracking", "reviewMailboxInvoices", "analyzeMailboxAgb",
+      "previewMailboxOrder", "processMailboxActionRun"
+    ] }
+  ],
+  "dataGates": {
+    "background": ["backgroundWorkState/shipment-tracking-v1.complete", "backgroundWorkState/deadline-reminders-v1.complete", "backgroundWorkState/transport-order-list-v3.complete"],
+    "pallets": "palletSummaryState/current: version=1, status=ready, generation present, tourCoverage=true",
+    "mustNotManuallySetReady": true,
+    "palletWriteMaintenanceRequired": true
+  },
+  "excluded": ["Production/main", "push/deploy during preparation", "CSV reactivation", "route/component renaming to sendungsverfolgung", "unrelated original-workspace changes", "new provider calls or secret changes"]
+}

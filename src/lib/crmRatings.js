@@ -3,7 +3,6 @@ import { BUSINESS_PARTNERS_COLLECTION } from './businessPartners.js'
 import { db } from './firebase.js'
 import { getPartnerCluster } from './partnerClusterQueries.js'
 import { createHistoryPayload } from './partnerHistory.js'
-import { resolvePartnerInIndex } from './partnerCluster.js'
 import { businessPartnerRoles } from '../../shared/businessPartnerRoles.js'
 
 export const CUSTOMER_RATING_CRITERIA = [
@@ -88,8 +87,8 @@ export function getCurrentCrmRatingPresentation(partner, currentRatings = {}) {
   })
 }
 
-export async function listCrmRatings(partnerId, role) {
-  const cluster = await getPartnerCluster(partnerId)
+export async function listCrmRatings(partnerId, role, knownCluster = null) {
+  const cluster = knownCluster || await getPartnerCluster(partnerId)
   const snapshots = await Promise.all(cluster.members.map((partner) => getDocs(ratingsRef(partner.id))))
   return snapshots.flatMap((snapshot, index) => snapshot.docs.map((entry) => ({ ...mapSnapshot(entry), originPartnerId: cluster.members[index].id })))
     .filter((item) => !item.splitArchivedAt && (!role || item.role === role))
@@ -97,25 +96,6 @@ export async function listCrmRatings(partnerId, role) {
       (right.date || '').localeCompare(left.date || '')
       || timestampValue(right.createdAt) - timestampValue(left.createdAt)
     ))
-}
-
-export async function listCurrentCrmRatings(partnerIds, knownPartners = null) {
-  const partners = knownPartners || (await getDocs(collection(db, BUSINESS_PARTNERS_COLLECTION))).docs.map((entry) => ({ id: entry.id, ...entry.data() }))
-  const byId = new Map(partners.map((partner) => [partner.id, partner]))
-  const rootFor = (id) => resolvePartnerInIndex(byId, id)?.id || id
-  const requestedRoots = new Set(partnerIds.map(rootFor))
-  const members = partners.filter((partner) => requestedRoots.has(rootFor(partner.id)))
-  const snapshots = await Promise.all(members.map((partner) => getDocs(ratingsRef(partner.id))))
-  const grouped = new Map()
-  snapshots.forEach((snapshot, index) => {
-    const rootId = rootFor(members[index].id)
-    grouped.set(rootId, [...(grouped.get(rootId) || []), ...snapshot.docs.map((entry) => ({ ...mapSnapshot(entry), originPartnerId: members[index].id }))])
-  })
-  const currentByRoot = new Map([...requestedRoots].map((rootId) => {
-    const ratings = (grouped.get(rootId) || []).filter((item) => !item.splitArchivedAt).sort((left, right) => (right.date || '').localeCompare(left.date || '') || timestampValue(right.createdAt) - timestampValue(left.createdAt))
-    return [rootId, { customer: ratings.find((rating) => rating.role === 'customer') ?? null, carrier: ratings.find((rating) => rating.role === 'carrier') ?? null }]
-  }))
-  return Object.fromEntries(partnerIds.map((id) => [id, currentByRoot.get(rootFor(id)) || { customer: null, carrier: null }]))
 }
 
 export async function createCrmRating(partnerId, values, actor) {

@@ -2,7 +2,7 @@ import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTi
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
-import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { calendarDaysUntil, deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
 
 export const INKASSO_CASES_COLLECTION = 'inkassoCases'
 export const INKASSO_CASE_STATUSES = [
@@ -242,9 +242,7 @@ export function createEmptyInkassoDeadline() {
 
 export function inkassoDeadlinePresentation(deadline, now = new Date()) {
   if (!deadline?.date) return { kind: 'none', label: 'Keine Frist', days: null }
-  const today = new Date(now); today.setHours(0, 0, 0, 0)
-  const due = new Date(`${deadline.date}T12:00:00`)
-  const days = Math.round((due - today) / 86400000)
+  const days = calendarDaysUntil(deadline.date, now)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
   if (days === 0) return { kind: 'today', label: 'Heute', days }
   if (days <= 2) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }

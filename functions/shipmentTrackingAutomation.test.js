@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
-import { automaticTrackingDeliveryAllowed, automaticTrackingDeliveryId, isAutomaticTrackingDispatchDue, isTrackingRecipientAllowed, isCurrentTrackingRecipient, shipmentTrackingArrivalConfirmationPlan, shouldActivateShipmentTracking } from './shipmentTrackingAutomation.js'
+import { automaticTrackingDeliveryAllowed, automaticTrackingDeliveryId, claimAutomaticTrackingDelivery, isCurrentTrackingRecipient, isAutomaticTrackingDispatchDue, isTrackingRecipientAllowed, nextShipmentTrackingWorkAt, shipmentTrackingArrivalConfirmationPlan, shouldActivateShipmentTracking, trackingDispatchAllowed } from './shipmentTrackingAutomation.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrackingOperatingHours.js'
 
 test('automatic tracking mails are production-only, accept every valid recipient and retain stable deduplication ids', () => {
@@ -32,10 +32,48 @@ test('an already prepared dispatch is rejected when its current recipient change
   assert.equal(isCurrentTrackingRecipient({ lifecycleStatus: 'active', recipients: { carrier: { email: 'old@example.test' } } }, 'old@example.test'), false)
 })
 
+test('the final send gate rejects concurrent closure, phase, recipient, pause and unloading changes', () => {
+  const tracking = { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', recipients: { carrier: { email: 'carrier@example.test', source: 'manual' } } }
+  assert.equal(trackingDispatchAllowed(tracking, 'CARRIER@example.test'), true)
+  for (const change of [{ lifecycleStatus: 'completed' }, { lifecyclePhase: 'aftercare' }, { automationPaused: true }, { unloadingCompletedAt: '2026-10-01T10:00Z' }, { recipients: { carrier: { email: 'changed@example.test' } } }]) {
+    assert.equal(trackingDispatchAllowed({ ...tracking, ...change }, 'carrier@example.test'), false)
+  }
+})
+
+test('a retried tracking transaction never retains a claim from an aborted earlier attempt', async () => {
+  const trackingRef = { path: 'transportOrderTrackings/order-1' }
+  const deliveryRef = { path: `${trackingRef.path}/automaticMailDeliveries/delivery` }
+  let writes = 0
+  const db = { runTransaction: async (operation) => {
+    const attempt = (status) => operation({
+      get: async (ref) => ref === trackingRef ? { exists: true, data: () => ({ lifecycleStatus: 'active' }) } : { exists: Boolean(status), data: () => status ? { status } : undefined },
+      set: () => { writes += 1 },
+    })
+    assert.equal(await attempt(null), true) // aborted by Firestore after callback
+    return attempt('sending') // a concurrent worker committed the reservation
+  } }
+  assert.equal(await claimAutomaticTrackingDelivery(db, { trackingRef, deliveryRef, delivery: {}, allow: () => true }), false)
+  assert.equal(writes, 1)
+})
+
 test('a rule due before the lifecycle start provisions tracking early but retains the upcoming lifecycle phase', () => {
   const lifecycle = { phase: 'upcoming', startAt: { date: '2026-10-01', time: '07:00' } }
   assert.equal(shouldActivateShipmentTracking(lifecycle, { rules: [{ scheduledAt: '2026-09-30T09:00:00.000Z' }] }, '2026-09-30T09:01:00.000Z'), true)
   assert.equal(shouldActivateShipmentTracking(lifecycle, { rules: [] }, '2026-09-30T09:01:00.000Z'), false)
+})
+
+test('work projection preserves early rules and manual starts while retiring completed and settled aftercare', () => {
+  const now = new Date('2026-09-30T07:00:00Z')
+  const lifecycle = { phase: 'upcoming', startAt: { date: '2026-10-01', time: '07:00' } }
+  const preview = { rules: [{ scheduledAt: '2026-09-30T09:00:00Z', status: 'upcoming' }] }
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle, preview, now }).toISOString(), '2026-09-30T09:00:00.000Z')
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle, preview, tracking: { lifecycleStatus: 'active', lifecyclePhase: 'in_progress' }, now }).toISOString(), now.toISOString())
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle, preview, tracking: { lifecycleStatus: 'completed' }, now }), null)
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle: { phase: 'completed' }, tracking: null, now }), null)
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle: { phase: 'completed' }, tracking: { lifecycleStatus: 'active', lifecyclePhase: 'aftercare' }, now }), null)
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle: { phase: 'completed' }, tracking: { lifecycleStatus: 'active', lifecyclePhase: 'in_progress' }, now }).toISOString(), now.toISOString())
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle, preview, tracking: { lifecycleStatus: 'active', lifecyclePhase: 'aftercare' }, now }).getTime(), now.getTime())
+  assert.equal(nextShipmentTrackingWorkAt({ lifecycle: { phase: 'in_progress' }, tracking: { lifecycleStatus: 'active' }, now, afterProcessing: true }).getTime(), now.getTime() + 60_000)
 })
 
 test('the ETA confirmation is due two working hours before the loading ETA and never after an actual arrival', () => {
