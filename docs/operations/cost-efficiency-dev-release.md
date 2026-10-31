@@ -97,6 +97,9 @@ Reihenfolge und verbindliche Haltepunkte:
    Der Auftragstrigger pflegt zugleich die Listenprojektion und das
    Relationsverzeichnis; dafür existiert kein weiterer separater Listentrigger.
    Die beiden bisherigen Scheduler bleiben zunächst auf ihren alten Revisionen.
+   Auch `separatePartnerMerge` muss bereits hier auf die neue Revision: Der
+   bestehende Admin-SDK-Schreibweg umgeht Client-Rules und muss den Summenaufbau
+   serverseitig gegen parallele Legacy-Umschreibungen schützen.
 3. **Hintergrunddaten vollständig vorbereiten**: `prepareBackgroundWork`
    authentifiziert wiederholt aufrufen, bis alle drei Ergebnisse
    `tracking.complete`, `reminders.complete`, `list.complete` wahr sind.
@@ -164,6 +167,19 @@ ausgegeben. Das Werkzeug liest vier Dokumente und schreibt nichts. Es bestätigt
 weder aktive Function-Revisionen noch Indizes, Queue-IAM oder echte Zustellung.
 Ein Neuaufbau kann den Status nach der Kontrolle wieder ändern; unmittelbar
 vor dem Umschalten erneut kontrollieren und keine Policyänderung übersehen.
+
+Für den ausdrücklich beauftragten Dev-Release darf der bereits IAM-berechtigte
+Deployment-Betreiber dieselben begrenzten Aufbaukerne auch lokal mit der
+bestehenden Google-CLI-Anmeldung ausführen. Dafür wird kein Anwendungskonto
+imitiert und keine Rollenprüfung einer öffentlichen Callable ersetzt.
+`advancePalletSummaryRebuild(db)` enthält dieselbe einzelne Transaktion wie die
+geschützte Callable; die drei Hintergrundprojektionen verwenden ihre bestehenden
+`advance...`-Funktionen. Datenbankziel und API-Pfade müssen ausdrücklich auf
+`db-bpl-drehpunkt-dev` begrenzt sein. Bestehende Anmeldung nur im Speicher zur
+normalen OAuth-Aktualisierung verwenden; keine Token-/Schlüsseldatei erzeugen
+oder Zugangsdaten ausgeben. Dieser administrative Ablauf ist kein neuer
+Clientzugriff und wird nicht als öffentlicher Endpoint exportiert.
+Reihenfolge, Readiness, Palettenschreibpause und Fehlerdiagnose bleiben gleich.
 
 ## Abnahme in Dev und Beobachtung
 

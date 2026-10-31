@@ -21,7 +21,7 @@
     { "id": "preparation", "functions": [
       "maintainShipmentTrackingOrderWork", "maintainShipmentTrackingStateWork",
       "rebuildShipmentTrackingWorkOnSettings", "rebuildShipmentTrackingWorkOnPartner",
-      "maintainCaseDeadlineReminderWork", "prepareBackgroundWork",
+      "maintainCaseDeadlineReminderWork", "prepareBackgroundWork", "separatePartnerMerge",
       "savePalletRecord", "listPalletAccountSummaries", "rebuildPalletSummaries",
       "listTransportOrderPalletMovements", "listSystemCalendarSources"
     ] },
@@ -30,7 +30,7 @@
       "processStatusMailAiOnCreate", "retryStatusMailAi", "refreshShipmentTrackingAttentionOnMail",
       "listTransportOrdersPage", "listTransportOrderRelations", "fetchDycosTransportOrder",
       "getShipmentTrackingDryRun", "previewManualShipmentTrackingMail", "sendManualShipmentTrackingMail",
-      "separatePartnerMerge", "reportClientDiagnostic", "listDiagnosticsPage"
+      "reportClientDiagnostic", "listDiagnosticsPage"
     ] },
     { "id": "shared-ai-usage", "functions": [
       "analyzeLiabilityTransportOrder", "analyzeCustomerOrderTerms", "suggestMailboxReply",

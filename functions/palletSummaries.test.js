@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { accountFromBuckets, applyMovementToBucket, movementBucketId, palletTourNumberKey, requirePalletAccess, savePalletRecordHandler } from './palletSummaries.js'
+import { accountFromBuckets, applyMovementToBucket, movementBucketId, palletTourNumberKey, requirePalletAccess, savePalletRecordHandler, advancePalletSummaryRebuild, rebuildPalletSummariesHandler } from './palletSummaries.js'
 import { summarizePalletAccount, isPalletMovementForPartner } from '../src/lib/palletAccountCalculations.js'
 
 test('participant buckets preserve every cluster intersection, including legacy precedence and internal transfers', () => {
@@ -32,4 +32,16 @@ test('malformed dates, fractional station counts and numeric coercion objects ne
  for(const values of [{...base,date:'2026-02-31'},{...base,loadingPoint:{received:0,delivered:0.5}},{...base,loadingPoint:{received:true,delivered:1}},{...base,loadingPoint:{received:0,delivered:Number.MAX_SAFE_INTEGER},unloadingPoint:{delivered:Number.MAX_SAFE_INTEGER}}]) {
   await assert.rejects(savePalletRecordHandler({auth:{uid:'u'},data:{kind:'movement',action:'create',operationId:'invalid-operation-id',values}},options),{code:'invalid-argument'})
  }
+})
+
+test('administrative rebuild core accepts an explicit database client and preserves the completed-state no-op', async () => {
+ let transactions=0, reads=0
+ const db={doc:(path)=>({path}),runTransaction:async operation=>{transactions++;return operation({get:async ref=>{reads++;assert.equal(ref.path,'palletSummaryState/current');return{data:()=>({version:1,status:'ready',generation:'complete'})}}})}}
+ assert.deepEqual(await advancePalletSummaryRebuild(db),{complete:true})
+ assert.equal(transactions,1);assert.equal(reads,1)
+})
+test('public rebuild callable still rejects anonymous and non-superadmin calls before accessing rebuild state', async () => {
+ const db={runTransaction:()=>{assert.fail('unauthorized rebuild reached persistence')}}
+ await assert.rejects(rebuildPalletSummariesHandler({}, {db}),{code:'unauthenticated'})
+ await assert.rejects(rebuildPalletSummariesHandler({auth:{uid:'admin'},data:{}},{db,authorize:async()=>({active:true,role:'admin'})}),{code:'permission-denied'})
 })

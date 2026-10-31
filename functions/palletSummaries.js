@@ -151,40 +151,46 @@ export async function listPalletAccountSummariesHandler(request, { db = getFires
 }
 
 /** One bounded transaction per call. Resume after crashes; source mutations are locked
- * while building so the generation is published only after a complete consistent scan. */
+ * while building so the generation is published only after a complete consistent scan.
+ * Administrative callers supply an already authorized database client; the public
+ * callable below retains its separate application-level authorization and diagnosis. */
+export async function advancePalletSummaryRebuild(db, { restart = false } = {}) {
+  return db.runTransaction(async (tx) => {
+    const ref = db.doc(PALLET_SUMMARY_STATE), snapshot = await tx.get(ref)
+    let state = snapshot.data()
+    if (ready(state) && !restart) return { complete: true }
+    if (state?.status !== 'building') state = { version: VERSION, status: 'building', generation: db.collection('palletSummaryGenerations').doc().id, stage: 'palletMovements', cursor: null }
+    let query = db.collection(state.stage).orderBy('__name__').limit(100)
+    if (state.cursor) query = query.startAfter(state.cursor)
+    const page = await tx.get(query), writes = []
+    const groups = new Map()
+    for (const document of page.docs) {
+      const data = document.data(), key = state.stage === 'palletMovements' ? movementBucketId(data) : data.partnerId
+      if (!key) continue
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push({ id: document.id, data, ref: document.ref })
+    }
+    const loaded = await Promise.all([...groups].map(async ([key, entries]) => { const target = bucketRef(db, state.generation, state.stage === 'palletMovements' ? 'movements' : 'closings', key); return { target, entries, data: (await tx.get(target)).data() } }))
+    for (const group of loaded) {
+      let value = group.data
+      for (const { id, data, ref: source } of group.entries) {
+        if (state.stage === 'palletMovements') { value = applyMovementToBucket(value, data, 1); writes.push([source, { tourNumberKey: palletTourNumberKey(data.tourNumber) }]) }
+        else { value = value || { partnerId: data.partnerId, adjustmentSum: 0, latestClosing: null }; value.adjustmentSum += numeric(data.adjustment); const info = closingInfo(id, data); if (!value.latestClosing || compareClosings(value.latestClosing, info) < 0) value.latestClosing = info; if (!(data.createdAt instanceof Timestamp)) writes.push([source, { createdAt: Timestamp.fromMillis(0) }]) }
+      }
+      tx.set(group.target, value)
+    }
+    writes.forEach(([target, value]) => tx.set(target, value, { merge: true }))
+    if (page.size < 100) { if (state.stage === 'palletMovements') state = { ...state, stage: 'palletClosings', cursor: null }; else state = { ...state, status: 'ready', tourCoverage: true } }
+    else state = { ...state, cursor: page.docs.at(-1).id }
+    tx.set(ref, { ...state, updatedAt: FieldValue.serverTimestamp() })
+    return { complete: state.status === 'ready', processed: page.size, stage: state.stage }
+  })
+}
+
 export async function rebuildPalletSummariesHandler(request, { db = getFirestore(), authorize = requireActiveProfile } = {}) {
   requireRole(await authorize(request), ['superadmin'], 'Nur Superadmins dürfen Palettenkonten aufbauen.')
   try {
-    return await db.runTransaction(async (tx) => {
-      const ref = db.doc(PALLET_SUMMARY_STATE), snapshot = await tx.get(ref)
-      let state = snapshot.data()
-      if (ready(state) && request.data?.restart !== true) return { complete: true }
-      if (state?.status !== 'building') state = { version: VERSION, status: 'building', generation: db.collection('palletSummaryGenerations').doc().id, stage: 'palletMovements', cursor: null }
-      let query = db.collection(state.stage).orderBy('__name__').limit(100)
-      if (state.cursor) query = query.startAfter(state.cursor)
-      const page = await tx.get(query), writes = []
-      const groups = new Map()
-      for (const document of page.docs) {
-        const data = document.data(), key = state.stage === 'palletMovements' ? movementBucketId(data) : data.partnerId
-        if (!key) continue
-        if (!groups.has(key)) groups.set(key, [])
-        groups.get(key).push({ id: document.id, data, ref: document.ref })
-      }
-      const loaded = await Promise.all([...groups].map(async ([key, entries]) => { const target = bucketRef(db, state.generation, state.stage === 'palletMovements' ? 'movements' : 'closings', key); return { target, entries, data: (await tx.get(target)).data() } }))
-      for (const group of loaded) {
-        let value = group.data
-        for (const { id, data, ref: source } of group.entries) {
-          if (state.stage === 'palletMovements') { value = applyMovementToBucket(value, data, 1); writes.push([source, { tourNumberKey: palletTourNumberKey(data.tourNumber) }]) }
-          else { value = value || { partnerId: data.partnerId, adjustmentSum: 0, latestClosing: null }; value.adjustmentSum += numeric(data.adjustment); const info = closingInfo(id, data); if (!value.latestClosing || compareClosings(value.latestClosing, info) < 0) value.latestClosing = info; if (!(data.createdAt instanceof Timestamp)) writes.push([source, { createdAt: Timestamp.fromMillis(0) }]) }
-        }
-        tx.set(group.target, value)
-      }
-      writes.forEach(([target, value]) => tx.set(target, value, { merge: true }))
-      if (page.size < 100) { if (state.stage === 'palletMovements') state = { ...state, stage: 'palletClosings', cursor: null }; else state = { ...state, status: 'ready', tourCoverage: true } }
-      else state = { ...state, cursor: page.docs.at(-1).id }
-      tx.set(ref, { ...state, updatedAt: FieldValue.serverTimestamp() })
-      return { complete: state.status === 'ready', processed: page.size, stage: state.stage }
-    })
+    return await advancePalletSummaryRebuild(db, { restart: request.data?.restart === true })
   } catch (error) { if (!(error instanceof HttpsError)) await recordDiagnostic({ module: 'pallets', stage: 'rebuild', code: 'pallet_rebuild_failed', message: 'Palettenkonten konnten nicht aufgebaut werden.', actorId: request.auth.uid }, db); throw error }
 }
 

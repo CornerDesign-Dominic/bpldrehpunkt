@@ -3,7 +3,7 @@ import process from 'node:process'
 import test from 'node:test'
 import { initializeApp, deleteApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
-import { PALLET_SUMMARY_STATE, listPalletAccountSummariesHandler, listTransportOrderPalletMovementsHandler, rebuildPalletSummariesHandler, savePalletRecordHandler } from './palletSummaries.js'
+import { PALLET_SUMMARY_STATE, advancePalletSummaryRebuild, listPalletAccountSummariesHandler, listTransportOrderPalletMovementsHandler, rebuildPalletSummariesHandler, savePalletRecordHandler } from './palletSummaries.js'
 
 const request = (data) => ({ auth: { uid: 'tester' }, data })
 const movement = (count) => ({ tourNumber: ' TA-1 ', date: '2026-10-31', customerId: 'a', carrierId: 'b', loadingPoint: { received: 0, delivered: count }, unloadingPoint: {}, note: '' })
@@ -18,9 +18,9 @@ test('emulator: resumed build, atomic mutation, replay, conflict, closing deleti
   const batch = db.batch(); for (let i=0; i<101; i++) batch.set(db.doc(`palletMovements/old-${String(i).padStart(3,'0')}`), { ...movement(1), carrierBalance: 1, customerBalance: -1 }); await batch.commit()
   assert.equal((await list()).mode, 'legacy')
   assert.equal((await listTransportOrderPalletMovementsHandler(request({ orderId: 'order' }), options)).movements.length, 101)
-  const first = await rebuildPalletSummariesHandler(request({}), options); assert.equal(first.complete, false)
+  const first = await advancePalletSummaryRebuild(db); assert.equal(first.complete, false)
   await assert.rejects(mutate({ kind:'movement', action:'create', operationId:'operation-locked-01', values:movement(2) }), { code:'failed-precondition' })
-  let result; do { result = await rebuildPalletSummariesHandler(request({}), options) } while (!result.complete)
+  let result; do { result = await advancePalletSummaryRebuild(db) } while (!result.complete)
   assert.equal((await list()).mode, 'summaries')
   const readPaths = []
   const boundedDb = { doc: (path) => db.doc(path), collection: (path) => { readPaths.push(path); return db.collection(path) }, runTransaction: (fn) => db.runTransaction(fn) }
