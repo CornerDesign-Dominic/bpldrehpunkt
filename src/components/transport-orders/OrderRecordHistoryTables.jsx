@@ -52,9 +52,11 @@ export default function OrderRecordHistoryTables({ order, history = {}, refreshe
             const entry = row.entry
             const actor = row.type === 'refresh' ? entry.actorName || entry.actorId || recordHistoryActor(entry) : recordHistoryActor(entry)
             return <tr key={row.id} id={row.type === 'refresh' && entry.id ? `order-refresh-${entry.id}` : undefined} data-focused={row.type === 'refresh' && entry.id === focusedRefreshId}>
-              <td><time>{date(row.timestamp)}</time>{row.type === 'refresh' && entry.startedAt && entry.completedAt && orderRecordHistoryTime(entry.startedAt) !== orderRecordHistoryTime(entry.completedAt) && <div className="order-workspace__muted">{w('Beginn', 'Started')}: {date(entry.startedAt)}</div>}</td>
-              <td>{actor === 'Nicht protokolliert' ? w('Nicht protokolliert', 'Not recorded') : actor}</td>
-              <td>{row.type === 'refresh' ? statusLabel(entry.status) : row.type === 'creation' ? w('Auftrag angelegt', 'Order created') : row.type === 'change' ? w('Daten geändert', 'Data changed') : <StaticText source={entry.summary || 'Daten geändert'} />}</td>
+              {row.metaRowSpan > 0 && <>
+                <td rowSpan={row.metaRowSpan}><time>{date(row.timestamp)}</time>{row.type === 'refresh' && entry.startedAt && entry.completedAt && orderRecordHistoryTime(entry.startedAt) !== orderRecordHistoryTime(entry.completedAt) && <div className="order-workspace__muted">{w('Beginn', 'Started')}: {date(entry.startedAt)}</div>}</td>
+                <td rowSpan={row.metaRowSpan}>{actor === 'Nicht protokolliert' ? w('Nicht protokolliert', 'Not recorded') : actor}</td>
+                <td rowSpan={row.metaRowSpan}>{row.type === 'refresh' ? statusLabel(entry.status) : row.type === 'creation' ? w('Auftrag angelegt', 'Order created') : row.type === 'change' ? w('Daten geändert', 'Data changed') : <StaticText source={entry.summary || 'Daten geändert'} />}</td>
+              </>}
               <td>{row.type === 'change' ? <TranslatedLabel value={row.change.label} /> : row.type === 'refresh' ? scopeLabel(entry.scope) : '—'}</td>
               <td>{row.type === 'change' ? typeof row.change.oldValue === 'boolean' ? <StaticText source={transportOrderHistoryValue(row.change.oldValue, language, row.change)} /> : transportOrderHistoryValue(row.change.oldValue, language, row.change) : '—'}</td>
               <td>{row.type === 'refresh' ? <RefreshResult entry={entry} /> : row.type === 'change' ? typeof row.change.newValue === 'boolean' ? <StaticText source={transportOrderHistoryValue(row.change.newValue, language, row.change)} /> : transportOrderHistoryValue(row.change.newValue, language, row.change) : row.type === 'legacy' ? w('Weitere Feldangaben nicht protokolliert.', 'Further field details were not recorded.') : w('Auftrag angelegt', 'Order created')}</td>

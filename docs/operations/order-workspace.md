@@ -89,7 +89,11 @@ Stufen und Texten, ohne freie Fachinhalte.
 Der Reiter Historie zeigt ohne rechte Aktions-/Verknüpfungsspalte genau zwei
 offene Tabellen untereinander über die gesamte Inhaltsbreite: Auftragshistorie
 mit Feldänderungen und Aktualisierungsbelegen sowie Sendungsverfolgungshistorie
-mit den tatsächlichen Trackingereignissen. Keine zusätzlichen Akkordeons,
+mit den tatsächlichen Trackingereignissen. Zusammengehörige Feldänderungen
+teilen sich Zeitpunkt, Benutzer und Aktion in verbundenen Tabellenzellen;
+alle Einzeländerungen bleiben in kompakten Zeilen sichtbar. Unterschiedliche
+Vorgänge werden auch bei gleichem Zeitpunkt und Benutzer getrennt gehalten.
+Keine zusätzlichen Akkordeons,
 Ansichtsvarianten oder Historienmodale. Historien werden seitenweise mit jeweils
 höchstens 50 Einträgen pro Quelle geladen; ältere Einträge sind nachladbar.
 Trackingereignisse werden erst beim Öffnen dieses Reiters abgefragt und nicht

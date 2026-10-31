@@ -23,6 +23,17 @@ test('refresh receipt duplicates are removed without suppressing repeated real f
   assert.equal(orderRecordHistoryRows({}, [], [receipt, receipt]).length, 1)
 })
 
+test('only fields of the same recorded operation share metadata cells', () => {
+  const recordedAt = '2026-10-31T10:00:00Z'
+  const field = (path) => ({ path, label: path, oldValue: 0, newValue: 1 })
+  const rows = orderRecordHistoryRows({}, [
+    { id: 'first', recordedAt, createdByName: 'Same user', metadata: { changes: [field('a'), field('b')] } },
+    { id: 'second', recordedAt, createdByName: 'Same user', metadata: { changes: [field('c')] } },
+  ])
+  assert.deepEqual(rows.map(row => row.metaRowSpan), [2, 0, 1])
+  assert.deepEqual(rows.map(row => row.change.path), ['a', 'b', 'c'])
+})
+
 test('tracking history preserves empty-field, duration and unknown events and records both clocks', () => {
   const events = [
     { id: 'duration', eventType: 'loading_duration_reported', eventTime: '2026-10-31T08:00:00Z', recordedAt: '2026-10-31T10:00:00Z', changedFields: [] },

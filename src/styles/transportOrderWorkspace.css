@@ -36,13 +36,14 @@
 .order-workspace__links .button { white-space:normal; }
 .order-workspace__links h3 { margin:0 0 12px; font-size:14px; }
 .order-workspace__links .order-workspace__card .button { margin-top:10px; }
-.order-workspace__layout.order-workspace__layout--history { display:block; margin-top:24px; }
-.order-record-history-tables { display:grid; gap:28px; }
+.order-workspace__layout.order-workspace__layout--history { display:block; margin-top:16px; }
+.order-record-history-tables { display:grid; gap:18px; }
 .order-record-history-tables > section { min-width:0; }
-.order-record-history-tables h3 { margin:0 0 12px; font-size:16px; }
+.order-record-history-tables h3 { margin:0 0 8px; font-size:16px; }
 .order-record-history-table { width:100%; table-layout:fixed; font-size:12px; }
-.order-record-history-table th, .order-record-history-table td { white-space:pre-wrap; overflow-wrap:anywhere; vertical-align:top; }
-.order-record-history-table th:nth-child(-n+3) { width:15%; }
+.order-record-history-table th, .order-record-history-table td { height:auto; padding:4px 8px; line-height:1.3; white-space:pre-wrap; overflow-wrap:anywhere; vertical-align:top; }
+.order-record-history-table th { padding-block:6px; }
+.order-record-history-table th:nth-child(-n+3) { width:136px; }
 .order-record-history-table td p { margin:0 0 5px; }
 .order-record-history-table td p:last-child { margin-bottom:0; }
 .order-record-history-table tr[data-focused="true"] { outline:2px solid var(--button-background); outline-offset:-2px; }
@@ -52,6 +53,7 @@
 .order-workspace__finance .transport-order-detail-section { border:1px solid var(--border); border-radius:8px; padding:16px; margin:0; background:var(--content-background); }
 @media(max-width:1100px) { .order-workspace__layout { grid-template-columns:minmax(0,1fr) 210px; } .order-workspace__overview { grid-template-columns:1fr; } }
 @media(max-width:760px) { .order-workspace__layout { grid-template-columns:1fr; } .order-workspace__links { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); } .order-workspace__tabs { gap:0 14px; } }
+@media(max-width:760px) { .order-record-history-table th:nth-child(-n+3) { width:16%; } }
 
 .order-workspace a:not(.button) { color:var(--button-background); }
 

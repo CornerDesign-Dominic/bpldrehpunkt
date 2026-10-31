@@ -24,7 +24,20 @@ export function orderRecordHistoryRows(order, changes = [], refreshes = []) {
     if (entry.id) seen.add(entry.id)
     rows.push({ id: `refresh-${entry.id || rows.length}`, type: 'refresh', entry, timestamp: refreshDate(entry) })
   }
-  return rows.sort((left, right) => orderRecordHistoryTime(right.timestamp) - orderRecordHistoryTime(left.timestamp))
+  rows.sort((left, right) => orderRecordHistoryTime(right.timestamp) - orderRecordHistoryTime(left.timestamp))
+  // Share metadata only within one recorded operation, never just because
+  // different operations happened to have the same user and timestamp.
+  for (let index = 0; index < rows.length;) {
+    const first = rows[index]
+    let end = index + 1
+    if (first.type === 'change') {
+      while (end < rows.length && rows[end].type === 'change' && rows[end].entry === first.entry) end++
+    }
+    first.metaRowSpan = end - index
+    for (let following = index + 1; following < end; following++) rows[following].metaRowSpan = 0
+    index = end
+  }
+  return rows
 }
 
 // Do not hide duration reports, events without changedFields or unknown types.
