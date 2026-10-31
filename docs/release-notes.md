@@ -6,15 +6,17 @@ ersetzt oder wieder eingeführt.
 
 ## Noch keinem neuen Release zugeordnet
 
-### 31.10.2026 – CSV-Import bereinigt, Veröffentlichung ausstehend
+### 31.10.2026 – CSV-Import bereinigt, ausschließlich Dev
 
 Alte CSV-Dateileser, Upload-Vorbereitung und Import-Eingänge entfernt.
 Der Import erfolgt über die DyCoS-Schnittstelle. Bestehende Daten,
 Importverläufe und offene Stammdatenprüfungen bleiben erhalten.
 Gemeinsame Partner- und Trackingvorgaben werden weiterverwendet.
-Die sechs alten Cloud Functions müssen bei der Dev-Veröffentlichung
-zusätzlich entfernt werden; bisher wurde nichts veröffentlicht.
-Details: [Bereinigungsumfang](planning/dycos-csv-import-uebergangsloesung.md#39-csv-import-technisch-entfernt-31102026-noch-nicht-veröffentlicht).
+Die sechs alten CSV-Cloud-Functions wurden mit Nutzerfreigabe ausschließlich
+in Dev entfernt; alle übrigen Funktionen sind erhalten. Die Relationsspalte
+in der Sammelimport-Auswahl bleibt auch bei gesetztem Relationsfilter sichtbar.
+Frontend-Veröffentlichung gemeinsam über `dev`; Main bleibt unberührt.
+Details: [Bereinigungsumfang](planning/dycos-csv-import-uebergangsloesung.md#39-csv-import-technisch-entfernt-31102026-dev-freigabe).
 
 
 

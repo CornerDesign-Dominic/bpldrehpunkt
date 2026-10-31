@@ -83,7 +83,7 @@ test('emulator: changed source identity, tax ID or revoked preview prevents cust
   const projectId = process.env.GCLOUD_PROJECT || 'demo-drehpunkt-dycos'; assert.ok(projectId.startsWith('demo-'))
   const { assignMailboxOrderCustomer } = await import('./mailboxCustomerSearch.js')
   const { mailboxCustomerSearchKey } = await import('./shared/mailboxCustomerSearch.js')
-  const { importPartnerId } = await import('./transportOrderImports.js')
+  const { importPartnerId } = await import('./dycosPartnerPayloads.js')
   const suffix = randomUUID(), app = initializeApp({ projectId }, suffix), db = getFirestore(app), uid = `guards-${suffix}`, connectionId = `connection-${suffix}`
   const userRef = db.doc(`users/${uid}`), connectionRef = db.doc(`mailboxConnections/${connectionId}`), now = Date.now()
   const profile = { active: true, role: 'user', permissions: { mailboxes: 'edit', transportOrders: 'edit', masterData: 'edit' } }

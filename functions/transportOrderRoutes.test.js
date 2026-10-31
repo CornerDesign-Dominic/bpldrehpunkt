@@ -90,7 +90,7 @@ test('usage events and monthly summaries remain server-side, while new imports u
   const [routeSource, clientSource, importSource, indexSource] = await Promise.all([
     readFile(new URL('./transportOrderRoutes.js', import.meta.url), 'utf8'),
     readFile(new URL('../src/lib/transportOrders.js', import.meta.url), 'utf8'),
-    readFile(new URL('./transportOrderImports.js', import.meta.url), 'utf8'),
+    readFile(new URL('./dycosTransportOrders.js', import.meta.url), 'utf8'),
     readFile(new URL('./index.js', import.meta.url), 'utf8'),
   ])
   assert.match(routeSource, /tomTomUsageEvents/)

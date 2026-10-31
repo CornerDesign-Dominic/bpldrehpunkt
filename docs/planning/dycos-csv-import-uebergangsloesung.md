@@ -1595,7 +1595,7 @@ darauf bezogenen Hinweis. Die Meldung bei einer nicht automatisch möglichen
 und Historienregeln bleiben unverändert. Reine Frontend-Veröffentlichung auf
 Dev; keine Functions-, Flow-, Secret- oder Main-Änderung erforderlich.
 
-## 39. CSV-Import technisch entfernt (31.10.2026, noch nicht veröffentlicht)
+## 39. CSV-Import technisch entfernt (31.10.2026, Dev-Freigabe)
 
 Die CSV-Dateileser für Kunden, Unternehmer und Transportaufträge einschließlich
 Zeichencodierung, unbenutzter Vorbereitungskomponente und Client-Aufrufen sind
@@ -1621,17 +1621,36 @@ verwenden bereits gespeicherte Altdaten und prüfen Importverläufe, Berechtigun
 Reservierungen, konkurrierende Feldänderungen und geprüfte Übernahme mit Historie.
 Die aktuellen DyCoS- und Partnerzusammenführungsprüfungen bleiben bestehen.
 
-Für eine spätere Dev-Veröffentlichung: Neben dem Frontend müssen die sechs oben
-genannten bereits bereitgestellten Cloud Functions ausdrücklich in
-`db-bpl-drehpunkt-dev` gelöscht werden. Ein reiner Git-Push entfernt laufende
-Functions nicht. Andere Functions, Secrets, Power-Automate-Flows, Rules und
+Dev-Veröffentlichung am 31.10.2026 ausdrücklich durch den Nutzer freigegeben.
+Die sechs oben genannten Cloud Functions wurden ausschließlich in
+`db-bpl-drehpunkt-dev` gelöscht. Der anschließende Functions-Bestandsvergleich
+bestätigt genau diese sechs Löschungen; alle übrigen Funktionen sind erhalten. Andere Functions, Secrets, Power-Automate-Flows, Rules und
 Indizes benötigen für diese Bereinigung keine Anpassung. Main und Produktion
-bleiben unberührt. Die vorherige Ergänzung der Relationsspalte ist ebenfalls
-noch lokal vorhanden.
+bleiben unberührt. Die Relationsspalte wird gemeinsam mit der Bereinigung über Dev veröffentlicht.
 
 Prüfung abgeschlossen: 64 gezielte Backend-Unit-Tests, 38 Client-Unit-Tests und
 59 Emulatorprüfungen bestanden (insgesamt 161, ohne übersprungene Fälle).
 Dazu gezieltes ESLint, Produktionsbuild und Abgleich der 42 gemeinsamen
 Functions-Module bestanden. Der Build meldet weiterhin den bekannten Hinweis
-auf große JavaScript-Dateien. Es wurden ausschließlich lokale Tests gegen den
-Emulator ausgeführt; keine Live-Daten geändert und nichts veröffentlicht.
+auf große JavaScript-Dateien. Diese erste Prüfung erfolgte lokal gegen den Emulator, vor der späteren
+ausdrücklichen Dev-Freigabe. Live-Daten wurden dabei nicht geändert.
+
+Die Veröffentlichung integriert den zwischenzeitlichen Dev-Stand `9f0c0f0`
+(Postfach-Erfassung und Antwortvorschläge). Der Import-Konflikt in `index.js`
+wurde mit Erhalt der neuen Postfachfunktion und Entfernung der alten
+CSV-Importe aufgelöst. Main-Baseline unverändert:
+`230c2ad86af9700118e2f1456746292241461efc`.
+
+Die bestehenden DyCoS-, Prüf- und Verlaufsfunktionen behalten ihr Verhalten und
+werden für diese Codebereinigung nicht erneut bereitgestellt. Ihr bereinigtes
+Quellpaket wird bei einer späteren gezielten Aktualisierung verwendet.
+Einzelne alte CSV-Bezeichnungen bleiben als Herkunftsnachweis historischer
+Daten erhalten. Vercel-Ergebnis und lesende Browserabnahme werden nach dem
+Dev-Push separat verifiziert.
+
+Nach Integration des aktuellen Dev-Stands: 128 gezielte Backend-Unit-Tests,
+18 Routenprüfungen und 62 Emulatorfälle erfolgreich. Ein neu hinzugekommener
+Postfachtest verwies noch auf den verschobenen Partner-ID-Baustein; dieser
+Testverweis wurde korrigiert, anschließend bestanden alle drei Postfachfälle.
+Gezieltes ESLint, Build und Shared-Abgleich ebenfalls erfolgreich. Keine
+zusätzlichen Verhaltensänderungen an den Postfachfunktionen.
