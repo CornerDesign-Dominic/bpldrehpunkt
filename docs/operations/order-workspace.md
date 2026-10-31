@@ -2,7 +2,8 @@
 
 Stand: 31.10.2026. Lokal auf `codex/order-workspace`, Grundlage `d64e363`
 (veröffentlichter Dev-Stand einschließlich DyCoS-Feldklärung und Kostenprüfung).
-Diese Erweiterung ist noch nicht veröffentlicht.
+Die Erweiterung ist nach ausdrücklicher Freigabe auf Dev veröffentlicht.
+[Release und echte Abnahme](order-workspace-dev-release.md). Produktion bleibt unverändert.
 
 ## Benutzerablauf
 
@@ -77,16 +78,16 @@ das bestehende Historienmodal erreichbar.
 
 ## Veröffentlichung und Abnahme
 
-Für eine spätere ausdrücklich freigegebene Dev-Veröffentlichung gemeinsam
-bereitstellen: Frontend, `listTransportOrderRecordsPage`,
+Für die freigegebene Dev-Veröffentlichung gemeinsam bereitgestellt: Frontend, `listTransportOrderRecordsPage`,
 `refreshTransportOrderWorkspace`, `reportClientDiagnostic` und Firestore-Rules.
 Firebase-Ziel: `db-bpl-drehpunkt-dev`. Die neue Refreshfunktion verwendet die
 bestehenden serverseitigen DyCoS-Secret-Bindungen. Keine neuen Zugangsdaten,
 keine Datenmigration, keine neuen Fachrechte. Listen nutzen bestehende Indizes.
 
 Eine synthetische Browserprüfung ersetzt keine angemeldete Dev-Abnahme mit
-echten Schnittstellen. Nach Veröffentlichung insbesondere Teilfehler,
-Wiederholung, Stammdatenkonflikte, reine Leser und verweigerte Abrufe prüfen.
+echten Schnittstellen. Echte Auftrags-/Stammdatenabrufe und Navigation sind auf Dev geprüft;
+Teilfehler, Wiederholung und Rechteverweigerung sind durch Emulatorprüfungen
+belegt. Der Releasebeleg unterscheidet diese Nachweise.
 
 ## Lokale Prüfung dieses Entwicklungsstands
 
@@ -106,5 +107,6 @@ Die ursprüngliche native Browsersteuerung konnte die Adresse nicht sicher
 bestimmen; die Prüfung erfolgte anschließend in einem separat kontrollierten
 In-App-Browser mit festem lokalem Ziel.
 
-Bekannte bestehende Build-Warnung: Firebase-Bundle über 500 kB. Kein Push,
-kein Dev-/Produktionsdeployment und keine Änderungen in Main.
+Bekannte bestehende Build-Warnung: Firebase-Bundle über 500 kB. Diese lokale
+Vorprüfung ging der anschließend freigegebenen Dev-Veröffentlichung voraus.
+Main und Produktion bleiben unverändert.

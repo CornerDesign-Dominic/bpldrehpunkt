@@ -177,7 +177,7 @@ Paletten-/Kalender-Clientdiagnosen prüfen Modulrechte und feste Meldungstexte;
 
 Die Rules und Functions beschreiben den Anwendungszugriff. Die erstmalige Einrichtung eines vertrauenswürdigen Superadmin-Kontos, die konkrete Produktions-Identitätsverwaltung sowie Console-seitige Enforcement-Schalter sind nicht aus dem Repository ableitbar und werden hier nicht festgelegt.
 
-## Eigenständiger Auftragsbereich (lokale Erweiterung)
+## Eigenständiger Auftragsbereich (Dev-Erweiterung)
 
 Aufträge und Sendungsverfolgung verwenden gemeinsam `transportOrders`.
 Die neue Auftragsliste lädt keine Trackingdaten. Auftragsaktualisierungen
