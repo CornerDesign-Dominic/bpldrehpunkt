@@ -108,12 +108,37 @@ Fehlende, vertauschte oder fremde IDs und Client-IDs anstelle der Objekt-IDs
 brechen die Erzeugung ab. Ein Identitätswechsel erfordert eine bewusste Anpassung
 dieser Zuordnung; kein leerer oder tenantweiter Ersatzwert wird erzeugt.
 
-Paketversion `1.0.0.2` enthält außerdem die unterstützte Secure-Data-Konfiguration:
+Ab Paketversion `1.0.0.2` gilt außerdem die unterstützte Secure-Data-Konfiguration:
 `Compose`, `ParseJson` und `Response` verwenden nur `secureData.properties:
 ["inputs"]`. Microsoft dokumentiert für diese drei nativen Aktionen ausschließlich
 Secure Inputs; damit werden auch ihre Outputs verborgen. Managed Connectoren und
 der HTTP-Trigger behalten die passenden Ein-/Ausgabeschutzoptionen.
 [Microsoft: unterstützte Secure-Data-Einstellungen](https://learn.microsoft.com/en-us/azure/logic-apps/set-up-security-permissions#considerations-for-securing-inputs-and-outputs)
+
+Paketversion `1.0.0.3` berücksichtigt den anschließend nativ bestätigten
+Publishfehler `ActionSchemaNotSupported`: `pattern` und `patternProperties` sind
+im Parse-JSON-Schema dieses Flows mit `OpenApiConnection` nicht zulässig. Das
+erzeugte WDL-Schema enthält diese Schlüssel nicht. Die dokumentierten Schema-
+Muster in den nicht importierbaren Plänen bleiben bestehen; zur Ausführung
+prüfen die Guards Hex-ID und Digest ausdrücklich, den projektspezifischen Key
+exakt, den Empfänger einschließlich leerer Localparts/Domainränder und sämtlicher
+Whitespacezeichen des Backendvertrags sowie CR/LF im Betreff.
+
+UTC-Termine müssen exakt den kanonischen Backendstrings entsprechen
+(`yyyy-MM-ddTHH:mm:ss.fffZ`). Der `Parse_time`-Compose liefert die Tickdifferenz
+und formatierte Roundtrips beider Termine; `Check_duration` vergleicht diese mit
+den Originalen und verlangt weiterhin Minutengrenze und exakt 60 Sekunden.
+Ungültige oder normalisierte Daten, Offsets und abweichende Präzision werden
+abgelehnt. Die Tests führen diese Fälle gegen die tatsächlich erzeugte WDL aus,
+auch nachdem deren Regexschema entfernt wurde. Aktionszahl und Zeitfensterprüfungen
+vor Claim und Versand bleiben erhalten.
+
+Die nativen Publishvalidatoren lehnten frühere Kandidaten trotz angezeigter
+**null Flowcheckerfehler** ab. Eine solche Checkeranzeige und ein möglicherweise
+noch sichtbarer alter Veröffentlichungsstatus belegen daher keinen erfolgreichen
+Publish des geänderten Entwurfs. Jeder neue Import und Publish braucht den
+konkreten serverseitigen Erfolg sowie die erneute Kontrolle der gespeicherten
+Aufruferrechte. Die lokale PAC-Roundtripprüfung ersetzt diesen Nachweis nicht.
 
 ## Vor Aktivierung
 

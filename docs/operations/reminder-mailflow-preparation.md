@@ -145,7 +145,14 @@ API-Berechtigungen. Die Registrierungsobjekte sind Dev
 `0e70e286-6a70-4762-ac33-b2cd88c90271`; für die Triggerfreigabe ist ausdrücklich
 die oben genannte **Service-Principal-Objekt-ID** maßgeblich.
 
-Die Zertifikatsbindung ist noch offen. Beide Uploadfenster sind vorbereitet;
+Die Zertifikatsbindung ist noch offen. Die erneute Browserprüfung nach der
+Nutzerrückmeldung zeigte in beiden offenen Uploadfenstern noch die ausgewählte
+Datei `Drehpunkt-DyCoS-Dev.cer` und jeweils „Zertifikate (0)“. Es wurde nichts
+aus diesen Fenstern abgeschickt. Für die erneute persönliche Auswahl wurden
+eindeutig benannte Kopien ausschließlich der öffentlichen Zertifikate unter
+`%USERPROFILE%/Downloads/Drehpunkt-Erinnerungszertifikate/` bereitgelegt:
+`Drehpunkt-Erinnerungen-Dev.pem` und `Drehpunkt-Erinnerungen-Produktion.pem`.
+Private Schlüssel wurden nicht dorthin kopiert. Beide Uploadfenster bleiben vorbereitet;
 gemäß Browser-Sicherheitsregel muss der Nutzer die neue Anmeldemöglichkeit selbst
 hinterlegen. Es wurden noch keine Tokens mit den neuen Identitäten angefordert
 und keine echten neuen Reminder-Testmails versendet. Zwei unterschiedliche
@@ -256,6 +263,28 @@ Ausgaben. Request und verwaltete Connectoraktionen behalten sichere Ein- und
 Ausgaben. Der fehlgeschlagene UI-Entwurf wurde verworfen, anschließend das
 korrigierte Paket mit beiden Aufruferbindungen importiert. Quelle:
 [Microsoft-Schutz unterstützter Aktionstypen](https://learn.microsoft.com/en-us/azure/logic-apps/set-up-security-permissions#considerations-for-securing-inputs-and-outputs).
+Die anschließende ausdrückliche serverseitige Speicherprüfung von 1.0.0.2 wurde
+mit `ActionSchemaNotSupported` abgelehnt: `ParseJson` unterstützt zusammen mit
+`OpenApiConnection` kein `pattern`/`patternProperties`. Import und Flowchecker
+hatten diesen Fehler nicht erkannt. Vor Aktivierung muss der korrigierte
+Folgekandidat serverseitig gespeichert und danach tatsächlich ausgeführt werden;
+der abgelehnte Speicherversuch hat keine Testmail ausgelöst.
+Der lokale Folgekandidat 1.0.0.3 entfernt ausschließlich diese nicht unterstützten
+Schema-Schlüssel aus der WDL. Vor jeder Reservierung prüfen ausdrückliche Guards
+weiterhin Hex-IDs, projektgebundenen Schlüssel, Empfänger und Betreff ohne
+Zeilenumbrüche sowie exakt kanonische UTC-Zeitpunkte. Die ursprünglichen Muster
+bleiben im technischen Vertragsplan dokumentiert. Die erzeugte WDL wird mit
+ungültigen IDs, Adressen einschließlich Unicode-Leerzeichen, Zeilenumbrüchen
+und abweichenden bzw. unmöglichen Zeitangaben geprüft; 25 Generator-/Pakettests
+sind erfolgreich. Das erweitert den Erfolg des Flowcheckers nicht zum
+Versandnachweis.
+Der Browserimport von 1.0.0.3 wurde mit abgewählter Aktivierung angefordert.
+Die Oberfläche zeigte „wird derzeit importiert“; ein Abschluss ist bislang
+nicht belegt. Der frisch geladene Lösungsverlauf zeigt zuletzt den erfolgreichen
+Import von 1.0.0.2. Daher ist 1.0.0.3 weiterhin ein lokal geprüfter Kandidat,
+kein erfolgreich gespeicherter oder ausführbarer Cloudstand. Vor einem neuen
+Import zunächst den laufenden Auftrag prüfen; bestehende Workflow-IDs und
+Verbindungsreferenzen erhalten. Kein Versandtest wurde gestartet.
 Details:
 [Lokale Workflow- und Solutionpakete](../../integrations/power-automate/reminders/WORKFLOWS.md).
 

@@ -43,6 +43,14 @@ function hexExpression(value) {
   return `and(equals(length(${value}),64),equals(${stripped},''))`
 }
 
+// Native Power Automate publish rejects regex schema keywords when connectors
+// are present. The generated WDL performs their checks explicitly before claim.
+function connectorCompatibleSchema(value) {
+  if (Array.isArray(value)) return value.map(connectorCompatibleSchema)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).filter(([key]) => !['pattern', 'patternProperties'].includes(key)).map(([key, child]) => [key, connectorCompatibleSchema(child)]))
+}
+
 function rejection(prefix, statusCode) {
   return {
     [`${prefix}_outcome`]: setVariable('outcome', 'rejected'),
@@ -107,21 +115,25 @@ export function createReminderWorkflowResources(rawBindings, { testOnly = true, 
       Claim_failed_read_only: scope({ Check_claim_not_timed_out: condition("@not(equals(actions('Create_claim')?['status'],'TimedOut'))", duplicateBranch) }, { Attempt_claim: ['Failed'] }),
     }
     const identityExpression = `@and(equals(${b('contractVersion')},${contractVersion}),equals(${b('projectId')},'${projectId}'),equals(${b('environment')},'${environment}'),equals(${b('from')},'${sender}'),equals(${b('type')},'central_reminder'),equals(${b('deliveryKey')},concat('${projectId}:',${b('deliveryId')})),equals(coalesce(triggerOutputs()?['headers']?['Idempotency-Key'],triggerOutputs()?['headers']?['idempotency-key']),${b('deliveryKey')}))`
-    const forbiddenTo = ['<', '>', '(', ')', ',', ';', ':', ' ', '\t', '\r', '\n']
+    // Match the backend email regex's complete ECMAScript \s set, not only space
+    // and newline. No wildcard/regex capability is assumed in the WDL runtime.
+    const whitespace = [9, 10, 11, 12, 13, 32, 160, 5760, ...Array.from({ length: 11 }, (_, index) => 8192 + index), 8232, 8233, 8239, 8287, 12288, 65279].map(value => String.fromCodePoint(value))
+    const forbiddenTo = ['<', '>', '(', ')', ',', ';', ':', ...whitespace]
     const noToCharacters = forbiddenTo.map(character => {
-      const value = ['\t', '\r', '\n'].includes(character) ? `decodeUriComponent('%${character.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()}')` : `'${character}'`
+      const value = whitespace.includes(character) ? `decodeUriComponent('${encodeURIComponent(character)}')` : `'${character}'`
       return `not(contains(${b('to')},${value}))`
     })
-    const contentExpression = `@and(${hexExpression(b('deliveryId'))},${hexExpression(b('payloadDigest'))},endsWith(${b('dueAt')},'Z'),endsWith(${b('expiresAt')},'Z'),equals(length(split(${b('to')},'@')),2),contains(last(split(${b('to')},'@')),'.'),${noToCharacters.join(',')},greater(length(trim(${b('subject')})),0),lessOrEquals(length(${b('subject')}),1000),not(contains(${b('subject')},decodeUriComponent('%0A'))),not(contains(${b('subject')},decodeUriComponent('%0D'))),greater(length(trim(${b('message')})),0),lessOrEquals(length(${b('message')}),40000),greater(length(trim(${b('messageHtml')})),0),lessOrEquals(length(${b('messageHtml')}),200000))`
+    const domain = `last(split(${b('to')},'@'))`
+    const contentExpression = `@and(${hexExpression(b('deliveryId'))},${hexExpression(b('payloadDigest'))},endsWith(${b('dueAt')},'Z'),endsWith(${b('expiresAt')},'Z'),equals(length(split(${b('to')},'@')),2),greater(length(first(split(${b('to')},'@'))),0),greater(lastIndexOf(${domain},'.'),0),less(lastIndexOf(${domain},'.'),sub(length(${domain}),1)),${noToCharacters.join(',')},greater(length(trim(${b('subject')})),0),lessOrEquals(length(${b('subject')}),1000),not(contains(${b('subject')},decodeUriComponent('%0A'))),not(contains(${b('subject')},decodeUriComponent('%0D'))),greater(length(trim(${b('message')})),0),lessOrEquals(length(${b('message')}),40000),greater(length(trim(${b('messageHtml')})),0),lessOrEquals(length(${b('messageHtml')}),200000))`
     const parseTime = {
-      Parse_time: { type: 'Compose', inputs: `@sub(ticks(${b('expiresAt')}),ticks(${b('dueAt')}))`, runtimeConfiguration: secureInputs, runAfter: {} },
+      Parse_time: { type: 'Compose', inputs: { durationTicks: `@sub(ticks(${b('expiresAt')}),ticks(${b('dueAt')}))`, dueCanonical: `@formatDateTime(${b('dueAt')},'yyyy-MM-ddTHH:mm:ss.fffZ')`, expiresCanonical: `@formatDateTime(${b('expiresAt')},'yyyy-MM-ddTHH:mm:ss.fffZ')` }, runtimeConfiguration: secureInputs, runAfter: {} },
       Invalid_time: scope(rejection('Invalid_time', 422), { Parse_time: ['Failed', 'TimedOut'] }),
-      Check_duration: condition(`@and(equals(outputs('Parse_time'),600000000),equals(mod(ticks(${b('dueAt')}),600000000),0),lessOrEquals(ticks(${b('dueAt')}),ticks(utcNow())))`, {
+      Check_duration: condition(`@and(equals(outputs('Parse_time')?['durationTicks'],600000000),equals(outputs('Parse_time')?['dueCanonical'],${b('dueAt')}),equals(outputs('Parse_time')?['expiresCanonical'],${b('expiresAt')}),equals(mod(ticks(${b('dueAt')}),600000000),0),lessOrEquals(ticks(${b('dueAt')}),ticks(utcNow())))`, {
         Mark_request_valid: setVariable('requestValid', true),
       }, rejection('Invalid_duration', 422), success('Parse_time')),
     }
     const main = {
-      Parse_request: { type: 'ParseJson', inputs: { content: '@triggerBody()', schema: plan.requestSchema }, runtimeConfiguration: secureInputs, runAfter: {} },
+      Parse_request: { type: 'ParseJson', inputs: { content: '@triggerBody()', schema: connectorCompatibleSchema(plan.requestSchema) }, runtimeConfiguration: secureInputs, runAfter: {} },
       Malformed_request: scope(rejection('Malformed_request', 422), { Parse_request: ['Failed', 'TimedOut'] }),
       Check_identity: condition(identityExpression, {
         Check_test_recipient: condition("@or(equals(parameters('testOnly'),false),contains(createArray('bb@brennpunkt-logistik.de','no-reply@brennpunkt-logistik.de','df@brennpunkt-logistik.de'),toLower(triggerBody()?['to'])))", {

@@ -114,6 +114,13 @@ function simulate(resource, payload, { clock = '2026-10-31T12:00:05.000Z', heade
     length: value => value.length, replace: (value, from, to) => value.replaceAll(from, to), concat: (...args) => args.join(''),
     coalesce: (...args) => args.find(value => value != null), int: value => Number(value), first: values => values[0], last: values => values.at(-1),
     endsWith: (value, end) => value.endsWith(end), split: (value, separator) => value.split(separator), contains: (value, part) => value.includes(part), trim: value => value.trim(), toLower: value => value.toLowerCase(),
+    lastIndexOf: (value, part) => value.lastIndexOf(part),
+    formatDateTime: (value, format) => {
+      assert.equal(format, 'yyyy-MM-ddTHH:mm:ss.fffZ')
+      const instant = new Date(value)
+      if (instant.getUTCFullYear() < 1) throw new Error('invalid calendar year')
+      return instant.toISOString()
+    },
     decodeUriComponent: decodeURIComponent, createArray: (...args) => args,
   }
   function resolve(value) {
@@ -220,6 +227,57 @@ test('resources use real WDL control/connector envelopes, fixed bindings and sto
 
 test('caller bindings cannot disappear, use client IDs, swap environments or widen to arbitrary GUIDs', () => {
   for (const patch of [{ developmentServicePrincipalId: undefined }, { productionServicePrincipalId: null }, { developmentServicePrincipalId: reminderFlowCallers.development.clientId }, { productionServicePrincipalId: reminderFlowCallers.production.clientId }, { developmentServicePrincipalId: bindings.productionServicePrincipalId }, { productionServicePrincipalId: bindings.developmentServicePrincipalId }, { developmentServicePrincipalId: '33333333-3333-4333-8333-333333333333' }, { productionServicePrincipalId: '' }]) assert.throws(() => createReminderWorkflowResources({ ...bindings, ...patch }), /registered/)
+})
+
+test('connector-compatible Parse JSON has no regex keywords while explicit WDL rejects bad IDs, email and CRLF', () => {
+  const resource = createReminderWorkflowResources(bindings, { testOnly: false }).dev
+  const schema = collect(resource.properties.definition.actions).Parse_request.inputs.schema
+  assert.doesNotMatch(JSON.stringify(schema), /"pattern"|"patternProperties"/)
+  assert.equal(schema.additionalProperties, false)
+  const projectId = 'db-bpl-drehpunkt-dev'
+  const invalid = [
+    { deliveryId: 'g'.repeat(64), deliveryKey: `${projectId}:${'g'.repeat(64)}` },
+    { deliveryId: 'A'.repeat(64), deliveryKey: `${projectId}:${'A'.repeat(64)}` },
+    { deliveryId: 'a'.repeat(63), deliveryKey: `${projectId}:${'a'.repeat(63)}` },
+    { payloadDigest: 'z'.repeat(64) }, { payloadDigest: 'a'.repeat(65) },
+    { deliveryKey: `${projectId}:${'b'.repeat(64)}` },
+    { to: '@example.invalid' }, { to: 'a@.invalid' }, { to: 'a@example.' }, { to: 'a@@example.invalid' },
+    { to: 'a@example.invalid;b@example.invalid' }, { to: 'a,b@example.invalid' },
+    { subject: 'Line\r\ninjection' }, { subject: 'Line\ninjection' },
+    ...[9, 10, 11, 12, 13, 32, 160, 5760, ...Array.from({ length: 11 }, (_, index) => 8192 + index), 8232, 8233, 8239, 8287, 12288, 65279].map(code => ({ to: `a${String.fromCodePoint(code)}@example.invalid` })),
+  ]
+  for (const patch of invalid) {
+    const run = simulate(resource, request('development', patch))
+    assert.equal(run.states.Parse_request, 'Succeeded', 'must exercise explicit guards rather than old schema patterns')
+    assert.equal(run.calls.length, 0, JSON.stringify(patch))
+    assert.equal(run.response.body.outcome, 'rejected', JSON.stringify(patch))
+  }
+  assert.equal(simulate(resource, request('development', { to: 'a@example.invalid' })).result.status, 'accepted')
+})
+
+test('actual WDL strictly roundtrips canonical UTC timestamps, rejects impossible dates and retains exact minute duration', () => {
+  const pairs = [
+    ['2026-10-31T12:00:00Z', '2026-10-31T12:01:00Z'],
+    ['2026-10-31T12:00:00.0000Z', '2026-10-31T12:01:00.0000Z'],
+    ['2026-10-31 12:00:00.000Z', '2026-10-31 12:01:00.000Z'],
+    ['2026-10-31t12:00:00.000Z', '2026-10-31t12:01:00.000Z'],
+    ['2026-10-31T13:00:00.000+01:00', '2026-10-31T13:01:00.000+01:00'],
+    ['2026-02-30T12:00:00.000Z', '2026-02-30T12:01:00.000Z'],
+    ['2026-13-31T12:00:00.000Z', '2026-13-31T12:01:00.000Z'],
+    ['0000-10-31T12:00:00.000Z', '0000-10-31T12:01:00.000Z'],
+    ['2026-10-31T12:00:01.000Z', '2026-10-31T12:01:01.000Z'],
+    ['2026-10-31T12:00:00.000Z', '2026-10-31T12:01:00.001Z'],
+    ['2026-10-31T12:00:00.000Z', '2026-10-31T12:00:59.999Z'],
+  ]
+  for (const [dueAt, expiresAt] of pairs) {
+    const run = simulate(resources.dev, request('development', { dueAt, expiresAt }))
+    assert.equal(run.states.Parse_request, 'Succeeded')
+    assert.equal(run.calls.length, 0, dueAt)
+    assert.equal(run.response.body.outcome, 'rejected', dueAt)
+  }
+  const nodes = collect(resources.dev.properties.definition.actions)
+  assert.equal(nodes.Parse_time.inputs.durationTicks, "@sub(ticks(triggerBody()?['expiresAt']),ticks(triggerBody()?['dueAt']))")
+  assert.equal(simulate(resources.dev, request()).result.status, 'accepted')
 })
 
 test('successful actual WDL path sends HTML once and acknowledges only after durable accepted update', () => {

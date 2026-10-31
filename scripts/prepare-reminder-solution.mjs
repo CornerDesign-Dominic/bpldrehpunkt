@@ -8,7 +8,7 @@ import { createReminderWorkflowResources, reminderSolutionConnectionReferences }
 const runFile = promisify(execFile)
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const reminderSolutionName = 'DrehpunktReminderTransport'
-export const reminderSolutionVersion = '1.0.0.2'
+export const reminderSolutionVersion = '1.0.0.3'
 export const reminderWorkflowIds = Object.freeze({ dev: '6e3adb39-5442-4594-a57b-cb812be70f9b', production: 'c1c89a9c-8c98-46c5-9d8d-cbfad7177d65' })
 const escapeXml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
 
