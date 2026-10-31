@@ -98,6 +98,20 @@ Technische und unklare Fehler bleiben meldepflichtig; Fehlertext, Konfliktschutz
 und Erhalt der Eingaben bleiben unverändert. Die Klassifikation ist gezielt
 getestet. Der einmalige historische Test-Diagnoseeintrag wurde nicht gelöscht.
 
+Ein zusätzlicher Mehrfach-Tab-Test zeigte einen bereits in der Dev-Basis
+vorhandenen Startablauf: `setPersistence(auth, browserLocalPersistence)` wurde
+bei jedem Seitenstart erneut aufgerufen. Beim Neuladen einer zweiten Seite
+wechselte die erste wiederholt zum Dashboard. Der Ablauf entspricht einem
+[im Firebase-SDK gemeldeten Problem](https://github.com/firebase/firebase-js-sdk/issues/9319);
+dieser Bericht allein belegt nicht die Ursache jedes Sitzungswechsels.
+Der unnötige erneute Persistenzwechsel entfällt jetzt. `getAuth` stellt die
+bestehende Sitzung wieder her; `authStateReady()` wartet darauf, ohne den
+gemeinsamen Speicher bei jedem Start neu zu konfigurieren. Die
+[Firebase-Voreinstellung](https://firebase.google.com/docs/auth/web/auth-state-persistence)
+bleibt eine dauerhafte lokale Sitzung. App Check, aktive Profile, Rollen und
+serverseitige Zugriffsprüfungen wurden dafür nicht geändert. Alte geöffnete
+Dev-Seiten sind nach der Auslieferung neu zu laden.
+
 Der alte Fristenscheduler meldete bis 16:14 UTC Indexfehler der alten Revision
 `scheduledcasedeadlinereminderdispatch-00005-faq` (`FAILED_PRECONDITION`, Index
 noch im Aufbau). 20 ERROR-Logeinträge entsprechen zehn fehlgeschlagenen
