@@ -51,3 +51,13 @@
   .signature-preview { align-items: stretch; flex-direction: column; }
   .signature-preview__actions { justify-content: flex-start; }
 }
+
+.profile-mailbox-shared { display: grid; gap: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); max-width: 680px; }
+.profile-mailbox-shared h3, .profile-mailbox-shared p { margin: 0; }
+.profile-mailbox-shared label { display: grid; gap: 6px; }
+.profile-mailbox-shared > button { justify-self: start; }
+.profile-mailbox__identity small { color: var(--text-secondary); }
+
+.profile-mailbox-shared input, .profile-mailbox-shared select { width: 100%; box-sizing: border-box; min-width: 0; border: 1px solid var(--input-border); border-radius: 5px; padding: 8px; background: var(--input-background); color: var(--text-primary); font: inherit; }
+.profile-mailbox-shared label { font-size: 12px; font-weight: 650; }
+.profile-mailbox-shared p, .profile-mailbox__identity small { font-size: 12px; color: var(--text-secondary); }

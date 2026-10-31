@@ -23,7 +23,7 @@ function database() {
   return {
     records, doc,
     collection(path) {
-      const query = { field: '', value: 0, where(field, op, value) { assert.equal(op, '<'); this.field = field; this.value = value; return this }, limit() { return this }, async get() { return { docs: [...records].filter(([key, value]) => key.startsWith(`${path}/`) && value[this.field] < this.value).map(([key, value]) => ({ ref: doc(key), data: () => structuredClone(value) })) } } }
+      const query = { field: '', value: 0, where(field, op, value) { assert.ok(['<', '=='].includes(op)); this.op = op; this.field = field; this.value = value; return this }, limit() { return this }, async get() { return { docs: [...records].filter(([key, value]) => key.startsWith(`${path}/`) && (!this.field || (this.op === '==' ? value[this.field] === this.value : value[this.field] < this.value))).map(([key, value]) => ({ id: key.split('/').at(-1), ref: doc(key), data: () => structuredClone(value) })) } } }
       return query
     },
     runTransaction(fn) {
@@ -233,10 +233,11 @@ test('OAuth state has encrypted PKCE, expires, and is consumed once even when pe
   assert.equal(calls, 0)
 })
 
-test('OAuth callback validates allowed Microsoft account before storing credentials; valid tokens only reach secret store', async () => {
-  let account = 'someone@example.org'
+test('OAuth accepts a new authenticated tenant account with browser binding; tokens only reach secret store', async () => {
+  const account = 'new-user@brennpunkt-logistik.de'
+  let graphId = ''
   let stored = null
-  const f = fixture({ fetch: async url => url.includes('/token') ? response({ access_token: 'very-private-access', refresh_token: 'very-private-refresh', expires_in: 3600, scope: 'User.Read Mail.Read Mail.Send' }) : response({ id: 'graph-user', mail: account, displayName: 'Test' }), secrets: { write: async (name, value) => { stored = value; return `secrets/${name}/versions/1` } } })
+  const f = fixture({ fetch: async url => url.includes('/token') ? response({ access_token: 'very-private-access', refresh_token: 'very-private-refresh', expires_in: 3600, scope: 'User.Read Mail.Read Mail.Send Mail.Read.Shared Mail.Send.Shared' }) : response({ id: graphId, mail: account, displayName: 'Test' }), secrets: { write: async (name, value) => { stored = value; return `secrets/${name}/versions/1` } } })
   const run = async () => {
     const { authorizationUrl } = await f.handlers.beginMailboxConnection(request({}))
     const res = callbackResponse()
@@ -245,7 +246,7 @@ test('OAuth callback validates allowed Microsoft account before storing credenti
   }
   assert.equal((await run()).statusCode, 400)
   assert.equal(stored, null)
-  account = config.testAccount
+  graphId = 'graph-user'
   const connected = await run()
   assert.equal(connected.statusCode, 303)
   assert.equal(new URL(connected.location).pathname, '/profil')
@@ -519,4 +520,120 @@ test('knowledge retrieval failures are technical errors and never missing-knowle
   await assert.rejects(f.handlers.suggestMailboxReply(request({ messageId: 'failed-search' })), { code: 'unavailable' })
   assert.equal(recorded, false)
   assert.equal(generated, false)
+})
+
+
+const sharedEmail = 'rechnung@brennpunkt-logistik.de'
+const sharedId = hash(`owner|b829bbdc-c0b7-4128-a341-6715a67b451b|shared|${connectionId}|${sharedEmail}`)
+function sharedFixture(overrides = {}) {
+  const f = fixture(overrides)
+  Object.assign(f.db.records.get(`mailboxConnections/${connectionId}`), { email: config.testAccount, kind: 'personal', sharedAccess: true })
+  f.db.records.set(`mailboxConnections/${sharedId}`, { ownerId: 'owner', kind: 'shared', parentConnectionId: connectionId, graphUserId: sharedEmail, email: sharedEmail, status: 'connected', customName: 'Rechnungen' })
+  return f
+}
+const sharedRequest = data => request({ connectionId: sharedId, ...data })
+
+test('shared mailbox addition checks real delegate access before persisting and never copies personal credentials', async () => {
+  let denied = true
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => { calls.push({url,options}); return denied ? response({}, 403) : response({ id: 'inbox' }) } })
+  Object.assign(f.db.records.get(`mailboxConnections/${connectionId}`), { email: config.testAccount, sharedAccess: true })
+  await assert.rejects(f.handlers.addSharedMailbox(request({ email: sharedEmail })), { code: 'permission-denied' })
+  assert.equal(f.db.records.has(`mailboxConnections/${sharedId}`), false)
+  denied = false
+  const added = await f.handlers.addSharedMailbox(request({ email: sharedEmail.toUpperCase(), customName: ' Rechnungen ' }))
+  assert.equal(added.connectionId, sharedId)
+  const child = f.db.records.get(`mailboxConnections/${sharedId}`)
+  assert.equal(child.parentConnectionId, connectionId)
+  assert.equal(child.secretName, undefined)
+  assert.equal(child.secretVersion, undefined)
+  assert.equal(child.customName, 'Rechnungen')
+  assert.ok(calls.every(call => call.url === `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sharedEmail)}/mailFolders/inbox/messages?$top=1&$select=id` && call.options.headers.Authorization === 'Bearer private-access-token'))
+  await f.handlers.addSharedMailbox(request({ email: sharedEmail }))
+  assert.equal(f.db.records.get(`mailboxConnections/${sharedId}`).customName, 'Rechnungen')
+  const listed = await f.handlers.listMailboxConnections(request({}))
+  assert.equal(listed.connections.length, 2)
+  assert.equal(listed.connections.find(item => item.id === sharedId).parentEmail, config.testAccount)
+  assert.equal(JSON.stringify(listed).includes('secret'), false)
+})
+
+test('shared addition rejects foreign owners, nested sharing, missing consent and personal mailbox duplicates', async () => {
+  const f = sharedFixture()
+  await assert.rejects(f.handlers.addSharedMailbox({ auth: { uid: 'other' }, data: { connectionId, email: sharedEmail } }), { code: 'permission-denied' })
+  await assert.rejects(f.handlers.addSharedMailbox(sharedRequest({ email: 'next@example.com' })), { code: 'invalid-argument' })
+  await assert.rejects(f.handlers.addSharedMailbox(request({ email: config.testAccount })), { code: 'invalid-argument' })
+  await assert.rejects(f.handlers.addSharedMailbox(request({ email: '../me/messages' })), { code: 'invalid-argument' })
+  Object.assign(f.db.records.get(`mailboxConnections/${connectionId}`), { sharedAccess: false })
+  await assert.rejects(f.handlers.addSharedMailbox(request({ email: sharedEmail })), { code: 'failed-precondition' })
+  assert.equal(f.fetchCount(), 0)
+})
+
+test('shared reads, attachments and suggestions use only the stored target, even with injected client routing', async () => {
+  const paths = []
+  const f = sharedFixture({ fetch: async url => { paths.push(url); return response(url.includes('/attachments/') ? { '@odata.type': '#microsoft.graph.fileAttachment', name: 'Beleg.pdf', size: 2, contentBytes: 'e30=' } : url.includes('/attachments?') ? { value: [] } : url.includes('/mailFolders/') ? { value: [] } : { subject: 'Shared', body: { contentType: 'text', content: 'Shared inbox text' } }) }, generateReplySuggestion: async ({mail}) => { assert.equal(mail.body.content, 'Shared inbox text'); return 'Vielen Dank.' } })
+  const data = { messageId: 'shared-message', email: 'foreign@example.com', graphUserId: 'attacker', attachmentId: 'attachment' }
+  await f.handlers.listMailboxMessages(sharedRequest(data))
+  await f.handlers.getMailboxMessage(sharedRequest(data))
+  await f.handlers.getMailboxAttachment(sharedRequest(data))
+  await f.handlers.suggestMailboxReply(sharedRequest(data))
+  assert.ok(paths.length >= 5)
+  assert.ok(paths.every(path => path.startsWith(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sharedEmail)}/`)))
+  await assert.rejects(f.handlers.getMailboxMessage({ auth: { uid: 'other' }, data: { connectionId: sharedId, messageId: '1' } }), { code: 'permission-denied' })
+})
+
+test('shared replies set the actual sender from the stored mailbox and retain internal recipient restrictions', async () => {
+  const sent = []
+  const f = sharedFixture({ fetch: async (url, options) => { sent.push({url,body:JSON.parse(options.body)}); return response(null, 202) } })
+  await f.handlers.sendMailboxReply(sharedRequest({ ...reply, from: 'attacker@example.com' }))
+  assert.equal(sent.length, 1)
+  assert.ok(sent[0].url.includes(`/users/${encodeURIComponent(sharedEmail)}/messages/`))
+  assert.equal(sent[0].body.message.from.emailAddress.address, sharedEmail)
+  assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).status, 'connected')
+  const blocked = sharedFixture()
+  await assert.rejects(blocked.handlers.sendMailboxReply(sharedRequest({ ...reply, toRecipients: ['outside@example.com'] })), { code: 'permission-denied' })
+  assert.equal(blocked.fetchCount(), 0)
+})
+
+test('shared pagination rejects personal and foreign mailbox links but supports its stored target', () => {
+  const target = {kind:'shared',email:sharedEmail,graphUserId:sharedEmail}
+  assert.ok(mailboxMessagePagePath(`https://graph.microsoft.com/v1.0/users('${sharedEmail}')/mailFolders('inbox')/messages?$skip=30`, target))
+  assert.throws(() => mailboxMessagePagePath('https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skip=30', target), {code:'unavailable'})
+  assert.throws(() => mailboxMessagePagePath('https://graph.microsoft.com/v1.0/users/other@example.com/mailFolders/inbox/messages?$skip=30', target), {code:'unavailable'})
+})
+
+test('shared disconnect never deletes the parent credential; personal disconnect invalidates all its children', async () => {
+  const removed = []
+  const f = sharedFixture({ secrets: { remove: async name => removed.push(name) } })
+  await f.handlers.disconnectMailbox(sharedRequest({}))
+  assert.deepEqual(removed, [])
+  assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).status, 'connected')
+  await f.db.doc(`mailboxConnections/${sharedId}`).update({status:'connected'})
+  await f.handlers.disconnectMailbox(request({}))
+  assert.deepEqual(removed, ['test'])
+  assert.equal(f.db.records.get(`mailboxConnections/${sharedId}`).status, 'disconnected')
+  await assert.rejects(f.handlers.listMailboxMessages(sharedRequest({})))
+  assert.equal((await f.handlers.listMailboxConnections(request({}))).connections.length, 0)
+})
+
+test('shared token refresh rotates only the parent secret and reuses it for replies', async () => {
+  const writes = [], destroyed = [], paths = []
+  const f = sharedFixture({ secrets: {read:async version=>{assert.equal(version,'test/version');return {refreshToken:'refresh',expiresAt:0}},write:async(name,value)=>{writes.push({name,value});return 'test/v2'},destroy:async value=>destroyed.push(value)}, fetch:async url=>{paths.push(url);return url.includes('/token')?response({access_token:'renewed',refresh_token:'renewed-refresh',scope:'User.Read Mail.Read Mail.Send Mail.Read.Shared Mail.Send.Shared'}):response(null,202)} })
+  assert.equal((await f.handlers.sendMailboxReply(sharedRequest(reply))).status, 'accepted')
+  assert.equal(writes[0].name, 'test')
+  assert.equal(writes.length, 1)
+  assert.deepEqual(destroyed,['test/version'])
+  assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).secretVersion,'test/v2')
+  assert.equal(f.db.records.get(`mailboxConnections/${sharedId}`).secretVersion,undefined)
+  assert.ok(paths[1].includes(`/users/${encodeURIComponent(sharedEmail)}/messages/`))
+})
+
+test('a disconnected parent blocks shared access without any Graph call, and addition revalidates the parent', async () => {
+  const f = sharedFixture()
+  await f.db.doc(`mailboxConnections/${connectionId}`).update({status:'disconnecting'})
+  await assert.rejects(f.handlers.listMailboxMessages(sharedRequest({})), {code:'failed-precondition'})
+  assert.equal(f.fetchCount(),0)
+  const changed = sharedFixture({fetch:async()=>{await changed.db.doc(`mailboxConnections/${connectionId}`).update({status:'disconnecting'});return response({id:'inbox'})}})
+  changed.db.records.delete(`mailboxConnections/${sharedId}`)
+  await assert.rejects(changed.handlers.addSharedMailbox(request({email:sharedEmail})),{code:'aborted'})
+  assert.equal(changed.db.records.has(`mailboxConnections/${sharedId}`),false)
 })

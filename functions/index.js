@@ -16,7 +16,7 @@ import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
@@ -107,6 +107,7 @@ export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingH
 export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
 export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)
 export const listMailboxConnections = onCall(mailboxOptions, listMailboxConnectionsHandler)
+export const addSharedMailbox = onCall(mailboxOptions, addSharedMailboxHandler)
 export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler)
 export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
 export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
