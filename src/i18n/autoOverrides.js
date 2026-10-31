@@ -1,5 +1,10 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Widersprüchliche Belegangaben – Zuordnung prüfen.': 'Conflicting document information – review classification.',
+  'Belegart noch nicht eindeutig zugeordnet.': 'Document type has not yet been clearly classified.',
+  'Abweichende externe Belegnummern – keine Nummer ausgewählt.': 'Conflicting external document numbers – no number selected.',
+  'Stornobezug noch nicht eindeutig bestätigt.': 'Cancellation reference has not yet been clearly confirmed.',
+  'Belegdatum nicht eindeutig bestätigt.': 'Document date has not yet been clearly confirmed.',
   'Fixtermin': 'Fixed appointment',
   'Transport & Fahrzeug': 'Transport & vehicle',
   'Ware & Auftragsmengen': 'Cargo & order quantities',

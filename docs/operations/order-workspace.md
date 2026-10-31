@@ -62,6 +62,23 @@ Die Finanzansicht verwendet die veröffentlichte Belegklassifikation aus
 Nummern getrennt, Stornobelege mit Originalbezug. Es gibt keine manuell
 nachzupflegenden Bezahlt-/Offen-Zustände und keine Rechnungserstellung.
 
+Die Auftragsakte gliedert die Abrechnungsbelege nach Kunde (KU) und Unternehmer
+(UTN), jeweils mit interner/externer Nummer, fachlicher Belegart, internem Beleg,
+Aussteller und Datum des internen Belegs. Nummern werden vollständig umgebrochen,
+nicht abgeschnitten. Stornierte Originale und Stornobelege bleiben über die
+persistente Belegidentität getrennt, auch bei derselben sichtbaren Nummer.
+Bestätigte Ursprungsbezüge verlinken direkt auf den Originalbeleg. Proforma
+bleibt als interne Verbuchung erkennbar. Belege mit ungeklärter Partnerseite
+stehen separat; unbestätigte Typen, Nummern, Daten und Stornobezüge erhalten
+konkrete Prüfhinweise. Fehlende Belege bedeuten keine bestätigte Aussage über
+den Abrechnungsabschluss. Die Daten kommen aus dem bestehenden Auftragsabruf;
+keine zusätzlichen Abfragen beim Öffnen dieser Darstellung.
+
+Die Klassifikation weiterer Rechnungskorrekturen/Stornogutschriften bleibt
+ohne fachlich verifizierte Quellbeispiele offen, siehe
+[DyCoS-Feldklärung](../reference/dycos-feldklaerung-2026-10-31.md).
+Diese Darstellung ändert weder Importregeln noch die operative Trackingansicht.
+
 ## Aktualisierung
 
 `refreshTransportOrderWorkspace` nimmt `orderId`, `scope` und eine vom Client
