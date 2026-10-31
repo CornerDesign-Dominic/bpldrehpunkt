@@ -32,6 +32,16 @@ export function resolveReturnNavigation(state, fallback, currentPath = '') {
     : { to: fallback, state: null }
 }
 
+// A mutual record link returns to the exact source view (including its tab),
+// removing that source from the return chain rather than creating a cycle.
+export function linkedRecordNavigation(location, targetPath) {
+  const origin = location.state?.returnTo
+  if (typeof origin === 'string' && origin.split(/[?#]/, 1)[0] === targetPath) {
+    return resolveReturnNavigation(location.state, targetPath, `${location.pathname}${location.search || ''}${location.hash || ''}`)
+  }
+  return { to: targetPath, state: createReturnState(location) }
+}
+
 export function calendarPath({ date, calendarId, eventId } = {}) {
   if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return ''
   const parsed = new Date(`${date}T12:00:00Z`)

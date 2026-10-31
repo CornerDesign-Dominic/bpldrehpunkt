@@ -3,7 +3,7 @@ import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import BackLink from '../components/ui/BackLink.jsx'
-import { createReturnState } from '../lib/recordNavigation.js'
+import { linkedRecordNavigation } from '../lib/recordNavigation.js'
 import { calculateTransportOrderRoute, getTransportOrder, getTransportOrderRoute } from '../lib/transportOrders.js'
 import { isCarrierMasterDataIncomplete } from '../lib/importedPartnerStatus.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
@@ -76,7 +76,7 @@ export default function ShipmentTrackingDetailPage() {
   const { transportOrderId } = useParams()
   const location = useLocation()
   const orderPath = `/transportauftraege/${encodeURIComponent(transportOrderId)}`
-  const orderReturnState = location.state?.returnTo === orderPath ? location.state.returnState : createReturnState(location)
+  const orderNavigation = linkedRecordNavigation(location, orderPath)
   const { t } = useLanguage()
   const navigate = useNavigate()
   const activeOrderId = useRef(transportOrderId)
@@ -336,7 +336,7 @@ export default function ShipmentTrackingDetailPage() {
   if (loading) return <div className="transport-order-detail-page"><p className="page-state"><StaticText source={"Sendungsverfolgung wird geladen …"} /></p></div>
   if (error || !imported) return <div className="transport-order-detail-page"><section className="todo-detail-empty"><h2><StaticText source={"Sendungsverfolgung nicht verfügbar"} /></h2><p>{error || <StaticText source={"Noch keine Daten verfügbar."} />}</p></section></div>
   return <div className="transport-order-detail-page">
-    <div className="transport-order-detail-toolbar"><Link className="button button--secondary" to={orderPath} state={orderReturnState}><StaticText source="Auftrag öffnen" /></Link><BackLink to="/sendungsverfolgung" /><div className="partner-merge-menu" ref={historyMenuRef}><TranslatedProps sources={{ 'aria-label': 'Auftragsaktionen öffnen' }}><button className="partner-merge-menu__trigger" type="button" aria-label="Auftragsaktionen öffnen" aria-haspopup="menu" aria-expanded={historyMenuOpen} onClick={() => setHistoryMenuOpen((open) => !open)}>…</button></TranslatedProps>{historyMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { historyMenuRef.current?.querySelector('button')?.focus(); setHistoryOpen(true); setHistoryMenuOpen(false) }}><StaticText source="Historie" /></button></div>}</div></div>
+    <div className="transport-order-detail-toolbar"><Link className="button button--secondary" to={orderNavigation.to} state={orderNavigation.state}><StaticText source="Auftrag öffnen" /></Link><BackLink to="/sendungsverfolgung" /><div className="partner-merge-menu" ref={historyMenuRef}><TranslatedProps sources={{ 'aria-label': 'Auftragsaktionen öffnen' }}><button className="partner-merge-menu__trigger" type="button" aria-label="Auftragsaktionen öffnen" aria-haspopup="menu" aria-expanded={historyMenuOpen} onClick={() => setHistoryMenuOpen((open) => !open)}>…</button></TranslatedProps>{historyMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { historyMenuRef.current?.querySelector('button')?.focus(); setHistoryOpen(true); setHistoryMenuOpen(false) }}><StaticText source="Historie" /></button></div>}</div></div>
     {historyOpen && <TransportOrderHistoryModal key={`${order.id}-${orderDataVersion}`} order={order} onClose={() => setHistoryOpen(false)} />}
     <TranslatedProps sources={{"title":"Sendungsverfolgung vorzeitig starten?"}}><ConfirmDialog open={trackingEarlyStartConfirmationOpen} title="Sendungsverfolgung vorzeitig starten?" message="Die Sendungsverfolgung wird sofort zur manuellen Bearbeitung geöffnet. Es wird keine E-Mail versendet; alle Automatik-Regeln bleiben unverändert." confirmLabel="Vorzeitig starten" submittingLabel="Wird gestartet …" isSubmitting={trackingSaving} onCancel={() => setTrackingEarlyStartConfirmationOpen(false)} onConfirm={() => void confirmTrackingEarlyStart()} /></TranslatedProps>
     <TranslatedProps sources={{"title":"Unwiderruflich abschließen?","confirmLabel":"Abschließen"}}><ConfirmDialog open={trackingCompletionConfirmationOpen} title="Unwiderruflich abschließen?" message="Die Sendungsverfolgung wird endgültig beendet. Die Auftragsdaten bleiben erhalten." confirmLabel="Abschließen" submittingLabel="Wird abgeschlossen …" isSubmitting={trackingSaving} onCancel={() => setTrackingCompletionConfirmationOpen(false)} onConfirm={() => void confirmTrackingCompletion()} /></TranslatedProps>

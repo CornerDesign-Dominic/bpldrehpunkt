@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { calendarPath, createReturnState, deadlineIdFromHash, recordDetailPath, resolveReturnNavigation, validReturnPath } from './recordNavigation.js'
+import { calendarPath, createReturnState, deadlineIdFromHash, linkedRecordNavigation, recordDetailPath, resolveReturnNavigation, validReturnPath } from './recordNavigation.js'
+
+test('mutual order/tracking links restore the original tab and remove the return cycle', () => {
+  const origin = { pathname: '/transportauftraege/dycos-123', search: '?tab=partners', hash: '#kontakt', state: { returnTo: '/schaeden/1' } }
+  const tracking = { pathname: '/sendungsverfolgung/dycos-123', state: createReturnState(origin) }
+  assert.deepEqual(linkedRecordNavigation(tracking, '/transportauftraege/dycos-123'), { to: '/transportauftraege/dycos-123?tab=partners#kontakt', state: { returnTo: '/schaeden/1', returnState: null } })
+  assert.deepEqual(linkedRecordNavigation({ pathname: '/sendungsverfolgung/1', state: { returnTo: 'https://example.com' } }, '/transportauftraege/1'), { to: '/transportauftraege/1', state: { returnTo: '/sendungsverfolgung/1', returnState: null } })
+})
 
 test('record routes preserve literal percent signs, separators and Unicode IDs', () => {
   assert.equal(recordDetailPath('insolvency', '50% Müller/alt'), '/insolvenzen/50%25%20M%C3%BCller%2Falt')
