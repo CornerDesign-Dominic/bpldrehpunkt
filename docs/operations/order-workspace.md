@@ -7,16 +7,24 @@ Die Erweiterung ist nach ausdrücklicher Freigabe auf Dev veröffentlicht.
 
 ## Benutzerablauf
 
-`/transportauftraege` führt zur eigenständigen Auftragsliste, die Detailroute
-`/transportauftraege/:transportOrderId` zur Auftragsakte. Die bisherige operative
-Oberfläche liegt unter `/sendungsverfolgung` und der entsprechenden Detailroute.
-Beide Bereiche referenzieren dieselbe Auftrags-ID. Aus der Sendungsverfolgung
-wurden keine Informationen oder Funktionen entfernt. Bestehende fachliche
-Auftragsverweise aus Fällen, Aufgaben und Paletten führen jetzt zum Auftrag.
+`/transportauftraege` führt zur Auftragsliste, `/sendungsverfolgung` zur
+operativen Verfolgungsliste. Beide öffnen dieselbe Auftragsakte unter
+`/transportauftraege/:transportOrderId`: Aufträge starten mit Übersicht,
+Verfolgungen mit `?tab=tracking`. Bisherige Trackingdetailadressen leiten unter
+Erhalt von Anfrageparametern, Hash und Rückkehrzustand auf diesen Reiter weiter.
+
+Die Trackingdetailseite bleibt der vollständige operative Arbeitsbereich.
+Auf ihr kommt ausschließlich oben die gemeinsame Reiterleiste hinzu: kein
+neuer gemeinsamer Datenkopf, keine zusätzliche Karte, keine entfernten Inhalte.
+Geöffnete Auftrags- und Trackingbausteine bleiben beim Wechsel montiert, damit
+Dialoge und Eingaben erhalten bleiben. Tracking wird erst beim ersten Öffnen
+seines Reiters geladen; aktive Ansichten lesen beim Wiederöffnen den aktuellen
+Auftrags-/Trackingstand. Beide Bereiche verwenden dieselbe Auftrags-ID und die
+bestehenden Zugriffsrechte. Die Rückkehr führt zur jeweiligen Ursprungsliste.
 
 Die Übersicht zeigt zwei Spalten mit allgemeinen Daten und eine rechte Spalte
 mit Verknüpfungen. Fachreiter: Übersicht, Transport & Ware, Geschäftspartner,
-Finanzen, Historie. Tatsächlich übermittelte Stationen bleiben vollständig
+Finanzen, Sendungsverfolgung, Historie. Tatsächlich übermittelte Stationen bleiben vollständig
 erhalten. Alte CSV-Daten können erste/letzte Station liefern; fehlende Warenmaße,
 Finanzwerte oder Belege werden nicht erfunden. Das Auftragsergebnis ist die
 Differenz der übermittelten Nettoerträge und Nettokosten, kein zusätzlicher

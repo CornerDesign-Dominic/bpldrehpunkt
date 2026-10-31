@@ -1,3 +1,4 @@
+import { isTrackingRecord } from '../../lib/orderRecordTabs.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -77,6 +78,7 @@ const navigationLabelKeys = {
 
 function itemIsActive(item, pathname, search = '') {
   if (item.mailboxId) return pathname === '/postfaecher' && new URLSearchParams(search).get('mailbox') === item.mailboxId
+  if (isTrackingRecord(pathname, search) && ['/transportauftraege', '/sendungsverfolgung'].includes(item.to)) return item.to === '/sendungsverfolgung'
   if (item.to === '/admin') return pathname === '/admin'
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
@@ -86,7 +88,7 @@ function NavigationItem({ item, collapsed, favorite, onToggleFavorite, showFavor
   const { label, to, icon: Icon } = item
 
   return <div className="nav-item-row">
-    <NavLink to={to} end={to === '/admin'} aria-current={item.mailboxId ? (activeOverride ? 'page' : false) : undefined} className={({ isActive }) => `nav-item ${(activeOverride ?? isActive) && !suppressActive ? 'nav-item--active' : ''}`} title={item.mailboxId ? `${label} · ${item.email}` : collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
+    <NavLink to={to} end={to === '/admin'} aria-current={activeOverride ? 'page' : false} className={({ isActive }) => `nav-item ${(activeOverride ?? isActive) && !suppressActive ? 'nav-item--active' : ''}`} title={item.mailboxId ? `${label} · ${item.email}` : collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
       {collapsed && <Icon />}
       {!collapsed && <span className="nav-item__label">{label}</span>}
     </NavLink>
@@ -197,7 +199,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                 {!collapsed && mailboxesError && <div className="sidebar-mailbox-state" role="alert"><span>{t('mailboxes.loadError')}</span><button type="button" onClick={() => { void refreshMailboxes() }}>{t('mailboxes.retry')}</button></div>}
                 {!collapsed && !mailboxesLoading && !mailboxesError && !groupItems.length && <p className="sidebar-mailbox-state">{t('mailboxes.empty')}</p>}
               </>}
-              {groupItems.map((item) => <NavigationItem key={item.id} item={item} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl={group.key !== 'mailboxes'} activeOverride={item.mailboxId ? itemIsActive(item, location.pathname, location.search) : undefined} suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
+              {groupItems.map((item) => <NavigationItem key={item.id} item={item} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl={group.key !== 'mailboxes'} activeOverride={itemIsActive(item, location.pathname, location.search)} suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
               {group.key === 'mailboxes' && <NavLink to="/profil#postfaecher" className="nav-item" title={t('mailboxes.settings')}>{collapsed ? <SettingsIcon /> : <span className="nav-item__label">{t('mailboxes.settings')}</span>}</NavLink>}
             </div></div>
           </section>

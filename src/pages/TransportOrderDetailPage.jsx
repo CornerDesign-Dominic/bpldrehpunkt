@@ -1,3 +1,4 @@
+import { orderRecordPath } from '../lib/orderRecordTabs.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { StaticText } from '../i18n/AutoTranslate.jsx'
@@ -62,7 +63,7 @@ function ResultCard({ financial, currency, onDetails }) {
   return <Card title="Auftragsergebnis" onDetails={onDetails}><div className="order-workspace__money"><span><StaticText source="Ertrag netto" /></span><span>{currency(financial?.revenueNet)}</span></div><div className="order-workspace__money"><span><StaticText source="Kosten netto" /></span><span>{currency(financial?.costNet)}</span></div><div className={`order-workspace__money order-workspace__money--result${result < 0 ? ' order-workspace__money--negative' : ''}`}><span><StaticText source="Gewinn / Verlust" /></span><span>{currency(result)}</span></div></Card>
 }
 
-function Workspace({ orderId }) {
+function Workspace({ orderId, active, showTabs, tabOverride }) {
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
   const locale = language === 'en' ? 'en-GB' : 'de-DE'
@@ -72,7 +73,7 @@ function Workspace({ orderId }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const selected = searchParams.get('tab') || 'overview'
+  const selected = tabOverride || searchParams.get('tab') || 'overview'
   const tab = transportOrderWorkspaceTabs.includes(selected) ? selected : 'overview'
   const scope = transportOrderWorkspaceScope(tab)
   const [order, setOrder] = useState(null)
@@ -123,11 +124,12 @@ function Workspace({ orderId }) {
     } catch { if (alive.current) setHistoryError(true) }
   }, [orderId])
   useEffect(() => {
+    if (!active) return undefined
     let current = true
     loadOrder().catch(() => { if (current) setError('Der Transportauftrag konnte nicht geladen werden.') }).finally(() => { if (current) setLoading(false) })
     void Promise.resolve().then(loadHistory)
     return () => { current = false }
-  }, [loadOrder, loadHistory])
+  }, [loadOrder, loadHistory, active])
   useEffect(() => {
     let current = true
     if (!order || !canReadPartners) return undefined
@@ -138,11 +140,12 @@ function Workspace({ orderId }) {
     return () => { current = false }
   }, [order, canReadPartners, orderId])
   useEffect(() => {
+    if (!active) return undefined
     const title = order?.externalNumber ? `${language === 'en' ? 'Order' : 'Auftrag'} · TA ${order.externalNumber}` : ''
     setTitle(title)
     document.title = title ? `Drehpunkt · ${title}` : 'Drehpunkt'
     return () => { setTitle(''); document.title = 'Drehpunkt' }
-  }, [order?.externalNumber, language, setTitle])
+  }, [order?.externalNumber, language, setTitle, active])
   function selectTab(value) {
     const next = new URLSearchParams(searchParams)
     if (value === 'overview') next.delete('tab'); else next.set('tab', value)
@@ -196,12 +199,12 @@ function Workspace({ orderId }) {
     <BackLink to="/transportauftraege" />
     <div className="order-workspace__head"><h2>TA {order.externalNumber}</h2><span className="order-workspace__muted">{[imported.loading?.city, imported.unloading?.city].filter(Boolean).join(' → ')}</span></div>
     <div className="order-workspace__meta"><span><StaticText source="Kundenreferenz" />: {imported.customerReference || '—'}</span><span><StaticText source="Relation" />: {imported.relation || '—'}</span></div>
-    <div className="order-workspace__tabs" role="tablist" aria-label={w('Auftragsbereiche', 'Order sections')}>{transportOrderWorkspaceTabs.map((value) => <button key={value} type="button" role="tab" id={`order-tab-${value}`} aria-controls={`order-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)} onKeyDown={(event) => {
+    {showTabs && <div className="order-workspace__tabs" role="tablist" aria-label={w('Auftragsbereiche', 'Order sections')}>{transportOrderWorkspaceTabs.map((value) => <button key={value} type="button" role="tab" id={`order-tab-${value}`} aria-controls={`order-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)} onKeyDown={(event) => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
       const index = event.key === 'Home' ? 0 : event.key === 'End' ? transportOrderWorkspaceTabs.length - 1 : (transportOrderWorkspaceTabs.indexOf(value) + (event.key === 'ArrowRight' ? 1 : -1) + transportOrderWorkspaceTabs.length) % transportOrderWorkspaceTabs.length
       const next = transportOrderWorkspaceTabs[index]; selectTab(next); document.getElementById(`order-tab-${next}`)?.focus()
-    }}>{tabLabels[value]}</button>)}</div>
+    }}>{tabLabels[value]}</button>)}</div>}
     <div className="order-workspace__toolbar"><div className="order-workspace__update" aria-live="polite">{tab !== 'history' && <>{<><StaticText source="Letzte Aktualisierung" />: {date(lastSuccess?.completedAt || (scope === 'order' ? order.importMeta?.lastImportedAt : null))}{latest && latest.status !== 'success' && <> · {statusLabels[latest.status] || w('Aktualisierung prüfen', 'Check update')}</>}</>} · <button type="button" className="order-workspace__text-button" onClick={() => selectTab('history')}><StaticText source="Siehe Historie" /></button></>}</div>{scope && canRefresh && <button className="button" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? w('Wird aktualisiert …', 'Updating …') : scope === 'all' ? w('Auftrag aktualisieren', 'Update order') : scope === 'partners' ? w('Stammdaten aktualisieren', 'Update master data') : w('Auftragsdaten aktualisieren', 'Update order data')}</button>}</div>
     {reloadError && <p className="form-error"><StaticText source="Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu." /></p>}
     {partnerError && <p className="form-error"><StaticText source="Die Geschäftspartnerdaten konnten nicht geladen werden." /></p>}
@@ -213,11 +216,11 @@ function Workspace({ orderId }) {
       {tab === 'history' && <div className="order-workspace__history">{historyError && <p className="form-error"><StaticText source="Die Auftragshistorie konnte nicht geladen werden." /> <button className="order-workspace__text-button" type="button" onClick={() => void loadHistory()}><StaticText source="Erneut versuchen" /></button></p>}
         <h3><StaticText source="Aktualisierungen" /></h3>{!refreshes.length && <p className="order-workspace__muted"><StaticText source="Noch keine Aktualisierungen über diesen Auftragsbereich protokolliert." /></p>}{refreshes.map((entry) => <details key={entry.id} open={entry.id === searchParams.get('refresh') || entry.status !== 'success'} data-focused={entry.id === searchParams.get('refresh')}><summary>{date(entry.completedAt || entry.startedAt)} · {statusLabels[entry.status] || entry.status}<div className="order-workspace__muted">{scopeLabels[entry.scope]} · {entry.actorName || entry.actorId || '—'}</div></summary><p>{entry.status === 'unconfirmed' ? w('Das Ergebnis des Abrufs konnte nicht bestätigt werden. Bitte erneut aktualisieren. Bereits gespeicherte Änderungen bleiben erhalten.', 'The result could not be confirmed. Please update again. Changes already saved remain intact.') : w('Der Abruf wurde protokolliert. Fachliche Änderungen stehen im Änderungsverlauf darunter.', 'This update was recorded. Business changes are listed in the history below.')}</p>{entry.result?.code && <p>{codeLabel(entry.result.code)}</p>}{entry.result?.order && <p><StaticText source="Auftragsdaten" />: {stepStatus(entry.result.order.status)}{entry.result.order.code && <> · {codeLabel(entry.result.order.code)}</>}{entry.result.order.conflicts > 0 && <> · {w('Abweichende Stammdaten prüfen', 'Review differing master data')}</>}</p>}{entry.result?.partners?.map((partner, index) => <p key={index}><StaticText source="Geschäftspartner" />: {stepStatus(partner.status)}{partner.code && <> · {codeLabel(partner.code)}</>}{partner.conflicts > 0 && <> · <StaticText source="Abweichende Stammdaten prüfen" /></>}</p>)}</details>)}
         {(history.hasMore || history.refreshHasMore) && <button className="button button--secondary" type="button" disabled={historyLoading} onClick={() => void moreHistory()}><StaticText source={historyLoading ? 'Wird geladen …' : 'Weitere Historie laden'} /></button>}<h3><StaticText source="Auftragsänderungen" /></h3>{historyRows.map((entry) => <details key={entry.id}><summary>{date(entry.createdAt)} · {recordHistoryActor(entry)}{entry.creation && <> · <StaticText source="Transportauftrag angelegt" /></>}</summary>{entry.changes?.length > 0 ? <div className="order-workspace__scroll"><table className="data-table"><thead><tr>{['Feld', 'Alte Daten', 'Neue Daten'].map((label) => <th key={label}><StaticText source={label} /></th>)}</tr></thead><tbody>{entry.changes.map((change, index) => <tr key={`${change.path}-${index}`}><td>{change.label.split(' · ').map((label, part) => <span key={part}>{part ? ' · ' : ''}<StaticText source={label} /></span>)}</td><td>{transportOrderHistoryValue(change.oldValue, language, change)}</td><td>{transportOrderHistoryValue(change.newValue, language, change)}</td></tr>)}</tbody></table></div> : <p><StaticText source={entry.summary || (entry.creation ? 'Transportauftrag angelegt' : 'Daten geändert')} /></p>}</details>)}<button className="button button--secondary" type="button" onClick={() => setHistoryOpen(true)}><StaticText source="Vollständigen Änderungsverlauf öffnen" /></button></div>}
-    </section></main><aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={`/sendungsverfolgung/${encodeURIComponent(orderId)}`}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside></div>
+    </section></main><aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={orderRecordPath(orderId, 'tracking')} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); selectTab('tracking') } }}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside></div>
     {historyOpen && <TransportOrderHistoryModal order={order} onClose={() => setHistoryOpen(false)} />}
   </div>
 }
-export default function TransportOrderDetailPage() {
+export default function TransportOrderDetailPage({ active = true, showTabs = true, tabOverride }) {
   const { transportOrderId } = useParams()
-  return <Workspace key={transportOrderId} orderId={transportOrderId} />
+  return <Workspace key={transportOrderId} orderId={transportOrderId} active={active} showTabs={showTabs} tabOverride={tabOverride} />
 }

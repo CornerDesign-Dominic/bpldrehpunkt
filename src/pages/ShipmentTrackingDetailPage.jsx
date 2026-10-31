@@ -72,7 +72,7 @@ function PartnerLink({ partner, effectivePartner, warning }) {
   return <span className="transport-order-partner-link"><Link to={businessPartnerDetailPath(effectivePartner?.id || partner.partnerId)}>{name}</Link>{warning && <TranslatedProps sources={{"aria-label":"Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt.","title":"Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt."}}><span className="transport-order-partner-link__warning" role="img" aria-label="Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt." title="Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt.">!</span></TranslatedProps>}</span>
 }
 
-export default function ShipmentTrackingDetailPage() {
+export default function ShipmentTrackingDetailPage({ active = true, onOpenOrder }) {
   const { transportOrderId } = useParams()
   const location = useLocation()
   const orderPath = `/transportauftraege/${encodeURIComponent(transportOrderId)}`
@@ -133,12 +133,13 @@ export default function ShipmentTrackingDetailPage() {
   const { canEdit, canView } = usePermissions()
   const { user, profile } = useAuth()
   useEffect(() => {
+    if (!active) return undefined
     let current = true
     getTransportOrder(transportOrderId).then((entry) => {
       if (current) { setOrder(entry); setError(entry ? '' : 'Transportauftrag nicht gefunden.') }
     }).catch(() => { if (current) setError('Der Transportauftrag konnte nicht geladen werden.') }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
-  }, [transportOrderId])
+  }, [transportOrderId, active])
   async function refreshTracking() {
     setTrackingLoading(true)
     try {
@@ -150,13 +151,14 @@ export default function ShipmentTrackingDetailPage() {
     } finally { setTrackingLoading(false) }
   }
   useEffect(() => {
+    if (!active) return undefined
     let current = true
     getShipmentTracking(transportOrderId).then((result) => {
       if (!current) return
       setTracking(result.tracking); setTrackingEvents(result.events); setTrackingError('')
     }).catch(() => { if (current) setTrackingError('Die Sendungsverfolgung konnte nicht geladen werden.') }).finally(() => { if (current) setTrackingLoading(false) })
     return () => { current = false }
-  }, [transportOrderId])
+  }, [transportOrderId, active])
   useEffect(() => {
     if (!receivedMailVersion) return undefined
     let current = true
@@ -237,13 +239,15 @@ export default function ShipmentTrackingDetailPage() {
     setRatingsModalOpen(false)
   }
   useEffect(() => {
+    if (!active) return undefined
     document.title = `Drehpunkt · ${t('nav.shipmentTracking')}${order?.externalNumber ? ` · TA ${order.externalNumber}` : ''}`
     return () => { document.title = 'Drehpunkt' }
-  }, [order?.externalNumber, t])
+  }, [order?.externalNumber, t, active])
   useEffect(() => {
+    if (!active) return undefined
     setTitle(order?.externalNumber ? `${t('nav.shipmentTracking')} · TA ${order.externalNumber}` : '')
     return () => setTitle('')
-  }, [order?.externalNumber, setTitle, t])
+  }, [order?.externalNumber, setTitle, t, active])
   async function performTrackingAction(action, payload = {}) {
     setTrackingSaving(true); setTrackingError('')
     try {
@@ -336,7 +340,7 @@ export default function ShipmentTrackingDetailPage() {
   if (loading) return <div className="transport-order-detail-page"><p className="page-state"><StaticText source={"Sendungsverfolgung wird geladen …"} /></p></div>
   if (error || !imported) return <div className="transport-order-detail-page"><section className="todo-detail-empty"><h2><StaticText source={"Sendungsverfolgung nicht verfügbar"} /></h2><p>{error || <StaticText source={"Noch keine Daten verfügbar."} />}</p></section></div>
   return <div className="transport-order-detail-page">
-    <div className="transport-order-detail-toolbar"><Link className="button button--secondary" to={orderNavigation.to} state={orderNavigation.state}><StaticText source="Auftrag öffnen" /></Link><BackLink to="/sendungsverfolgung" /><div className="partner-merge-menu" ref={historyMenuRef}><TranslatedProps sources={{ 'aria-label': 'Auftragsaktionen öffnen' }}><button className="partner-merge-menu__trigger" type="button" aria-label="Auftragsaktionen öffnen" aria-haspopup="menu" aria-expanded={historyMenuOpen} onClick={() => setHistoryMenuOpen((open) => !open)}>…</button></TranslatedProps>{historyMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { historyMenuRef.current?.querySelector('button')?.focus(); setHistoryOpen(true); setHistoryMenuOpen(false) }}><StaticText source="Historie" /></button></div>}</div></div>
+    <div className="transport-order-detail-toolbar"><Link className="button button--secondary" to={orderNavigation.to} state={orderNavigation.state} onClick={event => { if (onOpenOrder && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); onOpenOrder() } }}><StaticText source="Auftrag öffnen" /></Link><BackLink to="/sendungsverfolgung" /><div className="partner-merge-menu" ref={historyMenuRef}><TranslatedProps sources={{ 'aria-label': 'Auftragsaktionen öffnen' }}><button className="partner-merge-menu__trigger" type="button" aria-label="Auftragsaktionen öffnen" aria-haspopup="menu" aria-expanded={historyMenuOpen} onClick={() => setHistoryMenuOpen((open) => !open)}>…</button></TranslatedProps>{historyMenuOpen && <div className="partner-merge-menu__dropdown" role="menu"><button type="button" role="menuitem" onClick={() => { historyMenuRef.current?.querySelector('button')?.focus(); setHistoryOpen(true); setHistoryMenuOpen(false) }}><StaticText source="Historie" /></button></div>}</div></div>
     {historyOpen && <TransportOrderHistoryModal key={`${order.id}-${orderDataVersion}`} order={order} onClose={() => setHistoryOpen(false)} />}
     <TranslatedProps sources={{"title":"Sendungsverfolgung vorzeitig starten?"}}><ConfirmDialog open={trackingEarlyStartConfirmationOpen} title="Sendungsverfolgung vorzeitig starten?" message="Die Sendungsverfolgung wird sofort zur manuellen Bearbeitung geöffnet. Es wird keine E-Mail versendet; alle Automatik-Regeln bleiben unverändert." confirmLabel="Vorzeitig starten" submittingLabel="Wird gestartet …" isSubmitting={trackingSaving} onCancel={() => setTrackingEarlyStartConfirmationOpen(false)} onConfirm={() => void confirmTrackingEarlyStart()} /></TranslatedProps>
     <TranslatedProps sources={{"title":"Unwiderruflich abschließen?","confirmLabel":"Abschließen"}}><ConfirmDialog open={trackingCompletionConfirmationOpen} title="Unwiderruflich abschließen?" message="Die Sendungsverfolgung wird endgültig beendet. Die Auftragsdaten bleiben erhalten." confirmLabel="Abschließen" submittingLabel="Wird abgeschlossen …" isSubmitting={trackingSaving} onCancel={() => setTrackingCompletionConfirmationOpen(false)} onConfirm={() => void confirmTrackingCompletion()} /></TranslatedProps>

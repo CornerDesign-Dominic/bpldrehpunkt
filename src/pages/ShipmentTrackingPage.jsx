@@ -1,8 +1,10 @@
+import { createReturnState } from '../lib/recordNavigation.js'
+import { orderRecordPath } from '../lib/orderRecordTabs.js'
 import { translateStatic } from '../i18n/autoTranslate.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { FaBan, FaChevronLeft, FaChevronRight, FaEnvelope, FaHouse, FaStopwatch, FaTruck, FaTruckFast } from 'react-icons/fa6'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { usePermissions } from '../auth/usePermissions.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
@@ -43,6 +45,7 @@ export default function ShipmentTrackingPage() {
   const { user, profile } = useAuth()
   const { t, language } = useLanguage()
   const navigate = useNavigate()
+  const location = useLocation()
   useEffect(() => {
     document.title = `Drehpunkt · ${t('nav.shipmentTracking')}`
     return () => { document.title = 'Drehpunkt' }
@@ -182,7 +185,7 @@ export default function ShipmentTrackingPage() {
     const direction = sort.key === key ? sort.direction : 'none'
     return <th key={key} aria-sort={direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'}><button className="table-sort-button" type="button" onClick={() => toggleSort(key)}><span><StaticText source={label} /></span><span className="table-sort-button__indicator" data-direction={direction} aria-hidden="true" /><span className="sr-only">{t(direction === 'none' ? 'orders.sort' : direction === 'asc' ? 'orders.sortAscending' : 'orders.sortDescending')}</span></button></th>
   }
-  const openTracking = (orderId) => navigate(`/sendungsverfolgung/${encodeURIComponent(orderId)}`)
+  const openTracking = (orderId) => navigate(orderRecordPath(orderId, 'tracking'), { state: createReturnState(location) })
 
   return <div className="transport-orders-page">
     <div className="list-toolbar">

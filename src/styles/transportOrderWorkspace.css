@@ -50,3 +50,7 @@
 @media(max-width:760px) { .order-workspace__layout { grid-template-columns:1fr; } .order-workspace__links { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); } .order-workspace__tabs { gap:0 14px; } }
 
 .order-workspace a:not(.button) { color:var(--button-background); }
+
+.order-record { min-width:0; }
+.order-record__tabs { margin:0 0 16px; }
+.order-record > [hidden] { display:none; }
