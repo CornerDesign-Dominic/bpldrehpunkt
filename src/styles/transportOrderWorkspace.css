@@ -1,7 +1,4 @@
 .order-workspace { width:100%; max-width:1600px; margin:0 auto; }
-.order-workspace__head { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 20px; margin:16px 0 6px; }
-.order-workspace__head h2 { margin:0; font-size:24px; }
-.order-workspace__meta { display:flex; flex-wrap:wrap; gap:6px 24px; color:var(--text-secondary); font-size:12px; }
 .order-workspace__tabs { display:flex; flex-wrap:wrap; gap:0 22px; border-bottom:1px solid var(--border); margin-top:20px; }
 .order-workspace__tabs button { border:0; background:transparent; color:var(--text-secondary); border-bottom:2px solid transparent; padding:10px 0; font:inherit; font-size:13px; cursor:pointer; }
 .order-workspace__tabs button[aria-selected="true"] { color:var(--button-background); border-bottom-color:var(--button-background); font-weight:700; }

@@ -17,7 +17,6 @@ import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { createReturnState } from '../lib/recordNavigation.js'
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
 import ContextLink from '../components/ui/ContextLink.jsx'
-import BackLink from '../components/ui/BackLink.jsx'
 import TransportInvoiceChecks from '../components/transport-orders/TransportInvoiceChecks.jsx'
 import TransportOrderImportedDetails from '../components/transport-orders/TransportOrderImportedDetails.jsx'
 import OrderRecordHistoryTables from '../components/transport-orders/OrderRecordHistoryTables.jsx'
@@ -189,14 +188,11 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
   const statusLabels = { success: w('Aktualisiert', 'Updated'), partial: w('Teilweise aktualisiert', 'Partially updated'), failed: w('Aktualisierung fehlgeschlagen', 'Update failed'), unconfirmed: w('Aktualisierung nicht bestätigt', 'Update not confirmed'), running: w('Aktualisierung läuft', 'Update in progress') }
   const tabLabels = { overview: w('Übersicht', 'Overview'), transport: w('Transport & Ware', 'Transport & cargo'), partners: w('Geschäftspartner', 'Business partners'), finance: w('Finanzen', 'Finances'), history: w('Historie', 'History') }
   if (loading) return <p className="page-state"><StaticText source="Transportauftrag wird geladen …" /></p>
-  if (error || !order?.imported) return <section className="todo-detail-empty"><BackLink to="/transportauftraege" /><h2><StaticText source="Transportauftrag nicht verfügbar" /></h2><p><StaticText source={error || 'Noch keine Daten verfügbar.'} /></p><button className="button button--secondary" type="button" onClick={() => { setLoading(true); void loadOrder().catch(() => setError('Der Transportauftrag konnte nicht geladen werden.')).finally(() => setLoading(false)) }}><StaticText source="Erneut versuchen" /></button></section>
+  if (error || !order?.imported) return <section className="todo-detail-empty"><h2><StaticText source="Transportauftrag nicht verfügbar" /></h2><p><StaticText source={error || 'Noch keine Daten verfügbar.'} /></p><button className="button button--secondary" type="button" onClick={() => { setLoading(true); void loadOrder().catch(() => setError('Der Transportauftrag konnte nicht geladen werden.')).finally(() => setLoading(false)) }}><StaticText source="Erneut versuchen" /></button></section>
   const imported = order.imported
   const shipment = imported.shipment || {}
   const cargoEntries = [['Fahrzeugart', shipment.vehicleType], ['Kennzeichen', shipment.licensePlate], ['Kolli', number(shipment.packages)], ['Gewicht', number(shipment.weightKg, ' kg')], ['Lademeter', number(shipment.loadingMeters, ' m')]]
   return <div className="order-workspace">
-    <BackLink to="/transportauftraege" />
-    <div className="order-workspace__head"><h2>TA {order.externalNumber}</h2><span className="order-workspace__muted">{[imported.loading?.city, imported.unloading?.city].filter(Boolean).join(' → ')}</span></div>
-    <div className="order-workspace__meta"><span><StaticText source="Kundenreferenz" />: {imported.customerReference || '—'}</span><span><StaticText source="Relation" />: {imported.relation || '—'}</span></div>
     {showTabs && <div className="order-workspace__tabs" role="tablist" aria-label={w('Auftragsbereiche', 'Order sections')}>{transportOrderWorkspaceTabs.map((value) => <button key={value} type="button" role="tab" id={`order-tab-${value}`} aria-controls={`order-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)} onKeyDown={(event) => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()

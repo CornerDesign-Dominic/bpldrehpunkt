@@ -20,7 +20,10 @@ Geöffnete Auftrags- und Trackingbausteine bleiben beim Wechsel montiert, damit
 Dialoge und Eingaben erhalten bleiben. Tracking wird erst beim ersten Öffnen
 seines Reiters geladen; aktive Ansichten lesen beim Wiederöffnen den aktuellen
 Auftrags-/Trackingstand. Beide Bereiche verwenden dieselbe Auftrags-ID und die
-bestehenden Zugriffsrechte. Die Rückkehr führt zur jeweiligen Ursprungsliste.
+bestehenden Zugriffsrechte. Die Auftragsakte zeigt auf allen Fachreitern keinen
+zusätzlichen Zurück-Button und keinen wiederholten Datenkopf mit TA-Nummer,
+Strecke, Kundenreferenz und Relation. Die TA-Nummer bleibt im oberen Seitentitel;
+die Fachinhalte und die Navigation über Listen und Reiter bleiben erhalten.
 
 Die Übersicht zeigt zwei Spalten mit allgemeinen Daten und eine rechte Spalte
 mit Verknüpfungen. Fachreiter: Übersicht, Transport & Ware, Geschäftspartner,
