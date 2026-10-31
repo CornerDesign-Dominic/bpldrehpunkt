@@ -1,3 +1,6 @@
+import { saveAndRefresh } from '../../lib/saveAndRefresh.js'
+import { reportTechnicalFailure } from '../../lib/diagnostics.js'
+import { useLanguage } from '../../i18n/useLanguage.js'
 import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -22,6 +25,8 @@ function linksTransportOrder(todo, transportOrderId) {
 
 export default function TransportOrderTodosCard({ canCreate = false, canView = false, canViewMasterData = false, order, profile, user }) {
   const navigate = useNavigate()
+  const { language } = useLanguage()
+  const [loadError, setLoadError] = useState('')
   const actor = useMemo(() => ({ user, profile }), [profile, user])
   const [todos, setTodos] = useState([])
   const [loading, setLoading] = useState(canView)
@@ -47,22 +52,27 @@ export default function TransportOrderTodosCard({ canCreate = false, canView = f
       return
     }
     setLoading(true)
+    setLoadError('')
     try {
       const visibleTodos = await listTodosForActor(actor)
       setTodos(visibleTodos.filter((todo) => linksTransportOrder(todo, transportOrderId)))
+    } catch (error) {
+      setLoadError(language === 'en' ? 'The linked tasks could not be reloaded. Please load again.' : 'Die verknüpften To-dos konnten nicht neu geladen werden. Bitte erneut laden.')
+      void reportTechnicalFailure({ module: 'website', stage: 'transport-orders', error })
+      throw error
     } finally {
       setLoading(false)
     }
-  }, [actor, canView, transportOrderId, user?.uid])
+  }, [actor, canView, transportOrderId, user?.uid, language])
 
   useEffect(() => {
     let current = true
     Promise.resolve().then(async () => {
       if (!canView || !user?.uid || !transportOrderId) return []
       return (await listTodosForActor(actor)).filter((todo) => linksTransportOrder(todo, transportOrderId))
-    }).then((entries) => { if (current) { setTodos(entries); setLoading(false) } }).catch(() => { if (current) { setTodos([]); setLoading(false) } })
+    }).then((entries) => { if (current) { setTodos(entries); setLoading(false) } }).catch((error) => { if (current) { setTodos([]); setLoading(false); setLoadError(language === 'en' ? 'Linked tasks could not be loaded. Please load again.' : 'Verknüpfte To-dos konnten nicht geladen werden. Bitte erneut laden.'); void reportTechnicalFailure({ module: 'website', stage: 'other', error }) } })
     return () => { current = false }
-  }, [actor, canView, transportOrderId, user?.uid])
+  }, [actor, canView, transportOrderId, user?.uid, language])
 
   useEffect(() => {
     let current = true
@@ -71,12 +81,13 @@ export default function TransportOrderTodosCard({ canCreate = false, canView = f
   }, [canCreate, canViewMasterData])
 
   async function create(values) {
-    await createTodo(values, actor, usersById)
-    await load()
+    const saved = await saveAndRefresh(() => createTodo(values, actor, usersById), load)
+    return saved.result
   }
 
   return <section className="transport-order-detail-section transport-order-todos">
     <h3>To-dos</h3>
+    {loadError && <div><p className="form-error">{loadError}</p><button type="button" className="button button--secondary" disabled={loading} onClick={() => { void load().catch(() => {}) }}>{language === 'en' ? 'Load again' : 'Erneut laden'}</button></div>}
     <div className="transport-order-detail-actions__buttons">
       <button className="button button--secondary" type="button" disabled={!canCreate} title={!canCreate ? 'Sie haben keine Berechtigung, To-dos anzulegen.' : undefined} onClick={() => setCreateOpen(true)}><StaticText source={"To-do anlegen"} /></button>
       {!loading && todos.length > 0 && <button className="button" type="button" onClick={() => setListOpen(true)}><StaticText source={"To-dos ansehen"} /></button>}

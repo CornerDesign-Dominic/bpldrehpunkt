@@ -1,3 +1,6 @@
+import ReminderFields from '../reminders/ReminderFields.jsx'
+import { useLanguage } from '../../i18n/useLanguage.js'
+import { reminderValidationMessage, todoReminderFields, validateReminderForm } from '../../lib/reminderForm.js'
 import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { isSelfTodo } from '../../lib/todos.js'
@@ -9,7 +12,7 @@ import { businessPartnerRoles } from '../../../shared/businessPartnerRoles.js'
 function initialValues(todo, currentUserId) {
   const isSelf = isSelfTodo(todo, currentUserId)
   return {
-    title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '', reminderDate: todo.reminderDate || '', priority: todo.priority || 'medium',
+    title: todo.title || '', description: todo.description || '', dueDate: todo.dueDate || '', reminderDate: todo.reminderDate || '', reminderTime: todo.reminderTime || '', reminderOccurrence: todo.reminderOccurrence || null, priority: todo.priority || 'medium',
     customerId: todo.customerId || '', customerName: todo.customerName || '', carrierId: todo.carrierId || '', carrierName: todo.carrierName || '', reference: todo.reference || '', transportOrderLinks: Array.isArray(todo.transportOrderLinks) ? todo.transportOrderLinks : todo.transportOrderId ? [{ id: todo.transportOrderId, number: todo.transportOrderNumber || todo.reference || todo.transportOrderId }] : [],
     damageCaseId: todo.damageCaseId || '', insolvencyId: todo.insolvencyId || '', legalDisputeId: todo.legalDisputeId || '', inkassoCaseId: todo.inkassoCaseId || '',
     audienceType: isSelf ? 'self' : todo.audienceType === 'department' ? 'department' : todo.audienceType === 'all' ? 'all' : 'people',
@@ -24,6 +27,7 @@ function damageCaseLabel(damageCase) { return [damageCase.caseNumber, damageCase
 function insolvencyLabel(insolvency) { return [insolvency.partnerName, insolvency.courtReference].filter(Boolean).join(' · ') || 'Insolvenzfall' }
 
 export default function TodoQuickEditModal({ canViewDamageCases = false, canViewInsolvencies = false, canViewTransportOrders = false, currentUserId, damageCases = [], insolvencies = [], onCancel, onSubmit, partners = [], section, todo, users = [] }) {
+  const { language } = useLanguage()
   const [form, setForm] = useState(() => initialValues(todo, currentUserId))
   const [damageCaseSearch, setDamageCaseSearch] = useState('')
   const [insolvencySearch, setInsolvencySearch] = useState('')
@@ -42,10 +46,10 @@ export default function TodoQuickEditModal({ canViewDamageCases = false, canView
   }, [insolvencies, insolvencySearch])
 
   useEffect(() => {
-    function closeOnEscape(event) { if (event.key === 'Escape') onCancel() }
+    function closeOnEscape(event) { if (event.key === 'Escape' && !saving) onCancel() }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onCancel])
+  }, [onCancel, saving])
 
   function update(field, value) { setForm((current) => ({ ...current, [field]: value })) }
   function changeAudienceType(audienceType) { setForm((current) => ({ ...current, audienceType, audienceId: '', audienceIds: [] })) }
@@ -64,17 +68,18 @@ export default function TodoQuickEditModal({ canViewDamageCases = false, canView
       setError('Bitte Titel und Zuständigkeit vollständig erfassen.')
       return
     }
+    try { section === 'schedule' && form.reminderDate ? validateReminderForm({ date: form.reminderDate, time: form.reminderTime, occurrence: form.reminderOccurrence }) : todoReminderFields(form, todo) } catch (validationError) { setError(reminderValidationMessage(validationError, language)); return }
     setSaving(true)
     setError('')
-    try { await onSubmit(form) } catch (submissionError) { setError(submissionError.message || 'Die Änderung konnte nicht gespeichert werden.') } finally { setSaving(false) }
+    try { await onSubmit(form) } catch (submissionError) { setError(reminderValidationMessage(submissionError, language)) } finally { setSaving(false) }
   }
 
-  return <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onCancel() }}>
+  return <div className="todo-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onCancel() }}>
     <section className="todo-quick-edit-modal" role="dialog" aria-modal="true" aria-labelledby="todo-quick-edit-title">
       <form className="todo-quick-editor" onSubmit={save} noValidate>
         <div className="todo-quick-editor__heading"><h2 id="todo-quick-edit-title">{sectionTitles[section]}</h2></div>
         {section === 'content' && <div className="todo-quick-editor__grid"><label className="form-field"><span><StaticText source={"Titel *"} /></span><input value={form.title} onChange={(event) => update('title', event.target.value)} autoFocus /></label><label className="form-field"><span><StaticText source={"Beschreibung"} /></span><textarea rows="6" value={form.description} onChange={(event) => update('description', event.target.value)} /></label></div>}
-        {section === 'schedule' && <div className="todo-quick-editor__grid todo-quick-editor__grid--three"><TodoPriorityPicker value={form.priority} onChange={(value) => update('priority', value)} /><label className="form-field"><span><StaticText source={"Fällig am"} /></span><input type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} /></label><label className="form-field"><span><StaticText source={"Erinnerung am"} /></span><input type="date" value={form.reminderDate} onChange={(event) => update('reminderDate', event.target.value)} /></label></div>}
+        {section === 'schedule' && <div className="todo-quick-editor__grid todo-quick-editor__grid--three"><TodoPriorityPicker value={form.priority} onChange={(value) => update('priority', value)} /><label className="form-field"><span><StaticText source={"Fällig am"} /></span><input type="date" value={form.dueDate} onChange={(event) => update('dueDate', event.target.value)} /></label><ReminderFields values={{ date: form.reminderDate, time: form.reminderTime, occurrence: form.reminderOccurrence }} onChange={(field, value) => update({ date: 'reminderDate', time: 'reminderTime', occurrence: 'reminderOccurrence' }[field], value)} required={Boolean(form.reminderDate)} recipientRule="todo" disabled={saving} /></div>}
         {section === 'responsibility' && <div className="todo-quick-editor__grid"><label className="form-field"><span><StaticText source={"Aufgabe für"} /></span><select value={form.audienceType} onChange={(event) => changeAudienceType(event.target.value)}><option value="self"><StaticText source={"Für mich"} /></option><option value="department"><StaticText source={"Abteilung"} /></option><option value="all"><StaticText source={"Alle"} /></option><option value="people"><StaticText source={"Person/en"} /></option></select></label>{form.audienceType === 'department' && <label className="form-field"><span><StaticText source={"Abteilung"} /></span><select value={form.audienceId} onChange={(event) => update('audienceId', event.target.value)}><option value=""><StaticText source={"Bitte wählen"} /></option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select></label>}{form.audienceType === 'people' && <fieldset className="todo-quick-editor__people"><legend><StaticText source={"Person/en *"} /></legend><div>{users.filter((user) => user.id !== currentUserId).map((user) => <label className={`todo-quick-editor__person${form.audienceIds.includes(user.id) ? ' todo-quick-editor__person--selected' : ''}`} key={user.id}><input type="checkbox" checked={form.audienceIds.includes(user.id)} onChange={() => togglePerson(user.id)} /><span>{getUserDisplayName(user, user)}</span></label>)}</div></fieldset>}{form.audienceType === 'self' && <p className="todo-quick-editor__hint"><StaticText source={"Die Aufgabe wird Ihnen direkt zugewiesen."} /></p>}{form.audienceType === 'all' && <p className="todo-quick-editor__hint"><StaticText source={"Alle aktiven Nutzer können die Aufgabe sehen und übernehmen."} /></p>}</div>}
         {section === 'links' && <div className="todo-quick-editor__grid">
           <label className="form-field"><span><StaticText source={"Kunde"} /></span><select value={form.customerId} onChange={(event) => changePartner('customer', event)}><option value=""><StaticText source={"Kein Kunde verknüpft"} /></option>{form.customerId && !customers.some((partner) => partner.id === form.customerId) && <option value={form.customerId}>{form.customerName || <StaticText source={"Verknüpfter Kunde"} />}</option>}{customers.map((partner) => <option key={partner.id} value={partner.id}>{partner.companyName}</option>)}</select></label>
@@ -88,7 +93,7 @@ export default function TodoQuickEditModal({ canViewDamageCases = false, canView
           {canViewInsolvencies && insolvencySearch.trim() && !matchingInsolvencies.length && <p className="todo-quick-editor__hint"><StaticText source={"Kein passender Insolvenzfall gefunden."} /></p>}
         </div>}
         {error && <p className="form-error">{<StaticText source={error} />}</p>}
-        <div className="form-actions"><button className="button button--secondary" type="button" onClick={onCancel}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={saving}>{<StaticText source={saving ? 'Wird gespeichert …' : 'Speichern'} />}</button></div>
+        <div className="form-actions"><button className="button button--secondary" type="button" disabled={saving} onClick={onCancel}><StaticText source={"Abbrechen"} /></button><button className="button" type="submit" disabled={saving}>{<StaticText source={saving ? 'Wird gespeichert …' : 'Speichern'} />}</button></div>
       </form>
     </section>
   </div>

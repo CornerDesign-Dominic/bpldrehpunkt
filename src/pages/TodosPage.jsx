@@ -1,3 +1,4 @@
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { responsibilityLabel, transportOrderNumbers } from '../lib/todoListPresentation.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
@@ -172,9 +173,17 @@ export default function TodosPage() {
     };
   }, [actor, assigneeFilter, creatorFilter, filter, priorityFilter, responsibilityFilter, search, todos, user.uid]);
 
+  async function refreshAfterWrite() {
+    try { await loadTodos(); }
+    catch (loadError) {
+      setError(language === 'en' ? 'Change saved. The current tasks could not be reloaded. Please reload the page.' : 'Änderung gespeichert. Die aktuellen To-dos konnten nicht neu geladen werden. Bitte die Seite neu laden.');
+      void reportTechnicalFailure({ module: 'website', stage: 'other', error: loadError });
+    }
+  }
+
   async function addTodo(values) {
     await createTodo(values, actor, usersById);
-    await loadTodos();
+    await refreshAfterWrite();
     setToast("To-do gespeichert.");
   }
 
@@ -189,7 +198,7 @@ export default function TodosPage() {
         message:
           "Das To-do wurde bereits übernommen. Durch diese Änderung wird die Bearbeitung beendet und das To-do wieder geöffnet.",
       });
-      return;
+      return { pendingConfirmation: true };
     }
     await performSave(values, resetAssignment);
   }
@@ -202,7 +211,7 @@ export default function TodosPage() {
       resetAssignment,
       actor,
     );
-    await loadTodos();
+    await refreshAfterWrite();
     setEditing(null);
     setToast(
       resetAssignment
@@ -217,7 +226,7 @@ export default function TodosPage() {
         await performSave(confirmation.values, true);
       if (confirmation.type === "withdraw") {
         await withdrawTodo(confirmation.todo.id, actor);
-        await loadTodos();
+        await refreshAfterWrite();
         setToast("To-do zurückgezogen.");
       }
       setConfirmation(null);

@@ -1,7 +1,11 @@
+import { useLanguage } from '../../i18n/useLanguage.js'
+import { reminderValidationMessage } from '../../lib/reminderForm.js'
+import ReminderFields from '../reminders/ReminderFields.jsx'
+import ReminderStatus from '../reminders/ReminderStatus.jsx'
 import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { createEmptyDamageDeadline, damageDeadlinePresentation } from '../../lib/damages.js'
-import { deadlineDateTimeLabel, shortReminderRecipient } from '../../lib/caseDeadline.js'
+import { deadlineDateTimeLabel } from '../../lib/caseDeadline.js'
 import { EditIcon } from '../icons.jsx'
 
 function formatDate(value) {
@@ -22,11 +26,12 @@ function deadlineDisplay(deadline) {
   return `${damageDeadlinePresentation(deadline).label} · ${deadlineDateTimeLabel(deadline.date, deadline.time)}`
 }
 
-function DeadlineModal({ canEdit, deadline, mode, onClose, onDelete, onSave }) {
+function DeadlineModal({ canEdit, parentPath, refreshKey, deadline, mode, onClose, onDelete, onSave }) {
+  const { language } = useLanguage()
   const [editing, setEditing] = useState(mode === 'new')
   const [values, setValues] = useState(() => ({
-    date: deadline?.date || createEmptyDamageDeadline().date,
-    time: deadline?.time || '',
+    date: deadline ? deadline.date || '' : createEmptyDamageDeadline().date,
+    time: deadline?.time || '', occurrence: deadline?.reminderOccurrence || null,
     reminderEnabled: Boolean(deadline?.reminderEnabled),
     note: deadline?.note || '',
   }))
@@ -45,7 +50,7 @@ function DeadlineModal({ canEdit, deadline, mode, onClose, onDelete, onSave }) {
   }
 
   function beginEditing() {
-    setValues({ date: deadline.date, time: deadline.time || '', reminderEnabled: Boolean(deadline.reminderEnabled), note: deadline.note || '' })
+    setValues({ date: deadline.date || '', time: deadline.time || '', occurrence: deadline.reminderOccurrence || null, reminderEnabled: Boolean(deadline.reminderEnabled), note: deadline.note || '' })
     setError('')
     setEditing(true)
   }
@@ -58,7 +63,7 @@ function DeadlineModal({ canEdit, deadline, mode, onClose, onDelete, onSave }) {
       await onSave(mode === 'new' ? null : deadline, values)
       onClose()
     } catch (saveError) {
-      setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.')
+      setError(reminderValidationMessage(saveError, language))
     } finally {
       setSaving(false)
     }
@@ -84,12 +89,12 @@ function DeadlineModal({ canEdit, deadline, mode, onClose, onDelete, onSave }) {
       <form className="todo-quick-editor" onSubmit={submit} noValidate>
         <div className="todo-quick-editor__heading damage-deadline-modal__heading"><h2 id="damage-deadline-modal-title">{title}</h2>{canEdit && mode !== 'new' && !editing && <TranslatedProps sources={{"title":"Termin bearbeiten","aria-label":"Termin bearbeiten"}}><button className="todo-detail-section-edit" type="button" onClick={beginEditing} title="Termin bearbeiten" aria-label="Termin bearbeiten"><EditIcon size={14} /></button></TranslatedProps>}</div>
         {editing ? <div className="todo-quick-editor__grid damage-deadline-modal__fields">
-          <label className="form-field"><span><StaticText source={"Datum *"} /></span><input autoFocus type="date" value={values.date} required onChange={(event) => update('date', event.target.value)} /></label>
-          <label className="form-field"><span><StaticText source={"Uhrzeit"} /></span><input type="time" value={values.time} onChange={(event) => update('time', event.target.value)} /></label>
-          <label className="form-field"><span><StaticText source={"Erinnerung"} /></span><select value={values.reminderEnabled ? 'on' : 'off'} onChange={(event) => update('reminderEnabled', event.target.value === 'on')}><option value="off"><StaticText source={"Aus"} /></option><option value="on"><StaticText source={"An"} /></option></select></label>
-          <label className="form-field damage-deadline-modal__note"><span><StaticText source={"Bemerkung"} /></span><textarea rows="5" value={values.note} maxLength="4000" onChange={(event) => update('note', event.target.value)} /></label>
+          <ReminderFields values={values} onChange={update} dateLabel="Datum" timeLabel="Uhrzeit" required={values.reminderEnabled} disabled={saving} recipientRule="case" />
+
+          <label className="form-field"><span><StaticText source={"Erinnerung"} /></span><select disabled={saving} value={values.reminderEnabled ? 'on' : 'off'} onChange={(event) => update('reminderEnabled', event.target.value === 'on')}><option value="off"><StaticText source={"Aus"} /></option><option value="on"><StaticText source={"An"} /></option></select></label>
+          <label className="form-field damage-deadline-modal__note"><span><StaticText source={"Bemerkung"} /></span><textarea disabled={saving} rows="5" value={values.note} maxLength="4000" onChange={(event) => update('note', event.target.value)} /></label>
         </div> : <div className="damage-deadline-modal__details">
-          <section><h3><StaticText source={"Termininformationen"} /></h3><dl><div><dt><StaticText source={"Datum / Uhrzeit"} /></dt><dd><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></dd></div><div><dt><StaticText source={"Erinnerung"} /></dt><dd><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{<StaticText source={deadline.reminderEnabled ? 'An' : 'Aus'} />}</span></dd></div><div><dt><StaticText source={"Empfänger"} /></dt><dd>{shortReminderRecipient(deadline)}</dd></div><div><dt><StaticText source={"Bemerkung"} /></dt><dd className="damage-deadline-modal__note-value">{deadline.note || '—'}</dd></div></dl></section>
+          <section><h3><StaticText source={"Termininformationen"} /></h3><dl><div><dt><StaticText source={"Datum / Uhrzeit"} /></dt><dd><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></dd></div><div><dt><StaticText source={"Erinnerung"} /></dt><dd><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{<StaticText source={deadline.reminderEnabled ? 'An' : 'Aus'} />}</span></dd></div><div><dt><StaticText source="Erinnerungsstatus" /></dt><dd><ReminderStatus sourcePath={`${parentPath}/deadlines/${deadline.id}`} enabled={Boolean(deadline.reminderEnabled)} configured={Boolean(deadline.reminderOccurrence)} recipientRule="case" refreshKey={refreshKey} /></dd></div><div><dt><StaticText source={"Bemerkung"} /></dt><dd className="damage-deadline-modal__note-value">{deadline.note || '—'}</dd></div></dl></section>
           <section><h3><StaticText source={"Systeminformationen"} /></h3><dl><div><dt><StaticText source={"Erstellt von"} /></dt><dd>{deadline.createdByName || '—'}</dd></div><div><dt><StaticText source={"Erstellt am"} /></dt><dd>{formatTimestamp(deadline.createdAt)}</dd></div><div><dt><StaticText source={"Zuletzt aktualisiert von"} /></dt><dd>{deadline.updatedByName || '—'}</dd></div><div><dt><StaticText source={"Zuletzt aktualisiert am"} /></dt><dd>{formatTimestamp(deadline.updatedAt)}</dd></div></dl></section>
         </div>}
         {error && <p className="form-error">{<StaticText source={error} />}</p>}
@@ -99,12 +104,12 @@ function DeadlineModal({ canEdit, deadline, mode, onClose, onDelete, onSave }) {
   </div>
 }
 
-export default function DamageDeadlinesCard({ canEdit, deadlines, loading, onDelete, onSave }) {
+export default function DamageDeadlinesCard({ canEdit, parentPath, refreshKey, deadlines, loading, onDelete, onSave }) {
   const [modal, setModal] = useState(null)
 
   function openDetails(deadline) { setModal({ mode: 'details', deadline }) }
 
-  function handleRowKeyDown(event, deadline) {
+  function handleRowKeyDown(event, deadline) { if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       openDetails(deadline)
@@ -112,10 +117,10 @@ export default function DamageDeadlinesCard({ canEdit, deadlines, loading, onDel
   }
 
   return <section className="todo-detail-content damage-deadlines" aria-labelledby="damage-deadlines-title">
-    {modal && <DeadlineModal canEdit={canEdit} deadline={modal.deadline} mode={modal.mode === 'new' ? 'new' : 'details'} onClose={() => setModal(null)} onDelete={onDelete} onSave={onSave} />}
+    {modal && <DeadlineModal canEdit={canEdit} parentPath={parentPath} refreshKey={refreshKey} deadline={modal.deadline} mode={modal.mode === 'new' ? 'new' : 'details'} onClose={() => setModal(null)} onDelete={onDelete} onSave={onSave} />}
     <div className="todo-detail-section-heading"><h3 id="damage-deadlines-title"><StaticText source={"Termine & Fristen"} /></h3>{canEdit && <button className="button damage-deadlines__add" type="button" onClick={() => setModal({ mode: 'new', deadline: null })}><StaticText source={"Termin hinzufügen"} /></button>}</div>
-    <div className="todos-table-frame damage-deadlines__table-frame"><table className="data-table todos-table damage-deadlines__table"><thead><tr><th><StaticText source={"Datum / Uhrzeit"} /></th><th><StaticText source={"Erinnerung"} /></th><th><StaticText source={"An"} /></th><th><StaticText source={"Bemerkung"} /></th></tr></thead><tbody>
-      {loading ? <tr><td className="table-state" colSpan="4"><StaticText source={"Termine werden geladen …"} /></td></tr> : !deadlines.length ? <tr><td className="table-state" colSpan="4"><StaticText source={"Noch keine Termine oder Fristen hinterlegt."} /></td></tr> : deadlines.map((deadline) => <tr key={deadline.id} className="damage-deadlines__row" tabIndex="0" role="button" onClick={() => openDetails(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={`Termin vom ${formatDate(deadline.date)} öffnen`}><td><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></td><td><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{<StaticText source={deadline.reminderEnabled ? 'An' : 'Aus'} />}</span></td><td className="damage-deadlines__recipient" title={deadline.reminderRecipientEmail || ''}>{shortReminderRecipient(deadline)}</td><td className="damage-deadlines__note" title={deadline.note || ''}>{deadline.note || '—'}</td></tr>)}
+    <div className="todos-table-frame damage-deadlines__table-frame"><table className="data-table todos-table damage-deadlines__table"><thead><tr><th><StaticText source={"Datum / Uhrzeit"} /></th><th><StaticText source={"Erinnerung"} /></th><th><StaticText source="Erinnerungsstatus" /></th><th><StaticText source={"Bemerkung"} /></th></tr></thead><tbody>
+      {loading ? <tr><td className="table-state" colSpan="4"><StaticText source={"Termine werden geladen …"} /></td></tr> : !deadlines.length ? <tr><td className="table-state" colSpan="4"><StaticText source={"Noch keine Termine oder Fristen hinterlegt."} /></td></tr> : deadlines.map((deadline) => <tr key={deadline.id} className="damage-deadlines__row" tabIndex="0" role="button" onClick={() => openDetails(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={`Termin vom ${formatDate(deadline.date)} öffnen`}><td><span className={deadlineClass(deadline)}>{deadlineDisplay(deadline)}</span></td><td><span className={deadline.reminderEnabled ? 'damage-deadlines__reminder damage-deadlines__reminder--on' : 'damage-deadlines__reminder'}>{<StaticText source={deadline.reminderEnabled ? 'An' : 'Aus'} />}</span></td><td className="damage-deadlines__recipient"><ReminderStatus sourcePath={`${parentPath}/deadlines/${deadline.id}`} enabled={Boolean(deadline.reminderEnabled)} configured={Boolean(deadline.reminderOccurrence)} recipientRule="case" refreshKey={refreshKey} /></td><td className="damage-deadlines__note" title={deadline.note || ''}>{deadline.note || '—'}</td></tr>)}
     </tbody></table></div>
   </section>
 }
