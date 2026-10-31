@@ -87,10 +87,11 @@ async function claimRequest(db, uid, data, token) {
   })
 }
 
-export async function saveDycosMasterData({ db, request, data, incoming, claim, token }) {
+export async function saveDycosMasterData({ db, request, data, incoming, claim, token, verify }) {
   return db.runTransaction(async tx => {
     const [receipt, lock, user, catalog] = await Promise.all([tx.get(claim.receiptRef), tx.get(claim.lockRef), tx.get(db.doc(`users/${request.auth.uid}`)), tx.get(db.doc(SHIPMENT_TRACKING_RULE_CATALOG_PATH))])
     if (user.get('active') !== true || !hasDycosMasterDataAccess(user.data())) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Bearbeitung von Stammdaten.')
+    if (verify) await verify(tx)
     if (receipt.exists) {
       if (data.expectedPartnerId && receipt.get('result.partnerId') !== data.expectedPartnerId) throw identityError()
       return receipt.get('result')
@@ -158,8 +159,8 @@ export async function saveDycosMasterData({ db, request, data, incoming, claim, 
   })
 }
 
-export async function fetchDycosMasterDataHandler(request, { db = getFirestore(), fetchPartner = fetchDycosFlowPartner, report = recordDiagnostic } = {}) {
-  const profile = await requireActiveProfile(request)
+export async function fetchDycosMasterDataHandler(request, { db = getFirestore(), fetchPartner = fetchDycosFlowPartner, report = recordDiagnostic, requireProfile = requireActiveProfile, verify } = {}) {
+  const profile = await requireProfile(request)
   if (!hasDycosMasterDataAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zur Bearbeitung von Stammdaten.')
   const data = validateDycosPartnerRequest(request.data)
   if (data.expectedPartnerId) {
@@ -178,7 +179,7 @@ export async function fetchDycosMasterDataHandler(request, { db = getFirestore()
     stage = 'mapping'
     const incoming = mapDycosMasterData(payload, data)
     stage = 'save'
-    return await saveDycosMasterData({ db, request, data, incoming, claim, token })
+    return await saveDycosMasterData({ db, request, data, incoming, claim, token, verify })
   } catch (error) {
     if (error?.code === 'partner_not_found') throw new HttpsError('not-found', 'Unter dieser Nummer wurde in DyCoS kein Partner gefunden.', { sourceCode: 'PARTNER_NOT_FOUND' })
     const message = 'Die Stammdaten konnten nicht zuverlässig übernommen werden. Bitte denselben Abruf erneut versuchen.'

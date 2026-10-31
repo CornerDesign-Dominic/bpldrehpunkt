@@ -237,9 +237,11 @@ maskiert. Technische SQL-/Gatewayfehler behalten ihre Fehlerantwort.
 Mehrere Treffer werden mit vorhandener PLZ und Ort eingegrenzt. Ohne USt-ID oder
 bei fehlendem USt-ID-Treffer erfolgt die Standortsuche. Widersprüchliche USt-IDs
 am gleichen Standort geben keinen Platzhalter frei. Der Nutzer bestätigt einen
-Suchtreffer; dessen echte interne Adress-ID wird verwendet, auch wenn der Kunde
-noch nicht in Drehpunkt importiert ist. Diese reine Auftragszuordnung schreibt
-keinen Kundenstammsatz und erweitert keine Stammdaten-Bearbeitungsrechte.
+Suchtreffer bei mehreren Kandidaten; ein eindeutiger Treffer wird automatisch
+übernommen. Vor der Zuordnung wird der Kunde mit dem bestehenden Stammdatenimport
+in Drehpunkt angelegt beziehungsweise sicher ergänzt. Seine echte interne
+Adress-ID wird verwendet. Stammdaten-Bearbeitungsrechte werden nicht erweitert;
+ein bereits verifiziert vorhandener Kunde kann mit Leserecht wiederverwendet werden.
 
 Der neue geschützte Aufruf `searchMailboxOrderCustomers` verlangt dieselben
 Postfach-/Auftrags- und Stammdaten-Leserechte wie die Auftragserfassung. Ein
@@ -285,3 +287,41 @@ einen Suchlauf ohne Suchklick; lokaler Treffer startet keinen; Wiederöffnen nac
 Erfolg oder Fehler bleibt bei einem Aufruf; Änderung der USt-ID startet einen
 weiteren Aufruf; bewusste Fehlerwiederholung startet einen weiteren Aufruf.
 ESLint und Frontend-Build bestanden. Keine Backend-/Flow-Änderung erforderlich.
+
+
+## Eindeutige Treffer automatisch übernehmen und Kunden speichern (30.10.2026)
+
+Ein einziger echter DyCoS-Treffer führt automatisch zum vollständigen, bekannten
+Stammdatenabruf und zur anschließenden Zuordnung im Auftragsformular. Bei mehreren
+Treffern erfolgt vorher keinerlei Anlage: Der Nutzer wählt „Übernehmen und
+zuordnen“, und nur der ausgewählte Kunde wird übernommen. Debitor 10001 bleibt
+der ausdrücklich bestätigungspflichtige Platzhalter und wird nicht als echter
+Kunde automatisch ausgewählt.
+
+`assignMailboxOrderCustomer` prüft den privaten Suchnachweis, die aktuelle
+Vorschau, das Postfach und die Benutzerrechte. Der Import verwendet die bestehende
+Kontonummer-/SQL-ID-/Merge-Zuordnung, Historie, Konfliktbehandlung und stabile
+Anfrage-IDs des Stammdatenabrufs. Dieselbe Auswahl erzeugt beim Wiederholen weder
+einen zweiten Kunden noch weitere Anlagehistorien. Manuelle Angaben und
+Einstellungen bleiben erhalten; widersprüchliche Quelldaten bleiben Prüfhinweise.
+Der vollständige Datensatz muss weiterhin dieselbe gefundene DyCoS-ID,
+Debitorennummer und gegebenenfalls USt-ID besitzen. Eine veränderte Identität oder
+eine während des Abrufs verworfene Vorschau verhindert die Anlage. Der bestehende
+Stammdatenimport prüft dafür einen internen, nicht vom Browser kontrollierbaren
+Vorschau-Guard innerhalb seiner Schreibtransaktion.
+
+Die neue Anlage/Ergänzung erfordert weiterhin Stammdaten-Bearbeitungsrechte. Bei
+bloßem Leserecht kann ausschließlich ein bereits vorhandener und exakt
+verifizierter Kunde wiederverwendet werden. Sucherfolg allein täuscht keine
+Anlage vor: Bei einem Übernahmefehler bleibt der echte Treffer sichtbar, der
+Platzhalter gesperrt und eine Wiederholung möglich. Erst die erfolgreiche
+Speicherung setzt die Kundenauswahl. Der Legacy-Export über eine direkte Such-ID
+ist ebenfalls an einen tatsächlich gespeicherten, verifizierten Kunden gebunden.
+Die finale Bestätigung der Auftragsanlage bleibt erforderlich.
+
+Geprüft: 46 gezielte Tests sowie bestehende Stammdaten-/Auftrags-Emulatortests und
+neue Import-/Guardfälle (17 unterschiedliche Tests). Browserprüfung mit
+synthetischen Daten: ein Treffer = eine automatische Übernahme und Zuordnung,
+mehrere Treffer = keine Anlage vor Auswahl, Auswahl des zweiten Kunden = genau
+dessen Zuordnung, Importfehler = keine Zuordnung, danach erfolgreiche Wiederholung.
+Tests ändern keine echten Kunden oder Aufträge in DyCoS oder Produktion.

@@ -58,3 +58,21 @@ test('failed searches invalidate old proof and never mark the search as empty', 
   const proof = db.records.get(`mailboxOrderPreviews/${previewId}`).customerSearch
   assert.equal(proof.status, 'failed'); assert.equal(proof.searchId, undefined)
 })
+
+
+test('exactly one genuine match is automatically imported and assigned', async () => {
+  const db = memory(); let imports = 0
+  const result = await searchMailboxOrderCustomers({ db, context, data: input, now, fetchMatches: async () => payload([row(1)]), assignCustomer: async request => { imports++; assert.equal(request.data.customerSourceId, '1'); assert.ok(request.data.customerSearchId); return { partnerId: 'imported', number: '10001', sourceId: '1' } } })
+  // 10001 is reserved for the explicitly confirmed placeholder.
+  assert.equal(imports, 0); assert.equal(result.assignment, undefined)
+  const db2 = memory()
+  const single = await searchMailboxOrderCustomers({ db: db2, context, data: input, now, fetchMatches: async () => payload([row(2)]), assignCustomer: async request => { imports++; assert.equal(request.data.customerSourceId, '2'); return { partnerId: 'imported', number: '10002', sourceId: '2' } } })
+  assert.equal(imports, 1); assert.equal(single.assignment.partnerId, 'imported')
+})
+test('multiple matches are never imported before user selection; import failure preserves real matches', async () => {
+  const db = memory()
+  const result = await searchMailboxOrderCustomers({ db, context, data: input, now, fetchMatches: async () => payload([row(2), row(3)]), assignCustomer: async () => assert.fail('No automatic import with ambiguous candidates') })
+  assert.equal(result.matches.length, 2); assert.equal(result.assignment, undefined)
+  const failed = await searchMailboxOrderCustomers({ db: memory(), context, data: input, now, fetchMatches: async () => payload([row(2)]), assignCustomer: async () => { throw Error('import unavailable') } })
+  assert.equal(failed.status, 'found'); assert.equal(failed.matches.length, 1); assert.equal(failed.assignment, undefined); assert.equal(failed.assignmentError.code, 'unavailable')
+})

@@ -287,11 +287,14 @@ test('placeholder export is blocked without a current genuine DyCoS no-match pro
   }
 })
 
-test('a selected DyCoS search match can export without writing a master-data customer', async () => {
+test('a selected DyCoS match requires a verified persisted customer before export', async () => {
   const db = dbWithCustomer(); const result = await preview(db)
   const order = { ...completeOrder(), customerVatId: 'DE123456789' }
   db.values.get(`mailboxOrderPreviews/${result.previewId}`).customerSearch = { searchId: 'proof', status: 'found', matches: [{ sourceId: '777', number: '10042', name: 'Test GmbH' }], criteriaKey: mailboxCustomerSearchKey(order), expiresAt: now + 60000 }
   const data = exportData(result.previewId, { order, customerPartnerId: 'dycos-search', customerSourceId: '777', customerSearchId: 'proof' })
+  await assert.rejects(exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now }), { code: 'failed-precondition' })
+  db.values.set('businessPartners/imported', { companyName: 'Test GmbH', debtorNumber: '10042', dycosIdentities: { 'debtor-10042': { kind: 'debtor', number: '10042', sourceId: '777' } } })
+  db.values.get(`mailboxOrderPreviews/${result.previewId}`).customerSearch.assignment = { partnerId: 'imported', number: '10042', sourceId: '777' }
   const resultXml = await exportMailboxOrderCapture({ db, context, data, originalPdf: pdfFile(), companyCurrency: 'EUR', now })
   assert.match(Buffer.from(resultXml.xmlBase64, 'base64').toString('latin1'), /<FrachtzahlerID>777<\/FrachtzahlerID>/)
   assert.equal(db.values.has('businessPartners/dycos-search'), false)
