@@ -140,6 +140,23 @@ Publish des geänderten Entwurfs. Jeder neue Import und Publish braucht den
 konkreten serverseitigen Erfolg sowie die erneute Kontrolle der gespeicherten
 Aufruferrechte. Die lokale PAC-Roundtripprüfung ersetzt diesen Nachweis nicht.
 
+Ab Version `1.0.0.4` werden sämtliche `If`-Bedingungen im vom nativen Designer
+bestätigten Objektformat `{ "and": [{ "equals": ["@...", true] }] }` erzeugt.
+Der innere FX-Ausdruck bleibt unverändert; die boolesche rechte Seite ist echtes
+`true`. Dadurch enthalten die Condition-Karten bearbeitbare Parameter, anstatt
+bei einem späteren UI-Speichern eine als String importierte Bedingung zu verlieren.
+Die lokalen Tests werten diese Operatorobjekte rekursiv aus und prüfen weiterhin
+die negativen Versandpfade; ein Objekt wird nicht pauschal als wahr behandelt.
+
+`Parse_time` verwendet jetzt einen einzelnen im FX-Editor setzbaren Ausdruck mit
+`addProperty(addProperty(addProperty(json('{}'), ...), ...), ...)`. Er liefert
+weiterhin genau das Objekt mit `durationTicks`, `dueCanonical` und
+`expiresCanonical`; `Check_duration`, Anzahl der Aktionen und fachliche
+Zeitprüfungen bleiben erhalten. Der tatsächliche Pack-/Import-/Save-Nachweis
+für Version `1.0.0.4` und die echte Providerabnahme stehen in der führenden
+[Mailflow-Vorbereitung](../../../docs/operations/reminder-mailflow-preparation.md).
+Ein lokales Manifest allein bestätigt weiterhin keinen Cloudstand.
+
 ## Vor Aktivierung
 
 - Tatsächlicher Importstand und Authentifizierungsfreigaben stehen führend in
@@ -158,8 +175,9 @@ Aufruferrechte. Die lokale PAC-Roundtripprüfung ersetzt diesen Nachweis nicht.
 - Die native Designer-Metadatenprüfung bestätigt für das Choice-Feld den
   Schreibparameter `item/Outcome/Value`. `Read duplicate` bietet „Outcome Value“
   als `items('For_each')?['Outcome/Value']` an. Die feste Ein-Element-Auswertung
-  verwendet entsprechend `first(...)?['Outcome']?['Value']`; der echte
-  Connectorlauf und Duplikattest bleiben Teil der späteren Versandabnahme.
+  verwendet entsprechend `first(...)?['Outcome']?['Value']`. Die echte
+  identische Wiederholung hat diesen Lookup in beiden Umgebungen bestätigt:
+  passendes Accepted-ACK, vorhandener Beleg, keine neue Mailfreigabe.
 - Der Generator setzt den WDL-Parameter `testOnly` standardmäßig auf `true`.
   Vor jedem Claim werden dann ausschließlich `bb@brennpunkt-logistik.de`,
   `no-reply@brennpunkt-logistik.de` und `df@brennpunkt-logistik.de` zugelassen.

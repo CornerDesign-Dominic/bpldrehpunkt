@@ -4,10 +4,13 @@ Stand: 31.10.2026. Der **erste Audit war ausschließlich lesend**; seine
 Editorsitzung wurde verworfen. Danach wurden ein ausdrücklich freigegebener
 Einzeltest des bestehenden Flows ausgeführt und zwei getrennte SharePoint-
 Versandlisten angelegt. Das neue unmanaged Solution-ZIP wurde lokal gepackt und
-wieder entpackt; die neue Lösung **DrehpunktReminderTransport 1.0.0.2** wurde
-erfolgreich importiert. Beide neuen Flows bleiben ausgeschaltet und auf die drei
-Testempfänger begrenzt. Die Microsoft-Flowprüfung und die lokale Vorbereitung
-ersetzen keine echte Versandabnahme der neuen Flows. Der bestehende allgemeine
+wieder entpackt; die neue Lösung **DrehpunktReminderTransport 1.0.0.4** wurde
+erfolgreich importiert und beide neuen Flows serverseitig gespeichert. Je Umgebung
+wurde ein echter Testversand ausschließlich an `no-reply@brennpunkt-logistik.de`
+bestätigt. Identische Wiederholung, Inhaltskonflikt, Ablauf und falsche Identität
+wurden ebenfalls tatsächlich aufgerufen, siehe Abnahmebelege unten. Beide Flows
+sind danach wieder ausgeschaltet und bleiben auf die drei Testempfänger begrenzt.
+Der bestehende allgemeine
 Mailflow blieb unverändert, sein Änderungsdatum bei 30.09.2026. App, Firebase und
 `main` wurden in dieser Vorbereitung nicht veröffentlicht. Führender Fachvertrag:
 [Zentrale Erinnerungen](reminders.md).
@@ -145,23 +148,26 @@ API-Berechtigungen. Die Registrierungsobjekte sind Dev
 `0e70e286-6a70-4762-ac33-b2cd88c90271`; für die Triggerfreigabe ist ausdrücklich
 die oben genannte **Service-Principal-Objekt-ID** maßgeblich.
 
-Die Zertifikatsbindung ist noch offen. Die erneute Browserprüfung nach der
-Nutzerrückmeldung zeigte in beiden offenen Uploadfenstern noch die ausgewählte
-Datei `Drehpunkt-DyCoS-Dev.cer` und jeweils „Zertifikate (0)“. Es wurde nichts
-aus diesen Fenstern abgeschickt. Für die erneute persönliche Auswahl wurden
+Die Zertifikatsbindung wurde vom Nutzer abgeschlossen und danach nativ geprüft:
+jeweils genau ein Zertifikat, passender Fingerabdruck und keine Clientgeheimnisse
+oder Verbundanmeldeinformationen. Dev-Zertifikats-ID
+`6af2d045-9d21-43bd-bf41-0260709b0bdc`, Produktions-Zertifikats-ID
+`d6497e00-07a4-49cd-9a64-33be03c2c945`. Ein zuvor nur ausgewähltes fremdes
+Zertifikat wurde nicht abgeschickt. Für die persönliche Auswahl wurden
 eindeutig benannte Kopien ausschließlich der öffentlichen Zertifikate unter
 `%USERPROFILE%/Downloads/Drehpunkt-Erinnerungszertifikate/` bereitgelegt:
 `Drehpunkt-Erinnerungen-Dev.pem` und `Drehpunkt-Erinnerungen-Produktion.pem`.
-Private Schlüssel wurden nicht dorthin kopiert. Beide Uploadfenster bleiben vorbereitet;
-gemäß Browser-Sicherheitsregel muss der Nutzer die neue Anmeldemöglichkeit selbst
-hinterlegen. Es wurden noch keine Tokens mit den neuen Identitäten angefordert
-und keine echten neuen Reminder-Testmails versendet. Zwei unterschiedliche
-RSA-3072-Zertifikate sind ausschließlich lokal vorbereitet, gültig
+Private Schlüssel wurden nicht dorthin kopiert. Die echte zertifikatsbasierte
+Anmeldung bei Microsoft wurde anschließend mit beiden Identitäten erfolgreich
+geprüft, einschließlich der festen Tenant-/Client-/Objekt-ID- und Audience-Prüfung
+des lokalen Tokenproviders. Token und Assertions wurden weder ausgegeben noch
+gespeichert; dieser Anmeldetest hat keine Mail ausgelöst. Zwei unterschiedliche
+RSA-3072-Zertifikate sind gebunden, gültig
 bis `2027-10-31T21:36:44Z`. Ablage außerhalb des Repositorys unter
 `%LOCALAPPDATA%/Drehpunkt/reminder-identities/fcaf916d45bd466b984443bd4365ec8c/`,
 getrennt in `development` und `production`; jeweils `public-certificate.pem`
 und `private-key.pem`. Windows-Dateirechte lassen ausschließlich den aktuellen
-Benutzer zu. Die öffentlichen Zertifikate sind noch nirgends hochgeladen.
+Benutzer zu. Ausschließlich die öffentlichen Zertifikate wurden in Entra hochgeladen.
 Anzeige-Thumbprints: Dev `DE9CA84D9D3D4DDC73E4E1DD5C168B15FD3D9ACD`, Produktion
 `DD0215961D988E3AEC34B644870192AEF8D1C89E`. Private Schlüssel werden später
 ausschließlich im jeweiligen Secret Manager verwaltet. Rechtzeitiger Austausch,
@@ -242,16 +248,15 @@ neue Flows und neue `dpr_...`-Verbindungsreferenzen, die im Importdialog den
 bestehenden erlaubten Verbindungen zugeordnet werden. Es enthält keine
 Callback-Secrets oder fiktiven Live-Verbindungs-IDs. XML setzt Draft/Off
 (`StateCode=0`, `StatusCode=1`), JSON setzt `Stopped`, `testOnly` bleibt `true`.
-Der Import von Version 1.0.0.2 ist erfolgreich. Die beiden gespeicherten Trigger
+Der Import von Version 1.0.0.4 und die anschließenden ausdrücklichen
+Speichervorgänge im Microsoft-Designer sind erfolgreich. Die gespeicherten Trigger
 wurden danach nativ geprüft: jeweils „Spezifische Benutzer in meinem Mandanten“
 und ausschließlich die passende Service-Principal-ID aus der Tabelle oben.
-Beide Flows sind nach dem Update im Zielsystem als **Aus** nachgewiesen; beim
+Beide Flows sind nach der echten Versandabnahme wieder als **Aus** nachgewiesen; beim
 Import wurde die Aktivierungsoption abgewählt. Die bestehenden eigenen
 Verbindungsreferenzen wurden beibehalten; der Import erforderte keine
-Verbindungsupdates. Beide Microsoft-Flowprüfungen melden nach diesem Import
-**Fehler (0), Warnungen (0)**. Diese Prüfung allein beweist keinen echten Lauf.
-Die echte neue Versandabnahme bleibt bis zur Zertifikatsbindung offen.
-Die native Metadatenprüfung hat einen lokalen Choice-Bindungsfehler aufgedeckt:
+Verbindungsupdates. Die frühere Microsoft-Flowprüfung allein hatte die folgenden
+erst bei Metadaten- bzw. Speicherprüfung sichtbaren Fehler nicht erkannt:
 SharePoint benötigt `item/Outcome/Value`, der alte Kandidat verwendete
 `item/Outcome`. Version 1.0.0.1 korrigiert Create/Patch und das Lesen des
 Value-Unterpfads im Duplikatzweig. Ungespeicherte Designerproben wurden verworfen.
@@ -263,28 +268,35 @@ Ausgaben. Request und verwaltete Connectoraktionen behalten sichere Ein- und
 Ausgaben. Der fehlgeschlagene UI-Entwurf wurde verworfen, anschließend das
 korrigierte Paket mit beiden Aufruferbindungen importiert. Quelle:
 [Microsoft-Schutz unterstützter Aktionstypen](https://learn.microsoft.com/en-us/azure/logic-apps/set-up-security-permissions#considerations-for-securing-inputs-and-outputs).
-Die anschließende ausdrückliche serverseitige Speicherprüfung von 1.0.0.2 wurde
+Die ausdrückliche serverseitige Speicherprüfung von 1.0.0.2 wurde
 mit `ActionSchemaNotSupported` abgelehnt: `ParseJson` unterstützt zusammen mit
 `OpenApiConnection` kein `pattern`/`patternProperties`. Import und Flowchecker
-hatten diesen Fehler nicht erkannt. Vor Aktivierung muss der korrigierte
-Folgekandidat serverseitig gespeichert und danach tatsächlich ausgeführt werden;
-der abgelehnte Speicherversuch hat keine Testmail ausgelöst.
-Der lokale Folgekandidat 1.0.0.3 entfernt ausschließlich diese nicht unterstützten
+hatten diesen Fehler nicht erkannt. Der abgelehnte Speicherversuch hat keine
+Testmail ausgelöst. Seit 1.0.0.3 entfernt der Generator diese nicht unterstützten
 Schema-Schlüssel aus der WDL. Vor jeder Reservierung prüfen ausdrückliche Guards
 weiterhin Hex-IDs, projektgebundenen Schlüssel, Empfänger und Betreff ohne
 Zeilenumbrüche sowie exakt kanonische UTC-Zeitpunkte. Die ursprünglichen Muster
 bleiben im technischen Vertragsplan dokumentiert. Die erzeugte WDL wird mit
 ungültigen IDs, Adressen einschließlich Unicode-Leerzeichen, Zeilenumbrüchen
-und abweichenden bzw. unmöglichen Zeitangaben geprüft; 25 Generator-/Pakettests
-sind erfolgreich. Das erweitert den Erfolg des Flowcheckers nicht zum
-Versandnachweis.
-Der Browserimport von 1.0.0.3 wurde mit abgewählter Aktivierung angefordert.
-Die Oberfläche zeigte „wird derzeit importiert“; ein Abschluss ist bislang
-nicht belegt. Der frisch geladene Lösungsverlauf zeigt zuletzt den erfolgreichen
-Import von 1.0.0.2. Daher ist 1.0.0.3 weiterhin ein lokal geprüfter Kandidat,
-kein erfolgreich gespeicherter oder ausführbarer Cloudstand. Vor einem neuen
-Import zunächst den laufenden Auftrag prüfen; bestehende Workflow-IDs und
-Verbindungsreferenzen erhalten. Kein Versandtest wurde gestartet.
+und abweichenden bzw. unmöglichen Zeitangaben geprüft.
+
+Version 1.0.0.4 verwendet außerdem für alle Bedingungen das native Objektformat
+`and/equals(<boolescher FX-Ausdruck>, true)`. Der Designer zeigte bei den zuvor
+importierten reinen Ausdrucksstrings leere Bedingungsfelder. `Parse_time`
+erzeugt das Zeitprüfobjekt über einen einzelnen `addProperty`-Ausdruck. Der
+Testinterpreter wertet Objektbedingungen rekursiv und strikt boolesch aus;
+26 Generator-/Pakettests einschließlich negativem Objektbedingungstest und
+PAC-Roundtrip sind erfolgreich. Lint ist erfolgreich.
+
+Die Power-Apps-Ansicht zeigte zeitweise eine alte Version bzw. einen laufenden
+Import, obwohl die Power-Automate-Ansicht bereits 1.0.0.3 bestätigte. Der aktuelle
+Import 1.0.0.4 wurde danach auch in Power Apps ausdrücklich bestätigt. Die
+gespeicherten Blöcke `Validate_request` und `Dispatch` wurden für **beide** Flows
+über die native Codeansicht vollständig mit dem getesteten Kandidaten verglichen.
+Einzige Normalisierungen: ausgelassenes leeres `runAfter` sowie Laufzeit-
+`host.connection` anstelle des ZIP-Mapkeys `host.connectionName`. Prüfungen,
+Übergänge, feste Ziele, Ledgerparameter, Mailaktion und Schutzoptionen stimmen
+überein. Teilweise direkte Designerproben wurden ungespeichert verworfen.
 Details:
 [Lokale Workflow- und Solutionpakete](../../integrations/power-automate/reminders/WORKFLOWS.md).
 
@@ -396,15 +408,15 @@ bricht einen schon laufenden Microsoft-Flow nicht zuverlässig ab, weshalb die
 zweite Zeitprüfung im Provider erforderlich ist. Der Zeitpunkt der tatsächlichen
 Posteingangszustellung bleibt außerhalb dieser Versandfreigabe.
 
-## Offen vor Testaktivierung und Normalbetrieb
+## Offen vor Normalbetrieb
 
-- Die oben konkret beschriebenen zwei Dienstidentitäten nach Freigabe anlegen,
-  jeweils ausschließlich den passenden neuen HTTP-Trigger zulassen und die
-  getrennten Zertifikate binden. Keine allgemeinen Graph-/Mailboxrechte erteilen.
-- Nach der Identitätsbindung Parameterbindung, Schemaauswertung,
-  Header-Groß-/Kleinschreibung, sichere Ein-/Ausgaben sowie
-  Claimfehler-/Timeout-/Replay-Pfade prüfen. Kein Connector darf ungeplant
-  den Versand wiederholen; Queue-Verzögerung muss zur Ablaufprüfung führen.
+- Die abgeschlossene Identitäts-/Providerabnahme unten ist keine Freigabe für
+  normale Empfänger. Beide Flows bleiben `testOnly` und ausgeschaltet. Bei jeder
+  späteren Änderung die gespeicherten Aufruferrechte und Schutzprüfungen erhalten.
+- Ausfall-/Timeoutpfade sind lokal simuliert geprüft; tatsächliche Spitzenlast,
+  lange Connectorwarteschlangen und Verbindungsabbrüche sind keine durch diese
+  wenigen echten Versandtests belegte Last-/Störungsabnahme. Kein Connector darf
+  ungeplant wiederholen; Queue-Verzögerung muss zur Ablaufprüfung führen.
 - Neue geschützte Callback-Adressen ausschließlich im jeweiligen neuen
   Firebase-Secret hinterlegen. Die beiden Ziele dürfen nicht dieselbe Adresse
   verwenden. Keine URL im Frontend, Git, Prüfbericht oder in Diagnosemeldungen.
@@ -449,7 +461,7 @@ Zustände und Solutionreferenzen erhalten. Diese Paketprüfungen führen keine
 Cloudanmeldung, keinen Import und keinen Versand aus. Der oben separat belegte
 autorisierte Altflow-Einzeltest ist ein realer Connectornachweis und gehört nicht
 zu den simulierten oder lokalen Pakettests. Der neue Solution-UI-Import ist
-inzwischen erfolgreich; die neue echte Versandabnahme bleibt offen.
+inzwischen erfolgreich. Die spätere echte Versandabnahme ist unten separat belegt.
 
 Aktueller zusätzlicher Prüfstand nach Choice-/OAuth-Änderungen: **34 gezielte
 Unit-/Adapter-/Auth-/DyCoS-/Vertragsprüfungen** und **22 Plan-/WDL-/Solutionprüfungen**
@@ -461,4 +473,53 @@ serverseitige Admin-Dispatcher geprüft wurde. Der Emulator ist anschließend
 beendet. Lint, Ladeprüfung aller 181 Function-Exporte und Abgleich der 44
 Shared-Module erfolgreich. Keine
 Frontendänderung in diesem Schritt; Build und neue Browserabnahme der Website
-wurden nicht wiederholt. Neue echte Reminder-Mails wurden noch nicht versandt.
+wurden nicht wiederholt. Die späteren echten Reminder-Provideraufrufe sind
+nachfolgend getrennt von diesen simulierten Prüfungen dokumentiert.
+
+## Echte Abnahme der beiden neuen Providerflows
+
+Alle folgenden Aufrufe wurden ausdrücklich freigegeben. Ziel war ausschließlich
+`no-reply@brennpunkt-logistik.de`, Absender fest
+`drehpunkt@brennpunkt-logistik.de`. Testinhalte enthielten keine Fachdaten.
+Fälligkeitsfenster beider synthetischen Anforderungen:
+`2026-10-31T23:13:00.000Z` bis `2026-10-31T23:14:00.000Z`.
+
+| Fall, jeweils Dev und Produktion | Echte Providerantwort | Kontrolliertes Verhalten |
+| --- | --- | --- |
+| Neue Versand-ID | HTTP 200, vollständig passendes `accepted` | Outlook-Aktion erfolgreich; je ein dauerhaft gespeicherter `accepted`-Beleg |
+| Bytegleiche Wiederholung innerhalb der Minute | HTTP 200, dasselbe `accepted` | Vorhandenen Beleg gelesen; Mailaktion übersprungen |
+| Geänderter Inhalt/Digest bei derselben ID | HTTP 200, `uncertain` | Bestehenden Beleg nicht überschrieben; Mailaktion übersprungen |
+| Unveränderte Anforderung nach Ablauf | HTTP 200, `missed` | Kein Nachholen; Mailaktion übersprungen |
+| Dev-Identität ruft Produktion auf und umgekehrt | HTTP 403 ohne Provider-ACK | Kein zusätzlicher Flowlauf gestartet |
+
+Damit wurden zehn HTTP-Aufrufe ausgeführt, davon acht tatsächliche Flowläufe
+(vier je Umgebung). Die beiden fremden Identitäten wurden bereits an der
+Aufrufergrenze abgewiesen. Der gesamte frische Ausführungsverlauf enthält nur
+die acht erwarteten Läufe. Die Tests sind kein allgemeiner Lastnachweis.
+
+| Umgebung | Versand-ID und Ledgerzustand | Eindeutiger erster Flowlauf |
+| --- | --- | --- |
+| Dev | `ca0d794990efa7166838d3598773164f2ae4f1f632b1299182dbe3e18a30a6eb`, genau ein Beleg `accepted` mit Digest `4dbe561d26b1829a6e77ba58d7a6f74f925137908239ef66bb19cefcff9f476d` | [erster Dev-Test](https://make.powerautomate.com/environments/Default-b829bbdc-c0b7-4128-a341-6715a67b451b/flows/6e3adb39-5442-4594-a57b-cb812be70f9b/runs/08584081184834596321102893781CU05) |
+| Produktion | `009cccadf7e0cba65dd6ab821f6780cf87f24487117c1bd06d2b0ef07e1c7f43`, genau ein Beleg `accepted` mit Digest `6f56610ffa858528a5c6256c355ce97eff82e4e072b524abc92ee1e56af97da4` | [erster Produktions-Test](https://make.powerautomate.com/environments/Default-b829bbdc-c0b7-4128-a341-6715a67b451b/flows/c1c89a9c-8c98-46c5-9d8d-cbfad7177d65/runs/08584081184834673707547778852CU21) |
+
+Die native Mailaktion der beiden ersten Läufe ist erfolgreich. Die positiven
+Läufe dauerten laut Microsoft jeweils rund vier Sekunden; der lokale Aufruf
+einschließlich Anmeldung und Antwort rund 5,5 Sekunden. Die geschützten Ein- und
+Ausgaben bleiben im Laufprotokoll ausgeblendet. Die tatsächlichen SharePoint-
+Belege wurden nach den Negativtests frisch geladen: weiterhin genau einer je
+Umgebung mit dem ursprünglichen Digest und `accepted`.
+
+Beide Flows wurden nach den Tests wieder deaktiviert; der frisch geladene Status
+ist jeweils **Aus**. Der abschließende Microsoft-Flowchecker zeigt bei beiden
+**Fehler (0), Warnungen (1)**; einzige Warnung: „Flow ist deaktiviert“.
+Es gab keine App-/Firebase-/`main`-Veröffentlichung und keine
+Änderung am bestehenden allgemeinen Mailflow. Callback-Adressen liegen nur in
+der geschützten lokalen Testkonfiguration außerhalb Git. Die getrennten neuen
+Firebase-Secrets wurden nicht angelegt oder beschrieben.
+
+Bestätigt ist die Annahme durch die echte Outlook-Aktion samt dauerhaftem
+Providerbeleg, **kein unabhängig gelesener Eingang im Empfängerpostfach**.
+26 aktuelle Generator-/Paketprüfungen, die zehn Mocktests des manuellen
+Testwerkzeugs und Lint sind erfolgreich. Der Websiteablauf und das veröffentlichte
+Firebase-Backend wurden durch diese Providerabnahme nicht verändert oder neu
+im Browser abgenommen.

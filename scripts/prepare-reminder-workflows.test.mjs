@@ -24,6 +24,14 @@ function collect(actions, found = {}) {
 // A small test-only interpreter for the actual generated WDL subset. No provider,
 // network, authentication or real mail operation is present in this harness.
 function expression(value, context) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const entries = Object.entries(value)
+    assert.equal(entries.length, 1, 'a condition expression object must have one operator')
+    const [operator, args] = entries[0]
+    assert.ok(Array.isArray(args), 'condition operator arguments must be an array')
+    assert.equal(typeof context[operator], 'function', `unsupported condition operator ${operator}`)
+    return context[operator](...args.map(argument => expression(argument, context)))
+  }
   if (typeof value !== 'string' || !value.startsWith('@')) return value
   const source = value.slice(1)
   let offset = 0
@@ -122,6 +130,11 @@ function simulate(resource, payload, { clock = '2026-10-31T12:00:05.000Z', heade
       return instant.toISOString()
     },
     decodeUriComponent: decodeURIComponent, createArray: (...args) => args,
+    json: value => JSON.parse(value), addProperty: (object, name, value) => {
+      assert.ok(object && typeof object === 'object' && !Array.isArray(object))
+      assert.equal(Object.hasOwn(object, name), false)
+      return { ...object, [name]: value }
+    },
   }
   function resolve(value) {
     if (Array.isArray(value)) return value.map(resolve)
@@ -137,7 +150,11 @@ function simulate(resource, payload, { clock = '2026-10-31T12:00:05.000Z', heade
         if (action.type === 'InitializeVariable') for (const variable of action.inputs.variables) variables[variable.name] = variable.value
         else if (action.type === 'SetVariable') variables[action.inputs.name] = resolve(action.inputs.value)
         else if (action.type === 'Scope') { if (Object.values(execute(action.actions)).some(state => ['Failed', 'TimedOut'].includes(state))) status = 'Failed' }
-        else if (action.type === 'If') { if (Object.values(execute(expression(action.expression, context) ? action.actions : action.else.actions)).some(state => ['Failed', 'TimedOut'].includes(state))) status = 'Failed' }
+        else if (action.type === 'If') {
+          const checked = expression(action.expression, context)
+          assert.equal(typeof checked, 'boolean', 'object truthiness is not condition evaluation')
+          if (Object.values(execute(checked ? action.actions : action.else.actions)).some(state => ['Failed', 'TimedOut'].includes(state))) status = 'Failed'
+        }
         else if (action.type === 'ParseJson') { const content = resolve(action.inputs.content); validateSchema(content, action.inputs.schema); outputs[name] = { body: content } }
         else if (action.type === 'Compose') outputs[name] = resolve(action.inputs)
         else if (action.type === 'Response') response = resolve(action.inputs)
@@ -157,7 +174,7 @@ function simulate(resource, payload, { clock = '2026-10-31T12:00:05.000Z', heade
     return local
   }
   execute(definition.actions)
-  return { response, calls, states, result: response && parseReminderProviderResponse(response.body, payload, response.statusCode), sends: calls.filter(call => call.name === 'Send_reminder') }
+  return { response, calls, states, outputs, result: response && parseReminderProviderResponse(response.body, payload, response.statusCode), sends: calls.filter(call => call.name === 'Send_reminder') }
 }
 
 test('no executable files can be generated with missing, unsafe, same-list or cross-binding inputs', async () => {
@@ -189,7 +206,15 @@ test('resources use real WDL control/connector envelopes, fixed bindings and sto
           assert.ok(names.has(prior), `runAfter dependency is not a sibling: ${prior}`)
           assert.ok(allowed.every(status => ['Succeeded', 'Failed', 'TimedOut', 'Skipped'].includes(status)))
         }
-        if (node.expression) assert.ok(node.expression.length <= 8192)
+        if (node.expression) {
+          assert.equal(typeof node.expression, 'object')
+          assert.deepEqual(Object.keys(node.expression), ['and'])
+          const [formula, expected] = node.expression.and[0].equals
+          assert.equal(expected, true)
+          assert.equal(typeof formula, 'string')
+          assert.ok(formula.startsWith('@'))
+          assert.ok(formula.length <= 8192)
+        }
         if (node.actions) validateTree(node.actions, depth + 1)
         if (node.else) validateTree(node.else.actions, depth + 1)
       }
@@ -227,6 +252,14 @@ test('resources use real WDL control/connector envelopes, fixed bindings and sto
 
 test('caller bindings cannot disappear, use client IDs, swap environments or widen to arbitrary GUIDs', () => {
   for (const patch of [{ developmentServicePrincipalId: undefined }, { productionServicePrincipalId: null }, { developmentServicePrincipalId: reminderFlowCallers.development.clientId }, { productionServicePrincipalId: reminderFlowCallers.production.clientId }, { developmentServicePrincipalId: bindings.productionServicePrincipalId }, { productionServicePrincipalId: bindings.developmentServicePrincipalId }, { developmentServicePrincipalId: '33333333-3333-4333-8333-333333333333' }, { productionServicePrincipalId: '' }]) assert.throws(() => createReminderWorkflowResources({ ...bindings, ...patch }), /registered/)
+})
+
+test('condition object interpreter recursively evaluates false values instead of treating objects as truthy', () => {
+  const context = { and: (...values) => values.every(Boolean), equals: (a, b) => a === b }
+  assert.equal(expression({ and: [{ equals: ['@equals(false,true)', true] }] }, context), false)
+  assert.equal(expression({ and: [{ equals: ['@equals(true,true)', true] }] }, context), true)
+  assert.equal(expression({ and: [{ equals: [true, true] }, { and: [{ equals: [false, true] }] }] }, context), false)
+  assert.throws(() => expression({ unknown: [true] }, context), /unsupported/)
 })
 
 test('connector-compatible Parse JSON has no regex keywords while explicit WDL rejects bad IDs, email and CRLF', () => {
@@ -276,8 +309,11 @@ test('actual WDL strictly roundtrips canonical UTC timestamps, rejects impossibl
     assert.equal(run.response.body.outcome, 'rejected', dueAt)
   }
   const nodes = collect(resources.dev.properties.definition.actions)
-  assert.equal(nodes.Parse_time.inputs.durationTicks, "@sub(ticks(triggerBody()?['expiresAt']),ticks(triggerBody()?['dueAt']))")
-  assert.equal(simulate(resources.dev, request()).result.status, 'accepted')
+  assert.equal(typeof nodes.Parse_time.inputs, 'string')
+  assert.match(nodes.Parse_time.inputs, /^@addProperty\(addProperty\(addProperty\(json\('\{\}'\)/)
+  const valid = simulate(resources.dev, request())
+  assert.deepEqual(valid.outputs.Parse_time, { durationTicks: 600000000, dueCanonical: '2026-10-31T12:00:00.000Z', expiresCanonical: '2026-10-31T12:01:00.000Z' })
+  assert.equal(valid.result.status, 'accepted')
 })
 
 test('successful actual WDL path sends HTML once and acknowledges only after durable accepted update', () => {

@@ -12,7 +12,9 @@ const secure = { secureData: { properties: ['inputs', 'outputs'] } }
 const secureInputs = { secureData: { properties: ['inputs'] } }
 const b = name => `triggerBody()?['${name}']`
 const success = name => ({ [name]: ['Succeeded'] })
-const condition = (expression, actions, otherwise = {}, runAfter = {}) => ({ type: 'If', expression, actions, else: { actions: otherwise }, runAfter })
+// Native designer condition cards persist the object form. Wrapping an existing
+// Boolean FX expression preserves both its semantics and editable UI parameters.
+const condition = (expression, actions, otherwise = {}, runAfter = {}) => ({ type: 'If', expression: { and: [{ equals: [expression, true] }] }, actions, else: { actions: otherwise }, runAfter })
 const scope = (actions, runAfter = {}) => ({ type: 'Scope', actions, runAfter })
 const setVariable = (name, value, runAfter = {}) => ({ type: 'SetVariable', inputs: { name, value }, runAfter })
 
@@ -126,7 +128,7 @@ export function createReminderWorkflowResources(rawBindings, { testOnly = true, 
     const domain = `last(split(${b('to')},'@'))`
     const contentExpression = `@and(${hexExpression(b('deliveryId'))},${hexExpression(b('payloadDigest'))},endsWith(${b('dueAt')},'Z'),endsWith(${b('expiresAt')},'Z'),equals(length(split(${b('to')},'@')),2),greater(length(first(split(${b('to')},'@'))),0),greater(lastIndexOf(${domain},'.'),0),less(lastIndexOf(${domain},'.'),sub(length(${domain}),1)),${noToCharacters.join(',')},greater(length(trim(${b('subject')})),0),lessOrEquals(length(${b('subject')}),1000),not(contains(${b('subject')},decodeUriComponent('%0A'))),not(contains(${b('subject')},decodeUriComponent('%0D'))),greater(length(trim(${b('message')})),0),lessOrEquals(length(${b('message')}),40000),greater(length(trim(${b('messageHtml')})),0),lessOrEquals(length(${b('messageHtml')}),200000))`
     const parseTime = {
-      Parse_time: { type: 'Compose', inputs: { durationTicks: `@sub(ticks(${b('expiresAt')}),ticks(${b('dueAt')}))`, dueCanonical: `@formatDateTime(${b('dueAt')},'yyyy-MM-ddTHH:mm:ss.fffZ')`, expiresCanonical: `@formatDateTime(${b('expiresAt')},'yyyy-MM-ddTHH:mm:ss.fffZ')` }, runtimeConfiguration: secureInputs, runAfter: {} },
+      Parse_time: { type: 'Compose', inputs: `@addProperty(addProperty(addProperty(json('{}'),'durationTicks',sub(ticks(${b('expiresAt')}),ticks(${b('dueAt')}))),'dueCanonical',formatDateTime(${b('dueAt')},'yyyy-MM-ddTHH:mm:ss.fffZ')),'expiresCanonical',formatDateTime(${b('expiresAt')},'yyyy-MM-ddTHH:mm:ss.fffZ'))`, runtimeConfiguration: secureInputs, runAfter: {} },
       Invalid_time: scope(rejection('Invalid_time', 422), { Parse_time: ['Failed', 'TimedOut'] }),
       Check_duration: condition(`@and(equals(outputs('Parse_time')?['durationTicks'],600000000),equals(outputs('Parse_time')?['dueCanonical'],${b('dueAt')}),equals(outputs('Parse_time')?['expiresCanonical'],${b('expiresAt')}),equals(mod(ticks(${b('dueAt')}),600000000),0),lessOrEquals(ticks(${b('dueAt')}),ticks(utcNow())))`, {
         Mark_request_valid: setVariable('requestValid', true),
