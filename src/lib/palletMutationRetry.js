@@ -4,6 +4,9 @@ export function stablePalletMutationJson(value) {
   return JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
     ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item)
 }
+export function isConfirmedPalletMutationRefusal(error) {
+  return ['invalid-argument', 'permission-denied', 'unauthenticated', 'failed-precondition', 'not-found', 'aborted', 'already-exists'].some((code) => error?.code === code || error?.code === `functions/${code}`)
+}
 export function createPalletMutationRetrier({ send, userId, randomId, fingerprint, storage }) {
   const identities = new Map(), pending = new Map()
   const accessStorage = (operation, ...args) => { try { return storage()?.[operation](...args) } catch { return null } }
@@ -18,7 +21,7 @@ export function createPalletMutationRetrier({ send, userId, randomId, fingerprin
       .catch((error) => {
         // A confirmed refusal had no effect. An uncertain response retains the
         // identity, so the same input can safely resolve the original operation.
-        if (['invalid-argument', 'permission-denied', 'unauthenticated', 'failed-precondition', 'not-found', 'aborted', 'already-exists'].some((code) => error?.code === code || error?.code === `functions/${code}`)) {
+        if (isConfirmedPalletMutationRefusal(error)) {
           identities.delete(key); accessStorage('removeItem', key)
         }
         throw error

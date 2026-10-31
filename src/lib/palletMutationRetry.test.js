@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import test from 'node:test'
-import { createPalletMutationRetrier } from './palletMutationRetry.js'
+import { createPalletMutationRetrier, isConfirmedPalletMutationRefusal } from './palletMutationRetry.js'
+
+test('confirmed input and revision refusals remain distinct from uncertain technical failures', () => {
+  for (const code of ['invalid-argument', 'permission-denied', 'unauthenticated', 'failed-precondition', 'not-found', 'aborted', 'already-exists']) {
+    assert.equal(isConfirmedPalletMutationRefusal({ code }), true)
+    assert.equal(isConfirmedPalletMutationRefusal({ code: `functions/${code}` }), true)
+  }
+  for (const code of ['internal', 'unavailable', 'deadline-exceeded', 'unknown', 'functions/internal', 'functions/unavailable', 'functions/deadline-exceeded', 'functions/unknown', undefined]) {
+    assert.equal(isConfirmedPalletMutationRefusal({ code }), false)
+  }
+})
 
 const fingerprint = async (value) => createHash('sha256').update(value).digest('hex')
 function memoryStorage() {

@@ -120,3 +120,13 @@ Revisionskonflikte, Merge/Trennung, Abschlusswechsel und beide Tourabfragepfade.
 Weitere Tests prüfen gleichzeitig eingehende Aktualisierungen und identische Wiederholungen, geänderte Teilnehmergruppen, veraltetes Löschen, ungewöhnliche Abschluss-ID-Reihenfolgen sowie sichere Wiederholung nach verlorenem Antwortpaket und Browser-Neuladen.
 Die echte Browserabnahme (zwei gleichzeitige Benutzer, Konflikthinweis,
 Erhalt von Eingaben, Deutsch/Englisch und Light/Dark) ist separat durchzuführen.
+
+Die Dev-Abnahme vom 31.10.2026 prüft Anlegen, Ändern, Abschluss sowie den
+Revisionskonflikt in zwei geöffneten Formularen derselben angemeldeten Identität;
+der zweite Entwurf bleibt erhalten. Bestätigte fachliche Ablehnungen beim
+Speichern werden anhand derselben Fehlercodes wie der Wiederholungsschutz
+erkannt und nicht als technische Störung gemeldet. Unsichere/technische Fehler
+sowie Lade- und Aufbaustörungen laufen weiter in die zentrale Diagnose.
+Eine vollständige Live-Prüfung mit unterschiedlichen Rollen und in beiden
+Sprachen/Farbmodi bleibt gesondert; Details im
+[Dev-Releasebeleg](releases/cost-efficiency-dev-2026-10-31-status.md).

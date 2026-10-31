@@ -2,11 +2,16 @@ import { httpsCallable } from 'firebase/functions'
 import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { reportTechnicalFailure } from './diagnostics.js'
 import { reviveCallableFirestoreValues } from './firestoreCallableValues.js'
-import { createPalletMutationRetrier } from './palletMutationRetry.js'
+import { createPalletMutationRetrier, isConfirmedPalletMutationRefusal } from './palletMutationRetry.js'
 
 async function invoke(name, data, stage) {
   try { await waitForAppCheckToken(); return reviveCallableFirestoreValues((await httpsCallable(functions, name, { timeout: 120000 })(data)).data) }
-  catch (error) { void reportTechnicalFailure({ module: 'pallets', stage, error }); throw error }
+  catch (error) {
+    // A stale revision or a refused input remains visible in the editor, but
+    // is not a technical outage. Load/rebuild and uncertain failures still report.
+    if (stage !== 'save' || !isConfirmedPalletMutationRefusal(error)) void reportTechnicalFailure({ module: 'pallets', stage, error })
+    throw error
+  }
 }
 export function listPalletAccountSummaries() { return invoke('listPalletAccountSummaries', {}, 'load') }
 export function listTransportOrderPalletMovements(orderId) { return invoke('listTransportOrderPalletMovements', { orderId }, 'load') }

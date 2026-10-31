@@ -1,9 +1,11 @@
 # Abgegrenzter Dev-Release der Kostenoptimierungen
 
-Stand: 31.10.2026. **Lokal vorbereitet, nicht veröffentlicht.** Dieses Dokument
-ist der ausführbare Ablauf für eine später ausdrücklich freigegebene
-Dev-Veröffentlichung. Die Befehle wurden bei der Vorbereitung nicht ausgeführt.
-Produktion und `main` sind ausgeschlossen.
+Stand: 31.10.2026. **Nach ausdrücklicher Freigabe in Dev veröffentlicht.**
+Durchführung und Prüfgrenzen stehen im
+[Dev-Releasebeleg](releases/cost-efficiency-dev-2026-10-31-status.md).
+Die folgenden Abschnitte halten den vorbereiteten Ablauf und seine Haltepunkte
+fest; Aussagen über eine ausstehende Veröffentlichung beziehen sich auf den
+damaligen Vorbereitungsstand. Produktion und `main` sind ausgeschlossen.
 
 ## Umfang und Herkunft
 

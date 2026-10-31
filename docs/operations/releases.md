@@ -84,3 +84,5 @@ und der tatsächliche Branchschutz sind gesondert zu behandeln.
 Abgegrenzte lokale Releasevorbereitungen:
 - [Kostenoptimierungen Dev, 31.10.2026](cost-efficiency-dev-release.md):
   Bestandteilliste, gestufter Übergang, Datenaufbau und Rückweg; keine Freigabe.
+  Nachfolgende ausdrückliche Dev-Freigabe und Durchführung sind im
+  [Releasebeleg](releases/cost-efficiency-dev-2026-10-31-status.md) festgehalten.

@@ -1,10 +1,16 @@
 {
   "id": "cost-efficiency-dev-2026-10-31",
-  "status": "prepared-locally-not-published",
+  "status": "deployed-to-dev",
   "project": "db-bpl-drehpunkt-dev",
   "region": "europe-west3",
   "branch": "codex/cost-efficiency-dev-release",
   "baseCommit": "5e9586145b2df0c939d10fa455f699653e1f40ba",
+  "publication": {
+    "backendSourceCommit": "1379bf30c95d297fe31f91cdbec3b727ae75bad3",
+    "dataPrepared": true,
+    "report": "cost-efficiency-dev-2026-10-31-status.md",
+    "productionUnchanged": true
+  },
   "frontend": { "target": "https://dev.drehpunktlogistik.de", "gitTarget": "dev", "requiresExplicitPublicationInstruction": true },
   "firestore": {
     "indexes": "firestore.indexes.json",
