@@ -11,8 +11,8 @@ import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { getTransportOrderWorkspaceHistory, refreshTransportOrderWorkspace } from '../lib/transportOrderWorkspace.js'
 import { latestTransportOrderRefresh, mergeTransportOrderRefreshes, transportOrderResult, transportOrderWorkspaceScope, transportOrderWorkspaceStops, transportOrderWorkspaceTabs } from '../lib/transportOrderWorkspacePresentation.js'
-import { transportOrderHistoryRows, transportOrderHistoryValue } from '../lib/transportOrderHistoryPresentation.js'
-import { recordHistoryActor, recordHistoryTime } from '../lib/recordHistoryPresentation.js'
+import { useOrderTrackingHistory } from '../lib/useOrderTrackingHistory.js'
+import { recordHistoryTime } from '../lib/recordHistoryPresentation.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { createReturnState } from '../lib/recordNavigation.js'
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
@@ -20,7 +20,7 @@ import ContextLink from '../components/ui/ContextLink.jsx'
 import BackLink from '../components/ui/BackLink.jsx'
 import TransportInvoiceChecks from '../components/transport-orders/TransportInvoiceChecks.jsx'
 import TransportOrderImportedDetails from '../components/transport-orders/TransportOrderImportedDetails.jsx'
-import TransportOrderHistoryModal from '../components/transport-orders/TransportOrderHistoryModal.jsx'
+import OrderRecordHistoryTables from '../components/transport-orders/OrderRecordHistoryTables.jsx'
 import TransportOrderLinkedCasesCard from '../components/case-links/TransportOrderLinkedCasesCard.jsx'
 import TransportOrderPalletMovementsCard from '../components/transport-orders/TransportOrderPalletMovementsCard.jsx'
 import TransportOrderTodosCard from '../components/transport-orders/TransportOrderTodosCard.jsx'
@@ -87,7 +87,7 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
   const [localAttempts, setLocalAttempts] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [reloadError, setReloadError] = useState(false)
-  const [historyOpen, setHistoryOpen] = useState(false)
+  const trackingHistory = useOrderTrackingHistory(orderId, active && tab === 'history')
   const alive = useRef(true)
   const inFlight = useRef(false)
   const requestIds = useRef({})
@@ -102,7 +102,7 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
     }
     if (alive.current) { setOrder(entry); setError(entry ? '' : 'Transportauftrag nicht gefunden.') }
     return entry
-  }, [orderId])
+  }, [orderId, setError])
   async function moreHistory() {
     if (historyLoading) return
     setHistoryLoading(true)
@@ -114,6 +114,7 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
     finally { if (alive.current) setHistoryLoading(false) }
   }
   const loadHistory = useCallback(async () => {
+    if (alive.current) setHistoryLoading(true)
     try {
       const result = await getTransportOrderWorkspaceHistory(orderId)
       if (alive.current) {
@@ -122,6 +123,7 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
         setLocalAttempts((entries) => entries.filter((entry) => !recorded.has(entry.id)))
       }
     } catch { if (alive.current) setHistoryError(true) }
+    finally { if (alive.current) setHistoryLoading(false) }
   }, [orderId])
   useEffect(() => {
     if (!active) return undefined
@@ -186,10 +188,6 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
   const lastSuccess = latestTransportOrderRefresh(refreshes.filter((entry) => entry.status === 'success'), scope || 'all')
   const statusLabels = { success: w('Aktualisiert', 'Updated'), partial: w('Teilweise aktualisiert', 'Partially updated'), failed: w('Aktualisierung fehlgeschlagen', 'Update failed'), unconfirmed: w('Aktualisierung nicht bestätigt', 'Update not confirmed'), running: w('Aktualisierung läuft', 'Update in progress') }
   const tabLabels = { overview: w('Übersicht', 'Overview'), transport: w('Transport & Ware', 'Transport & cargo'), partners: w('Geschäftspartner', 'Business partners'), finance: w('Finanzen', 'Finances'), history: w('Historie', 'History') }
-  const scopeLabels = { all: w('Auftrag und Stammdaten', 'Order and master data'), order: w('Auftragsdaten', 'Order data'), partners: w('Geschäftspartner', 'Business partners') }
-  const stepStatus = (value) => ({ updated: w('Aktualisiert', 'Updated'), unchanged: w('Unverändert', 'Unchanged'), new: w('Neu angelegt', 'Created'), failed: w('Fehlgeschlagen', 'Failed'), skipped: w('Nicht abgerufen', 'Not retrieved') })[value] || w('Prüfung erforderlich', 'Review required')
-  const codeLabel = (value) => ({ interrupted: w('Abruf unterbrochen; der Ausgang einzelner Schritte ist ungewiss. Bereits gespeicherte Änderungen bleiben erhalten.', 'Update interrupted; some step results are uncertain. Changes already saved remain intact.'), 'no-linked-partners': w('Keine Geschäftspartner mit dem Auftrag verknüpft.', 'No business partners linked to this order.'), 'permission-denied': w('Für diesen Teil fehlt die Berechtigung.', 'Permission is missing for this step.') })[value] || w('Dieser Teil konnte nicht zuverlässig abgeschlossen werden.', 'This step could not be reliably completed.')
-  const historyRows = transportOrderHistoryRows(order, history.changes || [])
   if (loading) return <p className="page-state"><StaticText source="Transportauftrag wird geladen …" /></p>
   if (error || !order?.imported) return <section className="todo-detail-empty"><BackLink to="/transportauftraege" /><h2><StaticText source="Transportauftrag nicht verfügbar" /></h2><p><StaticText source={error || 'Noch keine Daten verfügbar.'} /></p><button className="button button--secondary" type="button" onClick={() => { setLoading(true); void loadOrder().catch(() => setError('Der Transportauftrag konnte nicht geladen werden.')).finally(() => setLoading(false)) }}><StaticText source="Erneut versuchen" /></button></section>
   const imported = order.imported
@@ -205,19 +203,16 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
       const index = event.key === 'Home' ? 0 : event.key === 'End' ? transportOrderWorkspaceTabs.length - 1 : (transportOrderWorkspaceTabs.indexOf(value) + (event.key === 'ArrowRight' ? 1 : -1) + transportOrderWorkspaceTabs.length) % transportOrderWorkspaceTabs.length
       const next = transportOrderWorkspaceTabs[index]; selectTab(next); document.getElementById(`order-tab-${next}`)?.focus()
     }}>{tabLabels[value]}</button>)}</div>}
-    <div className="order-workspace__toolbar"><div className="order-workspace__update" aria-live="polite">{tab !== 'history' && <>{<><StaticText source="Letzte Aktualisierung" />: {date(lastSuccess?.completedAt || (scope === 'order' ? order.importMeta?.lastImportedAt : null))}{latest && latest.status !== 'success' && <> · {statusLabels[latest.status] || w('Aktualisierung prüfen', 'Check update')}</>}</>} · <button type="button" className="order-workspace__text-button" onClick={() => selectTab('history')}><StaticText source="Siehe Historie" /></button></>}</div>{scope && canRefresh && <button className="button" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? w('Wird aktualisiert …', 'Updating …') : scope === 'all' ? w('Auftrag aktualisieren', 'Update order') : scope === 'partners' ? w('Stammdaten aktualisieren', 'Update master data') : w('Auftragsdaten aktualisieren', 'Update order data')}</button>}</div>
+    {tab !== 'history' && <div className="order-workspace__toolbar"><div className="order-workspace__update" aria-live="polite"><StaticText source="Letzte Aktualisierung" />: {date(lastSuccess?.completedAt || (scope === 'order' ? order.importMeta?.lastImportedAt : null))}{latest && latest.status !== 'success' && <> · {statusLabels[latest.status] || w('Aktualisierung prüfen', 'Check update')}</>} · <button type="button" className="order-workspace__text-button" onClick={() => selectTab('history')}><StaticText source="Siehe Historie" /></button></div>{scope && canRefresh && <button className="button" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? w('Wird aktualisiert …', 'Updating …') : scope === 'all' ? w('Auftrag aktualisieren', 'Update order') : scope === 'partners' ? w('Stammdaten aktualisieren', 'Update master data') : w('Auftragsdaten aktualisieren', 'Update order data')}</button>}</div>}
     {reloadError && <p className="form-error"><StaticText source="Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu." /></p>}
-    {partnerError && <p className="form-error"><StaticText source="Die Geschäftspartnerdaten konnten nicht geladen werden." /></p>}
-    <div className="order-workspace__layout"><main className="order-workspace__content"><section role="tabpanel" id={`order-panel-${tab}`} aria-labelledby={`order-tab-${tab}`}>
+    {tab !== 'history' && partnerError && <p className="form-error"><StaticText source="Die Geschäftspartnerdaten konnten nicht geladen werden." /></p>}
+    <div className={`order-workspace__layout${tab === 'history' ? ' order-workspace__layout--history' : ''}`}><main className="order-workspace__content"><section role="tabpanel" id={`order-panel-${tab}`} aria-labelledby={`order-tab-${tab}`}>
       {tab === 'overview' && <div className="order-workspace__overview"><div className="order-workspace__stack"><Card title="Stationen" onDetails={() => selectTab('transport')}><StationCards imported={imported} date={date} /></Card><Card title="Ware & Fahrzeug" onDetails={() => selectTab('transport')}><Values entries={cargoEntries} /></Card></div><div className="order-workspace__stack"><ResultCard financial={imported.financial} currency={currency} onDetails={() => selectTab('finance')} /><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /></div></div>}
       {tab === 'transport' && <div className="order-workspace__stack"><Card title="Transport & Tour"><Values entries={[["Tour-ID (DyCoS)", imported.source?.tourId], ...cargoEntries, ['Dispositionsbemerkung', imported.dispositionNote]]} /></Card><Card title="Alle Stationen"><StationCards imported={imported} detailed date={date} /></Card><TransportOrderImportedDetails imported={{ stops: transportOrderWorkspaceStops(imported) }} /></div>}
       {tab === 'partners' && <div className="order-workspace__stack"><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} full /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} full /><Card title="Auftragsbezogene Angaben"><Values entries={[["Kundenreferenz", imported.customerReference], ['Dispositionsbemerkung', imported.dispositionNote], ['TA zuletzt versendet am', date(imported.dispatch?.sentAt)]]} /></Card></div>}
       {tab === 'finance' && <div className="order-workspace__finance"><TransportInvoiceChecks orderId={orderId} number={order.externalNumber} /><ResultCard financial={imported.financial} currency={currency} /><TransportOrderImportedDetails imported={{ financial: imported.financial }} />{!imported.financial?.documents && <Card title="Rechnungen und Gutschriften"><p><StaticText source="Noch keine Belegdaten übermittelt. Bitte den Auftrag aktualisieren." /></p></Card>}</div>}
-      {tab === 'history' && <div className="order-workspace__history">{historyError && <p className="form-error"><StaticText source="Die Auftragshistorie konnte nicht geladen werden." /> <button className="order-workspace__text-button" type="button" onClick={() => void loadHistory()}><StaticText source="Erneut versuchen" /></button></p>}
-        <h3><StaticText source="Aktualisierungen" /></h3>{!refreshes.length && <p className="order-workspace__muted"><StaticText source="Noch keine Aktualisierungen über diesen Auftragsbereich protokolliert." /></p>}{refreshes.map((entry) => <details key={entry.id} open={entry.id === searchParams.get('refresh') || entry.status !== 'success'} data-focused={entry.id === searchParams.get('refresh')}><summary>{date(entry.completedAt || entry.startedAt)} · {statusLabels[entry.status] || entry.status}<div className="order-workspace__muted">{scopeLabels[entry.scope]} · {entry.actorName || entry.actorId || '—'}</div></summary><p>{entry.status === 'unconfirmed' ? w('Das Ergebnis des Abrufs konnte nicht bestätigt werden. Bitte erneut aktualisieren. Bereits gespeicherte Änderungen bleiben erhalten.', 'The result could not be confirmed. Please update again. Changes already saved remain intact.') : w('Der Abruf wurde protokolliert. Fachliche Änderungen stehen im Änderungsverlauf darunter.', 'This update was recorded. Business changes are listed in the history below.')}</p>{entry.result?.code && <p>{codeLabel(entry.result.code)}</p>}{entry.result?.order && <p><StaticText source="Auftragsdaten" />: {stepStatus(entry.result.order.status)}{entry.result.order.code && <> · {codeLabel(entry.result.order.code)}</>}{entry.result.order.conflicts > 0 && <> · {w('Abweichende Stammdaten prüfen', 'Review differing master data')}</>}</p>}{entry.result?.partners?.map((partner, index) => <p key={index}><StaticText source="Geschäftspartner" />: {stepStatus(partner.status)}{partner.code && <> · {codeLabel(partner.code)}</>}{partner.conflicts > 0 && <> · <StaticText source="Abweichende Stammdaten prüfen" /></>}</p>)}</details>)}
-        {(history.hasMore || history.refreshHasMore) && <button className="button button--secondary" type="button" disabled={historyLoading} onClick={() => void moreHistory()}><StaticText source={historyLoading ? 'Wird geladen …' : 'Weitere Historie laden'} /></button>}<h3><StaticText source="Auftragsänderungen" /></h3>{historyRows.map((entry) => <details key={entry.id}><summary>{date(entry.createdAt)} · {recordHistoryActor(entry)}{entry.creation && <> · <StaticText source="Transportauftrag angelegt" /></>}</summary>{entry.changes?.length > 0 ? <div className="order-workspace__scroll"><table className="data-table"><thead><tr>{['Feld', 'Alte Daten', 'Neue Daten'].map((label) => <th key={label}><StaticText source={label} /></th>)}</tr></thead><tbody>{entry.changes.map((change, index) => <tr key={`${change.path}-${index}`}><td>{change.label.split(' · ').map((label, part) => <span key={part}>{part ? ' · ' : ''}<StaticText source={label} /></span>)}</td><td>{transportOrderHistoryValue(change.oldValue, language, change)}</td><td>{transportOrderHistoryValue(change.newValue, language, change)}</td></tr>)}</tbody></table></div> : <p><StaticText source={entry.summary || (entry.creation ? 'Transportauftrag angelegt' : 'Daten geändert')} /></p>}</details>)}<button className="button button--secondary" type="button" onClick={() => setHistoryOpen(true)}><StaticText source="Vollständigen Änderungsverlauf öffnen" /></button></div>}
-    </section></main><aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={orderRecordPath(orderId, 'tracking')} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); selectTab('tracking') } }}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside></div>
-    {historyOpen && <TransportOrderHistoryModal order={order} onClose={() => setHistoryOpen(false)} />}
+      {tab === 'history' && <OrderRecordHistoryTables order={order} history={history} refreshes={refreshes} historyError={historyError} historyLoading={historyLoading} onRetry={() => void loadHistory()} onMore={() => void moreHistory()} tracking={trackingHistory} onTrackingRetry={trackingHistory.retry} onTrackingMore={trackingHistory.more} focusedRefreshId={searchParams.get('refresh')} />}
+    </section></main>{tab !== 'history' && <aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={orderRecordPath(orderId, 'tracking')} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); selectTab('tracking') } }}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside>}</div>
   </div>
 }
 export default function TransportOrderDetailPage({ active = true, showTabs = true, tabOverride }) {

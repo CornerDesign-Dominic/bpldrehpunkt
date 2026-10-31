@@ -23,12 +23,22 @@ export async function refreshTransportOrderWorkspace(data) {
   }
 }
 
-async function historyPage(orderId, collectionName, field, cursor) {
+async function historyPage(orderId, collectionName, field, cursor, root = 'transportOrders') {
   const constraints = [orderBy(field, 'desc')]
   if (cursor) constraints.push(startAfter(cursor))
-  const snapshots = await getDocs(query(collection(db, 'transportOrders', orderId, collectionName), ...constraints, limit(51)))
+  const snapshots = await getDocs(query(collection(db, root, orderId, collectionName), ...constraints, limit(51)))
   const docs = snapshots.docs.slice(0, 50)
   return { entries: docs.map(snapshot => ({ id: snapshot.id, ...snapshot.data() })), hasMore: snapshots.size > 50, cursor: docs.at(-1) || null }
+}
+
+export async function getTransportOrderTrackingHistoryPage(orderId, cursor = null) {
+  try {
+    const page = await historyPage(orderId, 'events', 'recordedAt', cursor, 'transportOrderTrackings')
+    return { events: page.entries, hasMore: page.hasMore, cursor: page.cursor }
+  } catch (error) {
+    void reportTechnicalFailure({ module: 'transport-orders', stage: 'history', orderId, error })
+    throw error
+  }
 }
 
 export async function getTransportOrderWorkspaceHistory(orderId, { changesCursor, refreshCursor } = {}) {

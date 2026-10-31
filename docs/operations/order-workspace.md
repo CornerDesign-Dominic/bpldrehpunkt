@@ -86,9 +86,15 @@ Trackingfilter behalten ihren bestehenden Profilvertrag. Fehler neuer Client-
 Abläufe verwenden den geschützten Diagnosebereich `transport-orders` mit festen
 Stufen und Texten, ohne freie Fachinhalte.
 
-Historien werden seitenweise und begrenzt geladen, ältere Einträge sind explizit
-nachladbar. Die vollständige fachliche Änderungshistorie bleibt zusätzlich über
-das bestehende Historienmodal erreichbar.
+Der Reiter Historie zeigt ohne rechte Aktions-/Verknüpfungsspalte genau zwei
+offene Tabellen untereinander über die gesamte Inhaltsbreite: Auftragshistorie
+mit Feldänderungen und Aktualisierungsbelegen sowie Sendungsverfolgungshistorie
+mit den tatsächlichen Trackingereignissen. Keine zusätzlichen Akkordeons,
+Ansichtsvarianten oder Historienmodale. Historien werden seitenweise mit jeweils
+höchstens 50 Einträgen pro Quelle geladen; ältere Einträge sind nachladbar.
+Trackingereignisse werden erst beim Öffnen dieses Reiters abgefragt und nicht
+mit importierten Auftragsänderungen vermischt. Ereignis- und Erfassungszeit
+bleiben getrennt erkennbar. Die operative Trackingansicht bleibt unverändert.
 
 ## Veröffentlichung und Abnahme
 

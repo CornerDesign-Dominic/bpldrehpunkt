@@ -1,5 +1,17 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Tracking aktualisiert': 'Tracking updated',
+  'Sendungsverfolgung gestartet': 'Shipment tracking started',
+  'Sendungsverfolgung abgeschlossen': 'Shipment tracking completed',
+  'Sendungsverfolgungs-Automatik pausiert': 'Shipment tracking automation paused',
+  'Sendungsverfolgungs-Automatik fortgeführt': 'Shipment tracking automation resumed',
+  'Tracking-Empfänger aktualisiert': 'Tracking recipients updated',
+  'Standortmeldung': 'Position report',
+  'Pause manuell korrigiert': 'Pause corrected manually',
+  'Standortmeldung manuell korrigiert': 'Position report corrected manually',
+  'Pause gelöscht': 'Pause deleted',
+  'Standortmeldung gelöscht': 'Position report deleted',
+  'Aktuellen Stand kurz vor Ladung automatisch angefragt': 'Current status requested automatically shortly before loading',
   'Relationen konnten nicht geladen werden.': 'Dispatch teams could not be loaded.',
   'Fahrzeugart': 'Vehicle type',
   'Abweichende Stammdaten prüfen': 'Review conflicting master data',

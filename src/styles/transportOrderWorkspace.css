@@ -36,13 +36,17 @@
 .order-workspace__links .button { white-space:normal; }
 .order-workspace__links h3 { margin:0 0 12px; font-size:14px; }
 .order-workspace__links .order-workspace__card .button { margin-top:10px; }
-.order-workspace__history { display:grid; gap:12px; }
-.order-workspace__history details { border:1px solid var(--border); border-radius:7px; background:var(--content-background); padding:13px; }
-.order-workspace__history summary { cursor:pointer; font-size:13px; }
-.order-workspace__history details[open] summary { margin-bottom:12px; }
-.order-workspace__history details[data-focused="true"] { outline:2px solid var(--button-background); outline-offset:2px; }
-.order-workspace__history .data-table { font-size:12px; }
-.order-workspace__history .data-table td { white-space:pre-wrap; overflow-wrap:anywhere; }
+.order-workspace__layout.order-workspace__layout--history { display:block; margin-top:24px; }
+.order-record-history-tables { display:grid; gap:28px; }
+.order-record-history-tables > section { min-width:0; }
+.order-record-history-tables h3 { margin:0 0 12px; font-size:16px; }
+.order-record-history-table { width:100%; table-layout:fixed; font-size:12px; }
+.order-record-history-table th, .order-record-history-table td { white-space:pre-wrap; overflow-wrap:anywhere; vertical-align:top; }
+.order-record-history-table th:nth-child(-n+3) { width:15%; }
+.order-record-history-table td p { margin:0 0 5px; }
+.order-record-history-table td p:last-child { margin-bottom:0; }
+.order-record-history-table tr[data-focused="true"] { outline:2px solid var(--button-background); outline-offset:-2px; }
+.order-record-history-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
 .order-workspace__scroll { overflow-x:auto; }
 .order-workspace__finance { display:grid; gap:16px; }
 .order-workspace__finance .transport-order-detail-section { border:1px solid var(--border); border-radius:8px; padding:16px; margin:0; background:var(--content-background); }
