@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { normalizeKnowledgeInput, normalizeKnowledgeGapUpdate, persistKnowledgeRecord, persistKnowledgeGapUpdate, requireKnowledgeAccess } from './knowledge.js'
 
 const editor = { active: true, role: 'user', firstName: 'Anna', lastName: 'Beispiel', permissions: { handbook: 'edit' } }
+const gapEditor = { ...editor, permissions: { knowledgeGaps: 'edit' } }
 const article = { title: 'Lieferstatus fehlt', process: 'Transportdurchführung', situation: 'Kunde fragt nach der Lieferung.', action: 'Auftrag zuordnen und Status prüfen.' }
 const input = (values = article, expectedRevision = 0, kind = 'article') => normalizeKnowledgeInput({ kind, id: 'entry', expectedRevision, values })
 function fakeDb(initial = {}) {
@@ -75,24 +76,53 @@ test('linked rules must exist and current edit rights are checked inside the tra
 test('gap mutations allow only status and article link with expected revision', () => {
   const update = { id: 'gap', expectedRevision: 1, status: 'open' }
   assert.equal(normalizeKnowledgeGapUpdate(update).articleId, '')
-  for (const patch of [{ count: 100 }, { title: 'forged' }, { status: 'done' }, { status: 'resolved' }, { articleId: 'bad/id' }, { expectedRevision: 0 }]) assert.throws(() => normalizeKnowledgeGapUpdate({ ...update, ...patch }), { code: 'invalid-argument' })
+  assert.equal(normalizeKnowledgeGapUpdate({ ...update, status: 'resolved' }).articleId, '')
+  for (const patch of [{ count: 100 }, { title: 'forged' }, { status: 'done' }, { articleId: 'bad/id' }, { expectedRevision: 0 }]) assert.throws(() => normalizeKnowledgeGapUpdate({ ...update, ...patch }), { code: 'invalid-argument' })
 })
 
-test('gap resolutions require a valid article, preserve demand counts and reject races', async () => {
+test('gap completion permits optional draft context links, preserves demand counts and rejects races', async () => {
   const initial = { title: 'Fehlendes Wissen', missing: 'Welche Rückfrage?', process: 'Kommunikation', count: 12, revision: 4, status: 'open', firstSeenAt: 'original' }
-  const db = fakeDb({ 'knowledgeGaps/gap': initial })
+  const db = fakeDb({ 'knowledgeGaps/gap': initial, 'users/editor': { ...editor, permissions: { handbook: 'view', knowledgeGaps: 'edit' } } })
   const update = normalizeKnowledgeGapUpdate({ id: 'gap', expectedRevision: 4, status: 'resolved', articleId: 'entry' })
   await assert.rejects(persistKnowledgeGapUpdate(db, update, { uid: 'editor' }), { code: 'failed-precondition' })
   db.records.set('knowledgeArticles/entry', { status: 'draft' })
-  await assert.rejects(persistKnowledgeGapUpdate(db, update, { uid: 'editor' }), { code: 'failed-precondition' })
-  db.records.set('knowledgeArticles/entry', { status: 'valid' })
   await persistKnowledgeGapUpdate(db, update, { uid: 'editor' })
   const saved = db.records.get('knowledgeGaps/gap')
   assert.equal(saved.count, 12)
   assert.equal(saved.firstSeenAt, 'original')
   assert.equal(saved.status, 'resolved')
   assert.equal(saved.revision, 5)
+  assert.equal(saved.resolvedBy, 'editor')
+  assert.equal(saved.resolvedByName, 'Anna Beispiel')
   await assert.rejects(persistKnowledgeGapUpdate(db, update, { uid: 'editor' }), { code: 'aborted' })
   db.records.set('users/editor', { ...editor, permissions: { handbook: 'view' } })
   await assert.rejects(persistKnowledgeGapUpdate(db, { ...update, expectedRevision: 5 }, { uid: 'editor' }), { code: 'permission-denied' })
+})
+
+test('gap curators can complete without article or handbook rights and reopen with cleared completion metadata', async () => {
+  const db = fakeDb({ 'users/editor': gapEditor, 'knowledgeGaps/gap': { status: 'open', count: 8, revision: 1 } })
+  const update = (status, expectedRevision, articleId = '') => normalizeKnowledgeGapUpdate({ id: 'gap', status, expectedRevision, articleId })
+  await persistKnowledgeGapUpdate(db, update('resolved', 1), { uid: 'editor' })
+  const resolved = db.records.get('knowledgeGaps/gap')
+  assert.equal(resolved.resolvedBy, 'editor')
+  assert.equal(resolved.resolvedByName, 'Anna Beispiel')
+  assert.ok(resolved.resolvedAt)
+  assert.equal(resolved.count, 8)
+  await persistKnowledgeGapUpdate(db, update('resolved', 2), { uid: 'editor' })
+  assert.equal(db.records.get('knowledgeGaps/gap').resolvedAt, resolved.resolvedAt)
+  await persistKnowledgeGapUpdate(db, update('open', 3), { uid: 'editor' })
+  const reopened = db.records.get('knowledgeGaps/gap')
+  assert.equal(reopened.resolvedAt, null)
+  assert.equal(reopened.resolvedBy, '')
+  assert.equal(reopened.resolvedByName, '')
+  db.records.set('users/editor', editor)
+  await assert.rejects(persistKnowledgeGapUpdate(db, update('resolved', 4), { uid: 'editor' }), { code: 'permission-denied' })
+})
+
+test('gap curators can retain an existing article link but may not infer or add inaccessible knowledge', async () => {
+  const db = fakeDb({ 'users/editor': gapEditor, 'knowledgeGaps/gap': { status: 'open', count: 1, revision: 1, articleId: 'existing' }, 'knowledgeArticles/other': { status: 'valid' } })
+  await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', status: 'resolved', expectedRevision: 1, articleId: 'existing' }), { uid: 'editor' })
+  await assert.rejects(persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', status: 'resolved', expectedRevision: 2, articleId: 'other' }), { uid: 'editor' }), { code: 'permission-denied' })
+  await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', status: 'resolved', expectedRevision: 2, articleId: '' }), { uid: 'editor' })
+  assert.equal(db.records.get('knowledgeGaps/gap').articleId, '')
 })

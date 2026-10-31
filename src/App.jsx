@@ -91,7 +91,7 @@ export default function App() {
         <Route path="/qualitaet/handbuch/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="rules" kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage kind="rule" /></PermissionRoute>} />
-        <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="handbook"><KnowledgeGapsPage /></PermissionRoute>} />
+        <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />

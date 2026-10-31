@@ -18,6 +18,8 @@ test('knowledge rules and transactional publication safeguards', { skip: !proces
   const profiles = {
     editor: { active: true, role: 'user', permissions: { handbook: 'edit' } },
     viewer: { active: true, role: 'user', permissions: { handbook: 'view' } },
+    gapEditor: { active: true, role: 'user', permissions: { knowledgeGaps: 'edit' } },
+    gapViewer: { active: true, role: 'user', permissions: { knowledgeGaps: 'view' } },
     none: { active: true, role: 'user', permissions: { handbook: 'none' } },
     inactive: { active: false, role: 'superadmin' },
     admin: { active: true, role: 'admin', permissions: {} },
@@ -35,14 +37,16 @@ test('knowledge rules and transactional publication safeguards', { skip: !proces
       ...Object.entries(profiles).map(([name, profile]) => admin.doc(`users/knowledge-${name}`).set(profile)),
       ...['knowledgeArticles', 'knowledgeRules'].flatMap((name) => [admin.doc(`${name}/seeded`).set({ title: 'Current', revision: 1 }), admin.doc(`${name}/seeded/revisions/1`).set({ title: 'Snapshot', revision: 1 })]),
       admin.doc('knowledgeGaps/seeded').set({ title: 'Missing instruction', count: 3, revision: 1, status: 'open' }),
+      admin.doc('knowledgeGapEvidence/seeded').set({ gapId: 'seeded', latestSuggestion: 'Private answer draft', sentReply: 'Private final reply', sendStatus: 'accepted' }),
       admin.doc('knowledgeGapOccurrences/private').set({ counted: true }),
     ])
-    await t.test('handbook readers can get and list all current knowledge and immutable snapshots', async () => {
+    await t.test('handbook and knowledge gap readers have separate collection and evidence access', async () => {
       for (const [name, db] of Object.entries(clients)) {
-        const permitted = ['editor', 'viewer', 'superadmin'].includes(name)
-        for (const collectionName of ['knowledgeArticles', 'knowledgeRules', 'knowledgeGaps']) {
+        for (const collectionName of ['knowledgeArticles', 'knowledgeRules', 'knowledgeGaps', 'knowledgeGapEvidence']) {
+          const privateGapData = ['knowledgeGaps', 'knowledgeGapEvidence'].includes(collectionName)
+          const permitted = privateGapData ? ['gapEditor', 'gapViewer', 'superadmin'].includes(name) : ['editor', 'viewer', 'superadmin'].includes(name)
           const operations = [() => getDoc(doc(db, collectionName, 'seeded')), () => getDocs(collection(db, collectionName))]
-          if (collectionName !== 'knowledgeGaps') operations.push(() => getDoc(doc(db, collectionName, 'seeded', 'revisions', '1')))
+          if (!privateGapData) operations.push(() => getDoc(doc(db, collectionName, 'seeded', 'revisions', '1')))
           for (const operation of operations) {
             if (permitted) await operation()
             else await assert.rejects(operation(), { code: 'permission-denied' })
@@ -54,7 +58,7 @@ test('knowledge rules and transactional publication safeguards', { skip: !proces
       for (const db of Object.values(clients)) {
         await assert.rejects(getDoc(doc(db, 'knowledgeGapOccurrences', 'private')), { code: 'permission-denied' })
         await assert.rejects(getDocs(collection(db, 'knowledgeGapOccurrences')), { code: 'permission-denied' })
-        for (const path of ['knowledgeArticles/seeded', 'knowledgeRules/seeded', 'knowledgeArticles/seeded/revisions/1', 'knowledgeGaps/seeded', 'knowledgeGapOccurrences/private']) await assert.rejects(updateDoc(doc(db, path), { title: 'forged' }), { code: 'permission-denied' })
+        for (const path of ['knowledgeArticles/seeded', 'knowledgeRules/seeded', 'knowledgeArticles/seeded/revisions/1', 'knowledgeGaps/seeded', 'knowledgeGapEvidence/seeded', 'knowledgeGapOccurrences/private']) await assert.rejects(updateDoc(doc(db, path), { title: 'forged' }), { code: 'permission-denied' })
         await assert.rejects(setDoc(doc(db, 'knowledgeArticles', 'forged'), { title: 'forged' }), { code: 'permission-denied' })
       }
     })
@@ -72,14 +76,23 @@ test('knowledge rules and transactional publication safeguards', { skip: !proces
       await assert.rejects(save('article', 'delivery', article, 2), { code: 'permission-denied' })
       await admin.doc('users/knowledge-editor').update({ active: true })
     })
-    await t.test('resolving gaps preserves count and requires a published article without racing', async () => {
-      const actor = { uid: 'knowledge-editor' }
-      const input = normalizeKnowledgeGapUpdate({ id: 'seeded', expectedRevision: 1, status: 'resolved', articleId: 'delivery' })
+    await t.test('independent gap curators complete without article and reopen while preserving demand counts', async () => {
+      const actor = { uid: 'knowledge-gapEditor' }
+      const input = normalizeKnowledgeGapUpdate({ id: 'seeded', expectedRevision: 1, status: 'resolved' })
+      await assert.rejects(persistKnowledgeGapUpdate(admin, input, { uid: 'knowledge-editor' }), { code: 'permission-denied' })
+      await assert.rejects(persistKnowledgeGapUpdate(admin, input, { uid: 'knowledge-gapViewer' }), { code: 'permission-denied' })
       await persistKnowledgeGapUpdate(admin, input, actor)
       const saved = await admin.doc('knowledgeGaps/seeded').get()
       assert.equal(saved.get('count'), 3)
       assert.equal(saved.get('status'), 'resolved')
+      assert.equal(saved.get('resolvedBy'), actor.uid)
+      assert.ok(saved.get('resolvedAt').toDate())
       await assert.rejects(persistKnowledgeGapUpdate(admin, input, actor), { code: 'aborted' })
+      await persistKnowledgeGapUpdate(admin, normalizeKnowledgeGapUpdate({ id: 'seeded', expectedRevision: 2, status: 'open' }), actor)
+      const reopened = await admin.doc('knowledgeGaps/seeded').get()
+      assert.equal(reopened.get('resolvedAt'), null)
+      assert.equal(reopened.get('resolvedBy'), '')
+      assert.equal(reopened.get('count'), 3)
     })
   } finally {
     await Promise.all(apps.map((app) => deleteApp(app)))

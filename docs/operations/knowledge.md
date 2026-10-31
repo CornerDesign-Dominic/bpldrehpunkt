@@ -28,7 +28,12 @@ Besprechungen bleiben im bestehenden Datenmodell.
 
 ## Zugriff und Speicherung
 
-Alle drei Wissensbereiche verwenden das bestehende Modulrecht `handbook`.
+Handbuch und Grundregeln verwenden das Modulrecht `handbook`. Die zentrale
+Sammlung der Wissenslücken und Antwortbelege verwendet ausschließlich das eigene
+Modulrecht `knowledgeGaps` (`none/view/edit`), ohne Handbuch-Fallback. Bestehenden
+Nutzern wird dieses Recht nicht automatisch erteilt; die Benutzerverwaltung kann
+es den zuständigen Personen gezielt zuordnen. Der bestehende Superadmin-Override
+bleibt erhalten.
 Lesen verlangt aktives Profil und view/edit bzw. den bestehenden Superadmin-
 Override. Bearbeiten und Gültigsetzen verlangen edit; Admin hat keinen pauschalen
 Override. Direkte Browser-Schreibzugriffe sind gesperrt.
@@ -36,8 +41,11 @@ Override. Direkte Browser-Schreibzugriffe sind gesperrt.
 `saveKnowledgeRecord` prüft Daten, gültige Verknüpfungen, aktuelle Rechte und
 erwartete Revision transaktional und schreibt eine vollständige unveränderliche
 Fassung nach `revisions/{revision}`. `updateKnowledgeGap` ändert den Bearbeitungs-
-status mit Revisionsschutz. Als abgedeckt gilt eine Lücke erst mit verknüpftem
-gültigem Artikel. Neue Inhalte werden nicht durch die KI gültig gesetzt.
+status mit Revisionsschutz. Wissenslücken lassen sich ohne Artikelzuordnung als
+erledigt abhaken. Bearbeiter und Zeitpunkt werden festgehalten und beim
+Wiederöffnen entfernt. Artikelverknüpfungen sind optional; eine neue Zuordnung
+verlangt zusätzlich Handbuch-Leserecht. Neue Inhalte werden nicht durch die KI
+gültig gesetzt.
 Ein gültiger Artikel darf nur gültige Grundregeln referenzieren. Die KI prüft
 vor Rückgabe nochmals aktuelle Rechte sowie Status und genaue Revision aller
 verwendeten Quellen; zwischenzeitliche Änderungen verwerfen den Vorschlag.
@@ -61,13 +69,12 @@ Eine Mail oder deren Zitate dürfen keine Systemanweisungen oder betrieblichen
 Vorgaben überschreiben. Fehlende betriebliche Regeln werden nicht erfunden;
 fehlende konkrete Vorgangsdaten sind von fehlendem Firmenwissen zu unterscheiden.
 
-Ohne Handbuch-Leserecht bleibt der vorhandene generische Entwurf möglich, mit
-entsprechendem Hinweis und ohne geschützte Quellen oder globale Lückenmeldung.
+Ohne Handbuch-Leserecht bleibt der vorhandene generische Entwurf möglich,
+ohne geschützte Quellen oder globale Lückenmeldung.
 Technische Such-/Modellfehler sind keine Wissenslücken. Bei begrenztem Katalog
 darf keine sichere Vollständigkeit behauptet werden.
 Die erste Ausbaustufe berücksichtigt bis zu 200 gültige Artikel und 100 gültige
-Grundregeln sowie 200 bestehende Lückenkategorien pro Zuordnung. Bei größerem
-Katalog erfolgt ein sichtbarer Hinweis; daraus werden keine Lücken gezählt.
+Grundregeln pro Zuordnung. Bei größerem Katalog werden daraus keine Lücken gezählt.
 Das ist keine Volltext-/Vektorsuchplattform für unbegrenzt große Bestände.
 
 ## Wissenslücken als Arbeitsvorrat
@@ -78,6 +85,21 @@ erhöht sie nicht erneut. Private, gehashte Ereignisbelege verhindern Doppelzäh
 auch bei Wiederholung und parallelen Aufrufen. Browser dürfen diese Belege nicht
 lesen oder schreiben. Globale Lücken enthalten keine Mailtexte, Empfänger,
 Absender, Auftragsnummern oder privaten Postfachlinks.
+Wissenslücken, IDs, Häufigkeiten und entsprechende Hinweise werden weder bei
+„Vorschlag machen“ noch beim Laden eines Mailentwurfs an den Nutzer ausgegeben.
+Die Handbuchsuche liest keine Kuratorenmeldungen ein. Im Entwurf verbleiben nur
+die verwendeten Wissensquellen und der allgemeine Hinweis auf menschliche Prüfung.
+
+Antwortbelege werden getrennt unter `knowledgeGapEvidence` gespeichert und nur
+mit `knowledgeGaps`-Leserecht zugänglich gemacht. Pro gezählter Quellmail werden
+der letzte KI-Vorschlag sowie die tatsächliche manuelle Antwort getrennt erfasst.
+Der Vorschlag ist ausdrücklich kein Nachweis einer gelösten Situation. Vor dem
+Versandversuch wird der genaue Antworttext gesichert, zunächst mit unklarem
+Versandstatus; erst eine angenommene Graph-Versandanforderung markiert den Beleg
+als angenommen. Das ist kein Zustellnachweis. Belegfehler nach angenommenem
+Versand dürfen keinen erneuten Versand auslösen. Kein eingehender Mailtext wird
+zusätzlich gesammelt; Antworttexte können fachliche/personenbezogene Angaben
+enthalten und liegen deshalb hinter dem separaten Recht.
 Situation und fehlende Wissensaspekte werden aus einer festen serverseitigen
 Taxonomie gebildet; das Modell darf keine frei formulierten Maildetails in die
 globale Liste schreiben. Es gibt 33 Situations- und sechs Bedarfs-Kategorien.
@@ -88,9 +110,19 @@ Die Kategorien können nach echten Nutzungserfahrungen gezielt erweitert werden.
 
 Die Liste priorisiert nach Häufigkeit und letzter Sichtung. Häufigkeit ist ein
 Bedarfssignal und keine automatisch festgestellte fachliche Dringlichkeit.
-Bearbeitungsstatus: offen, in Bearbeitung, abgedeckt, zurückgestellt. Aus einer
+Bearbeitungsstatus: offen, in Bearbeitung, erledigt, zurückgestellt. Aus einer
 Lücke lässt sich ein Artikelentwurf anlegen; ein Mensch ergänzt und prüft ihn.
-Ein erneutes Auftreten trotz Abdeckung verlangt erneute Prüfung des Wissens.
+Ein erneutes Auftreten nach Erledigung öffnet die Meldung erneut.
+
+## Dev-Beispiele
+
+Am 31.10.2026 wurden drei gültige Beispielartikel zum Lieferstatus (bestätigter
+Stand, fehlende aktuelle Bestätigung, fehlende Referenz) und eine gemeinsame
+gültige Kommunikationsregel angelegt. Titel kennzeichnen sie als Dev-Beispiele;
+sie enthalten keine echten Transportdaten oder erfundenen betrieblichen Fristen.
+`scripts/knowledge-dev-examples.mjs` validiert den Datenvertrag, lässt nur das
+Dev-Projekt zu und verwendet stabile IDs. Erneutes Anlegen überschreibt keine
+vorhandenen Datensätze und erstellt keine Duplikate. Jede Anlage enthält Revision 1.
 
 Die Orientierung ist Knowledge-Centered Service: Wissen in der Arbeit erfassen,
 strukturiert wiederverwenden und nach tatsächlichem Bedarf verbessern. Das Muster
@@ -114,3 +146,20 @@ sechs Abschnitte, Gültigkeitsprüfung, exakte Quellenrevision, Grundregelkatalo
 gezählte Lücke und Artikelentwurf mit Zuordnung geprüft. Kein angemeldeter
 Dev-Durchlauf mit echter Mail und echtem Modellaufruf durchgeführt. Kein Versand
 als Test ausgelöst. Aktive Dev-Rules vor Veröffentlichung mit Git-Basis abgeglichen.
+
+### Getrennte Pflege und Antwortbelege am 31.10.2026
+
+Eigenes Modulrecht `knowledgeGaps`, keine Lückenhinweise im Mailentwurf,
+Antwortbelege und unabhängiges Abhaken umgesetzt. 82 gezielte Unit-Tests und
+sechs echte Emulatorprüfungen erfolgreich, einschließlich Rechte-Trennung,
+Antwortbelegen, paralleler Zählung und fehlertoleranter Versandbestätigung.
+Lint, Build und Shared-Abgleich (42 Module) erfolgreich. Lokaler Browser als
+Kurator ohne Handbuchrecht: Antworten ansehen, unterschiedliche Versandzustände,
+Erledigen ohne Artikel, Abschlussbearbeiter/-datum und Wiederöffnen geprüft.
+Die vier Dev-Beispiele wurden tatsächlich angelegt; ein zweiter Lauf bestätigte
+die idempotente Anlage ohne Überschreiben. Keine Mail wurde als Test versendet.
+Der angemeldete Dev-Durchlauf mit echter Mail und Modell bleibt offen.
+
+Zusätzlich bereitzustellen: `updateKnowledgeGap`, `suggestMailboxReply`,
+`getMailboxDraft`, `saveMailboxDraft`, `sendMailboxReply`, die drei Benutzer-
+verwaltungs-Callables und beide Diagnose-Callables sowie Firestore-Rules.

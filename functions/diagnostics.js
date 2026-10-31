@@ -4,12 +4,13 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
   kvp: ['load', 'save', 'history'],
   handbook: ['load', 'save', 'history'],
+  knowledgeGaps: ['load', 'save'],
   mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export', 'agb-analyse', 'agb-customer', 'invoice-review', 'invoice-history'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
@@ -33,11 +34,12 @@ const CLIENT_MESSAGES = {
 const MAILBOX_MESSAGES = {
   kvp: { load: 'K.V.P.-Daten konnten nicht geladen werden.', save: 'K.V.P.-Eintrag konnte nicht gespeichert werden.', history: 'K.V.P.-Änderungsverlauf konnte nicht geladen werden.' },
   handbook: { load: 'Handbucheinträge konnten nicht geladen werden.', save: 'Handbucheintrag konnte nicht gespeichert werden.', history: 'Handbuch-Änderungsverlauf konnte nicht geladen werden.' },
+  knowledgeGaps: { load: 'Wissenslücken konnten nicht geladen werden.', save: 'Wissenslücke konnte nicht gespeichert werden.' },
   mailboxes: { 'invoice-review': 'Rechnung aus persönlicher Mail konnte nicht geprüft werden.', 'invoice-history': 'Gespeicherte Rechnungsprüfung konnte nicht geladen werden.', 'agb-analyse': 'AGB aus persönlicher Mail konnten nicht geprüft werden.', 'agb-customer': 'Kundenzuordnung der AGB-Prüfung konnte nicht gespeichert werden.', 'tracking-preview': 'Persönliche Mail konnte nicht für den Sendungsstatus ausgewertet werden.', 'tracking-apply': 'Sendungsstatus aus persönlicher Mail konnte nicht übernommen werden.', connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
 }
 
 export function canReportLinkDiagnostic(profile, module) {
-  if (!['mailboxes', 'kvp', 'handbook'].includes(module)) return true
+  if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps'].includes(module)) return true
   return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[module])
 }
 
@@ -79,10 +81,10 @@ export function normalizeClientDiagnostic(data) {
   const recordId = safeText(data?.recordId, 240)
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
-  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  if (['kvp', 'handbook'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
-  return { module, stage, code, orderId, ...(['kvp', 'handbook'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['kvp', 'handbook', 'knowledgeGaps'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
+  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {

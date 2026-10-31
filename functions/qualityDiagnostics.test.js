@@ -37,4 +37,16 @@ test('mailbox diagnostics require module access and exclude personal mail contex
     assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage: 'send', code: 'unavailable', ...context }), { code: 'invalid-argument' })
   }
 })
+
+test('knowledge gap diagnostics require the dedicated permission and omit reply contents', () => {
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { handbook: 'edit' } }, 'knowledgeGaps'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { knowledgeGaps: 'view' } }, 'knowledgeGaps'), true)
+  for (const stage of ['load', 'save']) {
+    const event = normalizeClientDiagnostic({ module: 'knowledgeGaps', stage, code: 'internal', recordId: 'gap-1', latestSuggestion: 'private draft', sentReply: 'private sent reply', subject: 'private subject' })
+    assert.equal(event.recordId, 'gap-1')
+    assert.equal(JSON.stringify(event).includes('private'), false)
+  }
+  assert.throws(() => normalizeClientDiagnostic({ module: 'knowledgeGaps', stage: 'load', code: 'internal', orderId: 'private-order' }), { code: 'invalid-argument' })
+  assert.throws(() => normalizeClientDiagnostic({ module: 'knowledgeGaps', stage: 'load', code: 'internal', recordId: 'invalid/path' }), { code: 'invalid-argument' })
+})
 

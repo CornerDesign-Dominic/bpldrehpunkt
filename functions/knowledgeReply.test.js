@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { hasReplyKnowledgeAccess, loadReplyKnowledge, privateGap, recordReplyKnowledgeGap, selectReplyKnowledge, validateKnowledgeSelection } from './knowledgeReply.js'
+import { hasReplyKnowledgeAccess, loadReplyKnowledge, privateGap, recordReplyKnowledgeGap, selectReplyKnowledge, validateKnowledgeSelection, publicReplyKnowledge } from './knowledgeReply.js'
 
 const profile = { active: true, permissions: { handbook: 'view', mailboxes: 'edit' } }
 const article = { id: 'article', kind: 'article', revision: 3, title: 'Lieferstatus', process: 'Transport', situation: 'Kunde fragt nach Status', checks: 'Auftrag prüfen', action: 'Nur belegten Status nennen', ruleIds: ['specific'] }
@@ -86,4 +86,25 @@ test('limited or uncertain searches and revoked permission do not create mislead
   db.records.set('users/user', { active: false, role: 'superadmin' })
   await assert.rejects(recordReplyKnowledgeGap(gapInput(db)), { code: 'permission-denied' })
   assert.equal(db.records.size, 1)
+})
+
+
+test('public drafting metadata strips all current and legacy gap information', () => {
+  const result = publicReplyKnowledge({ status: 'gap', gap: { id: 'private-gap', count: 42 }, sources: [], warnings: ['knowledge_gap_broad_category', 'knowledge_gap_not_recorded', 'knowledge_match_uncertain'] })
+  assert.deepEqual(result, { sources: [], status: 'unavailable', warnings: ['knowledge_match_uncertain'] })
+  assert.equal(JSON.stringify(result).includes('private-gap'), false)
+  assert.deepEqual(publicReplyKnowledge({ status: 'gap', sources: [] }), { sources: [] })
+})
+
+test('same occurrence updates exact latest AI suggestion without incrementing demand or retaining incoming mail', async () => {
+  const db = database()
+  const first = await recordReplyKnowledgeGap({ ...gapInput(db), suggestion: 'Erster Antwortentwurf' })
+  await recordReplyKnowledgeGap({ ...gapInput(db), suggestion: 'Zweiter Antwortentwurf' })
+  const evidence = db.records.get(`knowledgeGapEvidence/${first.evidenceId}`)
+  assert.equal(evidence.latestSuggestion, 'Zweiter Antwortentwurf')
+  assert.equal(evidence.sendStatus, 'draft')
+  assert.equal(evidence.sentReply, undefined)
+  assert.equal(evidence.gapId, first.id)
+  assert.equal(db.records.get(`knowledgeGaps/${first.id}`).count, 1)
+  assert.equal(JSON.stringify(evidence).includes('Secret customer'), false)
 })

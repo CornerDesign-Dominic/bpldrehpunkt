@@ -5,6 +5,7 @@ import { diagnosticCode } from './diagnosticClassification.js'
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
   kvp: 'K.V.P.',
   handbook: 'Handbuch',
+  knowledgeGaps: 'Wissenslücken',
   'dycos-import': 'DyCoS-Auftragsabruf',
   'dycos-master-data': 'DyCoS-Stammdatenabruf',
   mailboxes: 'Postfächer',

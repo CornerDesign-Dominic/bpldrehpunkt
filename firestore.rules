@@ -123,9 +123,13 @@ service cloud.firestore {
       match /revisions/{revision} { allow read: if view('handbook'); allow write: if false; }
     }
     match /knowledgeGaps/{id} {
-      allow read: if view('handbook');
+      allow read: if view('knowledgeGaps');
       allow write: if false;
       match /{document=**} { allow read, write: if false; }
+    }
+    match /knowledgeGapEvidence/{id} {
+      allow read: if view('knowledgeGaps');
+      allow write: if false;
     }
     match /knowledgeGapOccurrences/{id} {
       allow read, write: if false;

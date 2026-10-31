@@ -637,3 +637,63 @@ test('a disconnected parent blocks shared access without any Graph call, and add
   await assert.rejects(changed.handlers.addSharedMailbox(request({email:sharedEmail})),{code:'aborted'})
   assert.equal(changed.db.records.has(`mailboxConnections/${sharedId}`),false)
 })
+
+test('gap tracking stays invisible in suggestion/draft APIs and preserves evidence linkage through manual edits', async () => {
+  const evidenceProfile = { ...profile, permissions: { mailboxes: 'edit', handbook: 'view' } }
+  const selection = { sources: [], coverage: 'none', limited: false, gap: { existingGapId: '', intentKey: 'invoice_mismatch', missingAspect: 'response' } }
+  const f = fixture({ requireProfile: async () => evidenceProfile, fetch: async (_url, options) => options.method === 'POST' ? response(null, 202) : response({ id: 'evidence-mail', body: { contentType: 'text', content: 'PRIVATE incoming original mail' } }), loadReplyKnowledge: async () => ({ articles: [], rules: [], gaps: [], limited: false }), selectReplyKnowledge: async () => selection, generateReplySuggestion: async () => 'KI Antwortentwurf' })
+  f.db.records.set('users/owner', evidenceProfile)
+  const generated = await f.handlers.suggestMailboxReply(request({ messageId: 'evidence-mail' }))
+  assert.deepEqual(generated, { suggestion: 'KI Antwortentwurf', knowledge: { sources: [] } })
+  const rootPath = [...f.db.records.keys()].find(key => key.startsWith('mailboxDrafts/'))
+  const evidenceId = f.db.records.get(rootPath).knowledgeEvidenceId
+  assert.match(evidenceId, /^[a-f0-9]{64}$/)
+  const ref = `knowledgeGapEvidence/${evidenceId}`
+  assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
+  await f.handlers.saveMailboxDraft(request({ messageId: 'evidence-mail', draft: { ...draft, revision: 0, suggestion: '' } }))
+  assert.equal(f.db.records.get(rootPath).knowledgeEvidenceId, evidenceId)
+  const loaded = await f.handlers.getMailboxDraft(request({ messageId: 'evidence-mail' }))
+  assert.equal(JSON.stringify(loaded).includes(evidenceId), false)
+  assert.equal(JSON.stringify(loaded).includes('gap'), false)
+  const exact = 'Menschlich bearbeitete Antwort mit exaktem Wortlaut.\nZweite Zeile.'
+  const sent = await f.handlers.sendMailboxReply(request({ ...reply, messageId: 'evidence-mail', body: exact, revision: 1 }))
+  assert.equal(sent.status, 'accepted')
+  assert.equal(f.db.records.get(ref).sentReply, exact)
+  assert.equal(f.db.records.get(ref).sendStatus, 'accepted')
+  assert.ok(f.db.records.get(ref).sentAt)
+  assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
+  assert.equal(JSON.stringify(f.db.records.get(ref)).includes('PRIVATE incoming'), false)
+})
+
+test('uncertain sends retain exact attempted answer separately from AI suggestion without claiming acceptance', async () => {
+  const evidenceId = 'e'.repeat(64)
+  const f = fixture({ fetch: async () => { throw new Error('Network loss') } })
+  const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
+  f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'Vorschlag', sendStatus: 'draft' })
+  const sent = await f.handlers.sendMailboxReply(request(reply))
+  assert.equal(sent.status, 'unknown')
+  const evidence = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
+  assert.equal(evidence.sentReply, reply.body)
+  assert.equal(evidence.sendStatus, 'unknown')
+  assert.equal(evidence.sentAt, null)
+  assert.equal(evidence.latestSuggestion, 'Vorschlag')
+})
+
+test('failure acknowledging evidence after Graph acceptance cannot change accepted send or cause another POST', async () => {
+  const evidenceId = 'f'.repeat(64)
+  const f = fixture()
+  const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
+  f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'Vorschlag', sendStatus: 'draft' })
+  const original = f.db.doc
+  f.db.doc = path => {
+    const ref = original(path)
+    if (path === `knowledgeGapEvidence/${evidenceId}`) ref.update = async () => { throw new Error('Evidence temporarily unavailable') }
+    return ref
+  }
+  assert.equal((await f.handlers.sendMailboxReply(request(reply))).status, 'accepted')
+  assert.equal((await f.handlers.sendMailboxReply(request(reply))).status, 'accepted')
+  assert.equal(f.fetchCount(), 1)
+  assert.equal(f.db.records.get(`mailboxSendOperations/${hash(`owner|${reply.operationId}`)}`).status, 'accepted')
+})

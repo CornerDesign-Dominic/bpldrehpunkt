@@ -12,13 +12,12 @@ export const replySuggestionHash = value => hash(value.trim())
 
 export async function loadReplyKnowledge(db, profile) {
   if (!hasReplyKnowledgeAccess(profile)) return null
-  const [articles, rules, gaps] = await Promise.all([
+  const [articles, rules] = await Promise.all([
     db.collection('knowledgeArticles').where('status', '==', 'valid').limit(201).get(),
     db.collection('knowledgeRules').where('status', '==', 'valid').limit(101).get(),
-    db.collection('knowledgeGaps').limit(201).get(),
   ])
   const records = (snapshot, kind, limit) => snapshot.docs.slice(0, limit).map(doc => ({ ...doc.data(), id: doc.id, kind })).filter(item => Number.isSafeInteger(item.revision) && item.revision > 0)
-  return { articles: records(articles, 'article', 200), rules: records(rules, 'rule', 100), gaps: records(gaps, 'gap', 200), limited: articles.docs.length > 200 || rules.docs.length > 100 || gaps.docs.length > 200 }
+  return { articles: records(articles, 'article', 200), rules: records(rules, 'rule', 100), gaps: [], limited: articles.docs.length > 200 || rules.docs.length > 100 }
 }
 
 export const KNOWLEDGE_GAP_INTENTS = Object.freeze({
@@ -95,7 +94,7 @@ export function privateGap(value) {
   return { title: intent[0], process: intent[1], missing, intentKey: value.intentKey, missingAspect: value.missingAspect, key: `${value.intentKey}|${value.missingAspect}` }
 }
 
-export async function recordReplyKnowledgeGap({ db, profile, context, mail, selection, catalog }) {
+export async function recordReplyKnowledgeGap({ db, profile, context, mail, selection, catalog, suggestion = '', transaction = null }) {
   if (!hasReplyKnowledgeAccess(profile) || selection.limited || !['none', 'partial'].includes(selection.coverage)) return null
   const normalized = privateGap(selection.gap)
   if (!normalized) return { notRecorded: true }
@@ -108,18 +107,29 @@ export async function recordReplyKnowledgeGap({ db, profile, context, mail, sele
   const gapRef = db.doc(`knowledgeGaps/${gapId}`)
   const receiptRef = db.doc(`knowledgeGapOccurrences/${occurrenceId}`)
   if (typeof mail.id !== 'string' || !mail.id) throw new HttpsError('failed-precondition', 'Die stabile Nachrichtenreferenz fehlt.')
-  return db.runTransaction(async tx => {
-    const [receipt, gap, currentProfile] = await Promise.all([tx.get(receiptRef), tx.get(gapRef), tx.get(db.doc(`users/${context.uid}`))])
+  const persist = async tx => {
+    const [receipt, gap, currentProfile, evidence] = await Promise.all([tx.get(receiptRef), tx.get(gapRef), tx.get(db.doc(`users/${context.uid}`)), tx.get(db.doc(`knowledgeGapEvidence/${occurrenceId}`))])
     if (!hasReplyKnowledgeAccess(currentProfile.data()) || !(currentProfile.data()?.role === 'superadmin' || currentProfile.data()?.permissions?.mailboxes === 'edit')) throw new HttpsError('permission-denied', 'Die Berechtigung wurde inzwischen geändert.')
     if (receipt.exists) {
       const original = receipt.data().gapId === gapId ? gap : await tx.get(db.doc(`knowledgeGaps/${receipt.data().gapId}`))
-      return { id: receipt.data().gapId, title: original.data()?.title || '', count: original.data()?.count || 0, alreadyCounted: true }
+      tx.set(db.doc(`knowledgeGapEvidence/${occurrenceId}`), { ...(evidence.data() || {}), gapId: receipt.data().gapId, latestSuggestion: suggestion, suggestionAt: FieldValue.serverTimestamp(), sendStatus: evidence.data()?.sendStatus || 'draft', updatedAt: FieldValue.serverTimestamp() })
+      return { id: receipt.data().gapId, title: original.data()?.title || '', count: original.data()?.count || 0, alreadyCounted: true, evidenceId: occurrenceId }
     }
     const previous = gap.exists ? gap.data() : null
     const now = FieldValue.serverTimestamp()
     const count = (previous?.count || 0) + 1
-    tx.set(gapRef, { ...(previous || {}), intentKey: normalized.intentKey, missingAspect: normalized.missingAspect, classification: normalized.intentKey === 'other_unclassified' ? 'broad' : 'category', title: previous?.title || normalized.title, missing: previous?.missing || normalized.missing, process: previous?.process || normalized.process, count, firstSeenAt: previous?.firstSeenAt || now, lastSeenAt: now, status: previous?.status === 'ignored' ? 'ignored' : previous?.status === 'in_progress' ? 'in_progress' : 'open', revision: (previous?.revision || 0) + 1, articleId: previous?.articleId || '' })
+    tx.set(gapRef, { ...(previous || {}), intentKey: normalized.intentKey, missingAspect: normalized.missingAspect, classification: normalized.intentKey === 'other_unclassified' ? 'broad' : 'category', title: previous?.title || normalized.title, missing: previous?.missing || normalized.missing, process: previous?.process || normalized.process, count, firstSeenAt: previous?.firstSeenAt || now, lastSeenAt: now, status: previous?.status === 'ignored' ? 'ignored' : previous?.status === 'in_progress' ? 'in_progress' : 'open', revision: (previous?.revision || 0) + 1, ...(previous?.status === 'resolved' ? { resolvedAt: null, resolvedBy: '', resolvedByName: '' } : {}), articleId: previous?.articleId || '' })
     tx.create(receiptRef, { gapId, createdAt: now })
-    return { id: gapId, title: previous?.title || normalized.title, count, broad: normalized.intentKey === 'other_unclassified' }
-  })
+    tx.set(db.doc(`knowledgeGapEvidence/${occurrenceId}`), { gapId, latestSuggestion: suggestion, suggestionAt: now, sendStatus: 'draft', updatedAt: now })
+    return { id: gapId, title: previous?.title || normalized.title, count, broad: normalized.intentKey === 'other_unclassified', evidenceId: occurrenceId }
+  }
+  return transaction ? persist(transaction) : db.runTransaction(persist)
+}
+
+
+// Return only drafting provenance. Gap tracking stays exclusively in the curator area.
+export function publicReplyKnowledge(value) {
+  const sources = Array.isArray(value?.sources) ? value.sources.map(({ id, kind, revision, title }) => ({ id, kind, revision, title })) : []
+  const warnings = (Array.isArray(value?.warnings) ? value.warnings : []).filter(code => ['knowledge_access_unavailable', 'knowledge_search_limited', 'knowledge_match_uncertain'].includes(code))
+  return { sources, ...(value?.status === 'grounded' ? { status: 'grounded' } : {}), ...(warnings.length ? { status: 'unavailable', warnings } : {}) }
 }

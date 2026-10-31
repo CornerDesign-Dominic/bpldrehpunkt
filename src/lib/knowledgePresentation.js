@@ -10,7 +10,7 @@ export const knowledgeLabels = {
   audience: ['Adressat', 'Audience'], owner: ['Zuständig', 'Responsible'], status: ['Status', 'Status'], lastReviewedDate: ['Zuletzt geprüft', 'Last reviewed'], nextReviewDate: ['Nächste Prüfung', 'Next review'],
   draft: ['Entwurf', 'Draft'], valid: ['Gültig', 'Valid'], archived: ['Archiviert', 'Archived'],
   general: ['Allgemein', 'General'], customer: ['Kunden', 'Customers'], carrier: ['Unternehmer', 'Carriers'], tax: ['Finanzamt', 'Tax office'], lawyer: ['Anwälte', 'Lawyers'], collection: ['Inkasso', 'Debt collection'], other: ['Sonstige', 'Other'],
-  open: ['Offen', 'Open'], in_progress: ['In Bearbeitung', 'In progress'], resolved: ['Abgedeckt', 'Covered'], ignored: ['Zurückgestellt', 'Deferred'],
+  open: ['Offen', 'Open'], in_progress: ['In Bearbeitung', 'In progress'], resolved: ['Erledigt', 'Done'], ignored: ['Zurückgestellt', 'Deferred'],
 }
 export const knowledgeBaseUrl = (kind) => kind === 'rule' ? '/qualitaet/grundregeln' : '/qualitaet/handbuch'
 export const knowledgeUrl = (kind, id) => `${knowledgeBaseUrl(kind)}/${encodeURIComponent(id)}`
