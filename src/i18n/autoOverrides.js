@@ -1,5 +1,6 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Fixtermin': 'Fixed appointment',
   'Transport & Fahrzeug': 'Transport & vehicle',
   'Ware & Auftragsmengen': 'Cargo & order quantities',
   'Warenart': 'Type of goods',

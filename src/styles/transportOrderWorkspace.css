@@ -26,7 +26,12 @@
 .order-workspace__stop:last-child { margin-bottom:0; }
 .order-workspace__stop p { font-size:12px; }
 .order-workspace__stop-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start; }
+.order-workspace__transport .order-workspace__stop { border-left:0; padding-left:0; margin:0; }
+.order-workspace__transport .order-workspace__stop + .order-workspace__stop { border-top:1px solid var(--border); padding-top:16px; margin-top:16px; }
+.order-workspace__stop-address { font-style:normal; font-size:12px; line-height:1.5; margin:4px 0 10px; overflow-wrap:anywhere; }
 .order-workspace__stop-address > strong, .order-workspace__stop-address > span { display:block; }
+.order-workspace__stop-schedule { margin-bottom:8px; }
+.order-workspace__stop-schedule dl { grid-template-columns:auto minmax(0,1fr); gap:4px 12px; font-size:12px; }
 .order-workspace__stop-details { border-left:1px solid var(--border); padding-left:16px; min-width:0; }
 .order-workspace__stop-cargo { border-top:1px solid var(--border); padding-top:8px; margin-top:8px; }
 .order-workspace__stop-cargo dl { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 12px; }

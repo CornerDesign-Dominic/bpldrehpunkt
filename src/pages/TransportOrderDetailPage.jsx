@@ -47,18 +47,37 @@ function PartnerCard({ type, imported, partner, canOpen, onDetails, full = false
     {full && <><div className="order-workspace__contact"><Values entries={[["Telefon", partner?.contact?.phone], ['E-Mail (Stammdaten)', partner?.contact?.email], ['USt-IdNr.', partner?.companyData?.vatId]]} /></div>{!customer && imported.contacts?.carrierForOrder && <p>{imported.contacts.carrierForOrder}</p>}</>}
   </Card>
 }
+function StationSchedule({ stop }) {
+  const { language } = useLanguage()
+  const locale = language === 'en' ? 'en-GB' : 'de-DE'
+  const from = recordHistoryTime(stop.window?.from)
+  const until = recordHistoryTime(stop.window?.until)
+  const format = (timestamp, options) => timestamp ? new Intl.DateTimeFormat(locale, options).format(new Date(timestamp)) : '—'
+  const range = (options) => {
+    const start = format(from, options)
+    const end = format(until, options)
+    if (!from) return end
+    if (!until || start === end) return start
+    return `${start} – ${end}`
+  }
+  return <div className="order-workspace__stop-schedule"><Values entries={[
+    ['Datum', range({ dateStyle: 'short' })], ['Uhrzeit', range({ timeStyle: 'short' })],
+    ['Fixtermin', language === 'en' ? 'Not provided' : 'Nicht übermittelt'],
+  ]} /></div>
+}
 function StationCards({ imported, detailed, date, number }) {
   const stops = transportOrderWorkspaceStops(imported)
   return stops.length ? stops.map((stop, index) => <article className="order-workspace__stop" key={`${stop.sourceId || index}-${index}`}>
     <h4>{detailed ? stop.sequence ?? index + 1 : index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
     <div className={detailed ? 'order-workspace__stop-columns' : undefined}>
       <div>
-        {detailed && !stop.legacy ? <p className="order-workspace__stop-address">
+        {detailed && !stop.legacy ? <address className="order-workspace__stop-address">
           {stop.address?.company && <strong>{stop.address.company}</strong>}
           {[stop.address?.street, stop.address?.houseNumber].filter(Boolean).join(' ') && <span>{[stop.address.street, stop.address.houseNumber].filter(Boolean).join(' ')}</span>}
-          <span>{[stop.address?.postalCode, stop.address?.city, stop.address?.country].filter(Boolean).join(' ') || '—'}</span>
-        </p> : <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>}
-        <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>
+          <span>{[stop.address?.postalCode, stop.address?.city].filter(Boolean).join(' ') || '—'}</span>
+          {stop.address?.country && <span>{stop.address.country}</span>}
+        </address> : <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>}
+        {detailed ? <StationSchedule stop={stop} /> : <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>}
         {stop.deliveryInformation && <p className="order-workspace__muted"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
         {detailed && stop.slotUntilTime && !stop.window?.until && <p className="order-workspace__muted"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
       </div>

@@ -38,7 +38,14 @@ links eine gemeinsame Stationskarte, rechts Karten für Transport/Fahrzeug,
 Ware/Auftragsmengen und Dispositionsbemerkung. Die Stationen stehen untereinander;
 jede Station ist innen zweispaltig: Adresse, Zeitfenster und Referenz links,
 Bemerkung, Lieferschein und Stationsmengen/Palettentausch rechts. Bei schmalen
-Ansichten werden diese Angaben untereinander dargestellt. Die bisherige separate Tabelle
+Ansichten werden diese Angaben untereinander dargestellt. Dezente horizontale
+Linien trennen die Stationen. Jede Adresse erscheint als Adressblock mit Firma,
+Straße, PLZ/Ort und Land. Darunter stehen Datum, Uhrzeit und Fixtermin getrennt.
+Der aktuelle Import übernimmt das dokumentierte DyCoS-Feld `Fixtermin` noch
+nicht; die Anzeige lautet daher „Nicht übermittelt“. Die bestehende
+Trackingableitung aus Uhrzeiten wird dafür nicht als verifiziertes Flag verwendet.
+Offen bleibt die separate Erweiterung des Importvertrags um diese Kennzeichnung.
+Die bisherige separate Tabelle
 „Warenangaben je Station“ entfällt in diesem Reiter. Gewicht, Kolli, Lademeter
 und Palettentausch stehen direkt bei der jeweiligen Station; ihre Mengen
 werden nicht zu Auftragssummen addiert. Auftragssummen kommen weiterhin allein
