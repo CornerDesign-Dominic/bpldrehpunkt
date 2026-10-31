@@ -1,4 +1,22 @@
 .mail-record-choice, .mail-record-editor { display: grid; gap: 14px; }
+.mail-work-dialog__editor-content:has(> .mail-record-workflow) { display: flex; flex-direction: column; min-height: 100%; }
+.mail-record-workflow { display: flex; flex-direction: column; flex: 1; gap: 20px; min-width: 0; }
+.mail-record-main { flex: 1; min-width: 0; }
+.mail-record-selection { margin-bottom: 18px; }
+.mail-record-selection h3 { margin: 0 0 10px; font-size: 15px; }
+.mail-record-segments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: var(--input-background); }
+.mailboxes-page .mail-record-segments button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; margin: 0; padding: 8px; border: 1px solid transparent; border-radius: 6px; color: var(--text-secondary); background: transparent; box-shadow: none; text-align: center; font-weight: 600; line-height: 1.35; }
+.mail-record-segments button > svg { flex-shrink: 0; width: 16px; height: 16px; }
+.mailboxes-page .mail-record-segments button:hover:not(:disabled) { background: var(--surface-secondary); color: var(--text-primary); }
+.mailboxes-page .mail-record-segments button[aria-pressed=true] { color: var(--text-primary); border-color: var(--button-background); background: var(--surface-active); box-shadow: 0 1px 3px var(--workspace-shadow); }
+.mailboxes-page .mail-record-segments button:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
+.mail-record-count { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 8px; background: var(--surface-secondary); font-size: 11px; }
+.mail-record-operation { display: grid; gap: 8px; }
+.mail-record-operation > span { font-size: 12px; color: var(--text-secondary); }
+.mail-record-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
+.mailboxes-page .mail-record-discard { color: var(--text-secondary); background: transparent; }
+.mailboxes-page .mail-record-discard:hover:not(:disabled) { color: var(--status-error-text); border-color: var(--status-error-text); background: var(--status-error-background); }
+.mail-record-footer .mail-record-apply { margin-left: auto; }
 .mail-record-choice h3, .mail-record-choice h4, .mail-record-completed h3 { margin: 10px 0 0; }
 .mail-record-buttons, .mail-record-search, .mail-record-editor-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
 .mail-record-search { margin: 12px 0; flex-wrap: nowrap; }
@@ -25,3 +43,4 @@
 .mail-record-error { padding: 12px; border: 1px solid var(--status-error-text); background: var(--status-error-background); border-radius: 7px; }
 .mailboxes-page .mail-record-apply { background: var(--button-background); color: var(--button-text); }
 @media (max-width: 760px) { .mail-record-field.has-comparison { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 480px) { .mail-record-selection .mail-record-segments button { flex-direction: column; font-size: 11px; } }

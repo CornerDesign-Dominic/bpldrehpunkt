@@ -16,6 +16,16 @@ zusätzlich bereit. Der automatische Abgleich umfasst höchstens 500 Einträge p
 Kategorie bzw. 500 Termine je bearbeitbarem Kalender, höchstens 20 Kalender.
 Eine Begrenzung wird angezeigt.
 
+Die obere Auswahlleiste wechselt zwischen „Neu anlegen“, „Vorschläge“ und
+„Bestehenden wählen“; der aktive Bereich ist hervorgehoben. Bearbeitete Entwürfe
+für Neuanlage und bestehenden Eintrag bleiben beim Wechsel und Schließen erhalten,
+solange dieselbe Mailaktion geöffnet ist. Bei bestehenden Einträgen sind
+Aktualisieren, Dokumentieren und Abschließen direkt auswählbar. Verwerfen steht
+in einer abgesetzten Abschlussleiste am unteren Ende. Bei To-dos entfallen die
+zusätzlichen Quellenlinks an den Feldern und die Quellenübersicht rechts; Mail
+und Anhänge bleiben links sichtbar. Quellenvalidierung und Speicherung bleiben
+serverseitig erhalten.
+
 Bei bestehenden Einträgen stehen bisherige und vorgeschlagene Werte paarweise
 auf gleicher Höhe. Nur ausgewählte Felder werden geändert. Alternativ kann der
 Nutzer lediglich dokumentieren oder ausdrücklich abschließen. Schadenabschluss
