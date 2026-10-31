@@ -35,7 +35,10 @@ buchhalterischer Abschlussstatus.
 
 Transport & Ware nutzt die volle Breite ohne rechte Verknüpfungsspalte:
 links eine gemeinsame Stationskarte, rechts Karten für Transport/Fahrzeug,
-Ware/Auftragsmengen und Dispositionsbemerkung. Die bisherige separate Tabelle
+Ware/Auftragsmengen und Dispositionsbemerkung. Die Stationen stehen untereinander;
+jede Station ist innen zweispaltig: Adresse, Zeitfenster und Referenz links,
+Bemerkung, Lieferschein und Stationsmengen/Palettentausch rechts. Bei schmalen
+Ansichten werden diese Angaben untereinander dargestellt. Die bisherige separate Tabelle
 „Warenangaben je Station“ entfällt in diesem Reiter. Gewicht, Kolli, Lademeter
 und Palettentausch stehen direkt bei der jeweiligen Station; ihre Mengen
 werden nicht zu Auftragssummen addiert. Auftragssummen kommen weiterhin allein

@@ -51,19 +51,27 @@ function StationCards({ imported, detailed, date, number }) {
   const stops = transportOrderWorkspaceStops(imported)
   return stops.length ? stops.map((stop, index) => <article className="order-workspace__stop" key={`${stop.sourceId || index}-${index}`}>
     <h4>{detailed ? stop.sequence ?? index + 1 : index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
-    <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>
-    <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>
-    {stop.deliveryInformation && <p className="order-workspace__muted"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
-    {detailed && <>
-      <p><StaticText source="Bemerkung" />: {stop.note || '—'}</p>
-      <p><StaticText source="Lieferscheinnummer" />: {stop.deliveryNoteNumber || '—'}</p>
-      {stop.slotUntilTime && !stop.window?.until && <p className="order-workspace__muted"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
-      <div className="order-workspace__stop-cargo"><Values entries={[
-        ['Kolli', number(stop.cargo?.packages)], ['Gewicht', number(stop.cargo?.weightKg, ' kg')],
-        ['Lademeter', number(stop.cargo?.loadingMeters, ' m')],
-        ['Palettentausch', typeof stop.palletExchange === 'boolean' ? <StaticText source={stop.palletExchange ? 'Ja' : 'Nein'} /> : '—'],
-      ]} /></div>
-    </>}
+    <div className={detailed ? 'order-workspace__stop-columns' : undefined}>
+      <div>
+        {detailed && !stop.legacy ? <p className="order-workspace__stop-address">
+          {stop.address?.company && <strong>{stop.address.company}</strong>}
+          {[stop.address?.street, stop.address?.houseNumber].filter(Boolean).join(' ') && <span>{[stop.address.street, stop.address.houseNumber].filter(Boolean).join(' ')}</span>}
+          <span>{[stop.address?.postalCode, stop.address?.city, stop.address?.country].filter(Boolean).join(' ') || '—'}</span>
+        </p> : <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>}
+        <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>
+        {stop.deliveryInformation && <p className="order-workspace__muted"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
+        {detailed && stop.slotUntilTime && !stop.window?.until && <p className="order-workspace__muted"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
+      </div>
+      {detailed && <div className="order-workspace__stop-details">
+        <p><StaticText source="Bemerkung" />: {stop.note || '—'}</p>
+        <p><StaticText source="Lieferscheinnummer" />: {stop.deliveryNoteNumber || '—'}</p>
+        <div className="order-workspace__stop-cargo"><Values entries={[
+          ['Kolli', number(stop.cargo?.packages)], ['Gewicht', number(stop.cargo?.weightKg, ' kg')],
+          ['Lademeter', number(stop.cargo?.loadingMeters, ' m')],
+          ['Palettentausch', typeof stop.palletExchange === 'boolean' ? <StaticText source={stop.palletExchange ? 'Ja' : 'Nein'} /> : '—'],
+        ]} /></div>
+      </div>}
+    </div>
   </article>) : <p className="order-workspace__muted"><StaticText source="Keine Stationen übermittelt." /></p>
 }
 function ResultCard({ financial, currency, onDetails }) {
