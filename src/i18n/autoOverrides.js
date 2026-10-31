@@ -1,5 +1,6 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Relationen konnten nicht geladen werden.': 'Dispatch teams could not be loaded.',
   'Fahrzeugart': 'Vehicle type',
   'Abweichende Stammdaten prüfen': 'Review conflicting master data',
   'Sendungsverfolgung öffnen': 'Open shipment tracking',

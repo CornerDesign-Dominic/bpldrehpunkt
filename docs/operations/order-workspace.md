@@ -66,7 +66,13 @@ Prüfungen gelten unabhängig von der Buttonsichtbarkeit.
 Refreshbelege sind nur für Auftragsleser lesbar, Clientschreiben ist gesperrt.
 Reservierungen besitzen keine direkten Browserrechte. Auftragslisten verwenden
 `listTransportOrderRecordsPage` ohne Trackingabfragen oder Prognoseberechnung.
-Vorhandene Listenprojektionen und Filter werden wiederverwendet. Persönliche
+Vorhandene Listenprojektionen und Filter werden wiederverwendet. Die Auftragsliste zeigt TA-Nummer, Relation, Kunde, Unternehmer sowie Lade-/
+Entladedaten. Kundenreferenzen bleiben suchbar, erscheinen jedoch nicht in der
+TA-Zelle. Relation wird aus der vorhandenen Relationsliste ausgewählt. Kunde
+und Unternehmer besitzen feste Desktopbreiten von je 220 px; lange Namen werden
+gekürzt. Die vollständige Zeile ist ein nativer Auftragslink, auch für Tastatur
+und neue Tabs. Kein Trackinglink und kein horizontaler Tabellen-Scrollbereich.
+Persönliche
 Auftragsfilter liegen benutzerbezogen lokal unter `drehpunkt.order-record-list`;
 Trackingfilter behalten ihren bestehenden Profilvertrag. Fehler neuer Client-
 Abläufe verwenden den geschützten Diagnosebereich `transport-orders` mit festen
