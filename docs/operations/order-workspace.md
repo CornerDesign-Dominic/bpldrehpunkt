@@ -53,6 +53,10 @@ aus `imported.shipment`. Warenart und Einzelmaße sind im aktuellen Importvertra
 nicht enthalten und werden als nicht übermittelt ausgewiesen, nicht abgeleitet.
 Die bestehende operative Trackingansicht bleibt davon unberührt.
 
+Die Finanzansicht zeigt rechts anstelle der Verknüpfungen die Karten
+Auftragsergebnis und Rechnungsprüfung. Belege sowie einzelne Ertrags- und
+Kostenpositionen bleiben links. Die bestehenden Prüfergebnisse öffnen sich
+weiterhin im Rechnungsprüfungsdialog.
 Die Finanzansicht verwendet die veröffentlichte Belegklassifikation aus
 `dycosOrderDocuments.js`: interne Kopf-ID als Identität, interne und externe
 Nummern getrennt, Stornobelege mit Originalbezug. Es gibt keine manuell

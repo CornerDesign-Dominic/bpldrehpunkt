@@ -64,6 +64,11 @@
 .order-workspace__scroll { overflow-x:auto; }
 .order-workspace__finance { display:grid; gap:16px; }
 .order-workspace__finance .transport-order-detail-section { border:1px solid var(--border); border-radius:8px; padding:16px; margin:0; background:var(--content-background); }
+.order-workspace__finance-summary { display:grid; gap:16px; min-width:0; }
+.order-workspace__finance-summary > .transport-order-detail-section { border:1px solid var(--border); border-radius:8px; padding:16px; margin:0; background:var(--content-background); }
+.order-workspace__finance-summary > .transport-order-detail-section > h3 { margin:0 0 12px; font-size:14px; }
+.order-workspace__finance-summary .order-workspace__money > span:last-child { white-space:nowrap; }
+.order-workspace__finance-summary > .transport-order-detail-section > .button { white-space:normal; }
 @media(max-width:1100px) { .order-workspace__layout { grid-template-columns:minmax(0,1fr) 210px; } .order-workspace__overview { grid-template-columns:1fr; } }
 @media(max-width:760px) { .order-workspace__layout { grid-template-columns:1fr; } .order-workspace__links { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); } .order-workspace__tabs { gap:0 14px; } }
 @media(max-width:760px) { .order-record-history-table th:nth-child(-n+3) { width:16%; } }
