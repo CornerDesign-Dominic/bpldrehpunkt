@@ -99,6 +99,12 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   const [search, setSearch] = useState('')
   const request = useRef(0)
   const retryPage = useRef(null)
+  const [replies, setReplies] = useState({})
+  const [replyError, setReplyError] = useState(false)
+  const [replyPartial, setReplyPartial] = useState(false)
+  const [replyReload, setReplyReload] = useState(0)
+  const [openedReply, setOpenedReply] = useState(null)
+  const replyIds = messages.map(message => message.id).join('\n')
   const actionStates = useMailboxActionList(connectionId, messages.map(message => message.id))
   const load = useCallback(async (pageToken) => {
     const version = ++request.current
@@ -109,6 +115,7 @@ function Inbox({ connectionId, selectedId, onSelect }) {
       if (version !== request.current) return
       setMessages((current) => pageToken ? [...new Map([...current, ...result.messages].map((item) => [item.id, item])).values()] : result.messages)
       setNext(result.nextPageToken || null)
+      setReplyReload(value => value + 1)
     } catch { if (version === request.current) setError(w('Nachrichten konnten nicht geladen werden.', 'Could not load messages.')) }
     finally { if (version === request.current) setBusy(false) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +126,32 @@ function Inbox({ connectionId, selectedId, onSelect }) {
     const currentRequest = request
     return () => { clearTimeout(task); ++currentRequest.current }
   }, [load])
+  useEffect(() => {
+    const refresh = () => setReplyReload(value => value + 1)
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 60000)
+    window.addEventListener('focus', refresh)
+    window.addEventListener('drehpunkt:mail-reply-sent', refresh)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('drehpunkt:mail-reply-sent', refresh) }
+  }, [])
+  useEffect(() => {
+    if (!replyIds) return
+    let active = true
+    const loadReplies = async () => {
+      const ids = replyIds.split('\n')
+      let partial = false
+      try {
+        for (let offset = 0; offset < ids.length; offset += 30) {
+          const result = await mailboxCall('listMailboxReplies', { connectionId, messageIds: ids.slice(offset, offset + 30) })
+          if (!active) return
+          partial ||= result.partial === true
+          setReplies(current => ({ ...current, ...result.replies }))
+        }
+        if (active) { setReplyError(false); setReplyPartial(partial) }
+      } catch { if (active) setReplyError(true) }
+    }
+    void loadReplies()
+    return () => { active = false }
+  }, [connectionId, replyIds, replyReload])
   return <aside className="mailbox-inbox" aria-label={w('Posteingang', 'Inbox')}><div className="mailbox-panel-heading"><h2>{w('Posteingang', 'Inbox')}</h2><button type="button" disabled={busy} onClick={() => load()}>{w('Aktualisieren', 'Refresh')}</button></div>
     <form className="mailbox-search" role="search" onSubmit={event => { event.preventDefault(); const nextSearch = searchInput.trim(); if (nextSearch === search) void load(); else setSearch(nextSearch) }}>
       <div className="mailbox-search-row"><input aria-label={w('Posteingang durchsuchen', 'Search inbox')} id="mailbox-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder={w('Absender, Betreff, Mailtext', 'Sender, subject, message text')} /><button className="mailbox-search-submit" type="submit" aria-label={w('Suchen', 'Search')} title={w('Suchen', 'Search')}><FiSearch size={17} aria-hidden="true" /></button></div>
@@ -126,19 +159,43 @@ function Inbox({ connectionId, selectedId, onSelect }) {
       {search && <small role="status">{w('Suchergebnisse · bis zu 1.000 Treffer', 'Search results · up to 1,000 matches')}</small>}
     </form>
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
-    <div className="mailbox-message-list">{messages.map((message) => <button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
+    <div className="mailbox-message-list">{messages.map((message) => <div className="mailbox-message-group" key={message.id}><button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
       <span className="mailbox-message-heading"><span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><MailActionIndicators identity={{ connectionId, messageId: message.id }} actions={actionStates} /></span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
-    </button>)}</div>
+    </button>{(replies[message.id] || []).map(reply => <button className="mailbox-replied-row" type="button" key={reply.id} onClick={() => setOpenedReply(reply.id)} aria-label={`${w('Beantwortet', 'Replied')} · ${mailDate(reply.sentDateTime, language)}`}><span>{w('Beantwortet', 'Replied')}</span><time dateTime={reply.sentDateTime}>{mailDate(reply.sentDateTime, language)}</time><span aria-hidden="true">✓</span></button>)}</div>)}</div>
     {busy && <p role="status">{w('Nachrichten werden geladen …', 'Loading messages …')}</p>}
     {!busy && !error && !messages.length && <p role="status">{search ? w('Keine passenden Nachrichten gefunden.', 'No matching messages found.') : w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}
+    {(replyError || replyPartial) && <small className="mailbox-replies-warning" role="status">{w('Antworten konnten noch nicht vollständig geprüft werden.', 'Replies could not yet be fully checked.')} <button type="button" onClick={() => setReplyReload(value => value + 1)}>{w('Erneut prüfen', 'Check again')}</button></small>}
+    {openedReply && <SentReplyDialog identity={{connectionId, messageId: openedReply}} onClose={() => setOpenedReply(null)} />}
     {next && <button type="button" disabled={busy} onClick={() => load(next)}>{w('Weitere Nachrichten', 'More messages')}</button>}
   </aside>
 }
 
-function MessageContent({ message, beforeBody }) {
+function SentReplyDialog({ identity, onClose }) {
+  const w = useWords()
+  const dialog = useRef(null)
+  const [message, setMessage] = useState(null)
+  const [error, setError] = useState(false)
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    const element = dialog.current
+    element.showModal()
+    return () => element.close()
+  }, [])
+  useEffect(() => {
+    let active = true
+    mailboxCall('getMailboxMessage', identity).then(result => { if (active) { setMessage(result.message); setError(false) } }).catch(() => { if (active) setError(true) })
+    return () => { active = false }
+  }, [identity.connectionId, identity.messageId, retry]) // eslint-disable-line react-hooks/exhaustive-deps
+  const files = groupMailboxAttachments(message?.attachments || [])
+  return <dialog ref={dialog} className="mailbox-reply-dialog mailbox-sent-dialog" aria-label={w('Gesendete Antwort', 'Sent reply')} onCancel={event => { event.preventDefault(); onClose() }}><div className="mailbox-panel-heading"><h2>{w('Gesendete Antwort', 'Sent reply')}</h2><button type="button" onClick={onClose}>{w('Schließen', 'Close')}</button></div><article className="mailbox-reader mailbox-sent-reader">
+    {error ? <Failure message={w('Diese Antwort konnte nicht geladen werden.', 'Could not load this reply.')} retry={() => setRetry(value => value + 1)} /> : !message ? <p role="status">{w('Antwort wird geladen …', 'Loading reply …')}</p> : <><MessageContent message={message} sent beforeBody={<MailboxAttachmentList identity={identity} attachments={files.files} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} /><MailboxAttachmentList identity={identity} attachments={files.inlineImages} inline outlookUrl={safeOutlookLink(message.webLink)} /></>}
+  </article></dialog>
+}
+
+function MessageContent({ message, beforeBody, sent = false }) {
   const { language } = useLanguage()
   const w = useWords()
-  return <><h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(message.receivedDateTime, language)}</dd></dl>
+  return <><h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(sent ? message.sentDateTime : message.receivedDateTime, language)}</dd></dl>
     {beforeBody}<div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
 }
 
@@ -274,6 +331,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
         setUndoBody(null); setSuggestionsOpen(false); setSuggestionError('')
         setDraft(cleared); setSaved(JSON.stringify(cleared)); setOpen(false)
         setToast(w('Antwort gesendet.', 'Reply sent.'))
+        window.dispatchEvent(new Event('drehpunkt:mail-reply-sent'))
       } else {
         setSaved(JSON.stringify(draft))
         setNotice(w('Versandstatus unklar. Bitte zuerst in Outlook unter „Gesendete Elemente“ prüfen und nicht erneut senden.', 'Sending status is unclear. Check Sent Items in Outlook before sending anything again.'))

@@ -26,7 +26,7 @@
 .mailboxes-page .mailbox-search-submit { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; padding: 0; }
 .mailbox-search small { color: var(--text-secondary); font-size: 11px; }
 .mailbox-message-list { display: grid; align-content: start; gap: 9px; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
-.mailboxes-page .mailbox-message-item { display: grid; gap: 6px; text-align: left; width: 100%; padding: 12px 9px; background: var(--surface-secondary); border: 1px solid var(--border-strong); border-left: 3px solid var(--border-strong); border-radius: 8px; color: var(--text-primary); box-shadow: 0 2px 4px var(--workspace-shadow); }
+.mailboxes-page .mailbox-message-item { display: grid; gap: 4px; text-align: left; width: 100%; padding: 9px; background: var(--surface-secondary); border: 1px solid var(--border-strong); border-left: 3px solid var(--border-strong); border-radius: 8px; color: var(--text-primary); box-shadow: 0 2px 4px var(--workspace-shadow); }
 .mailbox-message-item > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mailbox-message-item > strong { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .mailbox-message-item small, .mailbox-preview { color: var(--text-secondary); font-size: 11px; }
@@ -207,3 +207,11 @@
 
 .mailboxes-page .mailbox-suggestions__generate { color: #fff; background: var(--color-ai); border-color: var(--color-ai-border); }
 .mailboxes-page .mailbox-suggestions__generate:hover:not(:disabled) { background: var(--color-ai-hover); }
+
+.mailbox-message-group { min-width: 0; }
+.mailbox-message-group:has(.mailbox-replied-row) .mailbox-message-item { border-radius: 8px 8px 0 0; }
+.mailboxes-page .mailbox-replied-row { display: flex; align-items: center; gap: 6px; width: 100%; min-width: 0; padding: 4px 9px; border: 1px solid var(--border-strong); border-top: 0; border-radius: 0; background: var(--app-background); color: var(--text-secondary); font-size: 11px; text-align: left; }
+.mailbox-replied-row time { margin-left: auto; white-space: nowrap; }
+.mailbox-replied-row:last-child { border-radius: 0 0 7px 7px; }
+.mailbox-replies-warning { color: var(--text-secondary); font-size: 11px; }
+.mailbox-sent-reader { flex: 1; min-height: 0; overflow: auto; }

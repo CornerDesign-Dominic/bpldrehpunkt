@@ -1,3 +1,4 @@
+import { listMailboxReplies } from './mailboxReplies.js'
 import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
@@ -448,11 +449,16 @@ export function createMailboxHandlers(deps = {}) {
       }
       return { messages: result.value || [], nextPageToken }
     }),
+    listMailboxReplies: guarded('sent-replies', async request => {
+      const context = await owned(request)
+      const token = await accessToken(context)
+      return listMailboxReplies({ ids: request.data.messageIds, base: mailboxPath(context), validatePage: value => mailboxMessagePagePath(value, context.connection), graph: (path, options) => graph(token, path, options) })
+    }),
     getMailboxMessage: guarded('read', async request => {
       const context = await owned(request)
       const token = await accessToken(context)
       const path = `${mailboxPath(context)}/messages/${segment(request.data.messageId)}`
-      const message = await graph(token, `${path}?$select=id,subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,isRead,hasAttachments,body,webLink`)
+      const message = await graph(token, `${path}?$select=id,subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,isRead,hasAttachments,body,webLink`)
       if (message.body?.contentType?.toLowerCase() !== 'text') fail('unavailable', 'Microsoft hat keine sichere Textansicht geliefert.')
       const attachments = await graph(token, `${path}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
       message.attachments = (attachments.value || []).map(a => ({ id: a.id, name: a.name, contentType: a.contentType, size: a.size, isInline: a.isInline, supported: a['@odata.type'] === '#microsoft.graph.fileAttachment' && a.size <= MAX_ATTACHMENT }))
@@ -732,6 +738,7 @@ export const applyMailboxTrackingHandler = handlers.applyMailboxTracking
 export const previewMailboxOrderHandler = handlers.previewMailboxOrder
 export const exportMailboxOrderHandler = handlers.exportMailboxOrder
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
+export const listMailboxRepliesHandler = handlers.listMailboxReplies
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment
 export const suggestMailboxReplyHandler = handlers.suggestMailboxReply

@@ -697,3 +697,18 @@ test('failure acknowledging evidence after Graph acceptance cannot change accept
   assert.equal(f.fetchCount(), 1)
   assert.equal(f.db.records.get(`mailboxSendOperations/${hash(`owner|${reply.operationId}`)}`).status, 'accepted')
 })
+
+
+test('reply lookup is owner-scoped and all batch subrequests use the shared mailbox stored on the server', async () => {
+  const paths = []
+  const f = sharedFixture({ fetch: async (url, options) => {
+    assert.ok(url.endsWith('/$batch'))
+    const requests = JSON.parse(options.body).requests
+    paths.push(...requests.map(item => item.url))
+    return response({ responses: requests.map(item => ({ id: item.id, status: 200, body: item.url.includes('internetMessageHeaders') ? {id:'sent',internetMessageId:'<sent>',sentDateTime:'2026-10-31T10:00:00Z',internetMessageHeaders:[{name:'In-Reply-To',value:'<source>'}]} : item.url.includes('sentitems') ? {value:[{id:'sent'}]} : {id:'source',internetMessageId:'<source>',conversationId:'c',receivedDateTime:'2026-10-31T09:00:00Z'} })) })
+  } })
+  const result = await f.handlers.listMailboxReplies(sharedRequest({messageIds:['source'],base:'/users/attacker'}))
+  assert.equal(result.replies.source.length,1)
+  assert.ok(paths.every(path=>path.startsWith(`/users/${encodeURIComponent(sharedEmail)}/`)))
+  await assert.rejects(f.handlers.listMailboxReplies({auth:{uid:'other'},data:{connectionId:sharedId,messageIds:['source']}}),{code:'permission-denied'})
+})

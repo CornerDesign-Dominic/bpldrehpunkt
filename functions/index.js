@@ -22,7 +22,7 @@ import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
@@ -134,6 +134,7 @@ export const listMailboxConnections = onCall(mailboxOptions, listMailboxConnecti
 export const addSharedMailbox = onCall(mailboxOptions, addSharedMailboxHandler)
 export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler)
 export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
+export const listMailboxReplies = onCall(mailboxOptions, listMailboxRepliesHandler)
 export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
 export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)
 export const suggestMailboxReply = onCall({ ...mailboxOptions, timeoutSeconds: 180, secrets: [mailboxClientSecret, statusMailAiApiKey] }, suggestMailboxReplyHandler)
