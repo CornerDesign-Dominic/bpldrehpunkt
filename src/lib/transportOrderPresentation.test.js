@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { formatTransportOrderRelation, formatTransportOrderWindow, sortTransportOrders, transportOrderDocumentTitle, transportOrderPath } from './transportOrderPresentation.js'
+import { formatTransportOrderDocumentDate, transportOrderFinancialDocumentLabels, formatTransportOrderRelation, formatTransportOrderWindow, sortTransportOrders, transportOrderDocumentTitle, transportOrderPath } from './transportOrderPresentation.js'
 
 test('transport order opens through its exact route and receives a concise browser-tab title', () => {
   assert.equal(transportOrderPath('dycos-260900123'), '/transportauftraege/dycos-260900123')
@@ -31,4 +31,20 @@ test('relations hide only a leading numeric import prefix in the list display', 
   assert.equal(formatTransportOrderRelation('03 Dobo Christian'), 'Dobo Christian')
   assert.equal(formatTransportOrderRelation('Dobo Christian'), 'Dobo Christian')
   assert.equal(formatTransportOrderRelation(null), '—')
+})
+
+test('document date preserves the source calendar date and rejects malformed or impossible dates', () => {
+  assert.equal(formatTransportOrderDocumentDate('2026-06-23'), '23.06.2026')
+  assert.equal(formatTransportOrderDocumentDate('2026-06-23', 'en'), '23/06/2026')
+  assert.equal(formatTransportOrderDocumentDate('2026-02-30'), '—')
+  assert.equal(formatTransportOrderDocumentDate('2026-06-23T00:00:00Z'), '—')
+  assert.equal(formatTransportOrderDocumentDate(null), '—')
+})
+
+test('business document, internal booking document and issuer stay distinct for proforma and unknown legacy values', () => {
+  assert.deepEqual(transportOrderFinancialDocumentLabels({ businessType: 'customer_invoice_cancellation', internalType: 'invoice_cancellation', issuer: 'us', cancelled: false }), { business: 'Stornorechnung Kunde', internal: 'Stornorechnung', issuer: 'Von uns' })
+  assert.deepEqual(transportOrderFinancialDocumentLabels({ businessType: 'carrier_invoice', internalType: 'proforma_credit_note', issuer: 'partner' }), { business: 'Unternehmerrechnung', internal: 'Proforma-Gutschrift', issuer: 'Vom Geschäftspartner' })
+  assert.deepEqual(transportOrderFinancialDocumentLabels({ businessType: 'customer_credit_note', internalType: 'proforma_invoice', issuer: 'partner' }), { business: 'Kundengutschrift', internal: 'Proforma-Rechnung', issuer: 'Vom Geschäftspartner' })
+  assert.deepEqual(transportOrderFinancialDocumentLabels({ businessType: 'unknown', internalType: 'credit_note', TextStorno: 'PROFORMA-Gutschrift' }), { business: 'Belegzuordnung offen', internal: 'Gutschrift', issuer: null })
+  assert.deepEqual(transportOrderFinancialDocumentLabels({ businessType: '__proto__', internalType: 'toString', issuer: 'constructor' }), { business: 'Belegzuordnung offen', internal: 'Unbekannt', issuer: null })
 })

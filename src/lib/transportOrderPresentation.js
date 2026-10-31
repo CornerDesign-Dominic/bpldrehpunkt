@@ -47,3 +47,17 @@ export function transportOrderPath(transportOrderId) {
 export function transportOrderDocumentTitle(externalNumber) {
   return text(externalNumber) ? `Drehpunkt · ${text(externalNumber)}` : 'Drehpunkt · Transportauftrag'
 }
+
+export function transportOrderFinancialDocumentLabels(document = {}) {
+  const business = { customer_invoice: 'Kundenrechnung', customer_invoice_cancellation: 'Stornorechnung Kunde', customer_credit_note: 'Kundengutschrift', carrier_invoice: 'Unternehmerrechnung', carrier_credit_note: 'Unternehmergutschrift' }
+  const internal = { invoice: 'Rechnung', invoice_cancellation: 'Stornorechnung', credit_note: 'Gutschrift', proforma_invoice: 'Proforma-Rechnung', proforma_credit_note: 'Proforma-Gutschrift' }
+  const issuer = { us: 'Von uns', partner: 'Vom Geschäftspartner' }
+  return { business: Object.hasOwn(business, document.businessType) ? business[document.businessType] : 'Belegzuordnung offen', internal: Object.hasOwn(internal, document.internalType) ? internal[document.internalType] : 'Unbekannt', issuer: Object.hasOwn(issuer, document.issuer) ? issuer[document.issuer] : null }
+}
+
+export function formatTransportOrderDocumentDate(value, language = 'de') {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text(value))) return '—'
+  const date = new Date(`${value}T12:00:00Z`)
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return '—'
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(date)
+}

@@ -1654,3 +1654,41 @@ Postfachtest verwies noch auf den verschobenen Partner-ID-Baustein; dieser
 Testverweis wurde korrigiert, anschließend bestanden alle drei Postfachfälle.
 Gezieltes ESLint, Build und Shared-Abgleich ebenfalls erfolgreich. Keine
 zusätzlichen Verhaltensänderungen an den Postfachfunktionen.
+
+## 40. Neue Feldklärung vom 31.10.2026
+
+Der Nutzer hat die Bedeutung auftragsbezogener Kontakte, Kundenreferenz und
+interner/externer Belege erläutert. Ein erneuter lesender Abruf von TA
+`260600100`, die vorhandenen Exporte und ein begrenzter Vergleich mit alten
+Produktions-CSV-Daten bestätigen wesentliche Zuordnungen. Die Ergebnisse und
+verbleibenden Entscheidungen stehen unter
+[Feldklärung: Kontakte, Stationsreferenzen und Belege](../reference/dycos-feldklaerung-2026-10-31.md).
+Diese Untersuchung verändert noch keine Importregeln oder Live-Daten.
+
+## 41. Bestätigte Auftragsfelder und Trackingempfänger lokal umgesetzt
+
+Am 31.10.2026 vom Nutzer beauftragt, mit Erhalt der bestehenden Ansicht.
+Auftragskontakte, Dispositionsbemerkung, Stationsreferenzen und die drei
+bestätigten Belegfälle sind lokal umgesetzt. Automatische Trackingempfänger
+folgen dem aktuellen TA-Versandziel; manuelle Entscheidungen bleiben erhalten.
+Neue Werte werden in den bestehenden Historien nachvollziehbar protokolliert.
+Prüfungen, Sonderfälle und erforderlicher späterer Dev-Veröffentlichungsumfang
+stehen im [Feldklärungsdokument](../reference/dycos-feldklaerung-2026-10-31.md#lokale-umsetzung-und-verbleibende-punkte).
+Keine Veröffentlichung und keine Migration ausgeführt; Main bleibt unberührt.
+
+## 42. Kunden-Stornorechnung und Prüfung möglicher Zahlungsdaten
+
+Die vier am 31.10.2026 lesend abgerufenen Stornobeispiele bestätigen Belegart 5
+und getrennte Kopf-IDs für Original und Storno trotz gleicher Belegnummer.
+Die vom Nutzer beauftragte lokale Umsetzung erkennt diese Stornorechnungen,
+verknüpft nur eindeutig passende Originale und ergänzt Datum/Verweis in der
+bestehenden Hinweisspalte. Keine zusätzlichen Spalten oder CSS-Änderungen.
+Die Historie berücksichtigt neue Bezugs- und Datumsangaben.
+
+Zahlungsbedingungen sind bereits verfügbar, ein verlässlicher Zahlungsstatus
+aus DyCoS dagegen noch nicht. Tabellen `OffenePosten` und `OffenePostenZahlungen`
+sind lediglich als mögliche nächste Quellen bekannt. Die bestehende manuelle
+Inkasso-Markierung wird nicht als allgemeiner Zahlungsnachweis übernommen.
+Details und Prüfnachweis unter
+[Feldklärung](../reference/dycos-feldklaerung-2026-10-31.md#zahlungsstatus-aktueller-erkenntnisstand).
+Keine Veröffentlichung oder Live-Datenänderung; Main bleibt unberührt.

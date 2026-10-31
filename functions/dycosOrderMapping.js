@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
+import { mapDycosOrderDocuments } from './dycosOrderDocuments.js'
 
 // The source connector returns entire SQL rows. Only explicitly selected business
 // fields may cross this boundary; raw partner rows contain credentials and bank data.
@@ -19,8 +20,6 @@ const arrayKeys = ['ladeEntladestellen', 'auftragspreise', 'tourkosten', 'faktur
 const plainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype
 
 export const dycosUnmappedImportPaths = Object.freeze([
-  'loading.reference',
-  'unloading.reference',
   'contacts.carrierForOrder',
   'contacts.carrierStandardEmail',
   'contacts.customerStandardEmail',
@@ -141,9 +140,7 @@ function stopView(stop) {
     originalText: stop ? addressText(stop.address) : null,
     window: stop?.window || { from: null, until: null },
     note: stop?.note || null,
-    // LieferscheinNr and Zustellinformation are not confirmed equivalents of
-    // the old L/E reference column. Preserve them separately in stops instead.
-    reference: null,
+    reference: stop?.deliveryInformation || null,
   }
 }
 
@@ -171,8 +168,7 @@ function pricePositions(rows, field) {
     unitPriceNet: sourceNumber(row.Preis, `${field}.Preis`, { fallback: 0 }),
     amountNet: sourceNumber(row.Gesamt, `${field}.Gesamt`, { fallback: 0 }),
     currency: 'EUR',
-    // Technical references only. Document types/issuers remain unclassified
-    // until the meaning of the DyCoS document codes has been confirmed.
+    // Technical link to the separately mapped, order-scoped document header.
     documentSourceId: sourceId(row.RechKopfID, `${field}.RechKopfID`),
     documentLineSourceId: sourceId(row.FakturaPosID, `${field}.FakturaPosID`),
   }))
@@ -269,6 +265,8 @@ export function mapDycosOrder(payload, requestedTa) {
   const revenuePositions = pricePositions(payload.auftragspreise, 'revenue')
   const costPositions = pricePositions(payload.tourkosten.filter((row) => sourceId(row.AuftragID, 'tourkosten.AuftragID') === orderId), 'cost')
   for (const row of payload.fakturaZeilen) if (sourceId(row.AuftragID, 'fakturaZeilen.AuftragID', true) !== orderId) fail('fakturaZeilen.AuftragID')
+  const { documents, warningCodes: documentWarnings } = mapDycosOrderDocuments(payload, orderId, fail)
+  for (const warning of documentWarnings) warnings.add(warning)
   const customerAddress = address(payload.kunde, 'kunde')
   const carrierAddress = address(payload.unternehmerstamm, 'unternehmerstamm')
   delete customerAddress.company
@@ -277,11 +275,12 @@ export function mapDycosOrder(payload, requestedTa) {
     externalNumber: requestedTa,
     relation: sourceText(payload.relation?.Bezeichnung, 'relation.Bezeichnung'),
     customerReference: sourceText(order.Referenznummer, 'auftrag.Referenznummer'),
+    dispositionNote: sourceText(order.DispoBemerkung, 'auftrag.DispoBemerkung'),
     customer: { debtorNumber: businessNumber(payload.kunde?.Debitorennummer, 'kunde.Debitorennummer'), name: sourceText(payload.kunde?.Firma, 'kunde.Firma') || '', snapshot: customerAddress },
     carrier: { originalName: sourceText(payload.unternehmerstamm?.Bezeichnung, 'unternehmerstamm.Bezeichnung') || '', creditorNumber: businessNumber(payload.unternehmerstamm?.Kreditorennummer, 'unternehmerstamm.Kreditorennummer'), snapshot: carrierAddress, matchStatus: 'pending' },
     loading: stopView(stops.find((stop) => stop.type === 'loading')),
     unloading: stopView(stops.filter((stop) => stop.type === 'unloading').at(-1)),
-    financial: { revenueNet, costNet, currency: 'EUR', revenuePositions, costPositions },
+    financial: { revenueNet, costNet, currency: 'EUR', revenuePositions, costPositions, documents },
     shipment: { licensePlate: plate(payload.tour?.LKWNummer, payload.tour?.Trailer), weightKg: sourceNumber(order.Gewicht, 'auftrag.Gewicht', { positive: true }), loadingMeters: sourceNumber(order.Lademeter, 'auftrag.Lademeter', { positive: true }), packages: sourceNumber(order.AnzahlKolli, 'auftrag.AnzahlKolli', { integer: true, positive: true }), vehicleType: sourceText(payload.fahrzeugart?.Bezeichnung, 'fahrzeugart.Bezeichnung') },
     // Standard-address selection and Info-1 equivalence have not been confirmed.
     contacts: { carrierForOrder: null, carrierStandardEmail: null, customerForOrder: sourceText(order.ImAuftrag, 'auftrag.ImAuftrag'), customerStandardEmail: null },

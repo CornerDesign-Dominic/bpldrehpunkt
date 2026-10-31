@@ -209,6 +209,11 @@ export async function sendManualShipmentTrackingMailHandler(request) {
     })
 
     if (deliveryClaimed) {
+      const currentProfile = await requireActiveProfile(request)
+      if (!hasShipmentTrackingManualDispatchAccess(currentProfile)) throw new HttpsError('permission-denied', 'Keine Berechtigung zum Versand der Tracking-Anfrage.')
+      const beforeSend = await trackingRef.get()
+      if (!beforeSend.exists || !canManuallyDispatchShipmentTracking(beforeSend.data())) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung ist nicht verfügbar.')
+      assertPermittedRecipient(beforeSend.data(), permittedRecipient)
       const delivered = await sendSystemMailTemplate({
         recipient: permittedRecipient, templateId, values: templateValues(imported, externalNumber), subject, message,
         allowDevelopment: true,

@@ -15,6 +15,11 @@ const warningMessages = {
   SLOT_OVERNIGHT_UNCONFIRMED: 'Eine Bis-Uhrzeit liegt vor der Von-Uhrzeit. Das Ende des Zeitfensters wurde nicht übernommen; bitte die Stationszeiten prüfen.',
   UNKNOWN_STOP_TYPE: 'Eine Station konnte nicht als Lade- oder Entladestelle eingeordnet werden. Bitte die Stationen prüfen.',
   TOUR_COSTS_NOT_ASSIGNED_TO_ORDER: 'Tourkosten ohne eindeutige Zuordnung zu diesem Auftrag wurden nicht in dessen Unternehmerpreis übernommen.',
+  DOCUMENT_SOURCE_CONFLICT: 'Einzelne Belegangaben aus DyCoS widersprechen sich. Bitte die betroffenen Belege prüfen.',
+  DOCUMENT_NUMBER_CONFLICT: 'Widersprüchliche externe Belegnummern wurden nicht automatisch ausgewählt. Bitte den Beleg prüfen.',
+  DOCUMENT_TYPE_UNCONFIRMED: 'Eine Belegart konnte noch nicht sicher eingeordnet werden. Die vorhandenen Nummern bleiben zur Prüfung sichtbar.',
+  DOCUMENT_CANCELLATION_UNCONFIRMED: 'Ein Beleg enthält Storno- oder Korrekturangaben, deren Zuordnung noch geprüft werden muss.',
+  DOCUMENT_DATE_UNCONFIRMED: 'Ein Belegdatum konnte nicht sicher übernommen werden. Bitte den Beleg prüfen.',
 }
 
 export function errorMessage(error) {

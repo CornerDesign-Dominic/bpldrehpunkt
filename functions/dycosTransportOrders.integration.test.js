@@ -13,6 +13,7 @@ import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS } from './shared/shipmentTrac
 import { isAutomaticImportedRouteCandidate } from './transportOrderRoutes.js'
 import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
 import { dycosConflictRows } from './shared/dycosPartnerConflicts.js'
+import { createShipmentTrackingDocument, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 if (enabled) initializeApp({ projectId: 'demo-drehpunkt-dycos' })
@@ -34,6 +35,93 @@ async function user(permissions = { dataImports: 'edit' }, active = true) {
   return uid
 }
 const dependencies = (fetchOrder, report = async () => {}) => ({ db: db(), fetchOrder, report })
+
+test('emulator: refreshing the TA atomically follows only auto recipients, retains historical deliveries and does not duplicate recipient events on replay', { skip: !enabled }, async () => {
+  const uid = await user(), ta = nextTa()
+  let sentTo = 'old@example.test', calls = 0
+  const source = dependencies(async () => { calls += 1; return payload(ta, { auftrag: { TourenID: 44 }, tour: { ID: 44, TAPerMailVersendetAn: sentTo } }) })
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  const ref = db().doc(`transportOrderTrackings/${id(ta)}`)
+  const historicalDispatch = { dispatchId: 'sent-before-refresh', recipient: sentTo }
+  await ref.set({ ...createShipmentTrackingDocument(id(ta), uid, 'Test', { carrierRecipientEmail: sentTo }), externalRuleDispatches: { 'old-rule': historicalDispatch } })
+  await ref.collection('automaticMailDeliveries').doc('historical').set({ status: 'sent', recipient: sentTo })
+  sentTo = 'new@example.test'
+  const request = req(uid, ta)
+  await fetchDycosTransportOrderHandler(request, source)
+  let saved = (await ref.get()).data()
+  assert.deepEqual(saved.recipients.carrier, { email: sentTo, source: 'transport-order-import' })
+  assert.equal(saved.updatedBy, uid)
+  assert.deepEqual(saved.externalRuleDispatches['old-rule'], historicalDispatch)
+  assert.equal((await ref.collection('automaticMailDeliveries').doc('historical').get()).get('recipient'), 'old@example.test')
+  let events = await ref.collection('events').get()
+  assert.equal(events.size, 1)
+  assert.equal(events.docs[0].get('eventType'), 'tracking_recipients_updated')
+  assert.equal(events.docs[0].get('oldValue.recipients.carrier.email'), 'old@example.test')
+  assert.equal(events.docs[0].get('newValue.recipients.carrier.email'), sentTo)
+  assert.equal(events.docs[0].get('recordedBy'), uid)
+  assert.equal(events.docs[0].get('source'), 'import')
+  const beforeReplay = calls
+  await fetchDycosTransportOrderHandler(request, source)
+  assert.equal(calls, beforeReplay)
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  assert.equal((await ref.collection('events').get()).size, 1)
+  sentTo = 'invalid new source'
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  saved = (await ref.get()).data()
+  assert.deepEqual(saved.recipients.carrier, { email: '', source: 'transport-order-import' })
+  assert.equal((await db().doc(`transportOrders/${id(ta)}`).get()).get('imported.dispatch.sentTo'), sentTo)
+  sentTo = 'later@example.test'
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  assert.equal((await ref.get()).get('recipients.carrier.email'), sentTo)
+  events = await ref.collection('events').get()
+  assert.equal(events.size, 3)
+})
+
+test('emulator: manual confirmation of the same imported address and manual clearing remain protected from TA refreshes', { skip: !enabled }, async () => {
+  const uid = await user({ dataImports: 'edit', transportOrders: 'edit' }), ta = nextTa()
+  let sentTo = 'same@example.test'
+  const source = dependencies(async () => payload(ta, { auftrag: { TourenID: 44 }, tour: { ID: 44, TAPerMailVersendetAn: sentTo } }))
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  const ref = db().doc(`transportOrderTrackings/${id(ta)}`)
+  await ref.set(createShipmentTrackingDocument(id(ta), uid, 'Test', { carrierRecipientEmail: sentTo }))
+  await updateManualShipmentTrackingHandler({ auth: { uid }, data: { orderId: id(ta), action: 'update_recipients', recipientChanges: { carrier: sentTo } } })
+  assert.equal((await ref.get()).get('recipients.carrier.source'), 'manual')
+  sentTo = 'changed@example.test'
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  assert.equal((await ref.get()).get('recipients.carrier.email'), 'same@example.test')
+  await updateManualShipmentTrackingHandler({ auth: { uid }, data: { orderId: id(ta), action: 'update_recipients', recipientChanges: { carrier: null } } })
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  assert.deepEqual((await ref.get()).get('recipients.carrier'), { email: '', source: 'manual' })
+  const events = await ref.collection('events').get()
+  assert.equal(events.size, 2)
+  assert.equal(events.docs.every(entry => entry.get('source') === 'manual'), true)
+})
+
+test('emulator: no legacy source is guessed, completed tracking is immutable and import permission revocation prevents recipient writes', { skip: !enabled }, async () => {
+  const uid = await user(), ta = nextTa()
+  const source = dependencies(async () => payload(ta, { auftrag: { TourenID: 44 }, tour: { ID: 44, TAPerMailVersendetAn: 'new@example.test' } }))
+  await fetchDycosTransportOrderHandler(req(uid, ta), source)
+  const ref = db().doc(`transportOrderTrackings/${id(ta)}`)
+  for (const value of [
+    { lifecycleStatus: 'active', recipients: { carrier: { email: 'legacy@example.test' } } },
+    { lifecycleStatus: 'completed', recipients: { carrier: { email: 'completed@example.test', source: 'transport-order-import' } } },
+  ]) {
+    await ref.set(value)
+    await fetchDycosTransportOrderHandler(req(uid, ta), source)
+    assert.deepEqual((await ref.get()).data(), value)
+  }
+  await ref.set({ lifecycleStatus: 'active', recipients: { carrier: { email: 'old@example.test', source: 'transport-order-import' } } })
+  const oldTracking = (await ref.get()).data()
+  const oldOrder = (await db().doc(`transportOrders/${id(ta)}`).get()).data()
+  const revoked = dependencies(async () => {
+    await db().doc(`users/${uid}`).update({ 'permissions.dataImports': 'view' })
+    return payload(ta, { auftrag: { TourenID: 44 }, tour: { ID: 44, TAPerMailVersendetAn: 'revoked@example.test' } })
+  })
+  await assert.rejects(fetchDycosTransportOrderHandler(req(uid, ta), revoked), { code: 'permission-denied' })
+  assert.deepEqual((await ref.get()).data(), oldTracking)
+  assert.deepEqual((await db().doc(`transportOrders/${id(ta)}`).get()).data(), oldOrder)
+  assert.equal((await ref.collection('events').get()).size, 0)
+})
 
 test('emulator: keep decisions also survive partner enrichment through Auftrag aktualisieren', { skip: !enabled }, async () => {
   const uid = await user({ dataImports: 'edit', masterData: 'edit' }), ta = nextTa()
@@ -194,16 +282,16 @@ test('emulator: exact creditor identity overrides similar names; unresolved lega
   await partnerRef.set({ id: partnerRef.id, companyName: 'Eigener Partnername', creditorNumber: creditor, status: 'active' })
   const orderRef = db().doc(`transportOrders/${id(ta)}`)
   await orderRef.set({ externalNumber: ta, imported: { carrier: { originalName: 'Alt' }, loading: { reference: 'Alte Referenz' }, contacts: { carrierStandardEmail: 'dispo@example.test' } }, manual: { note: 'Notiz' }, importMeta: { fileName: 'original.csv' } })
-  const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), TourenID: 44 }, tour: { ID: 44, UnternehmerID: 55 }, unternehmerstamm: { ID: 55, Bezeichnung: 'Neuer Quellname', Kreditorennummer: creditor } })
+  const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), TourenID: 44 }, tour: { ID: 44, UnternehmerID: 55 }, unternehmerstamm: { ID: 55, Bezeichnung: 'Neuer Quellname', Kreditorennummer: creditor }, ladeEntladestellen: [{ ID: 1, AuftragsID: 123, Zeile_In_Auftrag: 1, Lade_Entladestelle: 'L', Zustellinformation: 'Neue Quellenreferenz' }] })
   const result = await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
   assert.equal(result.status, 'updated')
   const order = (await orderRef.get()).data()
   assert.equal(order.imported.carrier.partnerId, partnerRef.id)
   assert.equal(order.imported.carrier.originalName, 'Neuer Quellname')
-  assert.equal(order.imported.loading.reference, 'Alte Referenz')
+  assert.equal(order.imported.loading.reference, 'Neue Quellenreferenz')
   assert.equal(order.imported.contacts.carrierStandardEmail, 'dispo@example.test')
   assert.equal(order.importMeta.fileName, undefined)
-  assert.deepEqual(order.importMeta.preservedLegacyFields.sort(), ['contacts.carrierStandardEmail', 'loading.reference'])
+  assert.deepEqual(order.importMeta.preservedLegacyFields.sort(), ['contacts.carrierStandardEmail'])
   assert.equal((await orderRef.get()).get('imported.source.orderId'), '123')
 })
 

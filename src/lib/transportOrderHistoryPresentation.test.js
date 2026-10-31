@@ -50,3 +50,26 @@ test('source-only technical changes do not produce user changes; legacy creation
   assert.equal(transportOrderHistoryValue(500, 'de', { path: 'stops.1.cargo.weightKg' }), '500 kg')
   assert.equal(transportOrderHistoryValue('2026-11-02T08:00', 'de'), '02.11.2026, 08:00')
 })
+
+test('document history matches persistent source identity and displays individual business changes', () => {
+  const before = [{ sourceId: '501', internalNumber: '115726', externalNumber: null, businessType: 'carrier_invoice', internalType: 'proforma_credit_note', date: '2026-06-23' }, { sourceId: '502', internalNumber: '63369', externalNumber: null }]
+  const after = [{ ...before[1] }, { ...before[0], externalNumber: '1099/06/2026' }]
+  const [row] = transportOrderHistoryRows({}, [{ id: 'document', field: 'financial.documents', oldValue: before, newValue: after }])
+  assert.equal(row.changes.length, 1)
+  assert.equal(row.changes[0].label, 'Beleg · 115726 · Externe Belegnummer')
+  assert.deepEqual([row.changes[0].oldValue, row.changes[0].newValue], [null, '1099/06/2026'])
+  assert.equal(transportOrderHistoryValue('carrier_invoice', 'de', { path: 'financial.documents.501-1.businessType' }), 'Unternehmerrechnung erhalten')
+  assert.equal(transportOrderHistoryValue('proforma_credit_note', 'en', { path: 'financial.documents.501-1.internalType' }), 'Pro forma credit note')
+  assert.equal(transportOrderHistoryValue('2026-06-23', 'de', { path: 'financial.documents.501-1.date' }), '23.06.2026')
+  assert.deepEqual(transportOrderHistoryRows({}, [{ id: 'technical', field: 'financial.documents', oldValue: before, newValue: before.map(item => ({ ...item, warningCodes: ['DOCUMENT_TYPE_UNCONFIRMED'] })) }]), [])
+})
+
+test('invoice cancellation status, original number and date remain separate auditable document fields', () => {
+  const original = { sourceId: '501', internalNumber: '66966', businessType: 'customer_invoice', cancelled: false }
+  const cancellation = { sourceId: '502', internalNumber: '66966', businessType: 'customer_invoice_cancellation', internalType: 'invoice_cancellation', cancelled: false, originalDocumentSourceId: '501', originalDocumentNumber: '66966' }
+  const [row] = transportOrderHistoryRows({}, [{ id: 'cancel', field: 'financial.documents', oldValue: [original], newValue: [{ ...original, cancelled: true, cancellationDate: '2026-10-27' }, cancellation] }])
+  assert.ok(row.changes.some(change => change.path === 'financial.documents.501-1.cancelled' && change.oldValue === false && change.newValue === true))
+  assert.ok(row.changes.some(change => change.path === 'financial.documents.502-1.originalDocumentNumber' && change.newValue === '66966'))
+  assert.equal(transportOrderHistoryValue('2026-10-27', 'de', { path: 'financial.documents.501-1.cancellationDate' }), '27.10.2026')
+  assert.equal(transportOrderHistoryValue('customer_invoice_cancellation', 'en', { path: 'financial.documents.502-1.businessType' }), 'Customer invoice cancellation')
+})

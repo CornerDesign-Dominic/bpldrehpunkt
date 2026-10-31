@@ -6,6 +6,21 @@ const stopFields = [
   ['cargo.weightKg', 'Gewicht'], ['cargo.packages', 'Kolli'], ['cargo.loadingMeters', 'Lademeter'], ['palletExchange', 'Palettentausch'],
 ]
 const positionFields = [['description', 'Leistung'], ['quantity', 'Menge'], ['unit', 'Einheit'], ['unitPriceNet', 'Einzelpreis netto'], ['amountNet', 'Gesamt netto']]
+const documentFields = [
+  ['side', 'Geschäftspartnerart'], ['businessType', 'Belegart'], ['issuer', 'Aussteller'], ['internalType', 'Interner Beleg'],
+  ['internalNumber', 'Interne Belegnummer'], ['externalNumber', 'Externe Belegnummer'], ['date', 'Datum interner Beleg'],
+  ['proforma', 'Proforma'], ['cancelled', 'Storniert'], ['cancellationReference', 'Stornoreferenz'],
+  ['originalDocumentNumber', 'Ursprungsrechnung'], ['cancellationDate', 'Stornodatum'],
+  ['internalFileName', 'Interner Dateiname'], ['externalFileName', 'Hinterlegter Dateiname'],
+]
+const documentValues = {
+  customer: ['Kunde', 'Customer'], carrier: ['Unternehmer', 'Carrier'], unknown: ['Ungeklärt', 'Unconfirmed'],
+  customer_invoice: ['Kundenrechnung von uns', 'Our customer invoice'], customer_credit_note: ['Kundengutschrift erhalten', 'Customer credit note received'],
+  customer_invoice_cancellation: ['Stornorechnung Kunde', 'Customer invoice cancellation'], invoice_cancellation: ['Stornorechnung', 'Invoice cancellation'],
+  carrier_invoice: ['Unternehmerrechnung erhalten', 'Carrier invoice received'], carrier_credit_note: ['Gutschrift an Unternehmer', 'Credit note issued to carrier'],
+  us: ['Wir', 'Us'], partner: ['Geschäftspartner', 'Business partner'], invoice: ['Rechnung', 'Invoice'], credit_note: ['Gutschrift', 'Credit note'],
+  proforma_invoice: ['Proforma-Rechnung', 'Pro forma invoice'], proforma_credit_note: ['Proforma-Gutschrift', 'Pro forma credit note'],
+}
 const at = (data, path) => path.split('.').reduce((value, key) => value?.[key], data)
 const blank = (value) => value === undefined || value === null || value === '' ? null : value
 function scalar(path, label, before, after) {
@@ -15,7 +30,7 @@ function scalar(path, label, before, after) {
 function itemChanges(entry, fields, kind) {
   const left = Array.isArray(entry.oldValue) ? entry.oldValue : []
   const right = Array.isArray(entry.newValue) ? entry.newValue : []
-  const key = (item, index) => String(kind === 'Station' ? item.sourceId ?? index : item.sourceCounter ?? item.sequence ?? index)
+  const key = (item, index) => String(kind === 'Station' || kind === 'Beleg' ? item.sourceId ?? index : item.sourceCounter ?? item.sequence ?? index)
   const indexed = (items) => {
     const occurrences = new Map()
     return new Map(items.map((item, index) => {
@@ -27,7 +42,7 @@ function itemChanges(entry, fields, kind) {
   const before = indexed(left); const after = indexed(right)
   return [...new Set([...before.keys(), ...after.keys()])].flatMap((id, index) => {
     const oldItem = before.get(id); const newItem = after.get(id)
-    const number = newItem?.sequence ?? oldItem?.sequence ?? index + 1
+    const number = kind === 'Beleg' ? newItem?.internalNumber || oldItem?.internalNumber || index + 1 : newItem?.sequence ?? oldItem?.sequence ?? index + 1
     return fields.flatMap(([field, label]) => scalar(`${entry.field}.${id}.${field}`, `${kind} · ${number} · ${label}`, at(oldItem, field), at(newItem, field)))
   })
 }
@@ -39,6 +54,7 @@ function changesFor(entry) {
   if (entry.field === 'stops') return itemChanges(entry, stopFields, 'Station')
   if (entry.field === 'financial.revenuePositions') return itemChanges(entry, positionFields, 'Ertragsposition')
   if (entry.field === 'financial.costPositions') return itemChanges(entry, positionFields, 'Kostenposition')
+  if (entry.field === 'financial.documents') return itemChanges(entry, documentFields, 'Beleg')
   return scalar(entry.field || entry.id, entry.fieldLabel || entry.field || 'Auftragsdaten', entry.oldValue, entry.newValue)
 }
 
@@ -65,6 +81,11 @@ export function transportOrderHistoryRows(order, history) {
 export function transportOrderHistoryValue(value, language = 'de', change = {}) {
   if (value === null || value === undefined || value === '') return '—'
   const locale = language === 'en' ? 'en-GB' : 'de-DE'
+  if (/^financial\.documents\..*\.(side|businessType|issuer|internalType)$/.test(change.path) && documentValues[value]) return documentValues[value][language === 'en' ? 1 : 0]
+  if (/^financial\.documents\..*\.(date|cancellationDate)$/.test(change.path) && typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-')
+    return language === 'en' ? `${day}/${month}/${year}` : `${day}.${month}.${year}`
+  }
   if (typeof value === 'number') {
     if (/financial\.(revenueNet|costNet)$|\.(unitPriceNet|amountNet)$/.test(change.path)) return new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(value)
     return recordHistoryValue(value, language) + (/weightKg$/.test(change.path) ? ' kg' : '')

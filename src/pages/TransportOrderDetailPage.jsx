@@ -6,7 +6,8 @@ import { calculateTransportOrderRoute, getTransportOrder, getTransportOrderRoute
 import { isCarrierMasterDataIncomplete } from '../lib/importedPartnerStatus.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { transportOrderDocumentTitle } from '../lib/transportOrderPresentation.js'
-import { ChevronDownIcon, CopyIcon } from '../components/icons.jsx'
+import CopyDetail from '../components/transport-orders/TransportOrderCopyDetail.jsx'
+import TransportOrderContacts from '../components/transport-orders/TransportOrderContacts.jsx'
 import ShipmentTrackingTimeline from '../components/transport-orders/ShipmentTrackingTimeline.jsx'
 import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
 import { usePageHeader } from '../lib/pageHeader.js'
@@ -35,32 +36,6 @@ import TransportOrderHistoryModal from '../components/transport-orders/Transport
 import { transportOrderCasePrefill } from '../../shared/caseTransportLinks.js'
 
 function Detail({ label, children, emptyFallback = '—' }) { return <div><dt>{label}</dt><dd>{children || emptyFallback}</dd></div> }
-async function copyToClipboard(value) {
-  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value)
-  const temporaryInput = document.createElement('textarea')
-  temporaryInput.value = value
-  temporaryInput.setAttribute('readonly', '')
-  temporaryInput.style.position = 'fixed'
-  temporaryInput.style.opacity = '0'
-  document.body.appendChild(temporaryInput)
-  temporaryInput.select()
-  document.execCommand('copy')
-  temporaryInput.remove()
-}
-function CopyDetail({ label, value }) {
-  const [copied, setCopied] = useState(false)
-  const displayValue = value || '—'
-  async function copyValue() {
-    try {
-      await copyToClipboard(displayValue)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 1600)
-    } catch {
-      setCopied(false)
-    }
-  }
-  return <div><dt>{label}</dt><dd className="transport-order-copy-detail__value"><span>{displayValue}</span>{displayValue !== '—' && <button type="button" className="transport-order-copy-detail__button" onClick={copyValue} title={copied ? 'Kopiert' : `${label} kopieren`} aria-label={copied ? `${label} kopiert` : `${label} kopieren`}><CopyIcon size={14} /></button>}</dd></div>
-}
 function formatNumber(value, suffix = '') { return typeof value === 'number' ? new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }).format(value) + suffix : '—' }
 function formatCurrency(value) { return typeof value === 'number' ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '—' }
 function formatStationDateTime(value) {
@@ -386,7 +361,7 @@ export default function TransportOrderDetailPage() {
         <ShipmentTrackingHistory events={trackingEvents} loading={trackingLoading} error={trackingError} />
       </main>
       <TranslatedProps sources={{"aria-label":"System und Kontext"}}><aside className="transport-order-detail-system" aria-label="System und Kontext">
-        <details open className="transport-order-detail-section transport-order-detail-section--contacts"><summary><StaticText source={"Kontakte"} /><ChevronDownIcon /></summary><div className="transport-order-detail-section__content"><div className="transport-order-detail-contact-group"><h4><StaticText source={"Kunde"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.customerStandardEmail} /><CopyDetail label="Info-1" value={imported.contacts?.customerForOrder} /></dl></div><div className="transport-order-detail-contact-group"><h4><StaticText source={"Unternehmer"} /></h4><dl className="transport-order-detail-list transport-order-detail-list--single"><CopyDetail label="Standard" value={imported.contacts?.carrierStandardEmail} /><CopyDetail label="Im Auftrag" value={imported.contacts?.carrierForOrder} /></dl></div></div></details>
+        <TransportOrderContacts imported={imported} />
         <TransportOrderReceivedMails key={transportOrderId} transportOrderId={transportOrderId} tracking={tracking} trackingEvents={trackingEvents} trackingLoading={trackingLoading} trackingSaving={trackingSaving} onSaveTracking={saveMailTracking} canEdit={canEdit('transportOrders')} onMailsChanged={handleReceivedMailsChanged} />
         <details className="transport-order-detail-section transport-order-detail-section--import-info"><summary><StaticText source={"Importinfos"} /></summary><dl className="transport-order-detail-list transport-order-detail-list--single"><Detail label="Importiert am">{formatTimestamp(order.importMeta?.importedAt)}</Detail><TranslatedProps sources={{"label":"Zuletzt aktualisiert"}}><Detail label="Zuletzt aktualisiert">{formatTimestamp(order.updatedAt || order.importMeta?.lastImportedAt)}</Detail></TranslatedProps><TranslatedProps sources={{"label":"Importdatei"}}><Detail label="Importdatei">{order.importMeta?.fileName}</Detail></TranslatedProps><Detail label="Importlauf">{order.importMeta?.importRunId}</Detail></dl></details>
       </aside></TranslatedProps>

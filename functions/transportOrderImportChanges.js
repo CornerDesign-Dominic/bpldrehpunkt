@@ -5,6 +5,7 @@ const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'ship
 const fields = Object.freeze([
   ['relation', 'Mitarbeiterrelation'],
   ['customerReference', 'Kundenreferenz'],
+  ['dispositionNote', 'Dispositionsbemerkung'],
   ['customer.debtorNumber', 'Debitorennummer Kunde'],
   ['customer.name', 'Kunde'],
   ['customer.snapshot.street', 'Kundenadresse – Straße'],
@@ -33,6 +34,7 @@ const fields = Object.freeze([
   ['financial.costNet', 'Kosten netto'],
   ['financial.revenuePositions', 'Einzelne Ertragspositionen'],
   ['financial.costPositions', 'Einzelne Kostenpositionen'],
+  ['financial.documents', 'Rechnungen und Gutschriften'],
   ['shipment.licensePlate', 'Import-Kennzeichen'],
   ['shipment.vehicleType', 'Fahrzeugart'],
   ['shipment.packages', 'Kolli'],
@@ -69,6 +71,7 @@ function normalizedText(value, path) {
 }
 
 export function normalizeTransportOrderImportValue(value, path = '') {
+  if (path === 'financial.documents' && (!Array.isArray(value) || !value.length)) return null
   if (typeof value === 'string') return normalizedText(value, path)
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   if (value === null || value === undefined) return null

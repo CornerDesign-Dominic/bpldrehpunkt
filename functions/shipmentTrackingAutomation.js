@@ -51,6 +51,11 @@ function storedCarrierRecipient(tracking) {
   return ['manual', 'transport-order-import'].includes(entry?.source) && emailPattern.test(email) ? email : ''
 }
 
+export function isCurrentTrackingRecipient(tracking, recipient) {
+  const current = storedCarrierRecipient(tracking)
+  return tracking?.lifecycleStatus === 'active' && Boolean(current) && current.toLowerCase() === text(recipient).toLowerCase()
+}
+
 function localKey(value) {
   if (value && typeof value === 'object' && typeof value.date === 'string' && typeof value.time === 'string') return `${value.date}T${value.time}`
   const local = shipmentTrackingBerlinLocal(value)
@@ -235,8 +240,8 @@ async function dispatchArrivalConfirmation(db, { orderId, imported, externalNumb
   })
   if (!claimed) return { sent: 0, blocked: 0 }
   const beforeSend = await trackingRef.get()
-  if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || beforeSend.data()?.actualArrivalLoadingAt || beforeSend.data()?.actualArrivalConfirmationDispatch?.dispatchId || !isAutomaticTrackingDispatchDue(plan.scheduledAt, new Date())) {
-    await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'arrival-recorded-automation-paused-or-dispatch-window-expired-before-send' }, { merge: true })
+  if (!beforeSend.exists || !isCurrentTrackingRecipient(beforeSend.data(), recipient) || beforeSend.data()?.automationPaused === true || beforeSend.data()?.actualArrivalLoadingAt || beforeSend.data()?.actualArrivalConfirmationDispatch?.dispatchId || !isAutomaticTrackingDispatchDue(plan.scheduledAt, new Date())) {
+    await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'recipient-changed-arrival-recorded-automation-paused-or-dispatch-window-expired-before-send' }, { merge: true })
     return { sent: 0, blocked: 0 }
   }
   try {
@@ -301,8 +306,8 @@ async function dispatchDueBundles(db, { orderId, imported, externalNumber, track
     })
     if (!claimed) continue
     const beforeSend = await trackingRef.get()
-    if (!beforeSend.exists || beforeSend.data()?.automationPaused === true || !isAutomaticTrackingDispatchDue(bundle.scheduledAt, new Date())) {
-      await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'automation-paused-or-dispatch-window-expired-before-send' }, { merge: true })
+    if (!beforeSend.exists || !isCurrentTrackingRecipient(beforeSend.data(), bundle.recipient) || beforeSend.data()?.automationPaused === true || !isAutomaticTrackingDispatchDue(bundle.scheduledAt, new Date())) {
+      await deliveryRef.set({ status: 'skipped', updatedAt: FieldValue.serverTimestamp(), lastError: 'recipient-changed-automation-paused-or-dispatch-window-expired-before-send' }, { merge: true })
       continue
     }
     try {

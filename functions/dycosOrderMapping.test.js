@@ -42,7 +42,7 @@ test('a valid TA needs no business data and missing prices are numeric zero', ()
   assert.equal(result.externalNumber, '260000001')
   assert.equal(result.customer.name, '')
   assert.equal(result.carrier.originalName, '')
-  assert.deepEqual(result.financial, { revenueNet: 0, costNet: 0, currency: 'EUR', revenuePositions: [], costPositions: [] })
+  assert.deepEqual(result.financial, { revenueNet: 0, costNet: 0, currency: 'EUR', revenuePositions: [], costPositions: [], documents: [] })
   assert.deepEqual(result.stops, [])
   assert.deepEqual(result.loading.window, { from: null, until: null })
   assert.equal(result.source.orderId, '71')
@@ -153,7 +153,7 @@ test('preserves only explicitly unmapped CSV fields while updating actual API da
   const next = map(emptyOrder())
   const result = preserveDycosUnmappedFields(previous, next)
   assert.deepEqual(result.preservedPaths, dycosUnmappedImportPaths)
-  assert.equal(result.imported.loading.reference, 'LD-OLD')
+  assert.equal(result.imported.loading.reference, null)
   assert.equal(result.imported.loading.city, null)
   assert.equal(result.imported.contacts.customerForOrder, null)
   assert.equal(result.imported.financial.revenueNet, 0)
@@ -220,4 +220,20 @@ test('missing API totals preserve CSV quantities without allocating them to stop
   assert.equal(result.imported.shipment.loadingMeters, 0)
   assert.equal(result.imported.stops[0].cargo.weightKg, null)
   assert.equal(previous.shipment.loadingMeters, 13.6)
+})
+
+
+test('confirmed station delivery information replaces old reference while notes and disposition stay separate', () => {
+  const source = sample()
+  source.auftrag.DispoBemerkung = 'Disposition: Ansprechpartner prüfen'
+  const station = source.ladeEntladestellen.find(row => row.ID === 31)
+  station.Zustellinformation = '(L1) Abholung lt. Lieferschein'
+  station.Bemerkung = '(L1) Seitlich laden'
+  station.LieferscheinNr = 'LS-123'
+  const result = preserveDycosUnmappedFields({ loading: { reference: 'OLD' } }, map(source))
+  assert.equal(result.imported.loading.reference, '(L1) Abholung lt. Lieferschein')
+  assert.equal(result.imported.loading.note, '(L1) Seitlich laden')
+  assert.equal(result.imported.dispositionNote, 'Disposition: Ansprechpartner prüfen')
+  assert.equal(result.imported.stops.find(row => row.sourceId === '31').deliveryNoteNumber, 'LS-123')
+  assert.equal(result.preservedPaths.includes('loading.reference'), false)
 })

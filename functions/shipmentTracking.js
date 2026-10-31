@@ -20,6 +20,12 @@ const recipientRoles = new Set(['customer', 'carrier'])
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function text(value) { return typeof value === 'string' ? value.trim() : '' }
+function importedRecipientEmail(value) {
+  const email = text(value)
+  // A free-text send target may contain names or several recipients. Do not
+  // silently pick one address or treat list delimiters as part of an address.
+  return email.length <= 320 && emailPattern.test(email) && !/[<>,;]/.test(email) ? email : ''
+}
 function actorName(profile) { return [text(profile?.firstName), text(profile?.lastName)].filter(Boolean).join(' ') || text(profile?.email) || 'Unbekannt' }
 export function hasTrackingViewAccess(profile) { return profile?.role === 'superadmin' || editableLevels[profile?.permissions?.transportOrders] >= editableLevels.view }
 export function hasTrackingEditAccess(profile) { return profile?.role === 'superadmin' || editableLevels[profile?.permissions?.transportOrders] >= editableLevels.edit }
@@ -52,11 +58,11 @@ export function deriveShipmentTrackingPosition(tracking) {
  * Lifecycle remains `active` until the final phase so existing permissions and
  * callables continue to work; `lifecyclePhase` is the readable lifecycle. */
 export function createShipmentTrackingDocument(orderId, actorId, actor, { trackingMode = 'manual', lifecyclePhase = 'in_progress', trackingStartedEarly = false, carrierRecipientEmail = '', importedLicensePlate = '' } = {}) {
-  const carrierEmail = text(carrierRecipientEmail)
+  const carrierEmail = importedRecipientEmail(carrierRecipientEmail)
   const licensePlate = text(importedLicensePlate)
-  const recipients = emailPattern.test(carrierEmail)
-    ? { carrier: { email: carrierEmail, source: 'transport-order-import' } }
-    : {}
+  // Keep the explicit source even before an address is available. A later
+  // source refresh may fill it, whereas a manually cleared address stays manual.
+  const recipients = { carrier: { email: carrierEmail, source: 'transport-order-import' } }
   return {
     orderId,
     lifecycleStatus: 'active',
@@ -186,19 +192,36 @@ export function normalizeRecipientChanges(input) {
 }
 
 function storedRecipient(value) {
-  return typeof value?.email === 'string' && value.email.trim() ? { email: value.email.trim(), source: value.source === 'manual' ? 'manual' : value.source || 'manual' } : null
+  if (typeof value?.email !== 'string') return null
+  const email = value.email.trim()
+  return email || ['manual', 'transport-order-import'].includes(value.source) ? { email, source: value.source || 'manual' } : null
 }
 
 export function applyRecipientChanges(currentRecipients, changes) {
   const recipients = {}
   for (const role of recipientRoles) {
     const previous = storedRecipient(currentRecipients?.[role])
-    const next = Object.prototype.hasOwnProperty.call(changes, role) ? changes[role] : previous
+    const next = Object.prototype.hasOwnProperty.call(changes, role) ? changes[role] || { email: '', source: 'manual' } : previous
     if (next) recipients[role] = next
   }
   const oldValue = { recipients: Object.fromEntries(Object.keys(changes).map((role) => [role, storedRecipient(currentRecipients?.[role])])) }
-  const newValue = { recipients: Object.fromEntries(Object.keys(changes).map((role) => [role, changes[role]])) }
+  const newValue = { recipients: Object.fromEntries(Object.keys(changes).map((role) => [role, recipients[role]])) }
   return { recipients, oldValue, newValue }
+}
+
+/** Follow only an explicitly imported recipient. Legacy addresses with no
+ * provenance and all manual choices (including clearing) remain untouched. */
+export function dycosTrackingRecipientUpdate(tracking, sentTo) {
+  if (tracking?.lifecycleStatus !== 'active' || tracking?.recipients?.carrier?.source !== 'transport-order-import') return null
+  const email = importedRecipientEmail(sentTo)
+  const previous = storedRecipient(tracking.recipients.carrier)
+  if (text(previous?.email).toLowerCase() === email.toLowerCase()) return null
+  const carrier = { email, source: 'transport-order-import' }
+  return {
+    recipients: { ...tracking.recipients, carrier },
+    oldValue: { recipients: { carrier: previous } },
+    newValue: { recipients: { carrier } },
+  }
 }
 
 export function canEditTrackingRecipients(tracking) { return tracking?.lifecycleStatus !== 'completed' }

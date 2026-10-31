@@ -52,3 +52,23 @@ test('cargo, pallets and line items change the import history without invalidati
   assert.deepEqual(changes.map((change) => change.path), ['financial.costPositions', 'stops'])
   assert.equal(changes.some((change) => change.routeRelevant || change.scheduleRelevant), false)
 })
+
+test('disposition and document changes are auditable without changing routes or schedules', () => {
+  const before = imported()
+  const after = structuredClone(before)
+  after.dispositionNote = 'Bei Ankunft Disposition anrufen'
+  after.financial.documents = [{ sourceId: '50', internalNumber: '115726', externalNumber: '1099/06/2026' }]
+  const changes = transportOrderImportChanges(before, after)
+  assert.deepEqual(changes.map(change => change.path), ['dispositionNote', 'financial.documents'])
+  assert.equal(changes.some(change => change.routeRelevant || change.scheduleRelevant), false)
+  assert.notEqual(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
+  assert.deepEqual(transportOrderImportChanges(after, structuredClone(after)), [])
+})
+
+test('missing versus empty document list does not create an artificial import change', () => {
+  const before = imported()
+  const after = structuredClone(before)
+  after.financial.documents = []
+  assert.deepEqual(transportOrderImportChanges(before, after), [])
+  assert.equal(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
+})

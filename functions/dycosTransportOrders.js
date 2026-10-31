@@ -11,6 +11,7 @@ import { mapDycosPartnerData, hasDycosMasterDataAccess, dycosPartnerAdditions, c
 import { dycosConflictRows, retainedDycosResolutions } from './shared/dycosPartnerConflicts.js'
 import { customerPartnerPayload, carrierPartnerPayload, importPartnerId } from './dycosPartnerPayloads.js'
 import { loadingScheduleMovedEarlier, transportOrderImportChanges, transportOrderImportFingerprint } from './transportOrderImportChanges.js'
+import { dycosTrackingRecipientUpdate } from './shipmentTracking.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
 
 const text = (value) => typeof value === 'string' ? value.trim() : ''
@@ -213,6 +214,14 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     else transaction.create(claim.orderRef, { id: claim.orderRef.id, ...patch, manual: {}, tracking: {}, createdAt: now, createdBy: request.auth.uid, createdByName: actorName(profile) })
     if (!order.exists) transaction.create(claim.orderRef.collection('history').doc(), { eventType: 'transport_order_created', recordedAt: now, recordedBy: request.auth.uid, recordedByName: actorName(profile), importRunId: runRef.id, source: 'import' })
     for (const change of changes) transaction.create(claim.orderRef.collection('history').doc(), { eventType: 'transport_order_import_updated', changedFields: [change.path], field: change.path, fieldLabel: change.label, oldValue: change.oldValue, newValue: change.newValue, eventTime: now, recordedAt: now, recordedBy: request.auth.uid, recordedByName: actorName(profile), source: 'import', importRunId: runRef.id })
+    const recipientUpdate = tracking.exists ? dycosTrackingRecipientUpdate(tracking.data(), next.dispatch?.sentTo) : null
+    if (recipientUpdate) {
+      transaction.update(tracking.ref, { recipients: recipientUpdate.recipients, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) })
+      transaction.create(tracking.ref.collection('events').doc(), {
+        eventType: 'tracking_recipients_updated', changedFields: ['recipients.carrier'], oldValue: recipientUpdate.oldValue, newValue: recipientUpdate.newValue,
+        eventTime: now, recordedAt: now, recordedBy: request.auth.uid, recordedByName: actorName(profile), source: 'import', importRunId: runRef.id, note: '',
+      })
+    }
     if (previous && loadingScheduleMovedEarlier(previous, next) && tracking.exists && tracking.get('lifecycleStatus') === 'active') transaction.update(tracking.ref, { importScheduleSkippedBefore: now, lastImportScheduleChange: { reason: 'loading-moved-earlier', at: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) })
     transaction.create(runRef, { id: runRef.id, source: 'dycos-api', externalNumber: data.taNummer, importedAt: now, importedByUserId: request.auth.uid, importedByName: actorName(profile), counts })
     transaction.create(rowRef, { rowNumber: 1, externalNumber: data.taNummer, customerName: next.customer.name, carrierName: next.carrier.originalName, status: { new: 'Neu', updated: 'Aktualisiert', unchanged: 'Unverändert' }[status], changedFields: changes.map((change) => change.label), customerAction: customerPlan.create ? 'neu angelegt' : customer ? 'verwendet' : 'nicht verknüpft', carrierAction: carrierPlan.create ? 'neu angelegt' : carrier ? 'verwendet' : 'nicht verknüpft', createdAt: now })
