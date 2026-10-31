@@ -330,8 +330,8 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
       <p className="mailbox-hint">{w('Der Entwurf wird mit „Entwurf speichern“ in Drehpunkt gespeichert. Er erscheint nicht als Outlook-Entwurf.', 'Use Save draft to store your draft in Drehpunkt. It does not appear in Outlook drafts.')}</p>
       <div className="mailbox-reply-buttons mailbox-reply-buttons--send"><button type="button" disabled={locked || !dirty} onClick={save}>{w('Entwurf speichern', 'Save draft')}</button><button type="button" disabled={locked || suggestionBusy} onClick={send}>{busy ? w('Bitte warten …', 'Please wait …') : w('Antwort senden', 'Send reply')}</button></div>
       <section className="mailbox-suggestions" aria-label={w('Antwortvorschläge', 'Reply suggestions')} aria-busy={suggestionBusy}>
+        <button type="button" disabled={locked || suggestionBusy} onClick={suggest}>{w('Vorschlag machen', 'Make a suggestion')}</button>
         <label>{w('Anweisung für den Antwortvorschlag', 'Instructions for the reply suggestion')}<textarea className="mailbox-suggestions__instruction" rows={2} maxLength={1000} disabled={locked || suggestionBusy} value={draft.suggestionInstruction || ''} onChange={event => update('suggestionInstruction', event.target.value)} placeholder={w('Zum Beispiel: Eingang bestätigen und nach dem Liefertermin fragen', 'For example: confirm receipt and ask for the delivery date')} /></label>
-        <button type="button" disabled={locked || suggestionBusy} onClick={suggest}>{w('Vorschläge', 'Suggestions')}</button>
         {suggestionsOpen && <>
           {suggestionBusy && <p className="mailbox-suggestions__loading" role="status"><span className="mailbox-action-spinner" aria-hidden="true" />{w('Antwortvorschlag wird formuliert …', 'Writing a reply suggestion …')}</p>}
           {suggestionError && <Failure message={suggestionError} retry={!locked && !suggestionBusy ? suggest : undefined} />}
