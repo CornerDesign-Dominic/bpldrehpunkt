@@ -418,7 +418,7 @@
     {
       "id": "guard_duplicate_receipt",
       "action": "If",
-      "expression": "@and(equals(first(body('read_duplicate')?['value'])?['Title'],triggerBody()?['deliveryKey']),equals(first(body('read_duplicate')?['value'])?['DeliveryId'],triggerBody()?['deliveryId']),equals(first(body('read_duplicate')?['value'])?['PayloadDigest'],triggerBody()?['payloadDigest']),equals(first(body('read_duplicate')?['value'])?['Outcome'],'accepted'))",
+      "expression": "@and(equals(first(body('read_duplicate')?['value'])?['Title'],triggerBody()?['deliveryKey']),equals(first(body('read_duplicate')?['value'])?['DeliveryId'],triggerBody()?['deliveryId']),equals(first(body('read_duplicate')?['value'])?['PayloadDigest'],triggerBody()?['payloadDigest']),equals(first(body('read_duplicate')?['value'])?['Outcome']?['Value'],'accepted'))",
       "next": {
         "true": "reply_duplicate_accepted",
         "false": "reply_uncertain"
