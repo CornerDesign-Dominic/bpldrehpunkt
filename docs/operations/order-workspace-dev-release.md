@@ -89,3 +89,25 @@ unter der chatbezogenen Visualisierungsablage gesichert.
 Git-Remote `main` nach Veröffentlichung unverändert. Nur Dev-Deployziele
 wurden angesprochen. Eine spätere Produktionsübernahme bleibt separat
 freizugeben.
+
+## Gemeinsame Fachreiter auf der Trackingbasis
+
+Nachfolgende ausdrückliche Nutzerbeauftragung: Tracking als Basis mit
+Fachreitern, dort ausschließlich oben die Reiterleiste ergänzen; vorhandene
+Inhalte erhalten. Frontendcommit `7a90187` ist auf Dev veröffentlicht;
+Vercel-Erfolg bestätigt. Kein Backend-, Rules- oder Indexdeploy erforderlich.
+
+Auftragsliste → Übersicht, Trackingliste → `?tab=tracking`, beides in derselben
+Akte. Alte Tracking-Detailadressen werden weitergeführt. Geöffnete Bausteine
+bleiben montiert; die lokale synthetische Prüfung mit echter Trackingansicht
+bestätigt einen erhaltenen Eingabeentwurf nach zweimaligem Reiterwechsel.
+Gezielte Navigation-/Darstellungs-/Partnerlinktests, Lint und Build bestanden.
+
+Live geprüft: TA `261000849` aus der Trackingliste öffnet den Trackingreiter;
+Übersicht und Zurück führen weiterhin zur Ursprungsliste. TA `261000309` aus
+der Auftragsliste startet auf Übersicht und wechselt über den Reiter zur
+Verfolgung. Header und Sidebar folgen dem aktiven Fachbereich. Die bestehende
+Trackingansicht enthält weiterhin die bisherigen Inhalte und Bedienelemente;
+keine gemeinsame Karte und kein zusätzlicher Datenkopf ergänzt. Main und
+Produktion unverändert. Bei diesen Navigationstests keine Fachänderungen oder
+Mails ausgelöst.
