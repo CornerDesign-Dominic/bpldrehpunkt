@@ -34,7 +34,7 @@ export default function OrderFinancialDocuments({ financial, customerName, carri
       {group.entries.map(({ document, anchor }) => {
         const labels = transportOrderFinancialDocumentLabels(document)
         const original = orderFinancialDocumentOriginal(document, groups)
-        const hasNotes = document.proforma === true || document.cancelled === true || document.originalDocumentNumber || document.originalDocumentSourceId || document.cancellationReference || document.warningCodes?.length
+        const hasNotes = Boolean(document.proforma === true || document.cancelled === true || document.originalDocumentNumber || document.originalDocumentSourceId || document.cancellationReference || document.warningCodes?.length)
         return <tbody key={anchor} id={anchor}>
           <tr>
             <td><strong><StaticText source={labels.business} /></strong>{document.cancelled === true && <div className="order-financial-documents__cancelled">{w('Storniert', 'Cancelled')}</div>}<div className="order-workspace__muted"><StaticText source="Interner Beleg" />: <StaticText source={labels.internal} /></div>{labels.issuer && <div className="order-workspace__muted"><StaticText source={labels.issuer} /></div>}</td>
