@@ -2396,5 +2396,12 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .dycos-import-status progress { width: 100%; height: 8px; }
 dialog.transport-order-import-dialog { width: min(1100px, 94vw); padding: 0; }
 dialog.transport-order-import-dialog > .customer-import-modal { width: 100%; box-sizing: border-box; }
+dialog.transport-order-import-dialog { box-sizing: border-box; overflow-x: hidden; }
+dialog.transport-order-import-dialog .customer-import-modal__heading > button { width: auto; min-width: 80px; height: 32px; padding: 0 10px; flex-shrink: 0; font-size: 13px; font-weight: 600; }
+dialog.transport-order-import-dialog .transport-orders-table-frame { min-width: 0; max-width: 100%; box-sizing: border-box; }
+dialog.transport-order-import-dialog .data-table { table-layout: fixed; min-width: 0; }
+dialog.transport-order-import-dialog .data-table th:first-child { width: 100px; }
+dialog.transport-order-import-dialog .data-table th:nth-child(2) { width: 110px; }
+dialog.transport-order-import-dialog .data-table :is(td, th) { white-space: normal; overflow-wrap: anywhere; }
 
 .transport-order-import-history > .import-preparation__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
