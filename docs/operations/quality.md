@@ -9,6 +9,22 @@ Stand: 29.10.2026. Dev-Release für K.V.P. und Handbuch. Produktionsfreigabe bes
 
 ## Fachlicher Ablauf
 
+Der Menüpunkt „Qualität“ führt direkt nach `/qualitaet` auf eine zunächst leere
+Übersicht ohne Abfrage von Qualitätsdaten. Die bisherigen Unterpunkte stehen
+als gemeinsame Fachreiter auf Listen und Detailseiten: Übersicht, K.V.P.,
+Handbuch, Grundregeln und Wissenslücken. Die bisherigen URLs einschließlich
+Artikel-, Regel-, Themen- und Besprechungsdetails bleiben erhalten; ebenso
+persönliche Favoriten und vorhandene Such-/Rückkehrparameter.
+
+Der Einstieg benötigt mindestens eines der bestehenden Leserechte `kvp`,
+`handbook` oder `knowledgeGaps`; die Fachreiter und ihre Routen bleiben jeweils
+modulspezifisch geschützt. Handbuch und Grundregeln verwenden weiterhin
+`handbook`. Keine neue Berechtigung, keine Backend-/Rules-/Indexänderung.
+Qualität und Fallmanagement nutzen denselben Reiterbaustein; bestehende
+Fachseiten und Dialoge bleiben unverändert. Der Menübaum zeigt für Qualität
+keine vier Unterpunkte und keinen Aufklapppfeil mehr. Der direkte Link bleibt
+auch im eingeklappten und schmalen Menü erreichbar.
+
 Besprechungen werden mit Titel und Datum kurz angelegt und direkt unter
 `/qualitaet/kvp/besprechungen/{meetingId}` geöffnet. Auf der Detailseite lassen
 sich Protokoll, Teilnehmer und Themenzuordnung separat bearbeiten. Ein Protokoll

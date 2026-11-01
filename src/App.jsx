@@ -10,6 +10,8 @@ import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
 import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
 import { caseManagementModules } from './lib/caseManagementNavigation.js'
+import QualityLayout from './components/layout/QualityLayout.jsx'
+import { qualityModules } from './lib/qualityNavigation.js'
 
 import DashboardPage from './pages/DashboardPage.jsx'
 
@@ -96,6 +98,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
+        <Route element={<PermissionRoute anyModules={qualityModules}><QualityLayout /></PermissionRoute>}>
+        <Route path="/qualitaet" element={null} />
         <Route path="/qualitaet/kvp" element={<PermissionRoute module="kvp"><QualityPage key="kvp" /></PermissionRoute>} />
         <Route path="/qualitaet/kvp/:topicId" element={<PermissionRoute module="kvp"><QualityProblemDetailPage /></PermissionRoute>} />
         <Route path="/qualitaet/kvp/besprechungen/:meetingId" element={<PermissionRoute module="kvp"><QualityMeetingDetailPage /></PermissionRoute>} />
@@ -104,6 +108,7 @@ export default function App() {
         <Route path="/qualitaet/grundregeln" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="rules" kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
+        </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />

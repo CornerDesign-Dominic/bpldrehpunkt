@@ -4,7 +4,7 @@ import { usePageHeader } from '../../lib/pageHeader.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
 
 const titleKeys = {
-  'K.V.P.': 'nav.kvp', 'Handbuch': 'nav.handbook',
+  'Qualität': 'group.quality', 'K.V.P.': 'nav.kvp', 'Handbuch': 'nav.handbook',
   'Grundregeln': 'nav.groundRules', 'Wissenslücken': 'nav.knowledgeGaps',
   'Postfächer': 'nav.mailboxes',
   'Dashboard': 'nav.dashboard', 'Team Brennpunkt': 'title.team', 'Personalverwaltung': 'title.personnel',

@@ -1,5 +1,6 @@
 import { isTrackingRecord } from '../../lib/orderRecordTabs.js'
 import { CASE_MANAGEMENT_PATH, caseManagementModules, isCaseManagementPath } from '../../lib/caseManagementNavigation.js'
+import { QUALITY_PATH, qualityModules, isQualityPath } from '../../lib/qualityNavigation.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -15,6 +16,7 @@ import { useMailboxConnections } from '../../mailboxes/useMailboxConnections.js'
 import { mailboxLabel, mailboxUrl } from '../../lib/mailboxHelpers.js'
 
 const navigationItems = [
+  // These direct groups keep their former items for personal favorites only.
   { label: 'K.V.P.', to: '/qualitaet/kvp', icon: TodoIcon, module: 'kvp', group: 'quality' },
   { label: 'Handbuch', to: '/qualitaet/handbuch', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
   { label: 'Grundregeln', to: '/qualitaet/grundregeln', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
@@ -65,6 +67,11 @@ const navigationGroups = [
   { key: 'administration', label: 'System', icon: SettingsIcon },
 ]
 
+const directNavigationGroups = {
+  cases: { to: CASE_MANAGEMENT_PATH, modules: caseManagementModules, matches: isCaseManagementPath },
+  quality: { to: QUALITY_PATH, modules: qualityModules, matches: isQualityPath },
+}
+
 const navigationLabelKeys = {
   '/qualitaet/kvp': 'nav.kvp', '/qualitaet/handbuch': 'nav.handbook',
   '/qualitaet/grundregeln': 'nav.groundRules', '/qualitaet/wissensluecken': 'nav.knowledgeGaps',
@@ -107,14 +114,15 @@ export default function Sidebar({ collapsed, onToggle }) {
   const { t } = useLanguage()
   const { connections, loading: mailboxesLoading, error: mailboxesError, refresh: refreshMailboxes } = useMailboxConnections()
   const mailboxAccess = canView(profile, 'mailboxes')
-  const caseAccess = caseManagementModules.some(module => canView(profile, module))
+  const directGroups = new Map(Object.entries(directNavigationGroups).filter(([, group]) => group.modules.some(module => canView(profile, module))))
   const mailboxItems = mailboxAccess ? connections.filter(item => item.status === 'connected').map(item => ({ id: `mailbox:${item.id}`, mailboxId: item.id, label: mailboxLabel(item), email: item.email, to: mailboxUrl(item.id), icon: MailIcon, group: 'mailboxes' })) : []
   const [isSigningOut, setIsSigningOut] = useState(false)
   const visibleItems = [...navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module)), ...mailboxItems]
   const visibleItemIds = visibleItems.map((item) => item.id)
   const groupIds = navigationGroups.map((group) => group.key)
   const activeGroupIds = [...new Set(visibleItems.filter((item) => itemIsActive(item, location.pathname, location.search)).map((item) => item.group))]
-  const activeGroupId = caseAccess && isCaseManagementPath(location.pathname) ? 'cases' : mailboxAccess && location.pathname === '/postfaecher' ? 'mailboxes' : activeGroupIds[0] || null
+  const activeDirectGroupId = [...directGroups].find(([, group]) => group.matches(location.pathname))?.[0]
+  const activeGroupId = activeDirectGroupId || (mailboxAccess && location.pathname === '/postfaecher' ? 'mailboxes' : activeGroupIds[0] || null)
   const [favoriteIds, setFavoriteIds] = useState(() => readSidebarFavorites(user?.uid, visibleItemIds))
   const [expandedSection, setExpandedSection] = useState(() => {
     if (activeGroupId === 'mailboxes') return 'mailboxes'
@@ -196,9 +204,10 @@ export default function Sidebar({ collapsed, onToggle }) {
           const isActiveGroup = activeGroupId === group.key
           const isExpanded = collapsed || expandedSection === group.key
           const GroupIcon = group.icon
-          if (group.key === 'cases') return caseAccess ? <section className={`sidebar__nav-group${isActiveGroup ? ' sidebar__nav-group--current' : ''}`} key={group.key}>
-            <Link to={CASE_MANAGEMENT_PATH} className={`sidebar__nav-group-link${isActiveGroup ? ' sidebar__nav-group-link--active' : ''}`} aria-current={isActiveGroup ? 'page' : undefined} aria-label={t('group.cases')} title={t('group.cases')} onClick={() => setActiveFavoriteItemId(null)}><GroupIcon size={18} />{!collapsed && <span className="sidebar__nav-group-link-label">{t('group.cases')}</span>}</Link>
-          </section> : null
+          const directGroup = directGroups.get(group.key)
+          if (directGroup) return <section className={`sidebar__nav-group${isActiveGroup ? ' sidebar__nav-group--current' : ''}`} key={group.key}>
+            <Link to={directGroup.to} className={`sidebar__nav-group-link${isActiveGroup ? ' sidebar__nav-group-link--active' : ''}`} aria-current={isActiveGroup ? 'page' : undefined} aria-label={t(`group.${group.key}`)} title={t(`group.${group.key}`)} onClick={() => setActiveFavoriteItemId(null)}><GroupIcon size={18} />{!collapsed && <span className="sidebar__nav-group-link-label">{t(`group.${group.key}`)}</span>}</Link>
+          </section>
           return <section className={`sidebar__nav-group${isExpanded ? ' sidebar__nav-group--expanded' : ''}${isActiveGroup ? ' sidebar__nav-group--current' : ''}`} key={group.key}>
             {!collapsed && <button className="sidebar__nav-group-toggle" type="button" aria-expanded={isExpanded} aria-controls={`sidebar-group-${group.key}`} onClick={() => toggleGroup(group.key)}><span className="sidebar__nav-group-title"><GroupIcon size={18} /><span>{t(`group.${group.key}`)}</span></span><ChevronDownIcon /></button>}
             <div className={`sidebar__nav-group-items${isExpanded ? '' : ' sidebar__nav-group-items--collapsed'}`} id={`sidebar-group-${group.key}`}><div className="sidebar__nav-group-items-inner">

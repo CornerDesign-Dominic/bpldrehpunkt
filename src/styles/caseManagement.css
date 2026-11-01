@@ -1,8 +1,0 @@
-.case-management { min-width:0; }
-.case-management__tabs { display:flex; flex-wrap:wrap; gap:0 22px; margin-bottom:16px; border-bottom:1px solid var(--border); }
-.case-management__tab { padding:10px 0; border-bottom:2px solid transparent; color:var(--text-secondary); text-decoration:none; font-size:13px; }
-.case-management__tab:hover { color:var(--button-background); }
-.case-management__tab--active { color:var(--button-background); border-bottom-color:var(--button-background); font-weight:700; }
-.case-management__tab:focus-visible { outline:2px solid var(--focus-ring); outline-offset:3px; }
-.case-management__content { min-width:0; }
-@media(max-width:760px) { .case-management__tabs { gap:0 14px; } }

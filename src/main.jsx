@@ -8,7 +8,7 @@ import { LanguageProvider } from './i18n/LanguageProvider.jsx'
 import './styles/global.css'
 import './styles/transportOrderWorkspace.css'
 import './styles/inkasso.css'
-import './styles/caseManagement.css'
+import './styles/moduleSections.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
