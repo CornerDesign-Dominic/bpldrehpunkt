@@ -15,9 +15,14 @@ Desktop-Arbeitsstand wird nicht verändert. Remote-`main` vor Beginn:
 `230c2ad86af9700118e2f1456746292241461efc`.
 
 Die später hinzugekommene Remote-Dev-Änderung `c7f0f40` an den Postfachdialogen
-wurde vor dem Frontend-Push zusätzlich zusammengeführt. Der geprüfte Release
-`ccf7e5e` wurde ausschließlich nach `dev` gepusht; der Dev-Alias zeigt auf das
-erfolgreiche Vercel-Preview `dpl_6ZeurEMBYSVnRWmB6qJLpTjoLrm3`.
+wurde vor dem Frontend-Push zusätzlich zusammengeführt. Die erste geprüfte
+Frontend-Bereitstellung `ccf7e5e` erfolgte ausschließlich nach `dev` als
+Vercel-Preview `dpl_6ZeurEMBYSVnRWmB6qJLpTjoLrm3`.
+Der gemeinsame Abschlussstand **`0b27039`** mit sichtbarem Dev-Testhinweis und
+Betriebsdokumentation ist ebenfalls veröffentlicht: Dev-Alias auf
+`dpl_DmJAGwsi8Myde1YTB6tjjAqAYLoM`, Zustand `READY`. Dieser abschließende
+Belegnachtrag wird nur lokal versioniert; er benötigt keinen weiteren
+Frontend-Build.
 
 ## Veröffentlichte Bestandteile
 
@@ -117,9 +122,12 @@ Aufrufe jeweils mit HTTP 401 ab.
   `suppressed`; kein Versandbeleg. Ein gültiger zukünftiger Arbeitsauftrag kann
   dabei bewusst bis zur Fälligkeit bestehen bleiben (siehe Fachvertrag).
 - Ausschließlich die zwei eindeutig benannten synthetischen Quellen samt neu
-  erzeugten To-do-Unterdaten anschließend entfernt. Persönlicher Kalender,
+  erzeugten To-do-Unterdaten und dem zugehörigen `todoCalendarEntries`-Spiegel
+  anschließend entfernt (neun synthetische Dokumente). Persönlicher Kalender,
   normale Nutzerdaten, technische Prüfbelege und dauerhafte Versandlisten bleiben
   erhalten. Keine Rollen, Nutzerprofile oder Empfängeradressen geändert.
+  Nachprüfung: alle drei Originalquellen und ihre Arbeitsaufträge entfernt;
+  insgesamt null verbliebene Erinnerungsarbeitsaufträge.
 - Die bestehende Status-Callable funktioniert in der angemeldeten Dev-Oberfläche.
   Der konkrete Dev-Testmodus-Hinweis wird zusätzlich sichtbar dargestellt,
   deutsch und englisch, damit ein berechtigter Nutzer nicht nach einer
