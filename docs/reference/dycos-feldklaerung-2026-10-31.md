@@ -308,7 +308,7 @@ Kostenoptimierungen wurde integriert. Prüfergebnisse und Veröffentlichungsumfa
 [Dev-Veröffentlichung](../operations/dycos-order-fields-dev-release.md).
 Die früheren lokalen Abnahmen oben bleiben als Entwicklungsschritte erhalten.
 
-## Ergänzung: Fixtermin am 01.11.2026, noch nicht veröffentlicht
+## Ergänzung: Fixtermin am 01.11.2026
 
 `dbo.LadeEntladestellen2.Fixtermin` ist ein eigenes Kennzeichen je Zusatzstation.
 In der bereits vorliegenden geschützten Exportablage wurden 19 lesbare
@@ -322,5 +322,8 @@ Lade- und letzte Entladeprojektion. true/false und numerische 0/1 werden streng
 als boolean angenommen; fehlend/null bleibt unbekannt und wird nicht als false
 ersetzt. Die Zeiten und Bemerkungstexte entscheiden nicht über dieses Flag.
 Die Oberfläche zeigt Ja/Nein bzw. bei alten oder fehlenden Quelldaten
-„Nicht übermittelt“. Ein erneuter Auftragsabruf ist nach einer späteren
-Bereitstellung nötig; es wurde kein Massenimport oder Deployment durchgeführt.
+„Nicht übermittelt“. Bestehende Aufträge benötigen nach der Bereitstellung
+einen erneuten Auftragsabruf. Die ursprüngliche lokale Prüfung umfasste keinen
+Massenimport und kein Deployment.
+
+Der nachfolgend freigegebene Dev-Rollout ist im [Releasebeleg](../operations/releases/order-workspace-dev-2026-11-01-status.md) dokumentiert; die vorherige lokale Prüfung war keine Veröffentlichung.

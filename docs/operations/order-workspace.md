@@ -1,12 +1,14 @@
 # Auftragsbereich und Sendungsverfolgung
 
-Stand: 01.11.2026. Lokal auf `codex/order-workspace`, Grundlage `d64e363`
-(veröffentlichter Dev-Stand einschließlich DyCoS-Feldklärung und Kostenprüfung).
-Der bisherige Grundstand ist nach ausdrücklicher Freigabe auf Dev veröffentlicht.
-Die am 01.11.2026 vorbereiteten Trackingbereinigungen, der breite Stationsablauf,
-die Fixtermin-Übernahme, die zweispaltige Geschäftspartneransicht und der Mailreiter
-sind ausschließlich lokal umgesetzt; eine Veröffentlichung ist noch nicht freigegeben.
-[Release und echte Abnahme](order-workspace-dev-release.md). Produktion bleibt unverändert.
+Stand: 01.11.2026. Entwicklung auf `codex/order-workspace`, ausgehend vom
+veröffentlichten Auftragsstand `0f9ca77`, zusammengeführt mit Dev `0b27039`.
+Der Nutzer hat die gesammelten Trackingbereinigungen, den breiten Stationsablauf,
+die Fixtermin-Übernahme, die zweispaltige Geschäftspartneransicht und den
+Mailreiter ausdrücklich zur Veröffentlichung ausschließlich auf Dev freigegeben.
+Durchführung und aktueller Status stehen im
+[Dev-Release vom 01.11.2026](releases/order-workspace-dev-2026-11-01-status.md).
+[Frühere Releases und echte Abnahmen](order-workspace-dev-release.md).
+Main und Produktion bleiben unverändert.
 
 ## Benutzerablauf
 
@@ -103,7 +105,7 @@ gemeinsam betrachtet werden. `reviewMailboxInvoices` verwendet denselben Mapper,
 wertet das neue Flag für die Rechnungsprüfung aber nicht aus. Kein zusätzlicher
 Flow-Abruf, keine Power-Automate-Änderung, keine neuen Rechte, Rules oder Indizes.
 Bestehende Aufträge erhalten das Feld erst beim nächsten Auftragsabruf; kein
-automatischer Massenimport. Noch keine Veröffentlichung dieser Erweiterung.
+automatischer Massenimport. Der aktuelle Dev-Veröffentlichungsnachweis steht im oben verlinkten Releasebeleg.
 
 Die Finanzansicht zeigt rechts anstelle der Verknüpfungen die Karten
 Auftragsergebnis und Rechnungsprüfung. Belege sowie einzelne Ertrags- und
@@ -235,7 +237,7 @@ Main und Produktion bleiben unverändert.
 
 Vollständiges ESLint und Produktionsbuild bestanden; nach den letzten Ergänzungen
 gezieltes ESLint und Build erneut erfolgreich. Kein Backend-, Rules- oder
-Shared-Vertrag geändert. Keine Veröffentlichung dieser Erweiterung.
+Shared-Vertrag geändert. Diese Prüfung erfolgte vor der anschließenden Dev-Freigabe.
 
 Die isolierte Vorschau verwendet den echten Maildialog, Trackingeditor und die
 Auftragsnavigation mit synthetischen Datenzugriffen. Vor den abschließenden
