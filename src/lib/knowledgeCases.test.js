@@ -18,6 +18,17 @@ test('sent and uncertain answers take precedence, drafts remain explicitly draft
   assert.deepEqual(knowledgeCaseAnswer({ sendStatus: 'unknown', sentReply: 'Attempt' }), { text: 'Attempt', kind: 'unknown' })
   assert.deepEqual(knowledgeCaseAnswer({ sendStatus: 'draft', latestSuggestion: 'AI' }), { text: 'AI', kind: 'draft' })
 })
+test('article collections mirror current handbook metadata, including empty and hidden collections', () => {
+  const articles = [{ id: 'a', title: 'Current title', process: 'Transport', topic: 'Delivery' }, { id: 'b', title: 'Empty article', process: 'Email' }]
+  const groups = knowledgeCaseGroups([{ id: 'article-a', title: 'Old title', hidden: true, revision: 4 }], [{ id: 'copy', gapId: 'article-a', caseRevision: 1, learnedRevision: 1 }], articles)
+  assert.equal(groups.find((item) => item.id === 'article-a').title, 'Current title')
+  assert.equal(groups.find((item) => item.id === 'article-a').hidden, true)
+  assert.equal(groups.find((item) => item.id === 'article-a').caseCount, 1)
+  assert.equal(groups.find((item) => item.id === 'article-b').virtual, true)
+  assert.equal(groups.find((item) => item.id === 'article-b').caseCount, 0)
+  assert.equal(groups.filter((item) => item.id === 'article-a').length, 1)
+  assert.equal(groups.find((item) => item.id === 'unassigned').revision, 0)
+})
 test('no cases are implicitly selected and removed or stale absent selections are excluded', () => {
   const cases = [{ id: 'a', caseRevision: 4 }, { id: 'b', removed: true, caseRevision: 2 }]
   assert.deepEqual(knowledgeCaseSelection(cases, []), [])

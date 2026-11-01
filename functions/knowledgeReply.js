@@ -110,12 +110,12 @@ export function knowledgeCaseUpdate(previous, changes) {
 
 function captureGroup(selection, catalog) {
   const source = selection?.sources?.find(item => item.kind === 'article')
-  if (selection?.coverage === 'full' && source) {
+  if (source) {
     const article = catalog.articles.find(item => item.id === source.id)
     return { id: `article-${source.id}`, category: 'article', classification: 'article', articleId: source.id, title: source.title || article?.title || 'Handbuchartikel', process: article?.process || source.process || '', missing: '' }
   }
   const normalized = !selection?.limited && ['none', 'partial'].includes(selection?.coverage) ? privateGap(selection.gap) : null
-  if (normalized) return { id: hash(`knowledge-gap-v1|${normalized.key}`), category: 'gap', classification: normalized.intentKey === 'other_unclassified' ? 'broad' : 'category', articleId: '', ...normalized }
+  if (normalized && normalized.intentKey !== 'other_unclassified') return { id: hash(`knowledge-gap-v1|${normalized.key}`), category: 'gap', classification: 'category', articleId: '', ...normalized }
   return { id: 'unassigned', category: 'unassigned', classification: 'unassigned', articleId: '', title: 'Nicht zugeordnet', process: '', missing: '' }
 }
 

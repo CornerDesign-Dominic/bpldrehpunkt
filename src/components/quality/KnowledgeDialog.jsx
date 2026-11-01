@@ -14,7 +14,7 @@ export default function KnowledgeDialog({ title, onClose, children, large = fals
     return () => { element.close(); document.body.style.overflow = overflow; previous?.focus?.() }
   }, [])
   useEffect(() => { dialog.current.scrollTop = 0; heading.current?.focus() }, [title])
-  return <dialog ref={dialog} className={`quality-dialog quality-dialog--editor${large ? ' knowledge-history-dialog' : ''}${compact ? ' knowledge-dialog--compact' : ''}`} aria-label={title} onCancel={(event) => { event.preventDefault(); onClose() }}>
+  return <dialog ref={dialog} className={`quality-dialog quality-dialog--editor knowledge-dialog${large ? ' knowledge-history-dialog' : ''}${compact ? ' knowledge-dialog--compact' : ''}`} aria-label={title} onCancel={(event) => { event.preventDefault(); onClose() }}>
     <header className="quality-heading"><h2 ref={heading} tabIndex={-1}>{title}</h2><button type="button" className="button button--secondary" onClick={onClose}>{language === 'en' ? 'Close' : 'Schließen'}</button></header>{children}
   </dialog>
 }
