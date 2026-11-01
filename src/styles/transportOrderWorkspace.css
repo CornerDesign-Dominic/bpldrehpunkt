@@ -2,8 +2,14 @@
 .order-workspace__tabs { display:flex; flex-wrap:wrap; gap:0 22px; border-bottom:1px solid var(--border); margin-top:20px; }
 .order-workspace__tabs button { border:0; background:transparent; color:var(--text-secondary); border-bottom:2px solid transparent; padding:10px 0; font:inherit; font-size:13px; cursor:pointer; }
 .order-workspace__tabs button[aria-selected="true"] { color:var(--button-background); border-bottom-color:var(--button-background); font-weight:700; }
-.order-workspace__toolbar { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; align-items:center; min-height:38px; margin:14px 0; }
-.order-workspace__update { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--text-secondary); font-size:12px; }
+.order-workspace__refresh { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:flex-end; gap:0 18px; }
+.order-workspace__update { padding:10px 0 12px; color:var(--text-secondary); font-size:12px; }
+.order-workspace__refresh button { border:0; border-bottom:2px solid transparent; background:transparent; padding:10px 0; font:inherit; font-size:13px; color:var(--button-background); cursor:pointer; }
+.order-workspace__refresh button:hover:not(:disabled) { border-bottom-color:var(--button-background); }
+.order-workspace__refresh button:disabled { opacity:.6; cursor:wait; }
+.order-workspace__navigation { display:flex; flex-wrap:wrap; align-items:baseline; gap:0 22px; border-bottom:1px solid var(--border); margin:20px 0 16px; }
+.order-workspace__navigation > .order-workspace__tabs { border:0; margin:0; }
+.order-workspace__navigation > .order-workspace__refresh { margin-left:auto; }
 .order-workspace__text-button { padding:0; border:0; background:transparent; font:inherit; color:var(--button-background); cursor:pointer; text-align:left; }
 .order-workspace__layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(210px,24%); gap:16px; align-items:start; }
 .order-workspace__content { min-width:0; }
@@ -138,6 +144,8 @@
 .order-workspace a:not(.button) { color:var(--button-background); }
 
 .order-record { min-width:0; }
-.order-record__tabs { margin:0 0 16px; }
+.order-record__tabs { margin:0 0 16px; align-items:baseline; }
 .order-record__section-tabs { display:flex; flex-wrap:wrap; gap:inherit; }
+.order-record__refresh { margin-left:auto; }
+.order-record__refresh:empty { display:none; }
 .order-record > [hidden] { display:none; }
