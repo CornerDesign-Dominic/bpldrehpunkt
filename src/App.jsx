@@ -8,6 +8,8 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
+import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
+import { caseManagementModules } from './lib/caseManagementNavigation.js'
 
 import DashboardPage from './pages/DashboardPage.jsx'
 
@@ -133,6 +135,8 @@ export default function App() {
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/notizen" element={<NotesPage />} />
+        <Route element={<PermissionRoute anyModules={caseManagementModules}><CaseManagementLayout /></PermissionRoute>}>
+        <Route path="/fallmanagement" element={null} />
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
@@ -141,6 +145,7 @@ export default function App() {
         <Route path="/legal-disputes/:legalDisputeId" element={<PermissionRoute module="legalDisputes"><LegalDisputeDetailPage /></PermissionRoute>} />
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />
         <Route path="/inkasso/:caseId" element={<PermissionRoute module="inkasso"><InkassoCaseDetailPage /></PermissionRoute>} />
+        </Route>
         <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />

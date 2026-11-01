@@ -50,6 +50,8 @@ fachlich abgenommen wurde. Historische Releases stehen in
 - CRM einschließlich Aktivitäten und Bewertungen
 - Palettenmanagement mit Kontoübersichten und Detailansichten
 - Schäden
+  (gemeinsamer Einstieg [Fallmanagement](docs/operations/case-management.md)
+  mit zunächst leerer Übersicht und Fachreitern für die vier Fallmodule)
 - Insolvenzen
 - Gericht / Streit
 - Inkasso

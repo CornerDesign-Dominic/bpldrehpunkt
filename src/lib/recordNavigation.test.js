@@ -15,6 +15,12 @@ test('record routes preserve literal percent signs, separators and Unicode IDs',
   assert.equal(recordDetailPath('unknown', 'case'), '')
 })
 
+test('case management overview is a valid internal return destination', () => {
+  const origin = { pathname: '/fallmanagement', search: '?view=all', hash: '', state: null }
+  assert.deepEqual(resolveReturnNavigation(createReturnState(origin), '/schaeden'), { to: '/fallmanagement?view=all', state: null })
+  assert.equal(validReturnPath('/fallmanagement-anders'), false)
+})
+
 test('calendar, case and order navigation retains the exact return chain', () => {
   const calendar = { pathname: '/kalender', search: '?date=2026-09-18&calendar=system-damages', hash: '', state: null }
   const caseOrigin = createReturnState(calendar)

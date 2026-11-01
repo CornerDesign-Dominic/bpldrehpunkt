@@ -22,6 +22,7 @@ const pageTitles = [
   { path: '/vorlagen', title: 'Vorlagen' },
   { path: '/todos', title: 'To-dos' },
   { path: '/notizen', title: 'Notizen' },
+  { path: '/fallmanagement', title: 'Fallmanagement' },
   { path: '/schaeden', title: 'Schäden' },
   { path: '/insolvenzen', title: 'Insolvenzen' },
   { path: '/legal-disputes', title: 'Gericht / Streit' },

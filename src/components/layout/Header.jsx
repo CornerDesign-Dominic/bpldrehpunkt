@@ -13,7 +13,7 @@ const titleKeys = {
   'Sendungsverfolgung': 'nav.shipmentTracking', 'Auftragsliste': 'nav.orders', 'Palettenmanagement': 'nav.pallets', 'News': 'nav.news',
   'Dokumente': 'nav.documents', 'Vorlagen': 'nav.templates', 'To-dos': 'nav.todos',
   'Notizen': 'nav.notes', 'Schäden': 'nav.damages', 'Insolvenzen': 'nav.insolvencies',
-  'Gericht / Streit': 'nav.disputes', 'Inkasso': 'nav.collections', 'AGB-Prüfer': 'nav.termsChecker',
+  'Gericht / Streit': 'nav.disputes', 'Inkasso': 'nav.collections', 'Fallmanagement': 'group.cases', 'AGB-Prüfer': 'nav.termsChecker',
   'Mein Profil': 'nav.profile', 'Systemmails': 'nav.systemMails', 'Stammdaten': 'nav.masterData',
   'Diagnose': 'nav.diagnostics', 'Adminbereich': 'nav.admin', 'Urlaubsübersicht': 'title.vacationOverview',
   'Kalender': 'nav.calendar', 'Feiertagskalender': 'nav.holidays', 'Urlaubsmanagement': 'nav.vacationManagement',
