@@ -46,11 +46,11 @@ export default function ReminderStatus({ sourcePath, enabled = false, configured
   const status = result?.sessionId === sessionId && result?.sourcePath === sourcePath ? result.value : null
   const label = (status) => labels[status]?.[en ? 1 : 0] || (en ? 'Status unknown' : 'Status unbekannt')
   const due = reminderDueAtLabel(status?.dueAt, language)
-  const developmentBlocked = status?.reason === 'Dev-Testmodus: Erinnerungen dürfen nur an die freigegebene Testadresse gesendet werden.'
+  const developmentBlocked = status?.reason?.startsWith('Dev-Testmodus:')
   return <div className="reminder-status" data-recipient-rule={recipientRule || undefined} role="status">
     <span>{loading ? (en ? 'Loading reminder status…' : 'Erinnerungsstatus wird geladen …') : error ? (en ? 'Reminder status could not be loaded.' : 'Erinnerungsstatus konnte nicht geladen werden.') : label(status?.status)}</span>
     {!loading && !error && due && <span> · {due} (Berlin)</span>}
-    {!loading && !error && developmentBlocked && <p>{en ? 'Dev test mode: reminders can only be sent to the approved test address.' : status.reason}</p>}
+    {!loading && !error && developmentBlocked && <p>{en ? 'Dev test mode: reminders can only be sent to the approved test addresses.' : status.reason}</p>}
     {!loading && !error && status?.recipients?.length > 0 && <ul>{status.recipients.map((recipient) => <li key={recipient.userId}>{recipient.name || (en ? 'Responsible user' : 'Zuständiger Nutzer')}: {label(recipient.status)}</li>)}</ul>}
     <button className="button button--secondary" type="button" disabled={loading} onClick={(event) => { event.stopPropagation(); setRevision((value) => value + 1) }}>{en ? 'Refresh status' : 'Status aktualisieren'}</button>
   </div>

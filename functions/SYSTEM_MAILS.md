@@ -9,7 +9,8 @@ veröffentlicht und dort tatsächlich mit dem eigenen Power-Automate-Flow
 verbunden. Er verwendet `POWER_AUTOMATE_REMINDER_URL` und fünf
 `REMINDER_*`-Identitäts-/Zertifikatssecrets; anonyme/SAS-Aufrufe sind ausgeschlossen.
 Der Absender ist `drehpunkt@brennpunkt-logistik.de`. Der Dev-Guard lässt vor
-Reservierung und Versand ausschließlich `no-reply@brennpunkt-logistik.de` zu;
+Reservierung und Versand ausschließlich `no-reply@brennpunkt-logistik.de` und das
+nachträglich ausdrücklich freigegebene `bb@brennpunkt-logistik.de` zu;
 es gibt keine Empfängerumleitung. Produktion ist weiterhin nur vorbereitet,
 der neue Produktionsflow bleibt aus. Bestandteile, Datenaufbau, echter
 Firebase-Versandtest mit Posteingangsnachweis und verbleibende Grenzen stehen im

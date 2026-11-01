@@ -9,6 +9,7 @@ const providerUrl = 'https://defaultb829bbdcc0b74128a3416715a67b45.1b.environmen
 const dependencies = { environment: 'development', paused: async () => false, notificationUrl: () => providerUrl, authorize: async () => 'Bearer synthetic-token', render: async () => ({ subject: 'Test', message: 'Text', messageHtml: '<p>Text</p>' }), now: () => new Date('2026-10-31T08:00:04Z') }
 const acceptedReceipt = (payload) => ({ contractVersion: payload.contractVersion, projectId: payload.projectId, environment: payload.environment, deliveryId: payload.deliveryId, payloadDigest: payload.payloadDigest, sender: reminderSenderAddress, accepted: true, outcome: 'accepted' })
 const expectedPayload = (environment = 'development') => buildReminderProviderRequest({ ...request, environment, subject: 'Test', message: 'Text', messageHtml: '<p>Text</p>' })
+const drainPromises = async () => { for (let step = 0; step < 20; step++) await Promise.resolve() }
 
 test('the existing scheduler export binds its isolated reminder secret while other system mail keeps its secret', () => {
   const secrets = (entry) => entry.__endpoint.secretEnvironmentVariables.map((value) => value.key)
@@ -108,5 +109,81 @@ test('a stalled provider request is aborted and never retried', async () => {
     return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))
   } })
   assert.deepEqual(result, { status: 'uncertain', reason: 'provider-outcome-unknown' })
+  assert.equal(attempts, 1)
+})
+
+test('default acknowledgement budget accepts a response beyond ten seconds after authentication and fresh eligibility', async (t) => {
+  const start = new Date('2026-10-31T08:00:04.000Z').getTime()
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: start })
+  let attempts = 0, eligibilityAt = null, completed = false
+  const result = sendReminderMail({ ...request, beforeSend: async () => { eligibilityAt = Date.now(); return true } }, {
+    ...dependencies, now: () => new Date(),
+    authorize: () => new Promise(resolve => setTimeout(() => resolve('Bearer synthetic-token'), 2000)),
+    fetchImpl: async (_url, options) => {
+      attempts++
+      return new Promise((resolve, reject) => {
+        const reply = setTimeout(() => resolve({ status: 200, json: async () => acceptedReceipt(JSON.parse(options.body)) }), 11000)
+        options.signal.addEventListener('abort', () => { clearTimeout(reply); reject(new Error('aborted')) }, { once: true })
+      })
+    },
+  }).then(value => { completed = true; return value })
+  await drainPromises()
+  assert.equal(attempts, 0)
+  t.mock.timers.tick(2000); await drainPromises()
+  assert.equal(eligibilityAt, start + 2000)
+  assert.equal(attempts, 1)
+  t.mock.timers.tick(10000); await drainPromises()
+  assert.equal(completed, false)
+  t.mock.timers.tick(1000); await drainPromises()
+  assert.deepEqual(await result, { status: 'accepted' })
+  assert.equal(Date.now(), start + 13000)
+  assert.equal(attempts, 1)
+})
+
+test('acknowledgement budget is capped at twenty-five seconds and never repeats an uncertain request', async (t) => {
+  const start = new Date('2026-10-31T08:00:04.000Z').getTime()
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: start })
+  let attempts = 0, signal, completed = false
+  const result = sendReminderMail(request, { ...dependencies, now: () => new Date(), timeoutMs: 100000,
+    fetchImpl: async (_url, options) => {
+      attempts++; signal = options.signal
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))
+    },
+  }).then(value => { completed = true; return value })
+  await drainPromises()
+  assert.equal(attempts, 1)
+  t.mock.timers.tick(24999); await drainPromises()
+  assert.equal(completed, false)
+  assert.equal(signal.aborted, false)
+  t.mock.timers.tick(1); await drainPromises()
+  assert.deepEqual(await result, { status: 'uncertain', reason: 'provider-outcome-unknown' })
+  assert.equal(signal.aborted, true)
+  t.mock.timers.tick(60000); await drainPromises()
+  assert.equal(attempts, 1)
+})
+
+test('remaining due minute is the hard acknowledgement deadline even after authentication consumes part of it', async (t) => {
+  const start = new Date('2026-10-31T08:00:56.000Z').getTime()
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: start })
+  let attempts = 0, signal, completed = false, eligibilityAt = null
+  const result = sendReminderMail({ ...request, beforeSend: async () => { eligibilityAt = Date.now(); return true } }, {
+    ...dependencies, now: () => new Date(),
+    authorize: () => new Promise(resolve => setTimeout(() => resolve('Bearer synthetic-token'), 2000)),
+    fetchImpl: async (_url, options) => {
+      attempts++; signal = options.signal
+      return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true }))
+    },
+  }).then(value => { completed = true; return value })
+  await drainPromises()
+  t.mock.timers.tick(2000); await drainPromises()
+  assert.equal(eligibilityAt, start + 2000)
+  assert.equal(attempts, 1)
+  t.mock.timers.tick(1999); await drainPromises()
+  assert.equal(completed, false)
+  assert.equal(signal.aborted, false)
+  t.mock.timers.tick(1); await drainPromises()
+  assert.deepEqual(await result, { status: 'uncertain', reason: 'provider-outcome-unknown' })
+  assert.equal(Date.now(), Date.parse('2026-10-31T08:01:00.000Z'))
+  assert.equal(signal.aborted, true)
   assert.equal(attempts, 1)
 })
