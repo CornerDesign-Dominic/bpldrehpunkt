@@ -53,10 +53,10 @@ export default function OrderStationList({ imported, number }) {
   return <div className="order-station-list">{stops.map((stop, index) => {
     const addressAttention = orderStationAddressAttention(stop, imported.dispositionNote)
     return <article className="order-station" key={`${stop.sourceId || index}-${index}`}>
-    <h4 className="order-station__heading"><span className="order-station__number">{stop.sequence ?? index + 1}</span><StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
     <div className="order-station__columns">
       <div className="order-station__place">
-        <StationCard title="Adresse" attention={Boolean(addressAttention)}>
+        <h4 className="order-station__heading">{stop.sequence ?? index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
+        <StationCard title="Adresse" attention={Boolean(addressAttention)} className="order-station__address-field">
           {addressAttention && <p className="order-station__attention-note"><StaticText source={addressAttention} /></p>}
           <StationAddress stop={stop} />
         </StationCard>
@@ -64,9 +64,10 @@ export default function OrderStationList({ imported, number }) {
         <StationCard title="Referenz" className="order-station__reference"><p>{stop.deliveryInformation || <span className="order-workspace__muted"><StaticText source="Nicht übermittelt" /></span>}</p></StationCard>
       </div>
       <div className="order-station__goods">
+        <h4 className="order-station__heading"><StaticText source={stop.type === 'loading' ? 'Ladehinweise & Ware' : stop.type === 'unloading' ? 'Entladehinweise & Ware' : 'Stationshinweise & Ware'} /></h4>
+        <StationCard title="Bemerkung" className="order-station__instructions"><p>{stop.note || <span className="order-workspace__muted"><StaticText source="Keine Bemerkung übermittelt." /></span>}</p></StationCard>
         <StationCargo stop={stop} number={number} />
         <StationCard title="Palettentausch" attention={stop.palletExchange === true} className="order-station__pallet"><p className="order-station__pallet-value"><StaticText source={stop.palletExchange === true ? 'Ja' : stop.palletExchange === false ? 'Nein' : 'Nicht übermittelt'} /></p></StationCard>
-        <StationCard title="Bemerkung" className="order-station__instructions"><p>{stop.note || <span className="order-workspace__muted"><StaticText source="Keine Bemerkung übermittelt." /></span>}</p></StationCard>
         {stop.deliveryNoteNumber && <StationCard title="Lieferscheinnummer"><p>{stop.deliveryNoteNumber}</p></StationCard>}
       </div>
     </div>

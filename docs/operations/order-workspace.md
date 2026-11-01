@@ -80,8 +80,9 @@ Strecke, Kundenreferenz und Relation. Die TA-Nummer bleibt im oberen Seitentitel
 die Fachinhalte und die Navigation über Listen und Reiter bleiben erhalten.
 
 Die Übersicht zeigt zwei Spalten mit allgemeinen Daten und eine rechte Spalte
-mit Verknüpfungen. Fachreiter: Übersicht, Auftrag, Kunde & UTN,
-Finanzen, Sendungsverfolgung, Historie. Tatsächlich übermittelte Stationen bleiben vollständig
+mit Verknüpfungen. Reihenfolge: Übersicht, Auftrag, Sendungsverfolgung, Kunde & UTN,
+Finanzen, Zugeordnete Mails, Historie. Zugeordnete Mails öffnet weiterhin einen Dialog.
+Tatsächlich übermittelte Stationen bleiben vollständig
 erhalten. Alte CSV-Daten können erste/letzte Station liefern; fehlende Warenmaße,
 Finanzwerte oder Belege werden nicht erfunden. Das Auftragsergebnis ist die
 Differenz der übermittelten Nettoerträge und Nettokosten, kein zusätzlicher
@@ -99,12 +100,15 @@ in größerer Schrift, daneben die vollständigen allgemeinen Dispositionshinwei
 Tour und übermittelte Auftragsmengen bleiben getrennt erkennbar. Fehlende
 allgemeine Hinweise werden als fehlend angezeigt.
 
-Alle Stationen bleiben untereinander in einer gemeinsamen Karte. Links stehen
-neutrale Einzelkarten „Adresse“, „Termin“ und „Referenz“, rechts „Ware & Mengen“,
-„Palettentausch“, „Bemerkung“ sowie eine vorhandene Lieferscheinnummer. Die
-Referenz bleibt auch mit Inhalt neutral. Datum und Uhrzeit verwenden dieselbe
-Schriftgröße und -stärke; der große FIX-Badge entfällt. Dezente horizontale
-Linien trennen die Stationen. Schmale Ansichten stellen die Bereiche untereinander.
+Alle Stationen bleiben untereinander und werden durch dezente horizontale Linien
+getrennt. Je Station gibt es zwei Karten in Farben, Schrift und Abständen der
+Sendungsverfolgung: links Stationstitel, Adresse, Termin und Referenz; rechts
+Bemerkung, Warenbeschreibung, Mengen, Palettentausch und eine vorhandene
+Lieferscheinnummer. Die Felder haben keine zusätzlichen neutralen Kartenrahmen.
+Eine besondere Hervorhebung begrenzt sich weiterhin auf das betroffene Feld
+Adresse, Termin oder Palettentausch. Die Referenz bleibt auch mit Inhalt neutral.
+Datum und Uhrzeit verwenden dieselbe Schriftgröße und -stärke; FIX bleibt hinter
+der Uhrzeit. Schmale Ansichten stellen die Bereiche untereinander.
 
 Die Terminkarte ist ausschließlich bei `fixedAppointment === true` mit gelbem
 Rand und linkem Streifen markiert; ihre Fläche bleibt neutral. Ein bestätigter

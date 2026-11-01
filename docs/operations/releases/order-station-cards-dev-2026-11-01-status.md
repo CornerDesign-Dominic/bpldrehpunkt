@@ -133,3 +133,23 @@ bis `7cd3f25`, insbesondere den ausdrücklich gesetzten Abrufmodus `refresh`.
 Nach Zusammenführung Lint, Build und Shared-Abgleich erneut erfolgreich;
 Auftragsabruf in der lokalen Browserprüfung erneut bestätigt. Für diese reine
 Layoutkorrektur erfolgt nur der Dev-Frontend-Push, kein weiterer Backenddeploy.
+
+## Stationsinfos im Trackingstil und Reiterreihenfolge, 01.11.2026
+
+Je Station stehen nun zwei Karten in den Abschnittsfarben der Sendungsverfolgung:
+links Adresse, Termin und Referenz; rechts Bemerkung, Warenbeschreibung/Mengen,
+Palettentausch und gegebenenfalls Lieferscheinnummer. Die vielen neutralen
+Innenrahmen entfallen; gezielte gelbe Feldrahmen bleiben erhalten. Stationen
+stehen weiterhin untereinander mit dezenten Trennlinien; Daten und Quellregeln
+wurden nicht verändert.
+
+Sichtbare Navigation: Übersicht, Auftrag, Sendungsverfolgung, Kunde & UTN,
+Finanzen, Zugeordnete Mails, Historie. Die Routen behalten ihre stabilen Werte;
+Mails bleibt eine separate Dialogaktion. Die Pfeilnavigation der Fachreiter
+folgt der neuen fachlichen Reihenfolge.
+
+Lint, Build, Shared-Abgleich (45 Module) und 11 bestehende Tests zu Reitern,
+Stationsdarstellung und Hervorhebungen erfolgreich. Lokale Sichtprüfung mit
+kompakten und umfangreichen Beispieldaten, gelben Akzenten ohne Flächenfärbung,
+allen Mengen einschließlich null und einer 545-px-Ansicht ohne horizontalen
+Überlauf. Ausschließlich Frontend; kein Backenddeploy, keine Datenmigration.
