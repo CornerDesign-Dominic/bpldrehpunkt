@@ -108,13 +108,16 @@ test('volumetric station weight follows the supplementary station join and never
   }
 })
 
-test('source distances keep order and tour values apart from route calculations and explicit zero stays zero', () => {
-  const data = sample()
+test('retired DyCoS distances are ignored, including malformed values, and never supply a calculated route', () => {
+  const data = sample(), baseline = map(data)
   Object.assign(data.auftrag, { Gesamtkilometer: '100,50', Autobahnkilometer: 70, Leerkilometer: 0, KMGeroutet: false })
   Object.assign(data.tour, { Gesamtkilometer: 500, Autobahnkilometer: '300,25', Leerkilometer: 10, Geroutet: 1 })
+  assert.deepEqual(map(data), baseline)
+  Object.assign(data.auftrag, { Gesamtkilometer: -1, Autobahnkilometer: true, Leerkilometer: 'unbekannt', KMGeroutet: 'true' })
+  Object.assign(data.tour, { Gesamtkilometer: Number.POSITIVE_INFINITY, Geroutet: 3 })
   const result = map(data)
-  assert.deepEqual(result.distances.order, { totalKm: 100.5, motorwayKm: 70, emptyKm: 0, routed: false })
-  assert.deepEqual(result.distances.tour, { totalKm: 500, motorwayKm: 300.25, emptyKm: 10, routed: true })
+  assert.deepEqual(result, baseline)
+  assert.equal(Object.hasOwn(result, 'distances'), false)
   assert.equal(result.route, undefined)
   assert.equal(result.shipment.distanceKm, undefined)
 })
@@ -124,10 +127,7 @@ test('missing optional transport fields remain unknown, including absent tour or
   assert.equal(result.shipment.goodsDescription, null)
   assert.equal(result.shipment.vehicleInformation, null)
   assert.equal(result.shipment.hazardousGoods, null)
-  assert.deepEqual(result.distances.order, { totalKm: null, motorwayKm: null, emptyKm: null, routed: null })
-  assert.equal(result.distances.tour, null)
-  const withTour = map(sample())
-  assert.deepEqual(withTour.distances.tour, { totalKm: null, motorwayKm: null, emptyKm: null, routed: null })
+  assert.equal(Object.hasOwn(result, 'distances'), false)
 })
 
 test('legacy preservation retains only its established fields and never substitutes previous transport source values', () => {
@@ -141,7 +141,7 @@ test('legacy preservation retains only its established fields and never substitu
   assert.equal(preserved.imported.shipment.goodsDescription, null)
   assert.equal(preserved.imported.shipment.hazardousGoods, null)
   assert.equal(preserved.imported.shipment.vehicleInformation, null)
-  assert.deepEqual(preserved.imported.distances.order, { totalKm: null, motorwayKm: null, emptyKm: null, routed: null })
+  assert.equal(Object.hasOwn(preserved.imported, 'distances'), false)
   assert.deepEqual(preserved.preservedPaths, ['shipment.weightKg'])
   assert.equal(next.shipment.weightKg, null)
   assert.equal(preserved.imported.source.system, 'dycos')
@@ -155,12 +155,6 @@ test('invalid transport detail inputs are rejected without string or boolean coe
     data => { data.auftrag.Gefahrgut = 2 },
     data => { data.fahrzeugart.Informationen = {} },
     data => { data.ladeEntladestellen[0].Ware = false },
-    data => { data.auftrag.Gesamtkilometer = -1 },
-    data => { data.auftrag.Autobahnkilometer = true },
-    data => { data.auftrag.Leerkilometer = 'unbekannt' },
-    data => { data.auftrag.KMGeroutet = 'true' },
-    data => { data.tour.Gesamtkilometer = Number.POSITIVE_INFINITY },
-    data => { data.tour.Geroutet = 3 },
   ]) {
     const data = sample(); mutate(data)
     assert.throws(() => map(data), DycosMappingError)

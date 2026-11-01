@@ -10,7 +10,7 @@ import { transportOrderHistoryRows } from '../src/lib/transportOrderHistoryPrese
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 if (enabled) initializeApp({ projectId: 'demo-drehpunkt-order-fields' })
 
-test('emulator: transport source details persist and refresh with distinct distances, false flags and station descriptions', { skip: !enabled }, async () => {
+test('emulator: transport details refresh while DyCoS distances are retired without changing calculated routes or history', { skip: !enabled }, async () => {
   const db = getFirestore(), uid = `transport-${randomUUID()}`, ta = `2610${String(Date.now()).slice(-5)}`
   await db.doc(`users/${uid}`).set({ active: true, role: 'user', permissions: { transportOrderSingleImport: 'edit', dataImports: 'edit' } })
   const payload = {
@@ -40,16 +40,29 @@ test('emulator: transport source details persist and refresh with distinct dista
   assert.equal(saved.imported.stops[0].cargo.volumetricWeightKg, 1250)
   assert.equal(saved.imported.stops[0].cargo.weightKg, null)
   assert.equal(saved.imported.shipment.weightKg, null)
-  assert.deepEqual(saved.imported.distances.order, { totalKm: 0, motorwayKm: 0, emptyKm: 0, routed: false })
-  assert.deepEqual(saved.imported.distances.tour, { totalKm: 500, motorwayKm: 300, emptyKm: 20, routed: true })
+  assert.equal(Object.hasOwn(saved.imported, 'distances'), false)
   assert.equal(saved.routeNeedsRecalculation, false)
   assert.equal(saved.manual.reference, 'retain-manual-data')
   const history = await ref.collection('history').get()
   assert.ok(history.docs.some(entry => entry.get('field') === 'shipment.hazardousGoods' && entry.get('oldValue') === null && entry.get('newValue') === false))
-  assert.ok(history.docs.some(entry => entry.get('field') === 'distances.order.totalKm' && entry.get('oldValue') === null && entry.get('newValue') === 0))
+  assert.equal(history.docs.some(entry => entry.get('field')?.startsWith('distances.')), false)
   assert.ok(history.docs.some(entry => entry.get('field') === 'stops' && entry.get('newValue')[0].cargo.volumetricWeightKg === 1250))
   assert.equal((await fetchDycosTransportOrderHandler(request(), deps)).status, 'unchanged')
   assert.equal((await ref.collection('history').get()).size, history.size)
+  const routeRef = db.doc(`transportOrderRoutes/${created.orderId}`)
+  const calculatedRoute = { roundedDistanceKm: 470, status: 'calculated' }
+  await routeRef.set(calculatedRoute)
+  await ref.update({ 'imported.distances': { order: { totalKm: 500, routed: true }, tour: { totalKm: 900 } } })
+  const legacyHistory = { field: 'distances.order.totalKm', fieldLabel: 'Gesamtkilometer Auftrag (DyCoS)', oldValue: 0, newValue: 500 }
+  await ref.collection('history').doc('legacy-distance').set(legacyHistory)
+  payload.auftrag.Gesamtkilometer = 'retired value is not validated'
+  assert.equal((await fetchDycosTransportOrderHandler(request(), deps)).status, 'unchanged')
+  assert.equal(Object.hasOwn((await ref.get()).get('imported'), 'distances'), false)
+  assert.equal((await ref.collection('history').get()).size, history.size + 1)
+  assert.deepEqual((await ref.collection('history').doc('legacy-distance').get()).data(), legacyHistory)
+  assert.deepEqual((await routeRef.get()).data(), calculatedRoute)
+  assert.equal((await ref.get()).get('routeNeedsRecalculation'), false)
+  assert.equal((await ref.get()).get('manual.reference'), 'retain-manual-data')
   const confirmed = (await ref.get()).data()
   payload.auftrag.Gefahrgut = 'false'
   await assert.rejects(fetchDycosTransportOrderHandler(request(), deps), { code: 'unavailable' })

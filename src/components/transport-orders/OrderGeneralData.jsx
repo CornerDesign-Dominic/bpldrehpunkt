@@ -1,13 +1,11 @@
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
-import OrderDistanceData from './OrderDistanceData.jsx'
 import OrderMissingValue from './OrderMissingValue.jsx'
 
 export default function OrderGeneralData({ imported, number }) {
   const shipment = imported.shipment || {}
   const totals = [['Auftragsmenge', shipment.packages, 'Kolli'], ['Gewicht (Auftrag)', shipment.weightKg, 'kg'], ['Lademeter (Auftrag)', shipment.loadingMeters, 'm']].filter(([, value]) => Number.isFinite(value))
-  const distanceGroups = [['Auftrag', imported.distances?.order], ['Gesamte Tour', imported.distances?.tour]].filter(([, data]) => data && Object.values(data).some(value => value !== null && value !== undefined))
   return <>
-    <div className={`order-general__columns${distanceGroups.length ? ' order-general__columns--with-distance' : ''}`}>
+    <div className="order-general__columns">
       <div className="order-general__vehicle">
         <span className="order-station__label"><StaticText source="Fahrzeugart" /></span>
         <p className="order-general__vehicle-type">{shipment.vehicleType || <OrderMissingValue />}</p>
@@ -22,7 +20,6 @@ export default function OrderGeneralData({ imported, number }) {
         </section>
         <section className="order-general__goods"><h4><StaticText source="Ware (Auftrag)" /></h4><p>{shipment.goodsDescription || <OrderMissingValue />}</p><p className="order-general__hazardous"><StaticText source="Gefahrgut (Auftrag)" />: <strong>{typeof shipment.hazardousGoods === 'boolean' ? <StaticText source={shipment.hazardousGoods ? 'Ja' : 'Nein'} /> : <OrderMissingValue />}</strong></p></section>
       </div>
-      {distanceGroups.length > 0 && <OrderDistanceData groups={distanceGroups} number={number} />}
     </div>
     {totals.length > 0 && <dl className="order-general__totals">{totals.map(([label, value, unit]) => <div key={label}><dt><StaticText source={label} /></dt><dd>{number(value)} <small>{unit === 'Kolli' ? <StaticText source="Kolli" /> : unit}</small></dd></div>)}</dl>}
   </>

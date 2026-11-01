@@ -1,6 +1,6 @@
 const whitespace = /\s+/g
 const plannedDateTimePaths = new Set(['loading.window.from', 'loading.window.until', 'unloading.window.from', 'unloading.window.until', 'dispatch.sentAt'])
-const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'shipment.packages', 'shipment.weightKg', 'shipment.loadingMeters', ...['order', 'tour'].flatMap(scope => ['totalKm', 'motorwayKm', 'emptyKm'].map(key => `distances.${scope}.${key}`))])
+const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'shipment.packages', 'shipment.weightKg', 'shipment.loadingMeters'])
 
 const fields = Object.freeze([
   ['relation', 'Mitarbeiterrelation'],
@@ -45,14 +45,6 @@ const fields = Object.freeze([
   ['shipment.packages', 'Kolli'],
   ['shipment.weightKg', 'Gewicht'],
   ['shipment.loadingMeters', 'Lademeter'],
-  ['distances.order.totalKm', 'Gesamtkilometer Auftrag (DyCoS)'],
-  ['distances.order.motorwayKm', 'Autobahnkilometer Auftrag (DyCoS)'],
-  ['distances.order.emptyKm', 'Leerkilometer Auftrag (DyCoS)'],
-  ['distances.order.routed', 'Kilometer Auftrag geroutet (DyCoS)'],
-  ['distances.tour.totalKm', 'Gesamtkilometer Tour (DyCoS)'],
-  ['distances.tour.motorwayKm', 'Autobahnkilometer Tour (DyCoS)'],
-  ['distances.tour.emptyKm', 'Leerkilometer Tour (DyCoS)'],
-  ['distances.tour.routed', 'Kilometer Tour geroutet (DyCoS)'],
   ['contacts.customerStandardEmail', 'Standard-E-Mail Kunde'],
   ['contacts.customerForOrder', 'Info Kunde im Auftrag'],
   ['contacts.carrierStandardEmail', 'Standard-E-Mail Unternehmer'],

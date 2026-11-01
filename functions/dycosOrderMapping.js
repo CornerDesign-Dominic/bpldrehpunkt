@@ -157,16 +157,6 @@ function sourceBoolean(value, field) {
   fail(field)
 }
 
-function distanceValues(row, field, routedKey) {
-  if (!row) return null
-  return {
-    totalKm: sourceNumber(row.Gesamtkilometer, `${field}.Gesamtkilometer`, { positive: true }),
-    motorwayKm: sourceNumber(row.Autobahnkilometer, `${field}.Autobahnkilometer`, { positive: true }),
-    emptyKm: sourceNumber(row.Leerkilometer, `${field}.Leerkilometer`, { positive: true }),
-    routed: sourceBoolean(row[routedKey], `${field}.${routedKey}`),
-  }
-}
-
 function pricePositions(rows, field) {
   const positions = rows.map((row) => ({
     sourceCounter: sourceId(row.Zaehler, `${field}.Zaehler`),
@@ -296,9 +286,6 @@ export function mapDycosOrder(payload, requestedTa) {
     unloading: stopView(stops.filter((stop) => stop.type === 'unloading').at(-1)),
     financial: { revenueNet, costNet, currency: 'EUR', revenuePositions, costPositions, documents },
     shipment: { licensePlate: plate(payload.tour?.LKWNummer, payload.tour?.Trailer), weightKg: sourceNumber(order.Gewicht, 'auftrag.Gewicht', { positive: true }), loadingMeters: sourceNumber(order.Lademeter, 'auftrag.Lademeter', { positive: true }), packages: sourceNumber(order.AnzahlKolli, 'auftrag.AnzahlKolli', { integer: true, positive: true }), vehicleType: sourceText(payload.fahrzeugart?.Bezeichnung, 'fahrzeugart.Bezeichnung'), goodsDescription: sourceText(order.Ware, 'auftrag.Ware'), hazardousGoods: sourceBoolean(order.Gefahrgut, 'auftrag.Gefahrgut'), vehicleInformation: sourceText(payload.fahrzeugart?.Informationen, 'fahrzeugart.Informationen') },
-    // DyCoS source distances are separate from Drehpunkt's calculated route.
-    // Literal zero and false remain supplied values, never inferred facts.
-    distances: { order: distanceValues(order, 'auftrag', 'KMGeroutet'), tour: distanceValues(payload.tour, 'tour', 'Geroutet') },
     // Standard-address selection and Info-1 equivalence have not been confirmed.
     contacts: { carrierForOrder: null, carrierStandardEmail: null, customerForOrder: sourceText(order.ImAuftrag, 'auftrag.ImAuftrag'), customerStandardEmail: null },
     dispatch: { sentAt: plannedDate(payload.tour?.TAPerMailDatum, 'tour.TAPerMailDatum'), sentTo: sourceText(payload.tour?.TAPerMailVersendetAn, 'tour.TAPerMailVersendetAn') },
