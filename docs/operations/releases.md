@@ -85,6 +85,8 @@ Abgegrenzte lokale Releasevorbereitungen:
 
 - [Zentrale Erinnerungen](reminders.md): lokaler neuer Stand, Empfängerregeln,
   Providervertrag, Datenaufbau und noch offene Liveprüfungen; keine Freigabe.
+  Die spätere ausdrückliche Dev-Freigabe, Veröffentlichung und tatsächliche
+  Prüfung stehen im [Releasebeleg vom 01.11.2026](releases/reminders-dev-2026-11-01-status.md).
 
 - [Kostenoptimierungen Dev, 31.10.2026](cost-efficiency-dev-release.md):
   Bestandteilliste, gestufter Übergang, Datenaufbau und Rückweg; keine Freigabe.

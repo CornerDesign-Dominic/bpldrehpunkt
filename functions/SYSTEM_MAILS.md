@@ -4,15 +4,17 @@ Stand: 28.10.2026. Umgebungsmatrix: `../docs/operations/environments.md`.
 Für Eingangsmails und KI-Auswertung gilt separat
 `../docs/operations/status-mail-ingest.md`.
 
-Ergänzung 31.10.2026: Der neue lokale zentrale Erinnerungsdienst ist noch nicht
-veröffentlicht. Er verwendet künftig ein eigenes
-`POWER_AUTOMATE_REMINDER_URL` je Umgebung und darf in Dev und Produktion über
-`drehpunkt@brennpunkt-logistik.de` senden. Zusätzlich sind getrennte
-`REMINDER_*`-Zertifikats-/Identitätssecrets und Bearer-Anmeldung lokal vorbereitet;
-ein anonymer/SAS-Aufruf ist ausgeschlossen. Zwei neue Erinnerungsflows und
-Versandlisten sind angelegt; die Flows bleiben aus. Bestehender allgemeiner Flow,
-Send-as-Rechte, der freigegebene Altflow-Einzeltest sowie die noch offenen
-Identitätsbindungen und die echte Providerabnahme stehen in
+Ergänzung 01.11.2026: Der zentrale Erinnerungsdienst ist ausschließlich in Dev
+veröffentlicht und dort tatsächlich mit dem eigenen Power-Automate-Flow
+verbunden. Er verwendet `POWER_AUTOMATE_REMINDER_URL` und fünf
+`REMINDER_*`-Identitäts-/Zertifikatssecrets; anonyme/SAS-Aufrufe sind ausgeschlossen.
+Der Absender ist `drehpunkt@brennpunkt-logistik.de`. Der Dev-Guard lässt vor
+Reservierung und Versand ausschließlich `no-reply@brennpunkt-logistik.de` zu;
+es gibt keine Empfängerumleitung. Produktion ist weiterhin nur vorbereitet,
+der neue Produktionsflow bleibt aus. Bestandteile, Datenaufbau, echter
+Firebase-Versandtest mit Posteingangsnachweis und verbleibende Grenzen stehen im
+[Dev-Releasebeleg](../docs/operations/releases/reminders-dev-2026-11-01-status.md).
+Die frühere Providerabnahme und Send-as-Prüfung stehen in
 [`reminder-mailflow-preparation.md`](../docs/operations/reminder-mailflow-preparation.md).
 Die übrigen System-/Tracking-Mailpfade behalten die nachfolgenden Guards und
 Secrets. Aussagen über den bisherigen Fristworker beschreiben den Altstand.
@@ -25,7 +27,7 @@ Webhook-Adresse und weitere Integrationswerte sind ausschließlich als Functions
 
 ## Umgebungs-Schutz
 
-Automatischer Mailversand ist auf die serverseitig erkannte Runtime des
+Automatischer Mailversand außerhalb des oben beschriebenen zentralen Erinnerungsdienstes ist auf die serverseitig erkannte Runtime des
 Firebase-Projekts `db-bpl-drehpunkt` begrenzt. In Dev und bei unbekannter
 Runtime werden diese Versandpfade übersprungen. Eine bewusste Ausnahme ist
 manueller Tracking-Mailversand in Dev: Er verlangt eine hinterlegte Adresse

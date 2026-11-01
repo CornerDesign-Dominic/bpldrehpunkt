@@ -1,5 +1,17 @@
 # Prüfung und Vorbereitung des Erinnerungs-Mailflows
 
+Aktualisierung 01.11.2026: **Dev ist inzwischen veröffentlicht und tatsächlich
+angebunden**; der Dev-Providerflow ist aktiv. Sein Firebase-Scheduler verwendet
+die sechs eigenen Dev-Secrets. Die Testbegrenzung in Firebase erlaubt jetzt
+ausschließlich `no-reply@brennpunkt-logistik.de`. Ein neuer Test aus der echten
+Firebase-Laufzeit wurde angenommen, identisch wiederholt und genau einmal im
+Testpostfach mit Absender `drehpunkt@brennpunkt-logistik.de` vorgefunden.
+Produktion und `main` wurden dabei nicht verändert; der vorbereitete
+Produktionsflow bleibt aus. Maßgeblich ist der
+[Dev-Releasebeleg](releases/reminders-dev-2026-11-01-status.md).
+Die folgenden Auditwerte und Aussagen „noch nicht angelegt/ausgeschaltet“
+beschreiben den historischen Vorbereitungsstand vom 31.10.2026.
+
 Stand: 31.10.2026. Der **erste Audit war ausschließlich lesend**; seine
 Editorsitzung wurde verworfen. Danach wurden ein ausdrücklich freigegebener
 Einzeltest des bestehenden Flows ausgeführt und zwei getrennte SharePoint-

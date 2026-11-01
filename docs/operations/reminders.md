@@ -84,7 +84,7 @@ einen unklaren, tatsächlich nicht versandten Vorgang hinterlassen.
 
 Der Adapter verwendet das neue, pro Umgebung getrennte serverseitige Secret
 `POWER_AUTOMATE_REMINDER_URL` und die zentrale Vorlage `central_reminder`.
-Die zusätzlich lokal vorbereitete zertifikatsbasierte Dienstanmeldung verwendet
+Die in Dev veröffentlichte, für Produktion weiterhin nur vorbereitete zertifikatsbasierte Dienstanmeldung verwendet
 getrennte `REMINDER_*`-Secrets je Umgebung und einen wiederverwendbaren
 Entra-Anmeldebaustein. Ein Token wird nur an den festen Power-Platform-Host des
 Mandanten gesendet; SAS-Parameter und anonyme Ersatzaufrufe sind ausgeschlossen.
