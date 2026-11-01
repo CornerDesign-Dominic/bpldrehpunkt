@@ -1,3 +1,5 @@
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -63,8 +65,9 @@ export default function LegalDisputeDetailPage() {
   const [documentConfirmation, setDocumentConfirmation] = useState(null)
   const [editing, setEditing] = useState(null)
   const [toast, setToast] = useState('')
+  const [reminderRefreshKey, setReminderRefreshKey] = useState(0)
   const [showTodoCreate, setShowTodoCreate] = useState(false)
-  const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'legalDisputeId', caseId: legalDisputeId, profile, user })
+  const { createLinkedTodo, linkedTodoLoading, linkedTodoError, reloadLinkedTodos, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'legalDisputeId', caseId: legalDisputeId, profile, user })
 
   async function load() {
     const [entry, entries, caseDocuments, caseDeadlines, caseFinancialEntries] = await Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeDeadlines(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
@@ -148,17 +151,36 @@ export default function LegalDisputeDetailPage() {
     try { await deleteLegalDisputeFinancialEntry(legalDispute, entry, { user, profile }); await load(); setToast('Zahlungsposition gelöscht.') } catch (deleteError) { setError(deleteError.message || 'Die Zahlungsposition konnte nicht gelöscht werden.'); throw deleteError }
   }
 
+  async function reloadAfterReminderChange(afterMutation = true) {
+    setDeadlinesLoading(true)
+    try { await load() }
+    catch (error) { setError(afterMutation ? 'Die Änderung wurde gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte erneut laden.' : 'Die Ansicht konnte nicht geladen werden. Bitte erneut versuchen.'); void reportTechnicalFailure({ module: 'reminders', stage: 'load', error }) }
+    finally { setDeadlinesLoading(false) }
+  }
+
   async function saveDeadline(existingDeadline, values) {
+    if (!editable) return
+    setError('')
     try {
       if (existingDeadline) await updateLegalDisputeDeadline(legalDispute, existingDeadline, values, { user, profile })
       else await createLegalDisputeDeadline(legalDispute, values, { user, profile })
-      await load()
-      setToast(existingDeadline ? 'Termin / Frist aktualisiert.' : 'Termin / Frist hinzugefügt.')
-    } catch (saveError) { setError(saveError.message || 'Der Termin oder die Frist konnte nicht gespeichert werden.'); throw saveError }
+    } catch (saveError) {
+      setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.')
+      throw saveError
+    }
+    setReminderRefreshKey((current) => current + 1)
+    setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
+    void reloadAfterReminderChange()
   }
 
   async function deleteDeadline(deadline) {
-    try { await deleteLegalDisputeDeadline(legalDispute, deadline, { user, profile }); await load(); setToast('Termin / Frist gelöscht.') } catch (deleteError) { setError(deleteError.message || 'Der Termin oder die Frist konnte nicht gelöscht werden.'); throw deleteError }
+    if (!editable) return
+    setError('')
+    try { await deleteLegalDisputeDeadline(legalDispute, deadline, { user, profile }) }
+    catch (deleteError) { setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.'); throw deleteError }
+    setReminderRefreshKey((current) => current + 1)
+    setToast('Termin gelöscht.')
+    void reloadAfterReminderChange()
   }
 
   if (loading) return <p className="page-state"><StaticText source={"Fall wird geladen …"} /></p>
@@ -182,14 +204,15 @@ export default function LegalDisputeDetailPage() {
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/legal-disputes" /></div>
     <div className="todo-detail-page damage-detail-page legal-dispute-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><div className="legal-dispute-detail-page__header-meta"><span className={`todo-status damage-status damage-status--${legalDispute.status}`}>{legalDisputeStatusLabel(legalDispute.status)}</span></div></header>
-      {error && <p className="form-error">{<StaticText source={error} />}</p>}
+      {error && <div><p className="form-error"><StaticText source={error} /></p><button className="button button--secondary" type="button" onClick={() => { setError(''); void reloadAfterReminderChange(false) }}><StaticText source="Erneut laden" /></button></div>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3><StaticText source={"Sachverhalt"} /></h3>{editable && <TranslatedProps sources={{"title":"Sachverhalt bearbeiten","aria-label":"Sachverhalt bearbeiten"}}><button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} title="Sachverhalt bearbeiten" aria-label="Sachverhalt bearbeiten"><EditIcon size={14} /></button></TranslatedProps>}</div><p className="todo-detail-description">{legalDispute.description || <StaticText source={"Kein Sachverhalt hinterlegt."} />}</p></section>
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getLegalDisputeDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <LegalDisputeFinancialOverview canEdit={editable} entries={financialEntries} legalDispute={legalDispute} loading={financialEntriesLoading} onDeleteEntry={deleteFinancialEntry} onEditDispute={() => setEditing('financial')} onSaveEntry={saveFinancialEntry} />
-          <LegalDisputeDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
-          {canViewTodos && <LinkedTodosCard canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
+          <CaseReminderResponsibility key={legalDispute.id} parentPath={`legalDisputes/${legalDispute.id}`} responsibleUserId={legalDispute.responsibleUserId} responsibleUserName={legalDispute.responsibleUserName} canEdit={editable} onChanged={(result) => { setLegalDispute((current) => ({ ...current, ...result })); setReminderRefreshKey((current) => current + 1); void reloadAfterReminderChange() }} />
+          <LegalDisputeDeadlinesCard canEdit={editable} parentPath={`legalDisputes/${legalDispute.id}`} refreshKey={reminderRefreshKey} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+          {canViewTodos && <LinkedTodosCard error={linkedTodoError} onReload={reloadLinkedTodos} canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="legal-dispute-update-title"><div className="todo-updates__heading"><h3 id="legal-dispute-update-title">Updates</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><TranslatedProps sources={{"aria-label":"Update zum Fall","placeholder":"Update zum Fall hinzufügen …"}}><textarea aria-label="Update zum Fall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Fall hinzufügen …" /></TranslatedProps><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{<StaticText source={noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'} />}</button></form>}{updatesLoading ? <p className="todo-updates__empty"><StaticText source={"Updates werden geladen …"} /></p> : !manualUpdates.length && <p className="todo-updates__empty"><StaticText source={"Noch keine Updates zum Fall."} /></p>}{manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}
           <section className="todo-updates todo-history" aria-labelledby="legal-dispute-history-title"><div className="todo-updates__heading"><h3 id="legal-dispute-history-title"><StaticText source={"Historie"} /></h3><span>{history.length}</span></div>{updatesLoading ? <p className="todo-updates__empty"><StaticText source={"Historie wird geladen …"} /></p> : !history.length ? <p className="todo-updates__empty"><StaticText source={"Noch keine Historieneinträge."} /></p> : <ol className="todo-updates__list">{history.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--system"><div><strong>{update.createdByName}</strong><span>System · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>
         </main>

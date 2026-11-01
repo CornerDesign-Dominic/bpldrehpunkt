@@ -14,8 +14,11 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { calendarWindowAndUpcoming } from './calendarQueryPages.js'
-import { calendarDaysUntil, deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { calendarDaysUntil, reminderDeadlineTime } from './caseDeadline.js'
 import { getUserDisplayName } from './userProfiles.js'
+import { todoReminderFields, validateReminderForm } from './reminderForm.js'
+import { invalidateReminderStatuses } from './reminders.js'
+import { berlinToday } from '../../shared/reminderTime.js'
 
 export const TODOS_COLLECTION = 'todos'
 export const TODO_STATUS = { open: 'Keine Bearbeitung', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
@@ -61,13 +64,13 @@ function dueDistance(todo, now) { const dueDay = dateDayNumber(todo.dueDate); re
 function terminalRank(todo) { return todo.status === 'completed' ? 0 : 1 }
 function terminalTimestamp(todo) { return timestampValue(todo.completedAt || todo.withdrawnAt || todo.updatedAt) }
 
-function todoFields(values) {
+function todoFields(values, previous = null) {
   const links = transportOrderLinks(values.transportOrderLinks)
   return {
     title: trim(values.title),
     description: trim(values.description),
     dueDate: values.dueDate || null,
-    reminderDate: values.reminderDate || null,
+    ...todoReminderFields(values, previous),
     priority: priorityValue(values.priority),
     customerId: optionalId(values.customerId),
     customerName: optionalName(values.customerName),
@@ -104,7 +107,7 @@ function audienceValues(values, usersById, actor) {
 function sortTodos(todos) { return [...todos].sort((left, right) => timestampValue(right.createdAt) - timestampValue(left.createdAt)) }
 async function queryTodos(...constraints) { return (await getDocs(query(todosRef, ...constraints))).docs.map(mapSnapshot) }
 
-export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', transportOrderLinks: [], damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
+export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', reminderTime: '', reminderOccurrence: null, priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', transportOrderLinks: [], damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
 export function todoStatus(todo) { return !todo.assignedUserId && todo.status !== 'withdrawn' ? 'open' : TODO_STATUS[todo.status] ? todo.status : 'open' }
@@ -126,7 +129,8 @@ function todoDeadlinePayload(values) {
   const date = trim(values?.date)
   if (!validScheduleDate(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   const time = reminderDeadlineTime(values)
-  return { type, date, time, reminderEnabled: values?.reminderEnabled === true, note: cleanScheduleNote(values?.note) || null }
+  const resolved = values?.reminderEnabled ? validateReminderForm({ date, time, occurrence: values?.reminderOccurrence || null }) : null
+  return { type, date, time, reminderEnabled: values?.reminderEnabled === true, reminderOccurrence: resolved?.occurrence || null, note: cleanScheduleNote(values?.note) || null }
 }
 
 function todoCalendarEntry(todo, deadline, entryId, ownerUserId) {
@@ -151,7 +155,7 @@ function todoCalendarEntry(todo, deadline, entryId, ownerUserId) {
 
 export function todoScheduleTypeLabel(type) { return TODO_SCHEDULE_TYPES.find((item) => item.value === type)?.label || 'Frist' }
 
-export function createEmptyTodoDeadline() { return { type: 'deadline', date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' } }
+export function createEmptyTodoDeadline() { return { type: 'deadline', date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' } }
 
 export function todoDeadlinePresentation(deadline, now = new Date()) {
   if (!validScheduleDate(deadline?.date)) return { kind: 'none', label: 'Kein Termin', days: null }
@@ -248,36 +252,35 @@ export async function createTodoDeadline(todo, values, actor) {
   const todoRef = doc(db, TODOS_COLLECTION, todo.id)
   const deadlineRef = doc(deadlineCollection(todo.id))
   const calendarEntryRef = doc(todoCalendarEntriesRef)
-  const reminderRecipientEmail = deadline.reminderEnabled ? deadlineCreatorEmail(actor) : null
   const storedDeadline = { ...deadline, id: deadlineRef.id, calendarEntryId: calendarEntryRef.id }
   const batch = writeBatch(db)
   batch.update(todoRef, { updatedAt: serverTimestamp() })
   batch.set(deadlineRef, {
     ...deadline,
     calendarEntryId: calendarEntryRef.id,
-    reminderRecipientEmail,
     createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName(actor),
     updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor),
   })
   batch.set(calendarEntryRef, { ...todoCalendarEntry(todo, storedDeadline, calendarEntryRef.id, actor.user.uid), createdAt: serverTimestamp() })
   batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(deadline.type).toLocaleLowerCase('de-DE')} für ${deadline.date} hinzugefügt.`, actor))
   await batch.commit()
+  invalidateReminderStatuses()
 }
 
 export async function updateTodoDeadline(todo, deadline, values, actor) {
   const next = todoDeadlinePayload(values)
-  const reminderRecipientEmail = !deadline.reminderEnabled && next.reminderEnabled ? deadlineCreatorEmail(actor) : deadline.reminderRecipientEmail || null
   const unchanged = Object.entries(next).every(([field, value]) => value === (deadline[field] ?? null))
-  if (unchanged && reminderRecipientEmail === (deadline.reminderRecipientEmail || null)) return false
+  if (unchanged) return false
   const todoRef = doc(db, TODOS_COLLECTION, todo.id)
   const calendarEntryRef = doc(db, 'todoCalendarEntries', deadline.calendarEntryId)
-  const storedDeadline = { ...deadline, ...next, reminderRecipientEmail }
+  const storedDeadline = { ...deadline, ...next }
   const batch = writeBatch(db)
   batch.update(todoRef, { updatedAt: serverTimestamp() })
-  batch.update(doc(deadlineCollection(todo.id), deadline.id), { ...next, reminderRecipientEmail, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor) })
+  batch.update(doc(deadlineCollection(todo.id), deadline.id), { ...next, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor) })
   batch.update(calendarEntryRef, todoCalendarEntry(todo, storedDeadline, deadline.calendarEntryId, deadline.createdBy))
   batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(next.type).toLocaleLowerCase('de-DE')} vom ${next.date} aktualisiert.`, actor))
   await batch.commit()
+  invalidateReminderStatuses()
   return true
 }
 
@@ -288,6 +291,7 @@ export async function deleteTodoDeadline(todo, deadline, actor) {
   if (deadline.calendarEntryId) batch.delete(doc(db, 'todoCalendarEntries', deadline.calendarEntryId))
   batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(deadline.type).toLocaleLowerCase('de-DE')} vom ${deadline.date} gelöscht.`, actor))
   await batch.commit()
+  invalidateReminderStatuses()
 }
 
 export async function listTodosForActor(actor) {
@@ -319,6 +323,7 @@ export async function createTodo(values, actor, usersById) {
   })
   batch.set(doc(updateCollection(todoRef.id)), systemUpdate(`${actorName(actor)} hat die Aufgabe erstellt.`, actor))
   await batch.commit()
+  invalidateReminderStatuses()
   return todoRef.id
 }
 
@@ -329,6 +334,7 @@ export async function addTodoNote(todoId, text, actor) {
   batch.update(doc(db, TODOS_COLLECTION, todoId), { updatedAt: serverTimestamp() })
   batch.set(doc(updateCollection(todoId)), { text: note, type: 'note', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() })
   await batch.commit()
+  invalidateReminderStatuses()
 }
 
 export async function assignTodoToCurrentUser(todoId, actor) {
@@ -342,6 +348,7 @@ export async function assignTodoToCurrentUser(todoId, actor) {
     transaction.update(todoRef, { assignedUserId: actor.user.uid, assignedUserName: actorName(actor), assignedAt: serverTimestamp(), status: 'in_progress', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
     transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe angenommen.`, actor))
   })
+  invalidateReminderStatuses()
 }
 
 export async function releaseTodoFromCurrentUser(todoId, actor) {
@@ -354,6 +361,7 @@ export async function releaseTodoFromCurrentUser(todoId, actor) {
     transaction.update(todoRef, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open', updatedAt: serverTimestamp() })
     transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe freigegeben.`, actor))
   })
+  invalidateReminderStatuses()
 }
 
 export async function completeTodoForCurrentUser(todoId, actor) {
@@ -366,6 +374,7 @@ export async function completeTodoForCurrentUser(todoId, actor) {
     transaction.update(todoRef, { status: 'completed', completedAt: serverTimestamp(), completedByUserId: actor.user.uid, completedByName: actorName(actor), updatedAt: serverTimestamp() })
     transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe erledigt.`, actor))
   })
+  invalidateReminderStatuses()
 }
 
 export async function reactivateTodoForCurrentUser(todoId, actor) {
@@ -378,6 +387,7 @@ export async function reactivateTodoForCurrentUser(todoId, actor) {
     transaction.update(todoRef, { status: 'in_progress', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
     transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe reaktiviert.`, actor))
   })
+  invalidateReminderStatuses()
 }
 
 function formatHistoryDate(value) {
@@ -398,7 +408,7 @@ function changedFieldMessages(todo, fields, resetAssignment) {
   if (todo.description !== fields.description) messages.push('hat die Beschreibung geändert.')
   if (todo.priority !== fields.priority) changed('die Wichtigkeit', TODO_PRIORITY[todoPriority(todo)], TODO_PRIORITY[priorityValue(fields.priority)])
   if ((todo.dueDate || null) !== fields.dueDate) changed('die Fälligkeit', formatHistoryDate(todo.dueDate), formatHistoryDate(fields.dueDate))
-  if ((todo.reminderDate || null) !== fields.reminderDate) changed('die Erinnerung', formatHistoryDate(todo.reminderDate), formatHistoryDate(fields.reminderDate))
+  if ((todo.reminderDate || null) !== fields.reminderDate || (todo.reminderTime || null) !== fields.reminderTime || (todo.reminderOccurrence || null) !== fields.reminderOccurrence) changed('die Erinnerung', [formatHistoryDate(todo.reminderDate), todo.reminderTime, todo.reminderOccurrence].filter(Boolean).join(' · '), [formatHistoryDate(fields.reminderDate), fields.reminderTime, fields.reminderOccurrence].filter(Boolean).join(' · '))
   if ((todo.customerId || null) !== fields.customerId) changed('den Kunden', todo.customerName, fields.customerName, 'kein Kunde', 'kein Kunde')
   if ((todo.carrierId || null) !== fields.carrierId) changed('den Unternehmer', todo.carrierName, fields.carrierName, 'kein Unternehmer', 'kein Unternehmer')
   const previousLinks = storedTransportOrderLinks(todo)
@@ -424,13 +434,14 @@ export async function updateTodoByCreator(todo, values, usersById, resetAssignme
   const audience = audienceHasChanged(todo, values, actor.user.uid)
     ? audienceValues(values, usersById, actor)
     : { audienceType: todo.audienceType, audienceId: todo.audienceId ?? null, audienceIds: todo.audienceIds ?? null, audienceLabel: todo.audienceLabel }
-  const fields = { ...todoFields(values), ...audience, updatedAt: serverTimestamp() }
+  const fields = { ...todoFields(values, todo), ...audience, updatedAt: serverTimestamp() }
   if (resetAssignment) Object.assign(fields, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open' })
   const batch = writeBatch(db)
   batch.update(doc(db, TODOS_COLLECTION, todo.id), fields)
   const messages = changedFieldMessages(todo, fields, resetAssignment)
   ;(messages.length ? messages : ['hat die Aufgabe aktualisiert.']).forEach((message) => batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} ${message}`, actor)))
   await batch.commit()
+  invalidateReminderStatuses()
 }
 
 export async function withdrawTodo(todoId, actor) {
@@ -438,4 +449,5 @@ export async function withdrawTodo(todoId, actor) {
   batch.update(doc(db, TODOS_COLLECTION, todoId), { status: 'withdrawn', withdrawnAt: serverTimestamp(), withdrawnByUserId: actor.user.uid, assignedUserId: null, assignedUserName: null, assignedAt: null, updatedAt: serverTimestamp() })
   batch.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe zurückgezogen.`, actor))
   await batch.commit()
+  invalidateReminderStatuses()
 }

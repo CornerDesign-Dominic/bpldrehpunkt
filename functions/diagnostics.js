@@ -4,10 +4,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
+  reminders: ['status', 'responsibility', 'save', 'load'],
   'transport-orders': ['load', 'list', 'history', 'refresh'],
   pallets: ['load', 'save', 'rebuild'],
   calendar: ['load', 'save', 'delete'],
@@ -35,6 +36,7 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
+  reminders: { status: 'Erinnerungsstatus konnte nicht geladen werden.', responsibility: 'Zuständigkeit konnte nicht aktualisiert werden.', save: 'Erinnerung konnte nicht gespeichert werden.', load: 'Erinnerungsdaten konnten nicht geladen werden.' },
   'transport-orders': { load: 'Auftrag konnte nicht geladen werden.', list: 'Auftragsliste konnte nicht geladen werden.', history: 'Auftragshistorie konnte nicht geladen werden.', refresh: 'Auftrag konnte nicht aktualisiert werden.' },
   pallets: { load: 'Palettenkonten konnten nicht geladen werden.', save: 'Palettenbuchung konnte nicht gespeichert werden.', rebuild: 'Palettenkonten konnten nicht aufgebaut werden.' },
   calendar: { load: 'Kalenderdaten konnten nicht geladen werden.', save: 'Kalendertermin konnte nicht gespeichert werden.', delete: 'Kalendertermin konnte nicht gelöscht werden.' },
@@ -46,6 +48,7 @@ const MAILBOX_MESSAGES = {
 
 export function canReportLinkDiagnostic(profile, module) {
   const view = (key) => profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[key])
+  if (module === 'reminders') return profile?.active === true && ['calendar', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
   if (module === 'transport-orders') return view('transportOrders')
   if (module === 'pallets') return view('pallets')
   if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
@@ -91,10 +94,10 @@ export function normalizeClientDiagnostic(data) {
   const recordId = safeText(data?.recordId, 240)
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
-  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
-  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
+  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {

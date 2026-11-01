@@ -13,6 +13,7 @@ import { canView } from '../lib/permissions.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { calendarQueryRange } from '../lib/calendarQueryRange.js'
 import { resolveVisibleCalendarIds } from '../lib/calendarSelection.js'
+import { berlinToday } from '../../shared/reminderTime.js'
 import '../styles/calendar.css'
 
 const weekdayLabels = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag']
@@ -21,7 +22,7 @@ const monthFormatter = new Intl.DateTimeFormat('de-DE', { month: 'long', year: '
 const dateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 function todayValue() {
-  return new Date().toISOString().slice(0, 10)
+  return berlinToday()
 }
 
 function dateValue(year, month, day) {

@@ -1,10 +1,12 @@
 # Mailaktionen im Hintergrund
 
-Stand: 30.10.2026. Ausschließlich Dev (`db-bpl-drehpunkt-dev`).
+Stand: 01.11.2026. Ausschließlich Dev (`db-bpl-drehpunkt-dev`).
 
 ## Bedienung
 
-Auftragserfassung, Sendungsstatus, AGB- und Rechnungsprüfung starten ohne Dialog.
+Auftragserfassung, Sendungsstatus, AGB- und Rechnungsprüfung sowie To-do, Schaden,
+Inkasso, Gericht und Kalender starten ohne Dialog. Die fünf neuen Vorgangsaktionen
+sind unter [Mailbasierte Vorgänge](mailbox-record-actions.md) dokumentiert.
 Jede Aktion hat einen eigenen Zustand pro persönlichem Postfach und Nachricht;
 mehrere Aktionen können gleichzeitig laufen. In der Mailliste erscheinen nur
 Symbole, ohne Ergebnistext oder Warnungszähler. Der entsprechende Aktionsbutton
@@ -12,7 +14,9 @@ Symbole, ohne Ergebnistext oder Warnungszähler. Der entsprechende Aktionsbutton
 
 - Laufend: blauer Ladekreis; Button gesperrt.
 - Auftrag/Sendungsstatus zur Bestätigung: gelbes Formular/Uhrsymbol.
+- To-do/Schaden/Inkasso/Gericht/Kalender zur Bestätigung: gelber Koffer.
 - AGB/Rechnung fertig oder Auftrag/Status übernommen: grünes Aktionssymbol.
+- Bestätigte Vorgangsübernahme: grüner Koffer; gespeichertes Ergebnis erneut öffnen.
 - Fehler: verständliche Meldung und erneuter Start bzw. gezieltes Ergebnisladen.
 
 Grün bedeutet abgeschlossen, unabhängig vom fachlichen Prüfungsergebnis. Dieses
@@ -70,3 +74,25 @@ andere Benutzer und Superadmin geprüft. Browserläufe mit synthetischen Daten
 decken alle vier parallelen Aktionen, Mailwechsel, Neuladen, explizites Öffnen,
 Schließen, Verwerfen, bestätigte Übernahme und helle/dunkle Darstellung ab.
 Dabei wurden keine echten Aufträge angelegt und keine E-Mails versandt.
+
+## Abschlussleisten und Darstellung
+
+Auftrag und Sendungsstatus verwenden eine gemeinsame Abschlussleiste am Ende
+der gesamten rechten Dialoghälfte. Verwerfen ist von erneuter Auswertung und
+der hervorgehobenen Hauptaktion getrennt. Die Auftragsfreigabe bleibt im
+Freigabeabschnitt erforderlich; der externe Submit-Button ist über eine eindeutige
+Formular-ID mit demselben Formular verbunden. Weder XML-Erstellung noch
+Statusübernahme werden durch die Layoutänderung automatisch ausgeführt.
+
+Die direkte Kundensuche klappt bei vorhandenem Frachtzahler ein und öffnet sich
+bei fehlender Zuordnung, Platzhalter oder Suchfehler. Die automatische Suche
+selbst bleibt unverändert. Downloads lösen nicht mehr die Rückfrage zum
+Verlassen ungespeicherter Auftragsdaten aus; normale Navigation bleibt geschützt.
+Gespeicherte Trackingabschnitte lassen sich auf- und zuklappen, während die
+enthaltenen Eingaben weiterhin gesperrt sind.
+
+AGB- und Rechnungsprüfung haben eine abgesetzte Leiste zum erneuten Prüfen.
+Die Liste geprüfter AGB-PDFs ist einklappbar. Rechnungsergebnisse, Ampelfarben und
+Prüfregeln bleiben unverändert. Die Vorgangsaktionen verwenden kompakte
+Beschreibungstexte sowie einheitliche Datums-, Zeit- und Betragseingaben; Senden
+ist bei Antwort und neuer Mail visuell gegenüber Entwurf speichern hervorgehoben.

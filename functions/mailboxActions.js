@@ -4,10 +4,11 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { runtimeProjectId } from './externalEffects.js'
+import { mailboxRecordKinds } from './shared/mailboxRecordFields.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const fail = (code, message) => { throw new HttpsError(code, message) }
-const kinds = new Set(['order', 'tracking', 'terms', 'invoice'])
+const kinds = new Set(['order', 'tracking', 'terms', 'invoice', ...Object.keys(mailboxRecordKinds)])
 const maxRunningMs = 12 * 60_000
 const persistentExpiry = Number.MAX_SAFE_INTEGER
 const validText = (value, max) => typeof value === 'string' && value.length > 0 && value.length <= max && ![...value].some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
@@ -18,6 +19,7 @@ export function assertMailboxActionAccess(profile, kind, edit = true) {
   const allowed = module => profile?.role === 'superadmin' || (edit && module === 'mailboxes' ? profile?.permissions?.[module] === 'edit' : ['view', 'edit'].includes(profile?.permissions?.[module]))
   if (profile?.active !== true || !allowed('mailboxes')) fail('permission-denied', 'Keine Berechtigung für diese Postfachaktion.')
   if (kind === 'terms' && !allowed('agbChecker') || ['order', 'tracking', 'invoice'].includes(kind) && !(profile.role === 'superadmin' || profile.permissions?.transportOrders === 'edit') || kind === 'order' && !allowed('masterData')) fail('permission-denied', 'Keine Berechtigung für diese Postfachaktion.')
+  if (mailboxRecordKinds[kind] && !(profile.role === 'superadmin' || (kind === 'calendar' || !edit ? ['view', 'edit'].includes(profile.permissions?.[mailboxRecordKinds[kind].module]) : profile.permissions?.[mailboxRecordKinds[kind].module] === 'edit'))) fail('permission-denied', 'Keine Berechtigung für diese Postfachaktion.')
 }
 
 export function createMailboxActionHandlers(deps = {}) {
@@ -51,6 +53,11 @@ export function createMailboxActionHandlers(deps = {}) {
   }
   const expectedMessageKey = (actor, messageId) => hash(`${actor.connection.tenantId || ''}|${actor.connection.graphUserId}|${messageId}`)
   const completion = async (actor, action, transaction = null) => {
+    if (mailboxRecordKinds[action.kind] && action.result?.previewId) {
+      const ref = db().doc(`mailboxRecordApplications/${action.result.previewId}`)
+      const receipt = (await (transaction ? transaction.get(ref) : ref.get())).data()
+      return receipt?.ownerId === actor.uid && receipt.connectionId === actor.connectionId && receipt.jobId === action.jobId && receipt.kind === action.kind ? receipt.result : null
+    }
     if (!['order', 'tracking'].includes(action.kind) || !action.result?.previewId) return null
     const previewId = action.result.previewId
     const prefix = action.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
@@ -66,8 +73,8 @@ export function createMailboxActionHandlers(deps = {}) {
     return receipt?.ownerId === actor.uid && receipt.orderId === preview.orderId ? { orderId: receipt.orderId, orderNumber: receipt.orderNumber, appliedChanges: receipt.appliedChanges || null, appliedTransitEntries: receipt.appliedTransitEntries || null } : null
   }
   const retirePreview = async (actor, action, tx) => {
-    if (!action?.result?.previewId || !['order', 'tracking'].includes(action.kind)) return
-    const prefix = action.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
+    if (!action?.result?.previewId || !['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(action.kind)) return
+    const prefix = mailboxRecordKinds[action.kind] ? 'mailboxRecordPreviews' : action.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
     const ref = db().doc(`${prefix}/${action.result.previewId}`)
     const preview = (await tx.get(ref)).data()
     if (preview?.ownerId === actor.uid && preview.connectionId === actor.connectionId && preview.actionJobId === action.jobId) tx.update(ref, { expiresAt: now() })
@@ -103,6 +110,7 @@ export function createMailboxActionHandlers(deps = {}) {
     const ref = refFor(actor, identity)
     await reconcile(actor, ref, (await ref.get()).data())
     const input = { connectionId: actor.connectionId, messageId: identity.messageId }
+    if (mailboxRecordKinds[identity.kind]) input.kind = identity.kind
     if (identity.kind === 'order' && request.data.selectedPdfIds !== undefined) {
       const ids = request.data.selectedPdfIds
       if (!Array.isArray(ids) || ids.length > 5 || ids.some(id => !validText(id, 2048)) || new Set(ids).size !== ids.length) fail('invalid-argument', 'Bitte gültige PDF-Anlagen auswählen.')
@@ -122,7 +130,7 @@ export function createMailboxActionHandlers(deps = {}) {
         tx.set(ref, completed)
         return completed
       }
-      if (current?.state === 'running' || current?.state === 'completed' && ['order', 'tracking'].includes(identity.kind) || current && ['review', 'completed'].includes(current.state) && request.data.restart !== true && request.data.force !== true) return current
+      if (current?.state === 'running' || current?.state === 'completed' && ['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(identity.kind) || current && ['review', 'completed'].includes(current.state) && request.data.restart !== true && request.data.force !== true) return current
       await retirePreview(actor, current, tx)
       const value = { ...identity, ownerId: actor.uid, connectionId: actor.connectionId, graphUserId: actor.connection.graphUserId || '', jobId, state: 'running', result: null, error: null, startedAt: now(), updatedAt: now() }
       tx.set(ref, value)
@@ -161,7 +169,7 @@ export function createMailboxActionHandlers(deps = {}) {
     let current = (await ref.get()).data()
     if (!current || current.jobId !== request.data.jobId) fail('aborted', 'Die Auswertung wurde inzwischen ersetzt. Bitte erneut laden.')
     if (request.data.action === 'complete') {
-      if (!['order', 'tracking'].includes(identity.kind)) fail('failed-precondition', 'Diese Prüfung ist bereits abgeschlossen.')
+      if (!['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(identity.kind)) fail('failed-precondition', 'Diese Prüfung ist bereits abgeschlossen.')
       const proofId = request.data.previewId || request.data.proof?.previewId
       if (proofId && proofId !== current.result?.previewId) fail('permission-denied', 'Die Bestätigung gehört nicht zu dieser Auswertung.')
       current = await reconcile(actor, ref, current)
@@ -204,12 +212,12 @@ export function createMailboxActionHandlers(deps = {}) {
       if (!current || current.jobId !== jobId || current.state !== 'running') return
       if (current.graphUserId !== (actor.connection.graphUserId || '')) fail('permission-denied', 'Die Postfachverbindung wurde inzwischen geändert.')
       const handlers = deps.handlers || (await import('./mailboxes.js')).createMailboxHandlers()
-      const method = { order: 'previewMailboxOrder', tracking: 'previewMailboxTracking', terms: 'analyzeMailboxAgb', invoice: 'reviewMailboxInvoices' }[run.kind]
+      const method = mailboxRecordKinds[run.kind] ? 'previewMailboxRecord' : { order: 'previewMailboxOrder', tracking: 'previewMailboxTracking', terms: 'analyzeMailboxAgb', invoice: 'reviewMailboxInvoices' }[run.kind]
       const result = serializable(await handlers[method](request))
       await context(request, run.kind)
       if (Buffer.byteLength(JSON.stringify(result), 'utf8') > 850000) fail('failed-precondition', 'Das Prüfergebnis ist zu umfangreich. Bitte weniger Anlagen auswählen.')
-      if (result.previewId && ['order', 'tracking'].includes(run.kind)) {
-        const prefix = run.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
+      if (result.previewId && ['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(run.kind)) {
+        const prefix = mailboxRecordKinds[run.kind] ? 'mailboxRecordPreviews' : run.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
         const previewRef = db().doc(`${prefix}/${result.previewId}`)
         await db().runTransaction(async tx => {
           const preview = (await tx.get(previewRef)).data()

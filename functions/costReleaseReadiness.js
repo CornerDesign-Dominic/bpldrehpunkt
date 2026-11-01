@@ -5,7 +5,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 
 export const costReadinessPaths = {
   tracking: 'backgroundWorkState/shipment-tracking-v1',
-  reminders: 'backgroundWorkState/deadline-reminders-v1',
+  reminders: 'reminderState/preparation',
   list: 'backgroundWorkState/transport-order-list-v3',
   pallets: 'palletSummaryState/current',
 }

@@ -1,11 +1,11 @@
-import { FiClock, FiFileText, FiShield } from 'react-icons/fi'
+import { FiBriefcase, FiClock, FiFileText, FiShield } from 'react-icons/fi'
 import { TbCalculator } from 'react-icons/tb'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { mailboxActionKey, mailboxActionKinds } from '../../lib/mailboxActionStore.js'
 import '../../styles/mailboxActionIndicators.css'
 
-const icons = { order: FiFileText, tracking: FiClock, terms: FiShield, invoice: TbCalculator }
-const names = { order: ['Auftrag', 'Order'], tracking: ['Sendungsstatus', 'Shipment status'], terms: ['AGB-Prüfung', 'Terms review'], invoice: ['Rechnungsprüfung', 'Invoice review'] }
+const icons = { order: FiFileText, tracking: FiClock, terms: FiShield, invoice: TbCalculator, todo: FiBriefcase, damage: FiBriefcase, collection: FiBriefcase, court: FiBriefcase, calendar: FiBriefcase }
+const names = { order: ['Auftrag', 'Order'], tracking: ['Sendungsstatus', 'Shipment status'], terms: ['AGB-Prüfung', 'Terms review'], invoice: ['Rechnungsprüfung', 'Invoice review'], todo: ['To-do', 'To-do'], damage: ['Schaden', 'Damage'], collection: ['Inkasso', 'Collection'], court: ['Gericht', 'Court'], calendar: ['Kalender', 'Calendar'] }
 
 export default function MailActionIndicators({ identity, actions }) {
   const { language } = useLanguage()

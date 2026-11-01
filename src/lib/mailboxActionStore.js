@@ -1,4 +1,4 @@
-export const mailboxActionKinds = ['order', 'tracking', 'terms', 'invoice']
+export const mailboxActionKinds = ['order', 'tracking', 'terms', 'invoice', 'todo', 'damage', 'collection', 'court', 'calendar']
 const empty = Object.freeze({ state: 'idle', result: null, error: null })
 export const mailboxActionKey = (identity, kind) => JSON.stringify([identity.connectionId, identity.messageId, kind])
 const revision = action => action.updatedAtMillis ?? action.updatedAt ?? 0
