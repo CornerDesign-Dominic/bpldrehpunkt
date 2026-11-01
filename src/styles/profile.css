@@ -4,9 +4,6 @@
 .profile-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); padding: 10px 0; font: inherit; font-size: 13px; cursor: pointer; }
 .profile-tabs button[aria-selected="true"] { color: var(--button-background); border-bottom-color: var(--button-background); font-weight: 700; }
 .profile-tabs button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
-.profile-summary { display: grid; gap: 5px; margin-bottom: 20px; }
-.profile-summary strong { font-size: 20px; }
-.profile-summary span { color: var(--text-secondary); font-size: 13px; overflow-wrap: anywhere; }
 .profile-data-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 16px 0 24px; }
 .profile-data-columns .profile-section { border: 1px solid var(--border); border-radius: 7px; padding: 16px; }
 .profile-data-columns .profile-readonly-grid { grid-template-columns: 1fr 1fr; }
