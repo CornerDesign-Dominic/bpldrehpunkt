@@ -2,8 +2,12 @@
 
 Aktualisierung 01.11.2026: **Dev ist inzwischen veröffentlicht und tatsächlich
 angebunden**; der Dev-Providerflow ist aktiv. Sein Firebase-Scheduler verwendet
-die sechs eigenen Dev-Secrets. Die Testbegrenzung in Firebase erlaubt jetzt
-ausschließlich `no-reply@brennpunkt-logistik.de`. Ein neuer Test aus der echten
+die sechs eigenen Dev-Secrets. Die Testbegrenzung in Firebase erlaubt nach
+zusätzlicher ausdrücklicher Freigabe `no-reply@brennpunkt-logistik.de` und
+`bb@brennpunkt-logistik.de`. Die vollständige fachliche BB-Abnahme und die
+begrenzte Korrektur des Bestätigungsfensters stehen im
+[Folgebeleg](releases/reminders-dev-bb-2026-11-01-status.md).
+Ein erster Test aus der echten
 Firebase-Laufzeit wurde angenommen, identisch wiederholt und genau einmal im
 Testpostfach mit Absender `drehpunkt@brennpunkt-logistik.de` vorgefunden.
 Produktion und `main` wurden dabei nicht verändert; der vorbereitete
