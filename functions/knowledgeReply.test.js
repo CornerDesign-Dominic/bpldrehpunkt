@@ -72,20 +72,23 @@ test('same message counts once across repeated suggestion clicks; distinct mails
   const gap = db.records.get(`knowledgeGaps/${first.id}`)
   assert.equal(gap.count, 2)
   assert.equal(gap.revision, 2)
-  const persisted = JSON.stringify([...db.records].filter(([key]) => !key.startsWith('users/')))
+  const persisted = JSON.stringify([...db.records].filter(([key]) => key.startsWith('knowledgeGaps/')))
   for (const secret of ['Secret Person', 'secret@example.test', 'Private name', 'mail-one', 'connection']) assert.equal(persisted.includes(secret), false)
   gap.status = 'resolved'; gap.articleId = 'article'
   await recordReplyKnowledgeGap(gapInput(db, 'mail-three'))
   assert.equal(db.records.get(`knowledgeGaps/${first.id}`).status, 'open')
 })
 
-test('limited or uncertain searches and revoked permission do not create misleading gaps', async () => {
+test('uncertain or limited matching is captured in unassigned rather than a false missing category', async () => {
   const db = database()
-  for (const selection of [{ ...missingSelection, limited: true }, { ...missingSelection, coverage: 'uncertain' }, { ...missingSelection, coverage: 'full' }]) assert.equal(await recordReplyKnowledgeGap(gapInput(db, 'mail-one', { selection })), null)
-  assert.equal(db.records.size, 1)
+  for (const selection of [{ ...missingSelection, limited: true }, { ...missingSelection, coverage: 'uncertain' }]) {
+    const captured = await recordReplyKnowledgeGap(gapInput(db, 'mail-one', { selection }))
+    assert.equal(captured.id, 'unassigned')
+  }
+  assert.equal(db.records.get('knowledgeGaps/unassigned').category, 'unassigned')
   db.records.set('users/user', { active: false, role: 'superadmin' })
-  await assert.rejects(recordReplyKnowledgeGap(gapInput(db)), { code: 'permission-denied' })
-  assert.equal(db.records.size, 1)
+  await assert.rejects(recordReplyKnowledgeGap(gapInput(db, 'other-mail')), { code: 'permission-denied' })
+  assert.equal(db.records.get('knowledgeGaps/unassigned').count, 1)
 })
 
 
@@ -96,7 +99,7 @@ test('public drafting metadata strips all current and legacy gap information', (
   assert.deepEqual(publicReplyKnowledge({ status: 'gap', sources: [] }), { sources: [] })
 })
 
-test('same occurrence updates exact latest AI suggestion without incrementing demand or retaining incoming mail', async () => {
+test('same occurrence updates cleaned latest AI suggestion and incoming copy without incrementing demand', async () => {
   const db = database()
   const first = await recordReplyKnowledgeGap({ ...gapInput(db), suggestion: 'Erster Antwortentwurf' })
   await recordReplyKnowledgeGap({ ...gapInput(db), suggestion: 'Zweiter Antwortentwurf' })
@@ -106,5 +109,56 @@ test('same occurrence updates exact latest AI suggestion without incrementing de
   assert.equal(evidence.sentReply, undefined)
   assert.equal(evidence.gapId, first.id)
   assert.equal(db.records.get(`knowledgeGaps/${first.id}`).count, 1)
-  assert.equal(JSON.stringify(evidence).includes('Secret customer'), false)
+  assert.equal(evidence.incomingText, 'Private name and bank details')
+  assert.equal(evidence.senderRole, 'unknown')
+})
+
+test('handbook-backed conversations are captured as article cases and identical clean copies stay learned', async () => {
+  const db = database()
+  const selection = { sources: [{ ...article }], coverage: 'full', limited: false, senderRole: 'customer', recipientRole: 'internal' }
+  const input = gapInput(db, 'article-mail', { selection, suggestion: 'Bitte den Status prüfen.\n\nMit freundlichen Grüßen\nMitarbeiter' })
+  const first = await recordReplyKnowledgeGap(input)
+  assert.equal(first.id, 'article-article')
+  assert.equal(db.records.get('knowledgeGaps/article-article').category, 'article')
+  const evidence = db.records.get(`knowledgeGapEvidence/${first.evidenceId}`)
+  assert.equal(evidence.sourceArticleId, 'article')
+  assert.equal(evidence.sourceRevision, 3)
+  assert.equal(evidence.latestSuggestion, 'Bitte den Status prüfen.')
+  assert.equal(evidence.senderRole, 'customer')
+  assert.equal(evidence.recipientRole, 'internal')
+  assert.equal(evidence.caseRevision, 1)
+  assert.equal(evidence.learnedRevision, 0)
+  evidence.learnedRevision = 1
+  await recordReplyKnowledgeGap({ ...input, suggestion: 'Bitte den Status prüfen.\n\nViele Grüße\nAnderer Mitarbeiter' })
+  const unchanged = db.records.get(`knowledgeGapEvidence/${first.evidenceId}`)
+  assert.equal(unchanged.caseRevision, 1)
+  assert.equal(unchanged.learnedRevision, 1)
+  await recordReplyKnowledgeGap({ ...input, selection: { ...selection, sources: [{ ...article, revision: 4 }] } })
+  const provenanceOnly = db.records.get(`knowledgeGapEvidence/${first.evidenceId}`)
+  assert.equal(provenanceOnly.sourceRevision, 4)
+  assert.equal(provenanceOnly.caseRevision, 1)
+  assert.equal(provenanceOnly.learnedRevision, 1)
+  await recordReplyKnowledgeGap({ ...input, suggestion: 'Andere Rückfrage zur Situation.' })
+  const changed = db.records.get(`knowledgeGapEvidence/${first.evidenceId}`)
+  assert.equal(changed.caseRevision, 2)
+  assert.equal(changed.learnedRevision, 1)
+  assert.equal(db.records.get('knowledgeGaps/article-article').count, 1)
+})
+
+test('local removed-case tombstones and curator moves are authoritative for future captures', async () => {
+  const db = database()
+  const input = gapInput(db, 'movable-mail', { suggestion: 'Antwort' })
+  const first = await recordReplyKnowledgeGap(input)
+  const ref = `knowledgeGapEvidence/${first.evidenceId}`
+  const moved = { ...db.records.get(ref), gapId: 'unassigned', caseRevision: 2 }
+  db.records.set(ref, moved)
+  db.records.set('knowledgeGaps/unassigned', { title: 'Nicht zugeordnet', category: 'unassigned', count: 1, revision: 1 })
+  await recordReplyKnowledgeGap(input)
+  assert.equal(db.records.get(ref).gapId, 'unassigned')
+  assert.equal(db.records.get(ref).caseRevision, 2)
+  db.records.set(ref, { gapId: 'unassigned', removed: true, caseRevision: 3, learnedRevision: 0 })
+  const removed = await recordReplyKnowledgeGap({ ...input, suggestion: 'Darf nicht wieder erscheinen' })
+  assert.equal(removed.removed, true)
+  assert.deepEqual(db.records.get(ref), { gapId: 'unassigned', removed: true, caseRevision: 3, learnedRevision: 0 })
+  assert.equal(db.records.get('knowledgeGaps/unassigned').count, 1)
 })

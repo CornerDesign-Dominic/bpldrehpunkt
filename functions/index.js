@@ -24,6 +24,7 @@ import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMail
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
+import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeLearningHandler } from './knowledgeLearning.js'
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
@@ -130,6 +131,9 @@ export const prepareBackgroundWork = onCall({ region: 'europe-west3', enforceApp
 export const saveQualityRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveQualityRecordHandler)
 export const saveKnowledgeRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveKnowledgeRecordHandler)
 export const updateKnowledgeGap = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateKnowledgeGapHandler)
+export const manageKnowledgeCase = onCall({ region: 'europe-west3', enforceAppCheck: true }, manageKnowledgeCaseHandler)
+export const learnKnowledgeCases = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [statusMailAiApiKey], timeoutSeconds: 180, maxInstances: 3 }, learnKnowledgeCasesHandler)
+export const applyKnowledgeLearning = onCall({ region: 'europe-west3', enforceAppCheck: true }, applyKnowledgeLearningHandler)
 export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
 export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, async (event) => {
   if (!event.data) return

@@ -185,6 +185,10 @@ service cloud.firestore {
       allow read: if view('knowledgeGaps');
       allow write: if false;
     }
+    match /knowledgeLearningRuns/{id} {
+      allow read: if view('knowledgeGaps') && view('handbook');
+      allow write: if false;
+    }
     match /knowledgeGapOccurrences/{id} {
       allow read, write: if false;
     }

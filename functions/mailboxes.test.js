@@ -320,7 +320,7 @@ test('five distinct replies to one incoming message preserve receipts and reject
   assert.equal([...f.db.records.keys()].filter(key => key.startsWith('mailboxSendOperations/')).length, 5)
 })
 
-test('new replies allow fresh suggestions without carrying the previous reply evidence or late suggestions', async () => {
+test('new replies allow fresh suggestions while retaining the local learning-case link and rejecting late suggestions', async () => {
   let complete, entered
   const ready = new Promise(resolve => { entered = resolve })
   const f = fixture({ fetch: async () => response({}), generateReplySuggestion: async () => { entered(); return new Promise(resolve => { complete = resolve }) } })
@@ -332,7 +332,7 @@ test('new replies allow fresh suggestions without carrying the previous reply ev
   const next = await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: '', revision: 0 } }))
   assert.equal(next.draft.revision, 1)
   assert.equal(f.db.records.get(key).operationId, undefined)
-  assert.equal(f.db.records.get(key).knowledgeEvidenceId, undefined)
+  assert.equal(f.db.records.get(key).knowledgeEvidenceId, 'e'.repeat(64))
   assert.equal(f.db.records.get(key).lastSuggestion, undefined)
   complete('Veralteter Vorschlag')
   await assert.rejects(running, { code: 'aborted' })
@@ -350,12 +350,11 @@ test('late cleanup of an accepted send cannot erase the next reply draft', async
   const evidenceId = 'e'.repeat(64)
   f.db.records.set(key, { knowledgeEvidenceId: evidenceId })
   f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, {})
-  const originalDoc = f.db.doc
-  f.db.doc = path => {
-    const reference = originalDoc(path)
-    if (path === `knowledgeGapEvidence/${evidenceId}`) reference.update = async () => { throw new Error('acknowledgement unavailable') }
-    return reference
-  }
+  const originalTransaction = f.db.runTransaction
+  f.db.runTransaction = callback => originalTransaction(tx => callback({ ...tx, set: (ref, value, options) => {
+    if (ref.path === `knowledgeGapEvidence/${evidenceId}` && value.sendStatus === 'accepted') throw new Error('acknowledgement unavailable')
+    return tx.set(ref, value, options)
+  } }))
   const sending = f.handlers.sendMailboxReply(request(reply))
   await ready
   await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: 'Nächste Antwort', revision: 0 } }))
@@ -817,7 +816,7 @@ test('gap tracking stays invisible in suggestion/draft APIs and preserves eviden
   assert.equal(f.db.records.get(ref).sendStatus, 'accepted')
   assert.ok(f.db.records.get(ref).sentAt)
   assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
-  assert.equal(JSON.stringify(f.db.records.get(ref)).includes('PRIVATE incoming'), false)
+  assert.equal(f.db.records.get(ref).incomingText, 'PRIVATE incoming original mail')
 })
 
 test('uncertain sends retain exact attempted answer separately from AI suggestion without claiming acceptance', async () => {
@@ -841,12 +840,11 @@ test('failure acknowledging evidence after Graph acceptance cannot change accept
   const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
   f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
   f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'Vorschlag', sendStatus: 'draft' })
-  const original = f.db.doc
-  f.db.doc = path => {
-    const ref = original(path)
-    if (path === `knowledgeGapEvidence/${evidenceId}`) ref.update = async () => { throw new Error('Evidence temporarily unavailable') }
-    return ref
-  }
+  const originalTransaction = f.db.runTransaction
+  f.db.runTransaction = callback => originalTransaction(tx => callback({ ...tx, set: (ref, value, options) => {
+    if (ref.path === `knowledgeGapEvidence/${evidenceId}` && value.sendStatus === 'accepted') throw new Error('Evidence temporarily unavailable')
+    return tx.set(ref, value, options)
+  } }))
   assert.equal((await f.handlers.sendMailboxReply(request(reply))).status, 'accepted')
   assert.equal((await f.handlers.sendMailboxReply(request(reply))).status, 'accepted')
   assert.equal(f.fetchCount(), 1)
@@ -866,4 +864,26 @@ test('reply lookup is owner-scoped and all batch subrequests use the shared mail
   assert.equal(result.replies.source.length,1)
   assert.ok(paths.every(path=>path.startsWith(`/users/${encodeURIComponent(sharedEmail)}/`)))
   await assert.rejects(f.handlers.listMailboxReplies({auth:{uid:'other'},data:{connectionId:sharedId,messageIds:['source']}}),{code:'permission-denied'})
+})
+
+test('learning copies are cleaned while exact outgoing text is preserved; send acknowledgement cannot restore removed copies', async () => {
+  const evidenceId = 'd'.repeat(64)
+  let submitted
+  const f = fixture({ fetch: async (_url, options) => {
+    submitted = JSON.parse(options.body).message.body.content
+    const current = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
+    assert.equal(current.sentReply, 'Hallo Frau Müller,\nwir prüfen den Auftrag.')
+    f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', removed: true, caseRevision: current.caseRevision + 1, learnedRevision: 0 })
+    return response(null, 202)
+  } })
+  const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
+  f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'AI-Entwurf', sendStatus: 'draft', caseRevision: 1, learnedRevision: 1 })
+  const body = 'Hallo Frau Müller,\nwir prüfen den Auftrag.\n\nMit freundlichen Grüßen\nMax Beispiel'
+  assert.equal((await f.handlers.sendMailboxReply(request({ ...reply, body }))).status, 'accepted')
+  assert.equal(submitted, body)
+  const removed = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
+  assert.equal(removed.removed, true)
+  assert.equal(removed.sentReply, undefined)
+  assert.equal(removed.latestSuggestion, undefined)
 })
