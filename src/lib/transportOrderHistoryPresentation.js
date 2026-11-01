@@ -3,7 +3,7 @@ import { recordHistoryTime, recordHistoryValue } from './recordHistoryPresentati
 const stopFields = [
   ['type', 'Art'], ['address.company', 'Firma'], ['address.street', 'Straße'], ['address.postalCode', 'PLZ'], ['address.city', 'Ort'], ['address.country', 'Land'],
   ['window.from', 'Von'], ['window.until', 'Bis'], ['fixedAppointment', 'Fixtermin'], ['slotUntilTime', 'Bis-Uhrzeit'], ['note', 'Bemerkung'], ['deliveryInformation', 'Zustellinformation'], ['deliveryNoteNumber', 'Lieferscheinnummer'],
-  ['cargo.weightKg', 'Gewicht'], ['cargo.packages', 'Kolli'], ['cargo.loadingMeters', 'Lademeter'], ['palletExchange', 'Palettentausch'],
+  ['cargo.description', 'Warenbeschreibung'], ['cargo.weightKg', 'Gewicht'], ['cargo.volumetricWeightKg', 'Volumengewicht (DyCoS)'], ['cargo.packages', 'Kolli'], ['cargo.loadingMeters', 'Lademeter'], ['palletExchange', 'Palettentausch'],
 ]
 const positionFields = [['description', 'Leistung'], ['quantity', 'Menge'], ['unit', 'Einheit'], ['unitPriceNet', 'Einzelpreis netto'], ['amountNet', 'Gesamt netto']]
 const documentFields = [
@@ -88,7 +88,8 @@ export function transportOrderHistoryValue(value, language = 'de', change = {}) 
   }
   if (typeof value === 'number') {
     if (/financial\.(revenueNet|costNet)$|\.(unitPriceNet|amountNet)$/.test(change.path)) return new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(value)
-    return recordHistoryValue(value, language) + (/weightKg$/.test(change.path) ? ' kg' : '')
+    if (/^distances\.(order|tour)\.(totalKm|motorwayKm|emptyKm)$/.test(change.path)) return recordHistoryValue(value, language) + ' km'
+    return recordHistoryValue(value, language) + (/weightKg$/i.test(change.path) ? ' kg' : '')
   }
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value)) {
     const [day, time] = value.split('T'); const [year, month, date] = day.split('-')

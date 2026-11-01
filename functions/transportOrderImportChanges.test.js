@@ -94,3 +94,50 @@ test('fixed flags audit false separately from unknown without altering route or 
   fixed.stops[0].fixedAppointment = true
   assert.notEqual(transportOrderImportFingerprint(noFixed), transportOrderImportFingerprint(fixed))
 })
+
+test('unknown optional transport fields and station descriptions create no legacy-only history', () => {
+  const before = imported({ stops: [{ sourceId: '31', cargo: { weightKg: null, packages: null, loadingMeters: null } }] })
+  const after = structuredClone(before)
+  Object.assign(after.shipment, { goodsDescription: null, vehicleInformation: null, hazardousGoods: null })
+  after.distances = { order: { totalKm: null, motorwayKm: null, emptyKm: null, routed: null }, tour: null }
+  after.stops[0].cargo.description = null
+  after.stops[0].cargo.volumetricWeightKg = null
+  assert.equal(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
+  assert.deepEqual(transportOrderImportChanges(before, after), [])
+  const explicitZero = structuredClone(after)
+  explicitZero.stops[0].cargo.volumetricWeightKg = 0
+  assert.deepEqual(transportOrderImportChanges(after, explicitZero).map(change => change.path), ['stops'])
+})
+
+test('transport source values are audited including explicit false and zero without route or tracking changes', () => {
+  const before = imported({ stops: [{ sourceId: '31', cargo: { weightKg: 10 } }] })
+  const after = structuredClone(before)
+  Object.assign(after.shipment, { goodsDescription: 'Handelsware', vehicleInformation: 'Seitlich beladbar', hazardousGoods: false })
+  after.distances = { order: { totalKm: 0, motorwayKm: 0, emptyKm: 0, routed: false }, tour: { totalKm: 500, motorwayKm: 300, emptyKm: 0, routed: true } }
+  after.stops[0].cargo.description = 'Stationseigene Ware'
+  after.stops[0].cargo.volumetricWeightKg = 0
+  const changes = transportOrderImportChanges(before, after)
+  assert.deepEqual(changes.map(change => change.path), [
+    'shipment.vehicleInformation', 'shipment.goodsDescription', 'shipment.hazardousGoods',
+    'distances.order.totalKm', 'distances.order.motorwayKm', 'distances.order.emptyKm', 'distances.order.routed',
+    'distances.tour.totalKm', 'distances.tour.motorwayKm', 'distances.tour.emptyKm', 'distances.tour.routed', 'stops',
+  ])
+  assert.ok(changes.some(change => change.path === 'shipment.hazardousGoods' && change.oldValue === null && change.newValue === false))
+  assert.ok(changes.some(change => change.path === 'distances.order.totalKm' && change.oldValue === null && change.newValue === 0))
+  assert.equal(changes.some(change => change.routeRelevant || change.scheduleRelevant), false)
+  assert.equal(loadingScheduleMovedEarlier(before, after), false)
+  assert.deepEqual(transportOrderImportChanges(after, structuredClone(after)), [])
+  const volumetricChange = structuredClone(after)
+  volumetricChange.stops[0].cargo.volumetricWeightKg = 2000
+  assert.deepEqual(transportOrderImportChanges(after, volumetricChange).map(change => change.path), ['stops'])
+  assert.equal(volumetricChange.shipment.weightKg, before.shipment.weightKg)
+})
+
+test('distance quantity formatting is normalized while source namespaces remain distinct', () => {
+  const before = imported({ distances: { order: { totalKm: 100.5 }, tour: { totalKm: 500 } } })
+  const equivalent = imported({ distances: { order: { totalKm: '100,50' }, tour: { totalKm: '500,00' } } })
+  assert.deepEqual(transportOrderImportChanges(before, equivalent), [])
+  const changed = structuredClone(before)
+  changed.distances.tour.totalKm = 550
+  assert.deepEqual(transportOrderImportChanges(before, changed).map(change => change.path), ['distances.tour.totalKm'])
+})

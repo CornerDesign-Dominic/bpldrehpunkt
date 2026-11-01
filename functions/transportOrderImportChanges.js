@@ -1,6 +1,6 @@
 const whitespace = /\s+/g
 const plannedDateTimePaths = new Set(['loading.window.from', 'loading.window.until', 'unloading.window.from', 'unloading.window.until', 'dispatch.sentAt'])
-const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'shipment.packages', 'shipment.weightKg', 'shipment.loadingMeters'])
+const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'shipment.packages', 'shipment.weightKg', 'shipment.loadingMeters', ...['order', 'tour'].flatMap(scope => ['totalKm', 'motorwayKm', 'emptyKm'].map(key => `distances.${scope}.${key}`))])
 
 const fields = Object.freeze([
   ['relation', 'Mitarbeiterrelation'],
@@ -39,9 +39,20 @@ const fields = Object.freeze([
   ['financial.documents', 'Rechnungen und Gutschriften'],
   ['shipment.licensePlate', 'Import-Kennzeichen'],
   ['shipment.vehicleType', 'Fahrzeugart'],
+  ['shipment.vehicleInformation', 'Fahrzeughinweise'],
+  ['shipment.goodsDescription', 'Warenbeschreibung Auftrag'],
+  ['shipment.hazardousGoods', 'Gefahrgut laut DyCoS'],
   ['shipment.packages', 'Kolli'],
   ['shipment.weightKg', 'Gewicht'],
   ['shipment.loadingMeters', 'Lademeter'],
+  ['distances.order.totalKm', 'Gesamtkilometer Auftrag (DyCoS)'],
+  ['distances.order.motorwayKm', 'Autobahnkilometer Auftrag (DyCoS)'],
+  ['distances.order.emptyKm', 'Leerkilometer Auftrag (DyCoS)'],
+  ['distances.order.routed', 'Kilometer Auftrag geroutet (DyCoS)'],
+  ['distances.tour.totalKm', 'Gesamtkilometer Tour (DyCoS)'],
+  ['distances.tour.motorwayKm', 'Autobahnkilometer Tour (DyCoS)'],
+  ['distances.tour.emptyKm', 'Leerkilometer Tour (DyCoS)'],
+  ['distances.tour.routed', 'Kilometer Tour geroutet (DyCoS)'],
   ['contacts.customerStandardEmail', 'Standard-E-Mail Kunde'],
   ['contacts.customerForOrder', 'Info Kunde im Auftrag'],
   ['contacts.carrierStandardEmail', 'Standard-E-Mail Unternehmer'],
@@ -81,7 +92,10 @@ export function normalizeTransportOrderImportValue(value, path = '') {
   if (typeof value !== 'object') return value
   // Absent and explicitly unknown new flags mean the same thing on legacy
   // stops. A real false still differs from both unknown and true.
-  const keys = Object.keys(value).filter(key => !(key === 'fixedAppointment' && /^stops\.\d+$/.test(path) && value[key] == null))
+  const keys = Object.keys(value).filter(key => !(
+    key === 'fixedAppointment' && /^stops\.\d+$/.test(path) && value[key] == null ||
+    ['description', 'volumetricWeightKg'].includes(key) && /^stops\.\d+\.cargo$/.test(path) && value[key] == null
+  ))
   return Object.fromEntries(keys.sort().map((key) => [key, normalizeTransportOrderImportValue(value[key], path ? `${path}.${key}` : key)]))
 }
 

@@ -84,3 +84,12 @@ test('station fixed appointment history keeps unknown, false and true distinct',
   assert.equal(row.changes[0].oldValue, null)
   assert.equal(row.changes[0].newValue, false)
 })
+test('station goods descriptions remain visible in history and source distances retain their unit', () => {
+  const rows = transportOrderHistoryRows({}, [{ id: 'goods', field: 'stops', oldValue: [{ sourceId: '1', cargo: { description: null } }], newValue: [{ sourceId: '1', cargo: { description: 'Maschinenteile' } }] }])
+  assert.equal(rows[0].changes.length, 1)
+  assert.match(rows[0].changes[0].label, /Warenbeschreibung/)
+  assert.equal(rows[0].changes[0].newValue, 'Maschinenteile')
+  assert.equal(transportOrderHistoryValue(0, 'de', { path: 'distances.order.totalKm' }), '0 km')
+  assert.equal(transportOrderHistoryValue(1234.5, 'en', { path: 'distances.tour.motorwayKm' }), '1,234.5 km')
+  assert.equal(transportOrderHistoryValue(25, 'de', { path: 'stops.1.cargo.volumetricWeightKg' }), '25 kg')
+})

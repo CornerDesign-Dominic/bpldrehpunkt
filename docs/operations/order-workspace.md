@@ -12,7 +12,9 @@ Main und Produktion bleiben unverändert.
 
 Nach diesem Dev-Release ist eine weitere lokale Überarbeitung umgesetzt:
 Die Reiter heißen „Auftrag“ und „Kunde & UTN“; die Auftragsansicht betont
-Fahrzeug/allgemeine Hinweise, Adressen, Termine/FIX und Stationswaren.
+Fahrzeug/allgemeine Hinweise und zusätzliche DyCoS-Transportdaten. Stationen
+nutzen einzelne Karten für Adresse, Termin, Referenz, Waren, Palettentausch und
+Bemerkung.
 Diese Folgeänderung ist noch nicht veröffentlicht.
 
 ## Benutzerablauf
@@ -76,22 +78,36 @@ in größerer Schrift, daneben die vollständigen allgemeinen Dispositionshinwei
 Tour und übermittelte Auftragsmengen bleiben getrennt erkennbar. Fehlende
 allgemeine Hinweise werden als fehlend angezeigt.
 
-Alle Stationen bleiben untereinander in einer gemeinsamen Karte. Jede Station
-hat zwei gleich breite Inhaltsbereiche: links den hervorgehobenen Adressblock
-mit Termin direkt darunter, rechts einen eigenen Warenblock mit groß gesetztem
-Gewicht, Kolli und Lademetern sowie Palettentausch. Tatsächliche Nullwerte bleiben
-sichtbar; fehlende Stationswerte werden nicht aus Auftragswerten ersetzt.
-Stationshinweise, Referenzen und Lieferscheinnummern stehen vollständig beim
-Warenblock. Einzelmaße sind im aktuellen Import nur Teil solcher Freitexte;
-es werden keine Maße aus Texten extrahiert oder erfunden. Die Übersicht verwendet
-weiterhin ihre kompakte Stationsdarstellung.
+Alle Stationen bleiben untereinander in einer gemeinsamen Karte. Links stehen
+neutrale Einzelkarten „Adresse“, „Termin“ und „Referenz“, rechts „Ware & Mengen“,
+„Palettentausch“, „Bemerkung“ sowie eine vorhandene Lieferscheinnummer. Die
+Referenz bleibt auch mit Inhalt neutral. Datum und Uhrzeit verwenden dieselbe
+Schriftgröße und -stärke; der große FIX-Badge entfällt. Dezente horizontale
+Linien trennen die Stationen. Schmale Ansichten stellen die Bereiche untereinander.
 
-Dezente horizontale Linien trennen die Stationen. In schmalen Ansichten stehen
-die beiden Bereiche untereinander. Mehrtägige Fenster behalten beide Daten;
-fehlende Zeitgrenzen werden nicht ergänzt. Ein bestätigter Fixtermin trägt
-neben dem groß gesetzten Termin ein gut sichtbares „FIX“-Kennzeichen mit Text
-und Farbkontrast. Explizites false heißt „Kein Fixtermin“, unbekannt heißt
-„Fixtermin nicht übermittelt“. Uhrzeiten oder Hinweise erzeugen kein FIX-Flag.
+Die Terminkarte ist ausschließlich bei `fixedAppointment === true` gelb;
+Fixtermin Ja/Nein/unbekannt steht als normale Textzeile dabei. Die Adresskarte
+ist ausschließlich bei einem erkannten ausdrücklichen Hinweis auf neutrale
+Abholung beziehungsweise Anlieferung gelb und nennt diesen Grund. Die
+Darstellung prüft Stationsbemerkung und allgemeine Dispositionsbemerkung auf
+explizite deutsche Formulierungen; bloße Referenzen und andere Texte werden
+nicht durchsucht. Eigene Stationsangaben haben Vorrang vor allgemeinen
+Angaben. Verneinungen und Gegenformulierungen werden berücksichtigt; ein
+isoliertes „NEUTRAL“ im Stationshinweis gilt für diese Station, im allgemeinen
+Hinweis ohne benannte Tätigkeit dagegen nicht. Dies ist eine begrenzte
+regelbasierte Anzeige, kein vollständiges Sprachverständnis und kein
+persistierter Tracking-/Adressstatus. Die Originalhinweise bleiben sichtbar.
+
+Gewicht, Kolli und Lademeter stehen je Station im eigenen Warenblock. Tatsächliche
+Nullwerte bleiben sichtbar; fehlende Stationswerte werden nicht aus dem Auftrag
+ersetzt. Die Stations-Warenbeschreibung und ein eigenes Volumengewicht laut
+DyCoS sind ergänzt. Volumengewicht ersetzt weder tatsächliches Gewicht noch
+Auftragstotal und nennt die fehlende Berechnungsgrundlage. Mehrzeilige Hinweise
+mit Maßangaben bleiben vollständig in der Bemerkung. Das Feld `Masse` ist noch
+nicht als strukturierte Abmessung bestätigt; es werden keine Einheiten ergänzt
+oder Werte aus Texten herausgerechnet. Die Übersicht behält ihre kompakte
+Stationsdarstellung. Mehrtägige Fenster behalten beide Daten, fehlende Zeitgrenzen
+werden nicht ergänzt.
 Lokal ergänzt ist die Übernahme von `LadeEntladestellen2.Fixtermin` über
 `LadeEntladestellenID` nach `stops[].fixedAppointment` sowie in die Projektionen
 `loading.fixedAppointment` und `unloading.fixedAppointment`. Bestätigte Werte
@@ -281,3 +297,39 @@ Hell/Dunkel und Deutsch/Englisch geprüft. Ein isolierter 560-Pixel-Rahmen
 bestätigt den einspaltigen Umbruch ohne horizontales Überlaufen. Keine neuen
 Browserfehler in den geprüften Ansichten. Datenimport, Berechtigungen und
 Backend unverändert; keine echte Dev-Datenänderung oder Veröffentlichung.
+
+## Lokale Karten- und Transportdatenerweiterung nach der Hervorhebung
+
+Warenbeschreibung des Auftrags/je Station, Gefahrgutkennzeichen, Fahrzeughinweise
+und getrennte DyCoS-Distanzen für Auftrag/Tour sind zusätzlich gemappt und in der
+Auftragsansicht sichtbar. Das Routingkennzeichen und ein erklärender Hinweis
+verhindern die Gleichsetzung dieser Quellenwerte mit tatsächlich gefahrenen
+Kilometern oder der gesonderten Drehpunkt-Routenberechnung. Tourwerte können
+mehrere Aufträge umfassen. Gefahrgut bleibt boolean/null, ohne Ableitung weiterer
+ADR-Angaben. Alle neuen Felder werden historisiert; Nullergänzungen erzeugen
+keine Scheinänderungen an Altstationen, echte 0/false bleiben nachvollziehbar.
+Feldquellen, Stichprobe und verbleibende Unklarheiten stehen in der
+[DyCoS-Feldklärung](../reference/dycos-feldklaerung-2026-10-31.md#lokale-ergänzung-transportdaten-und-stationskarten-am-01112026).
+
+Diese Folgeänderungen sind lokal und nicht veröffentlicht. Für eine spätere
+Dev-Veröffentlichung sind Frontend und die beiden importierenden Functions
+`fetchDycosTransportOrder` und `refreshTransportOrderWorkspace` zu betrachten.
+Die Rechnungsprüfung verwendet den Mapper ebenfalls lesend, wertet die neuen
+Transportdetails jedoch nicht aus und persistiert sie nicht. Keine neuen
+Firestore-/Storage-Rechte oder Indizes, kein zusätzlicher Flow-Aufruf und keine
+neue Berechnung oder automatische Massenaktualisierung. Bestehende Aufträge
+bekommen die optionalen Zusatzdaten beim nächsten Abruf nach einem späteren
+Backend-Rollout.
+
+Prüfung dieser lokalen Karten-/Datenerweiterung: 71 gezielte Backendprüfungen
+und 30 echte Emulatorprüfungen erfolgreich, keine übersprungen; ausschließlich
+`demo-drehpunkt-order-fields`, danach beendet. Alle 19 bereits vorhandenen
+Exportantworten im Speicher mit dem erweiterten Mapper fehlerfrei verarbeitet.
+16 Client-/Darstellungsprüfungen erfolgreich, einschließlich expliziter neutraler
+Anweisungen, Verneinungen, Stationsvorrang und Trennung von Referenzen/Fixtermin.
+Vollständiges ESLint, Build und 45-Module-Shared-Abgleich berücksichtigt.
+Browserprüfung mit synthetischen Daten: getrennte gelbe Adress-/Terminkarten,
+immer neutrale Referenz, kein großer FIX-Badge, identische Größe/Stärke von
+Datum/Uhrzeit, neue Quellfelder, Nullwerte und Volumengewicht separat sichtbar.
+Hell/Dunkel und Deutsch/Englisch; 560-Pixel-Rahmen ohne horizontalen Überlauf.
+Keine echten Fachdaten verändert und keine Veröffentlichung dieses Nachfolgestands.
