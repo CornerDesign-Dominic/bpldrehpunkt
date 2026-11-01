@@ -187,7 +187,7 @@
 .business-partner-form .form-field--status select { border-color: var(--partner-status-text); color: var(--partner-status-text); background: var(--partner-status-background); font-weight: 700; }
 .form-field--street { grid-column: span 2; }
 
-.form-grid--references { grid-template-columns: minmax(180px, 300px); }
+.form-grid--references { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .business-partner-form .form-grid--contact, .business-partner-form .form-grid--company-data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .business-partner-form .form-grid--contact { grid-template-areas: 'phone fax' 'email website'; }
 .form-field--contact-phone { grid-area: phone; }
@@ -199,7 +199,7 @@
 .form-field--company-tax { grid-area: tax; }
 .form-field--company-register-number { grid-area: register-number; }
 .form-field--company-register-court { grid-area: register-court; }
-.form-grid--billing { grid-template-columns: minmax(145px, 210px); }
+.form-grid--billing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 @media (max-width: 1180px) {
   .form-grid--company-address {

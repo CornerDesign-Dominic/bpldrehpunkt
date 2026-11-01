@@ -1,5 +1,6 @@
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import OrderDistanceData from './OrderDistanceData.jsx'
+import OrderMissingValue from './OrderMissingValue.jsx'
 
 export default function OrderGeneralData({ imported, number }) {
   const shipment = imported.shipment || {}
@@ -9,7 +10,7 @@ export default function OrderGeneralData({ imported, number }) {
     <div className={`order-general__columns${distanceGroups.length ? ' order-general__columns--with-distance' : ''}`}>
       <div className="order-general__vehicle">
         <span className="order-station__label"><StaticText source="Fahrzeugart" /></span>
-        <p className="order-general__vehicle-type">{shipment.vehicleType || <StaticText source="Nicht übermittelt" />}</p>
+        <p className="order-general__vehicle-type">{shipment.vehicleType || <OrderMissingValue />}</p>
         {shipment.licensePlate && <p className="order-general__plate"><span className="order-station__label"><StaticText source="Kennzeichen" /></span>{shipment.licensePlate}</p>}
         {shipment.vehicleInformation && <div className="order-general__vehicle-information"><h4><StaticText source="Fahrzeughinweise" /></h4><p>{shipment.vehicleInformation}</p></div>}
         {imported.source?.tourId != null && imported.source.tourId !== '' && <p className="order-general__tour"><StaticText source="Tour-ID (DyCoS)" />: <strong>{imported.source.tourId}</strong></p>}
@@ -17,9 +18,9 @@ export default function OrderGeneralData({ imported, number }) {
       <div className="order-general__information">
         <section className={`order-general__instructions${imported.dispositionNote ? ' order-general__instructions--present' : ''}`}>
           <h4><StaticText source="Allgemeine Hinweise" /></h4>
-          <p>{imported.dispositionNote || <StaticText source="Keine allgemeinen Hinweise übermittelt." />}</p>
+          <p>{imported.dispositionNote || <OrderMissingValue />}</p>
         </section>
-        <section className="order-general__goods"><h4><StaticText source="Ware (Auftrag)" /></h4><p>{shipment.goodsDescription || <span className="order-workspace__muted"><StaticText source="Nicht übermittelt" /></span>}</p><p className="order-general__hazardous"><StaticText source="Gefahrgut (Auftrag)" />: <strong><StaticText source={shipment.hazardousGoods === true ? 'Ja' : shipment.hazardousGoods === false ? 'Nein' : 'Nicht übermittelt'} /></strong></p></section>
+        <section className="order-general__goods"><h4><StaticText source="Ware (Auftrag)" /></h4><p>{shipment.goodsDescription || <OrderMissingValue />}</p><p className="order-general__hazardous"><StaticText source="Gefahrgut (Auftrag)" />: <strong>{typeof shipment.hazardousGoods === 'boolean' ? <StaticText source={shipment.hazardousGoods ? 'Ja' : 'Nein'} /> : <OrderMissingValue />}</strong></p></section>
       </div>
       {distanceGroups.length > 0 && <OrderDistanceData groups={distanceGroups} number={number} />}
     </div>

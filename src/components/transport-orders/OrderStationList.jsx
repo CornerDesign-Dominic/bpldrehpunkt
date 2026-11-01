@@ -2,6 +2,7 @@ import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { transportOrderStopSchedule, transportOrderWorkspaceStops } from '../../lib/transportOrderWorkspacePresentation.js'
 import { orderStationAddressAttention } from '../../lib/orderStationAttention.js'
+import OrderMissingValue from './OrderMissingValue.jsx'
 
 function StationCard({ title, attention = false, className = '', children }) {
   return <section className={`order-station__card${attention ? ' order-station__card--attention' : ''} ${className}`}>
@@ -16,8 +17,8 @@ function StationAddress({ stop }) {
     [address.postalCode, address.city].filter(Boolean).join(' '),
     address.country,
   ].filter(Boolean)
-  if (stop.legacy) return <address className="order-station__address">{stop.originalText || stop.city || <StaticText source="Keine Adresse übermittelt." />}</address>
-  if (!address.company && !lines.length) return <p className="order-workspace__muted"><StaticText source="Keine Adresse übermittelt." /></p>
+  if (stop.legacy) return <address className="order-station__address">{stop.originalText || stop.city || <OrderMissingValue />}</address>
+  if (!address.company && !lines.length) return <p><OrderMissingValue /></p>
   return <address className="order-station__address">
     {address.company && <strong>{address.company}</strong>}
     {lines.map((line, index) => <span key={index}>{line}</span>)}
@@ -28,13 +29,13 @@ function StationSchedule({ stop }) {
   const { language } = useLanguage()
   const schedule = transportOrderStopSchedule(stop, language)
   return <StationCard title="Termin" attention={stop.fixedAppointment === true} className="order-station__schedule">
-    <div className="order-station__appointment"><p className="order-station__date">{schedule.date}</p><p className="order-station__time">{schedule.time}{stop.fixedAppointment === true && <>{' - '}<span className="order-station__fix-label">FIX</span></>}</p></div>
+    <div className="order-station__appointment"><p className="order-station__date">{schedule.date === '—' ? <OrderMissingValue /> : schedule.date}</p><p className="order-station__time">{schedule.time === '—' ? <OrderMissingValue /> : schedule.time}{stop.fixedAppointment === true && <>{' - '}<span className="order-station__fix-label">FIX</span></>}</p></div>
     {stop.slotUntilTime && !stop.window?.until && <p className="order-station__unresolved-time"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
   </StationCard>
 }
 
 function StationNote({ note }) {
-  if (!note) return <span className="order-workspace__muted"><StaticText source="Keine Bemerkung übermittelt." /></span>
+  if (!note) return <OrderMissingValue />
   // Highlight the source wording without deriving or changing the appointment flag.
   return note.split(/(\bFIX\b)/gi).map((part, index) => part.toUpperCase() === 'FIX'
     ? <span className="order-station__fix-label" key={index}>{part}</span> : part)
@@ -42,15 +43,13 @@ function StationNote({ note }) {
 
 function StationCargo({ stop, number }) {
   const entries = [['Gewicht', stop.cargo?.weightKg, 'kg'], ['Kolli', stop.cargo?.packages, ''], ['Lademeter', stop.cargo?.loadingMeters, 'm']]
-  const hasCargo = entries.some(([, value]) => Number.isFinite(value))
   return <StationCard title="Ware & Mengen" className="order-station__cargo">
     {stop.cargo?.description && <p className="order-station__description">{stop.cargo.description}</p>}
     <dl>{entries.map(([label, value, unit]) => <div key={label}>
       <dt><StaticText source={label} /></dt>
-      <dd>{Number.isFinite(value) ? <>{number(value)}{unit && <small> {unit}</small>}</> : <span className="order-station__missing"><StaticText source="Nicht übermittelt" /></span>}</dd>
+      <dd>{Number.isFinite(value) ? <>{number(value)}{unit && <small> {unit}</small>}</> : <OrderMissingValue />}</dd>
     </div>)}</dl>
-    {Number.isFinite(stop.cargo?.volumetricWeightKg) && <div className="order-station__volume-weight"><p><StaticText source="Volumengewicht (DyCoS)" />: <strong>{number(stop.cargo.volumetricWeightKg)} kg</strong></p><p className="order-workspace__muted"><StaticText source="Zusätzlicher Quellwert; Berechnungsgrundlage nicht übermittelt." /></p></div>}
-    {!hasCargo && <p className="order-workspace__muted"><StaticText source="Keine Warenangaben übermittelt." /></p>}
+    {Number.isFinite(stop.cargo?.volumetricWeightKg) && <div className="order-station__volume-weight"><p><StaticText source="Volumengewicht (DyCoS)" />: <strong>{number(stop.cargo.volumetricWeightKg)} kg</strong></p></div>}
   </StationCard>
 }
 
@@ -68,13 +67,13 @@ export default function OrderStationList({ imported, number }) {
           <StationAddress stop={stop} />
         </StationCard>
         <StationSchedule stop={stop} />
-        <StationCard title="Referenz" className="order-station__reference"><p>{stop.deliveryInformation || <span className="order-workspace__muted"><StaticText source="Nicht übermittelt" /></span>}</p></StationCard>
+        <StationCard title="Referenz" className="order-station__reference"><p>{stop.deliveryInformation || <OrderMissingValue />}</p></StationCard>
       </div>
       <div className="order-station__goods">
         <h4 className="order-station__heading"><StaticText source="Hinweis & Ware" /></h4>
         <StationCard title="Bemerkung" className="order-station__instructions"><p><StationNote note={stop.note} /></p></StationCard>
         <StationCargo stop={stop} number={number} />
-        <StationCard title="Palettentausch" attention={stop.palletExchange === true} className="order-station__pallet"><p className="order-station__pallet-value"><StaticText source={stop.palletExchange === true ? 'Ja' : stop.palletExchange === false ? 'Nein' : 'Nicht übermittelt'} /></p></StationCard>
+        <StationCard title="Palettentausch" attention={stop.palletExchange === true} className="order-station__pallet"><p className="order-station__pallet-value">{typeof stop.palletExchange === 'boolean' ? <StaticText source={stop.palletExchange ? 'Ja' : 'Nein'} /> : <OrderMissingValue />}</p></StationCard>
         {stop.deliveryNoteNumber && <StationCard title="Lieferscheinnummer"><p>{stop.deliveryNoteNumber}</p></StationCard>}
       </div>
     </div>

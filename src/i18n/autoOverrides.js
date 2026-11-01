@@ -34,7 +34,6 @@ export const autoOverrides = {
   "Die Suche wurde unterbrochen. Bitte erneut versuchen.": "The search was interrupted. Please try again.",
   "Keine Berechtigung für Sammelimporte.": "No permission for bulk imports.",
   'Volumengewicht (DyCoS)': 'Volumetric weight (DyCoS)',
-  'Zusätzlicher Quellwert; Berechnungsgrundlage nicht übermittelt.': 'Additional source value; calculation basis not provided.',
   'Neutrale Abholung': 'Neutral collection',
   'Neutrale Anlieferung': 'Neutral delivery',
   'Keine Bemerkung übermittelt.': 'No remarks provided.',
