@@ -28,7 +28,7 @@ export default function DycosPartnerFetchForm({ onImported }) {
     try {
       const response = await fetchDycosMasterData(attempt.current)
       if (!Object.hasOwn(messages, response?.status) || !response.partnerId || response.typ !== typ || response.nummer !== number) throw new Error('Unexpected import response')
-      setResult(response); attempt.current = null
+      setResult(response); setNummer(''); attempt.current = null
       onImported?.(response)
     } catch (caught) { setError(dycosMasterDataError(caught)) }
     finally { submitting.current = false; setPending(false) }

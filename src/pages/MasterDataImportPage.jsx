@@ -47,7 +47,7 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
   const [notice, setNotice] = useState('')
   const [modal, setModal] = useState(null)
   const [savingReview, setSavingReview] = useState(false)
-  const allowed = canEdit('dataImports') && canEdit('masterData')
+  const allowed = canEdit('masterData') && (!showingResults || canEdit('dataImports'))
 
   async function refresh(runId = selectedRunId) {
     if (!allowed) return
@@ -127,7 +127,7 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
     <div className="import-page__heading"><h2>{<StaticText source={showingResults ? `${subject}: Prüfungen & Importverlauf` : 'Stammdaten importieren'} />}</h2><p><StaticText source={showingResults ? "Bisherige Importe und offene Prüfungen bleiben hier verfügbar." : "Kunden und Unternehmer über ihre Debitoren- oder Kreditornummer direkt aus DyCoS übernehmen."} /></p></div>
     {!showingResults && <>
       <DycosPartnerFetchForm />
-      <div className="masterdata-import-actions"><Link className="masterdata-import-actions__history" to={`${importPath(kind)}?view=results`}><StaticText source="Prüfungen & Importverlauf anzeigen" /></Link></div>
+      {canEdit('dataImports') && <div className="masterdata-import-actions"><Link className="masterdata-import-actions__history" to={`${importPath(kind)}?view=results`}><StaticText source="Prüfungen & Importverlauf anzeigen" /></Link></div>}
     </>}
     {showingResults && <>
     <p className="masterdata-import-switch"><Link to={`${importPath(carrier ? 'customer' : 'carrier')}?view=results`} onClick={() => setLoading(true)}>{<StaticText source={carrier ? 'Kundenprüfungen und -verlauf anzeigen' : 'Unternehmerprüfungen und -verlauf anzeigen'} />}</Link></p>

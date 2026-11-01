@@ -1,5 +1,19 @@
 # Dev-Veröffentlichung: Sammelimport und zentrale Stammdatenübernahme
 
+## Partnerliste und separater Import-Tab (lokal, 01.11.2026)
+
+Die Partnerliste bietet oben rechts nur „Stammdaten importieren“. Der Link
+öffnet `/kunden-unternehmer/import` in einem neuen Tab. Der direkte Abruf und
+„Geschäftspartner anlegen“ entfallen auf der Liste. Im Import-Tab werden Kunde
+oder Unternehmer und die jeweilige Kontonummer angegeben. Nach erfolgreicher
+Übernahme wird das Nummernfeld geleert; Ergebnis und Stammdatenblatt-Link bleiben
+sichtbar. Der Tab kann während des Abrufs im Hintergrund geöffnet bleiben.
+
+Für den Einzelabruf reichen weiterhin Stammdaten-Bearbeitungsrechte wie beim
+bisherigen direkten Abruf. Prüfungen und Importverlauf benötigen zusätzlich
+Datenimport-Bearbeitungsrechte. Bestehende Daten-, Konflikt- und Historieregeln
+bleiben unverändert; keine Änderung am Flow oder an Serverfunktionen erforderlich.
+
 Freigabe am 30.10.2026 durch den Nutzer ausschließlich für Dev. Zielprojekt:
 `db-bpl-drehpunkt-dev`; Oberfläche: `https://dev.drehpunktlogistik.de`.
 Main-Baseline: `230c2ad86af9700118e2f1456746292241461efc`.

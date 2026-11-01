@@ -108,7 +108,7 @@ export default function App() {
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
         <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
-        <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="masterData" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/import/unternehmer" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage kind="carrier" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/stammdaten/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
