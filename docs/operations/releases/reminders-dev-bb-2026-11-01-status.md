@@ -51,3 +51,31 @@ Regulär verbrauchte Dev-Jahresfallnummern werden nicht zurückgedreht.
 Ausgangszustand: 187 Dev-Functions, null Erinnerungsarbeitsaufträge und null
 fachliche Versandbelege. Regulärer Scheduler aktiv, globale Mailpause aus
 (Pause-Dokument fehlt). Vorher-/Nachher-Metadaten bleiben lokal ohne Secretwerte.
+
+## Während der realen Abnahme bestätigter Robustheitsbefund
+
+Die Schadenfrist um 14:00 Uhr wurde vom Provider zugestellt, ihre Bestätigung
+überschritt aber das bisherige Zehn-Sekunden-Limit: Reservierung 13:00:04.590 UTC,
+lokaler Abbruchbeleg 13:00:14.817 UTC, `uncertain/provider-outcome-unknown`.
+Keine erneute Zustellung ausgelöst. Dieselbe Versand-ID
+`c591221dbb6c97cbc45e0c62236eb4b076e9b7987ce09056612a73cf5d596b4b`
+ist in der Dev-Versandliste `accepted`; die synthetische Schadenmail ist im
+BB-Postfach um 14:00 Uhr sichtbar. Diese Bestätigungsverzögerung darf nicht als
+fehlgeschlagene oder automatisch zu wiederholende Zustellung behandelt werden.
+
+Der Adapter erhält deshalb maximal 25 statt zehn Sekunden für Anmeldung und
+Bestätigung, weiterhin begrenzt durch die verbleibende Fälligkeitsminute. Keine
+neue Wiederholung und keine Verlängerung über diese Minute hinaus. 16 aktuelle
+Unit-/Adaptertests bestanden, darunter drei deterministische Zeitprüfungen:
+13 Sekunden mit Anmeldung und verspäteter Bestätigung erfolgreich; selbst ein
+zu großes Override bleibt bei 25 Sekunden begrenzt; bei Beginn um Sekunde 56
+läuft die harte Frist trotz zweisekündiger Anmeldung nach insgesamt vier
+Sekunden ab. Das bestehende Workerbudget und seine Durchsatzgrenze bleiben
+erhalten. Nur der Dev-Scheduler muss für diese Korrektur erneut bereitgestellt
+werden; Produktion wird nicht aktualisiert.
+
+Separater Nebenbefund: Die TA-Auswahl filtert auch ohne gesetzten Datumsfilter
+Aufträge ohne `imported.loading.window.from` aus
+(`functions/transportOrderList.js`, `loadingStartMatches`). Für den synthetischen
+Gerichts-Testauftrag wurde ein zukünftiges Ladedatum ergänzt. Der allgemeine
+Such-/Datumsvertrag wurde in dieser Erinnerungsabnahme nicht verändert.

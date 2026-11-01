@@ -334,7 +334,7 @@ export async function sendReminderMail({ recipient, templateId = 'central_remind
   render = async (input) => renderTemplate(await loadTemplate('central_reminder'), input),
   fetchImpl = fetch,
   now = () => new Date(),
-  timeoutMs = 10000,
+  timeoutMs = 25000,
 } = {}) {
   if (!['production', 'development'].includes(environment)) return { status: 'blocked', reason: 'unsupported-environment' }
   const recipientPolicy = reminderRecipientPolicy(recipient, environment)
@@ -362,7 +362,10 @@ export async function sendReminderMail({ recipient, templateId = 'central_remind
   if (reminderMinuteState(dueAt, clock) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
   const remaining = new Date(dueAt).getTime() + 60000 - clock.getTime()
   const abort = new AbortController()
-  const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(10000, timeoutMs, remaining)))
+  // Allow a slower provider acknowledgement, including authentication time,
+  // without waiting beyond this source's exact delivery minute. Abort remains
+  // uncertain after HTTP; no retry or second provider attempt is introduced.
+  const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(25000, timeoutMs, remaining)))
   try {
     let authorization
     try { authorization = await authorize({ signal: abort.signal }) }

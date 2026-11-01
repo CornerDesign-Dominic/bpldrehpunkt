@@ -95,6 +95,12 @@ Nach der Anmeldung werden aktuelle Zuständigkeit, Mailpause und Fälligkeitsmin
 erneut vor dem Versand geprüft. Die Cloud-Identitäten und konkreten
 Aufruferbindungen wurden getrennt eingerichtet und tatsächlich geprüft;
 Details stehen in der [Mailflow-Vorbereitung](reminder-mailflow-preparation.md).
+Die gemeinsame Wartezeit für Dienstanmeldung und Providerbestätigung beträgt
+höchstens 25 Sekunden, zusätzlich hart begrenzt durch den Rest der jeweiligen
+Fälligkeitsminute. Eine spätere oder verlorene Bestätigung erzeugt keinen
+automatischen Wiederholungsversand. Das 45-Sekunden-Workerbudget wird zwischen
+Quelljobs geprüft; langsame Providerantworten können den Durchsatz einer
+Versandminute begrenzen. Eine größere Spitzenlast ist gesondert zu prüfen.
 Die bisherigen Fall-/To-do-Fristvorlagen bleiben im
 Katalog erhalten; der neue Dienst verwendet sie nicht mehr. Bestehende
 individuelle Formulierungen müssen bei einer späteren Umstellung bewusst in
