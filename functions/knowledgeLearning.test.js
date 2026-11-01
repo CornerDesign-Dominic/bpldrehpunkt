@@ -7,7 +7,7 @@ const actor = { uid: 'editor' }
 const profile = { active: true, role: 'user', firstName: 'Anna', permissions: { handbook: 'edit', knowledgeGaps: 'edit' } }
 const sourceCase = { gapId: 'group', incomingText: 'Kunde fragt nach dem Lieferstatus.', latestSuggestion: 'Wir prüfen den Lieferstatus.', sendStatus: 'draft', caseRevision: 1, learnedRevision: 0, sourceArticleId: 'original', sourceRevision: 2 }
 const article = { title: 'Lieferstatus', process: 'Transport', topic: '', tags: '', situation: 'Statusanfrage', checks: '', action: 'Status prüfen.', cautions: '', responseTemplate: '', followUp: '', owner: 'Team', status: 'valid', lastReviewedDate: '2026-10-01', nextReviewDate: '2026-12-01', ruleIds: [], revision: 3 }
-const proposed = { proposal: Object.fromEntries(['title', 'process', 'topic', 'tags', 'situation', 'checks', 'action', 'cautions', 'responseTemplate', 'followUp'].map(key => [key, article[key] || ''])), insights: { variants: 'Kunde oder Unternehmer prüfen.', conflicts: '', openQuestions: 'Ist die Antwort tatsächlich erfolgreich?' } }
+const proposed = { proposal: { ...Object.fromEntries(['title', 'process', 'topic', 'tags', 'situation', 'checks', 'action', 'cautions', 'responseTemplate', 'followUp'].map(key => [key, article[key] || ''])), action: 'Status prüfen und Rückmeldung dokumentieren.' }, insights: { variants: 'Kunde oder Unternehmer prüfen.', conflicts: '', openQuestions: 'Ist die Antwort tatsächlich erfolgreich?' } }
 const input = (patch = {}) => normalizeLearningInput({ runId: 'run', gapId: 'group', caseIds: [{ id: 'case', caseRevision: 1 }], ...patch })
 function fakeDb(initial = {}) {
   const records = new Map(Object.entries({ 'users/editor': profile, 'knowledgeGapEvidence/case': sourceCase, 'knowledgeArticles/article': article, ...initial }))
@@ -174,4 +174,57 @@ test('proposal validation and the AI request protect boundaries and use content-
   assert.match(requestBody.instructions, /Versand.*beweist weder Richtigkeit/)
   assert.match(requestBody.instructions, /Widersprüche/)
   assert.match(requestBody.instructions, /Nichts senden/)
+  assert.match(requestBody.instructions, /wortgetreu/)
+  assert.match(requestBody.instructions, /Keine neuen Erkenntnisse/)
+})
+
+test('base article is a stable bounded snapshot and public cached runs expose comparison and apply context', async () => {
+  const db = fakeDb({ 'knowledgeArticles/article': { ...article, arbitraryPrivateField: 'must not be copied', updatedByName: 'Original author' } })
+  const result = await learnSelectedKnowledgeCases(db, input({ targetArticleId: 'article', expectedArticleRevision: 3 }), actor, { generate: async () => proposed })
+  assert.equal(result.baseArticle.id, 'article')
+  assert.equal(result.baseArticle.revision, 3)
+  assert.equal(result.baseArticle.action, article.action)
+  assert.equal(result.baseArticle.updatedByName, 'Original author')
+  assert.equal(result.baseArticle.owner, 'Team')
+  assert.equal(result.baseArticle.arbitraryPrivateField, undefined)
+  assert.equal(result.gapId, 'group')
+  assert.equal(result.hasChanges, true)
+  const changed = { ...article, action: 'Concurrent edit', revision: 4 }
+  db.records.set('knowledgeArticles/article', changed)
+  const cached = await learnSelectedKnowledgeCases(db, input({ targetArticleId: 'article', expectedArticleRevision: 3 }), actor, { generate: async () => { throw new Error('must not regenerate') } })
+  assert.equal(cached.baseArticle.action, article.action)
+  assert.equal(cached.baseArticle.revision, 3)
+  await assert.rejects(applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), { code: 'aborted' })
+})
+
+test('identical normalized text is server-detected and applying it avoids an artificial article revision', async () => {
+  const previous = { ...article, action: 'Erste Zeile\r\nZweite Zeile', updatedAt: 'original-time', updatedByName: 'Original author' }
+  const unchanged = { proposal: { ...proposed.proposal, action: ' Erste Zeile\nZweite Zeile ' }, insights: { variants: '', conflicts: '', openQuestions: 'Keine neuen Erkenntnisse.' }, hasChanges: true }
+  const validated = validateLearningProposal(unchanged, previous)
+  assert.equal(validated.hasChanges, false)
+  assert.equal(validated.noChanges, true)
+  const db = fakeDb({ 'knowledgeArticles/article': previous })
+  const result = await learnSelectedKnowledgeCases(db, input({ targetArticleId: 'article', expectedArticleRevision: 3 }), actor, { generate: async () => unchanged })
+  assert.equal(result.hasChanges, false)
+  assert.equal(result.baseArticle.action, previous.action)
+  const applied = await applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor)
+  assert.equal(applied.noChanges, true)
+  assert.equal(applied.revision, 3)
+  assert.equal(db.records.get('knowledgeArticles/article'), previous)
+  assert.equal(db.records.has('knowledgeArticles/article/revisions/4'), false)
+  assert.equal(db.records.get('knowledgeGapEvidence/case').gapId, 'article-article')
+  assert.equal(db.records.get('knowledgeGapEvidence/case').caseRevision, db.records.get('knowledgeGapEvidence/case').learnedRevision)
+  assert.deepEqual(await applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), applied)
+  const cached = await learnSelectedKnowledgeCases(db, input({ targetArticleId: 'article', expectedArticleRevision: 3 }), actor)
+  assert.deepEqual(cached.appliedResult, { id: 'article', revision: 3, targetGapId: 'article-article', noChanges: true })
+})
+
+test('human metadata edits still write when the generated article text had no changes', async () => {
+  const unchanged = { proposal: { ...proposed.proposal, action: article.action }, insights: proposed.insights }
+  const db = fakeDb()
+  await learnSelectedKnowledgeCases(db, input({ targetArticleId: 'article', expectedArticleRevision: 3 }), actor, { generate: async () => unchanged })
+  const result = await applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1, values: { owner: 'New team' } }, actor)
+  assert.equal(result.noChanges, false)
+  assert.equal(result.revision, 4)
+  assert.equal(db.records.get('knowledgeArticles/article').owner, 'New team')
 })

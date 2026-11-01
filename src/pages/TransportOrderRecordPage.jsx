@@ -24,8 +24,8 @@ function Record() {
     setParams(next, { replace: true, state: location.state })
   }
   const labels = language === 'en'
-    ? ['Overview', 'Order', 'Customer & carrier', 'Finances', 'Shipment tracking', 'History']
-    : ['Übersicht', 'Auftrag', 'Kunde & UTN', 'Finanzen', 'Sendungsverfolgung', 'Historie']
+    ? ['Overview', 'Order', 'Shipment tracking', 'Customer & carrier', 'Finances', 'History']
+    : ['Übersicht', 'Auftrag', 'Sendungsverfolgung', 'Kunde & UTN', 'Finanzen', 'Historie']
   return <div className="order-record">
     <div className="order-workspace__tabs order-record__tabs"><div className="order-record__section-tabs" role="tablist" aria-label={language === 'en' ? 'Order sections' : 'Auftragsbereiche'}>{orderRecordTabs.map((tab, index) => <button key={tab} type="button" role="tab" id={`order-tab-${tab}`} aria-controls={`order-panel-${tab}`} aria-selected={active === tab} tabIndex={active === tab ? 0 : -1} onClick={() => select(tab)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
@@ -34,7 +34,7 @@ function Record() {
       select(orderRecordTabs[target]); document.getElementById(`order-tab-${orderRecordTabs[target]}`)?.focus()
     }}>{labels[index]}</button>)}</div><button type="button" aria-haspopup="dialog" onClick={() => setMailsOpen(true)}>{language === 'en' ? 'Assigned emails' : 'Zugeordnete Mails'}</button><div className="order-record__refresh" ref={setRefreshControlsTarget} /></div>
     <Suspense fallback={<p className="page-state">{language === 'en' ? 'Loading …' : 'Wird geladen …'}</p>}>
-      {opened.tracking && <div hidden={active !== 'tracking'} id="order-panel-tracking" role="tabpanel" aria-labelledby="order-tab-tracking"><Tracking active={active === 'tracking'} mailsOpen={mailsOpen} onCloseMails={() => setMailsOpen(false)} /></div>}
+      {opened.tracking && <div hidden={active !== 'tracking'} id="order-panel-tracking" role="tabpanel" aria-labelledby="order-tab-tracking"><Tracking active={active === 'tracking'} mailsOpen={mailsOpen} onCloseMails={() => setMailsOpen(false)} refreshControlsTarget={refreshControlsTarget} /></div>}
       {opened.order && <div hidden={active === 'tracking'}><Order active={active !== 'tracking'} showTabs={false} tabOverride={active === 'tracking' ? opened.lastOrderTab : active} refreshControlsTarget={refreshControlsTarget} /></div>}
     </Suspense>
   </div>

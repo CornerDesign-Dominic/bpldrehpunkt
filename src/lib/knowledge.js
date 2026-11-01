@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions, waitForAppCheckToken } from './firebase.js'
 import { reportTechnicalFailure } from './diagnostics.js'
@@ -41,6 +41,16 @@ export const listKnowledgeCases = () => operation('load', async () => {
   const result = await getDocs(collection(db, 'knowledgeGapEvidence'))
   return result.docs.map((item) => ({ ...item.data(), id: item.id }))
 }, undefined, 'knowledgeGaps')
+
+function watchKnowledgeCollection(path, onNext, onError, module) {
+  return onSnapshot(collection(db, path), (snapshot) => onNext(snapshot.docs.map((item) => ({ ...item.data(), id: item.id }))), (error) => {
+    void reportTechnicalFailure({ module, stage: 'load', error })
+    onError(error)
+  })
+}
+export const watchKnowledge = (kind, onNext, onError) => watchKnowledgeCollection(paths[kind], onNext, onError, kind === 'gap' ? 'knowledgeGaps' : 'handbook')
+export const watchKnowledgeCases = (onNext, onError) => watchKnowledgeCollection('knowledgeGapEvidence', onNext, onError, 'knowledgeGaps')
+export const watchKnowledgeLearningRuns = (onNext, onError) => watchKnowledgeCollection('knowledgeLearningRuns', onNext, onError, 'knowledgeGaps')
 
 export const listKnowledgeLearningRuns = (gapId) => operation('load', async () => {
   const result = await getDocs(query(collection(db, 'knowledgeLearningRuns'), where('gapId', '==', gapId)))

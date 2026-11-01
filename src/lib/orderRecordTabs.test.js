@@ -7,7 +7,7 @@ test('the two lists enter the same record at their intended tab', () => {
   assert.equal(orderRecordPath('dycos-123', 'tracking'), '/transportauftraege/dycos-123?tab=tracking')
   assert.equal(orderRecordTab('invalid'), 'overview')
   assert.equal(orderRecordTab(null), 'overview')
-  assert.deepEqual(orderRecordTabs, ['overview', 'transport', 'partners', 'finance', 'tracking', 'history'])
+  assert.deepEqual(orderRecordTabs, ['overview', 'transport', 'tracking', 'partners', 'finance', 'history'])
 })
 
 test('legacy tracking addresses preserve identity and deep-link data while selecting tracking', () => {

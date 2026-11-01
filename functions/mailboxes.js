@@ -525,6 +525,29 @@ export function createMailboxHandlers(deps = {}) {
       const originalPdf = await orderPdf(context, await accessToken(context), id(request.data?.messageId), id(request.data?.originalAttachmentId))
       return (deps.exportOrderCapture || exportMailboxOrderCapture)({ db: db(), context, data: request.data, originalPdf, now: now(), companyCurrency: deps.companyCurrency ?? mailboxOrderCompanyCurrency.value() })
     }),
+    // Resolve a shared inbox to its mailbox-owned folder ID, so aliases and
+    // different delegates cannot create separate recommendation scopes.
+    async resolveRecommendationMailboxIdentity(connectionId) {
+      const saved = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
+      const context = await owned({ auth: { uid: saved?.ownerId }, data: { connectionId } })
+      const folder = await graph(await accessToken(context), `${mailboxPath(context)}/mailFolders/inbox?$select=id`)
+      if (typeof folder.id !== 'string' || !folder.id || folder.id.length > 2048) fail('failed-precondition', 'Microsoft-Postfachidentität fehlt.')
+      await db().runTransaction(async tx => {
+        const current = (await tx.get(context.ref)).data()
+        if (current?.status !== 'connected' || current.ownerId !== context.uid || current.graphUserId !== context.connection.graphUserId) fail('aborted', 'Postfachverbindung wurde geändert.')
+        tx.update(context.ref, { canonicalMailboxId: folder.id })
+      })
+      return folder.id
+    },
+    // Internal scheduler adapter, deliberately not exposed as a callable.
+    async readRecommendationInbox({ connectionId, since, cursor }) {
+      const saved = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
+      const context = await owned({ auth: { uid: saved?.ownerId }, data: { connectionId } })
+      const query = new URLSearchParams({ '$top': '10', '$select': 'id,subject,body,receivedDateTime', '$orderby': 'receivedDateTime asc', '$filter': `receivedDateTime ge ${new Date(since).toISOString()}` })
+      const path = cursor ? mailboxMessagePagePath(`${GRAPH}${cursor}`, context.connection) : `${mailboxPath(context)}/mailFolders/inbox/messages?${query}`
+      const result = await graph(await accessToken(context), path)
+      return { messages: result.value || [], nextPath: result['@odata.nextLink'] ? mailboxMessagePagePath(result['@odata.nextLink'], context.connection) : null }
+    },
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
       const rawSearch = request.data.search ?? ''
@@ -793,6 +816,8 @@ export const applyMailboxTrackingHandler = handlers.applyMailboxTracking
 export const previewMailboxOrderHandler = handlers.previewMailboxOrder
 export const exportMailboxOrderHandler = handlers.exportMailboxOrder
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
+export const readRecommendationInboxHandler = handlers.readRecommendationInbox
+export const resolveRecommendationMailboxIdentityHandler = handlers.resolveRecommendationMailboxIdentity
 export const listMailboxRepliesHandler = handlers.listMailboxReplies
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment

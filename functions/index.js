@@ -1,3 +1,4 @@
+import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, enqueueMailboxRecommendationsHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
 import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
@@ -171,6 +172,13 @@ export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
 const mailboxActionOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, timeoutSeconds: 120, maxInstances: 3 }
+export const getMailboxRecommendationSettings = onCall(mailboxOptions, getMailboxRecommendationSettingsHandler)
+export const setMailboxRecommendationSettings = onCall(mailboxOptions, setMailboxRecommendationSettingsHandler)
+export const listManagedMailboxRecommendations = onCall(mailboxOptions, listManagedMailboxRecommendationsHandler)
+export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
+export const enqueueMailboxRecommendations = onSchedule({ region: 'europe-west3', schedule: 'every 5 minutes', timeoutSeconds: 120, maxInstances: 1 }, enqueueMailboxRecommendationsHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 540, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)
 export const listMailboxActions = onCall(mailboxActionOptions, listMailboxActionsHandler)

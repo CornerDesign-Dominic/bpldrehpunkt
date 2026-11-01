@@ -1,4 +1,4 @@
-export const orderRecordTabs = ['overview', 'transport', 'partners', 'finance', 'tracking', 'history']
+export const orderRecordTabs = ['overview', 'transport', 'tracking', 'partners', 'finance', 'history']
 
 export function orderRecordTab(value) {
   return orderRecordTabs.includes(value) ? value : 'overview'
