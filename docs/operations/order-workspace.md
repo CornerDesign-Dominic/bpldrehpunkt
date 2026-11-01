@@ -159,7 +159,8 @@ Gewicht, Kolli und Lademeter stehen je Station im eigenen Warenblock. Tatsächli
 Nullwerte bleiben sichtbar; fehlende Stationswerte werden nicht aus dem Auftrag
 ersetzt. Die Stations-Warenbeschreibung und ein eigenes Volumengewicht laut
 DyCoS sind ergänzt. Volumengewicht ersetzt weder tatsächliches Gewicht noch
-Auftragstotal und nennt die fehlende Berechnungsgrundlage. Mehrzeilige Hinweise
+Auftragstotal. Der zusätzliche Hinweis zur fehlenden Berechnungsgrundlage entfällt
+auf Nutzerwunsch; der Volumengewichtswert bleibt sichtbar. Mehrzeilige Hinweise
 mit Maßangaben bleiben vollständig in der Bemerkung. Das Feld `Masse` ist noch
 nicht als strukturierte Abmessung bestätigt; es werden keine Einheiten ergänzt
 oder Werte aus Texten herausgerechnet. Die Übersicht behält ihre kompakte

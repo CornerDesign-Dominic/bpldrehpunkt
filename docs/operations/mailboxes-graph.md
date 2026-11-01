@@ -1,5 +1,11 @@
 # Persönliche Postfächer über Microsoft Graph
 
+Für automatische Handlungsempfehlungen gilt die verbindliche
+[Entscheidung vom 01.11.2026: Webhooks ohne Kontrollabfrage](../decisions/mailbox-recommendations-no-polling.md).
+Keine Fünf-/Dreißig-Minuten-Inboxkontrolle oder Nachholsuche wieder einführen,
+solange der Nutzer diese Entscheidung nicht ausdrücklich ändert.
+
+
 Stand: 31.10.2026. Implementierung und Dev-Release; Veröffentlichungsnachweise
 und die noch offene echte Exchange-Abnahme werden unten getrennt beschrieben.
 

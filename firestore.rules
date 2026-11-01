@@ -1496,6 +1496,20 @@ service cloud.firestore {
     match /calendarHolidays/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
     // Mail action jobs/results are private server-managed records. The callables
     // recheck ownership and module permissions, including for superadmins.
+    // Only an owned, connected mailbox may subscribe to this content-free
+    // revision signal. All recommendations and subscription credentials remain
+    // server-only and are fetched through the ownership-checked callable.
+    match /mailboxRecommendationSignals/{connectionId} {
+      function connectedMailbox() {
+        let connection = get(/databases/$(database)/documents/mailboxConnections/$(connectionId)).data;
+        return connection.ownerId == request.auth.uid && connection.status == 'connected'
+          && (connection.kind != 'shared' || (
+            get(/databases/$(database)/documents/mailboxConnections/$(connection.parentConnectionId)).data.ownerId == request.auth.uid
+            && get(/databases/$(database)/documents/mailboxConnections/$(connection.parentConnectionId)).data.status == 'connected'));
+      }
+      allow get: if view('mailboxes') && connectedMailbox();
+      allow list, write: if false;
+    }
     match /mailboxActionRuns/{id} { allow read, write: if false; }
     match /mailboxActionScopes/{scope}/{document=**} { allow read, write: if false; }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }

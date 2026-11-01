@@ -1,4 +1,4 @@
-import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, enqueueMailboxRecommendationsHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
+import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, maintainMailboxRecommendationSubscriptionsHandler, mailboxRecommendationWebhookHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
 import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
@@ -176,8 +176,9 @@ export const getMailboxRecommendationSettings = onCall(mailboxOptions, getMailbo
 export const setMailboxRecommendationSettings = onCall(mailboxOptions, setMailboxRecommendationSettingsHandler)
 export const listManagedMailboxRecommendations = onCall(mailboxOptions, listManagedMailboxRecommendationsHandler)
 export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
-export const enqueueMailboxRecommendations = onSchedule({ region: 'europe-west3', schedule: 'every 5 minutes', timeoutSeconds: 120, maxInstances: 1 }, enqueueMailboxRecommendationsHandler)
-export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 540, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
+export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
 
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)

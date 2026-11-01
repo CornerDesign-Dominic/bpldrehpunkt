@@ -110,8 +110,9 @@ function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
   const [replyError, setReplyError] = useState(false)
   const [replyPartial, setReplyPartial] = useState(false)
   const [replyReload, setReplyReload] = useState(0)
+  const [recommendationReload, setRecommendationReload] = useState(0)
   const replyIds = messages.map(message => message.id).join('\n')
-  const { recommendations, enabled: recommendationsEnabled } = useMailboxRecommendations(connectionId, messages.map(message => message.id), replyReload)
+  const { recommendations, revision: recommendationRevision } = useMailboxRecommendations(connectionId, messages.map(message => message.id), recommendationReload)
   const actionStates = useMailboxActionList(connectionId, messages.map(message => message.id))
   const load = useCallback(async (pageToken) => {
     const version = ++request.current
@@ -123,15 +124,18 @@ function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
       setMessages((current) => pageToken ? [...new Map([...current, ...result.messages].map((item) => [item.id, item])).values()] : result.messages)
       setNext(result.nextPageToken || null)
       setReplyReload(value => value + 1)
+      setRecommendationReload(value => value + 1)
     } catch { if (version === request.current) setError(w('Nachrichten konnten nicht geladen werden.', 'Could not load messages.')) }
     finally { if (version === request.current) setBusy(false) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionId, search])
+  const lastRecommendationRevision = useRef(null)
   useEffect(() => {
-    if (!recommendationsEnabled || search) return
-    const timer = setInterval(() => { if (document.visibilityState === 'visible') void load() }, 60000)
-    return () => clearInterval(timer)
-  }, [recommendationsEnabled, search, load])
+    if (!recommendationRevision || lastRecommendationRevision.current === recommendationRevision) return
+    lastRecommendationRevision.current = recommendationRevision
+    const task = setTimeout(() => { if (!search) void load(); else setRecommendationReload(value => value + 1) }, 0)
+    return () => clearTimeout(task)
+  }, [recommendationRevision, search, load])
   useEffect(() => {
     const task = setTimeout(() => { setMessages([]); setNext(null); void load() }, 0)
     // Invalidate outstanding requests after this inbox unmounts.
