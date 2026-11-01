@@ -183,3 +183,11 @@ Lint, Build, Shared-Abgleich (45 Module) und 8 vorhandene Darstellungs-/Hinweist
 bestanden. Lokale Browserprüfung: kompakte Platzhalter, title und unsichtbarer
 Screenreadertext, englische Erklärung sowie unveränderte 0 kg/0 m/Nein.
 Nur Frontend; keine Backend-, Rules-, Index- oder Datenänderung erforderlich.
+
+## Zusatzhinweis zum Volumengewicht entfernt, 01.11.2026
+
+Auf Nutzerwunsch entfällt „Zusätzlicher Quellwert; Berechnungsgrundlage nicht
+übermittelt.“ unter den Stationswerten. Volumengewicht, Einheit und bisherige
+Anzeige vorhandener Nullwerte bleiben unverändert. Unbenutzte Übersetzung und
+Hinweisstil entfernt. Lint, Build und Shared-Abgleich (45 Module) erfolgreich;
+kein Backend-/Rules-/Indexdeploy erforderlich. Aktuellen Dev-Stand ad72002 erhalten.
