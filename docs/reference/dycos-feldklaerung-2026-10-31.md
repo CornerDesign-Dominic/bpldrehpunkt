@@ -307,3 +307,23 @@ unveränderte übrige Endpunkte. Der aktuelle Dev-Stand einschließlich
 Kostenoptimierungen wurde integriert. Prüfergebnisse und Veröffentlichungsumfang:
 [Dev-Veröffentlichung](../operations/dycos-order-fields-dev-release.md).
 Die früheren lokalen Abnahmen oben bleiben als Entwicklungsschritte erhalten.
+
+## Ergänzung: Fixtermin am 01.11.2026
+
+`dbo.LadeEntladestellen2.Fixtermin` ist ein eigenes Kennzeichen je Zusatzstation.
+In der bereits vorliegenden geschützten Exportablage wurden 19 lesbare
+response-Exporte geprüft, davon 16 mit Zusatzstationszeilen: 34 von 34 Zeilen
+enthalten `Fixtermin` als JSON-boolean (32 false, 2 true). Keine neue externe
+Abfrage und keine Änderung am Flow; keine Rohdaten in Git übernommen.
+
+Der lokale Adapter ordnet über `LadeEntladestellenID` nach
+`stops[].fixedAppointment` zu und übernimmt das Kennzeichen auch in die erste
+Lade- und letzte Entladeprojektion. true/false und numerische 0/1 werden streng
+als boolean angenommen; fehlend/null bleibt unbekannt und wird nicht als false
+ersetzt. Die Zeiten und Bemerkungstexte entscheiden nicht über dieses Flag.
+Die Oberfläche zeigt Ja/Nein bzw. bei alten oder fehlenden Quelldaten
+„Nicht übermittelt“. Bestehende Aufträge benötigen nach der Bereitstellung
+einen erneuten Auftragsabruf. Die ursprüngliche lokale Prüfung umfasste keinen
+Massenimport und kein Deployment.
+
+Der nachfolgend freigegebene Dev-Rollout ist im [Releasebeleg](../operations/releases/order-workspace-dev-2026-11-01-status.md) dokumentiert; die vorherige lokale Prüfung war keine Veröffentlichung.

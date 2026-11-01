@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { latestTransportOrderRefresh, mergeTransportOrderRefreshes, transportOrderResult, transportOrderWorkspaceScope, transportOrderWorkspaceStops } from './transportOrderWorkspacePresentation.js'
+import { latestTransportOrderRefresh, mergeTransportOrderRefreshes, transportOrderResult, transportOrderWorkspaceScope, transportOrderWorkspaceStops, transportOrderStopSchedule } from './transportOrderWorkspacePresentation.js'
+
+test('station schedule keeps both dates overnight and never supplies an absent time boundary', () => {
+  const sameDay = transportOrderStopSchedule({ window: { from: '2026-09-15T07:00', until: '2026-09-15T13:00' } })
+  assert.match(sameDay.date, /15\.09\.2026/)
+  assert.doesNotMatch(sameDay.date, / – /)
+  assert.equal(sameDay.time, '07:00 – 13:00')
+  const overnight = transportOrderStopSchedule({ window: { from: '2026-09-15T23:00', until: '2026-09-16T02:00' } })
+  assert.match(overnight.date, /15\.09\.2026.*16\.09\.2026/)
+  assert.equal(overnight.time, '23:00 – 02:00')
+  assert.equal(transportOrderStopSchedule({ window: { from: '2026-09-15T07:00' } }).time, 'ab 07:00')
+  assert.equal(transportOrderStopSchedule({ window: { until: '2026-09-15T13:00' } }, 'en').time, 'until 13:00')
+  assert.deepEqual(transportOrderStopSchedule({ window: { from: 'invalid' } }), { date: '—', time: '—' })
+})
 
 test('unknown source amounts never become zero profit; real zero values remain valid', () => {
   assert.equal(transportOrderResult({ revenueNet: 0, costNet: 20 }), -20)

@@ -10,6 +10,48 @@ import { transportOrderHistoryRows } from '../src/lib/transportOrderHistoryPrese
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 if (enabled) initializeApp({ projectId: 'demo-drehpunkt-order-fields' })
 
+test('emulator: station fixed appointment persists true, false and missing values without duplicate refresh effects', { skip: !enabled }, async () => {
+  const db = getFirestore(), uid = `fixed-${randomUUID()}`, ta = `2610${String(Date.now()).slice(-5)}`
+  await db.doc(`users/${uid}`).set({ active: true, role: 'user', permissions: { dataImports: 'edit' } })
+  const payload = {
+    auftrag: { ID: 71, Nummer: Number(ta), Ladedatum: '2026-10-01' },
+    ladeEntladestellen: [
+      { ID: 31, AuftragsID: 71, Lade_Entladestelle: 'L', Zeile_In_Auftrag: 1 },
+      { ID: 32, AuftragsID: 71, Lade_Entladestelle: 'E', Zeile_In_Auftrag: 2 },
+    ],
+    LadeEntladestellen2: [{ LadeEntladestellenID: 32, Fixtermin: false }, { LadeEntladestellenID: 31, Fixtermin: true }],
+    kunde: null, tour: null, unternehmerstamm: null, fahrzeugart: null, relation: null,
+    zahlungsbedingungKunde: null, zahlungsbedingungUnternehmer: null,
+    auftragspreise: [], tourkosten: [], fakturaZeilen: [], fakturaKopf: [],
+  }
+  const request = () => ({ auth: { uid }, data: { taNummer: ta, requestId: randomUUID() } })
+  const deps = { db, fetchOrder: async () => structuredClone(payload), report: async () => {} }
+  const created = await fetchDycosTransportOrderHandler(request(), deps)
+  const ref = db.doc(`transportOrders/${created.orderId}`)
+  let saved = (await ref.get()).get('imported')
+  assert.deepEqual(saved.stops.map(stop => stop.fixedAppointment), [true, false])
+  assert.equal(saved.loading.fixedAppointment, true)
+  assert.equal(saved.unloading.fixedAppointment, false)
+  payload.LadeEntladestellen2[1].Fixtermin = false
+  assert.equal((await fetchDycosTransportOrderHandler(request(), deps)).status, 'updated')
+  saved = (await ref.get()).get('imported')
+  assert.equal(saved.loading.fixedAppointment, false)
+  const history = await ref.collection('history').get()
+  assert.ok(history.docs.some(entry => entry.get('field') === 'stops' && entry.get('oldValue')[0].fixedAppointment === true && entry.get('newValue')[0].fixedAppointment === false))
+  const replay = request()
+  assert.equal((await fetchDycosTransportOrderHandler(replay, deps)).status, 'unchanged')
+  assert.equal((await fetchDycosTransportOrderHandler(replay, deps)).status, 'unchanged')
+  assert.equal((await ref.collection('history').get()).size, history.size)
+  payload.LadeEntladestellen2 = []
+  assert.equal((await fetchDycosTransportOrderHandler(request(), deps)).status, 'updated')
+  saved = (await ref.get()).get('imported')
+  assert.deepEqual(saved.stops.map(stop => stop.fixedAppointment), [null, null])
+  assert.equal(saved.loading.fixedAppointment, null)
+  payload.LadeEntladestellen2 = [{ LadeEntladestellenID: 31, Fixtermin: 2 }]
+  await assert.rejects(fetchDycosTransportOrderHandler(request(), deps), { code: 'unavailable' })
+  assert.deepEqual((await ref.get()).get('imported'), saved)
+})
+
 test('emulator: confirmed contact, station and document fields persist, refresh audibly and retain manual data', { skip: !enabled }, async () => {
   const db = getFirestore(), uid = `fields-${randomUUID()}`, ta = `2606${String(Date.now()).slice(-5)}`
   await db.doc(`users/${uid}`).set({ active: true, firstName: 'Test', lastName: 'Import', permissions: { dataImports: 'edit' } })

@@ -2,7 +2,7 @@ import { recordHistoryTime, recordHistoryValue } from './recordHistoryPresentati
 
 const stopFields = [
   ['type', 'Art'], ['address.company', 'Firma'], ['address.street', 'Straße'], ['address.postalCode', 'PLZ'], ['address.city', 'Ort'], ['address.country', 'Land'],
-  ['window.from', 'Von'], ['window.until', 'Bis'], ['slotUntilTime', 'Bis-Uhrzeit'], ['note', 'Bemerkung'], ['deliveryInformation', 'Zustellinformation'], ['deliveryNoteNumber', 'Lieferscheinnummer'],
+  ['window.from', 'Von'], ['window.until', 'Bis'], ['fixedAppointment', 'Fixtermin'], ['slotUntilTime', 'Bis-Uhrzeit'], ['note', 'Bemerkung'], ['deliveryInformation', 'Zustellinformation'], ['deliveryNoteNumber', 'Lieferscheinnummer'],
   ['cargo.weightKg', 'Gewicht'], ['cargo.packages', 'Kolli'], ['cargo.loadingMeters', 'Lademeter'], ['palletExchange', 'Palettentausch'],
 ]
 const positionFields = [['description', 'Leistung'], ['quantity', 'Menge'], ['unit', 'Einheit'], ['unitPriceNet', 'Einzelpreis netto'], ['amountNet', 'Gesamt netto']]

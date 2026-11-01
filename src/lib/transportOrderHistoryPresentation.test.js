@@ -73,3 +73,14 @@ test('invoice cancellation status, original number and date remain separate audi
   assert.equal(transportOrderHistoryValue('2026-10-27', 'de', { path: 'financial.documents.501-1.cancellationDate' }), '27.10.2026')
   assert.equal(transportOrderHistoryValue('customer_invoice_cancellation', 'en', { path: 'financial.documents.502-1.businessType' }), 'Customer invoice cancellation')
 })
+
+
+test('station fixed appointment history keeps unknown, false and true distinct', () => {
+  const before = [{ sourceId: '31', sequence: 1, fixedAppointment: null }]
+  const after = [{ sourceId: '31', sequence: 1, fixedAppointment: false }]
+  const [row] = transportOrderHistoryRows({}, [{ id: 'fixed', field: 'stops', oldValue: before, newValue: after }])
+  assert.equal(row.changes.length, 1)
+  assert.equal(row.changes[0].label, 'Station · 1 · Fixtermin')
+  assert.equal(row.changes[0].oldValue, null)
+  assert.equal(row.changes[0].newValue, false)
+})

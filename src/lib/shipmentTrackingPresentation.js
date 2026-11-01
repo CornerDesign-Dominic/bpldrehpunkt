@@ -143,23 +143,24 @@ function calendarDayDistance(left, right) {
   return Math.abs(Math.round((Date.UTC(right.year, right.month - 1, right.day) - Date.UTC(left.year, left.month - 1, left.day)) / 86400000))
 }
 
-export function formatShipmentTrackingSlot(fromValue, untilValue) {
+export function formatShipmentTrackingSlot(fromValue, untilValue, fixedAppointment = null) {
   const from = berlinParts(fromValue)
   const until = berlinParts(untilValue) || withTimeOnSameDay(from, timeOnlyParts(untilValue))
   if (!from && !until) return 'Sollzeit fehlt'
-  if (from && !until) return hasValue(untilValue) ? `ab ${compactSlotDateTime(from)}` : `FIX\n${compactSlotDateTime(from)}`
-  if (!from && until) return `bis ${compactSlotDateTime(until)}`
+  if (from && !until) return fixedAppointment === true || (fixedAppointment !== false && !hasValue(untilValue)) ? `FIX\n${compactSlotDateTime(from)}` : `ab ${compactSlotDateTime(from)}`
+  if (!from && until) return `${fixedAppointment === true ? 'FIX\n' : ''}bis ${compactSlotDateTime(until)}`
   const sameDay = from.year === until.year && from.month === until.month && from.day === until.day
   const sameTime = from.hour === until.hour && from.minute === until.minute
-  if (sameDay && sameTime) return `FIX\n${compactSlotDateTime(from)}`
-  if (sameDay) return `${compactSlotDateTime(from)}–${until.hour}:${until.minute}`
-  if (from.year === until.year && calendarDayDistance(from, until) <= 7) return `${compactSlotDateTime(from)} – ${compactSlotDateTime(until)}`
+  if (sameDay && sameTime) return `${fixedAppointment === false ? '' : 'FIX\n'}${compactSlotDateTime(from)}`
+  const prefix = fixedAppointment === true ? 'FIX\n' : ''
+  if (sameDay) return `${prefix}${compactSlotDateTime(from)}–${until.hour}:${until.minute}`
+  if (from.year === until.year && calendarDayDistance(from, until) <= 7) return `${prefix}${compactSlotDateTime(from)} – ${compactSlotDateTime(until)}`
   const includeYear = from.year !== until.year
-  return `${expandedSlotDateTime(from, includeYear)} – ${expandedSlotDateTime(until, includeYear)}`
+  return `${prefix}${expandedSlotDateTime(from, includeYear)} – ${expandedSlotDateTime(until, includeYear)}`
 }
 
-function scheduleWindow(from, until) {
-  return { label: formatShipmentTrackingSlot(from, until), dueAt: asDate(until) || asDate(from) }
+function scheduleWindow(from, until, fixedAppointment) {
+  return { label: formatShipmentTrackingSlot(from, until, fixedAppointment), dueAt: asDate(until) || asDate(from) }
 }
 
 function routeDuration(distanceKm) {
@@ -297,8 +298,8 @@ export function shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners
 }
 
 export function shipmentTrackingStations({ tracking, imported, route, customerPolicy, now, events, ratings, ratingPartners } = {}) {
-  const loadingPlan = scheduleWindow(imported?.loading?.window?.from, imported?.loading?.window?.until)
-  const unloadingPlan = scheduleWindow(imported?.unloading?.window?.from, imported?.unloading?.window?.until)
+  const loadingPlan = scheduleWindow(imported?.loading?.window?.from, imported?.loading?.window?.until, imported?.loading?.fixedAppointment)
+  const unloadingPlan = scheduleWindow(imported?.unloading?.window?.from, imported?.unloading?.window?.until, imported?.unloading?.fixedAppointment)
   const routePlan = formatShipmentTrackingRoutePlan(route?.roundedDistanceKm)
   const workflowStates = shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners)
   const rating = shipmentTrackingRatingState(ratings, ratingPartners)

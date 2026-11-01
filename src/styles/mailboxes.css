@@ -66,6 +66,10 @@
 @media (prefers-reduced-motion: reduce) { .mailbox-action-spinner { animation-duration: 2s; } }
 @media (prefers-reduced-motion: reduce) { .mailbox-actions > .mailbox-action { transition: none; } }
 .mail-work-dialog .mail-status-editor { display: block; }
+.mail-work-dialog__workspace { display: flex; flex: 1; min-width: 0; min-height: 0; gap: 14px; }
+.mail-work-dialog__sidebar { flex: 0 0 clamp(190px, 18vw, 270px); }
+.mail-work-dialog__sidebar > * { min-width: 0; }
+.mailbox-reply-dialog.mail-work-dialog--with-sidebar { width: min(1900px, 98vw); }
 .mail-work-dialog__editor-content.has-footer { display: flex; flex-direction: column; gap: 18px; min-height: 100%; }
 .mail-work-dialog__main { flex: 1; min-width: 0; }
 :root[data-theme='dark'] .mail-work-dialog input:is([type=date], [type=time], [type=datetime-local]) { color-scheme: dark; }
@@ -91,6 +95,9 @@
 .mail-work-dialog.is-document-expanded .mail-work-dialog__columns { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .mail-work-dialog.is-document-expanded :is(.mail-work-dialog__divider, .mail-status-editor) { display: none; }
 @media (max-width: 760px) {
+  .mail-work-dialog--with-sidebar .mail-work-dialog__workspace { flex-direction: column; overflow-y: auto; }
+  .mail-work-dialog--with-sidebar .mail-work-dialog__sidebar { flex: 0 0 180px; }
+  .mail-work-dialog--with-sidebar .mail-work-dialog__columns { flex: 0 0 700px; }
   .mail-work-dialog .mail-work-dialog__columns { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, .7fr) minmax(0, 1.3fr); gap: 14px; }
   .mail-work-dialog__divider { display: none; }
   .mail-work-dialog.is-document-expanded .mail-work-dialog__columns { grid-template-rows: minmax(0, 1fr); }

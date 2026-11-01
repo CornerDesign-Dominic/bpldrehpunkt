@@ -72,3 +72,25 @@ test('missing versus empty document list does not create an artificial import ch
   assert.deepEqual(transportOrderImportChanges(before, after), [])
   assert.equal(transportOrderImportFingerprint(before), transportOrderImportFingerprint(after))
 })
+
+test('fixed flags audit false separately from unknown without altering route or time cutoffs', () => {
+  const before = imported({ stops: [{ sourceId: '31' }] })
+  const unknown = structuredClone(before)
+  unknown.stops[0].fixedAppointment = null
+  unknown.loading.fixedAppointment = null
+  assert.equal(transportOrderImportFingerprint(before), transportOrderImportFingerprint(unknown))
+  assert.deepEqual(transportOrderImportChanges(before, unknown), [])
+  const noFixed = structuredClone(unknown)
+  noFixed.stops[0].fixedAppointment = false
+  noFixed.loading.fixedAppointment = false
+  const changes = transportOrderImportChanges(unknown, noFixed)
+  assert.deepEqual(changes.map(change => change.path), ['loading.fixedAppointment', 'stops'])
+  assert.equal(changes[0].oldValue, null)
+  assert.equal(changes[0].newValue, false)
+  assert.equal(changes.some(change => change.routeRelevant || change.scheduleRelevant), false)
+  assert.equal(loadingScheduleMovedEarlier(before, noFixed), false)
+  const fixed = structuredClone(noFixed)
+  fixed.loading.fixedAppointment = true
+  fixed.stops[0].fixedAppointment = true
+  assert.notEqual(transportOrderImportFingerprint(noFixed), transportOrderImportFingerprint(fixed))
+})
