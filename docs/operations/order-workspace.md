@@ -109,15 +109,17 @@ Stammdatenverknüpfungen, Kontakte und Aktualisierungsaktion bleiben verfügbar;
 bei schmalen Ansichten stehen die Partnerkarten untereinander.
 
 Der lokal überarbeitete Reiter „Auftrag“ nutzt die volle Inhaltsbreite ohne
-rechte Verknüpfungsspalte. Oben stehen Fahrzeugtyp und vorhandene Kennzeichen
-in größerer Schrift, daneben die vollständigen allgemeinen Dispositionshinweise.
+rechte Verknüpfungsspalte. Die allgemeinen Auftragsdaten oben nutzen dieselbe
+Abschnittsfarbe und Feldtypografie wie die Stationen, ohne verschachtelte
+Innenrahmen. Fahrzeugtyp und vorhandene Kennzeichen stehen neben den
+vollständigen allgemeinen Dispositionshinweisen und Wareninformationen.
 Tour und übermittelte Auftragsmengen bleiben getrennt erkennbar. Fehlende
 allgemeine Hinweise werden als fehlend angezeigt.
 
 Alle Stationen bleiben untereinander und werden durch dezente horizontale Linien
 getrennt. Je Station gibt es zwei Karten in Farben, Schrift und Abständen der
 Sendungsverfolgung: links Stationstitel, Adresse, Termin und Referenz; rechts
-Bemerkung, Warenbeschreibung, Mengen, Palettentausch und eine vorhandene
+unter „Hinweis & Ware“ Bemerkung, Warenbeschreibung, Mengen, Palettentausch und eine vorhandene
 Lieferscheinnummer. Die Felder haben keine zusätzlichen neutralen Kartenrahmen.
 Eine besondere Hervorhebung begrenzt sich weiterhin auf das betroffene Feld
 Adresse, Termin oder Palettentausch. Die Referenz bleibt auch mit Inhalt neutral.
@@ -129,11 +131,14 @@ Rand und linkem Streifen markiert; ihre Fläche bleibt neutral. Ein bestätigter
 Fixtermin erscheint als „ - FIX“ direkt nach der Uhrzeit. FIX erbt dieselbe
 Schrift, Größe und Stärke wie die Uhrzeit; allein die Farbe ist gelb. Eine
 separate Fixtermin-Ja/Nein-Zeile entfällt. Fehlendes FIX ist keine bestätigte
-Aussage, dass der unbekannte Quellwert false wäre. Die Adresskarte
+Aussage, dass der unbekannte Quellwert false wäre. Das einzelne Wort FIX in
+einer Stationsbemerkung wird ebenfalls gelb dargestellt (Groß-/Kleinschreibung
+bleibt erhalten). Diese reine Textformatierung setzt kein Fixtermin-Kennzeichen
+und verändert keine Daten oder Terminrahmen. Die Adresskarte
 ist ausschließlich bei einem erkannten ausdrücklichen Hinweis auf neutrale
 Abholung beziehungsweise Anlieferung am Rand und linken Streifen gelb markiert
-und nennt diesen Grund. Auch Palettentausch true markiert ausschließlich Rand
-und linken Streifen der eigenen Karte; false/unbekannt bleiben neutral. Die
+und nennt diesen Grund. Palettentausch true markiert Rand und linken Streifen
+des Feldes sowie das Wort „Ja“ gelb; false/unbekannt bleiben neutral. Die
 Darstellung prüft Stationsbemerkung und allgemeine Dispositionsbemerkung auf
 explizite deutsche Formulierungen; bloße Referenzen und andere Texte werden
 nicht durchsucht. Eigene Stationsangaben haben Vorrang vor allgemeinen

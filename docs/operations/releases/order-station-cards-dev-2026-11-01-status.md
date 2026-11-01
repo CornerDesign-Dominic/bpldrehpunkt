@@ -153,3 +153,21 @@ Stationsdarstellung und Hervorhebungen erfolgreich. Lokale Sichtprüfung mit
 kompakten und umfangreichen Beispieldaten, gelben Akzenten ohne Flächenfärbung,
 allen Mengen einschließlich null und einer 545-px-Ansicht ohne horizontalen
 Überlauf. Ausschließlich Frontend; kein Backenddeploy, keine Datenmigration.
+
+## Allgemeine Karte und gelbe Wörter, 01.11.2026
+
+Die rechte Stationskarte heißt unabhängig vom Stationstyp „Hinweis & Ware“.
+Die allgemeinen Auftragsdaten nutzen die Abschnittsfarbe und Feldtypografie
+der Stationskarten, ohne zusätzliche neutrale Innenrahmen; alle vorhandenen
+Fahrzeug-, Waren-, Mengen-, Hinweis- und Streckenwerte bleiben sichtbar.
+Bei Palettentausch true wird zusätzlich das Wort „Ja“ gelb; Nein/unbekannt
+bleiben neutral. FIX hinter der Terminzeit behält seine Schrift und gelbe Farbe.
+Ein einzelnes Wort FIX in der Stationsbemerkung wird ebenfalls gelb dargestellt;
+dies ist nur Textformatierung, ohne Änderung oder Ableitung des DyCoS-Flags.
+
+Aktuellen Dev-Stand `3c322c0` vorher übernommen. Lint, Build, Shared-Abgleich
+(45 Module) und 8 vorhandene Tests zu Stationshinweisen/-darstellung erfolgreich.
+Lokale Browserprüfung mit strukturiertem Fixtermin, Freitext-FIX bei nicht gesetztem
+Flag, Palettentausch true/false, vollständigen Hinweisen und optionalen DyCoS-
+Streckendaten. Gelbe Texte in Light/Dark bestätigt; bei 545 px Inhaltsbreite kein
+horizontaler Überlauf. Keine Backend-/Rules-/Indexänderung oder Datenmigration.

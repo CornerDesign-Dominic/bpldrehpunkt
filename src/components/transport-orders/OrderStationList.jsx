@@ -33,6 +33,13 @@ function StationSchedule({ stop }) {
   </StationCard>
 }
 
+function StationNote({ note }) {
+  if (!note) return <span className="order-workspace__muted"><StaticText source="Keine Bemerkung übermittelt." /></span>
+  // Highlight the source wording without deriving or changing the appointment flag.
+  return note.split(/(\bFIX\b)/gi).map((part, index) => part.toUpperCase() === 'FIX'
+    ? <span className="order-station__fix-label" key={index}>{part}</span> : part)
+}
+
 function StationCargo({ stop, number }) {
   const entries = [['Gewicht', stop.cargo?.weightKg, 'kg'], ['Kolli', stop.cargo?.packages, ''], ['Lademeter', stop.cargo?.loadingMeters, 'm']]
   const hasCargo = entries.some(([, value]) => Number.isFinite(value))
@@ -64,8 +71,8 @@ export default function OrderStationList({ imported, number }) {
         <StationCard title="Referenz" className="order-station__reference"><p>{stop.deliveryInformation || <span className="order-workspace__muted"><StaticText source="Nicht übermittelt" /></span>}</p></StationCard>
       </div>
       <div className="order-station__goods">
-        <h4 className="order-station__heading"><StaticText source={stop.type === 'loading' ? 'Ladehinweise & Ware' : stop.type === 'unloading' ? 'Entladehinweise & Ware' : 'Stationshinweise & Ware'} /></h4>
-        <StationCard title="Bemerkung" className="order-station__instructions"><p>{stop.note || <span className="order-workspace__muted"><StaticText source="Keine Bemerkung übermittelt." /></span>}</p></StationCard>
+        <h4 className="order-station__heading"><StaticText source="Hinweis & Ware" /></h4>
+        <StationCard title="Bemerkung" className="order-station__instructions"><p><StationNote note={stop.note} /></p></StationCard>
         <StationCargo stop={stop} number={number} />
         <StationCard title="Palettentausch" attention={stop.palletExchange === true} className="order-station__pallet"><p className="order-station__pallet-value"><StaticText source={stop.palletExchange === true ? 'Ja' : stop.palletExchange === false ? 'Nein' : 'Nicht übermittelt'} /></p></StationCard>
         {stop.deliveryNoteNumber && <StationCard title="Lieferscheinnummer"><p>{stop.deliveryNoteNumber}</p></StationCard>}
