@@ -19,6 +19,7 @@
 .order-workspace__transport { display:grid; gap:12px; align-items:start; }
 .order-workspace__transport > .order-workspace__card { min-width:0; padding:12px; }
 .order-workspace__transport > .order-workspace__station-card { padding:0; border:0; background:transparent; }
+.order-workspace__transport > .order-workspace__transport-summary { padding:14px; border-color:var(--section-border); background:var(--section-background); }
 .order-workspace__stack { display:grid; gap:16px; min-width:0; }
 .order-workspace__card { border:1px solid var(--border); border-radius:8px; padding:16px; background:var(--content-background); min-width:0; }
 .order-workspace__card h3 { font-size:14px; margin:0 0 12px; }
@@ -62,30 +63,32 @@
 .order-station__reference p, .order-workspace__card .order-station__pallet-value { margin:0; font-size:13px; line-height:1.4; }
 .order-workspace__card .order-station__description { margin:0 0 8px; font-size:14px; font-weight:600; }
 .order-station__pallet-value { font-weight:650; }
+.order-station__pallet.order-station__card--attention .order-station__pallet-value { color:var(--status-warning-text); }
 .order-station__cargo dl { grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; }
 .order-station__cargo dl > div { display:block; }
 .order-station__cargo dd { margin-top:3px; font-size:14px; font-weight:650; line-height:1.4; font-variant-numeric:tabular-nums; }
 .order-station__cargo dd small { font-size:12px; font-weight:500; }
-.order-station__missing { display:block; font-size:12px; font-weight:400; color:var(--text-secondary); }
+.order-field-missing { color:var(--text-muted); font-weight:400; }
 .order-station__volume-weight { margin-top:8px; padding-top:6px; border-top:1px solid var(--border); }
 .order-station__volume-weight > p { font-size:13px; }
 .order-station__volume-weight > p.order-workspace__muted { font-size:12px; }
 .order-station__instructions p { font-size:13px; line-height:1.4; }
-.order-general__vehicle { padding:8px 10px; border:1px solid var(--border); border-radius:5px; background:var(--surface-secondary); }
-.order-workspace__card .order-general__vehicle-type { margin:2px 0 6px; font-size:18px; font-weight:700; line-height:1.3; }
+.order-general__vehicle { min-width:0; }
+.order-workspace__card .order-general__vehicle-type { margin:3px 0 8px; font-size:14px; font-weight:650; line-height:1.4; }
 .order-workspace__card .order-general__plate { font-size:14px; font-weight:600; }
-.order-workspace__card .order-general__tour { margin-top:6px; color:var(--text-secondary); font-size:11px; }
-.order-general__instructions { padding:8px 10px; border:1px solid var(--border); background:var(--surface-secondary); border-radius:5px; }
-.order-workspace__card .order-general__instructions h4 { margin:0 0 5px; font-size:12px; }
+.order-workspace__card .order-general__tour { margin-top:6px; font-size:13px; }
+.order-general__instructions { min-width:0; }
+.order-workspace__card .order-general__instructions h4 { margin:0 0 3px; color:var(--text-muted); font-size:11px; font-weight:700; }
 .order-general__instructions p { font-size:13px; line-height:1.4; }
 .order-general__instructions:not(.order-general__instructions--present) p { color:var(--text-secondary); font-size:12px; }
 .order-workspace__transport-summary dl.order-general__totals { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 16px; margin-top:10px; padding-top:8px; border-top:1px solid var(--border); }
-.order-workspace__card .order-general__totals > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; }
-.order-general__totals dd { margin:0; font-size:14px; font-weight:600; }
+.order-workspace__card .order-general__totals > div { display:block; }
+.order-workspace__card .order-general__totals dt, .order-general__vehicle > .order-station__label { color:var(--text-muted); font-size:11px; font-weight:700; }
+.order-general__totals dd { margin:3px 0 0; font-size:14px; font-weight:650; }
 .order-general__totals small { font-size:12px; font-weight:400; }
 .order-general__information { display:contents; }
-.order-general__goods, .order-general__distances { min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:5px; background:var(--surface-secondary); }
-.order-workspace__card .order-general__goods h4, .order-workspace__card .order-general__distances h4, .order-workspace__card .order-general__vehicle-information h4 { margin:0 0 5px; font-size:12px; }
+.order-general__goods, .order-general__distances { min-width:0; }
+.order-workspace__card .order-general__goods h4, .order-workspace__card .order-general__distances h4, .order-workspace__card .order-general__vehicle-information h4 { margin:0 0 3px; color:var(--text-muted); font-size:11px; font-weight:700; }
 .order-general__goods > p, .order-general__vehicle-information p { font-size:13px; line-height:1.4; }
 .order-general__vehicle-information { margin-top:8px; padding-top:6px; border-top:1px solid var(--border); }
 .order-workspace__card .order-general__hazardous { margin:6px 0 0; padding-top:6px; border-top:1px solid var(--border); font-size:12px; }
