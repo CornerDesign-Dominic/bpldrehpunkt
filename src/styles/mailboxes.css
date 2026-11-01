@@ -66,6 +66,19 @@
 @media (prefers-reduced-motion: reduce) { .mailbox-action-spinner { animation-duration: 2s; } }
 @media (prefers-reduced-motion: reduce) { .mailbox-actions > .mailbox-action { transition: none; } }
 .mail-work-dialog .mail-status-editor { display: block; }
+.mail-work-dialog__editor-content.has-footer { display: flex; flex-direction: column; gap: 18px; min-height: 100%; }
+.mail-work-dialog__main { flex: 1; min-width: 0; }
+:root[data-theme='dark'] .mail-work-dialog input:is([type=date], [type=time], [type=datetime-local]) { color-scheme: dark; }
+.mail-work-dialog__footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
+.mail-work-dialog__footer .mail-work-footer__secondary { margin-left: auto; }
+.mail-work-dialog__footer :is(small, p) { flex-basis: 100%; margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.mailboxes-page .mail-work-footer__primary, .mailboxes-page .mailbox-reply-buttons--send > button:last-child { background: var(--button-background); color: var(--button-text); border-color: var(--button-background); }
+.mailboxes-page .mail-work-footer__primary:hover:not(:disabled), .mailboxes-page .mailbox-reply-buttons--send > button:last-child:hover:not(:disabled) { background: var(--button-hover-background); }
+.mailboxes-page .mail-work-footer__discard { background: transparent; color: var(--text-secondary); }
+.mailboxes-page .mail-work-footer__discard:hover:not(:disabled) { color: var(--status-danger-text); border-color: var(--status-danger-text); background: var(--status-danger-background); }
+.mail-review-files { margin: 4px 0 14px; font-size: 11px; color: var(--text-secondary); }
+.mail-review-files summary { cursor: pointer; }
+.mail-review-files ul { margin: 6px 0; padding-left: 18px; overflow-wrap: anywhere; }
 .mail-work-dialog__tools { display: flex; align-items: center; gap: 8px; }
 .mail-work-dialog .mail-work-dialog__columns { position: relative; grid-template-columns: minmax(0, var(--mail-document-share)) 14px minmax(0, var(--mail-result-share)); gap: 0; }
 .mail-work-dialog__divider { display: flex; align-items: center; justify-content: center; min-height: 0; cursor: col-resize; touch-action: none; outline: none; border-radius: 4px; }
@@ -89,7 +102,7 @@
 .mail-tracking-stations { padding: 0; margin: 14px 0; border: 0; min-width: 0; }
 .mail-tracking-station { border: 1px solid var(--border-strong); border-radius: 7px; margin-bottom: 9px; overflow: hidden; }
 .mail-tracking-station-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-weight: 700 !important; }
-.mail-tracking-fields { padding: 12px; display: grid; gap: 12px; }
+.mail-tracking-fields { min-width: 0; margin: 0; border: 0; padding: 12px; display: grid; gap: 12px; }
 .mail-tracking-warning { padding: 10px; border: 1px solid var(--status-warning-text); border-radius: 6px; background: var(--status-warning-background); color: var(--status-warning-text); font-size: 12px; overflow-wrap: anywhere; }
 .mail-tracking-footer { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; padding-top: 10px; }
 .mail-tracking-assignment { width: min(480px, calc(100vw - 40px)); box-sizing: border-box; padding: 22px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--content-background); color: var(--text-primary); }

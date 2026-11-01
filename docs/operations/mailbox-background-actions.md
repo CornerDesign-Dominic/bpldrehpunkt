@@ -74,3 +74,25 @@ andere Benutzer und Superadmin geprüft. Browserläufe mit synthetischen Daten
 decken alle vier parallelen Aktionen, Mailwechsel, Neuladen, explizites Öffnen,
 Schließen, Verwerfen, bestätigte Übernahme und helle/dunkle Darstellung ab.
 Dabei wurden keine echten Aufträge angelegt und keine E-Mails versandt.
+
+## Abschlussleisten und Darstellung
+
+Auftrag und Sendungsstatus verwenden eine gemeinsame Abschlussleiste am Ende
+der gesamten rechten Dialoghälfte. Verwerfen ist von erneuter Auswertung und
+der hervorgehobenen Hauptaktion getrennt. Die Auftragsfreigabe bleibt im
+Freigabeabschnitt erforderlich; der externe Submit-Button ist über eine eindeutige
+Formular-ID mit demselben Formular verbunden. Weder XML-Erstellung noch
+Statusübernahme werden durch die Layoutänderung automatisch ausgeführt.
+
+Die direkte Kundensuche klappt bei vorhandenem Frachtzahler ein und öffnet sich
+bei fehlender Zuordnung, Platzhalter oder Suchfehler. Die automatische Suche
+selbst bleibt unverändert. Downloads lösen nicht mehr die Rückfrage zum
+Verlassen ungespeicherter Auftragsdaten aus; normale Navigation bleibt geschützt.
+Gespeicherte Trackingabschnitte lassen sich auf- und zuklappen, während die
+enthaltenen Eingaben weiterhin gesperrt sind.
+
+AGB- und Rechnungsprüfung haben eine abgesetzte Leiste zum erneuten Prüfen.
+Die Liste geprüfter AGB-PDFs ist einklappbar. Rechnungsergebnisse, Ampelfarben und
+Prüfregeln bleiben unverändert. Die Vorgangsaktionen verwenden kompakte
+Beschreibungstexte sowie einheitliche Datums-, Zeit- und Betragseingaben; Senden
+ist bei Antwort und neuer Mail visuell gegenüber Entwurf speichern hervorgehoben.
