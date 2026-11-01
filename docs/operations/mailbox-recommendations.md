@@ -85,13 +85,21 @@ Sechs gezielt bereitgestellte Funktionen, alle als ACTIVE bestätigt:
 `enqueueMailboxRecommendations`, `processMailboxRecommendationRun`.
 Keine anderen Functions, Rules, Indizes oder Produktionsressourcen ausgerollt.
 
-70 Backend-/Emulator-/Rechtetests und zehn vorhandene Frontend-Helfertests
+71 Backend-/Emulator-/Rechtetests und zehn vorhandene Frontend-Helfertests
 bestanden. Zwei echte KI-Aufrufe mit ausschließlich synthetischen Mails prüfen
 Ankunftsmeldung → tracking und neutrale Antwort mit alter Status-Zitatmail →
 keine Empfehlung. Lokaler Browser prüft persönliche/zentral verwaltete Schalter,
 gemeinsamen Zustand sowie violettes/grünes/fehlendes Icon. Lint, Build und Abgleich
 der 45 Shared-Module erfolgreich, auch nach Integration des aktuellen Dev-Stands.
-Vercel- und angemeldeten Dev-Browsernachweis am veröffentlichten Commit prüfen.
+Vercel-Erfolg für `2ec25981107c05ba96c076bfdf7f1c7a3a131d1d` bestätigt.
+Angemeldete Dev-Sitzung zeigt persönlichen Schalter im Profil und gemeinsamen
+Schalter im Adminbereich, beide deaktiviert. Gemeinsame Inbox-Identität wird
+über die echte vorhandene Microsoft-Verbindung erfolgreich aufgelöst. Keine
+echten Postfächer für die Prüfung aktiviert und keine echten Mails versendet.
+Der zusätzliche Test für späte Fehler nach Reaktivierung prüft die atomare
+Generationssperre; der Worker wurde dafür erneut gezielt erfolgreich in Dev
+aktualisiert. Die letzte kleine Frontendergänzung zeigt bei aktivierten
+Postfächern den Zeitpunkt der letzten Prüfung bzw. das Warten auf die erste an.
 
 Vorheriger Remote-Dev-Stand: `524956ec72892060b05bb8f27033a603ae651ac4`.
 Main-Baseline: `230c2ad86af9700118e2f1456746292241461efc`. Main/Produktion

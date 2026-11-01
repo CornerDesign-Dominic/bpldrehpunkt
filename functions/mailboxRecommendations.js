@@ -176,14 +176,25 @@ export function createRecommendationHandlers(deps = {}) {
         const existing = (await messageRef.get()).data()
         if (existing?.generation === scope.generation && (existing.state === 'completed' || existing.attempts >= 3)) continue
         // A short-lived processing record prevents concurrent workers from paying twice.
-        await messageRef.set({ generation: scope.generation, state: 'running', attempts: existing?.generation === scope.generation ? (existing.attempts || 0) + 1 : 1, updatedAt: now() })
+        const claimed = await db().runTransaction(async tx => {
+          const current = (await tx.get(ref)).data()
+          if (!current?.enabled || current.generation !== scope.generation || current.lease !== lease) return false
+          tx.set(messageRef, { generation: scope.generation, state: 'running', attempts: existing?.generation === scope.generation ? (existing.attempts || 0) + 1 : 1, updatedAt: now() })
+          return true
+        })
+        if (!claimed) return
+        const finish = (state, actions) => db().runTransaction(async tx => {
+          const current = (await tx.get(ref)).data()
+          if (!current?.enabled || current.generation !== scope.generation || current.lease !== lease) return false
+          tx.set(messageRef, { generation: scope.generation, state, kinds: actions, updatedAt: now() }, { merge: true })
+          return true
+        })
         try {
           const actions = await (deps.classify || classifyRecommendation)({ mail, userId: scope.ownerId || scope.updatedBy })
-          if (!(await stillEnabled())) return
-          await messageRef.set({ generation: scope.generation, state: 'completed', kinds: actions, updatedAt: now() }, { merge: true })
+          if (!(await finish('completed', actions))) return
         } catch {
           errors++
-          await messageRef.set({ generation: scope.generation, state: 'error', kinds: [], updatedAt: now() }, { merge: true })
+          if (!(await finish('error', []))) return
         }
       }
       if (!(await stillEnabled())) return

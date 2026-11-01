@@ -106,3 +106,18 @@ test('emulator: pagination resumes and does not repeat successful AI work; react
     assert.deepEqual((await f.handlers.list(f.request({ messageIds: ['first', 'second'] }))).recommendations, { first: [], second: [] })
   } finally { await f.close() }
 })
+
+test('emulator: a late failure cannot overwrite a new generation after disable and re-enable', { skip: !enabled }, async () => {
+  let release, started, calls = 0
+  const ready = new Promise(resolve => { started = resolve })
+  const pending = new Promise(resolve => { release = resolve })
+  const f = await fixture({ classify: async () => { if (++calls === 1) { started(); await pending; throw new Error('Late old-generation failure') } return ['tracking'] } })
+  try {
+    f.actor({ active: true, role: 'admin' }); await f.handlers.setSettings(f.request({ enabled: true }))
+    const old = f.handlers.process({ scopeId: f.scopeId }); await ready
+    await f.handlers.setSettings(f.request({ enabled: false })); await f.handlers.setSettings(f.request({ enabled: true }))
+    await f.handlers.process({ scopeId: f.scopeId }); release(); await old
+    f.actor(profile)
+    assert.deepEqual((await f.handlers.list(f.request({ messageIds: ['immutable'] }))).recommendations.immutable, ['tracking'])
+  } finally { release(); await f.close() }
+})
