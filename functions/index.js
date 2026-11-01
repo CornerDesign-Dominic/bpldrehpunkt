@@ -1,3 +1,4 @@
+import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, enqueueMailboxRecommendationsHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
 import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
@@ -27,7 +28,7 @@ import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowled
 import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeLearningHandler } from './knowledgeLearning.js'
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
-import { listTransportOrderImportRunsHandler } from './transportOrderImports.js'
+import { listTransportOrderImportRunsHandler, manageTransportOrderImportHandler } from './transportOrderImports.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
@@ -171,6 +172,13 @@ export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
 const mailboxActionOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, timeoutSeconds: 120, maxInstances: 3 }
+export const getMailboxRecommendationSettings = onCall(mailboxOptions, getMailboxRecommendationSettingsHandler)
+export const setMailboxRecommendationSettings = onCall(mailboxOptions, setMailboxRecommendationSettingsHandler)
+export const listManagedMailboxRecommendations = onCall(mailboxOptions, listManagedMailboxRecommendationsHandler)
+export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
+export const enqueueMailboxRecommendations = onSchedule({ region: 'europe-west3', schedule: 'every 5 minutes', timeoutSeconds: 120, maxInstances: 1 }, enqueueMailboxRecommendationsHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 540, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)
 export const listMailboxActions = onCall(mailboxActionOptions, listMailboxActionsHandler)
@@ -210,7 +218,7 @@ export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', sc
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -1194,6 +1202,7 @@ export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAp
 export const resolveDycosPartnerConflicts = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, resolveDycosPartnerConflictsHandler)
 export const searchDycosTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosOrderSearchConfigurationSecrets }, searchDycosTransportOrdersHandler)
 export const listTransportOrderImportRuns = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderImportRunsHandler)
+export const manageTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, manageTransportOrderImportHandler)
 export const updateManualShipmentTracking = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateManualShipmentTrackingHandler)
 export const getShipmentTrackingActivation = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingActivationHandler)
 export const previewManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewManualShipmentTrackingMailHandler)

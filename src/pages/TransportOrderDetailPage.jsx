@@ -94,7 +94,7 @@ function Workspace({ orderId, active, showTabs, tabOverride, refreshControlsTarg
   const inFlight = useRef(false)
   const requestIds = useRef({})
   const canReadPartners = canView('masterData') || canView('crm') || canView('pallets')
-  const canRefresh = scope === 'partners' ? canEdit('masterData') : scope === 'all' ? canEdit('dataImports') && canEdit('masterData') : canEdit('dataImports')
+  const canRefresh = scope === 'partners' ? canEdit('masterData') : scope === 'all' ? canEdit('transportOrderRefresh') && canEdit('masterData') : canEdit('transportOrderRefresh')
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   const loadOrder = useCallback(async () => {
     let entry

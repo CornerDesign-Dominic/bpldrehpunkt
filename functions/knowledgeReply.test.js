@@ -162,3 +162,24 @@ test('local removed-case tombstones and curator moves are authoritative for futu
   assert.deepEqual(db.records.get(ref), { gapId: 'unassigned', removed: true, caseRevision: 3, learnedRevision: 0 })
   assert.equal(db.records.get('knowledgeGaps/unassigned').count, 1)
 })
+
+test('a matching article owns partial-coverage cases and visibility survives new correspondence', async () => {
+  const db = database()
+  const selection = { ...missingSelection, coverage: 'partial', sources: [{ ...article }] }
+  const first = await recordReplyKnowledgeGap(gapInput(db, 'partial-one', { selection, suggestion: 'Antwortentwurf' }))
+  assert.equal(first.id, 'article-article')
+  db.records.set('knowledgeGaps/article-article', { ...db.records.get('knowledgeGaps/article-article'), hidden: true })
+  await recordReplyKnowledgeGap(gapInput(db, 'partial-two', { selection, suggestion: 'Weiterer Antwortentwurf' }))
+  assert.equal(db.records.get('knowledgeGaps/article-article').hidden, true)
+  assert.equal(db.records.get('knowledgeGaps/article-article').count, 2)
+  assert.equal([...db.records.keys()].filter(key => key.startsWith('knowledgeGaps/')).length, 1)
+})
+
+test('unclassified situations without a matching article go into the unassigned bucket', async () => {
+  const db = database()
+  const selection = { ...missingSelection, gap: { ...gapValue, intentKey: 'other_unclassified' } }
+  const captured = await recordReplyKnowledgeGap(gapInput(db, 'unknown-situation', { selection }))
+  assert.equal(captured.id, 'unassigned')
+  assert.equal(db.records.get('knowledgeGaps/unassigned').category, 'unassigned')
+  assert.equal([...db.records.keys()].filter(key => key.startsWith('knowledgeGaps/')).length, 1)
+})

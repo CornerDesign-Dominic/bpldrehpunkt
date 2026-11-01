@@ -26,7 +26,7 @@ export default function TransportOrderRefreshButton({ order, allowed, onUpdated,
     // Reuse an interrupted request; a completed click starts a fresh source read.
     if (!attempt.current) attempt.current = { taNummer: order.externalNumber, requestId: crypto.randomUUID() }
     try {
-      const imported = await fetchDycosTransportOrder(attempt.current)
+      const imported = await fetchDycosTransportOrder({ ...attempt.current, mode: 'refresh' })
       if (!Object.hasOwn(resultMessages, imported?.status) || imported.orderId !== order.id || imported.externalNumber !== order.externalNumber) throw new Error('Unexpected import result')
       attempt.current = null
       if (!mounted.current) return

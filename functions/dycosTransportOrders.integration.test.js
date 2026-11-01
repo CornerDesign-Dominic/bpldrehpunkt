@@ -32,7 +32,7 @@ const payload = (ta, extras = {}) => ({
   zahlungsbedingungUnternehmer: null, fakturaZeilen: [], fakturaKopf: [],
   LadeEntladestellen2: [], ...extras, auftrag: { ID: 123, Nummer: Number(ta), Ladedatum: '2026-01-01', ...extras.auftrag },
 })
-async function user(permissions = { dataImports: 'edit' }, active = true) {
+async function user(permissions = { transportOrderSingleImport: 'edit', dataImports: 'edit' }, active = true) {
   const uid = randomUUID()
   await db().doc(`users/${uid}`).set({ active, role: 'user', permissions, firstName: 'Schnittstellen', lastName: 'Test' })
   return uid
@@ -81,7 +81,7 @@ test('emulator: refreshing the TA atomically follows only auto recipients, retai
 })
 
 test('emulator: manual confirmation of the same imported address and manual clearing remain protected from TA refreshes', { skip: !enabled }, async () => {
-  const uid = await user({ dataImports: 'edit', transportOrders: 'edit' }), ta = nextTa()
+  const uid = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', transportOrders: 'edit' }), ta = nextTa()
   let sentTo = 'same@example.test'
   const source = dependencies(async () => payload(ta, { auftrag: { TourenID: 44 }, tour: { ID: 44, TAPerMailVersendetAn: sentTo } }))
   await fetchDycosTransportOrderHandler(req(uid, ta), source)
@@ -117,7 +117,7 @@ test('emulator: no legacy source is guessed, completed tracking is immutable and
   const oldTracking = (await ref.get()).data()
   const oldOrder = (await db().doc(`transportOrders/${id(ta)}`).get()).data()
   const revoked = dependencies(async () => {
-    await db().doc(`users/${uid}`).update({ 'permissions.dataImports': 'view' })
+    await db().doc(`users/${uid}`).update({ 'permissions.transportOrderSingleImport': 'view' })
     return payload(ta, { auftrag: { TourenID: 44 }, tour: { ID: 44, TAPerMailVersendetAn: 'revoked@example.test' } })
   })
   await assert.rejects(fetchDycosTransportOrderHandler(req(uid, ta), revoked), { code: 'permission-denied' })
@@ -127,7 +127,7 @@ test('emulator: no legacy source is guessed, completed tracking is immutable and
 })
 
 test('emulator: keep decisions also survive partner enrichment through Auftrag aktualisieren', { skip: !enabled }, async () => {
-  const uid = await user({ dataImports: 'edit', masterData: 'edit' }), ta = nextTa()
+  const uid = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', masterData: 'edit' }), ta = nextTa()
   const account = 10000000 + Math.floor(Math.random() * 90000000)
   let sourceName = 'Quelle A'
   const source = dependencies(async () => payload(ta, { auftrag: { FrachtzahlerID: account }, kunde: { ID: account, Debitorennummer: account, Firma: sourceName } }))
@@ -167,7 +167,7 @@ test('emulator: old orders, missing-date legacy numbers and changed preview iden
 
 test('emulator: import permission revoked during source read prevents the transaction from saving', { skip: !enabled }, async () => {
   const uid = await user(), ta = nextTa()
-  await assert.rejects(fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => { await db().doc(`users/${uid}`).update({ 'permissions.dataImports': 'view' }); return payload(ta) })), { code: 'permission-denied' })
+  await assert.rejects(fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => { await db().doc(`users/${uid}`).update({ 'permissions.transportOrderSingleImport': 'view' }); return payload(ta) })), { code: 'permission-denied' })
   assert.equal((await db().doc(`transportOrders/${id(ta)}`).get()).exists, false)
 })
 
@@ -194,7 +194,7 @@ test('emulator: authorization precedes all source access, including inactive and
   let calls = 0
   const deps = dependencies(async () => { calls++; return {} })
   await assert.rejects(fetchDycosTransportOrderHandler({ data: {} }, deps), { code: 'unauthenticated' })
-  for (const uid of [await user({ dataImports: 'view' }), await user({ dataImports: 'edit' }, false), randomUUID()]) await assert.rejects(fetchDycosTransportOrderHandler(req(uid, nextTa()), deps), { code: 'permission-denied' })
+  for (const uid of [await user({ dataImports: 'view' }), await user({ transportOrderSingleImport: 'edit', dataImports: 'edit' }, false), randomUUID()]) await assert.rejects(fetchDycosTransportOrderHandler(req(uid, nextTa()), deps), { code: 'permission-denied' })
   assert.equal(calls, 0)
 })
 
@@ -355,7 +355,7 @@ test('emulator: a deterministic partner ID cannot override contradictory account
 })
 
 test('emulator: rich partner data fills empty fields, preserves manual values and is auditable without leaking into TA snapshots', { skip: !enabled }, async () => {
-  const uid = await user({ dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const creditor = nextAccount()
+  const uid = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const creditor = nextAccount()
   const ref = db().doc(`businessPartners/dycos-creditor-${creditor}`)
   await ref.set({ id: ref.id, creditorNumber: creditor, companyName: 'Manueller Name', status: 'active', contact: { phone: 'manuell', website: '' }, creditLimit: 9000, contacts: [] })
   const response = payload(ta, {
@@ -395,7 +395,7 @@ test('emulator: rich partner data fills empty fields, preserves manual values an
 test('emulator: brand new partner gets complete mapped data in the same transaction; missing master-data permission does not enrich', { skip: !enabled }, async () => {
   const debtor = nextAccount(); const ta = nextTa()
   const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), FrachtzahlerID: 33 }, kunde: { ID: 33, Firma: 'Kunde', Debitorennummer: debtor, TelefonZentrale: '040 123', EMailZentrale: 'office@example.test', USTID: 'DE999', Erfassungsdatum: '2020-01-01T00:00:00Z', KundeSchicktGutschrift: true } })
-  const uid = await user({ dataImports: 'edit', masterData: 'edit' })
+  const uid = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', masterData: 'edit' })
   await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
   const partner = (await db().doc(`businessPartners/dycos-debtor-${debtor}`).get()).data()
   assert.equal(partner.contact.phone, '040 123')
@@ -410,7 +410,7 @@ test('emulator: brand new partner gets complete mapped data in the same transact
   assert.equal(creationHistory.docs[0].get('action'), 'created')
   assert.equal(creationHistory.docs[0].get('createdByUserId'), uid)
   assert.equal(creationHistory.docs[0].get('metadata.changes'), undefined)
-  const limited = await user({ dataImports: 'edit', masterData: 'view' }); const otherTa = nextTa(); const otherDebtor = nextAccount()
+  const limited = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', masterData: 'view' }); const otherTa = nextTa(); const otherDebtor = nextAccount()
   const other = { ...response, auftrag: { ...response.auftrag, Nummer: Number(otherTa) }, kunde: { ...response.kunde, Debitorennummer: otherDebtor } }
   const result = await fetchDycosTransportOrderHandler(req(limited, otherTa), dependencies(async () => other))
   const minimal = (await db().doc(`businessPartners/dycos-debtor-${otherDebtor}`).get()).data()
@@ -421,7 +421,7 @@ test('emulator: brand new partner gets complete mapped data in the same transact
 })
 
 test('emulator: conflicting customer/carrier data on a shared partner is not resolved by write order', { skip: !enabled }, async () => {
-  const uid = await user({ dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const debtor = nextAccount(); const creditor = nextAccount()
+  const uid = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const debtor = nextAccount(); const creditor = nextAccount()
   const ref = db().collection('businessPartners').doc()
   await ref.set({ id: ref.id, companyName: 'Gemeinsamer Partner', debtorNumber: debtor, creditorNumber: creditor, contacts: [] })
   const response = payload(ta, {
@@ -439,7 +439,7 @@ test('emulator: conflicting customer/carrier data on a shared partner is not res
 })
 
 test('emulator: optional partner data without an account identity does not create an unlinked placeholder or block the TA', { skip: !enabled }, async () => {
-  const uid = await user({ dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const name = `Ohne Kontonummer ${randomUUID()}`
+  const uid = await user({ transportOrderSingleImport: 'edit', dataImports: 'edit', masterData: 'edit' }); const ta = nextTa(); const name = `Ohne Kontonummer ${randomUUID()}`
   const response = payload(ta, { auftrag: { ID: 123, Nummer: Number(ta), FrachtzahlerID: 33 }, kunde: { ID: 33, Firma: name, USTID: 'DE777' } })
   const result = await fetchDycosTransportOrderHandler(req(uid, ta), dependencies(async () => response))
   assert.equal(result.status, 'new')

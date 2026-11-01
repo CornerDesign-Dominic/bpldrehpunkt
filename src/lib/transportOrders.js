@@ -46,9 +46,9 @@ export async function getTomTomUsageSummary(month) {
   return result.data
 }
 
-export async function fetchDycosTransportOrder({ taNummer, requestId, expectedSourceId }) {
+export async function fetchDycosTransportOrder({ taNummer, requestId, expectedSourceId, importRunId, selectionIndex, mode }) {
   await waitForAppCheckToken()
-  const result = await httpsCallable(functions, 'fetchDycosTransportOrder', { timeout: 180000 })({ taNummer, requestId, ...(expectedSourceId != null ? { expectedSourceId } : {}) })
+  const result = await httpsCallable(functions, 'fetchDycosTransportOrder', { timeout: 180000 })({ taNummer, requestId, ...(expectedSourceId != null ? { expectedSourceId } : {}), ...(importRunId ? { importRunId, selectionIndex } : {}), ...(mode ? { mode } : {}) })
   return result.data
 }
 
@@ -57,10 +57,15 @@ export async function searchDycosTransportOrders(data) {
   return (await httpsCallable(functions, 'searchDycosTransportOrders', { timeout: 180000 })(data)).data
 }
 
-export async function listTransportOrderImportRuns(runId = '') {
+export async function listTransportOrderImportRuns(options = {}) {
   await waitForAppCheckToken()
-  const result = await httpsCallable(functions, 'listTransportOrderImportRuns')({ runId })
+  const result = await httpsCallable(functions, 'listTransportOrderImportRuns')(options)
   return result.data
+}
+
+export async function manageTransportOrderImport(data) {
+  await waitForAppCheckToken()
+  return (await httpsCallable(functions, 'manageTransportOrderImport')(data)).data
 }
 
 export async function listTransportOrderHistoryPage(orderId, cursor = null) {

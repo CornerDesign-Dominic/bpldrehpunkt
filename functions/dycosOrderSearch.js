@@ -4,7 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { fetchDycosFlowSearch } from './dycosFlowClient.js'
-import { hasDycosImportAccess } from './dycosTransportOrders.js'
+import { hasOrderImportAccess } from './dycosImportAccess.js'
 import { DYCOS_EARLIEST_LOADING_DATE, isCalendarDate } from './shared/dycosImportPolicy.js'
 
 const invalid = () => { throw new Error('Invalid DyCoS search response') }
@@ -96,7 +96,7 @@ async function claimSearch(db, uid, token) {
 
 export async function searchDycosTransportOrdersHandler(request, { db = getFirestore(), fetchSearch = fetchDycosFlowSearch, report = recordDiagnostic } = {}) {
   const profile = await requireActiveProfile(request)
-  if (!hasDycosImportAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Datenimporte.')
+  if (!hasOrderImportAccess(profile, 'bulk')) throw new HttpsError('permission-denied', 'Keine Berechtigung für Sammelimporte.')
   const query = validateDycosSearchRequest(request.data), token = randomUUID()
   const quota = await claimSearch(db, request.auth.uid, token)
   let stage = 'search'
@@ -105,7 +105,7 @@ export async function searchDycosTransportOrdersHandler(request, { db = getFires
     stage = 'search-mapping'
     const result = query.modus === 'relationen' ? { relations: mapDycosRelationOptions(payload) } : mapDycosSearchPage(payload, query)
     const current = await requireActiveProfile(request)
-    if (!hasDycosImportAccess(current)) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
+    if (!hasOrderImportAccess(current, 'bulk')) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
     if (result.orders?.length) {
       const existing = await db.getAll(...result.orders.map(order => db.doc(`transportOrders/dycos-${order.externalNumber}`)))
       result.orders = result.orders.map((order, index) => ({ ...order, existing: existing[index].exists }))

@@ -1,3 +1,4 @@
+import { MailboxRecommendationControl } from './MailboxRecommendationSettings.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
@@ -42,6 +43,7 @@ function MailboxName({ connection, editable, busy, onSave, onDisconnect, onRecon
         <button type="button" disabled={busy} onClick={() => action(() => onDisconnect(connection))}>{w('Verbindung trennen', 'Disconnect')}</button>
       </div></details>}
     </div></div>
+    {connection.status === 'connected' && <MailboxRecommendationControl connection={connection} editable={editable} />}
     {connection.status === 'disconnecting' ? <p role="status">{w('Die Trennung wurde noch nicht abgeschlossen. Bitte erneut trennen.', 'Disconnection is incomplete. Please disconnect again.')}</p> : <>
       {editable && renaming && <form className="profile-mailbox__name" onSubmit={async event => {
         event.preventDefault()

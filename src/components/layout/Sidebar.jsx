@@ -45,6 +45,7 @@ const navigationItems = [
   { label: 'Systemmails', to: '/admin/systemmails', icon: DocumentsIcon, superadminOnly: true, group: 'administration' },
   { label: 'KI', to: '/admin/ki-prompts', icon: DocumentSearchIcon, superadminOnly: true, group: 'administration' },
   { label: 'Stammdaten', to: '/admin/stammdaten', icon: DocumentsIcon, administration: true, group: 'administration' },
+  { label: 'Importverlauf', to: '/admin/importverlauf', icon: DocumentsIcon, administration: true, group: 'administration' },
   { label: 'Diagnose', to: '/admin/diagnose', icon: DocumentSearchIcon, administration: true, group: 'administration' },
 ]
 
@@ -74,6 +75,7 @@ const navigationLabelKeys = {
   '/dokumente': 'nav.documents', '/vorlagen': 'nav.templates', '/agb-pruefer': 'nav.termsChecker',
   '/admin': 'nav.admin', '/admin/sendungsverfolgung': 'nav.shipmentTrackingSettings', '/admin/systemmails': 'nav.systemMails',
   '/admin/ki-prompts': 'nav.ai', '/admin/stammdaten': 'nav.masterData', '/admin/diagnose': 'nav.diagnostics',
+  '/admin/importverlauf': 'nav.importHistory',
 }
 
 function itemIsActive(item, pathname, search = '') {

@@ -1,14 +1,35 @@
 # Wissensmanagement und KI-Antwortentwürfe
 
-UX-Anpassung 01.11.2026: „Status ändern“ verwendet einen kompakten Dialog
-(bis 620 Pixel) mit vier direkt sichtbaren Statusoptionen. Die optionale
-Handbuchverknüpfung ist eingeklappt; die leere Auswahl heißt ausdrücklich
-„Kein Artikel zugeordnet“. Kurze Anlage-/Metadaten-/Prüftermin-Einstellungen
-verwenden ebenfalls kompakte Dialoge; Schreib-, Lese- und Lernfenster bleiben
-groß. Überflüssiger Erklärungstext in der Fallübersicht wurde entfernt.
-Lokaler Browser: Status speichern, Abbrechen und Artikelwahl geprüft.
+Stand: 01.11.2026. Veröffentlichung ausschließlich auf Dev freigegeben.
 
-Stand: 31.10.2026. Veröffentlichung ausschließlich auf Dev freigegeben.
+Die Wissenssammlung spiegelt die Handbuchartikel nach Prozess wider, auch ohne
+bisherige Mailfälle. Aktuelle Artikeltitel und Prozesszuordnung stammen aus dem
+Handbuch. Ohne passenden Artikel entstehen Artikelvorschläge oder der
+Sammelbereich „Nicht zugeordnet“. Artikelvorschläge sind Themen zum Prüfen,
+noch keine automatisch angelegten oder freigegebenen Handbuchartikel.
+
+Ausblenden/Einblenden ersetzt die bisherigen Bearbeitungsstatus in der
+Oberfläche. Die Anzeige filtert eingeblendete, ausgeblendete oder alle Gruppen.
+Das gilt auch für leere Artikelgruppen und den Sammelbereich. Ausblenden ist
+zentral gespeichert; neue Fälle heben es nicht auf. Inhalte und Lernstand bleiben
+erhalten. Alte Statusfelder bleiben nur für ältere Clients erhalten und werden
+in der neuen Oberfläche nicht als Abschluss verwendet.
+
+Die Gruppenaktion „Zuordnen“ verschiebt alle aktiven lokalen Fallkopien zum
+gewählten Artikel und blendet den bisherigen Artikelvorschlag aus. Der
+Sammelbereich bleibt dabei eingeblendet. Einzelne Fälle lassen sich weiterhin
+im Lernfenster zuordnen. Der Dialog zeigt Zielartikel und Fallanzahl; die
+bisherige Statusbearbeitung entfällt. Auswahlfelder in Übersicht und Dialogen
+haben ausreichende Höhe und die Filter genügend Breite.
+
+Prüfung dieses Umbaus: 105 gezielte Unit-Tests, sieben echte Firestore-
+Emulatorprüfungen, Lint, Build und Shared-Abgleich (45 Module) erfolgreich.
+Lokaler Browser mit Beispieldaten: Sammelbereich aus-/einblenden,
+Gruppenzuordnung zum Artikel, Zähler, vorausgewählter Zielartikel sowie
+Auswahlfeldhöhen in Übersicht und Dialog geprüft, Beschriftungen DE/EN.
+Ein angemeldeter Dev-Durchlauf mit echten Mails und Modell bleibt offen.
+Backendumfang: `updateKnowledgeGap`, `applyKnowledgeLearning`,
+`suggestMailboxReply`. Keine Rules- oder Indexänderung erforderlich.
 
 ## Fachlicher Ablauf
 
@@ -48,12 +69,12 @@ Override. Direkte Browser-Schreibzugriffe sind gesperrt.
 
 `saveKnowledgeRecord` prüft Daten, gültige Verknüpfungen, aktuelle Rechte und
 erwartete Revision transaktional und schreibt eine vollständige unveränderliche
-Fassung nach `revisions/{revision}`. `updateKnowledgeGap` ändert den Bearbeitungs-
-status mit Revisionsschutz. Wissenslücken lassen sich ohne Artikelzuordnung als
-erledigt abhaken. Bearbeiter und Zeitpunkt werden festgehalten und beim
-Wiederöffnen entfernt. Artikelverknüpfungen sind optional; eine neue Zuordnung
-verlangt zusätzlich Handbuch-Leserecht. Neue Inhalte werden nicht durch die KI
-gültig gesetzt.
+Fassung nach `revisions/{revision}`. `updateKnowledgeGap` ändert Sichtbarkeit
+oder Zuordnung mit Revisionsschutz. Neue Artikelzuordnungen verlangen zusätzlich
+Handbuch-Leserecht und verschieben Fallkopien transaktional, statt lediglich
+einen Kontextlink zu speichern. Gruppen mit mehr als 400 aktiven Fällen müssen
+über einzelne Fallzuordnungen aufgeteilt werden; es gibt keine Teilverschiebung.
+Neue Inhalte werden nicht durch die KI gültig gesetzt.
 Ein gültiger Artikel darf nur gültige Grundregeln referenzieren. Die KI prüft
 vor Rückgabe nochmals aktuelle Rechte sowie Status und genaue Revision aller
 verwendeten Quellen; zwischenzeitliche Änderungen verwerfen den Vorschlag.
@@ -146,6 +167,10 @@ und offene Fragen in verständlicher Sprache. Versand allein belegt keinen Erfol
 Der vorhandene Artikel bleibt während der Analyse unverändert. Ein neuer Artikel
 wird nach bewusster Übernahme als Entwurf gespeichert; eine bestehende Fassung
 wird erst durch ausdrückliches Übernehmen mit neuer Revision aktualisiert.
+Beim Übernehmen werden nur die ausgewählten Fallkopien dem Zielartikel
+zugeordnet. Ihr ausgewerteter Stand bleibt dabei grün; nicht ausgewählte Fälle
+bleiben in ihrer bisherigen Sammlung. Änderungen an Zuordnung, Quellen oder
+Rechten zwischen Auswertung und Übernahme verhindern eine veraltete Übernahme.
 
 Gelbes Hirnsymbol bedeutet ausstehend, grünes Hirnsymbol vollständig ausgewertet.
 Grün ist keine fachliche Freigabe und keine automatische Veröffentlichung.
@@ -171,11 +196,9 @@ Auswertung und Übernahme verlangen zusätzlich zum Pflege-Bearbeitungsrecht auc
 Handbuch-Bearbeitungsrecht. Lauf-ID und Revisionsprüfungen schützen vor doppelten
 Auswertungen und dem Übernehmen inzwischen geänderter Fälle oder Artikel.
 
-Die Liste priorisiert nach Häufigkeit und letzter Sichtung. Häufigkeit ist ein
-Bedarfssignal und keine automatisch festgestellte fachliche Dringlichkeit.
-Bearbeitungsstatus: offen, in Bearbeitung, erledigt, zurückgestellt. Aus einer
-Lücke lässt sich ein Artikelentwurf anlegen; ein Mensch ergänzt und prüft ihn.
-Ein erneutes Auftreten nach Erledigung öffnet die Meldung erneut.
+Innerhalb der Prozessgruppen priorisiert die Liste ausstehende Fälle und
+Häufigkeit. Diese Anzahl ist ein Bedarfssignal, keine automatisch festgestellte
+fachliche Dringlichkeit. Sichtbarkeit ist unabhängig vom gelben/grünen Lernstand.
 
 ## Dev-Beispiele
 
