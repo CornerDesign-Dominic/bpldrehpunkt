@@ -15,7 +15,8 @@ Die Reiter heißen „Auftrag“ und „Kunde & UTN“; die Auftragsansicht beto
 Fahrzeug/allgemeine Hinweise und zusätzliche DyCoS-Transportdaten. Stationen
 nutzen einzelne Karten für Adresse, Termin, Referenz, Waren, Palettentausch und
 Bemerkung.
-Diese Folgeänderung ist noch nicht veröffentlicht.
+Dieser Folgestand ist nach ausdrücklicher Nutzerfreigabe für Dev vorbereitet;
+Bereitstellung und Nachweise stehen im [Karten-Release](releases/order-station-cards-dev-2026-11-01-status.md).
 
 ## Benutzerablauf
 
@@ -293,7 +294,7 @@ diesen lokalen Umbau nicht ausgeführt.
 ## Lokale Hervorhebung der Auftragsdaten nach dem Dev-Release
 
 Die Folgeänderung mit den Reiterbezeichnungen „Auftrag“ und „Kunde & UTN“
-sowie den neuen Darstellungsbausteinen ist noch nicht veröffentlicht.
+sowie den neuen Darstellungsbausteinen war zum Zeitpunkt dieser lokalen Prüfung noch nicht veröffentlicht.
 Vollständiges ESLint, Produktionsbuild und fünf vorhandene Prüfungen der
 Stations-/Workspace-Darstellung erfolgreich. Die isolierte Browserprüfung
 verwendet synthetische Daten mit echten Komponenten: deutlicher FIX-Badge,
@@ -317,7 +318,8 @@ keine Scheinänderungen an Altstationen, echte 0/false bleiben nachvollziehbar.
 Feldquellen, Stichprobe und verbleibende Unklarheiten stehen in der
 [DyCoS-Feldklärung](../reference/dycos-feldklaerung-2026-10-31.md#lokale-ergänzung-transportdaten-und-stationskarten-am-01112026).
 
-Diese Folgeänderungen sind lokal und nicht veröffentlicht. Für eine spätere
+Diese Folgeänderungen waren zunächst ausschließlich lokal. Die anschließende
+ausdrückliche Dev-Freigabe und Bereitstellung stehen im oben verlinkten Karten-Release. Für eine spätere
 Dev-Veröffentlichung sind Frontend und die beiden importierenden Functions
 `fetchDycosTransportOrder` und `refreshTransportOrderWorkspace` zu betrachten.
 Die Rechnungsprüfung verwendet den Mapper ebenfalls lesend, wertet die neuen
@@ -338,4 +340,4 @@ Browserprüfung mit synthetischen Daten: getrennte gelbe Adress-/Terminkarten,
 immer neutrale Referenz, kein großer FIX-Badge, identische Größe/Stärke von
 Datum/Uhrzeit, neue Quellfelder, Nullwerte und Volumengewicht separat sichtbar.
 Hell/Dunkel und Deutsch/Englisch; 560-Pixel-Rahmen ohne horizontalen Überlauf.
-Keine echten Fachdaten verändert und keine Veröffentlichung dieses Nachfolgestands.
+Bei dieser lokalen Prüfung wurden keine echten Fachdaten verändert und noch keine Veröffentlichung durchgeführt.

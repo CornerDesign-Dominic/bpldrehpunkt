@@ -333,7 +333,9 @@ Der nachfolgend freigegebene Dev-Rollout ist im [Releasebeleg](../operations/rel
 Zusätzlicher read-only Abgleich von 19 vorhandenen geschützten Antwort-Exporten:
 19 Aufträge, 14 Touren, 15 Fahrzeugarten, 34 Stationen mit 34 Zusatzzeilen. Keine
 neuen externen Abfragen, keine Rohantworten in Git. Die neuen Felder sind lokal
-implementiert und noch nicht veröffentlicht; optionaler, additiver Vertrag bei
+implementiert; die anschließende Dev-Freigabe und Bereitstellung sind im
+[Karten-Release](../operations/releases/order-station-cards-dev-2026-11-01-status.md)
+belegt. Optionaler, additiver Vertrag bei
 weiterhin `source.system = dycos`, `schemaVersion = 2`.
 
 | Bestätigte Responsequelle | Intern | Aussage und Stichprobe |
