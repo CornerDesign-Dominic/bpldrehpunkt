@@ -1,5 +1,13 @@
 # Wissensmanagement und KI-Antwortentwürfe
 
+UX-Anpassung 01.11.2026: „Status ändern“ verwendet einen kompakten Dialog
+(bis 620 Pixel) mit vier direkt sichtbaren Statusoptionen. Die optionale
+Handbuchverknüpfung ist eingeklappt; die leere Auswahl heißt ausdrücklich
+„Kein Artikel zugeordnet“. Kurze Anlage-/Metadaten-/Prüftermin-Einstellungen
+verwenden ebenfalls kompakte Dialoge; Schreib-, Lese- und Lernfenster bleiben
+groß. Überflüssiger Erklärungstext in der Fallübersicht wurde entfernt.
+Lokaler Browser: Status speichern, Abbrechen und Artikelwahl geprüft.
+
 Stand: 31.10.2026. Veröffentlichung ausschließlich auf Dev freigegeben.
 
 ## Fachlicher Ablauf

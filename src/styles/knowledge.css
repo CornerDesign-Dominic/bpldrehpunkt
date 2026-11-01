@@ -4,6 +4,23 @@
 .knowledge-rule-picker label { display:flex; gap:10px; align-items:center; }
 .knowledge-rule-picker small { color:var(--text-secondary); }
 .knowledge-history-dialog { height:88vh; }
+.quality-dialog.knowledge-dialog--compact { width:min(620px,94vw); height:fit-content; padding:24px; }
+.knowledge-dialog--compact .quality-heading { margin-bottom:12px; }
+.knowledge-status-subject { margin:0 0 20px; color:var(--text-secondary); font-size:14px; overflow-wrap:anywhere; }
+.knowledge-status-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:0; border:0; margin:0; }
+.knowledge-status-options legend { margin-bottom:10px; font-size:13px; font-weight:600; }
+.knowledge-status-option { display:flex; align-items:center; gap:10px; padding:14px 12px; border:1px solid var(--border); border-radius:7px; cursor:pointer; background:var(--surface-secondary); font-size:14px; }
+.knowledge-status-option.is-selected { border-color:var(--button-background); background:var(--surface-active); }
+.knowledge-status-option input { margin:0; accent-color:var(--button-background); }
+.knowledge-status-link { padding:0!important; background:transparent!important; }
+.knowledge-status-link summary { color:var(--text-secondary); font-size:13px; overflow-wrap:anywhere; }
+.knowledge-status-link .form-field { margin-top:14px; }
+.knowledge-status-link select { width:100%; }
+.knowledge-status-actions { justify-content:flex-end; }
+.knowledge-gap-actions { align-self:center; }
+.knowledge-case-card > span:last-child { align-self:center; }
+.knowledge-case-description { color:var(--text-secondary); line-height:1.45; }
+@media(max-width:450px) { .knowledge-status-options { grid-template-columns:1fr; } }
 .knowledge-gaps { list-style:none; margin:0; padding:0; display:grid; gap:10px; }
 .knowledge-gaps > li { display:flex; align-items:start; gap:16px; padding:16px; background:var(--content-background); border:1px solid var(--border); border-radius:8px; }
 .knowledge-gap-count { color:var(--text-primary); font-size:22px; font-weight:700; min-width:46px; }
