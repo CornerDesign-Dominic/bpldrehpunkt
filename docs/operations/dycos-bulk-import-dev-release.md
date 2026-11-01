@@ -1,6 +1,6 @@
 # Dev-Veröffentlichung: Sammelimport und zentrale Stammdatenübernahme
 
-## Partnerliste und separater Import-Tab (lokal, 01.11.2026)
+## Partnerliste und separater Import-Tab (Dev, 01.11.2026)
 
 Die Partnerliste bietet oben rechts nur „Stammdaten importieren“. Der Link
 öffnet `/kunden-unternehmer/import` in einem neuen Tab. Der direkte Abruf und
