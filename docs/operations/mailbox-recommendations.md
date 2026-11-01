@@ -2,106 +2,118 @@
 
 Stand: 01.11.2026. Ausschließlich Dev freigegeben.
 
-## Bedienung und Umfang
+**Verbindliche Produktentscheidung:**
+[Webhooks ohne Kontrollabfragen](../decisions/mailbox-recommendations-no-polling.md).
+Keine periodischen Inbox-/Deltaabfragen, kein Nachholen verlorener Meldungen.
+Gelegentlich fehlende Empfehlungen werden ausdrücklich akzeptiert. Die früher
+bereitgestellte Fünf-Minuten-Abfrage ist entfernt, einschließlich Cloud Scheduler.
 
-- Persönliches Postfach: Mein Profil → Postfächer → KI-Handlungsempfehlungen
-  für neue Mails. Nur der Eigentümer mit Postfächer-Bearbeitungsrecht aktiviert.
-- Gemeinsame Postfächer: Adminbereich → Postfächer · KI-Handlungsempfehlungen.
-  Nur aktive Admins/Superadmins aktivieren zentral. Im Profil erscheint lediglich
-  der gemeinsame Zustand. Ausgangszustand ist deaktiviert.
-- Neue Eingangsmails ab Aktivierung werden anhand von Betreff und neuestem
-  Klartext eingeordnet. Bekannte Zitatgrenzen werden vorher abgetrennt. Keine
-  Anhänge/OCR, Auftragssuche, Feldextraktion, Antwort oder automatische Übernahme.
-- Nur sichere Empfehlungen, höchstens drei aus den vorhandenen neun Aktionen.
-  Ausschließlich das jeweilige Icon in der KI-Akzentfarbe in der Eingangscard;
-  Screenreader/Tooltip benennen die Empfehlung. Kein automatisches Modal.
-- Bereits vorhandene Aktionszustände haben Vorrang. Verworfene Ergebnisse
-  bekommen dadurch nicht erneut automatisch ein Empfehlungsicon.
+## Bedienung
 
-## Gemeinsame Identität und Berechtigungen
+- Persönliches Postfach: Mein Profil → Postfächer → KI-Handlungsempfehlungen.
+  Der Eigentümer mit Postfach-Bearbeitungsrecht schaltet seine Verbindung ein.
+- Gemeinsames Postfach: Adminbereich → Postfächer · KI-Handlungsempfehlungen.
+  Nur aktive Admins/Superadmins aktivieren zentral. Alle Nutzer erhalten dieselbe
+  gespeicherte Empfehlung. Der Zustand wird im Profil nur angezeigt.
+- Ein neuer Eingang löst über Microsoft Graph eine einzelne grobe Einordnung
+  von Betreff und neuestem Klartext aus. Erkannte ältere Zitate werden abgetrennt.
+  Keine Anhänge/OCR, Auftragszuordnung, Feldextraktion oder automatische Aktion.
+- Maximal drei sichere Aktionsicons in der KI-Akzentfarbe; kein automatisches
+  Modal. Vorhandene Aktionszustände haben Vorrang. Bereits gestartete, fertige
+  oder verworfene passende Aktionen werden bei der Veröffentlichung berücksichtigt.
+- Fünf Minuten sind nur die Frischegrenze, kein Intervall: ältere Mails und zu
+  spät fertiggestellte Auswertungen erhalten keine neue Empfehlung.
+- Ein inhaltsfreies Firestore-Pushsignal aktualisiert die geöffnete Oberfläche.
+  Kein Empfehlungs-Nachladetimer. Die bereits vorher vorhandene Aktualisierung
+  von gesendeten Antworten ist davon unabhängig.
 
-`mailboxRecommendationScopes/{scope}` enthält die zentrale Aktivierung, den
-Fortschritt und eine Verarbeitungssperre. Persönliche Scopes enthalten die
-Benutzeridentität; gemeinsame Scopes die Tenant-ID und die tatsächliche
-Microsoft-Inbox-ID. Diese wird über einen berechtigten vorhandenen Delegate
-aufgelöst und nur serverseitig an der Verbindung zwischengespeichert. Aliase
-und verschiedene Benutzer führen dadurch nicht zu unterschiedlichen Ergebnissen.
+## Microsoft-Zugriff
 
-`.../messages/{hash}` enthält nur Aktionskennungen, Status, Generation und
-Zeitpunkte/Versuchszähler; keine Mailtexte, Betreffzeilen oder Anhänge.
-`mailboxRecommendationRuns` enthält Arbeitsaufträge. Alle drei Bereiche sind
-über Default-deny für direkte Browserzugriffe gesperrt; Emulator-Rechtetest
-prüft dies auch für Superadmins. Die Callables prüfen aktive Profile, Eigentum,
-Postfachrechte und bei gemeinsamen Verbindungen den zugehörigen Kontozugang.
-Empfehlungen werden nur innerhalb eines berechtigten eigenen Zugangs ausgeliefert.
+Persönliche Webhooks nutzen den vorhandenen delegierten `Mail.Read`-Zugriff.
+Gemeinsame Postfach-Webhooks benötigen Anwendungszugriff: `Mail.Read.Shared`
+unterstützt dafür keine Subscriptions.
 
-## Hintergrundverarbeitung
+Der Nutzer hat den rein lesenden Zugriff auf **alle echten gemeinsamen Exchange-
+Postfächer**, einschließlich später eingebundener, ausdrücklich freigegeben.
+Die Dev-Anwendung erhält über Exchange Application RBAC:
 
-Ein Scheduler erzeugt alle fünf Minuten je aktiviertem Scope einen Auftrag.
-Der Worker liest bis zu zehn neue Mails pro Seite aus Microsoft. Bei weiteren
-Seiten wird mit dem Cursor atomar ein Folgeauftrag angelegt; hohe Eingänge
-müssen daher nicht für jede Seite erneut den Fünf-Minuten-Takt abwarten.
-Globale Sperre pro Scope und Ergebnis-Cache verhindern reguläre Mehrfachauswertung
-desselben Vorgangs. Nach externem KI-Erfolg und Prozessabbruch vor Speicherung
-ist wie bei anderen externen Diensten ein erneuter Aufruf technisch möglich.
+- App: `Drehpunkt Mail – Dev`, Client-ID `a23dc8d8-e22a-40ef-997c-d28aa753ee29`.
+- Service Principal: `d4272f7b-1e8b-422d-bdea-05d5fb2f1655`.
+- Scope/Assignment: `Drehpunkt-Mail-Dev-Shared-Read`.
+- RecipientRestrictionFilter: `RecipientTypeDetails -eq 'SharedMailbox'`.
+- Rolle: `Application Mail.Read`. Kein Mail.Send, kein Mail.ReadWrite.
+- Kein unbeschränkter Application-Mail.Read-Grant in Entra. Delegierte Rechte
+  bleiben erhalten. Persönliche Postfächer gehören nicht zum Application-Scope.
 
-Microsoft-Nachrichten verwenden Immutable IDs. Erfolgreiche Einordnungen werden
-bei erneutem Lesen nicht neu erzeugt; leere Empfehlungen ebenfalls gecacht.
-Fehler werden maximal dreimal versucht. Ein Fehler hält die Seite für den
-nächsten Durchlauf bereit, erfolgreiche Nachbarn werden nicht erneut ausgewertet.
-Deaktivieren/Reaktivieren wechselt die Generation und den Startzeitpunkt;
-späte Ergebnisse einer deaktivierten Generation werden nicht veröffentlicht.
-Microsoft-GET verändert weder Gelesen-Status noch Nachrichten.
+Einrichtungshelfer: `integrations/microsoft/Enable-DevSharedMailboxWebhooks.ps1`
+mit `-AllSharedMailboxes -Apply`; ohne `-Apply` nur Vorschau. Exchange-Adminrechte
+sind für die Einrichtung erforderlich. Die Browser-Cloud-Shell konnte mangels
+Azure-Abonnement nicht verwendet werden; normale interaktive Exchange-Anmeldung
+war erfolgreich. Keine Sicherheitsrichtlinien verändert.
 
-Persönliche Verbindungen werden vor jedem Hintergrundzugriff erneut geprüft.
-Gemeinsame Postfächer können auf andere aktive berechtigte Verbindungen desselben
-Microsoft-Postfachs ausweichen. Wenn keine Verbindung nutzbar ist, meldet die
-Einstellungsansicht einen Fehler. Der Zugriff bleibt in dieser Version abhängig
-von mindestens einer gültigen delegierten Verbindung; er ist kein unabhängiger
-Mandanten-Daemon. Bestehendes status@-Verhalten wird nicht geändert.
+Echter Zugriffstest: no-reply@ und angebot@ per Application-Token HTTP 200;
+persönliches bb@ HTTP 403. Microsoft-Abonnement mit created-only Inbox-Resource
+gegen den echten Dev-Webhook erfolgreich erstellt (HTTP 201, einschließlich
+Endpoint-/Lifecycle-Validierung) und unmittelbar wieder gelöscht (HTTP 204).
 
-## Microsoft und KI
+Quellen:
+- https://learn.microsoft.com/en-us/graph/outlook-change-notifications-overview
+- https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks
+- https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
 
-Keine zusätzlichen Microsoft-Rechte für diesen Polling-Ablauf. Bestehende
-delegierte `Mail.Read`, `Mail.Read.Shared` und `offline_access` werden weiter
-verwendet. Für zukünftige Echtzeit-Webhooks auf gemeinsamen Postfächern wäre
-ein gesondert begrenzter Anwendungszugriff erforderlich; dieser wird hier nicht
-eingerichtet. Quellen:
+## Verarbeitung und Sicherheit
 
-- https://learn.microsoft.com/en-us/graph/outlook-share-messages-folders
-- https://learn.microsoft.com/en-us/graph/api/subscription-post-subscriptions
+Aktivieren registriert ein created-only Microsoft-Abonnement für die Inbox,
+ohne eingebettete Mailinhalte. Persönlich wird delegiert zugegriffen, gemeinsam
+mit der bestehenden Dev-App-Identität und dem begrenzten Application-Zugriff.
+Microsoft-Inbox-Identität vereinheitlicht Aliase und verschiedene Benutzerzugänge.
+Microsoft-Nachrichten verwenden Immutable IDs.
 
-KI: bestehendes Dev-Secret `STATUS_MAIL_OPENAI_API_KEY`, Modell `gpt-5.4`,
-`store: false`, maximal 12.000 Zeichen des neuesten Mailtexts und 1.000 Zeichen
-Betreff. Keine Tools, keine Geschäftsdatenabfragen. Usage-Feature
-`mailbox_action_recommendation` verwendet die bestehende Nutzungsprotokollierung.
-Microsoft-Abfragen/Functions und KI-Aufrufe verursachen die üblichen Betriebskosten.
+Der öffentliche HTTPS-Webhook beantwortet Validierungen als Klartext. Er prüft
+Mandant, bekannte Subscription-ID, Aktivierung, Generation, Ablauf und einen
+zufälligen clientState (nur Hash gespeichert). Erst danach entsteht ein
+serverseitiger Auftrag für genau die gemeldete Nachricht. Keine vom Client
+vorgegebenen Graph-URLs. Doppelte Meldungen erzeugen denselben Auftrag; das
+Ergebnis wird mit Lease und Generation geschützt. Kein alter Polling-Auftrag
+kann eine Postfachliste auslesen. Abschalten macht ausstehende Meldungen sofort
+wirkungslos; das Abonnement wird nach Möglichkeit gelöscht.
 
-## Dev-Veröffentlichung und Prüfung
+Der Worker liest nur die betreffende Mail, prüft Frische vor und nach der KI
+und veröffentlicht Kennungen, keinen Mailtext. Fehlende Meldungen führen zu
+keiner Recovery-Suche. Microsoft-Zustellwiederholungen bei technischen Problemen
+sind möglich; sie lösen dank Deduplizierung keine reguläre doppelte KI-Arbeit aus.
+Ein Prozessabbruch nach externem KI-Erfolg, aber vor Speicherung, bleibt wie bei
+anderen externen Diensten ein möglicher Ausnahmefall.
 
-Sechs gezielt bereitgestellte Funktionen, alle als ACTIVE bestätigt:
-`getMailboxRecommendationSettings`, `setMailboxRecommendationSettings`,
-`listManagedMailboxRecommendations`, `listMailboxRecommendations`,
-`enqueueMailboxRecommendations`, `processMailboxRecommendationRun`.
-Keine anderen Functions, Rules, Indizes oder Produktionsressourcen ausgerollt.
+Eine stündliche Funktion pflegt **nur Abonnements und Arbeitsmetadaten**. Sie
+verlängert vor Ablauf, erstellt entfernte Abos wieder und bereinigt alte
+Arbeitsaufträge. Sie liest nie Inbox-/Delta-/Mailbestände. Lifecycle `missed`
+markiert einen Warnzustand, ohne Nachholen. `reauthorizationRequired` und
+`subscriptionRemoved` lösen ausschließlich Abonnementpflege aus.
 
-71 Backend-/Emulator-/Rechtetests und zehn vorhandene Frontend-Helfertests
-bestanden. Zwei echte KI-Aufrufe mit ausschließlich synthetischen Mails prüfen
-Ankunftsmeldung → tracking und neutrale Antwort mit alter Status-Zitatmail →
-keine Empfehlung. Lokaler Browser prüft persönliche/zentral verwaltete Schalter,
-gemeinsamen Zustand sowie violettes/grünes/fehlendes Icon. Lint, Build und Abgleich
-der 45 Shared-Module erfolgreich, auch nach Integration des aktuellen Dev-Stands.
-Vercel-Erfolg für `2ec25981107c05ba96c076bfdf7f1c7a3a131d1d` bestätigt.
-Angemeldete Dev-Sitzung zeigt persönlichen Schalter im Profil und gemeinsamen
-Schalter im Adminbereich, beide deaktiviert. Gemeinsame Inbox-Identität wird
-über die echte vorhandene Microsoft-Verbindung erfolgreich aufgelöst. Keine
-echten Postfächer für die Prüfung aktiviert und keine echten Mails versendet.
-Der zusätzliche Test für späte Fehler nach Reaktivierung prüft die atomare
-Generationssperre; der Worker wurde dafür erneut gezielt erfolgreich in Dev
-aktualisiert. Die letzte kleine Frontendergänzung zeigt bei aktivierten
-Postfächern den Zeitpunkt der letzten Prüfung bzw. das Warten auf die erste an.
+Private Collections: `mailboxRecommendationScopes` (Konfiguration/Ergebnisse),
+`mailboxRecommendationSubscriptions` (Registrierung/clientState-Hash),
+`mailboxRecommendationRuns` (Aufträge). Keine direkten Browserzugriffe.
+`mailboxRecommendationSignals/{connectionId}` enthält nur eine Revision und
+Eigentümer-/Zeitmetadaten; ausschließlich der berechtigte Verbindungseigentümer
+darf dieses einzelne Dokument abonnieren. Kein Listen- oder Schreibrecht.
 
-Vorheriger Remote-Dev-Stand: `524956ec72892060b05bb8f27033a603ae651ac4`.
-Main-Baseline: `230c2ad86af9700118e2f1456746292241461efc`. Main/Produktion
-bleiben unverändert. Rückweg: Aktivierungen abschalten und Frontend auf den
-vorherigen Stand zurückstellen; keine Ergebnisse oder Nachrichten löschen.
+KI unverändert: bestehendes Dev-Secret, `gpt-5.4`, `store: false`, maximal
+12.000 Zeichen Mailtext und 1.000 Zeichen Betreff, keine Tools oder Geschäftsdaten-
+abfragen; Usage-Feature `mailbox_action_recommendation`.
+
+## Veröffentlichung
+
+Dev-Functions gezielt: vier Einstellungs-/Ergebnis-Callables,
+`mailboxRecommendationWebhook`, `maintainMailboxRecommendationSubscriptions`,
+`processMailboxRecommendationRun`. Alte Funktion `enqueueMailboxRecommendations`
+entfernt. Cloud-Scheduler-Prüfung: alter Job HTTP 404; nur Abonnementpflege
+`every 60 minutes` bleibt bestehen. Die neuen Signal-Regeln werden nur in Dev
+bereitgestellt. Keine Produktions-Functions, -Rules oder -Deployments verändert.
+
+Tests umfassen den gültigen/gefälschten Webhook, Deduplizierung, zentrale Anzeige,
+Besitzrechte, Echtzeit-Signalrechte, Fünf-Minuten-Grenze, verzögerte KI-Ergebnisse,
+Abschalten, Lifecycle-Fälle und Abonnementpflege ohne Inhaltsabfrage. Zusätzlich
+Lint, Build, Shared-Abgleich, echte Microsoft-Zugriffs-/Handshakeprüfungen und
+Browserprüfung in Dev. Der alte Pollingweg darf nicht als Rollback reaktiviert
+werden; bei Problemen Webhooks deaktivieren und manuelle Aktionen nutzen.

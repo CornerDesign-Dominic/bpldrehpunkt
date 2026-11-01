@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyRecommendation, recommendationKinds, recommendationScope, createRecommendationHandlers } from './mailboxRecommendations.js'
+import { classifyRecommendation, recommendationKinds, recommendationScope, createRecommendationHandlers, freshRecommendation } from './mailboxRecommendations.js'
 
 test('shared identity ignores the delegate; personal consent remains owner scoped', () => {
   const shared = { tenantId: 'tenant', email: 'Team@Example.org', kind: 'shared', canonicalMailboxId: 'shared-folder', ownerId: 'one' }
@@ -33,6 +33,14 @@ test('truncated or invalid provider responses are failures, not misleading recom
 })
 test('production monitoring is rejected before any database access', async () => {
   const handlers = createRecommendationHandlers({ project: 'db-bpl-drehpunkt' })
-  await assert.rejects(handlers.enqueue(), { code: 'failed-precondition' })
+  await assert.rejects(handlers.maintain(), { code: 'failed-precondition' })
   await assert.rejects(handlers.process({ scopeId: 'a'.repeat(64) }), { code: 'failed-precondition' })
+})
+
+test('five minutes is a freshness boundary, never a scan interval', () => {
+  const now = Date.parse('2026-11-01T12:00:00Z')
+  assert.equal(freshRecommendation(now - 300000, now, now - 600000), true)
+  assert.equal(freshRecommendation(now - 300001, now, now - 600000), false)
+  assert.equal(freshRecommendation(now - 1000, now, now), false)
+  assert.equal(freshRecommendation(now + 61000, now, now - 600000), false)
 })

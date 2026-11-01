@@ -888,18 +888,17 @@ test('learning copies are cleaned while exact outgoing text is preserved; send a
   assert.equal(removed.latestSuggestion, undefined)
 })
 
-test('background recommendation reader uses immutable owned inbox text and never requests attachments or writes mail', async () => {
+test('webhook adapter reads exactly one owned immutable message and creates a created-only inbox subscription', async () => {
   const calls = []
-  const f = fixture({ fetch: async (url, options) => { calls.push({ url, options }); return response({ value: [{ id: 'immutable-id', body: { contentType: 'text', content: 'Ankunft 18 Uhr' } }] }) } })
-  const page = await f.handlers.readRecommendationInbox({ connectionId, since: 1000 })
-  assert.equal(page.messages[0].id, 'immutable-id')
-  assert.equal(calls.length, 1)
-  assert.ok(calls[0].url.includes('/me/mailFolders/inbox/messages?'))
+  const f = fixture({ fetch: async (url, options) => { calls.push({ url, options }); return response({ id: 'immutable-id', body: { contentType: 'text', content: 'Ankunft 18 Uhr' } }) } })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'message', messageId: 'immutable-id' })
+  assert.ok(calls[0].url.includes('/me/messages/immutable-id?'))
   assert.ok(calls[0].options.headers.Prefer.includes('ImmutableId'))
   assert.equal(calls[0].options.method, undefined)
-  assert.ok(!calls[0].url.includes('attachments'))
-  await assert.rejects(f.handlers.readRecommendationInbox({ connectionId, since: 1000, cursor: '/users/foreign/mailFolders/inbox/messages?$top=10' }), { code: 'unavailable' })
-  assert.equal(calls.length, 1)
+  await f.handlers.recommendationGraph({ connectionId, operation: 'create', data: { changeType: 'created' } })
+  assert.equal(JSON.parse(calls[1].options.body).resource, "/me/mailFolders('inbox')/messages")
+  assert.ok(calls.every(call => !call.url.includes('/inbox/messages?') && !call.url.includes('attachments')))
+  await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'list-inbox' }), { code: 'invalid-argument' })
 })
 
 test('shared mailbox identity is resolved from the actual inbox, never a client label or alias', async () => {

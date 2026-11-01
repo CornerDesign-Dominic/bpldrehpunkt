@@ -51,7 +51,7 @@ Das zusätzliche Modul `mailboxes` steuert den persönlichen Mailbereich.
 `view` erlaubt lesende Zugriffe auf eigene verbundene Postfächer; `edit`
 zusätzlich Verknüpfen/Trennen, Entwurf speichern und explizites Antworten.
 Auch ein Superadmin darf keine fremden persönlichen Postfächer abrufen.
-Sämtliche `mailbox*`-Collections sind für Browserzugriffe durch Default-deny
+Die inhalts- und zugangsdatenführenden `mailbox*`-Collections sind für Browserzugriffe durch Default-deny
 gesperrt und werden nur durch berechtigte Functions verarbeitet. Tokens liegen
 im Secret Manager, nie in Firestore. Der begrenzte Dev-Vertrag einschließlich
 OAuth und Versand ist unter [Graph-Postfächer](docs/operations/mailboxes-graph.md)
@@ -199,3 +199,14 @@ unter `transportOrders/{id}/refreshes` sind für Auftragsleser lesbar und nur
 serverseitig schreibbar. Reservierungen bleiben direkt gesperrt. Diagnose
 `transport-orders` verlangt Auftragsleserecht. Details und Releaseumfang:
 [Auftragsbereich](docs/operations/order-workspace.md).
+
+### Push-Signale für Mail-Empfehlungen
+
+`mailboxRecommendationSignals/{connectionId}` enthält ausschließlich eine
+Revision und Zeit-/Eigentümermetadaten. Ein einzelnes Dokument darf bei aktivem
+Postfach-Leserecht nur über eine eigene verbundene Verbindung gelesen bzw.
+abonniert werden; gemeinsame Verbindungen benötigen auch eine aktive eigene
+Elternverbindung. Listenzugriff und sämtliche Browserwrites sind verboten.
+Empfehlungen selbst sowie `mailboxRecommendationSubscriptions` und
+`mailboxRecommendationScopes` bleiben server-only. Siehe
+[Entscheidung gegen Kontrollabfragen](docs/decisions/mailbox-recommendations-no-polling.md).

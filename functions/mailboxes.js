@@ -136,6 +136,7 @@ function secretStore(project) {
 }
 
 export function createMailboxHandlers(deps = {}) {
+  let recommendationAppToken = null
   const db = () => deps.db || getFirestore()
   const now = () => deps.now?.() ?? Date.now()
   const config = () => deps.config || { project: runtimeProjectId(), secret: mailboxClientSecret.value(), redirect: mailboxRedirectUri.value(), origin: mailboxFrontendOrigin.value(), testAccount: mailboxTestAccount.value() }
@@ -539,14 +540,31 @@ export function createMailboxHandlers(deps = {}) {
       })
       return folder.id
     },
-    // Internal scheduler adapter, deliberately not exposed as a callable.
-    async readRecommendationInbox({ connectionId, since, cursor }) {
-      const saved = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
-      const context = await owned({ auth: { uid: saved?.ownerId }, data: { connectionId } })
-      const query = new URLSearchParams({ '$top': '10', '$select': 'id,subject,body,receivedDateTime', '$orderby': 'receivedDateTime asc', '$filter': `receivedDateTime ge ${new Date(since).toISOString()}` })
-      const path = cursor ? mailboxMessagePagePath(`${GRAPH}${cursor}`, context.connection) : `${mailboxPath(context)}/mailFolders/inbox/messages?${query}`
-      const result = await graph(await accessToken(context), path)
-      return { messages: result.value || [], nextPath: result['@odata.nextLink'] ? mailboxMessagePagePath(result['@odata.nextLink'], context.connection) : null }
+    // Internal webhook adapter. There is intentionally no inbox-list operation.
+    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId }) {
+      assertMailboxEnvironment(config().project)
+      const connection = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
+      if (connection?.status !== 'connected') fail('failed-precondition', 'Postfach ist nicht verbunden.')
+      let token, base
+      if (connection.kind === 'shared') {
+        base = `/users/${segment(address(connection.email))}`
+        if (!recommendationAppToken || recommendationAppToken.expiresAt <= now() + 60000) {
+          const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: CLIENT, client_secret: config().secret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }), signal: AbortSignal.timeout(20000) })
+          if (!response.ok) fail('failed-precondition', 'Der Microsoft-Anwendungszugriff für gemeinsame Postfächer ist noch nicht eingerichtet.')
+          const result = await response.json()
+          if (!result.access_token || !Number.isFinite(Number(result.expires_in))) fail('failed-precondition', 'Microsoft-Anwendungszugriff ist unvollständig.')
+          recommendationAppToken = { token: result.access_token, expiresAt: now() + Math.min(Number(result.expires_in), 3600) * 1000 }
+        }
+        token = recommendationAppToken.token
+      } else {
+        const context = await owned({ auth: { uid: connection.ownerId }, data: { connectionId } })
+        token = await accessToken(context)
+        base = '/me'
+      }
+      if (operation === 'create') return graph(token, '/subscriptions', { method: 'POST', body: JSON.stringify({ ...data, resource: `${base}/mailFolders('inbox')/messages` }) })
+      if (operation === 'message') return graph(token, `${base}/messages/${segment(messageId)}?$select=id,subject,body,receivedDateTime`)
+      if (!['renew', 'delete'].includes(operation)) fail('invalid-argument', 'Ungültiger Webhook-Vorgang.')
+      return graph(token, `/subscriptions/${segment(subscriptionId)}`, operation === 'delete' ? { method: 'DELETE' } : { method: 'PATCH', body: JSON.stringify(data) })
     },
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
@@ -816,7 +834,7 @@ export const applyMailboxTrackingHandler = handlers.applyMailboxTracking
 export const previewMailboxOrderHandler = handlers.previewMailboxOrder
 export const exportMailboxOrderHandler = handlers.exportMailboxOrder
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
-export const readRecommendationInboxHandler = handlers.readRecommendationInbox
+export const recommendationGraphHandler = handlers.recommendationGraph
 export const resolveRecommendationMailboxIdentityHandler = handlers.resolveRecommendationMailboxIdentity
 export const listMailboxRepliesHandler = handlers.listMailboxReplies
 export const getMailboxMessageHandler = handlers.getMailboxMessage
