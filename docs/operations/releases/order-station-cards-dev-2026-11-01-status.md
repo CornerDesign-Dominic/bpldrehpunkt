@@ -75,3 +75,19 @@ und Historien nicht löschen. Frontend-Rückkehr setzt Backend nicht zurück.
 Remote-`main` vor Beginn unverändert:
 `230c2ad86af9700118e2f1456746292241461efc`. Keine Übernahme nach Main, kein
 Produktionsdeploy und keine Änderung von Produktionsdaten/-konfiguration.
+
+## Nachtrag: kompaktere Karten
+
+Nach Rückmeldung aus der Dev-Abnahme wurde die bestehende Kartenstruktur in
+`c5d35f5` verdichtet: kleinere Abstände/Schriften, Datum und Uhrzeit in einer
+flexibel umbrechenden Zeile, Referenz und Palettentausch als schmale Einzelkarten.
+Allgemeine Karten stehen bei ausreichender Breite nebeneinander; Quellenwerte,
+Hinweise, Markierungsregeln und FIX-Typografie bleiben erhalten. Die währenddessen
+bereits auf Dev vorhandenen Wissens-/Profiländerungen bis `67f2587` wurden
+konfliktfrei übernommen, keine fremden Änderungen zurückgenommen.
+
+Identische synthetische Daten: Kopfbereich 338 auf 181 Pixel, zwei Stationen
+425/442 auf 261/273 Pixel. Lint und Build für den kombinierten Stand und der
+Shared-Abgleich sind Teil der Vorprüfung; für diese reine Oberflächenkorrektur
+werden keine Functions, Rules oder Indizes neu bereitgestellt. Der Frontend-Push
+bleibt ausschließlich auf Dev, Vercel-Erfolg am veröffentlichten Commit prüfen.

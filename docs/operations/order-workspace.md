@@ -341,3 +341,24 @@ immer neutrale Referenz, kein großer FIX-Badge, identische Größe/Stärke von
 Datum/Uhrzeit, neue Quellfelder, Nullwerte und Volumengewicht separat sichtbar.
 Hell/Dunkel und Deutsch/Englisch; 560-Pixel-Rahmen ohne horizontalen Überlauf.
 Bei dieser lokalen Prüfung wurden keine echten Fachdaten verändert und noch keine Veröffentlichung durchgeführt.
+
+## Verdichtete Karten nach der Dev-Abnahme am 01.11.2026
+
+Die bisherige Kartenansicht wurde auf Nutzerfeedback kompakter gesetzt:
+kleinere Innen-/Zwischenabstände, zurückhaltendere Überschriften und Werte.
+Datum/Uhrzeit stehen bei ausreichender Breite nebeneinander und bleiben
+identisch gewichtet; FIX erbt weiter die Uhrzeitschrift. Referenz und
+Palettentausch stehen jeweils in einer eigenen schmalen Karte mit Titel/Wert
+nebeneinander. Allgemeine Daten nutzen abhängig von der Inhaltsbreite drei oder
+vier Karten nebeneinander und eine kompakte Zeile für Auftragsmengen.
+Alle Daten, vollständigen Hinweise und bestehenden Randmarkierungen bleiben
+erhalten. Bei schmalen Ansichten umbrechen die Angaben ohne Abschneiden.
+
+Vergleich mit identischen synthetischen Daten im selben 1280-Pixel-Prüfviewport:
+Kopfbereich 338 auf 181 Pixel, Stationen 425/442 auf 261/273 Pixel. Dies ist ein
+konkreter Layoutnachweis für die geprüften Daten, kein fester Höhenvertrag für
+lange reale Inhalte. Browserprüfung mit langen Hinweisen, Kilometerdaten,
+Hervorhebungen, Hell/Dunkel und 560-Pixel-Rahmen berücksichtigt. Diese Anpassung
+ändert ausschließlich die Oberfläche; kein weiterer Backend-/Rules-/Indexdeploy.
+Die Dev-Veröffentlichung folgt dem zuvor ausdrücklich freigegebenen Rahmen,
+Main und Produktion bleiben unverändert. Nachweis im Karten-Releasebeleg.
