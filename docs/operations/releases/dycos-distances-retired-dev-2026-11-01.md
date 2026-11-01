@@ -36,3 +36,22 @@ Keine neuen Functions, Rules, Indizes, Secrets oder Datenmigration.
 
 Vor Bereitstellung wurden 198 Dev-Functions als Vergleich erfasst. Durchführung
 und tatsächliche Liveprüfung werden nach erfolgreichem Deployment ergänzt.
+
+### Erfolgreiche Dev-Bereitstellung und echter Abruf
+
+Fachcommit `5fb3432`. Gezielt beide genannten Functions mit explizitem
+`--project db-bpl-drehpunkt-dev` bereitgestellt; CLI exit 0. Beide ACTIVE,
+Vorher-/Nachher-Abgleich: 198 Functions, genau diese beiden aktualisiert,
+übrige 196 unverändert, keine hinzugefügt/entfernt.
+
+TA 261100028 anschließend über den normalen Dev-Fachreiter aktualisiert:
+`imported.distances` vor Abruf vorhanden, danach nicht mehr vorhanden. Die
+Aktualisierungshistorie meldet Auftragsdaten „Unverändert“, ohne künstliche
+Distanz-Löschhistorie. Die eigene gespeicherte Route bleibt bei 1.350 km,
+Status succeeded und demselben Änderungszeitpunkt vom 29.10.2026; auch
+routeNeedsRecalculation bleibt false. Die zusätzliche Kontrollroute der
+TA 261000764 bleibt unverändert bei 470 km. Keine echte Mail für diese Prüfung.
+
+Frontend wird mit diesem Releasebeleg gemeinsam nach Dev gepusht; Vercelstatus
+und sichtbare Darstellung werden anschließend am veröffentlichten Stand geprüft.
+Main unverändert bei `230c2ad86af9700118e2f1456746292241461efc`.
