@@ -27,17 +27,19 @@ werden nach abgeschlossenem Erstaufbau nicht mehr regelmäßig vollständig gele
   Aufbau der Tracking-Arbeitsprojektion aus. `listQuery`-Änderungen der
   Auftragsliste lösen ebenfalls keine Schleife aus.
 
-Die Fristerinnerung liest minütlich aus `caseDeadlineReminderWork`, ebenfalls nur
-Jobs mit `dueAt <= jetzt`. Ein Job enthält Quellpfad, stabile Versandversion und
-Zeitpunkt. Aktivierte Erinnerungen bleiben fachlich aktiviert; bereits versandte
-Versionen stehen ausschließlich in `caseDeadlineReminderDeliveries` und nicht
-mehr in der Arbeitsmenge. Änderungen an Datum, Uhrzeit oder Empfänger erzeugen
-wie bisher eine neue Versandversion. Deaktivierte oder gelöschte Fristen und
-fehlende übergeordnete Fälle entfernen den Job. Alle fünf Quellen bleiben
-enthalten: Schäden, Inkasso, Gericht/Streit, Insolvenzen und To-dos.
+Die lokal neu implementierte zentrale Erinnerung liest minütlich aus
+`reminderWork`, ebenfalls nur Jobs mit `dueAt <= jetzt`. Sie ersetzt den
+bisherigen Fristworker und umfasst zusätzlich Kalenderereignisse und
+To-do-Haupterinnerungen. Versand ist ausschließlich innerhalb der vorgesehenen
+Minute erlaubt, ohne Nachholung. Dauerhafte Reservierungen in
+`reminderDeliveries` verhindern Wiederholungen auch bei unklarem Providerergebnis.
+Empfänger werden aus aktueller Zuständigkeit bzw. Kalenderzugriff ermittelt.
+Die früheren `caseDeadlineReminderDeliveries` bleiben als Historie erhalten.
+Der neue Code ist noch nicht veröffentlicht; führender Vertrag und
+Umstellungsgrenzen: [Zentrale Erinnerungen](reminders.md).
 
 Die Historien werden nicht gelöscht. Beide Arbeitscollections und
-`backgroundWorkState` bleiben für direkte Clientzugriffe vollständig gesperrt,
+`backgroundWorkState` sowie die neuen Erinnerungsprojektionen bleiben für direkte Clientzugriffe vollständig gesperrt,
 einschließlich Superadmins. `prepareBackgroundWork` ist ausschließlich für aktive
 Superadmins mit App Check zugänglich. Die normalen Scheduler benötigen keine
 neuen zusammengesetzten Firestore-Indizes: Filter und Sortierung verwenden nur
@@ -45,14 +47,18 @@ neuen zusammengesetzten Firestore-Indizes: Filter und Sortierung verwenden nur
 
 ## Erstaufbau und laufende Konfigurationsänderungen
 
-`backgroundWorkState` speichert je Aufbau Generation, Dokumentcursor und
-`complete`. Eine Seite umfasst maximal 200 Quellen. Ein Fehler lässt den Cursor
+`backgroundWorkState` speichert für Tracking und Listen je Aufbau Generation,
+Dokumentcursor und `complete`. Eine Seite umfasst dort maximal 200 Quellen.
+Erinnerungen verwenden den neuen Marker `reminderState/preparation` und maximal
+100 Quellen je Seite. Ein Fehler lässt den Cursor
 auf der vorherigen abgeschlossenen Seite; erneute Verarbeitung ist idempotent.
 Ein parallel angeforderter Neuaufbau kann nicht durch den Abschluss einer alten
 Seite überschrieben werden.
 
-Erstaufbau und Umstellung müssen vor einer ausdrücklich freigegebenen
-Bereitstellung in zwei Schritten erfolgen:
+Die folgende Reihenfolge beschreibt den ursprünglichen Kostenrelease.
+Für die noch lokale zentrale Erinnerung gelten zusätzlich die abgestimmte
+Mailpause, Providerprüfung und Umstellung in [reminders.md](reminders.md).
+Erstaufbau und Umstellung benötigen eine ausdrückliche Veröffentlichungsfreigabe:
 
 1. Neue Projektionstrigger, den Taskworker und `prepareBackgroundWork`
    bereitstellen; die beiden bisherigen Scheduler zunächst weiterlaufen lassen.

@@ -4,6 +4,19 @@ Stand: 28.10.2026. Umgebungsmatrix: `../docs/operations/environments.md`.
 Für Eingangsmails und KI-Auswertung gilt separat
 `../docs/operations/status-mail-ingest.md`.
 
+Ergänzung 31.10.2026: Der neue lokale zentrale Erinnerungsdienst ist noch nicht
+veröffentlicht. Er verwendet künftig ein eigenes
+`POWER_AUTOMATE_REMINDER_URL` je Umgebung und darf in Dev und Produktion über
+`drehpunkt@brennpunkt-logistik.de` senden. Zusätzlich sind getrennte
+`REMINDER_*`-Zertifikats-/Identitätssecrets und Bearer-Anmeldung lokal vorbereitet;
+ein anonymer/SAS-Aufruf ist ausgeschlossen. Zwei neue Erinnerungsflows und
+Versandlisten sind angelegt; die Flows bleiben aus. Bestehender allgemeiner Flow,
+Send-as-Rechte, der freigegebene Altflow-Einzeltest sowie die noch offenen
+Identitätsbindungen und die echte Providerabnahme stehen in
+[`reminder-mailflow-preparation.md`](../docs/operations/reminder-mailflow-preparation.md).
+Die übrigen System-/Tracking-Mailpfade behalten die nachfolgenden Guards und
+Secrets. Aussagen über den bisherigen Fristworker beschreiben den Altstand.
+
 ## Zweck und technische Grenze
 
 Systemmails werden ausschließlich serverseitig durch Firebase Functions in `europe-west3` ausgelöst. Die Functions übergeben Empfänger, Betreff, Text und – bei Systemmail-Vorlagen – HTML an den serverseitig verwalteten Power-Automate-Webhooks. Es gibt keinen direkten Mailversand aus dem Browser.
@@ -50,10 +63,13 @@ Zusätzlich zu den oben aufgeführten ursprünglichen Versandpfaden existieren:
 | --- | --- | --- |
 | Automatische Tracking-Anfragen und Erinnerungen | `scheduledShipmentTrackingAutomation`, regel- und lebenszyklusabhängig; nur Produktion | Für den Tracking-Ablauf hinterlegter gültiger Empfänger |
 | Bewusste Tracking-Anfrage | `sendManualShipmentTrackingMail`, Vorschau, Tracking-Bearbeitungsrecht und Empfängerprüfung | Hinterlegter Unternehmerempfänger; in Dev nur die freigegebene interne Domain |
-| Fristerinnerung für Fälle und To-dos | `scheduledCaseDeadlineReminderDispatch`, fällige aktivierte Erinnerung; nur Produktion | Im Fristdatensatz hinterlegter Erinnerungsadressat |
+| Bisherige Fristerinnerung (Altstand) | `scheduledCaseDeadlineReminderDispatch`, fällige aktivierte Erinnerung; bisher nur Produktion | Bisher im Fristdatensatz hinterlegter Erinnerungsadressat |
+| Zentrale Termin-/Fristerinnerung (nur lokal vorbereitet) | Derselbe Schedulerexport, neuer Registry-/Providervertrag; Dev und Produktion | Aktuelle zuständige Nutzer bzw. Kalenderleser nach [Erinnerungsvertrag](../docs/operations/reminders.md) |
 
 Tracking-Mails verwenden `POWER_AUTOMATE_TRACKING_NOTIFICATION_URL`, andere
-Systemvorlagen `POWER_AUTOMATE_NOTIFICATION_URL`. Eine Webhook-Annahme bestätigt
+Systemvorlagen `POWER_AUTOMATE_NOTIFICATION_URL`. Der neue Erinnerungsadapter
+verwendet ausschließlich `POWER_AUTOMATE_REMINDER_URL`, ohne Rückfall auf diese
+allgemeinen Zugänge. Eine Webhook-Annahme bestätigt
 noch keinen Postfacheingang. Die globale automatische Mailpause und bewusste
 manuelle Tracking-Anfragen sind getrennte Abläufe.
 

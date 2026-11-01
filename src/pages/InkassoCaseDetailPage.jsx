@@ -1,3 +1,5 @@
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -68,8 +70,9 @@ export default function InkassoCaseDetailPage() {
   const [noteSaving, setNoteSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const [reminderRefreshKey, setReminderRefreshKey] = useState(0)
   const [showTodoCreate, setShowTodoCreate] = useState(false)
-  const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'inkassoCaseId', caseId, profile, user })
+  const { createLinkedTodo, linkedTodoLoading, linkedTodoError, reloadLinkedTodos, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'inkassoCaseId', caseId, profile, user })
 
   useEffect(() => {
     let current = true
@@ -138,14 +141,36 @@ export default function InkassoCaseDetailPage() {
     try { if (existingInvoice) await updateInkassoCaseInvoice(inkassoCase, existingInvoice, values, { user, profile }); else await createInkassoCaseInvoice(inkassoCase, values, { user, profile }); await load(); setToast(existingInvoice ? 'Rechnung aktualisiert.' : 'Rechnung hinzugefügt.') } catch (saveError) { setError(saveError.message || 'Die Rechnung konnte nicht gespeichert werden.'); throw saveError }
   }
 
+  async function reloadAfterReminderChange(afterMutation = true) {
+    setDeadlinesLoading(true)
+    try { await load() }
+    catch (error) { setError(afterMutation ? 'Die Änderung wurde gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte erneut laden.' : 'Die Ansicht konnte nicht geladen werden. Bitte erneut versuchen.'); void reportTechnicalFailure({ module: 'reminders', stage: 'load', error }) }
+    finally { setDeadlinesLoading(false) }
+  }
+
   async function saveDeadline(existingDeadline, values) {
+    if (!editable) return
     setError('')
-    try { if (existingDeadline) await updateInkassoCaseDeadline(inkassoCase, existingDeadline, values, { user, profile }); else await createInkassoCaseDeadline(inkassoCase, values, { user, profile }); await load(); setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.') } catch (saveError) { setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.'); throw saveError }
+    try {
+      if (existingDeadline) await updateInkassoCaseDeadline(inkassoCase, existingDeadline, values, { user, profile })
+      else await createInkassoCaseDeadline(inkassoCase, values, { user, profile })
+    } catch (saveError) {
+      setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.')
+      throw saveError
+    }
+    setReminderRefreshKey((current) => current + 1)
+    setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
+    void reloadAfterReminderChange()
   }
 
   async function deleteDeadline(deadline) {
+    if (!editable) return
     setError('')
-    try { await deleteInkassoCaseDeadline(inkassoCase, deadline, { user, profile }); await load(); setToast('Termin gelöscht.') } catch (deleteError) { setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.'); throw deleteError }
+    try { await deleteInkassoCaseDeadline(inkassoCase, deadline, { user, profile }) }
+    catch (deleteError) { setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.'); throw deleteError }
+    setReminderRefreshKey((current) => current + 1)
+    setToast('Termin gelöscht.')
+    void reloadAfterReminderChange()
   }
 
   if (loading) return <p className="page-state"><StaticText source={"Inkassofall wird geladen …"} /></p>
@@ -169,12 +194,13 @@ export default function InkassoCaseDetailPage() {
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/inkasso" /></div>
     <div className="todo-detail-page damage-detail-page inkasso-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></header>
-      {error && <p className="form-error">{<StaticText source={error} />}</p>}
+      {error && <div><p className="form-error"><StaticText source={error} /></p><button className="button button--secondary" type="button" onClick={() => { setError(''); void reloadAfterReminderChange(false) }}><StaticText source="Erneut laden" /></button></div>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3><StaticText source={"Beschreibung"} /></h3>{editable && <TranslatedProps sources={{"aria-label":"Beschreibung bearbeiten","title":"Beschreibung bearbeiten"}}><button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} aria-label="Beschreibung bearbeiten" title="Beschreibung bearbeiten"><EditIcon size={14} /></button></TranslatedProps>}</div><p className="todo-detail-description">{inkassoCase.description || <StaticText source={"Keine Beschreibung hinterlegt."} />}</p></section>
-          <InkassoDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
-          {canViewTodos && <LinkedTodosCard canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
+          <CaseReminderResponsibility key={inkassoCase.id} parentPath={`inkassoCases/${inkassoCase.id}`} responsibleUserId={inkassoCase.responsibleUserId} responsibleUserName={inkassoCase.responsibleUserName} canEdit={editable} onChanged={(result) => { setInkassoCase((current) => ({ ...current, ...result })); setReminderRefreshKey((current) => current + 1); void reloadAfterReminderChange() }} />
+          <InkassoDeadlinesCard canEdit={editable} parentPath={`inkassoCases/${inkassoCase.id}`} refreshKey={reminderRefreshKey} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+          {canViewTodos && <LinkedTodosCard error={linkedTodoError} onReload={reloadLinkedTodos} canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getInkassoCaseDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <InkassoInvoicesCard canEdit={editable} invoices={invoices} loading={invoicesLoading} movements={movements} movementsLoading={movementsLoading} onDeleteMovement={deleteMovement} onPaymentChange={changeInvoicePayment} onSave={saveInvoice} onSaveMovement={saveMovement} savingInvoiceId={savingInvoiceId} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="inkasso-update-title"><div className="todo-updates__heading"><h3 id="inkasso-update-title">Updates</h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><TranslatedProps sources={{"aria-label":"Update zum Inkassofall","placeholder":"Update zum Inkassofall hinzufügen …"}}><textarea aria-label="Update zum Inkassofall" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Inkassofall hinzufügen …" /></TranslatedProps><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{<StaticText source={noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'} />}</button></form>}{updatesLoading ? <p className="todo-updates__empty"><StaticText source={"Updates werden geladen …"} /></p> : !manualUpdates.length ? <p className="todo-updates__empty"><StaticText source={"Noch keine Updates zum Inkassofall."} /></p> : <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}

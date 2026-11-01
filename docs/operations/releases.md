@@ -82,6 +82,10 @@ existiert bislang nur der GitHub-Secret-Scan; ein eigener Build-/Lint-/Testworkf
 und der tatsächliche Branchschutz sind gesondert zu behandeln.
 
 Abgegrenzte lokale Releasevorbereitungen:
+
+- [Zentrale Erinnerungen](reminders.md): lokaler neuer Stand, Empfängerregeln,
+  Providervertrag, Datenaufbau und noch offene Liveprüfungen; keine Freigabe.
+
 - [Kostenoptimierungen Dev, 31.10.2026](cost-efficiency-dev-release.md):
   Bestandteilliste, gestufter Übergang, Datenaufbau und Rückweg; keine Freigabe.
   Nachfolgende ausdrückliche Dev-Freigabe und Durchführung sind im
