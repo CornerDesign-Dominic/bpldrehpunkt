@@ -12,7 +12,7 @@ if (enabled) initializeApp({ projectId: 'demo-drehpunkt-order-fields' })
 
 test('emulator: confirmed contact, station and document fields persist, refresh audibly and retain manual data', { skip: !enabled }, async () => {
   const db = getFirestore(), uid = `fields-${randomUUID()}`, ta = `2606${String(Date.now()).slice(-5)}`
-  await db.doc(`users/${uid}`).set({ active: true, firstName: 'Test', lastName: 'Import', permissions: { dataImports: 'edit' } })
+  await db.doc(`users/${uid}`).set({ active: true, firstName: 'Test', lastName: 'Import', permissions: { transportOrderSingleImport: 'edit', dataImports: 'edit' } })
   const payload = {
     auftrag: { ID: 71, Nummer: Number(ta), Ladedatum: '2026-06-01', ImAuftrag: 'Kundenkontakt: customer@example.test', Referenznummer: 'Ortsangabe bleibt gültig', DispoBemerkung: 'Erste Zeile\nZweite Zeile' },
     ladeEntladestellen: [{ ID: 31, AuftragsID: 71, Lade_Entladestelle: 'L', Zeile_In_Auftrag: 1, Bemerkung: 'Seitlich beladen', Zustellinformation: 'Ladereferenz: ALT', Ankunft: '2026-06-01T08:00:00Z' }],
@@ -54,7 +54,7 @@ test('emulator: confirmed contact, station and document fields persist, refresh 
 
 test('emulator: customer cancellation persists the original link and audited status without collapsing identical invoice numbers', { skip: !enabled }, async () => {
   const db = getFirestore(), uid = `cancellation-${randomUUID()}`, ta = `2610${String(Date.now()).slice(-5)}`
-  await db.doc(`users/${uid}`).set({ active: true, permissions: { dataImports: 'edit' } })
+  await db.doc(`users/${uid}`).set({ active: true, permissions: { transportOrderSingleImport: 'edit', dataImports: 'edit' } })
   const original = { KopfID: 101, BelegNr: '66966', BelegNrID: 66966, Belegart: 2, TextRechnung: 'RECHNUNG', BelegDatum: '26.10.26', bUnternehmer: false, bProformabeleg: false, Storniert: false, PDFDateinameMitPfadFakturaBelegOriginal: 'Rechnung_66966_101.pdf' }
   const payload = { auftrag: { ID: 71, Nummer: Number(ta), Ladedatum: '2026-10-01' }, ladeEntladestellen: [], LadeEntladestellen2: [], kunde: null, tour: null, unternehmerstamm: null, fahrzeugart: null, relation: null, zahlungsbedingungKunde: null, zahlungsbedingungUnternehmer: null, auftragspreise: [], tourkosten: [], fakturaZeilen: [{ AuftragID: 71, KopfID: 101 }], fakturaKopf: [original] }
   const request = () => ({ auth: { uid }, data: { taNummer: ta, requestId: randomUUID() } })

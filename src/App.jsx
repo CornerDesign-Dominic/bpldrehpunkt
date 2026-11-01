@@ -65,6 +65,7 @@ const InkassoPage = lazy(() => import('./pages/InkassoPage.jsx'))
 const InkassoCaseDetailPage = lazy(() => import('./pages/InkassoCaseDetailPage.jsx'))
 const AgbCheckerPage = lazy(() => import('./pages/AgbCheckerPage.jsx'))
 const TransportOrdersPage = lazy(() => import('./pages/TransportOrdersPage.jsx'))
+const TransportOrderImportHistoryPage = lazy(() => import('./pages/TransportOrderImportHistoryPage.jsx'))
 const TransportOrderImportPage = lazy(() => import('./pages/TransportOrderImportPage.jsx'))
 const TransportOrderDetailPage = lazy(() => import('./pages/TransportOrderDetailPage.jsx'))
 const MasterDataImportPage = lazy(() => import('./pages/MasterDataImportPage.jsx'))
@@ -112,7 +113,9 @@ export default function App() {
         <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
         <Route path="/transportauftraege" element={<PermissionRoute module="transportOrders"><TransportOrdersPage /></PermissionRoute>} />
-        <Route path="/transportauftraege/import" element={<PermissionRoute module="dataImports" minimum="edit"><TransportOrderImportPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/import" element={<PermissionRoute anyModules={["transportOrderSingleImport", "transportOrderBulkImport"]} minimum="edit"><TransportOrderImportPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/import/einzel" element={<PermissionRoute module="transportOrderSingleImport" minimum="edit"><TransportOrderImportPage kind="single" /></PermissionRoute>} />
+        <Route path="/transportauftraege/import/sammel" element={<PermissionRoute module="transportOrderBulkImport" minimum="edit"><TransportOrderImportPage kind="bulk" /></PermissionRoute>} />
         <Route path="/transportauftraege/:transportOrderId" element={<PermissionRoute module="transportOrders"><TransportOrderDetailPage /></PermissionRoute>} />
         <Route path="/crm" element={<PermissionRoute module="crm"><CrmPage /></PermissionRoute>} />
         <Route path="/crm/:partnerId" element={<PermissionRoute module="crm"><CrmDetailPage /></PermissionRoute>} />
@@ -139,6 +142,7 @@ export default function App() {
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
         <Route path="/hilfe/sendungsverfolgung" element={<PermissionRoute module="transportOrders"><ShipmentTrackingHelpPage /></PermissionRoute>} />
+        <Route path="/admin/importverlauf" element={<PermissionRoute requireUserManagement><TransportOrderImportHistoryPage /></PermissionRoute>} />
         <Route path="/admin/diagnose" element={<PermissionRoute requireUserManagement><DiagnosticsPage /></PermissionRoute>} />
         <Route path="/admin/stammdaten" element={<PermissionRoute requireUserManagement><CompanyMasterDataPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />

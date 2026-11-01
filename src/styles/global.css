@@ -2402,3 +2402,13 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .transport-orders-attention-icons__item--neutral, .shipment-tracking-attention__item--neutral,
 .transport-orders-forecast-button--neutral, .shipment-tracking-forecast-button--neutral,
 .shipment-tracking-forecast-modal__arrival--neutral { color: var(--text-muted); background: var(--surface-secondary); }
+
+.dycos-import-compact h2 { margin: 0; font-size: 16px; }
+.dycos-import-compact .dycos-order-fetch__form { margin-top: 10px; gap: 10px; }
+.dycos-import-compact .dycos-order-fetch__form .form-field { flex-basis: 210px; }
+.dycos-import-status { margin-top: 12px; font-size: 13px; }
+.dycos-import-status progress { width: 100%; height: 8px; }
+dialog.transport-order-import-dialog { width: min(1100px, 94vw); padding: 0; }
+dialog.transport-order-import-dialog > .customer-import-modal { width: 100%; box-sizing: border-box; }
+
+.transport-order-import-history > .import-preparation__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }

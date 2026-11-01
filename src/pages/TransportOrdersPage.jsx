@@ -215,7 +215,8 @@ export default function TransportOrdersPage() {
           </div>
         </section>
       </div>
-      {canEdit('dataImports') && <Link className="button" to="/transportauftraege/import"><StaticText source="Transportaufträge importieren" /></Link>}
+      {canEdit('transportOrderSingleImport') && <Link className="button" to="/transportauftraege/import/einzel" target="_blank" rel="noopener"><StaticText source="Einzelimport" /></Link>}
+      {canEdit('transportOrderBulkImport') && <Link className="button button--secondary" to="/transportauftraege/import/sammel" target="_blank" rel="noopener"><StaticText source="Sammelimport" /></Link>}
     </div>
     {error && <p className="form-error">{<StaticText source={error} />}</p>}
     {preferenceSaveStatus === 'error' && <div className="form-error" role="alert"><p>{t('orders.preferencesSaveError')}</p><button className="button button--secondary" type="button" onClick={() => { void preferenceSaver.flush() }}>{t('orders.preferencesRetry')}</button></div>}

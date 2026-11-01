@@ -340,7 +340,7 @@ export default function TransportOrderDetailPage() {
     <div className="transport-order-detail-layout">
       <TranslatedProps sources={{"aria-label":"Verknüpfungen"}}><aside className="transport-order-detail-actions" aria-label="Verknüpfungen">
         <TransportInvoiceChecks key={`invoice-${order.id}`} orderId={order.id} number={order.externalNumber} />
-        <TransportOrderRefreshButton key={order.id} order={order} allowed={order.id === transportOrderId && canEdit('dataImports') && /^(0|[1-9]\d{0,9})$/.test(order.externalNumber) && Number(order.externalNumber) <= 2147483647} onUpdated={refreshImportedOrder} />
+        <TransportOrderRefreshButton key={order.id} order={order} allowed={order.id === transportOrderId && canEdit('transportOrderRefresh') && /^(0|[1-9]\d{0,9})$/.test(order.externalNumber) && Number(order.externalNumber) <= 2147483647} onUpdated={refreshImportedOrder} />
         <TransportOrderRoutePanel route={route} canEdit={canEdit('transportOrders')} calculating={routeCalculating} error={routeError} needsRecalculation={order?.routeNeedsRecalculation === true} onCalculate={() => void calculateRoute()} />
         <TransportOrderLinkedCasesCard transportOrderId={transportOrderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />
         {canView('pallets') && <TransportOrderPalletMovementsCard transportOrder={order} canEdit={canEdit('pallets')} />}
