@@ -21,6 +21,24 @@ export function formatTransportOrderWindow(value) {
   return `${day}.${month}. · ${time}`
 }
 
+export function formatTransportOrderWindowRange(window, language = 'de') {
+  // Retain the source's local clock, as in the existing single-time display.
+  // An unresolved clock without its own date is not a confirmed boundary.
+  const parse = value => {
+    const match = text(value).match(/^(\d{4})-(\d{2})-(\d{2})T((?:[01]\d|2[0-3]):[0-5]\d)/)
+    return match ? { date: match[0].slice(0, 10), year: match[1], month: match[2], day: match[3], time: match[4] } : null
+  }
+  const from = parse(window?.from), until = parse(window?.until)
+  if (!from && !until) return '—'
+  const differentYears = from && until && from.year !== until.year
+  const date = value => `${value.day}.${value.month}.${differentYears ? value.year : ''}`
+  const suffix = language === 'en' ? '' : ' Uhr'
+  if (!from) return `${date(until)} · ${language === 'en' ? 'until' : 'bis'} ${until.time}${suffix}`
+  if (!until) return `${date(from)} · ${language === 'en' ? 'from' : 'ab'} ${from.time}${suffix}`
+  if (from.date !== until.date) return `${date(from)} · ${from.time} – ${date(until)} · ${until.time}${suffix}`
+  return `${date(from)} · ${from.time === until.time ? from.time : `${from.time}–${until.time}`}${suffix}`
+}
+
 export function formatTransportOrderRelation(value) {
   const relation = text(value).replace(/^\d+\s+/, '')
   return relation || '—'

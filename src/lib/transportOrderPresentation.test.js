@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { formatTransportOrderDocumentDate, transportOrderFinancialDocumentLabels, formatTransportOrderRelation, formatTransportOrderWindow, sortTransportOrders, transportOrderDocumentTitle, transportOrderPath } from './transportOrderPresentation.js'
+import { formatTransportOrderDocumentDate, transportOrderFinancialDocumentLabels, formatTransportOrderRelation, formatTransportOrderWindow, formatTransportOrderWindowRange, sortTransportOrders, transportOrderDocumentTitle, transportOrderPath } from './transportOrderPresentation.js'
 
 test('transport order opens through its exact route and receives a concise browser-tab title', () => {
   assert.equal(transportOrderPath('dycos-260900123'), '/transportauftraege/dycos-260900123')
@@ -31,6 +31,22 @@ test('relations hide only a leading numeric import prefix in the list display', 
   assert.equal(formatTransportOrderRelation('03 Dobo Christian'), 'Dobo Christian')
   assert.equal(formatTransportOrderRelation('Dobo Christian'), 'Dobo Christian')
   assert.equal(formatTransportOrderRelation(null), '—')
+})
+
+test('list station windows show both local boundaries and retain dates across midnight and year boundaries', () => {
+  assert.equal(formatTransportOrderWindowRange({ from: '2026-11-02T08:00:00', until: '2026-11-02T20:30:00' }), '02.11. · 08:00–20:30 Uhr')
+  assert.equal(formatTransportOrderWindowRange({ from: '2026-11-02T23:00', until: '2026-11-03T02:00' }), '02.11. · 23:00 – 03.11. · 02:00 Uhr')
+  assert.equal(formatTransportOrderWindowRange({ from: '2026-12-31T23:00', until: '2027-01-01T02:00' }), '31.12.2026 · 23:00 – 01.01.2027 · 02:00 Uhr')
+  assert.equal(formatTransportOrderWindowRange({ from: '2026-11-02T08:00', until: '2026-11-02T08:00' }), '02.11. · 08:00 Uhr')
+})
+
+test('list station windows never supply a missing or unresolved boundary', () => {
+  assert.equal(formatTransportOrderWindowRange({ from: '2026-11-02T08:00' }), '02.11. · ab 08:00 Uhr')
+  assert.equal(formatTransportOrderWindowRange({ until: '2026-11-02T14:00' }), '02.11. · bis 14:00 Uhr')
+  assert.equal(formatTransportOrderWindowRange({ from: 'invalid', until: '14:00' }), '—')
+  assert.equal(formatTransportOrderWindowRange({ from: '2026-11-02T08:00', until: '2026-11-02T25:00' }), '02.11. · ab 08:00 Uhr')
+  assert.equal(formatTransportOrderWindowRange(null), '—')
+  assert.equal(formatTransportOrderWindowRange({ until: '2026-11-02T14:00' }, 'en'), '02.11. · until 14:00')
 })
 
 test('document date preserves the source calendar date and rejects malformed or impossible dates', () => {

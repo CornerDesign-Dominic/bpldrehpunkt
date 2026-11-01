@@ -1838,7 +1838,7 @@ tbody tr:hover td { background: var(--table-hover-background); }
 
 /* Transport orders and DyCoS import shells intentionally contain no data integration. */
 .list-toolbar__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.transport-orders-page { display: grid; gap: 14px; max-width: var(--list-content-max-width); margin: 0 auto; }
+.transport-orders-page { display: grid; gap: 14px; width: 100%; min-width: 0; max-width: none; box-sizing: border-box; margin: 0; }
 .transport-orders-filters .search-field input { width: min(330px, 100%); }
 .transport-orders-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; }
 .transport-orders-filter-stack { display: grid; min-width: 0; gap: 8px; }
