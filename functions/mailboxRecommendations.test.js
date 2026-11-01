@@ -1,0 +1,38 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { classifyRecommendation, recommendationKinds, recommendationScope, createRecommendationHandlers } from './mailboxRecommendations.js'
+
+test('shared identity ignores the delegate; personal consent remains owner scoped', () => {
+  const shared = { tenantId: 'tenant', email: 'Team@Example.org', kind: 'shared', canonicalMailboxId: 'shared-folder', ownerId: 'one' }
+  assert.equal(recommendationScope(shared), recommendationScope({ ...shared, ownerId: 'two', parentConnectionId: 'other', email: 'alias@example.org' }))
+  const personal = { ...shared, kind: 'personal', graphUserId: 'graph' }
+  assert.notEqual(recommendationScope(personal), recommendationScope({ ...personal, ownerId: 'two' }))
+  assert.notEqual(recommendationScope(shared), recommendationScope({ ...shared, tenantId: 'another' }))
+})
+test('only confident allowlisted action kinds survive, with no duplicates', () => {
+  assert.deepEqual(recommendationKinds([{ kind: 'tracking', confidence: 'high' }, { kind: 'tracking', confidence: 'high' }, { kind: 'order', confidence: 'medium' }]), ['tracking'])
+  assert.throws(() => recommendationKinds([{ kind: 'send', confidence: 'high' }]))
+  assert.throws(() => recommendationKinds('tracking'))
+})
+test('classification sends only bounded subject/newest text; no tools, attachments or business lookups', async () => {
+  let body
+  const result = await classifyRecommendation({ mail: { subject: 'Ankunft', body: { contentType: 'text', content: 'LKW ist um 18 Uhr angekommen.\n\nOn Friday someone wrote:\nGehe zu Gericht.' }, attachments: [{ content: 'NEVER SENT' }] }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async (url, options) => {
+    assert.equal(url, 'https://api.openai.com/v1/responses')
+    body = JSON.parse(options.body)
+    return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify({ actions: [{ kind: 'tracking', confidence: 'high' }] }) }) }
+  } })
+  assert.deepEqual(result, ['tracking'])
+  assert.equal(body.store, false); assert.equal(body.tools, undefined)
+  assert.ok(!body.input[0].content[0].text.includes('Gehe zu Gericht'))
+  assert.ok(!JSON.stringify(body).includes('NEVER SENT'))
+})
+test('truncated or invalid provider responses are failures, not misleading recommendations', async () => {
+  for (const payload of [{ status: 'incomplete' }, { status: 'completed', output_text: '{bad' }]) {
+    await assert.rejects(classifyRecommendation({ mail: { subject: 'Test' }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async () => ({ ok: true, json: async () => payload }) }))
+  }
+})
+test('production monitoring is rejected before any database access', async () => {
+  const handlers = createRecommendationHandlers({ project: 'db-bpl-drehpunkt' })
+  await assert.rejects(handlers.enqueue(), { code: 'failed-precondition' })
+  await assert.rejects(handlers.process({ scopeId: 'a'.repeat(64) }), { code: 'failed-precondition' })
+})

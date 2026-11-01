@@ -1,3 +1,4 @@
+import { useMailboxRecommendations } from '../mailboxes/useMailboxRecommendations.js'
 import MailboxKnowledgeNote from '../components/mailboxes/MailboxKnowledgeNote.jsx'
 import MailActionButton from '../components/mailboxes/MailActionButton.jsx'
 import MailComposeAction from '../components/mailboxes/MailComposeAction.jsx'
@@ -110,6 +111,7 @@ function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
   const [replyPartial, setReplyPartial] = useState(false)
   const [replyReload, setReplyReload] = useState(0)
   const replyIds = messages.map(message => message.id).join('\n')
+  const { recommendations, enabled: recommendationsEnabled } = useMailboxRecommendations(connectionId, messages.map(message => message.id), replyReload)
   const actionStates = useMailboxActionList(connectionId, messages.map(message => message.id))
   const load = useCallback(async (pageToken) => {
     const version = ++request.current
@@ -125,6 +127,11 @@ function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
     finally { if (version === request.current) setBusy(false) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionId, search])
+  useEffect(() => {
+    if (!recommendationsEnabled || search) return
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') void load() }, 60000)
+    return () => clearInterval(timer)
+  }, [recommendationsEnabled, search, load])
   useEffect(() => {
     const task = setTimeout(() => { setMessages([]); setNext(null); void load() }, 0)
     // Invalidate outstanding requests after this inbox unmounts.
@@ -165,7 +172,7 @@ function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
     </form>
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
     <div className="mailbox-message-list">{messages.map((message) => <div className="mailbox-message-group" key={message.id}><button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
-      <span className="mailbox-message-heading"><span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><MailActionIndicators identity={{ connectionId, messageId: message.id }} actions={actionStates} /></span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
+      <span className="mailbox-message-heading"><span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><MailActionIndicators identity={{ connectionId, messageId: message.id }} actions={actionStates} recommendations={recommendations[message.id] || []} /></span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
     </button>{(replies[message.id] || []).map(reply => <button className={`mailbox-replied-row ${selectedId === reply.id ? 'is-selected' : ''}`} type="button" key={reply.id} onClick={() => onSelectReply(message.id, reply.id)} aria-current={selectedId === reply.id ? 'true' : undefined} aria-label={`${w('Beantwortet', 'Replied')} · ${mailDate(reply.sentDateTime, language)}`}><span>{w('Beantwortet', 'Replied')}</span><time dateTime={reply.sentDateTime}>{mailDate(reply.sentDateTime, language)}</time><span aria-hidden="true">✓</span></button>)}</div>)}</div>
     {busy && <p role="status">{w('Nachrichten werden geladen …', 'Loading messages …')}</p>}
     {!busy && !error && !messages.length && <p role="status">{search ? w('Keine passenden Nachrichten gefunden.', 'No matching messages found.') : w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}

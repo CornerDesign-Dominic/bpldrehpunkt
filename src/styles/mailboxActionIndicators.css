@@ -9,3 +9,4 @@
 [data-theme='light'] .mailbox-action-indicator--running { color: #176abc; }
 [data-theme='light'] .mailbox-action-indicator--review { color: #986600; }
 [data-theme='light'] .mailbox-action-indicator--completed { color: #167343; }
+.mailbox-action-indicator--recommended { color: var(--color-ai); }
