@@ -46,6 +46,20 @@ operativen Verfolgungsliste. Beide öffnen dieselbe Auftragsakte unter
 Verfolgungen mit `?tab=tracking`. Bisherige Trackingdetailadressen leiten unter
 Erhalt von Anfrageparametern, Hash und Rückkehrzustand auf diesen Reiter weiter.
 
+Die Auftragsliste verwendet dieselben Tabellenrahmen, Sortieranzeigen und
+Seitennavigationsstile wie die Sendungsverfolgungsliste. Beide Listen nutzen
+die gesamte verfügbare Inhaltsbreite; die üblichen Seitenabstände bleiben
+erhalten. Die jeweils vorhandenen Spalten, Filter, Sortier- und Seitenabläufe
+bleiben unverändert. Einzel- und Sammelimport stehen rechts zusammen als
+gleichfarbige, ungefüllte Buttons.
+
+In den bestehenden Auftragsspalten „Laden“ und „Entladen“ erscheinen unter
+dem Ort beide bestätigten Zeitgrenzen, beispielsweise `02.11. · 08:00–20:00 Uhr`.
+Fehlt eine Grenze, steht ausdrücklich „ab“ oder „bis“; bei Tageswechsel werden
+beide Daten genannt. Dafür werden ausschließlich vorhandene Auftragsdaten
+verwendet, ohne zusätzliche Abfragen oder neue Tabellenspalten. Diese gesammelten
+Listenanpassungen wurden vom Nutzer zur Veröffentlichung auf Dev freigegeben.
+
 Die Trackingdetailseite bleibt der operative Arbeitsbereich mit gemeinsamer
 Reiterleiste. Lokal entfernt wurden der zusätzliche Link „Auftrag öffnen“, das
 Drei-Punkte-Historienmenü und die doppelten Abschnitte Rechnungen/Gutschriften,
