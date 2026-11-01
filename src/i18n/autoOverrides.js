@@ -33,7 +33,6 @@ export const autoOverrides = {
   "Die Auswahl konnte nicht gespeichert werden. Bitte den Browserspeicher prüfen.": "The selection could not be saved. Please check browser storage.",
   "Die Suche wurde unterbrochen. Bitte erneut versuchen.": "The search was interrupted. Please try again.",
   "Keine Berechtigung für Sammelimporte.": "No permission for bulk imports.",
-  'Volumengewicht (DyCoS)': 'Volumetric weight (DyCoS)',
   'Neutrale Abholung': 'Neutral collection',
   'Neutrale Anlieferung': 'Neutral delivery',
   'Keine Bemerkung übermittelt.': 'No remarks provided.',

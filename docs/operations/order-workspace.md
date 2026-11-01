@@ -157,10 +157,13 @@ persistierter Tracking-/Adressstatus. Die Originalhinweise bleiben sichtbar.
 
 Gewicht, Kolli und Lademeter stehen je Station im eigenen Warenblock. Tatsächliche
 Nullwerte bleiben sichtbar; fehlende Stationswerte werden nicht aus dem Auftrag
-ersetzt. Die Stations-Warenbeschreibung und ein eigenes Volumengewicht laut
-DyCoS sind ergänzt. Volumengewicht ersetzt weder tatsächliches Gewicht noch
-Auftragstotal. Der zusätzliche Hinweis zur fehlenden Berechnungsgrundlage entfällt
-auf Nutzerwunsch; der Volumengewichtswert bleibt sichtbar. Mehrzeilige Hinweise
+ersetzt. Die Stations-Warenbeschreibung bleibt sichtbar. Das Volumengewicht
+wird auf Nutzerwunsch nicht mehr in der Auftragsansicht angezeigt; bestehende
+Importdaten und Historien bleiben erhalten. Stattdessen steht dort
+„Maße (L × B × H): —“, solange keine bestätigte Maßequelle angebunden ist.
+Ein erneuter Abgleich der 13 vorhandenen JSON-Exportbeispiele ergab 22 leere
+Stationsfelder `Masse` und keine eigenen befüllten Längen-/Breiten-/Höhenfelder;
+Geokoordinaten sind keine Warenmaße. Mehrzeilige Hinweise
 mit Maßangaben bleiben vollständig in der Bemerkung. Das Feld `Masse` ist noch
 nicht als strukturierte Abmessung bestätigt; es werden keine Einheiten ergänzt
 oder Werte aus Texten herausgerechnet. Die Übersicht behält ihre kompakte
