@@ -22,5 +22,11 @@ export function knowledgeCaseAnswer(item) {
 }
 export function knowledgeCaseSelection(cases, ids) {
   const wanted = new Set(ids)
-  return activeKnowledgeCases(cases).filter((item) => wanted.has(item.id)).map((item) => ({ id: item.id, caseRevision: item.caseRevision }))
+  return activeKnowledgeCases(cases).filter((item) => wanted.has(item.id)).map((item) => ({ id: item.id, caseRevision: Number.isSafeInteger(item.caseRevision) && item.caseRevision > 0 ? item.caseRevision : 1 }))
+}
+
+export function knowledgeGroupRun(runs, groupId, local) {
+  const records = runs.filter((run) => run.gapId === groupId || run.appliedResult?.targetGapId === groupId)
+  if (local && !records.some((run) => run.id === local.id)) records.push(local)
+  return records.sort((left, right) => (right.createdAt?.toMillis?.() || right.startedAt || 0) - (left.createdAt?.toMillis?.() || left.startedAt || 0))[0] || null
 }

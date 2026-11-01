@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { activeKnowledgeCases, knowledgeCaseAnswer, knowledgeCaseGroups, knowledgeCasePending, knowledgeCaseSelection } from './knowledgeCases.js'
+import { activeKnowledgeCases, knowledgeCaseAnswer, knowledgeCaseGroups, knowledgeCasePending, knowledgeCaseSelection, knowledgeGroupRun } from './knowledgeCases.js'
 
 test('overview counts only current group copies, excludes removed copies and retains unassigned', () => {
   const cases = [{ id: 'a', gapId: 'g1', caseRevision: 2, learnedRevision: 1 }, { id: 'b', gapId: 'g2', caseRevision: 1, learnedRevision: 1 }, { id: 'c', gapId: 'g1', removed: true }, { id: 'd' }]
@@ -33,4 +33,13 @@ test('no cases are implicitly selected and removed or stale absent selections ar
   const cases = [{ id: 'a', caseRevision: 4 }, { id: 'b', removed: true, caseRevision: 2 }]
   assert.deepEqual(knowledgeCaseSelection(cases, []), [])
   assert.deepEqual(knowledgeCaseSelection(cases, ['a', 'b', 'unknown']), [{ id: 'a', caseRevision: 4 }])
+  assert.deepEqual(knowledgeCaseSelection([{ id: 'legacy' }], ['legacy']), [{ id: 'legacy', caseRevision: 1 }])
+})
+test('background result survives reopening and follows applied article without stale local work hiding server status', () => {
+  const first = { id: 'first', gapId: 'group', status: 'ready', createdAt: { toMillis: () => 5 } }
+  const next = { id: 'next', gapId: 'group', status: 'applied', appliedResult: { targetGapId: 'article-new' }, createdAt: { toMillis: () => 10 } }
+  assert.equal(knowledgeGroupRun([first, next], 'group', { id: 'next', status: 'running' }), next)
+  assert.equal(knowledgeGroupRun([first, next], 'article-new'), next)
+  assert.equal(knowledgeGroupRun([first], 'group', { id: 'local', status: 'running', startedAt: 12 }).id, 'local')
+  assert.equal(knowledgeGroupRun([first], 'other'), null)
 })

@@ -31,6 +31,47 @@ Ein angemeldeter Dev-Durchlauf mit echten Mails und Modell bleibt offen.
 Backendumfang: `updateKnowledgeGap`, `applyKnowledgeLearning`,
 `suggestMailboxReply`. Keine Rules- oder Indexänderung erforderlich.
 
+## Lernfenster und Ergebnisvergleich (01.11.2026)
+
+Die Aktionen heißen „Verschieben“ und „Löschen“. Löschen betrifft nur die
+Wissenssammlung; der Bestätigungsdialog benennt den Erhalt der Originalmail.
+„Alle sichtbaren auswählen“ wählt die aktuelle Seite (bis 20 Mails), auch
+unvollständige Altfälle. Fehlende Eingangs-/Antworttexte werden nicht erfunden;
+unvollständige Auswahlen müssen vor dem Lernen abgewählt werden.
+
+„Lernen starten“ verwendet nur die gewählten Mails. Der laufende Serveraufruf
+gehört nicht zur Lebensdauer des Modals: Schließen unterbricht ihn nicht.
+Übersicht, Mailfälle, Artikel und Lernläufe werden per Firestore-Listener
+aktualisiert. Ein Ladekreis in der Sammlung zeigt den laufenden Lernvorgang;
+manuelles Neuladen entfällt. Gespeicherte Ergebnisse bleiben ohne Übernahme
+abrufbar. Es gibt keine automatische neue Auswertung bei unklarer Antwort
+oder unbekanntem Verarbeitungsstand. Kein Queue-/Wiederaufnahmesystem für
+abgebrochene Serverinstanzen; der bestehende begrenzte Callable läuft weiter.
+
+Rechts stehen Zielartikel, Lernaktion und eine kompakte Vorschau der geänderten
+Artikelfelder. Ein Link öffnet den aktuellen Handbuchartikel. „Ergebnis öffnen“
+zeigt den vollständigen Artikelvergleich in einem weiteren großen Modal:
+Bestandsinhalte grau, KI-Ergänzungen in KI-Farbe, entfernte Stellen durchgestrichen.
+Die unveränderliche Ausgangsfassung wird im Lernlauf bereits bei Start
+hinterlegt. Für ältere Ergebnisse ist nur eine exakt passende aktuelle Revision
+als Vergleich erlaubt; fehlt sie, wird keine Übernahme angeboten.
+
+„Keine neuen Erkenntnisse“ wird anhand des normalisierten Feldvergleichs
+angezeigt. Ein identischer bestehender Artikel erzeugt auch bei einem direkten
+alten API-Aufruf keine neue Revision und kein geändertes Bearbeitungsdatum.
+Übernahme bleibt eine ausdrückliche Aktion und prüft weiterhin Quellen,
+Berechtigungen und Revisionen. Lernfälle werden nicht automatisch versendet.
+
+Prüfstand: 53 gezielte Unit-Tests und acht echte Firestore-Emulatorprüfungen
+erfolgreich; Lint, Build und Shared-Abgleich (45 Module) erfolgreich. Lokaler
+Browser mit simulierten Modellantworten: Sammelauswahl inklusive unvollständiger
+Altfälle, Hintergrundlauf bei geschlossenem Modal, Ladekreis, Wiederöffnen ohne
+Übernahme, farbiger Vergleich, bewusste Übernahme, automatische Fallzuordnung,
+„Keine neuen Erkenntnisse“ und Scroll-/Fokusrückkehr nach verschachtelten
+Dialogen geprüft. Kein angemeldeter Dev-Durchlauf mit echten Mails/Modell.
+Benötigte Backend-Updates: `learnKnowledgeCases`, `applyKnowledgeLearning`.
+Keine Änderung der Rules oder Indizes.
+
 ## Fachlicher Ablauf
 
 Unter Qualität liegen Handbuch, Grundregeln und Wissenslücken. Das Handbuch ist
@@ -159,7 +200,7 @@ den tatsächlichen Versandtext. Namen im Fließtext werden nicht aufwendig gesuc
 es handelt sich ausdrücklich nicht um garantierte Anonymisierung. Es gibt keine
 manuelle Nachkorrektur der Mailtexte.
 
-Vor „Erkenntnisse sammeln“ wählt der Benutzer einzelne Fälle oder alle passenden
+Vor „Lernen starten“ wählt der Benutzer einzelne Fälle oder alle passenden
 Fälle aus; zunächst ist keiner ausgewählt. Höchstens 20 Fälle mit zusammen
 120.000 Zeichen werden pro Auswertung verwendet. Der manuelle Modellaufruf
 erstellt einen strukturierten Artikelvorschlag und benennt Varianten, Widersprüche

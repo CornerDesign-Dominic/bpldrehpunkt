@@ -66,6 +66,18 @@
 .knowledge-current-article { margin-top:18px; border-top:1px solid var(--border); padding-top:16px; }
 .knowledge-current-article summary { cursor:pointer; font-size:14px; font-weight:600; margin-bottom:16px; }
 .knowledge-applied { color:var(--status-success-text); font-size:13px; }
+.knowledge-learning-spinner { display:inline-block; flex:none; width:24px; height:24px; margin:5px; border:3px solid var(--color-ai-border); border-top-color:var(--color-ai); border-radius:50%; animation:knowledge-learning-spin 1s linear infinite; }
+.knowledge-learning-progress { display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:13px; }
+.knowledge-learning-progress .knowledge-learning-spinner { width:16px; height:16px; }
+.knowledge-learning-notice { color:var(--status-warning-text); font-size:13px; }
+.knowledge-current-link { display:block; margin:0 0 16px; color:var(--text-primary); font-size:13px; }
+.knowledge-learning-preview { margin:14px 0; padding:12px; border:1px solid var(--color-ai-border); border-radius:6px; background:var(--color-ai-soft); }
+.knowledge-learning-preview h4 { margin:0 0 6px; font-size:12px; }
+.knowledge-learning-preview .quality-protocol { color:var(--text-primary); font-size:13px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+.knowledge-learning-preview .quality-protocol { color:var(--text-secondary); }
+.knowledge-preview-added { color:var(--color-ai); font-weight:600; }
+@keyframes knowledge-learning-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .knowledge-learning-spinner { animation-duration:3s; } }
 @media(max-width:1100px) { .knowledge-review-grid { grid-template-columns:1fr; } }
 @media(max-width:650px) { .knowledge-case-pair,.knowledge-case-columns { grid-template-columns:1fr; } .knowledge-case-copy + .knowledge-case-copy { border-left:0; border-top:1px solid var(--border); } .knowledge-case-card { flex-wrap:wrap; } }
 @media(max-width:700px) { .knowledge-gaps > li { flex-wrap:wrap; } .knowledge-gap-actions { width:100%; } }
