@@ -181,7 +181,9 @@ export async function applySelectedKnowledgeLearning(db, input, actor) {
     if (run.status !== 'ready' || run.revision !== input.expectedRevision) conflict()
     const articleId = run.targetArticleId || run.newArticleId
     const articleRef = db.doc(`knowledgeArticles/${articleId}`)
-    const [target, ...cases] = await Promise.all([tx.get(articleRef), ...run.sources.map(item => tx.get(db.doc(`knowledgeGapEvidence/${item.id}`)))])
+    const targetGapId = `article-${articleId}`
+    const groupRef = db.doc(`knowledgeGaps/${targetGapId}`)
+    const [target, group, ...cases] = await Promise.all([tx.get(articleRef), tx.get(groupRef), ...run.sources.map(item => tx.get(db.doc(`knowledgeGapEvidence/${item.id}`)))])
     if (run.targetArticleId ? !target.exists || target.data().revision !== run.targetArticleRevision : target.exists) conflict()
     selectedCases(cases, { gapId: run.gapId, caseIds: run.sources })
     const previous = target.data() || null
@@ -193,9 +195,16 @@ export async function applySelectedKnowledgeLearning(db, input, actor) {
     const now = FieldValue.serverTimestamp()
     const revision = (previous?.revision || 0) + 1
     const record = { ...values, revision, createdAt: previous?.createdAt || now, createdBy: previous?.createdBy || actor.uid, updatedAt: now, updatedBy: actor.uid, updatedByName: actorName(user.data(), actor.uid), learningRunId: input.runId }
-    const appliedResult = { id: articleId, revision }
+    const appliedResult = { id: articleId, revision, targetGapId }
     tx.set(articleRef, record)
     tx.create(articleRef.collection('revisions').doc(String(revision)), record)
+    const previousGroup = group.data() || {}
+    tx.set(groupRef, { ...previousGroup, title: values.title, process: values.process, articleId, category: 'article', classification: 'article', hidden: previousGroup.hidden === true, status: previousGroup.status || 'open', revision: (previousGroup.revision || 0) + 1, count: previousGroup.count || 0, firstSeenAt: previousGroup.firstSeenAt || now, lastSeenAt: now })
+    cases.forEach((snapshot, index) => {
+      const value = snapshot.data()
+      const revision = caseRevision(value) + (value.gapId !== targetGapId ? 1 : 0)
+      tx.update(db.doc(`knowledgeGapEvidence/${run.sources[index].id}`), { gapId: targetGapId, caseRevision: revision, learnedRevision: revision, learningRunId: input.runId, learnedAt: now, learnedBy: actor.uid, ...(value.gapId !== targetGapId ? { movedAt: now, movedBy: actor.uid } : {}), updatedAt: now })
+    })
     tx.set(runRef, { ...run, status: 'applied', revision: 2, appliedAt: now, updatedAt: now, appliedBy: actor.uid, appliedResult })
     return { ...appliedResult, runId: input.runId }
   })

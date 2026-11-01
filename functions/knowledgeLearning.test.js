@@ -15,7 +15,7 @@ function fakeDb(initial = {}) {
   const collection = name => { const query = { collectionName: name, filters: [], where: (key, operator, value) => { query.filters.push([key, value]); return query }, limit: count => { query.limitCount = count; return query } }; return query }
   return { records, doc: ref, collection, runTransaction: async callback => {
     const writes = []
-    const result = await callback({ get: async reference => reference.collectionName ? { docs: [...records].filter(([path, value]) => path.split('/').length === 2 && path.startsWith(`${reference.collectionName}/`) && reference.filters.every(([key, expected]) => value[key] === expected)).slice(0, reference.limitCount).map(([path, value]) => ({ id: path.split('/')[1], exists: true, data: () => value })) } : { exists: records.has(reference.path), data: () => records.get(reference.path) }, set: (reference, value) => writes.push([reference.path, value]), create: (reference, value) => { assert.equal(records.has(reference.path), false); writes.push([reference.path, value]) } })
+    const result = await callback({ get: async reference => reference.collectionName ? { docs: [...records].filter(([path, value]) => path.split('/').length === 2 && path.startsWith(`${reference.collectionName}/`) && reference.filters.every(([key, expected]) => value[key] === expected)).slice(0, reference.limitCount).map(([path, value]) => ({ id: path.split('/')[1], exists: true, data: () => value })) } : { exists: records.has(reference.path), data: () => records.get(reference.path) }, set: (reference, value) => writes.push([reference.path, value]), update: (reference, value) => writes.push([reference.path, { ...records.get(reference.path), ...value }]), create: (reference, value) => { assert.equal(records.has(reference.path), false); writes.push([reference.path, value]) } })
     for (const [path, value] of writes) records.set(path, value)
     return result
   } }
@@ -68,6 +68,12 @@ test('manual analysis marks only exact selected revision and leaves current vali
   assert.equal(applied.revision, 4)
   assert.equal(db.records.get('knowledgeArticles/article').status, 'valid')
   assert.equal(db.records.get('knowledgeArticles/article/revisions/4').owner, 'Team')
+  const assigned = db.records.get('knowledgeGapEvidence/case')
+  assert.equal(assigned.gapId, 'article-article')
+  assert.equal(assigned.caseRevision, 2)
+  assert.equal(assigned.learnedRevision, 2)
+  assert.equal(assigned.sourceArticleId, 'original')
+  assert.equal(db.records.get('knowledgeGaps/article-article').articleId, 'article')
   assert.deepEqual(await applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), applied)
 })
 

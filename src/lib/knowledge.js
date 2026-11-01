@@ -27,9 +27,9 @@ export const saveKnowledge = (kind, record, values) => operation('save', async (
   await waitForAppCheckToken()
   return (await httpsCallable(functions, 'saveKnowledgeRecord')({ kind, id: record.id, expectedRevision: record.revision || 0, values })).data
 }, record.id)
-export const updateKnowledgeGap = (record, status, articleId = '') => operation('save', async () => {
+export const updateKnowledgeGap = (record, values) => operation('save', async () => {
   await waitForAppCheckToken()
-  return (await httpsCallable(functions, 'updateKnowledgeGap')({ id: record.id, expectedRevision: record.revision, status, articleId })).data
+  return (await httpsCallable(functions, 'updateKnowledgeGap')({ id: record.id, expectedRevision: record.revision || 0, ...values })).data
 }, record.id, 'knowledgeGaps')
 
 export const listKnowledgeGapEvidence = (gapId) => operation('load', async () => {
