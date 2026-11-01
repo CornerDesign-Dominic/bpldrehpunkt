@@ -11,6 +11,7 @@ export const KNOWLEDGE_FIELDS = Object.freeze({
 })
 const invalid = (message = 'Ungültige Wissensdaten.') => { throw new HttpsError('invalid-argument', message) }
 const validId = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value)
+const validGroupId = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,200}$/.test(value)
 const name = (profile, uid) => [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || profile.email || uid
 
 export function requireKnowledgeAccess(profile, edit = false, module = 'handbook') {
@@ -74,7 +75,7 @@ export async function persistKnowledgeRecord(db, input, actor) {
 
 export function normalizeKnowledgeGapUpdate(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some((key) => !['id', 'expectedRevision', 'status', 'articleId'].includes(key))) invalid()
-  if (!validId(data.id) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 1 || !['open', 'in_progress', 'resolved', 'ignored'].includes(data.status)) invalid('Ungültige Wissenslücke.')
+  if (!validGroupId(data.id) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 1 || !['open', 'in_progress', 'resolved', 'ignored'].includes(data.status)) invalid('Ungültige Wissenslücke.')
   const articleId = data.articleId ?? ''
   if (articleId !== '' && !validId(articleId)) invalid('Ungültige Artikelverknüpfung.')
   return { id: data.id, expectedRevision: data.expectedRevision, status: data.status, articleId }

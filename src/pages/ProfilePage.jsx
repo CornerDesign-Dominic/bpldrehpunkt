@@ -162,9 +162,9 @@ export default function ProfilePage() {
   const employmentFields = [
     [t('profile.jobTitle'), profile?.jobTitle || profile?.function || '—'],
     [t('profile.department'), profile?.department || t('profile.unassigned')],
-    [t('profile.role'), roleLabel(profile?.role, t)],
-    [t('profile.employmentStart'), formatDate(profile?.employmentStart, language)],
     [t('profile.personnelNumber'), profile?.personnelNumber || '—'],
+    [t('profile.employmentStart'), formatDate(profile?.employmentStart, language)],
+    [t('profile.role'), roleLabel(profile?.role, t)],
   ]
 
   return <div className="profile-page">
@@ -175,7 +175,6 @@ export default function ProfilePage() {
       selectTab(tabs[target]); document.getElementById(`profile-tab-${tabs[target]}`)?.focus()
     }}>{labels[index]}</button>)}</div>
     <div hidden={active !== 'data'} id="profile-panel-data" role="tabpanel" aria-labelledby="profile-tab-data">
-      <div className="profile-summary"><strong>{[profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || user.email}</strong><span>{user.email || profile?.email}</span></div>
       <p className="profile-page__notice">{t('profile.adminNotice')}</p>
       <div className="profile-data-columns"><ProfileInfoSection title={t('profile.personal')} fields={personalFields} /><ProfileInfoSection title={t('profile.work')} fields={employmentFields} /></div>
       <SignatureSection user={user} />

@@ -1,9 +1,10 @@
+import { cleanKnowledgeMailCopy } from './knowledgeTextClean.js'
 import { listMailboxReplies } from './mailboxReplies.js'
 import { applyMailboxRecord, previewMailboxRecord, searchRecordTargets } from './mailboxRecords.js'
 import { assertRecordAccess } from './mailboxRecordData.js'
 import { recordAttachmentType, validateRecordAttachments } from './mailboxRecordAi.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
-import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge } from './knowledgeReply.js'
+import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge, knowledgeCaseUpdate } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
@@ -289,8 +290,9 @@ export function createMailboxHandlers(deps = {}) {
       const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
       const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
       draft.revision = revision
-      if (evidence?.exists) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), { ...evidence.data(), sentReply: draft.body, sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() })
-      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(evidence?.exists ? { knowledgeEvidenceId: evidenceId } : {}) })
+      const captureEvidence = evidence?.exists && evidence.data()?.removed !== true
+      if (captureEvidence) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), knowledgeCaseUpdate(evidence.data(), { sentReply: cleanKnowledgeMailCopy(draft.body), sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() }))
+      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(captureEvidence ? { knowledgeEvidenceId: evidenceId } : {}) })
       tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
       return null
     })
@@ -303,7 +305,11 @@ export function createMailboxHandlers(deps = {}) {
       // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
       try {
         const receipt = (await operation.get()).data()
-        if (receipt?.knowledgeEvidenceId) await db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`).update({ sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+        if (receipt?.knowledgeEvidenceId) await db().runTransaction(async tx => {
+          const evidenceRef = db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`)
+          const evidence = await tx.get(evidenceRef)
+          if (evidence.exists && evidence.data()?.removed !== true) tx.set(evidenceRef, knowledgeCaseUpdate(evidence.data(), { sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
+        })
       } catch {
         await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
       }
@@ -620,7 +626,7 @@ export function createMailboxHandlers(deps = {}) {
           const previousEvidence = previousEvidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`)) : null
           const gap = selection ? await (deps.recordReplyKnowledgeGap || recordReplyKnowledgeGap)({ db: db(), profile: profileSnapshot.data(), context, mail: { ...mail, id: mail.id || messageId }, selection, catalog, suggestion, transaction: tx }) : null
           const evidenceId = gap?.evidenceId || previousEvidenceId
-          if (!gap?.evidenceId && previousEvidence?.exists) tx.set(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`), { ...previousEvidence.data(), latestSuggestion: suggestion, suggestionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+          if (!gap?.evidenceId && previousEvidence?.exists && previousEvidence.data()?.removed !== true) tx.set(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`), knowledgeCaseUpdate(previousEvidence.data(), { latestSuggestion: cleanKnowledgeMailCopy(suggestion), suggestionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
           tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge }, ...(evidenceId ? { knowledgeEvidenceId: evidenceId } : {}) }, { merge: true })
         })
         return { suggestion, knowledge: publicReplyKnowledge(knowledge) }
@@ -666,8 +672,8 @@ export function createMailboxHandlers(deps = {}) {
         if ((previous?.draft?.revision || 0) !== revision || (newReply && previousSend?.status !== 'accepted')) fail('aborted', 'Der Entwurf wurde bereits geändert oder der Versandstatus ist unklar. Bitte neu laden; Ihr Text bleibt erhalten.')
         draft.revision = revision + 1
         // A confirmed send closes one reply, not the incoming message. Keep its receipt
-        // immutable, and start a fresh versioned draft without the previous AI evidence.
-        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, replyGeneration: (previous?.replyGeneration || 0) + (newReply ? 1 : 0), updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}), ...(!newReply && /^[a-f0-9]{64}$/.test(previous?.knowledgeEvidenceId || '') ? { knowledgeEvidenceId: previous.knowledgeEvidenceId } : {}) })
+        // immutable, and start a fresh versioned draft without the previous AI provenance; retain only the local learning-case link.
+        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, replyGeneration: (previous?.replyGeneration || 0) + (newReply ? 1 : 0), updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}), ...(/^[a-f0-9]{64}$/.test(previous?.knowledgeEvidenceId || '') ? { knowledgeEvidenceId: previous.knowledgeEvidenceId } : {}) })
       })
       return { draft }
     }),
