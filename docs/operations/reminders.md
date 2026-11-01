@@ -3,7 +3,8 @@
 Stand: 01.11.2026. Der Nutzer hat die getrennte Anbindung und Veröffentlichung
 in **Firebase Dev** ausdrücklich freigegeben; Produktion und `main` bleiben
 unverändert. Die Durchführung und verbleibenden Abnahmegrenzen stehen im
-[Dev-Releasebeleg](releases/reminders-dev-2026-11-01-status.md). Die beiden
+[Dev-Releasebeleg](releases/reminders-dev-2026-11-01-status.md) und im
+[BB-Abnahmebeleg](releases/reminders-dev-bb-2026-11-01-status.md). Die beiden
 externen Providerflows sind separat tatsächlich geprüft; dies ersetzt keine
 Veröffentlichung des zentralen Firebase-Dienstes in Produktion.
 
@@ -67,8 +68,10 @@ Für **Dev und Produktion** fordert der neue Erinnerungsadapter den Absender
 behalten ihre bisherigen Umgebungsregeln. Die globale automatische Mailpause
 gilt weiterhin. Unbekannte Runtime-Projekte sind für diesen Versand gesperrt.
 
-Der aktuelle **Dev-Testmodus** erlaubt ausschließlich die exakte Profiladresse
-`no-reply@brennpunkt-logistik.de`. Andere Empfänger werden nicht umgeleitet und
+Der aktuelle **Dev-Testmodus** erlaubt ausschließlich die exakten Profiladressen
+`no-reply@brennpunkt-logistik.de` und, nach zusätzlicher ausdrücklicher
+Nutzerfreigabe vom 01.11.2026, `bb@brennpunkt-logistik.de`. Das bestehende
+BB-Testkonto behält seinen Login und seine Rechte. Andere Empfänger werden nicht umgeleitet und
 erhalten schon vor der dauerhaften Reservierung bzw. Legacy-Übernahme keinen
 Versandbeleg. Der Status zeigt den Dev-Testmodus als Konfigurationsgrund. Die
 Prüfung erfolgt erneut mit dem aktuellen Profil unmittelbar vor dem Versand

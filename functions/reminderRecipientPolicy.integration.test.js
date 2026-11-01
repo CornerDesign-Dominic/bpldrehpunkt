@@ -5,6 +5,7 @@ import { initializeApp, deleteApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { refreshReminderSource, runReminderDispatch, listReminderStatusesHandler } from './reminders.js'
 import { legacyReminderDeliveryId, loadReminderSource, reminderDeliveryId } from './reminderSources.js'
+import { reminderRecipientPolicy } from './reminderRecipientPolicy.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 const now = new Date('2026-11-02T09:00:10.000Z')
@@ -34,8 +35,8 @@ async function status(db, path, environment = 'development') {
   return (await listReminderStatusesHandler({ auth: { uid: 'owner' }, data: { sourcePaths: [path], environment: 'production' } }, { db, now, environment, authorize: async () => profile('irrelevant@example.test') })).statuses[0]
 }
 
-test('Dev DF/BB/other recipients are blocked before any permanent reservation and expose test-mode status', { skip: !enabled }, async () => {
-  for (const email of ['df@brennpunkt-logistik.de', 'bb@brennpunkt-logistik.de', 'other@example.test']) await scenario(async db => {
+test('Dev DF/other and noncanonical case recipients are blocked before any permanent reservation and expose test-mode status', { skip: !enabled }, async () => {
+  for (const email of ['df@brennpunkt-logistik.de', 'other@example.test', 'BB@brennpunkt-logistik.de', 'NO-REPLY@brennpunkt-logistik.de']) await scenario(async db => {
     const path = await source(db, email)
     await run(db, never)
     assert.equal((await db.collection('reminderDeliveries').get()).size, 0)
@@ -60,8 +61,8 @@ test('Dev policy precedes legacy receipt import; no accepted or failed new claim
   })
 })
 
-test('Dev no-reply receives one mocked delivery; Production retains ordinary recipients; unknown runtime blocks', { skip: !enabled }, async () => {
-  for (const [environment, email, accepted] of [['development', 'no-reply@brennpunkt-logistik.de', true], ['production', 'df@brennpunkt-logistik.de', true], ['unknown', 'no-reply@brennpunkt-logistik.de', false]]) await scenario(async db => {
+test('Dev no-reply and BB each receive exactly one mocked delivery; Production and unknown policy remain unchanged', { skip: !enabled }, async () => {
+  for (const [environment, email, accepted] of [['development', 'no-reply@brennpunkt-logistik.de', true], ['development', 'bb@brennpunkt-logistik.de', true], ['production', 'df@brennpunkt-logistik.de', true], ['unknown', 'no-reply@brennpunkt-logistik.de', false]]) await scenario(async db => {
     await source(db, email)
     let sends = 0
     const send = async message => { sends++; assert.equal(message.recipient, email); assert.equal(await message.beforeSend(), true); return { status: 'accepted' } }
@@ -91,13 +92,15 @@ test('fresh transactional profile recheck blocks an excluded address changed aft
   })
 })
 
-test('beforeSend rechecks an allowed address changed after the permitted claim without sending to the new address', { skip: !enabled }, async () => {
-  await scenario(async db => {
-    const path = await source(db, 'no-reply@brennpunkt-logistik.de')
+test('beforeSend rejects address changes between two allowed recipients in both directions', { skip: !enabled }, async () => {
+  for (const [original, changed] of [['no-reply@brennpunkt-logistik.de', 'bb@brennpunkt-logistik.de'], ['bb@brennpunkt-logistik.de', 'no-reply@brennpunkt-logistik.de']]) await scenario(async db => {
+    const path = await source(db, original)
     let callback = false
     await run(db, async message => {
-      assert.equal(message.recipient, 'no-reply@brennpunkt-logistik.de')
-      await db.doc('users/owner').update({ email: 'bb@brennpunkt-logistik.de' })
+      assert.equal(message.recipient, original)
+      assert.equal(reminderRecipientPolicy(original, 'development').allowed, true)
+      assert.equal(reminderRecipientPolicy(changed, 'development').allowed, true)
+      await db.doc('users/owner').update({ email: changed })
       callback = await message.beforeSend()
       return { status: 'blocked', reason: 'no-longer-eligible' }
     })

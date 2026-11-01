@@ -1,5 +1,9 @@
 # Zentrale Erinnerungen: getrennte Dev-Veröffentlichung
 
+Nachtrag: Die spätere ausdrückliche BB-Empfängerfreigabe und vollständige
+fachliche Dev-Abnahme stehen im [Folgebeleg](reminders-dev-bb-2026-11-01-status.md).
+Die No-reply-Begrenzung und offene Profilabnahme unten beschreiben den Erststand.
+
 Ausdrückliche Nutzerfreigabe vom 01.11.2026: Erinnerungsflow zuerst ausschließlich
 in Firebase Dev anbinden, alle benötigten Bestandteile veröffentlichen und
 gründlich prüfen. Produktion und `main` bleiben unverändert; echte Testmails
