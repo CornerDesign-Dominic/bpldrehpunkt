@@ -10,6 +10,11 @@ Durchführung und aktueller Status stehen im
 [Frühere Releases und echte Abnahmen](order-workspace-dev-release.md).
 Main und Produktion bleiben unverändert.
 
+Nach diesem Dev-Release ist eine weitere lokale Überarbeitung umgesetzt:
+Die Reiter heißen „Auftrag“ und „Kunde & UTN“; die Auftragsansicht betont
+Fahrzeug/allgemeine Hinweise, Adressen, Termine/FIX und Stationswaren.
+Diese Folgeänderung ist noch nicht veröffentlicht.
+
 ## Benutzerablauf
 
 `/transportauftraege` führt zur Auftragsliste, `/sendungsverfolgung` zur
@@ -52,7 +57,7 @@ Strecke, Kundenreferenz und Relation. Die TA-Nummer bleibt im oberen Seitentitel
 die Fachinhalte und die Navigation über Listen und Reiter bleiben erhalten.
 
 Die Übersicht zeigt zwei Spalten mit allgemeinen Daten und eine rechte Spalte
-mit Verknüpfungen. Fachreiter: Übersicht, Transport & Ware, Geschäftspartner,
+mit Verknüpfungen. Fachreiter: Übersicht, Auftrag, Kunde & UTN,
 Finanzen, Sendungsverfolgung, Historie. Tatsächlich übermittelte Stationen bleiben vollständig
 erhalten. Alte CSV-Daten können erste/letzte Station liefern; fehlende Warenmaße,
 Finanzwerte oder Belege werden nicht erfunden. Das Auftragsergebnis ist die
@@ -65,23 +70,32 @@ zusätzliche Karte „Auftragsbezogene Angaben“ entfällt in diesem Reiter.
 Stammdatenverknüpfungen, Kontakte und Aktualisierungsaktion bleiben verfügbar;
 bei schmalen Ansichten stehen die Partnerkarten untereinander.
 
-Transport & Ware nutzt im lokal vorbereiteten breiten Stationsablauf die volle
-Breite ohne rechte Verknüpfungsspalte. Oben steht eine kompakte Transportübersicht
-mit Fahrzeug, vorhandenen Kennzeichen, Auftragsmengen und Tour. Danach folgen
-alle Stationen untereinander in einer gemeinsamen breiten Karte; den Abschluss
-bildet ein vorhandener Dispositionshinweis. Fehlende Kennzeichen sowie die bisher
-nur als Platzhalter sichtbaren Warenarten/Einzelmaße belegen keine eigenen Zeilen.
+Der lokal überarbeitete Reiter „Auftrag“ nutzt die volle Inhaltsbreite ohne
+rechte Verknüpfungsspalte. Oben stehen Fahrzeugtyp und vorhandene Kennzeichen
+in größerer Schrift, daneben die vollständigen allgemeinen Dispositionshinweise.
+Tour und übermittelte Auftragsmengen bleiben getrennt erkennbar. Fehlende
+allgemeine Hinweise werden als fehlend angezeigt.
 
-Jede Station ist innen zweispaltig: Adressblock und Termin links, vollständige
-Hinweise, Referenzen, vorhandene Lieferscheinnummer und eine kompakte Zeile mit
-Stationsmengen/Palettentausch rechts. Fehlende Adressen sind ausdrücklich markiert.
-Dezente horizontale Linien trennen die Stationen. An schmalen Ansichten stehen
-die Angaben untereinander. Mehrtägige Fenster behalten beide Daten; fehlende
-Zeitgrenzen werden nicht ergänzt. Unter jeder Adresse stehen Termin und Fixtermin.
+Alle Stationen bleiben untereinander in einer gemeinsamen Karte. Jede Station
+hat zwei gleich breite Inhaltsbereiche: links den hervorgehobenen Adressblock
+mit Termin direkt darunter, rechts einen eigenen Warenblock mit groß gesetztem
+Gewicht, Kolli und Lademetern sowie Palettentausch. Tatsächliche Nullwerte bleiben
+sichtbar; fehlende Stationswerte werden nicht aus Auftragswerten ersetzt.
+Stationshinweise, Referenzen und Lieferscheinnummern stehen vollständig beim
+Warenblock. Einzelmaße sind im aktuellen Import nur Teil solcher Freitexte;
+es werden keine Maße aus Texten extrahiert oder erfunden. Die Übersicht verwendet
+weiterhin ihre kompakte Stationsdarstellung.
+
+Dezente horizontale Linien trennen die Stationen. In schmalen Ansichten stehen
+die beiden Bereiche untereinander. Mehrtägige Fenster behalten beide Daten;
+fehlende Zeitgrenzen werden nicht ergänzt. Ein bestätigter Fixtermin trägt
+neben dem groß gesetzten Termin ein gut sichtbares „FIX“-Kennzeichen mit Text
+und Farbkontrast. Explizites false heißt „Kein Fixtermin“, unbekannt heißt
+„Fixtermin nicht übermittelt“. Uhrzeiten oder Hinweise erzeugen kein FIX-Flag.
 Lokal ergänzt ist die Übernahme von `LadeEntladestellen2.Fixtermin` über
 `LadeEntladestellenID` nach `stops[].fixedAppointment` sowie in die Projektionen
 `loading.fixedAppointment` und `unloading.fixedAppointment`. Bestätigte Werte
-werden als boolean gespeichert und als Ja/Nein angezeigt; 0/1 werden an der
+werden als boolean gespeichert und wie oben beschrieben dargestellt; 0/1 werden an der
 Schnittstellengrenze normalisiert. Fehlende Werte bleiben null bzw. bei alten
 Datensätzen zunächst unbekannt, ungültige Werte brechen den Abruf ab.
 Die Kennzeichnung wird nicht aus Uhrzeiten oder Freitext abgeleitet.
@@ -253,3 +267,17 @@ konkreten Anwendungsfehler. Fehler-Wiederholen, KI-Neustart/Prüfabschluss,
 schmale Ansicht und bestehende Postfachdialoge sind daher noch im Browser
 nachzuprüfen; echte Dev-Abnahme und serverseitige Schreibaktionen wurden für
 diesen lokalen Umbau nicht ausgeführt.
+
+## Lokale Hervorhebung der Auftragsdaten nach dem Dev-Release
+
+Die Folgeänderung mit den Reiterbezeichnungen „Auftrag“ und „Kunde & UTN“
+sowie den neuen Darstellungsbausteinen ist noch nicht veröffentlicht.
+Vollständiges ESLint, Produktionsbuild und fünf vorhandene Prüfungen der
+Stations-/Workspace-Darstellung erfolgreich. Die isolierte Browserprüfung
+verwendet synthetische Daten mit echten Komponenten: deutlicher FIX-Badge,
+explizites false/unbekannt, echte Nullwerte, mehrtägiges Zeitfenster, fehlende
+Adresse, vollständige mehrzeilige Maß-/Ladehinweise und leere Stationsliste.
+Hell/Dunkel und Deutsch/Englisch geprüft. Ein isolierter 560-Pixel-Rahmen
+bestätigt den einspaltigen Umbruch ohne horizontales Überlaufen. Keine neuen
+Browserfehler in den geprüften Ansichten. Datenimport, Berechtigungen und
+Backend unverändert; keine echte Dev-Datenänderung oder Veröffentlichung.

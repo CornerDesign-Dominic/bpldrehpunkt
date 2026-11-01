@@ -10,7 +10,7 @@ import { getTransportOrder } from '../lib/transportOrders.js'
 import { getEffectiveBusinessPartner } from '../lib/businessPartners.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
 import { getTransportOrderWorkspaceHistory, refreshTransportOrderWorkspace } from '../lib/transportOrderWorkspace.js'
-import { latestTransportOrderRefresh, mergeTransportOrderRefreshes, transportOrderResult, transportOrderWorkspaceScope, transportOrderWorkspaceStops, transportOrderWorkspaceTabs, transportOrderStopSchedule } from '../lib/transportOrderWorkspacePresentation.js'
+import { latestTransportOrderRefresh, mergeTransportOrderRefreshes, transportOrderResult, transportOrderWorkspaceScope, transportOrderWorkspaceStops, transportOrderWorkspaceTabs } from '../lib/transportOrderWorkspacePresentation.js'
 import { useOrderTrackingHistory } from '../lib/useOrderTrackingHistory.js'
 import { recordHistoryTime } from '../lib/recordHistoryPresentation.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
@@ -20,6 +20,8 @@ import ContextLink from '../components/ui/ContextLink.jsx'
 import TransportInvoiceChecks from '../components/transport-orders/TransportInvoiceChecks.jsx'
 import TransportOrderImportedDetails from '../components/transport-orders/TransportOrderImportedDetails.jsx'
 import OrderFinancialDocuments from '../components/transport-orders/OrderFinancialDocuments.jsx'
+import OrderGeneralData from '../components/transport-orders/OrderGeneralData.jsx'
+import OrderStationList from '../components/transport-orders/OrderStationList.jsx'
 import OrderRecordHistoryTables from '../components/transport-orders/OrderRecordHistoryTables.jsx'
 import TransportOrderLinkedCasesCard from '../components/case-links/TransportOrderLinkedCasesCard.jsx'
 import TransportOrderPalletMovementsCard from '../components/transport-orders/TransportOrderPalletMovementsCard.jsx'
@@ -48,44 +50,13 @@ function PartnerCard({ type, imported, partner, canOpen, onDetails, full = false
     {full && <><div className="order-workspace__contact"><Values entries={[["Telefon", partner?.contact?.phone], ['E-Mail (Stammdaten)', partner?.contact?.email], ['USt-IdNr.', partner?.companyData?.vatId]]} /></div>{!customer && imported.contacts?.carrierForOrder && <p>{imported.contacts.carrierForOrder}</p>}</>}
   </Card>
 }
-function StationSchedule({ stop }) {
-  const { language } = useLanguage()
-  const schedule = transportOrderStopSchedule(stop, language)
-  return <div className="order-workspace__stop-schedule">
-    <p className="order-workspace__stop-date">{schedule.date}</p>
-    <p>{schedule.time}</p>
-    <p className="order-workspace__muted"><StaticText source="Fixtermin" />: <StaticText source={stop.fixedAppointment === true ? 'Ja' : stop.fixedAppointment === false ? 'Nein' : 'Nicht übermittelt'} /></p>
-  </div>
-}
-function StationCards({ imported, detailed, date, number }) {
+function StationSummary({ imported, date }) {
   const stops = transportOrderWorkspaceStops(imported)
   return stops.length ? stops.map((stop, index) => <article className="order-workspace__stop" key={`${stop.sourceId || index}-${index}`}>
-    <h4>{detailed ? stop.sequence ?? index + 1 : index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
-    <div className={detailed ? 'order-workspace__stop-columns' : undefined}>
-      <div>
-        {detailed && !stop.legacy ? addressText(stop.address) ? <address className="order-workspace__stop-address">
-          {stop.address?.company && <strong>{stop.address.company}</strong>}
-          {[stop.address?.street, stop.address?.houseNumber].filter(Boolean).join(' ') && <span>{[stop.address.street, stop.address.houseNumber].filter(Boolean).join(' ')}</span>}
-          {[stop.address?.postalCode, stop.address?.city].filter(Boolean).join(' ') && <span>{[stop.address.postalCode, stop.address.city].filter(Boolean).join(' ')}</span>}
-          {stop.address?.country && <span>{stop.address.country}</span>}
-        </address> : <p className="order-workspace__muted"><StaticText source="Keine Adresse übermittelt." /></p> : <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>}
-        {detailed ? <StationSchedule stop={stop} /> : <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>}
-        {!detailed && stop.deliveryInformation && <p className="order-workspace__muted"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
-        {detailed && stop.slotUntilTime && !stop.window?.until && <p className="order-workspace__muted"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
-      </div>
-      {detailed && <div className="order-workspace__stop-details">
-        {stop.note && <><p className="order-workspace__muted"><StaticText source={stop.type === 'loading' ? 'Hinweise zur Abholung' : stop.type === 'unloading' ? 'Hinweise zur Zustellung' : 'Hinweise zur Station'} /></p><p>{stop.note}</p></>}
-        {stop.deliveryInformation && <p className="order-workspace__stop-reference"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
-        {stop.deliveryNoteNumber && <p><StaticText source="Lieferscheinnummer" />: {stop.deliveryNoteNumber}</p>}
-        <div className="order-workspace__stop-cargo">
-          {Number.isFinite(stop.cargo?.packages) && <span><strong>{number(stop.cargo.packages)}</strong> <StaticText source="Kolli" /></span>}
-          {Number.isFinite(stop.cargo?.weightKg) && <span><strong>{number(stop.cargo.weightKg)}</strong> kg</span>}
-          {Number.isFinite(stop.cargo?.loadingMeters) && <span><strong>{number(stop.cargo.loadingMeters)}</strong> <StaticText source="Lademeter" /></span>}
-          {typeof stop.palletExchange === 'boolean' && <span><StaticText source={stop.palletExchange ? 'Palettentausch' : 'Kein Palettentausch'} /></span>}
-          {![stop.cargo?.packages, stop.cargo?.weightKg, stop.cargo?.loadingMeters].some(Number.isFinite) && typeof stop.palletExchange !== 'boolean' && <span className="order-workspace__muted"><StaticText source="Keine Warenangaben übermittelt." /></span>}
-        </div>
-      </div>}
-    </div>
+    <h4>{index + 1} · <StaticText source={stop.type === 'loading' ? 'Ladestelle' : stop.type === 'unloading' ? 'Entladestelle' : 'Unbekannte Station'} /></h4>
+    <p>{stop.legacy ? stop.originalText || stop.city : addressText(stop.address) || '—'}</p>
+    <p>{date(stop.window?.from)} – {date(stop.window?.until)}</p>
+    {stop.deliveryInformation && <p className="order-workspace__muted"><StaticText source="Referenz" />: {stop.deliveryInformation}</p>}
   </article>) : <p className="order-workspace__muted"><StaticText source="Keine Stationen übermittelt." /></p>
 }
 function ResultCard({ financial, currency, onDetails }) {
@@ -217,19 +188,13 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
   const latest = latestTransportOrderRefresh(refreshes, scope || 'all')
   const lastSuccess = latestTransportOrderRefresh(refreshes.filter((entry) => entry.status === 'success'), scope || 'all')
   const statusLabels = { success: w('Aktualisiert', 'Updated'), partial: w('Teilweise aktualisiert', 'Partially updated'), failed: w('Aktualisierung fehlgeschlagen', 'Update failed'), unconfirmed: w('Aktualisierung nicht bestätigt', 'Update not confirmed'), running: w('Aktualisierung läuft', 'Update in progress') }
-  const tabLabels = { overview: w('Übersicht', 'Overview'), transport: w('Transport & Ware', 'Transport & cargo'), partners: w('Geschäftspartner', 'Business partners'), finance: w('Finanzen', 'Finances'), history: w('Historie', 'History') }
+  const tabLabels = { overview: w('Übersicht', 'Overview'), transport: w('Auftrag', 'Order'), partners: w('Kunde & UTN', 'Customer & carrier'), finance: w('Finanzen', 'Finances'), history: w('Historie', 'History') }
   if (loading) return <p className="page-state"><StaticText source="Transportauftrag wird geladen …" /></p>
   if (error || !order?.imported) return <section className="todo-detail-empty"><h2><StaticText source="Transportauftrag nicht verfügbar" /></h2><p><StaticText source={error || 'Noch keine Daten verfügbar.'} /></p><button className="button button--secondary" type="button" onClick={() => { setLoading(true); void loadOrder().catch(() => setError('Der Transportauftrag konnte nicht geladen werden.')).finally(() => setLoading(false)) }}><StaticText source="Erneut versuchen" /></button></section>
   const imported = order.imported
   const shipment = imported.shipment || {}
   const cargoEntries = [['Fahrzeugart', shipment.vehicleType], ['Kennzeichen', shipment.licensePlate], ['Kolli', number(shipment.packages)], ['Gewicht', number(shipment.weightKg, ' kg')], ['Lademeter', number(shipment.loadingMeters, ' m')]]
-  const transportEntries = [
-    ['Fahrzeugart', shipment.vehicleType], ['Kennzeichen', shipment.licensePlate],
-    ['Auftragsmenge', Number.isFinite(shipment.packages) ? <>{number(shipment.packages)} <StaticText source="Kolli" /></> : null],
-    ['Gewicht (Auftrag)', Number.isFinite(shipment.weightKg) ? number(shipment.weightKg, ' kg') : null],
-    ['Lademeter (Auftrag)', Number.isFinite(shipment.loadingMeters) ? number(shipment.loadingMeters, ' m') : null],
-    ['Tour-ID (DyCoS)', imported.source?.tourId],
-  ].filter(([, value]) => value !== null && value !== undefined && value !== '')
+
 
   return <div className="order-workspace">
     {showTabs && <div className="order-workspace__tabs" role="tablist" aria-label={w('Auftragsbereiche', 'Order sections')}>{transportOrderWorkspaceTabs.map((value) => <button key={value} type="button" role="tab" id={`order-tab-${value}`} aria-controls={`order-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)} onKeyDown={(event) => {
@@ -242,11 +207,10 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
     {reloadError && <p className="form-error"><StaticText source="Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu." /></p>}
     {tab !== 'history' && partnerError && <p className="form-error"><StaticText source="Die Geschäftspartnerdaten konnten nicht geladen werden." /></p>}
     <div className={`order-workspace__layout${tab === 'history' ? ' order-workspace__layout--history' : tab === 'transport' ? ' order-workspace__layout--transport' : tab === 'partners' ? ' order-workspace__layout--partners' : ''}`}><main className="order-workspace__content"><section role="tabpanel" id={`order-panel-${tab}`} aria-labelledby={`order-tab-${tab}`}>
-      {tab === 'overview' && <div className="order-workspace__overview"><div className="order-workspace__stack"><Card title="Stationen" onDetails={() => selectTab('transport')}><StationCards imported={imported} date={date} /></Card><Card title="Ware & Fahrzeug" onDetails={() => selectTab('transport')}><Values entries={cargoEntries} /></Card></div><div className="order-workspace__stack"><ResultCard financial={imported.financial} currency={currency} onDetails={() => selectTab('finance')} /><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /></div></div>}
+      {tab === 'overview' && <div className="order-workspace__overview"><div className="order-workspace__stack"><Card title="Stationen" onDetails={() => selectTab('transport')}><StationSummary imported={imported} date={date} /></Card><Card title="Ware & Fahrzeug" onDetails={() => selectTab('transport')}><Values entries={cargoEntries} /></Card></div><div className="order-workspace__stack"><ResultCard financial={imported.financial} currency={currency} onDetails={() => selectTab('finance')} /><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} onDetails={() => selectTab('partners')} /></div></div>}
       {tab === 'transport' && <div className="order-workspace__transport">
-        <Card title="Transportdaten" className="order-workspace__transport-summary">{transportEntries.length ? <Values entries={transportEntries} /> : <p className="order-workspace__muted"><StaticText source="Keine Transportdaten übermittelt." /></p>}</Card>
-        <Card title="Transportablauf"><StationCards imported={imported} detailed date={date} number={number} /></Card>
-        {imported.dispositionNote && <Card title="Dispositionshinweis" className="order-workspace__transport-disposition"><p>{imported.dispositionNote}</p></Card>}
+        <Card title="Allgemeine Auftragsdaten" className="order-workspace__transport-summary"><OrderGeneralData imported={imported} number={number} /></Card>
+        <Card title="Stationen" className="order-workspace__station-card"><OrderStationList imported={imported} number={number} /></Card>
       </div>}
       {tab === 'partners' && <div className="order-workspace__partners"><PartnerCard type="customer" imported={imported} partner={partners.customer} canOpen={canView('masterData')} full /><PartnerCard type="carrier" imported={imported} partner={partners.carrier} canOpen={canView('masterData')} full /></div>}
       {tab === 'finance' && <div className="order-workspace__finance"><OrderFinancialDocuments financial={imported.financial} customerName={partners.customer?.companyName || imported.customer?.name} carrierName={partners.carrier?.companyName || imported.carrier?.originalName} /><TransportOrderImportedDetails imported={{ financial: imported.financial }} showDocuments={false} /></div>}

@@ -1,5 +1,11 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Allgemeine Auftragsdaten': 'General order details',
+  'Allgemeine Hinweise': 'General instructions',
+  'Keine allgemeinen Hinweise übermittelt.': 'No general instructions provided.',
+  'Ware & Mengen': 'Cargo & quantities',
+  'Kein Fixtermin': 'No fixed appointment',
+  'Fixtermin nicht übermittelt': 'Fixed appointment not provided',
   'Zugeordnete Mails': 'Assigned emails',
   'Ältere Mails laden': 'Load older emails',
   'KI-Werte sind farbig umrandet.': 'Values from AI have a coloured border.',

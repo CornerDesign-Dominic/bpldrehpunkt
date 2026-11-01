@@ -23,8 +23,8 @@ function Record() {
     setParams(next, { replace: true, state: location.state })
   }
   const labels = language === 'en'
-    ? ['Overview', 'Transport & cargo', 'Business partners', 'Finances', 'Shipment tracking', 'History']
-    : ['Übersicht', 'Transport & Ware', 'Geschäftspartner', 'Finanzen', 'Sendungsverfolgung', 'Historie']
+    ? ['Overview', 'Order', 'Customer & carrier', 'Finances', 'Shipment tracking', 'History']
+    : ['Übersicht', 'Auftrag', 'Kunde & UTN', 'Finanzen', 'Sendungsverfolgung', 'Historie']
   return <div className="order-record">
     <div className="order-workspace__tabs order-record__tabs"><div className="order-record__section-tabs" role="tablist" aria-label={language === 'en' ? 'Order sections' : 'Auftragsbereiche'}>{orderRecordTabs.map((tab, index) => <button key={tab} type="button" role="tab" id={`order-tab-${tab}`} aria-controls={`order-panel-${tab}`} aria-selected={active === tab} tabIndex={active === tab ? 0 : -1} onClick={() => select(tab)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
