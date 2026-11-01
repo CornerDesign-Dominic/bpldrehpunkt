@@ -28,8 +28,7 @@ function StationSchedule({ stop }) {
   const { language } = useLanguage()
   const schedule = transportOrderStopSchedule(stop, language)
   return <StationCard title="Termin" attention={stop.fixedAppointment === true} className="order-station__schedule">
-    <p className="order-station__date">{schedule.date}</p><p className="order-station__time">{schedule.time}</p>
-    <p className="order-station__appointment-note"><StaticText source="Fixtermin" />: <StaticText source={stop.fixedAppointment === true ? 'Ja' : stop.fixedAppointment === false ? 'Nein' : 'Nicht übermittelt'} /></p>
+    <p className="order-station__date">{schedule.date}</p><p className="order-station__time">{schedule.time}{stop.fixedAppointment === true && <>{' - '}<span className="order-station__fix-label">FIX</span></>}</p>
     {stop.slotUntilTime && !stop.window?.until && <p className="order-station__unresolved-time"><StaticText source="Bis-Uhrzeit aus Quelle (Datum ungeklärt)" />: {stop.slotUntilTime}</p>}
   </StationCard>
 }
@@ -66,7 +65,7 @@ export default function OrderStationList({ imported, number }) {
       </div>
       <div className="order-station__goods">
         <StationCargo stop={stop} number={number} />
-        <StationCard title="Palettentausch"><p className="order-station__pallet-value"><StaticText source={stop.palletExchange === true ? 'Ja' : stop.palletExchange === false ? 'Nein' : 'Nicht übermittelt'} /></p></StationCard>
+        <StationCard title="Palettentausch" attention={stop.palletExchange === true}><p className="order-station__pallet-value"><StaticText source={stop.palletExchange === true ? 'Ja' : stop.palletExchange === false ? 'Nein' : 'Nicht übermittelt'} /></p></StationCard>
         <StationCard title="Bemerkung" className="order-station__instructions"><p>{stop.note || <span className="order-workspace__muted"><StaticText source="Keine Bemerkung übermittelt." /></span>}</p></StationCard>
         {stop.deliveryNoteNumber && <StationCard title="Lieferscheinnummer"><p>{stop.deliveryNoteNumber}</p></StationCard>}
       </div>

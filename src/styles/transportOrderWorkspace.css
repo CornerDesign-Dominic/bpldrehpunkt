@@ -35,16 +35,17 @@
 .order-station__number { display:inline-grid; place-items:center; min-width:28px; height:28px; padding:0 5px; border:1px solid var(--button-background); border-radius:5px; color:var(--button-background); font-size:14px; }
 .order-station__place, .order-station__goods { display:grid; gap:12px; }
 .order-station__card { min-width:0; padding:14px 16px; border:1px solid var(--border); border-radius:6px; background:var(--surface-secondary); }
-.order-station__card--attention { border-color:var(--status-warning-text); background:var(--status-warning-background); }
+.order-station__card--attention { border-color:var(--status-warning-text); box-shadow:inset 3px 0 0 var(--status-warning-text); }
 .order-station__card h5 { margin:0 0 10px; color:var(--text-secondary); font-size:12px; font-weight:600; }
-.order-station__card--attention h5, .order-station__attention-note { color:var(--status-warning-text); }
+.order-station__attention-note { color:var(--text-primary); }
 .order-workspace__card .order-station__attention-note { margin:0 0 8px; font-size:13px; font-weight:650; }
 .order-station__address { margin:0; font-style:normal; font-size:15px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
 .order-station__address > strong, .order-station__address > span { display:block; }
 .order-station__address > strong { margin-bottom:3px; font-size:17px; line-height:1.4; }
 .order-station__label { display:block; color:var(--text-secondary); font-size:12px; font-weight:500; }
 .order-workspace__card .order-station__date, .order-workspace__card .order-station__time { margin:4px 0; font-size:20px; font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums; }
-.order-workspace__card .order-station__appointment-note, .order-station__unresolved-time { margin:10px 0 0; color:var(--text-secondary); font-size:12px; }
+.order-workspace__card .order-station__fix-label { font:inherit; letter-spacing:inherit; color:var(--status-warning-text); }
+.order-station__unresolved-time { margin:10px 0 0; color:var(--text-secondary); font-size:12px; }
 .order-station__reference p { font-size:16px; line-height:1.5; }
 .order-station__description { margin-bottom:12px; font-size:16px; font-weight:600; }
 .order-station__pallet-value { font-size:18px; font-weight:650; }

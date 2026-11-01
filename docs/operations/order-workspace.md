@@ -85,10 +85,16 @@ Referenz bleibt auch mit Inhalt neutral. Datum und Uhrzeit verwenden dieselbe
 Schriftgröße und -stärke; der große FIX-Badge entfällt. Dezente horizontale
 Linien trennen die Stationen. Schmale Ansichten stellen die Bereiche untereinander.
 
-Die Terminkarte ist ausschließlich bei `fixedAppointment === true` gelb;
-Fixtermin Ja/Nein/unbekannt steht als normale Textzeile dabei. Die Adresskarte
+Die Terminkarte ist ausschließlich bei `fixedAppointment === true` mit gelbem
+Rand und linkem Streifen markiert; ihre Fläche bleibt neutral. Ein bestätigter
+Fixtermin erscheint als „ - FIX“ direkt nach der Uhrzeit. FIX erbt dieselbe
+Schrift, Größe und Stärke wie die Uhrzeit; allein die Farbe ist gelb. Eine
+separate Fixtermin-Ja/Nein-Zeile entfällt. Fehlendes FIX ist keine bestätigte
+Aussage, dass der unbekannte Quellwert false wäre. Die Adresskarte
 ist ausschließlich bei einem erkannten ausdrücklichen Hinweis auf neutrale
-Abholung beziehungsweise Anlieferung gelb und nennt diesen Grund. Die
+Abholung beziehungsweise Anlieferung am Rand und linken Streifen gelb markiert
+und nennt diesen Grund. Auch Palettentausch true markiert ausschließlich Rand
+und linken Streifen der eigenen Karte; false/unbekannt bleiben neutral. Die
 Darstellung prüft Stationsbemerkung und allgemeine Dispositionsbemerkung auf
 explizite deutsche Formulierungen; bloße Referenzen und andere Texte werden
 nicht durchsucht. Eigene Stationsangaben haben Vorrang vor allgemeinen
