@@ -126,6 +126,13 @@ Adresse, Termin oder Palettentausch. Die Referenz bleibt auch mit Inhalt neutral
 Datum und Uhrzeit verwenden dieselbe Schriftgröße und -stärke; FIX bleibt hinter
 der Uhrzeit. Schmale Ansichten stellen die Bereiche untereinander.
 
+Fehlende einzelne Angaben im Reiter Auftrag erscheinen kompakt als „—“:
+Fahrzeugart, allgemeine Hinweise, Warenart/Gefahrgut, Adresse, Termin,
+Referenz, Bemerkung, Warenmengen, Palettentausch und Streckendetails.
+„Nicht übermittelt“ bleibt per Mauszeiger und für Screenreader verfügbar;
+Englisch nutzt „Not provided“. Echte Nullwerte und false/Nein bleiben Werte.
+Übergreifende Leerzustände und fachliche Warnhinweise werden nicht verkürzt.
+
 Die Terminkarte ist ausschließlich bei `fixedAppointment === true` mit gelbem
 Rand und linkem Streifen markiert; ihre Fläche bleibt neutral. Ein bestätigter
 Fixtermin erscheint als „ - FIX“ direkt nach der Uhrzeit. FIX erbt dieselbe

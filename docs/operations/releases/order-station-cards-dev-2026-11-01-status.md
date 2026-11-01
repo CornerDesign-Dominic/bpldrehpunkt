@@ -171,3 +171,15 @@ Lokale Browserprüfung mit strukturiertem Fixtermin, Freitext-FIX bei nicht gese
 Flag, Palettentausch true/false, vollständigen Hinweisen und optionalen DyCoS-
 Streckendaten. Gelbe Texte in Light/Dark bestätigt; bei 545 px Inhaltsbreite kein
 horizontaler Überlauf. Keine Backend-/Rules-/Indexänderung oder Datenmigration.
+
+## Kompakte fehlende Feldwerte, 01.11.2026
+
+Der Reiter Auftrag zeigt einzelne fehlende Werte einheitlich als „—“ statt
+„Nicht übermittelt“ oder wiederholter langer Leertexte. Erklärung per title
+und Screenreader; Englisch „Not provided“. Vorhandene Nullwerte und Nein bleiben
+sichtbar. Globale Leerzustände und fachliche Quellwarnungen bleiben ausführlich.
+
+Lint, Build, Shared-Abgleich (45 Module) und 8 vorhandene Darstellungs-/Hinweistests
+bestanden. Lokale Browserprüfung: kompakte Platzhalter, title und unsichtbarer
+Screenreadertext, englische Erklärung sowie unveränderte 0 kg/0 m/Nein.
+Nur Frontend; keine Backend-, Rules-, Index- oder Datenänderung erforderlich.

@@ -68,7 +68,7 @@
 .order-station__cargo dl > div { display:block; }
 .order-station__cargo dd { margin-top:3px; font-size:14px; font-weight:650; line-height:1.4; font-variant-numeric:tabular-nums; }
 .order-station__cargo dd small { font-size:12px; font-weight:500; }
-.order-station__missing { display:block; font-size:12px; font-weight:400; color:var(--text-secondary); }
+.order-field-missing { color:var(--text-muted); font-weight:400; }
 .order-station__volume-weight { margin-top:8px; padding-top:6px; border-top:1px solid var(--border); }
 .order-station__volume-weight > p { font-size:13px; }
 .order-station__volume-weight > p.order-workspace__muted { font-size:12px; }
