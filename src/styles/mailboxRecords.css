@@ -15,7 +15,7 @@
 .mail-record-operation > span { font-size: 12px; color: var(--text-secondary); }
 .mail-record-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
 .mailboxes-page .mail-record-discard { color: var(--text-secondary); background: transparent; }
-.mailboxes-page .mail-record-discard:hover:not(:disabled) { color: var(--status-error-text); border-color: var(--status-error-text); background: var(--status-error-background); }
+.mailboxes-page .mail-record-discard:hover:not(:disabled) { color: var(--status-danger-text); border-color: var(--status-danger-text); background: var(--status-danger-background); }
 .mail-record-footer .mail-record-apply { margin-left: auto; }
 .mail-record-choice h3, .mail-record-choice h4, .mail-record-completed h3 { margin: 10px 0 0; }
 .mail-record-buttons, .mail-record-search, .mail-record-editor-heading { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
@@ -36,11 +36,16 @@
 .mail-record-previous p { margin: 6px 0 0; }
 .mail-record-proposal { min-width: 0; }
 .mail-record-proposal textarea { resize: vertical; }
+.mailboxes-page .mail-record-editor input:not([type=checkbox]), .mailboxes-page .mail-record-invoices input:not([type=checkbox]) { box-sizing: border-box; min-width: 0; width: 100%; min-height: 38px; padding: 8px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-background); color: var(--text-primary); font: inherit; font-size: 12px; }
+.mailboxes-page .mail-record-editor textarea { min-height: 96px; font-size: 13px; line-height: 1.5; }
+.mail-record-editor > label:has(> textarea) { margin-top: 2px; }
+.mail-record-invoices { display: grid; gap: 10px; }
+.mail-record-invoices h4 { margin: 4px 0 0; }
 .mail-record-evidence { margin-top: 6px; font-size: 12px; overflow-wrap: anywhere; }
 .mail-record-evidence summary, .mail-record-completed a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
 .mail-record-proposal p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .mail-record-evidence p { white-space: pre-wrap; }
-.mail-record-error { padding: 12px; border: 1px solid var(--status-error-text); background: var(--status-error-background); border-radius: 7px; }
+.mail-record-error { padding: 12px; border: 1px solid var(--status-danger-text); background: var(--status-danger-background); color: var(--status-danger-text); border-radius: 7px; }
 .mailboxes-page .mail-record-apply { background: var(--button-background); color: var(--button-text); }
 @media (max-width: 760px) { .mail-record-field.has-comparison { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 480px) { .mail-record-selection .mail-record-segments button { flex-direction: column; font-size: 11px; } }

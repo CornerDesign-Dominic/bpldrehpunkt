@@ -1,6 +1,6 @@
 import MailActionButton from './MailActionButton.jsx'
 import { useMailboxAction } from '../../mailboxes/useMailboxAction.js'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
@@ -41,6 +41,7 @@ function AssignmentDialog({ open, busy, candidates, error, onAssign, onClose, w 
 }
 
 export default function MailTrackingAction({ identity, mailContent }) {
+  const formId = useId()
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
   const action = useMailboxAction(identity, 'tracking')
@@ -130,22 +131,26 @@ export default function MailTrackingAction({ identity, mailContent }) {
     finally { setSaving(false) }
   }
   return <><MailActionButton kind="tracking" state={action.state} expanded={open} disabled={busy || saving || action.busy} onClick={activate}>{action.state === 'running' || busy ? w('Status wird ausgelesen …', 'Reading status …') : action.state === 'review' ? w('Statusangaben prüfen', 'Review status information') : action.state === 'completed' ? w('Status übernommen', 'Status applied') : action.state === 'failed' ? w('Statusauswertung prüfen', 'Review status analysis') : w('Sendungsstatus aktualisieren', 'Update shipment status')}</MailActionButton>
-    <MailWorkDialog open={open} title={w('Sendungsstatus aktualisieren', 'Update shipment status')} subtitle={preview?.order ? `TA ${preview.order.number} · ${preview.order.loading} → ${preview.order.unloading}` : undefined} left={mailContent} onClose={close} busy={saving} rightLoading={busy || saving || action.busy} loadingLabel={saving ? w('Angaben werden übernommen …', 'Applying information …') : w('Auftrag wird gesucht – KI wertet die Mail aus …', 'Finding order – AI is analysing the message …')}>
+    <MailWorkDialog open={open} title={w('Sendungsstatus aktualisieren', 'Update shipment status')} subtitle={preview?.order ? `TA ${preview.order.number} · ${preview.order.loading} → ${preview.order.unloading}` : undefined} left={mailContent} onClose={close} busy={saving} rightLoading={busy || saving || action.busy} loadingLabel={saving ? w('Angaben werden übernommen …', 'Applying information …') : w('Auftrag wird gesucht – KI wertet die Mail aus …', 'Finding order – AI is analysing the message …')} footer={action.state !== 'completed' && <>
+      {action.state === 'review' && <button className="mail-work-footer__discard" type="button" disabled={busy || saving || action.busy} onClick={() => void discard()}>{w('Ergebnis verwerfen', 'Discard result')}</button>}
+      <button className="mail-work-footer__secondary" type="button" disabled={busy || saving || action.busy} onClick={() => void analyse(preview?.order?.number)}>{w('Erneut auswerten', 'Analyse again')}</button>
+      <button className="mail-work-footer__primary" type="submit" form={formId} disabled={busy || saving || action.busy || action.state !== 'review' || !preview?.previewId || !changed.length && !entries.length}>{saving ? w('Wird übernommen …', 'Applying …') : w('Angaben übernehmen', 'Apply information')}</button>
+    </>}>
       <div className="mail-tracking-assignment-bar"><strong>{preview?.order ? `TA ${preview.order.number}` : w('Noch kein Auftrag zugeordnet', 'No order assigned')}</strong><button className="button button--secondary" type="button" disabled={busy || saving || action.busy || action.state === 'completed'} onClick={() => setAssignment(true)}>{w('Auftrag wählen', 'Choose order')}</button></div>
       {!busy && preview?.previewId && !Object.keys(preview.proposals).length && !preview.transitProposals.length && <p role="status">{w('Keine eindeutigen neuen Statusangaben erkannt. Du kannst die Angaben manuell ergänzen.', 'No clear new status information found. You can enter details manually.')}</p>}
       {(error || action.error) && <p className="form-error" role="alert">{error || errorText(action.error, w)}</p>}
       {action.state === 'completed' && <p role="status">{w('Die Angaben dieser Mail wurden bereits übernommen.', 'The information from this message has already been applied.')}</p>}
       {action.state !== 'completed' && <p className="mailbox-hint">{w('KI-Vorschläge prüfen. Erst „Angaben übernehmen“ speichert und startet bei Bedarf die Sendungsverfolgung.', 'Review AI suggestions. Apply information saves changes and starts tracking if necessary.')}</p>}
       {preview?.reviewRequired && <p className="mail-tracking-warning">{w('Die KI konnte nicht alle Angaben eindeutig interpretieren. Bitte besonders sorgfältig prüfen.', 'Some details are ambiguous. Please review carefully.')}</p>}
-      <form onSubmit={apply}><fieldset disabled={busy || saving || action.busy || action.state === 'completed' || !preview?.previewId} className="mail-tracking-stations">
-        {stages.map(stage => <section className="mail-tracking-station" key={stage.id}><button type="button" className="mail-tracking-station-toggle" aria-expanded={openStages.includes(stage.id)} onClick={() => setOpenStages(current => current.includes(stage.id) ? current.filter(id => id !== stage.id) : [...current, stage.id])}>{w(stage.de, stage.en)} <span aria-hidden="true">{openStages.includes(stage.id) ? '−' : '+'}</span></button>
-          {preview?.previewId && openStages.includes(stage.id) && <div className="mail-tracking-fields">{stage.id === 'in_transit' ? <ShipmentTrackingTransitFields entries={entries} initialNewEntries={originalEntries} onChange={setEntries} /> : <>
+      <form id={formId} onSubmit={apply}><div className="mail-tracking-stations">
+        {stages.map(stage => <section className="mail-tracking-station" key={stage.id}><button type="button" className="mail-tracking-station-toggle" disabled={busy || saving || action.busy || !preview?.previewId} aria-expanded={openStages.includes(stage.id)} onClick={() => setOpenStages(current => current.includes(stage.id) ? current.filter(id => id !== stage.id) : [...current, stage.id])}>{w(stage.de, stage.en)} <span aria-hidden="true">{openStages.includes(stage.id) ? '−' : '+'}</span></button>
+          {preview?.previewId && openStages.includes(stage.id) && <fieldset disabled={busy || saving || action.busy || action.state === 'completed'} className="mail-tracking-fields">{stage.id === 'in_transit' ? <ShipmentTrackingTransitFields entries={entries} initialNewEntries={originalEntries} onChange={setEntries} /> : <>
             <ShipmentTrackingStageFields stage={{ ...shipmentTrackingStageConfigurations[stage.id], id: stage.id }} values={values} onChange={(field, value) => setValues(current => ({ ...current, [field]: value }))} aiField={field => Object.hasOwn(preview.proposals, field) && values[field] === inputValue(field, preview.proposals[field])} />
             {stage.id === 'preparation' && ['tractorLicensePlate', 'trailerLicensePlate'].map(field => <label className="form-field" key={field}><span><StaticText source={fieldLabels[field]} /></span><input value={values[field] || ''} maxLength={80} onChange={event => setValues(current => ({ ...current, [field]: event.target.value }))} className={Object.hasOwn(preview.proposals, field) && values[field] === preview.proposals[field] ? 'shipment-tracking-editor__input--ai' : undefined} /></label>)}
             {preview.conflicts.filter(field => shipmentTrackingStageConfigurations[stage.id].fields.includes(field) || stage.id === 'preparation' && ['tractorLicensePlate', 'trailerLicensePlate'].includes(field)).map(field => <div className="mail-tracking-warning" key={field}><strong><StaticText source={fieldLabels[field]} /></strong><p>{values[field] === inputValue(field, preview.proposals[field]) ? w('KI-Vorschlag ausgewählt.', 'AI suggestion selected.') : w('Vorhandener Wert bleibt erhalten.', 'The existing value is preserved.')} {w('KI-Vorschlag:', 'AI suggestion:')} {inputValue(field, preview.proposals[field])}</p><button type="button" className="button button--secondary" onClick={() => setValues(current => ({ ...current, [field]: inputValue(field, preview.proposals[field]) }))}>{w('KI-Vorschlag verwenden', 'Use AI suggestion')}</button></div>)}
-          </>}</div>}
+          </>}</fieldset>}
         </section>)}
-      </fieldset>{action.state !== 'completed' && <div className="mail-tracking-footer"><button className="button button--secondary" type="button" disabled={busy || saving} onClick={() => void analyse(preview?.order?.number)}>{w('Erneut auswerten', 'Analyse again')}</button>{action.state === 'review' && <button className="button button--secondary" type="button" disabled={busy || saving || action.busy} onClick={() => void discard()}>{w('Ergebnis verwerfen', 'Discard result')}</button>}<button className="button" type="submit" disabled={busy || saving || action.busy || !preview?.previewId || !changed.length && !entries.length}>{saving ? w('Wird übernommen …', 'Applying …') : w('Angaben übernehmen', 'Apply information')}</button></div>}</form>
+      </div></form>
     </MailWorkDialog>
     <AssignmentDialog open={open && assignment} busy={busy} candidates={preview?.candidates} error={assignmentError} onAssign={analyse} onClose={() => setAssignment(false)} w={w} />
     {toast && createPortal(<Toast message={toast} onDismiss={() => setToast('')} />, document.body)}

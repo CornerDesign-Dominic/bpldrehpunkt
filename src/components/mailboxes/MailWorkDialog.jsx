@@ -11,7 +11,7 @@ function storedSplit() {
   } catch { return 52 }
 }
 
-export default function MailWorkDialog({ open, title, subtitle, left, children, onClose, busy = false, rightLoading = false, loadingLabel }) {
+export default function MailWorkDialog({ open, title, subtitle, left, children, footer, onClose, busy = false, rightLoading = false, loadingLabel }) {
   const { language } = useLanguage()
   const ref = useRef(null)
   const columns = useRef(null)
@@ -66,7 +66,7 @@ export default function MailWorkDialog({ open, title, subtitle, left, children, 
     <div className="mail-work-dialog__divider" role="separator" tabIndex={expanded ? -1 : 0} aria-label={w('Dokumentbreite anpassen', 'Adjust document width')} aria-orientation="vertical" aria-controls={readerId} aria-valuemin={30} aria-valuemax={75} aria-valuenow={Math.round(split)} aria-valuetext={`${Math.round(split)} %`} title={w('Ziehen oder mit den Pfeiltasten verschieben', 'Drag or use the arrow keys')} onKeyDown={resizeWithKeyboard} onDoubleClick={() => setSplit(52)} onPointerDown={event => { if (event.button !== 0) return; event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); setDragging(true) }} onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) resize(event) }} onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); setDragging(false) }} onPointerCancel={() => setDragging(false)} onLostPointerCapture={() => setDragging(false)} />
     {dragging && <div className="mail-work-dialog__resize-shield" aria-hidden="true" />}
     <div ref={editor} className={`mailbox-reply mail-status-editor${rightLoading ? ' is-loading' : ''}`} aria-busy={rightLoading}>
-      <div className="mail-work-dialog__editor-content" inert={rightLoading}>{children}</div>
+      <div className={`mail-work-dialog__editor-content${footer ? ' has-footer' : ''}`} inert={rightLoading}>{footer ? <><div className="mail-work-dialog__main">{children}</div><footer className="mail-work-dialog__footer">{footer}</footer></> : children}</div>
       {rightLoading && <div className="mail-work-dialog__loading" role="status" aria-live="polite"><div className="mail-work-dialog__loading-card"><span className="mail-work-dialog__spinner" aria-hidden="true" /><strong>{loadingLabel || (language === 'en' ? 'Processing …' : 'Wird verarbeitet …')}</strong><span>{language === 'en' ? 'Please wait a moment.' : 'Bitte einen Moment warten.'}</span></div></div>}
     </div></div>
   </dialog>
