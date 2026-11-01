@@ -127,3 +127,9 @@ Bestätigung und deaktivierten Aktionen nach Abschluss, Abruf mit gesperrtem
 Button während der Anfrage, genau eine Aktion nach Reiterwechsel, Strecke mit
 470 km/Fahrzeitschätzung, Leserechte, Light/Dark und Umbruch bei 545 px ohne
 horizontalen Überlauf. Keine echten Trackingzustände für die Prüfung verändert.
+
+Der kombinierte Stand `8b113b2` enthält die bereits veröffentlichten Dev-Änderungen
+bis `7cd3f25`, insbesondere den ausdrücklich gesetzten Abrufmodus `refresh`.
+Nach Zusammenführung Lint, Build und Shared-Abgleich erneut erfolgreich;
+Auftragsabruf in der lokalen Browserprüfung erneut bestätigt. Für diese reine
+Layoutkorrektur erfolgt nur der Dev-Frontend-Push, kein weiterer Backenddeploy.
