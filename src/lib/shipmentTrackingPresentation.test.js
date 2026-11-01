@@ -399,3 +399,17 @@ test('completed unloading closes physical preparation even when historical plate
   const stations = shipmentTrackingStations({ tracking: { unloadingCompletedAt: '2026-09-25T16:00' }, imported })
   for (const id of ['preparation', 'loading', 'in_transit', 'unloading']) assert.equal(stations.find((station) => station.id === id).workflowState, 'completed')
 })
+
+
+test('explicit fixed appointment flags take precedence without discarding the time window', () => {
+  assert.equal(formatShipmentTrackingSlot('2026-10-01T12:00', null, false), 'ab Do., 12:00')
+  assert.equal(formatShipmentTrackingSlot('2026-10-01T12:00', '2026-10-01T12:00', false), 'Do., 12:00')
+  assert.equal(formatShipmentTrackingSlot('2026-10-01T12:00', '2026-10-01T14:00', true), 'FIX\nDo., 12:00–14:00')
+  assert.equal(formatShipmentTrackingSlot('2026-10-01T12:00', null, true), 'FIX\nDo., 12:00')
+  const model = shipmentTrackingTimelineModel(null, {
+    loading: { window: { from: '2026-10-01T12:00', until: null }, fixedAppointment: false },
+    unloading: { window: { from: '2026-10-01T14:00', until: '2026-10-01T16:00' }, fixedAppointment: true },
+  })
+  assert.equal(model.stations.find(station => station.id === 'loading').plan, 'ab Do., 12:00')
+  assert.equal(model.stations.find(station => station.id === 'unloading').plan, 'FIX\nDo., 14:00–16:00')
+})

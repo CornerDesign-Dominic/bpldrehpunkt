@@ -1,8 +1,11 @@
 # Auftragsbereich und Sendungsverfolgung
 
-Stand: 31.10.2026. Lokal auf `codex/order-workspace`, Grundlage `d64e363`
+Stand: 01.11.2026. Lokal auf `codex/order-workspace`, Grundlage `d64e363`
 (veröffentlichter Dev-Stand einschließlich DyCoS-Feldklärung und Kostenprüfung).
-Die Erweiterung ist nach ausdrücklicher Freigabe auf Dev veröffentlicht.
+Der bisherige Grundstand ist nach ausdrücklicher Freigabe auf Dev veröffentlicht.
+Die am 01.11.2026 vorbereiteten Trackingbereinigungen, der breite Stationsablauf,
+die Fixtermin-Übernahme, die zweispaltige Geschäftspartneransicht und der Mailreiter
+sind ausschließlich lokal umgesetzt; eine Veröffentlichung ist noch nicht freigegeben.
 [Release und echte Abnahme](order-workspace-dev-release.md). Produktion bleibt unverändert.
 
 ## Benutzerablauf
@@ -13,9 +16,30 @@ operativen Verfolgungsliste. Beide öffnen dieselbe Auftragsakte unter
 Verfolgungen mit `?tab=tracking`. Bisherige Trackingdetailadressen leiten unter
 Erhalt von Anfrageparametern, Hash und Rückkehrzustand auf diesen Reiter weiter.
 
-Die Trackingdetailseite bleibt der vollständige operative Arbeitsbereich.
-Auf ihr kommt ausschließlich oben die gemeinsame Reiterleiste hinzu: kein
-neuer gemeinsamer Datenkopf, keine zusätzliche Karte, keine entfernten Inhalte.
+Die Trackingdetailseite bleibt der operative Arbeitsbereich mit gemeinsamer
+Reiterleiste. Lokal entfernt wurden der zusätzliche Link „Auftrag öffnen“, das
+Drei-Punkte-Historienmenü und die doppelten Abschnitte Rechnungen/Gutschriften,
+Ertragspositionen, Kostenpositionen und Warenangaben je Station. Diese Inhalte
+bleiben in Finanzen beziehungsweise Transport & Ware zugänglich; die operative
+Tracking-Ereignishistorie und die gemeinsamen Fachreiter bleiben erhalten.
+Die rechte Tracking-Spalte mit Kontakten, Importinfos und eingegangenen Mails
+entfällt lokal. „Zugeordnete Mails“ steht als zusätzlicher Dialogreiter in der
+gemeinsamen Navigation zur Verfügung, ohne den aktiven Fachreiter zu wechseln.
+Der Dialog zeigt links die zugeordneten Nachrichten, mittig ihren Textinhalt und
+rechts den bestehenden Trackingeditor. Mitte und rechts starten gleich breit;
+die Teilung lässt sich wie im Postfachdialog anpassen und separat merken.
+Die neuesten 50 Nachrichten werden live geladen, ältere sind schrittweise
+nachladbar; auch nachgeladene Nachrichten erhalten laufende KI-Statusänderungen.
+Ein gemeinsamer Trackingentwurf bleibt beim Mailwechsel und beim Schließen und
+Wiederöffnen innerhalb derselben Auftragsakte erhalten. Verlassen der Akte
+beendet diesen lokalen Entwurf. Laden, Fehler mit Wiederholen und fehlende
+Nachrichten beziehungsweise noch nicht gestartetes Tracking sind berücksichtigt.
+Beim Öffnen werden aktuelle Trackingdaten gelesen; währenddessen sowie bei
+Ladefehlern ist keine Bearbeitung veralteter Werte möglich. Die vorhandenen
+Leserechte auf `receivedMails` und serverseitigen Bearbeitungsrechte gelten
+unverändert. Es entsteht kein Zugriff auf persönliche Postfächer. Technische
+Fehler beim Lesen, KI-Neustart oder Prüfabschluss nutzen die bestehende zentrale
+Trackingdiagnose ohne Nachrichteninhalte zu protokollieren.
 Geöffnete Auftrags- und Trackingbausteine bleiben beim Wechsel montiert, damit
 Dialoge und Eingaben erhalten bleiben. Tracking wird erst beim ersten Öffnen
 seines Reiters geladen; aktive Ansichten lesen beim Wiederöffnen den aktuellen
@@ -33,25 +57,53 @@ Finanzwerte oder Belege werden nicht erfunden. Das Auftragsergebnis ist die
 Differenz der übermittelten Nettoerträge und Nettokosten, kein zusätzlicher
 buchhalterischer Abschlussstatus.
 
-Transport & Ware nutzt die volle Breite ohne rechte Verknüpfungsspalte:
-links eine gemeinsame Stationskarte, rechts Karten für Transport/Fahrzeug,
-Ware/Auftragsmengen und Dispositionsbemerkung. Die Stationen stehen untereinander;
-jede Station ist innen zweispaltig: Adresse, Zeitfenster und Referenz links,
-Bemerkung, Lieferschein und Stationsmengen/Palettentausch rechts. Bei schmalen
-Ansichten werden diese Angaben untereinander dargestellt. Dezente horizontale
-Linien trennen die Stationen. Jede Adresse erscheint als Adressblock mit Firma,
-Straße, PLZ/Ort und Land. Darunter stehen Datum, Uhrzeit und Fixtermin getrennt.
-Der aktuelle Import übernimmt das dokumentierte DyCoS-Feld `Fixtermin` noch
-nicht; die Anzeige lautet daher „Nicht übermittelt“. Die bestehende
-Trackingableitung aus Uhrzeiten wird dafür nicht als verifiziertes Flag verwendet.
-Offen bleibt die separate Erweiterung des Importvertrags um diese Kennzeichnung.
+Geschäftspartner nutzt lokal die gesamte Inhaltsbreite ohne Verknüpfungsspalte:
+Kunde links und Unternehmer rechts in zwei gleich breiten Spalten. Die
+zusätzliche Karte „Auftragsbezogene Angaben“ entfällt in diesem Reiter.
+Stammdatenverknüpfungen, Kontakte und Aktualisierungsaktion bleiben verfügbar;
+bei schmalen Ansichten stehen die Partnerkarten untereinander.
+
+Transport & Ware nutzt im lokal vorbereiteten breiten Stationsablauf die volle
+Breite ohne rechte Verknüpfungsspalte. Oben steht eine kompakte Transportübersicht
+mit Fahrzeug, vorhandenen Kennzeichen, Auftragsmengen und Tour. Danach folgen
+alle Stationen untereinander in einer gemeinsamen breiten Karte; den Abschluss
+bildet ein vorhandener Dispositionshinweis. Fehlende Kennzeichen sowie die bisher
+nur als Platzhalter sichtbaren Warenarten/Einzelmaße belegen keine eigenen Zeilen.
+
+Jede Station ist innen zweispaltig: Adressblock und Termin links, vollständige
+Hinweise, Referenzen, vorhandene Lieferscheinnummer und eine kompakte Zeile mit
+Stationsmengen/Palettentausch rechts. Fehlende Adressen sind ausdrücklich markiert.
+Dezente horizontale Linien trennen die Stationen. An schmalen Ansichten stehen
+die Angaben untereinander. Mehrtägige Fenster behalten beide Daten; fehlende
+Zeitgrenzen werden nicht ergänzt. Unter jeder Adresse stehen Termin und Fixtermin.
+Lokal ergänzt ist die Übernahme von `LadeEntladestellen2.Fixtermin` über
+`LadeEntladestellenID` nach `stops[].fixedAppointment` sowie in die Projektionen
+`loading.fixedAppointment` und `unloading.fixedAppointment`. Bestätigte Werte
+werden als boolean gespeichert und als Ja/Nein angezeigt; 0/1 werden an der
+Schnittstellengrenze normalisiert. Fehlende Werte bleiben null bzw. bei alten
+Datensätzen zunächst unbekannt, ungültige Werte brechen den Abruf ab.
+Die Kennzeichnung wird nicht aus Uhrzeiten oder Freitext abgeleitet.
+In der Tracking-Sollzeit und Prognosegrafik hat ein vorhandenes Quellkennzeichen
+Vorrang vor der bisherigen zeitbasierten FIX-Beschriftung. Insbesondere darf
+explizites false nicht als FIX erscheinen. Die Zeitgrenzen, Prognoserechnung
+und Versandsteuerung werden dadurch nicht verändert. Altbestände ohne Flag
+behalten bis zum erneuten Import ihre bisherige Tracking-Zeitdarstellung.
+Änderungen des Kennzeichens sind in der Auftragshistorie nachvollziehbar.
 Die bisherige separate Tabelle
 „Warenangaben je Station“ entfällt in diesem Reiter. Gewicht, Kolli, Lademeter
 und Palettentausch stehen direkt bei der jeweiligen Station; ihre Mengen
 werden nicht zu Auftragssummen addiert. Auftragssummen kommen weiterhin allein
 aus `imported.shipment`. Warenart und Einzelmaße sind im aktuellen Importvertrag
-nicht enthalten und werden als nicht übermittelt ausgewiesen, nicht abgeleitet.
+nicht enthalten und werden nicht abgeleitet.
 Die bestehende operative Trackingansicht bleibt davon unberührt.
+
+Für eine spätere Veröffentlichung dieses neuen Importfelds müssen Frontend und
+die Import-Einstiege `fetchDycosTransportOrder` und `refreshTransportOrderWorkspace`
+gemeinsam betrachtet werden. `reviewMailboxInvoices` verwendet denselben Mapper,
+wertet das neue Flag für die Rechnungsprüfung aber nicht aus. Kein zusätzlicher
+Flow-Abruf, keine Power-Automate-Änderung, keine neuen Rechte, Rules oder Indizes.
+Bestehende Aufträge erhalten das Feld erst beim nächsten Auftragsabruf; kein
+automatischer Massenimport. Noch keine Veröffentlichung dieser Erweiterung.
 
 Die Finanzansicht zeigt rechts anstelle der Verknüpfungen die Karten
 Auftragsergebnis und Rechnungsprüfung. Belege sowie einzelne Ertrags- und
@@ -157,7 +209,7 @@ echten Schnittstellen. Echte Auftrags-/Stammdatenabrufe und Navigation sind auf 
 Teilfehler, Wiederholung und Rechteverweigerung sind durch Emulatorprüfungen
 belegt. Der Releasebeleg unterscheidet diese Nachweise.
 
-## Lokale Prüfung dieses Entwicklungsstands
+## Prüfung des veröffentlichten Grundstands
 
 Vollständiges ESLint, Produktionsbuild und Shared-Abgleich (42 Module) bestanden.
 103 gezielte Modul-/Vertragstests und vier echte Firestore-Emulatorprüfungen
@@ -178,3 +230,24 @@ In-App-Browser mit festem lokalem Ziel.
 Bekannte bestehende Build-Warnung: Firebase-Bundle über 500 kB. Diese lokale
 Vorprüfung ging der anschließend freigegebenen Dev-Veröffentlichung voraus.
 Main und Produktion bleiben unverändert.
+
+## Lokale Mailerweiterung vom 01.11.2026
+
+Vollständiges ESLint und Produktionsbuild bestanden; nach den letzten Ergänzungen
+gezieltes ESLint und Build erneut erfolgreich. Kein Backend-, Rules- oder
+Shared-Vertrag geändert. Keine Veröffentlichung dieser Erweiterung.
+
+Die isolierte Vorschau verwendet den echten Maildialog, Trackingeditor und die
+Auftragsnavigation mit synthetischen Datenzugriffen. Vor den abschließenden
+Ergänzungen erfolgreich bedient: 50 auf 53 Nachrichten nachladen, Mailwechsel,
+Trackingentwurf über Schließen/Wiederöffnen und Fachreiterwechsel erhalten,
+Speichern gegen den lokalen Ersatzdienst, Teilung per Tastatur, Hell/Dunkel und
+DE/EN. Im letzten Stand zusätzlich dargestellt: gleich breite Inhalts-/Tracking-
+Spalten, Leerzustand, Trackingladefehler mit Bearbeitungssperre und Leserechte.
+Die abschließende Wiederholung aller Bedienaktionen bleibt offen: Die
+Browsersteuerung übermittelte keine wirksamen Klicks mehr, auch bei einem
+unabhängigen nativen Testbutton ohne React. Codeprüfung ergab dafür keinen
+konkreten Anwendungsfehler. Fehler-Wiederholen, KI-Neustart/Prüfabschluss,
+schmale Ansicht und bestehende Postfachdialoge sind daher noch im Browser
+nachzuprüfen; echte Dev-Abnahme und serverseitige Schreibaktionen wurden für
+diesen lokalen Umbau nicht ausgeführt.

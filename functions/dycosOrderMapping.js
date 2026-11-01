@@ -139,6 +139,7 @@ function stopView(stop) {
     city: stop?.address.city || null,
     originalText: stop ? addressText(stop.address) : null,
     window: stop?.window || { from: null, until: null },
+    fixedAppointment: stop?.fixedAppointment ?? null,
     note: stop?.note || null,
     reference: stop?.deliveryInformation || null,
   }
@@ -232,6 +233,7 @@ export function mapDycosOrder(payload, requestedTa) {
       type: type === 'L' ? 'loading' : type === 'E' ? 'unloading' : 'unknown',
       address: address(row, 'ladeEntladestellen'),
       window: { from, until },
+      fixedAppointment: sourceBoolean(slots.get(id)?.Fixtermin, 'LadeEntladestellen2.Fixtermin'),
       slotUntilTime: clock,
       note: sourceText(row.Bemerkung, 'ladeEntladestellen.Bemerkung'),
       deliveryInformation: sourceText(row.Zustellinformation, 'ladeEntladestellen.Zustellinformation'),

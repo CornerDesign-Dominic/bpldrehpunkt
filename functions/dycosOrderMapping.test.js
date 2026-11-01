@@ -73,6 +73,59 @@ test('uses only slot clock and its associated station arrival date without timez
   assert.equal(result.dispatch.sentAt, null)
 })
 
+test('joins fixed appointments by station ID, preserving true and false independently from slot times', () => {
+  const data = sample()
+  data.LadeEntladestellen2 = [
+    { LadeEntladestellenID: 34, Fixtermin: false, Slotzeit: '2026-11-04T11:00:00Z' },
+    { LadeEntladestellenID: 32, Fixtermin: true },
+    { LadeEntladestellenID: 31, Fixtermin: true, Slotzeit: null },
+    { LadeEntladestellenID: 33, Fixtermin: false },
+  ]
+  const result = map(data)
+  assert.deepEqual(result.stops.map(stop => [stop.sourceId, stop.fixedAppointment]), [['31', true], ['32', true], ['33', false], ['34', false]])
+  assert.equal(result.loading.fixedAppointment, true)
+  assert.equal(result.loading.window.until, null)
+  assert.equal(result.unloading.fixedAppointment, false)
+  assert.equal(result.unloading.window.until, '2026-11-04T11:00')
+  const reordered = structuredClone(data)
+  reordered.ladeEntladestellen.reverse()
+  reordered.LadeEntladestellen2.reverse()
+  assert.deepEqual(map(reordered), result)
+  assert.deepEqual(map(data), result)
+})
+
+test('normalizes numeric fixed appointments without coercing false into a missing value', () => {
+  const data = sample()
+  data.LadeEntladestellen2[0].Fixtermin = 0
+  data.LadeEntladestellen2[1].Fixtermin = 1
+  const result = map(data)
+  assert.equal(result.stops[0].fixedAppointment, false)
+  assert.equal(result.loading.fixedAppointment, false)
+  assert.equal(result.stops[3].fixedAppointment, true)
+  assert.equal(result.unloading.fixedAppointment, true)
+})
+
+test('missing fixed appointment data remains null and is never inferred from times or notes', () => {
+  const data = sample()
+  data.LadeEntladestellen2[0].Fixtermin = null
+  data.ladeEntladestellen[0].Bemerkung = 'Fixtermin 08:00 Uhr'
+  const result = map(data)
+  assert.deepEqual(result.stops.map(stop => stop.fixedAppointment), [null, null, null, null])
+  assert.equal(result.loading.fixedAppointment, null)
+  assert.equal(result.unloading.fixedAppointment, null)
+  const empty = map(emptyOrder())
+  assert.equal(empty.loading.fixedAppointment, null)
+  assert.equal(empty.unloading.fixedAppointment, null)
+})
+
+test('rejects unconfirmed fixed appointment values instead of guessing a boolean', () => {
+  for (const invalid of ['true', 'false', '0', '1', 2, -1, 0.5, {}, []]) {
+    const data = sample()
+    data.LadeEntladestellen2[0].Fixtermin = invalid
+    assert.throws(() => map(data), error => error instanceof DycosMappingError && error.field === 'LadeEntladestellen2.Fixtermin')
+  }
+})
+
 test('slot without station date retains clock without inventing a timestamp', () => {
   const data = sample()
   data.ladeEntladestellen.find((row) => row.ID === 31).Ankunft = null

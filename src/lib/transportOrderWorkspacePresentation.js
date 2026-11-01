@@ -1,4 +1,21 @@
+import { recordHistoryTime } from './recordHistoryPresentation.js'
+
 export const transportOrderWorkspaceTabs = ['overview', 'transport', 'partners', 'finance', 'history']
+
+export function transportOrderStopSchedule(stop, language = 'de') {
+  const locale = language === 'en' ? 'en-GB' : 'de-DE'
+  const from = recordHistoryTime(stop.window?.from)
+  const until = recordHistoryTime(stop.window?.until)
+  const range = options => {
+    const format = timestamp => new Intl.DateTimeFormat(locale, options).format(new Date(timestamp))
+    if (!from && !until) return '—'
+    if (!from) return `${language === 'en' ? 'until' : 'bis'} ${format(until)}`
+    if (!until) return `${language === 'en' ? 'from' : 'ab'} ${format(from)}`
+    const start = format(from), end = format(until)
+    return start === end ? start : `${start} – ${end}`
+  }
+  return { date: range({ weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }), time: range({ timeStyle: 'short' }) }
+}
 
 export function transportOrderWorkspaceScope(tab) {
   return tab === 'partners' ? 'partners' : tab === 'overview' ? 'all' : tab === 'history' ? null : 'order'
