@@ -2450,7 +2450,7 @@ Daraus wird hier kein funktionierender Alternativabruf behauptet.
 | `TrailerVorgeladenTrailerNurAbhaeng` | Q2 · SELTEN/LEER | Im begrenzten Katalog-Sample ohne aussagekräftige Belegung; Bedeutung und Nutzung offen. 0/false können dennoch fachlich gültig sein. |
 | `AisHinweistextIdVorstati` | Q2 · SELTEN/LEER | Im begrenzten Katalog-Sample ohne aussagekräftige Belegung; Bedeutung und Nutzung offen. 0/false können dennoch fachlich gültig sein. |
 | `AisHinweistextIdWorkflow` | Q2 · SELTEN/LEER | Im begrenzten Katalog-Sample ohne aussagekräftige Belegung; Bedeutung und Nutzung offen. 0/false können dennoch fachlich gültig sein. |
-| `Fixtermin` | Q2 · WICHTIG | Fixtermin-Flag, nicht gleichbedeutend mit Slotzeit |
+| `Fixtermin` | Q2; Q3 Adapter/Flow · WICHTIG | Eigenständiges boolean-Flag je Zusatzstation, nicht aus Slotzeit ableiten. Über `LadeEntladestellenID` nach `stops[].fixedAppointment` zuordnen; fehlend bleibt unbekannt. Am 01.11.2026 auf Dev bereitgestellt; siehe [Releasebeleg](../operations/releases/order-workspace-dev-2026-11-01-status.md). |
 | `DHLQuittungName` | Q2 · SELTEN/LEER | Im begrenzten Katalog-Sample ohne aussagekräftige Belegung; Bedeutung und Nutzung offen. 0/false können dennoch fachlich gültig sein. |
 | `PosBeiGpsOverIp` | Q2 · SELTEN/LEER | Im begrenzten Katalog-Sample ohne aussagekräftige Belegung; Bedeutung und Nutzung offen. 0/false können dennoch fachlich gültig sein. |
 | `ImportAdresseOriginal` | Q2 · SELTEN/LEER | Im begrenzten Katalog-Sample ohne aussagekräftige Belegung; Bedeutung und Nutzung offen. 0/false können dennoch fachlich gültig sein. |

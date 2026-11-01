@@ -1,6 +1,6 @@
 # Getrennte Auftragsimporte
 
-Stand: 01.11.2026. Lokal umgesetzt; Veröffentlichung auf Dev separat beauftragen. Main bleibt unverändert.
+Stand: 01.11.2026. Dev-Veröffentlichung vom Nutzer am 01.11.2026 freigegeben. Main bleibt unverändert.
 
 ## Bedienung
 
@@ -43,10 +43,10 @@ Alle Verläufe laden maximal 25 Vorgänge pro Anfrage. „Mehr anzeigen“ lädt
 
 ## Dev-Veröffentlichung
 
-Erst nach ausdrücklichem Auftrag veröffentlichen. Der aktuelle Auftrag umfasst die Umsetzung, keine Veröffentlichung.
+Der Nutzer hat die Veröffentlichung auf Dev ausdrücklich beauftragt. Main und produktive Dienste bleiben unverändert.
 
 1. Den zusätzlichen Firestore-Index für `transportOrderImportRuns` (Nutzer, Importart, Startzeit, Dokument-ID) und den Indexausschluss für `selection.items` veröffentlichen; Indexbereitschaft abwarten. Bestehende Indizes/Daten nicht entfernen. Rules benötigen keine Freigabe für die neuen serverinternen Dokumente.
-2. Gezielt diese Funktionen auf `db-bpl-drehpunkt-dev` aktualisieren: `manageTransportOrderImport` (neu), `listTransportOrderImportRuns`, `fetchDycosTransportOrder`, `searchDycosTransportOrders`, `createManagedUser`, `updateManagedUser`, `listManagedUsers`. Die letzten drei nehmen die neuen Rechte entgegen bzw. geben sie korrekt zurück.
+2. Gezielt diese Funktionen auf `db-bpl-drehpunkt-dev` aktualisieren: `manageTransportOrderImport` (neu), `listTransportOrderImportRuns`, `fetchDycosTransportOrder`, `searchDycosTransportOrders`, `createManagedUser`, `updateManagedUser`, `listManagedUsers` sowie `refreshTransportOrderWorkspace`. Die Verwaltungsfunktionen nehmen die neuen Rechte entgegen bzw. geben sie korrekt zurück.
 3. Frontend einmal gesammelt auf Dev veröffentlichen. Neue Rechte im Adminbereich gezielt vergeben; keine pauschale Migration aus `dataImports`. Bereits geöffnete ältere Importseiten danach neu laden.
 4. Live mit berechtigtem und eingeschränktem Konto prüfen: neue Tabs, persönliche Abgrenzung, Auswahl/Wiederaufnahme, Gruppenverlauf, Adminansicht und 25er-Nachladen. Keine produktiven Aufträge oder alten Verläufe löschen.
 

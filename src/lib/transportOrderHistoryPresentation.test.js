@@ -73,3 +73,23 @@ test('invoice cancellation status, original number and date remain separate audi
   assert.equal(transportOrderHistoryValue('2026-10-27', 'de', { path: 'financial.documents.501-1.cancellationDate' }), '27.10.2026')
   assert.equal(transportOrderHistoryValue('customer_invoice_cancellation', 'en', { path: 'financial.documents.502-1.businessType' }), 'Customer invoice cancellation')
 })
+
+
+test('station fixed appointment history keeps unknown, false and true distinct', () => {
+  const before = [{ sourceId: '31', sequence: 1, fixedAppointment: null }]
+  const after = [{ sourceId: '31', sequence: 1, fixedAppointment: false }]
+  const [row] = transportOrderHistoryRows({}, [{ id: 'fixed', field: 'stops', oldValue: before, newValue: after }])
+  assert.equal(row.changes.length, 1)
+  assert.equal(row.changes[0].label, 'Station · 1 · Fixtermin')
+  assert.equal(row.changes[0].oldValue, null)
+  assert.equal(row.changes[0].newValue, false)
+})
+test('station goods descriptions remain visible in history and source distances retain their unit', () => {
+  const rows = transportOrderHistoryRows({}, [{ id: 'goods', field: 'stops', oldValue: [{ sourceId: '1', cargo: { description: null } }], newValue: [{ sourceId: '1', cargo: { description: 'Maschinenteile' } }] }])
+  assert.equal(rows[0].changes.length, 1)
+  assert.match(rows[0].changes[0].label, /Warenbeschreibung/)
+  assert.equal(rows[0].changes[0].newValue, 'Maschinenteile')
+  assert.equal(transportOrderHistoryValue(0, 'de', { path: 'distances.order.totalKm' }), '0 km')
+  assert.equal(transportOrderHistoryValue(1234.5, 'en', { path: 'distances.tour.motorwayKm' }), '1,234.5 km')
+  assert.equal(transportOrderHistoryValue(25, 'de', { path: 'stops.1.cargo.volumetricWeightKg' }), '25 kg')
+})

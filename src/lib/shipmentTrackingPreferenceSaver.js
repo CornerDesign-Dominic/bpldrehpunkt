@@ -1,6 +1,6 @@
 // Keep writes in order and retain failed settings for an explicit retry.
 // A newer edit replaces queued intermediate edits, never an in-flight write.
-export function createTransportOrderPreferenceSaver(save, initialPreferences) {
+export function createShipmentTrackingPreferenceSaver(save, initialPreferences) {
   let latest = initialPreferences
   let latestKey = JSON.stringify(latest)
   let savedKey = latestKey

@@ -9,10 +9,16 @@ import { hasActiveProfile, requireActiveProfile, requireRole } from './access.js
 import { externalEffectsAllowed, externalEffectsEnvironment, logExternalEffectsSkipped } from './externalEffects.js'
 import { areAutomaticMailsPaused } from './automaticMailDelivery.js'
 import { shipmentTrackingArrivalConfirmationPath, shipmentTrackingArrivalConfirmationTemplateId } from './shared/shipmentTrackingArrivalConfirmation.js'
+import { reminderMinuteState } from './shared/reminderTime.js'
+import { buildReminderProviderRequest, parseReminderProviderResponse } from './reminderProviderContract.js'
+import { getReminderFlowAuthorization } from './reminderFlowAuth.js'
+import { reminderRecipientPolicy } from './reminderRecipientPolicy.js'
+export { reminderSenderAddress } from './reminderProviderContract.js'
 
 if (!getApps().length) initializeApp()
 const db = getFirestore()
 export const systemMailNotificationUrl = defineSecret('POWER_AUTOMATE_NOTIFICATION_URL')
+export const reminderMailNotificationUrl = defineSecret('POWER_AUTOMATE_REMINDER_URL')
 export const shipmentTrackingMailNotificationUrl = defineSecret('POWER_AUTOMATE_TRACKING_NOTIFICATION_URL')
 const region = 'europe-west3'
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -24,6 +30,12 @@ const shipmentTrackingAllowedPlaceholders = Object.freeze([
 ])
 
 export const systemMailTemplateDefinitions = {
+  central_reminder: {
+    displayName: 'Kalender- und Fristerinnerung',
+    subject: '{{sourceType}} – {{title}} – Erinnerung',
+    message: 'Erinnerung: {{title}}\n\nTermin / Frist: {{dueDateTime}}\nBemerkung: {{note}}\n\nBitte im Drehpunkt prüfen.',
+    allowedPlaceholders: ['title', 'dueDateTime', 'sourceType', 'note'],
+  },
   vacation_request_confirmation: {
     displayName: 'Antrag – Bestätigung',
     subject: 'Urlaub [Antrag] - {{employeeName}}',
@@ -309,6 +321,69 @@ export async function sendSystemMailTemplate({ recipient, templateId, values, su
   const hasOverride = subject !== undefined || message !== undefined
   if (hasOverride && !validTemplate(templateId, { subject, message })) throw new HttpsError('invalid-argument', 'Betreff oder Nachricht enthalten unzulässige Platzhalter oder sind leer.')
   return sendWebhook(recipient, templateId, values, { allowDevelopment, automatic, templateOverride: hasOverride ? { subject: cleanText(subject, 240), message: cleanText(message, 12000) } : null })
+}
+
+/** Reminder-only transport contract. Other system and tracking mail paths keep
+ * their existing environment/sender rules. No response body or secret URL is
+ * logged; an ambiguous provider outcome must never provoke an automatic resend. */
+export async function sendReminderMail({ recipient, templateId = 'central_reminder', values, deliveryId, dueAt, beforeSend }, {
+  environment = externalEffectsEnvironment(),
+  paused = () => areAutomaticMailsPaused(),
+  notificationUrl = () => reminderMailNotificationUrl.value(),
+  authorize = getReminderFlowAuthorization,
+  render = async (input) => renderTemplate(await loadTemplate('central_reminder'), input),
+  fetchImpl = fetch,
+  now = () => new Date(),
+  timeoutMs = 25000,
+} = {}) {
+  if (!['production', 'development'].includes(environment)) return { status: 'blocked', reason: 'unsupported-environment' }
+  const recipientPolicy = reminderRecipientPolicy(recipient, environment)
+  if (!recipientPolicy.allowed) return { status: 'blocked', reason: recipientPolicy.code }
+  if (templateId !== 'central_reminder' || !emailPattern.test(recipient || '') || !/^[a-f0-9]{64}$/.test(deliveryId || '') || typeof beforeSend !== 'function') return { status: 'failed', reason: 'invalid-dispatch-contract' }
+  if (await paused()) return { status: 'blocked', reason: 'global-paused' }
+  if (reminderMinuteState(dueAt, now()) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
+  const url = notificationUrl()
+  if (!url) return { status: 'failed', reason: 'provider-not-configured' }
+  try {
+    const endpoint = new URL(url)
+    // OAuth tokens must never leave the approved tenant endpoint or be mixed
+    // with a legacy SAS credential. The callback path itself stays server-only.
+    if (endpoint.protocol !== 'https:' || endpoint.hostname !== 'defaultb829bbdcc0b74128a3416715a67b45.1b.environment.api.powerplatform.com'
+      || endpoint.port || endpoint.username || endpoint.password || endpoint.hash || !endpoint.pathname.endsWith('/invoke')
+      || [...endpoint.searchParams.keys()].some(key => key !== 'api-version')) return { status: 'failed', reason: 'provider-url-invalid' }
+  }
+  catch { return { status: 'failed', reason: 'provider-url-invalid' } }
+  const { subject, message, messageHtml } = await render({ ...values, note: values?.note || '–' })
+  let payload
+  try { payload = buildReminderProviderRequest({ environment, recipient, deliveryId, dueAt, subject, message, messageHtml }) }
+  catch { return { status: 'failed', reason: 'invalid-dispatch-contract' } }
+  if (await paused()) return { status: 'blocked', reason: 'global-paused' }
+  const clock = now()
+  if (reminderMinuteState(dueAt, clock) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
+  const remaining = new Date(dueAt).getTime() + 60000 - clock.getTime()
+  const abort = new AbortController()
+  // Allow a slower provider acknowledgement, including authentication time,
+  // without waiting beyond this source's exact delivery minute. Abort remains
+  // uncertain after HTTP; no retry or second provider attempt is introduced.
+  const timer = setTimeout(() => abort.abort(), Math.max(1, Math.min(25000, timeoutMs, remaining)))
+  try {
+    let authorization
+    try { authorization = await authorize({ signal: abort.signal }) }
+    catch { return { status: 'failed', reason: 'provider-authentication-failed' } }
+    if (typeof authorization !== 'string' || !/^Bearer [A-Za-z0-9._~-]{1,64000}$/.test(authorization)) return { status: 'failed', reason: 'provider-authentication-failed' }
+    // Authentication can take time. Check current responsibility and the due
+    // minute afterwards, immediately before the one permitted provider attempt.
+    if (await paused()) return { status: 'blocked', reason: 'global-paused' }
+    if (!await beforeSend()) return { status: 'blocked', reason: 'no-longer-eligible' }
+    if (!reminderRecipientPolicy(recipient, environment).allowed) return { status: 'blocked', reason: 'development-recipient-not-authorized' }
+    if (reminderMinuteState(dueAt, now()) !== 'due') return { status: 'blocked', reason: 'outside-delivery-minute' }
+    if (abort.signal.aborted) return { status: 'failed', reason: 'provider-time-budget-expired' }
+    const response = await fetchImpl(url, { method: 'POST', redirect: 'error', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': payload.deliveryKey, Authorization: authorization }, signal: abort.signal, body: JSON.stringify(payload) })
+    let receipt
+    try { receipt = await response.json() } catch { return { status: 'uncertain', reason: 'provider-acknowledgement-missing' } }
+    return parseReminderProviderResponse(receipt, payload, response.status)
+  } catch { return { status: 'uncertain', reason: 'provider-outcome-unknown' } }
+  finally { clearTimeout(timer) }
 }
 
 export async function previewSystemMailTemplate({ templateId, values }) {

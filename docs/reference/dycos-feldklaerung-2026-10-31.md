@@ -307,3 +307,62 @@ unveränderte übrige Endpunkte. Der aktuelle Dev-Stand einschließlich
 Kostenoptimierungen wurde integriert. Prüfergebnisse und Veröffentlichungsumfang:
 [Dev-Veröffentlichung](../operations/dycos-order-fields-dev-release.md).
 Die früheren lokalen Abnahmen oben bleiben als Entwicklungsschritte erhalten.
+
+## Ergänzung: Fixtermin am 01.11.2026
+
+`dbo.LadeEntladestellen2.Fixtermin` ist ein eigenes Kennzeichen je Zusatzstation.
+In der bereits vorliegenden geschützten Exportablage wurden 19 lesbare
+response-Exporte geprüft, davon 16 mit Zusatzstationszeilen: 34 von 34 Zeilen
+enthalten `Fixtermin` als JSON-boolean (32 false, 2 true). Keine neue externe
+Abfrage und keine Änderung am Flow; keine Rohdaten in Git übernommen.
+
+Der lokale Adapter ordnet über `LadeEntladestellenID` nach
+`stops[].fixedAppointment` zu und übernimmt das Kennzeichen auch in die erste
+Lade- und letzte Entladeprojektion. true/false und numerische 0/1 werden streng
+als boolean angenommen; fehlend/null bleibt unbekannt und wird nicht als false
+ersetzt. Die Zeiten und Bemerkungstexte entscheiden nicht über dieses Flag.
+Die Oberfläche zeigt Ja/Nein bzw. bei alten oder fehlenden Quelldaten
+„Nicht übermittelt“. Bestehende Aufträge benötigen nach der Bereitstellung
+einen erneuten Auftragsabruf. Die ursprüngliche lokale Prüfung umfasste keinen
+Massenimport und kein Deployment.
+
+Der nachfolgend freigegebene Dev-Rollout ist im [Releasebeleg](../operations/releases/order-workspace-dev-2026-11-01-status.md) dokumentiert; die vorherige lokale Prüfung war keine Veröffentlichung.
+
+## Lokale Ergänzung: Transportdaten und Stationskarten am 01.11.2026
+
+Zusätzlicher read-only Abgleich von 19 vorhandenen geschützten Antwort-Exporten:
+19 Aufträge, 14 Touren, 15 Fahrzeugarten, 34 Stationen mit 34 Zusatzzeilen. Keine
+neuen externen Abfragen, keine Rohantworten in Git. Die neuen Felder sind lokal
+implementiert; die anschließende Dev-Freigabe und Bereitstellung sind im
+[Karten-Release](../operations/releases/order-station-cards-dev-2026-11-01-status.md)
+belegt. Optionaler, additiver Vertrag bei
+weiterhin `source.system = dycos`, `schemaVersion = 2`.
+
+| Bestätigte Responsequelle | Intern | Aussage und Stichprobe |
+| --- | --- | --- |
+| `auftrag.Ware` | `shipment.goodsDescription` | Unveränderter Warenfreitext; 15 befüllt, 4 leer. |
+| `ladeEntladestellen.Ware` | `stops[].cargo.description` | Warenfreitext je Station; 12 befüllt, 22 leer. Kein Auftragstext als Stationsersatz. |
+| `auftrag.Gefahrgut` | `shipment.hazardousGoods` | Eigenes boolean-Kennzeichen des Auftrags; 19 ausdrücklich false. Fehlend bleibt unbekannt; keine weiteren ADR-Daten ableiten. |
+| `fahrzeugart.Informationen` | `shipment.vehicleInformation` | Unveränderter Fahrzeughinweis; 13 befüllt, 2 leer. |
+| `fahrzeugart.Bezeichnung` | `shipment.vehicleType` | Bereits bestehende Fahrzeugart; 15 befüllt. Der separate numerische `FahrzeugTyp`-Code ist nicht fachlich entschlüsselt. |
+| `auftrag.Gesamtkilometer/Autobahnkilometer/Leerkilometer/KMGeroutet` | `distances.order.totalKm/motorwayKm/emptyKm/routed` | Getrennte Quellenwerte des Auftrags. 19 numerische Nullsätze und false-Routingkennzeichen; kein Beleg für gemessene Fahrstrecken. |
+| `tour.Gesamtkilometer/Autobahnkilometer/Leerkilometer/Geroutet` | `distances.tour.totalKm/motorwayKm/emptyKm/routed` | Getrennte Werte der gesamten Tour, nicht diesem Auftrag zurechnen. 14 Nullsätze und false; fehlende Tour bleibt null. |
+| `LadeEntladestellen2.Volumengewicht_gesamt_kg` | `stops[].cargo.volumetricWeightKg` | Zusatzwert per Stations-ID; 26 echte 0, 8 positive Werte. kg im Quellfeld explizit; Berechnungsbasis unbestätigt. Eigenes Volumengewicht, niemals Ersatz/Summe tatsächlichen Gewichts. |
+
+Strings und Zahlen werden wie bisher strikt geprüft; Gefahrgut und Routing
+akzeptieren bestätigte boolean-/0-/1-Werte. Unbekannt wird nicht durch 0/false
+ersetzt. Die Anzeige nennt DyCoS-Distanzen ausdrücklich als Quellenwerte und
+trennt sie von der berechneten Drehpunkt-Route. Erweiterte Importhistorien
+enthalten skalare Änderungen sowie Stationsbeschreibungen/Volumengewicht.
+Fehlende neue Null-Eigenschaften in Altstationen erzeugen keine Scheinhistorie.
+
+Noch nicht fachlich ausreichend bestätigt und deshalb nicht zusätzlich gemappt:
+`ladeEntladestellen.Masse` (34 leere Strings, keine gesicherte Maße-/Einheiten-
+Bedeutung, auch im ursprünglichen Feldkatalog keine Klärung), Temperaturfelder
+(34 leere Strings, Einheit nicht bestätigt), `VolumenGesamt` (8 positiv/26 echte 0,
+Einheit nicht bestätigt), numerischer `FahrzeugTyp`-Code und Plan/Ist-Bedeutung
+der Tourtermine. Alte Datumsplatzhalter bis 1900 werden nicht als reale
+Stationsereignisse übernommen. Zusatzsummen wie `Gesamtgewicht` und `KolliGesamt`
+werden nicht mit den bereits getrennten Stations-/Auftragsmengen vermischt.
+Maße in Bemerkungstexten bleiben vollständig erhalten; daraus entstehen keine
+neu erfundenen strukturierten Werte.

@@ -14,6 +14,7 @@ const pageTitles = [
   { path: '/transportauftraege/import/sammel', title: 'Sammelimport' },
   { path: '/transportauftraege/import', title: 'Transportaufträge importieren' },
   { path: '/transportauftraege', title: 'Auftragsliste' },
+  { path: '/sendungsverfolgung', title: 'Sendungsverfolgung' },
   { path: '/crm', title: 'Customer Relationship Management (CRM)' },
   { path: '/paletten', title: 'Palettenmanagement' },
   { path: '/news', title: 'News' },

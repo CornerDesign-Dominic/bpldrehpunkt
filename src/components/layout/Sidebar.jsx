@@ -1,3 +1,4 @@
+import { isTrackingRecord } from '../../lib/orderRecordTabs.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -28,6 +29,7 @@ const navigationItems = [
   { label: 'Personal', to: '/personal', icon: UsersIcon, module: 'personnel', group: 'humanResources' },
   { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true, group: 'people' },
   { label: 'Auftragsliste', to: '/transportauftraege', icon: TruckTrailerIcon, module: 'transportOrders', group: 'operations' },
+  { label: 'Sendungsverfolgung', to: '/sendungsverfolgung', icon: TruckTrailerIcon, module: 'transportOrders', group: 'operations' },
   { label: 'Palettenmanagement', to: '/paletten', icon: PalletsIcon, module: 'pallets', group: 'operations' },
   { label: 'Kunden & Unternehmer', to: '/kunden-unternehmer', icon: UsersIcon, module: 'masterData', group: 'partnerSales' },
   { label: 'CRM', to: '/crm', icon: CrmIcon, module: 'crm', group: 'partnerSales' },
@@ -39,7 +41,7 @@ const navigationItems = [
   { label: 'Vorlagen', to: '/vorlagen', icon: TemplatesIcon, module: 'templates', group: 'documents' },
   { label: 'AGB-Prüfer', to: '/agb-pruefer', icon: DocumentSearchIcon, module: 'agbChecker', group: 'documents' },
   { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true, group: 'administration' },
-  { label: 'Sendungsverfolgung', to: '/admin/sendungsverfolgung', icon: TruckTrailerIcon, administration: true, group: 'administration' },
+  { label: 'Tracking-Einstellungen', to: '/admin/sendungsverfolgung', icon: TruckTrailerIcon, administration: true, group: 'administration' },
   { label: 'Systemmails', to: '/admin/systemmails', icon: DocumentsIcon, superadminOnly: true, group: 'administration' },
   { label: 'KI', to: '/admin/ki-prompts', icon: DocumentSearchIcon, superadminOnly: true, group: 'administration' },
   { label: 'Stammdaten', to: '/admin/stammdaten', icon: DocumentsIcon, administration: true, group: 'administration' },
@@ -67,17 +69,18 @@ const navigationLabelKeys = {
   '/postfaecher': 'nav.mailboxes',
   '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
   '/feiertagskalender': 'nav.holidays', '/news': 'nav.news', '/team': 'nav.team', '/urlaub': 'nav.vacation',
-  '/personal': 'nav.personnel', '/urlaubsmanagement': 'nav.vacationManagement', '/transportauftraege': 'nav.orders',
+  '/personal': 'nav.personnel', '/urlaubsmanagement': 'nav.vacationManagement', '/transportauftraege': 'nav.orders', '/sendungsverfolgung': 'nav.shipmentTracking',
   '/paletten': 'nav.pallets', '/kunden-unternehmer': 'nav.partners', '/crm': 'nav.crm', '/schaeden': 'nav.damages',
   '/inkasso': 'nav.collections', '/legal-disputes': 'nav.disputes', '/insolvenzen': 'nav.insolvencies',
   '/dokumente': 'nav.documents', '/vorlagen': 'nav.templates', '/agb-pruefer': 'nav.termsChecker',
-  '/admin': 'nav.admin', '/admin/sendungsverfolgung': 'nav.shipmentTracking', '/admin/systemmails': 'nav.systemMails',
+  '/admin': 'nav.admin', '/admin/sendungsverfolgung': 'nav.shipmentTrackingSettings', '/admin/systemmails': 'nav.systemMails',
   '/admin/ki-prompts': 'nav.ai', '/admin/stammdaten': 'nav.masterData', '/admin/diagnose': 'nav.diagnostics',
   '/admin/importverlauf': 'nav.importHistory',
 }
 
 function itemIsActive(item, pathname, search = '') {
   if (item.mailboxId) return pathname === '/postfaecher' && new URLSearchParams(search).get('mailbox') === item.mailboxId
+  if (isTrackingRecord(pathname, search) && ['/transportauftraege', '/sendungsverfolgung'].includes(item.to)) return item.to === '/sendungsverfolgung'
   if (item.to === '/admin') return pathname === '/admin'
   return pathname === item.to || pathname.startsWith(`${item.to}/`)
 }
@@ -87,7 +90,7 @@ function NavigationItem({ item, collapsed, favorite, onToggleFavorite, showFavor
   const { label, to, icon: Icon } = item
 
   return <div className="nav-item-row">
-    <NavLink to={to} end={to === '/admin'} aria-current={item.mailboxId ? (activeOverride ? 'page' : false) : undefined} className={({ isActive }) => `nav-item ${(activeOverride ?? isActive) && !suppressActive ? 'nav-item--active' : ''}`} title={item.mailboxId ? `${label} · ${item.email}` : collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
+    <NavLink to={to} end={to === '/admin'} aria-current={activeOverride ? 'page' : false} className={({ isActive }) => `nav-item ${(activeOverride ?? isActive) && !suppressActive ? 'nav-item--active' : ''}`} title={item.mailboxId ? `${label} · ${item.email}` : collapsed ? label : undefined} onClick={() => onSelect?.(item)}>
       {collapsed && <Icon />}
       {!collapsed && <span className="nav-item__label">{label}</span>}
     </NavLink>
@@ -198,7 +201,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                 {!collapsed && mailboxesError && <div className="sidebar-mailbox-state" role="alert"><span>{t('mailboxes.loadError')}</span><button type="button" onClick={() => { void refreshMailboxes() }}>{t('mailboxes.retry')}</button></div>}
                 {!collapsed && !mailboxesLoading && !mailboxesError && !groupItems.length && <p className="sidebar-mailbox-state">{t('mailboxes.empty')}</p>}
               </>}
-              {groupItems.map((item) => <NavigationItem key={item.id} item={item} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl={group.key !== 'mailboxes'} activeOverride={item.mailboxId ? itemIsActive(item, location.pathname, location.search) : undefined} suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
+              {groupItems.map((item) => <NavigationItem key={item.id} item={item} favorite={favoriteIds.includes(item.id)} collapsed={collapsed} onToggleFavorite={toggleFavorite} showFavoriteControl={group.key !== 'mailboxes'} activeOverride={itemIsActive(item, location.pathname, location.search)} suppressActive={isFavoriteSelectionActive && item.id === activeFavoriteItemId} onSelect={() => { setActiveFavoriteItemId(null); openGroup(group.key) }} />)}
               {group.key === 'mailboxes' && <NavLink to="/profil#postfaecher" className="nav-item" title={t('mailboxes.settings')}>{collapsed ? <SettingsIcon /> : <span className="nav-item__label">{t('mailboxes.settings')}</span>}</NavLink>}
             </div></div>
           </section>

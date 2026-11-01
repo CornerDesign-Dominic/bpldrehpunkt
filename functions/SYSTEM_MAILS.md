@@ -4,6 +4,22 @@ Stand: 28.10.2026. Umgebungsmatrix: `../docs/operations/environments.md`.
 Für Eingangsmails und KI-Auswertung gilt separat
 `../docs/operations/status-mail-ingest.md`.
 
+Ergänzung 01.11.2026: Der zentrale Erinnerungsdienst ist ausschließlich in Dev
+veröffentlicht und dort tatsächlich mit dem eigenen Power-Automate-Flow
+verbunden. Er verwendet `POWER_AUTOMATE_REMINDER_URL` und fünf
+`REMINDER_*`-Identitäts-/Zertifikatssecrets; anonyme/SAS-Aufrufe sind ausgeschlossen.
+Der Absender ist `drehpunkt@brennpunkt-logistik.de`. Der Dev-Guard lässt vor
+Reservierung und Versand ausschließlich `no-reply@brennpunkt-logistik.de` und das
+nachträglich ausdrücklich freigegebene `bb@brennpunkt-logistik.de` zu;
+es gibt keine Empfängerumleitung. Produktion ist weiterhin nur vorbereitet,
+der neue Produktionsflow bleibt aus. Bestandteile, Datenaufbau, echter
+Firebase-Versandtest mit Posteingangsnachweis und verbleibende Grenzen stehen im
+[Dev-Releasebeleg](../docs/operations/releases/reminders-dev-2026-11-01-status.md).
+Die frühere Providerabnahme und Send-as-Prüfung stehen in
+[`reminder-mailflow-preparation.md`](../docs/operations/reminder-mailflow-preparation.md).
+Die übrigen System-/Tracking-Mailpfade behalten die nachfolgenden Guards und
+Secrets. Aussagen über den bisherigen Fristworker beschreiben den Altstand.
+
 ## Zweck und technische Grenze
 
 Systemmails werden ausschließlich serverseitig durch Firebase Functions in `europe-west3` ausgelöst. Die Functions übergeben Empfänger, Betreff, Text und – bei Systemmail-Vorlagen – HTML an den serverseitig verwalteten Power-Automate-Webhooks. Es gibt keinen direkten Mailversand aus dem Browser.
@@ -12,7 +28,7 @@ Webhook-Adresse und weitere Integrationswerte sind ausschließlich als Functions
 
 ## Umgebungs-Schutz
 
-Automatischer Mailversand ist auf die serverseitig erkannte Runtime des
+Automatischer Mailversand außerhalb des oben beschriebenen zentralen Erinnerungsdienstes ist auf die serverseitig erkannte Runtime des
 Firebase-Projekts `db-bpl-drehpunkt` begrenzt. In Dev und bei unbekannter
 Runtime werden diese Versandpfade übersprungen. Eine bewusste Ausnahme ist
 manueller Tracking-Mailversand in Dev: Er verlangt eine hinterlegte Adresse
@@ -50,10 +66,13 @@ Zusätzlich zu den oben aufgeführten ursprünglichen Versandpfaden existieren:
 | --- | --- | --- |
 | Automatische Tracking-Anfragen und Erinnerungen | `scheduledShipmentTrackingAutomation`, regel- und lebenszyklusabhängig; nur Produktion | Für den Tracking-Ablauf hinterlegter gültiger Empfänger |
 | Bewusste Tracking-Anfrage | `sendManualShipmentTrackingMail`, Vorschau, Tracking-Bearbeitungsrecht und Empfängerprüfung | Hinterlegter Unternehmerempfänger; in Dev nur die freigegebene interne Domain |
-| Fristerinnerung für Fälle und To-dos | `scheduledCaseDeadlineReminderDispatch`, fällige aktivierte Erinnerung; nur Produktion | Im Fristdatensatz hinterlegter Erinnerungsadressat |
+| Bisherige Fristerinnerung (Altstand) | `scheduledCaseDeadlineReminderDispatch`, fällige aktivierte Erinnerung; bisher nur Produktion | Bisher im Fristdatensatz hinterlegter Erinnerungsadressat |
+| Zentrale Termin-/Fristerinnerung (nur lokal vorbereitet) | Derselbe Schedulerexport, neuer Registry-/Providervertrag; Dev und Produktion | Aktuelle zuständige Nutzer bzw. Kalenderleser nach [Erinnerungsvertrag](../docs/operations/reminders.md) |
 
 Tracking-Mails verwenden `POWER_AUTOMATE_TRACKING_NOTIFICATION_URL`, andere
-Systemvorlagen `POWER_AUTOMATE_NOTIFICATION_URL`. Eine Webhook-Annahme bestätigt
+Systemvorlagen `POWER_AUTOMATE_NOTIFICATION_URL`. Der neue Erinnerungsadapter
+verwendet ausschließlich `POWER_AUTOMATE_REMINDER_URL`, ohne Rückfall auf diese
+allgemeinen Zugänge. Eine Webhook-Annahme bestätigt
 noch keinen Postfacheingang. Die globale automatische Mailpause und bewusste
 manuelle Tracking-Anfragen sind getrennte Abläufe.
 

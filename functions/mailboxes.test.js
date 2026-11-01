@@ -23,7 +23,7 @@ function database() {
   return {
     records, doc,
     collection(path) {
-      const query = { field: '', value: 0, where(field, op, value) { assert.ok(['<', '=='].includes(op)); this.op = op; this.field = field; this.value = value; return this }, limit() { return this }, async get() { return { docs: [...records].filter(([key, value]) => key.startsWith(`${path}/`) && (!this.field || (this.op === '==' ? value[this.field] === this.value : value[this.field] < this.value))).map(([key, value]) => ({ id: key.split('/').at(-1), ref: doc(key), data: () => structuredClone(value) })) } } }
+      const query = { field: '', value: 0, where(field, op, value) { assert.ok(['<', '=='].includes(op)); this.op = op; this.field = field; this.value = value; return this }, orderBy() { return this }, limit() { return this }, async get() { return { docs: [...records].filter(([key, value]) => key.startsWith(`${path}/`) && (!this.field || (this.op === '==' ? value[this.field] === this.value : value[this.field] < this.value))).map(([key, value]) => ({ id: key.split('/').at(-1), ref: doc(key), data: () => structuredClone(value) })) } } }
       return query
     },
     runTransaction(fn) {
@@ -45,6 +45,92 @@ const proofChallenge = createHash('sha256').update(proof).digest('base64url')
 const request = data => ({ auth: { uid: 'owner' }, data: { connectionId, proofChallenge, ...data } })
 const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpunkt-logistik.de'], ccRecipients: [], bccRecipients: [] }
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
+const newMail = { ...draft, subject: 'Neue unabhängige Mail', revision: 0, operationId: 'new-mail-0123456789' }
+
+test('record extraction uses owned server mail and attachments, never client-injected content or target routing', async () => {
+  const paths = []
+  let extracted
+  const f = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'edit', todos: 'edit' } }), recordApiKey: 'synthetic', fetch: async url => {
+    paths.push(url)
+    if (url.includes('/attachments?')) return response({ value: [{ id: 'file', name: 'Beleg.pdf', contentType: 'application/pdf', size: 100, '@odata.type': '#microsoft.graph.fileAttachment' }] })
+    if (url.includes('/attachments/file')) return response({ contentBytes: 'cGRm' })
+    return response({ subject: 'Servermail', body: { contentType: 'text', content: 'Vertrauenswürdige Serverquelle' } })
+  }, extractRecordSources: async input => { extracted = input; return { sources: [], sourceFiles: [], warnings: [] } }, inferMailboxRecord: async () => ({ values: { title: 'Aufgabe' }, evidence: {}, summary: 'Test', references: [], warnings: [] }) })
+  const result = await f.handlers.previewMailboxRecord(request({ kind: 'todo', messageId: 'source', body: 'Client manipulation', graphUserId: 'foreign', files: [{ name: 'fake' }] }))
+  assert.equal(result.kind, 'todo')
+  assert.equal(extracted.mail.body.content, 'Vertrauenswürdige Serverquelle')
+  assert.equal(extracted.files[0].contentBytes, 'cGRm')
+  assert.ok(paths.every(path => path.includes('/me/messages/source')))
+  await assert.rejects(f.handlers.previewMailboxRecord({ auth: { uid: 'other' }, data: { connectionId, kind: 'todo', messageId: 'source' } }), { code: 'permission-denied' })
+  assert.equal(paths.length, 3)
+})
+
+test('new mail uses sendMail without a source message and preserves subject, recipients and plain text', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return response(null, 202) } })
+  const value = { ...newMail, ccRecipients: ['cc@brennpunkt-logistik.de'], bccRecipients: ['bcc@brennpunkt-logistik.de'] }
+  const saved = await f.handlers.saveMailboxDraft(request({ messageId: 'compose:new', draft: value }))
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'compose:new' }))).draft.subject, value.subject)
+  assert.equal((await f.handlers.sendMailboxMessage(request({ ...value, revision: saved.draft.revision, messageId: 'ignored-source', from: 'attacker@example.org' }))).status, 'accepted')
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].url, 'https://graph.microsoft.com/v1.0/me/sendMail')
+  assert.equal(calls[0].body.message.subject, value.subject)
+  assert.deepEqual(calls[0].body.message.body, { contentType: 'Text', content: value.body })
+  assert.equal(calls[0].body.message.from, undefined)
+  assert.equal(calls[0].body.saveToSentItems, undefined) // Graph defaults to saving in Sent Items.
+  assert.equal(calls[0].body.message.bccRecipients[0].emailAddress.address, value.bccRecipients[0])
+  const loaded = (await f.handlers.getMailboxDraft(request({ messageId: 'compose:new' }))).draft
+  assert.equal(loaded.sendStatus, 'accepted')
+  assert.equal(loaded.body, '')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'ignored-source' }))).draft, null)
+})
+
+test('new mail validates subject, body, all recipient domains, ownership and edit access before any Graph request', async () => {
+  const f = fixture()
+  for (const subject of ['', '  ', 'x'.repeat(256), 'Betreff\nBcc: attacker@example.org', null]) {
+    await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, subject })), { code: 'invalid-argument' })
+  }
+  for (const key of ['toRecipients', 'ccRecipients', 'bccRecipients']) await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, [key]: ['external@example.org'] })), { code: 'permission-denied' })
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, toRecipients: [] })), { code: 'permission-denied' })
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, body: '' })), { code: 'invalid-argument' })
+  await assert.rejects(f.handlers.sendMailboxMessage({ auth: { uid: 'other' }, data: { connectionId, ...newMail } }), { code: 'permission-denied' })
+  const viewer = fixture({ requireProfile: async () => ({ ...profile, permissions: { mailboxes: 'view' } }) })
+  await assert.rejects(viewer.handlers.sendMailboxMessage(request(newMail)), { code: 'permission-denied' })
+  assert.equal(f.fetchCount(), 0)
+  assert.equal(viewer.fetchCount(), 0)
+})
+
+test('new mail concurrent and replayed operations send once; fresh drafts allow subsequent independent messages', async () => {
+  const f = fixture()
+  await Promise.all([f.handlers.sendMailboxMessage(request(newMail)), f.handlers.sendMailboxMessage(request(newMail))])
+  assert.equal(f.fetchCount(), 1)
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'accepted')
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, subject: 'Changed' })), { code: 'already-exists' })
+  const saved = await f.handlers.saveMailboxDraft(request({ messageId: 'compose:new', draft: { ...newMail, subject: 'Zweite Mail', revision: 0 } }))
+  await f.handlers.sendMailboxMessage(request({ ...newMail, subject: 'Zweite Mail', revision: saved.draft.revision, operationId: 'another-new-mail-0123456789' }))
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'accepted')
+  assert.equal(f.fetchCount(), 2)
+})
+
+test('an uncertain new mail remains locked after reload and cannot be resent using a new operation', async () => {
+  const f = fixture({ fetch: async () => { throw new Error('Possibly delivered') } })
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'unknown')
+  assert.equal((await f.handlers.sendMailboxMessage(request(newMail))).status, 'unknown')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'compose:new' }))).draft.sendStatus, 'unknown')
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: 'compose:new', draft: newMail })), { code: 'aborted' })
+  await assert.rejects(f.handlers.sendMailboxMessage(request({ ...newMail, operationId: 'unsafe-new-operation-0123' })), { code: 'aborted' })
+})
+
+test('shared new mail uses only the stored shared sender and cannot use a disconnected parent', async () => {
+  const calls = []
+  const f = sharedFixture({ fetch: async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return response(null, 202) } })
+  await f.handlers.sendMailboxMessage(sharedRequest({ ...newMail, from: 'spoof@example.org', graphUserId: 'spoof' }))
+  assert.ok(calls[0].url.includes(`/users/${encodeURIComponent(sharedEmail)}/sendMail`))
+  assert.equal(calls[0].body.message.from.emailAddress.address, sharedEmail)
+  f.db.records.get(`mailboxConnections/${connectionId}`).status = 'disconnected'
+  await assert.rejects(f.handlers.sendMailboxMessage(sharedRequest({ ...newMail, operationId: 'another-new-operation-0123' })), { code: 'failed-precondition' })
+  assert.equal(calls.length, 1)
+})
 
 test('personal tracking requires both module rights and mailbox ownership; reads only Graph text without attachments', async () => {
   const denied = fixture()
@@ -208,7 +294,73 @@ test('uncertain send never automatically retries and survives reloading the draf
   assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft.sendStatus, 'unknown')
   assert.equal(attempts, 1)
   await assert.rejects(f.handlers.sendMailboxReply(request({ ...reply, operationId: 'new-operation-123456' })), { code: 'aborted' })
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, revision: 0 } })), { code: 'aborted' })
   assert.equal(attempts, 1)
+})
+
+test('five distinct replies to one incoming message preserve receipts and reject stale windows and replays', async () => {
+  const f = fixture()
+  let revision = 0
+  const receipts = []
+  for (let index = 0; index < 5; index++) {
+    const saved = await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: `Antwort ${index + 1}`, revision } }))
+    revision = saved.draft.revision
+    const next = { ...reply, body: saved.draft.body, revision, operationId: `separate-reply-${index}-0123456789` }
+    const statuses = await Promise.all([f.handlers.sendMailboxReply(request(next)), f.handlers.sendMailboxReply(request(next))])
+    assert.ok(statuses.every(result => ['accepted', 'unknown'].includes(result.status)))
+    assert.equal((await f.handlers.getMailboxDraft(request({ messageId: reply.messageId }))).draft.body, '')
+    receipts.push(next)
+  }
+  assert.equal(f.fetchCount(), 5)
+  for (const old of receipts) assert.equal((await f.handlers.sendMailboxReply(request(old))).status, 'accepted')
+  assert.equal(f.fetchCount(), 5)
+  await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, revision: 1 } })), { code: 'aborted' })
+  await assert.rejects(f.handlers.sendMailboxReply(request({ ...reply, revision: 1, operationId: 'stale-window-0123456789' })), { code: 'aborted' })
+  assert.equal(f.fetchCount(), 5)
+  assert.equal([...f.db.records.keys()].filter(key => key.startsWith('mailboxSendOperations/')).length, 5)
+})
+
+test('new replies allow fresh suggestions while retaining the local learning-case link and rejecting late suggestions', async () => {
+  let complete, entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const f = fixture({ fetch: async () => response({}), generateReplySuggestion: async () => { entered(); return new Promise(resolve => { complete = resolve }) } })
+  const running = f.handlers.suggestMailboxReply(request({ messageId: reply.messageId }))
+  await ready
+  await f.handlers.sendMailboxReply(request(reply))
+  const key = `mailboxDrafts/${hash(`owner|${connectionId}|${reply.messageId}`)}`
+  Object.assign(f.db.records.get(key), { knowledgeEvidenceId: 'e'.repeat(64), lastSuggestion: { hash: 'old' } })
+  const next = await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: '', revision: 0 } }))
+  assert.equal(next.draft.revision, 1)
+  assert.equal(f.db.records.get(key).operationId, undefined)
+  assert.equal(f.db.records.get(key).knowledgeEvidenceId, 'e'.repeat(64))
+  assert.equal(f.db.records.get(key).lastSuggestion, undefined)
+  complete('Veralteter Vorschlag')
+  await assert.rejects(running, { code: 'aborted' })
+  f.deps.generateReplySuggestion = async () => 'Neuer Vorschlag'
+  assert.equal((await f.handlers.suggestMailboxReply(request({ messageId: reply.messageId }))).suggestion, 'Neuer Vorschlag')
+})
+
+test('late cleanup of an accepted send cannot erase the next reply draft', async () => {
+  let release, entered
+  const ready = new Promise(resolve => { entered = resolve })
+  const f = fixture({ diagnostic: async event => {
+    if (event.code === 'knowledge_evidence_ack_failed') { entered(); await new Promise(resolve => { release = resolve }) }
+  } })
+  const key = `mailboxDrafts/${hash(`owner|${connectionId}|${reply.messageId}`)}`
+  const evidenceId = 'e'.repeat(64)
+  f.db.records.set(key, { knowledgeEvidenceId: evidenceId })
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, {})
+  const originalTransaction = f.db.runTransaction
+  f.db.runTransaction = callback => originalTransaction(tx => callback({ ...tx, set: (ref, value, options) => {
+    if (ref.path === `knowledgeGapEvidence/${evidenceId}` && value.sendStatus === 'accepted') throw new Error('acknowledgement unavailable')
+    return tx.set(ref, value, options)
+  } }))
+  const sending = f.handlers.sendMailboxReply(request(reply))
+  await ready
+  await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: 'Nächste Antwort', revision: 0 } }))
+  release()
+  assert.equal((await sending).status, 'accepted')
+  assert.equal((await f.handlers.getMailboxDraft(request({ messageId: reply.messageId }))).draft.body, 'Nächste Antwort')
 })
 
 test('OAuth state has encrypted PKCE, expires, and is consumed once even when permission is revoked', async () => {
@@ -289,6 +441,8 @@ test('draft optimistic revision rejects stale saves and stale sends without losi
   assert.equal(f.fetchCount(), 0)
   assert.equal((await f.handlers.getMailboxDraft(request({ messageId: 'message-1' }))).draft.body, draft.body)
   await f.handlers.sendMailboxReply(request({ ...reply, revision: 1 }))
+  const next = await f.handlers.saveMailboxDraft(request({ messageId: 'message-1', draft: { ...draft, body: 'Weitere Antwort', revision: 1 } }))
+  assert.equal(next.draft.revision, 2)
   await assert.rejects(f.handlers.saveMailboxDraft(request({ messageId: 'message-1', draft: { ...draft, revision: 1 } })), { code: 'aborted' })
 })
 
@@ -662,7 +816,7 @@ test('gap tracking stays invisible in suggestion/draft APIs and preserves eviden
   assert.equal(f.db.records.get(ref).sendStatus, 'accepted')
   assert.ok(f.db.records.get(ref).sentAt)
   assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
-  assert.equal(JSON.stringify(f.db.records.get(ref)).includes('PRIVATE incoming'), false)
+  assert.equal(f.db.records.get(ref).incomingText, 'PRIVATE incoming original mail')
 })
 
 test('uncertain sends retain exact attempted answer separately from AI suggestion without claiming acceptance', async () => {
@@ -686,14 +840,50 @@ test('failure acknowledging evidence after Graph acceptance cannot change accept
   const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
   f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
   f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'Vorschlag', sendStatus: 'draft' })
-  const original = f.db.doc
-  f.db.doc = path => {
-    const ref = original(path)
-    if (path === `knowledgeGapEvidence/${evidenceId}`) ref.update = async () => { throw new Error('Evidence temporarily unavailable') }
-    return ref
-  }
+  const originalTransaction = f.db.runTransaction
+  f.db.runTransaction = callback => originalTransaction(tx => callback({ ...tx, set: (ref, value, options) => {
+    if (ref.path === `knowledgeGapEvidence/${evidenceId}` && value.sendStatus === 'accepted') throw new Error('Evidence temporarily unavailable')
+    return tx.set(ref, value, options)
+  } }))
   assert.equal((await f.handlers.sendMailboxReply(request(reply))).status, 'accepted')
   assert.equal((await f.handlers.sendMailboxReply(request(reply))).status, 'accepted')
   assert.equal(f.fetchCount(), 1)
   assert.equal(f.db.records.get(`mailboxSendOperations/${hash(`owner|${reply.operationId}`)}`).status, 'accepted')
+})
+
+
+test('reply lookup is owner-scoped and all batch subrequests use the shared mailbox stored on the server', async () => {
+  const paths = []
+  const f = sharedFixture({ fetch: async (url, options) => {
+    assert.ok(url.endsWith('/$batch'))
+    const requests = JSON.parse(options.body).requests
+    paths.push(...requests.map(item => item.url))
+    return response({ responses: requests.map(item => ({ id: item.id, status: 200, body: item.url.includes('internetMessageHeaders') ? {id:'sent',internetMessageId:'<sent>',sentDateTime:'2026-10-31T10:00:00Z',internetMessageHeaders:[{name:'In-Reply-To',value:'<source>'}]} : item.url.includes('sentitems') ? {value:[{id:'sent'}]} : {id:'source',internetMessageId:'<source>',conversationId:'c',receivedDateTime:'2026-10-31T09:00:00Z'} })) })
+  } })
+  const result = await f.handlers.listMailboxReplies(sharedRequest({messageIds:['source'],base:'/users/attacker'}))
+  assert.equal(result.replies.source.length,1)
+  assert.ok(paths.every(path=>path.startsWith(`/users/${encodeURIComponent(sharedEmail)}/`)))
+  await assert.rejects(f.handlers.listMailboxReplies({auth:{uid:'other'},data:{connectionId:sharedId,messageIds:['source']}}),{code:'permission-denied'})
+})
+
+test('learning copies are cleaned while exact outgoing text is preserved; send acknowledgement cannot restore removed copies', async () => {
+  const evidenceId = 'd'.repeat(64)
+  let submitted
+  const f = fixture({ fetch: async (_url, options) => {
+    submitted = JSON.parse(options.body).message.body.content
+    const current = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
+    assert.equal(current.sentReply, 'Hallo Frau Müller,\nwir prüfen den Auftrag.')
+    f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', removed: true, caseRevision: current.caseRevision + 1, learnedRevision: 0 })
+    return response(null, 202)
+  } })
+  const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
+  f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'AI-Entwurf', sendStatus: 'draft', caseRevision: 1, learnedRevision: 1 })
+  const body = 'Hallo Frau Müller,\nwir prüfen den Auftrag.\n\nMit freundlichen Grüßen\nMax Beispiel'
+  assert.equal((await f.handlers.sendMailboxReply(request({ ...reply, body }))).status, 'accepted')
+  assert.equal(submitted, body)
+  const removed = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
+  assert.equal(removed.removed, true)
+  assert.equal(removed.sentReply, undefined)
+  assert.equal(removed.latestSuggestion, undefined)
 })

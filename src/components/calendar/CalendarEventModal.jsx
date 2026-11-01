@@ -2,12 +2,17 @@ import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import HolidayDetailModal from '../holidays/HolidayDetailModal.jsx'
 import ConfirmDialog from '../ui/ConfirmDialog.jsx'
+import ReminderFields from '../reminders/ReminderFields.jsx'
+import ReminderStatus from '../reminders/ReminderStatus.jsx'
+import { useLanguage } from '../../i18n/useLanguage.js'
+import { reminderTimestampKey, reminderValidationMessage, validateReminderForm } from '../../lib/reminderForm.js'
+import { berlinToday } from '../../../shared/reminderTime.js'
 import '../../styles/calendar.css'
 
 const dateFormatter = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 function todayValue() {
-  return new Date().toISOString().slice(0, 10)
+  return berlinToday()
 }
 
 function formatPeriod(event) {
@@ -19,6 +24,8 @@ function formatPeriod(event) {
 }
 
 export default function CalendarEventModal({ event, calendars, initialDate, editable, onClose, onSave, onDelete }) {
+  const { language } = useLanguage()
+  const en = language === 'en'
   const isExisting = Boolean(event)
   const [form, setForm] = useState(() => ({
     title: event?.title || '',
@@ -29,6 +36,10 @@ export default function CalendarEventModal({ event, calendars, initialDate, edit
     startTime: event?.startTime || '',
     endTime: event?.endTime || '',
     description: event?.description || '',
+    reminderEnabled: event?.reminderEnabled === true,
+    reminderDate: event?.reminderDate || '',
+    reminderTime: event?.reminderTime || '',
+    reminderOccurrence: event?.reminderOccurrence || null,
   }))
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -38,12 +49,17 @@ export default function CalendarEventModal({ event, calendars, initialDate, edit
 
   async function submit(eventSubmit) {
     eventSubmit.preventDefault()
+    if (submitting) return
+    if (form.reminderEnabled) {
+      try { validateReminderForm({ date: form.reminderDate, time: form.reminderTime, occurrence: form.reminderOccurrence }) }
+      catch (validationError) { setError(reminderValidationMessage(validationError, language)); return }
+    }
     setSubmitting(true)
     setError('')
     try {
       await onSave(form)
     } catch (saveError) {
-      setError(saveError?.message || 'Der Termin konnte nicht gespeichert werden.')
+      setError(reminderValidationMessage(saveError, language))
     } finally {
       setSubmitting(false)
     }
@@ -67,11 +83,14 @@ export default function CalendarEventModal({ event, calendars, initialDate, edit
 
   if (deleteConfirmationOpen) return <TranslatedProps sources={{ title: 'Termin wirklich löschen?' }}><ConfirmDialog open title="Termin wirklich löschen?" message="Dieser Termin wird endgültig gelöscht." confirmLabel="Termin löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={submitting} onCancel={() => setDeleteConfirmationOpen(false)} onConfirm={confirmRemove} /></TranslatedProps>
 
-  return <div className="calendar-modal-backdrop" role="presentation" onMouseDown={(eventMouse) => { if (eventMouse.target === eventMouse.currentTarget) onClose() }}>
+  const calendar = calendars.find((item) => item.id === form.calendarId)
+  const recipientRule = calendar?.kind === 'shared' ? 'calendar-shared' : 'calendar-personal'
+  const sourcePath = event?.id && !event.systemCalendar && !event.todoDeadline ? `calendars/${event.calendarId}/events/${event.id}` : null
+  return <div className="calendar-modal-backdrop" role="presentation" onMouseDown={(eventMouse) => { if (eventMouse.target === eventMouse.currentTarget && !submitting) onClose() }}>
     <section className="calendar-modal" role="dialog" aria-modal="true" aria-labelledby="calendar-event-title">
       <div className="calendar-modal__heading">
         <div><h2 id="calendar-event-title"><StaticText source={isExisting ? editable ? 'Termin bearbeiten' : 'Termin' : 'Neuer Termin'} /></h2>{isExisting && <p>{event.calendarName} · {formatPeriod(event)}</p>}</div>
-        <TranslatedProps sources={{ 'aria-label': 'Dialog schließen' }}><button type="button" className="calendar-modal__close" onClick={onClose} aria-label="Dialog schließen">×</button></TranslatedProps>
+        <TranslatedProps sources={{ 'aria-label': 'Dialog schließen' }}><button type="button" className="calendar-modal__close" disabled={submitting} onClick={onClose} aria-label="Dialog schließen">×</button></TranslatedProps>
       </div>
       {!editable ? <>
         <dl className="calendar-event-detail">
@@ -93,10 +112,13 @@ export default function CalendarEventModal({ event, calendars, initialDate, edit
             <label className="form-field"><span><StaticText source="Bis" /></span><input type="time" value={form.endTime} onChange={(input) => setForm((current) => ({ ...current, endTime: input.target.value }))} /></label>
           </>}
           <label className="form-field calendar-modal__description"><span><StaticText source="Beschreibung (optional)" /></span><textarea rows="4" value={form.description} onChange={(input) => setForm((current) => ({ ...current, description: input.target.value }))} /></label>
+          <label className="calendar-checkbox"><input type="checkbox" disabled={submitting} checked={form.reminderEnabled} onChange={(input) => setForm((current) => ({ ...current, reminderEnabled: input.target.checked }))} />{en ? 'Email reminder' : 'Erinnerung per E-Mail'}</label>
+          {form.reminderEnabled && <ReminderFields values={{ date: form.reminderDate, time: form.reminderTime, occurrence: form.reminderOccurrence }} onChange={(field, value) => setForm((current) => ({ ...current, [{ date: 'reminderDate', time: 'reminderTime', occurrence: 'reminderOccurrence' }[field]]: value }))} disabled={submitting} recipientRule={recipientRule} />}
         </div>
         {error && <p className="form-error"><StaticText source={error} /></p>}
         <div className="calendar-modal__actions">{isExisting && <button className="button button--danger" type="button" disabled={submitting} onClick={remove}><StaticText source="Löschen" /></button>}<span /><button className="button button--secondary" type="button" disabled={submitting} onClick={onClose}><StaticText source="Abbrechen" /></button><button className="button" type="submit" disabled={submitting}><StaticText source={submitting ? 'Wird gespeichert …' : 'Speichern'} /></button></div>
       </form>}
+      {sourcePath && <ReminderStatus sourcePath={sourcePath} enabled={event.reminderEnabled} configured={Boolean(event.reminderDate || event.reminderTime)} recipientRule={recipientRule} refreshKey={reminderTimestampKey(event.updatedAt)} />}
     </section>
   </div>
 }

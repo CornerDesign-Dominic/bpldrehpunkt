@@ -1,8 +1,9 @@
+import { reportTechnicalFailure } from './diagnostics.js'
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
-import { calendarDaysUntil, deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { berlinToday, calendarDaysUntil, caseDeadlineReminder } from './caseDeadline.js'
 
 export const INSOLVENCIES_COLLECTION = 'insolvencies'
 
@@ -52,12 +53,10 @@ function formatDate(value) {
 }
 
 function insolvencyDeadlinePayload(values) {
-  const date = trim(values.date)
-  const time = reminderDeadlineTime(values)
+  const reminder = caseDeadlineReminder(values)
   const note = optionalText(values.note)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   if (note && note.length > 4000) throw new Error('Die Bemerkung darf maximal 4.000 Zeichen enthalten.')
-  return { date, time, reminderEnabled: values.reminderEnabled === true, note }
+  return { ...reminder, note }
 }
 
 function insolvencyDeadlineLabel(value) {
@@ -150,7 +149,7 @@ export function createEmptyInsolvencyQuotaPayment() {
 }
 
 export function createEmptyInsolvencyDeadline() {
-  return { date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
+  return { date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' }
 }
 
 export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
@@ -259,9 +258,9 @@ export async function createInsolvencyDeadline(insolvency, values, actor) {
   const actorName = getUserDisplayName(actor.profile, actor.user)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
-  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin für ${insolvencyDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }
 
 export async function updateInsolvencyDeadline(insolvency, deadline, values, actor) {
@@ -272,7 +271,7 @@ export async function updateInsolvencyDeadline(insolvency, deadline, values, act
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.update(doc(insolvencyRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(next.date)} geändert.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
   return true
 }
 
@@ -282,5 +281,5 @@ export async function deleteInsolvencyDeadline(insolvency, deadline, actor) {
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.delete(doc(insolvencyRef, 'deadlines', deadline.id))
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(deadline.date)} gelöscht.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }

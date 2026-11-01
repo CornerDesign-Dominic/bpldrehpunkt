@@ -14,7 +14,7 @@ export const MODULES = {
   team: { label: 'Team' },
   masterData: { label: 'Stammdaten' },
   partnerMerges: { label: 'Partner zusammenführen' },
-  transportOrders: { label: 'Auftragsliste' },
+  transportOrders: { label: 'Transportaufträge & Sendungsverfolgung' },
   dataImports: { label: 'Stammdatenimporte' },
   transportOrderSingleImport: { label: 'Transportaufträge: Einzelimport' },
   transportOrderBulkImport: { label: 'Transportaufträge: Sammelimport' },

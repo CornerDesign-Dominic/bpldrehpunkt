@@ -36,3 +36,21 @@ export const listKnowledgeGapEvidence = (gapId) => operation('load', async () =>
   const result = await getDocs(query(collection(db, 'knowledgeGapEvidence'), where('gapId', '==', gapId)))
   return result.docs.map((item) => ({ ...item.data(), id: item.id })).sort((left, right) => (right.updatedAt?.toMillis?.() || 0) - (left.updatedAt?.toMillis?.() || 0))
 }, gapId, 'knowledgeGaps')
+
+export const listKnowledgeCases = () => operation('load', async () => {
+  const result = await getDocs(collection(db, 'knowledgeGapEvidence'))
+  return result.docs.map((item) => ({ ...item.data(), id: item.id }))
+}, undefined, 'knowledgeGaps')
+
+export const listKnowledgeLearningRuns = (gapId) => operation('load', async () => {
+  const result = await getDocs(query(collection(db, 'knowledgeLearningRuns'), where('gapId', '==', gapId)))
+  return result.docs.map((item) => ({ ...item.data(), id: item.id })).sort((left, right) => (right.createdAt?.toMillis?.() || 0) - (left.createdAt?.toMillis?.() || 0))
+}, gapId, 'knowledgeGaps')
+
+const knowledgeCaseCall = (name, values) => operation('save', async () => {
+  await waitForAppCheckToken()
+  return (await httpsCallable(functions, name, { timeout: 180000 })(values)).data
+}, values.id || values.gapId, 'knowledgeGaps')
+export const manageKnowledgeCase = (values) => knowledgeCaseCall('manageKnowledgeCase', values)
+export const learnKnowledgeCases = (values) => knowledgeCaseCall('learnKnowledgeCases', values)
+export const applyKnowledgeLearning = (values) => knowledgeCaseCall('applyKnowledgeLearning', values)

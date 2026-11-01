@@ -1,3 +1,5 @@
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -58,8 +60,9 @@ export default function InsolvencyDetailPage() {
   const [documentConfirmation, setDocumentConfirmation] = useState(null)
   const [documentSaving, setDocumentSaving] = useState(false)
   const [toast, setToast] = useState('')
+  const [reminderRefreshKey, setReminderRefreshKey] = useState(0)
   const [showTodoCreate, setShowTodoCreate] = useState(false)
-  const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'insolvencyId', caseId: partnerId, profile, user })
+  const { createLinkedTodo, linkedTodoLoading, linkedTodoError, reloadLinkedTodos, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'insolvencyId', caseId: partnerId, profile, user })
 
   useEffect(() => {
     if (!canViewMasterData) return undefined
@@ -168,32 +171,36 @@ export default function InsolvencyDetailPage() {
     } catch (deleteError) { setError(deleteError.message || 'Die Quotenzahlung konnte nicht gelöscht werden.'); throw deleteError }
   }
 
+  async function reloadAfterReminderChange(afterMutation = true) {
+    setDeadlinesLoading(true)
+    try { await load() }
+    catch (error) { setError(afterMutation ? 'Die Änderung wurde gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte erneut laden.' : 'Die Ansicht konnte nicht geladen werden. Bitte erneut versuchen.'); void reportTechnicalFailure({ module: 'reminders', stage: 'load', error }) }
+    finally { setDeadlinesLoading(false) }
+  }
+
   async function saveDeadline(existingDeadline, values) {
+    if (!editable) return
     setError('')
     try {
-      const changed = existingDeadline
-        ? await updateInsolvencyDeadline(insolvency, existingDeadline, values, { user, profile })
-        : await createInsolvencyDeadline(insolvency, values, { user, profile })
-      if (changed !== false) {
-        await load()
-        setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
-      }
+      if (existingDeadline) await updateInsolvencyDeadline(insolvency, existingDeadline, values, { user, profile })
+      else await createInsolvencyDeadline(insolvency, values, { user, profile })
     } catch (saveError) {
       setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.')
       throw saveError
     }
+    setReminderRefreshKey((current) => current + 1)
+    setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
+    void reloadAfterReminderChange()
   }
 
   async function deleteDeadline(deadline) {
+    if (!editable) return
     setError('')
-    try {
-      await deleteInsolvencyDeadline(insolvency, deadline, { user, profile })
-      await load()
-      setToast('Termin gelöscht.')
-    } catch (deleteError) {
-      setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.')
-      throw deleteError
-    }
+    try { await deleteInsolvencyDeadline(insolvency, deadline, { user, profile }) }
+    catch (deleteError) { setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.'); throw deleteError }
+    setReminderRefreshKey((current) => current + 1)
+    setToast('Termin gelöscht.')
+    void reloadAfterReminderChange()
   }
 
   if (loading) return <p className="page-state"><StaticText source={"Insolvenzfall wird geladen …"} /></p>
@@ -213,12 +220,13 @@ export default function InsolvencyDetailPage() {
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/insolvenzen" /></div>
     <div className="todo-detail-page damage-detail-page insolvency-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{insolvency.partnerName}</h2></div></header>
-      {error && <p className="form-error">{<StaticText source={error} />}</p>}
+      {error && <div><p className="form-error"><StaticText source={error} /></p><button className="button button--secondary" type="button" onClick={() => { setError(''); void reloadAfterReminderChange(false) }}><StaticText source="Erneut laden" /></button></div>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><div className="todo-detail-section-heading"><h3><StaticText source={"Beschreibung"} /></h3>{editable && <TranslatedProps sources={{"aria-label":"Beschreibung bearbeiten","title":"Beschreibung bearbeiten"}}><button className="todo-detail-section-edit" type="button" onClick={() => setEditing('description')} aria-label="Beschreibung bearbeiten" title="Beschreibung bearbeiten"><EditIcon size={14} /></button></TranslatedProps>}</div><p className="todo-detail-description">{insolvency.description || <StaticText source={"Keine Beschreibung hinterlegt."} />}</p></section>
-          <InsolvencyDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
-          {canViewTodos && <LinkedTodosCard canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
+          <CaseReminderResponsibility key={insolvency.id} parentPath={`insolvencies/${insolvency.id}`} responsibleUserId={insolvency.responsibleUserId} responsibleUserName={insolvency.responsibleUserName} canEdit={editable} onChanged={(result) => { setInsolvency((current) => ({ ...current, ...result })); setReminderRefreshKey((current) => current + 1); void reloadAfterReminderChange() }} />
+          <InsolvencyDeadlinesCard canEdit={editable} parentPath={`insolvencies/${insolvency.id}`} refreshKey={reminderRefreshKey} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+          {canViewTodos && <LinkedTodosCard error={linkedTodoError} onReload={reloadLinkedTodos} canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
           <DamageDocumentsCard canEdit={editable} documents={documents} getDocumentBlob={getInsolvencyDocumentBlob} loading={documentsLoading} onDelete={setDocumentConfirmation} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <InsolvencyClaimsOverview canEdit={editable} claims={claims} quotaPayments={quotaPayments} loading={financialLoading} onDeleteClaim={deleteClaim} onDeleteQuotaPayment={deleteQuotaPayment} onSaveClaim={saveClaim} onSaveQuotaPayment={saveQuotaPayment} />
           <section className="todo-updates todo-history" aria-labelledby="insolvency-history-title"><div className="todo-updates__heading"><h3 id="insolvency-history-title"><StaticText source={"Historie"} /></h3><span>{history.length}</span></div>{historyLoading ? <p className="todo-updates__empty"><StaticText source={"Historie wird geladen …"} /></p> : history.length ? <ol className="todo-updates__list">{history.map((entry) => <li key={entry.id} className="todo-updates__item todo-updates__item--system"><div><strong>{entry.createdByName}</strong><span>System · {formatTimestamp(entry.createdAt)}</span></div><p>{entry.text}</p></li>)}</ol> : <p className="todo-updates__empty"><StaticText source={"Noch keine Historieneinträge."} /></p>}</section>

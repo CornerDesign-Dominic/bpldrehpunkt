@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createTransportOrderPreferenceSaver } from './transportOrderPreferenceSaver.js'
+import { createShipmentTrackingPreferenceSaver } from './shipmentTrackingPreferenceSaver.js'
 
 function deferred() {
   let resolve
@@ -11,7 +11,7 @@ function deferred() {
 
 test('opening and leaving an unchanged list does not write preferences', async () => {
   const writes = []
-  const saver = createTransportOrderPreferenceSaver(async (value) => writes.push(value), { search: '' })
+  const saver = createShipmentTrackingPreferenceSaver(async (value) => writes.push(value), { search: '' })
   saver.update({ search: '' })
   assert.equal(await saver.flush(), true)
   assert.deepEqual(writes, [])
@@ -20,7 +20,7 @@ test('opening and leaving an unchanged list does not write preferences', async (
 test('a failed save remains visible and can retry the current settings', async () => {
   const writes = []
   const statuses = []
-  const saver = createTransportOrderPreferenceSaver(async (value) => {
+  const saver = createShipmentTrackingPreferenceSaver(async (value) => {
     writes.push(value)
     if (writes.length === 1) throw new Error('unavailable')
   }, { search: '' })
@@ -41,7 +41,7 @@ test('a failed save remains visible and can retry the current settings', async (
 test('slow writes remain ordered and intermediate edits are coalesced', async () => {
   const first = deferred()
   const writes = []
-  const saver = createTransportOrderPreferenceSaver(async (value) => {
+  const saver = createShipmentTrackingPreferenceSaver(async (value) => {
     writes.push(value)
     if (writes.length === 1) await first.promise
   }, { search: '' })
@@ -61,7 +61,7 @@ test('slow writes remain ordered and intermediate edits are coalesced', async ()
 test('a failed older write does not hide or prevent saving the latest edit', async () => {
   const first = deferred()
   const writes = []
-  const saver = createTransportOrderPreferenceSaver(async (value) => {
+  const saver = createShipmentTrackingPreferenceSaver(async (value) => {
     writes.push(value)
     if (writes.length === 1) await first.promise
   }, { search: '' })
@@ -78,7 +78,7 @@ test('a failed older write does not hide or prevent saving the latest edit', asy
 test('reverting during a slow save restores the original settings on the server', async () => {
   const first = deferred()
   const writes = []
-  const saver = createTransportOrderPreferenceSaver(async (value) => {
+  const saver = createShipmentTrackingPreferenceSaver(async (value) => {
     writes.push(value)
     if (writes.length === 1) await first.promise
   }, { search: '' })

@@ -1,6 +1,8 @@
 import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, startAfter, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { calendarWindowAndUpcoming } from './calendarQueryPages.js'
+import { calendarReminderFields } from './reminderForm.js'
+import { invalidateReminderStatuses } from './reminders.js'
 
 export const CALENDARS_COLLECTION = 'calendars'
 export const CALENDAR_PERMISSIONS_COLLECTION = 'calendarPermissions'
@@ -188,6 +190,7 @@ function eventPayload(values, userId, previous = null) {
     startDate,
     endDate,
     allDay,
+    ...calendarReminderFields(values),
     startTime: allDay ? '' : (typeof values?.startTime === 'string' ? values.startTime : ''),
     endTime: allDay ? '' : (typeof values?.endTime === 'string' ? values.endTime : ''),
     createdByUserId: previous?.createdByUserId || userId,
@@ -197,13 +200,17 @@ function eventPayload(values, userId, previous = null) {
 }
 
 export async function createCalendarEvent(calendarId, values, userId) {
-  await addDoc(collection(db, CALENDARS_COLLECTION, calendarId, 'events'), eventPayload(values, userId))
+  const created = await addDoc(collection(db, CALENDARS_COLLECTION, calendarId, 'events'), eventPayload(values, userId))
+  invalidateReminderStatuses([created.path])
+  return created.id
 }
 
 export async function updateCalendarEvent(calendarId, eventId, values, previous) {
   await updateDoc(doc(db, CALENDARS_COLLECTION, calendarId, 'events', eventId), eventPayload(values, previous.createdByUserId, previous))
+  invalidateReminderStatuses([`calendars/${calendarId}/events/${eventId}`])
 }
 
 export async function deleteCalendarEvent(calendarId, eventId) {
   await deleteDoc(doc(db, CALENDARS_COLLECTION, calendarId, 'events', eventId))
+  invalidateReminderStatuses([`calendars/${calendarId}/events/${eventId}`])
 }

@@ -1,6 +1,6 @@
 const whitespace = /\s+/g
 const plannedDateTimePaths = new Set(['loading.window.from', 'loading.window.until', 'unloading.window.from', 'unloading.window.until', 'dispatch.sentAt'])
-const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'shipment.packages', 'shipment.weightKg', 'shipment.loadingMeters'])
+const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'shipment.packages', 'shipment.weightKg', 'shipment.loadingMeters', ...['order', 'tour'].flatMap(scope => ['totalKm', 'motorwayKm', 'emptyKm'].map(key => `distances.${scope}.${key}`))])
 
 const fields = Object.freeze([
   ['relation', 'Mitarbeiterrelation'],
@@ -22,12 +22,14 @@ const fields = Object.freeze([
   ['loading.city', 'Ort Ladestelle', { routeRelevant: true }],
   ['loading.window.from', 'Termin Ladestelle – von', { scheduleRelevant: true }],
   ['loading.window.until', 'Termin Ladestelle – bis', { scheduleRelevant: true }],
+  ['loading.fixedAppointment', 'Fixtermin Ladestelle'],
   ['loading.note', 'Bemerkung Ladestelle'],
   ['loading.reference', 'Referenz Ladestelle'],
   ['unloading.originalText', 'Adresse Entladestelle', { routeRelevant: true }],
   ['unloading.city', 'Ort Entladestelle', { routeRelevant: true }],
   ['unloading.window.from', 'Termin Entladestelle – von', { scheduleRelevant: true }],
   ['unloading.window.until', 'Termin Entladestelle – bis', { scheduleRelevant: true }],
+  ['unloading.fixedAppointment', 'Fixtermin Entladestelle'],
   ['unloading.note', 'Bemerkung Entladestelle'],
   ['unloading.reference', 'Referenz Entladestelle'],
   ['financial.revenueNet', 'Ertrag netto'],
@@ -37,9 +39,20 @@ const fields = Object.freeze([
   ['financial.documents', 'Rechnungen und Gutschriften'],
   ['shipment.licensePlate', 'Import-Kennzeichen'],
   ['shipment.vehicleType', 'Fahrzeugart'],
+  ['shipment.vehicleInformation', 'Fahrzeughinweise'],
+  ['shipment.goodsDescription', 'Warenbeschreibung Auftrag'],
+  ['shipment.hazardousGoods', 'Gefahrgut laut DyCoS'],
   ['shipment.packages', 'Kolli'],
   ['shipment.weightKg', 'Gewicht'],
   ['shipment.loadingMeters', 'Lademeter'],
+  ['distances.order.totalKm', 'Gesamtkilometer Auftrag (DyCoS)'],
+  ['distances.order.motorwayKm', 'Autobahnkilometer Auftrag (DyCoS)'],
+  ['distances.order.emptyKm', 'Leerkilometer Auftrag (DyCoS)'],
+  ['distances.order.routed', 'Kilometer Auftrag geroutet (DyCoS)'],
+  ['distances.tour.totalKm', 'Gesamtkilometer Tour (DyCoS)'],
+  ['distances.tour.motorwayKm', 'Autobahnkilometer Tour (DyCoS)'],
+  ['distances.tour.emptyKm', 'Leerkilometer Tour (DyCoS)'],
+  ['distances.tour.routed', 'Kilometer Tour geroutet (DyCoS)'],
   ['contacts.customerStandardEmail', 'Standard-E-Mail Kunde'],
   ['contacts.customerForOrder', 'Info Kunde im Auftrag'],
   ['contacts.carrierStandardEmail', 'Standard-E-Mail Unternehmer'],
@@ -77,7 +90,13 @@ export function normalizeTransportOrderImportValue(value, path = '') {
   if (value === null || value === undefined) return null
   if (Array.isArray(value)) return value.map((entry, index) => normalizeTransportOrderImportValue(entry, `${path}.${index}`))
   if (typeof value !== 'object') return value
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, normalizeTransportOrderImportValue(value[key], path ? `${path}.${key}` : key)]))
+  // Absent and explicitly unknown new flags mean the same thing on legacy
+  // stops. A real false still differs from both unknown and true.
+  const keys = Object.keys(value).filter(key => !(
+    key === 'fixedAppointment' && /^stops\.\d+$/.test(path) && value[key] == null ||
+    ['description', 'volumetricWeightKg'].includes(key) && /^stops\.\d+\.cargo$/.test(path) && value[key] == null
+  ))
+  return Object.fromEntries(keys.sort().map((key) => [key, normalizeTransportOrderImportValue(value[key], path ? `${path}.${key}` : key)]))
 }
 
 export function transportOrderImportFingerprint(imported) {

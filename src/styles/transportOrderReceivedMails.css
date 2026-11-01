@@ -1,0 +1,16 @@
+.order-mails-dialog .mail-work-dialog__sidebar > h3 { margin: 4px 0 6px; font-size: 14px; }
+.order-mails-dialog .mail-work-dialog__sidebar > p { font-size: 12px; }
+.order-mails-dialog .transport-order-received-mails__list { margin: 8px 0; }
+.order-mails-dialog .mail-work-dialog__sidebar > .transport-order-received-mails__list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
+.order-mails-dialog .transport-order-received-mails__list button[aria-current="true"] { background: var(--surface-active); box-shadow: inset 3px 0 var(--button-background); }
+.order-mails-dialog .transport-order-received-mails__list button:disabled { cursor: default; opacity: .65; }
+.order-mails-dialog .mailbox-reader { display: flex; flex-direction: column; gap: 12px; }
+.order-mails-dialog .mailbox-reader > * { flex-shrink: 0; }
+.order-mails-dialog .mailbox-reader > p { margin: 0; font-size: 12px; }
+.order-mails-dialog__message-heading h3 { margin: 0 0 6px; font-size: 16px; }
+.order-mails-dialog__message-heading p { margin: 0; font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.order-mails-dialog .transport-order-received-mail-modal__body { flex: 1 0 auto; }
+.order-mails-dialog .mail-work-dialog__editor-content { display: flex; flex-direction: column; gap: 12px; min-height: 100%; }
+.order-mails-dialog .transport-order-received-mail-modal__tracking { flex: 1; min-height: 440px; }
+.order-mails-dialog .shipment-tracking-editor__actions { flex-wrap: wrap; }
+.order-mails-dialog__tracking-error { flex-shrink: 0; }

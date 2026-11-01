@@ -1,5 +1,13 @@
 # Wissensmanagement und KI-Antwortentwürfe
 
+UX-Anpassung 01.11.2026: „Status ändern“ verwendet einen kompakten Dialog
+(bis 620 Pixel) mit vier direkt sichtbaren Statusoptionen. Die optionale
+Handbuchverknüpfung ist eingeklappt; die leere Auswahl heißt ausdrücklich
+„Kein Artikel zugeordnet“. Kurze Anlage-/Metadaten-/Prüftermin-Einstellungen
+verwenden ebenfalls kompakte Dialoge; Schreib-, Lese- und Lernfenster bleiben
+groß. Überflüssiger Erklärungstext in der Fallübersicht wurde entfernt.
+Lokaler Browser: Status speichern, Abbrechen und Artikelwahl geprüft.
+
 Stand: 31.10.2026. Veröffentlichung ausschließlich auf Dev freigegeben.
 
 ## Fachlicher Ablauf
@@ -97,9 +105,10 @@ Der Vorschlag ist ausdrücklich kein Nachweis einer gelösten Situation. Vor dem
 Versandversuch wird der genaue Antworttext gesichert, zunächst mit unklarem
 Versandstatus; erst eine angenommene Graph-Versandanforderung markiert den Beleg
 als angenommen. Das ist kein Zustellnachweis. Belegfehler nach angenommenem
-Versand dürfen keinen erneuten Versand auslösen. Kein eingehender Mailtext wird
-zusätzlich gesammelt; Antworttexte können fachliche/personenbezogene Angaben
-enthalten und liegen deshalb hinter dem separaten Recht.
+Versand dürfen keinen erneuten Versand auslösen. Für die manuelle Auswertung
+werden zusätzlich bereinigte Eingangstexte als geschützte lokale Kopien erfasst.
+Diese Texte können weiterhin fachliche/personenbezogene Angaben enthalten und
+liegen deshalb hinter dem separaten Recht.
 Situation und fehlende Wissensaspekte werden aus einer festen serverseitigen
 Taxonomie gebildet; das Modell darf keine frei formulierten Maildetails in die
 globale Liste schreiben. Es gibt 33 Situations- und sechs Bedarfs-Kategorien.
@@ -107,6 +116,60 @@ Das ist eine bewusste erste Ausbaustufe, keine unbegrenzte semantische Clusterun
 Weitere/unklare Situationen werden als breite Prüfkategorie gekennzeichnet;
 deren Aufkommen bedeutet nicht, dass alle zugehörigen Mails denselben Fall haben.
 Die Kategorien können nach echten Nutzungserfahrungen gezielt erweitert werden.
+
+## Manuelles Lernen aus Praxisfällen (01.11.2026)
+
+Beim bestehenden „Vorschlag machen“ werden Fälle gesammelt, auch wenn bereits
+ein Artikel als Grundlage verwendet wurde. Das ist keine automatische Auswertung
+aller eingehenden Postfachmails und kein automatisches Lernen. Zugeordnete
+Artikel erhalten eine eigene Fallgruppe; nicht zuordenbare Fälle landen unter
+„Nicht zugeordnet“. Die Originalnachrichten und Konten bleiben unverändert.
+
+Klickbare Gruppen öffnen ein großes dreispaltiges Modal: Eingang und zugehörige
+Antwort stehen paarweise gegenüber, rechts stehen Erkenntnisse und Artikel-
+vorschlag bzw. der vorhandene Artikel. Header zeigen nur allgemeine Rollen;
+unbekannte Rollen bleiben unbekannt. Bei älteren Fällen kann der Eingangstext
+fehlen; er wird nicht erfunden und solche Fälle sind nicht auswertbar.
+
+Die einfache Textbereinigung benötigt keinen zusätzlichen Modellaufruf. Sie
+entfernt erkennbare Mailköpfe, Signaturen und Zitate sowie HTML-Formatierung,
+Bilder und Anhangsmarker. Sie bearbeitet ausschließlich Auswertungskopien, nicht
+den tatsächlichen Versandtext. Namen im Fließtext werden nicht aufwendig gesucht;
+es handelt sich ausdrücklich nicht um garantierte Anonymisierung. Es gibt keine
+manuelle Nachkorrektur der Mailtexte.
+
+Vor „Erkenntnisse sammeln“ wählt der Benutzer einzelne Fälle oder alle passenden
+Fälle aus; zunächst ist keiner ausgewählt. Höchstens 20 Fälle mit zusammen
+120.000 Zeichen werden pro Auswertung verwendet. Der manuelle Modellaufruf
+erstellt einen strukturierten Artikelvorschlag und benennt Varianten, Widersprüche
+und offene Fragen in verständlicher Sprache. Versand allein belegt keinen Erfolg.
+Der vorhandene Artikel bleibt während der Analyse unverändert. Ein neuer Artikel
+wird nach bewusster Übernahme als Entwurf gespeichert; eine bestehende Fassung
+wird erst durch ausdrückliches Übernehmen mit neuer Revision aktualisiert.
+
+Gelbes Hirnsymbol bedeutet ausstehend, grünes Hirnsymbol vollständig ausgewertet.
+Grün ist keine fachliche Freigabe und keine automatische Veröffentlichung.
+Ausgewerteter Fallstand und Auswertungslauf werden festgehalten. Geänderte Fälle
+werden wieder ausstehend; ungeänderte Wiederholungen erhöhen die Anzahl nicht.
+Die Übersicht zählt die aktuell zugeordneten, nicht entfernten Fälle.
+
+Prüfstand 01.11.2026: 97 gezielte Unit-Tests und sieben echte Firestore-
+Emulatorprüfungen erfolgreich, zusätzlich Lint, Build und Shared-Abgleich
+(45 Module). Lokaler Browser mit simulierten Modellantworten: keine Vorauswahl,
+manuelle Auswahl/Auswertung, bewusste Entwurfsablage, grüne Zähler, Verschieben
+nach Nicht zugeordnet und Entfernen einer lokalen Testkopie geprüft.
+Kein angemeldeter Dev-Durchlauf mit echtem Modellaufruf und echten Mails.
+Bereitstellung: manageKnowledgeCase, learnKnowledgeCases, applyKnowledgeLearning,
+suggestMailboxReply, saveMailboxDraft, sendMailboxReply, sendMailboxMessage und
+updateKnowledgeGap und Firestore-Rules. Originalmails werden dabei weder geändert noch als Test versendet.
+
+Pflegende können lokale Kopien einem anderen Artikel bzw. Themenpunkt zuordnen,
+in „Nicht zugeordnet“ verschieben oder aus der Sammlung entfernen. Entfernte
+Kopien erhalten eine Sperrmarkierung, damit derselbe Fall nicht automatisch neu
+eingelesen wird. Keine dieser Aktionen ändert oder löscht eine Originalmail.
+Auswertung und Übernahme verlangen zusätzlich zum Pflege-Bearbeitungsrecht auch
+Handbuch-Bearbeitungsrecht. Lauf-ID und Revisionsprüfungen schützen vor doppelten
+Auswertungen und dem Übernehmen inzwischen geänderter Fälle oder Artikel.
 
 Die Liste priorisiert nach Häufigkeit und letzter Sichtung. Häufigkeit ist ein
 Bedarfssignal und keine automatisch festgestellte fachliche Dringlichkeit.

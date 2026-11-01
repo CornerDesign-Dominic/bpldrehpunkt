@@ -3,6 +3,13 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, canReportLinkDiagnostic, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
 
+test('order workspace diagnostics require order access and keep fixed messages', () => {
+  assert.equal(canReportLinkDiagnostic({ permissions: { transportOrders: 'view' } }, 'transport-orders'), true)
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'transport-orders'), false)
+  const event = normalizeClientDiagnostic({ module: 'transport-orders', stage: 'history', code: 'unavailable', orderId: 'dycos-123', message: 'Do not copy source data' })
+  assert.equal(event.message, 'Auftragshistorie konnte nicht geladen werden.')
+})
+
 test('order capture diagnostics use fixed messages and reject private mail identifiers', () => {
   for (const [stage, message] of [['order-preview', 'Auftrag aus persönlicher Mail konnte nicht ausgewertet werden.'], ['order-export', 'Geprüfter Auftrag konnte nicht als XML erstellt werden.']]) {
     const event = normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', message: 'private mail and PDF contents' })
@@ -25,7 +32,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -137,4 +144,18 @@ test('calendar and pallet diagnostics preserve module boundaries and fixed messa
 
 test('clients cannot submit privileged background-work diagnostics', () => {
   assert.throws(() => normalizeClientDiagnostic({ module: 'background-work', stage: 'prepare', code: 'internal' }), { code: 'invalid-argument' })
+})
+
+test('reminder client diagnostics require a relevant readable module and cannot impersonate server dispatch', () => {
+  for (const module of ['calendar', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso']) assert.equal(canReportLinkDiagnostic({ active: true, role: 'user', permissions: { [module]: 'view' } }, 'reminders'), true)
+  for (const profile of [{ active: true, role: 'admin', permissions: {} }, { active: false, role: 'superadmin' }, { active: true, role: 'user', permissions: { pallets: 'edit' } }]) assert.equal(canReportLinkDiagnostic(profile, 'reminders'), false)
+  for (const stage of ['load', 'save', 'status', 'responsibility']) {
+    const result = normalizeClientDiagnostic({ module: 'reminders', stage, code: 'unavailable', recordId: 'source-hash', message: 'private note', email: 'private@example.test' })
+    assert.equal(result.module, 'reminders')
+    assert.equal(result.recordId, 'source-hash')
+    assert(!JSON.stringify(result).includes('private'))
+  }
+  assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'dispatch', code: 'internal' }), { code: 'invalid-argument' })
+  assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'status', code: 'internal', orderId: 'order' }), { code: 'invalid-argument' })
+  assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'load', code: 'internal', recordId: 'todos/private' }), { code: 'invalid-argument' })
 })

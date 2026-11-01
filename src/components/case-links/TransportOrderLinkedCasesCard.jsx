@@ -1,6 +1,6 @@
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import Link from '../ui/ContextLink.jsx'
 import { CASE_TRANSPORT_CASE_TYPES, listCaseLinksForTransportOrder, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from '../../lib/caseTransportLinks.js'
 
 const ACTIONS = Object.freeze({

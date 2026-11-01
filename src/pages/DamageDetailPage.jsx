@@ -1,3 +1,5 @@
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -118,8 +120,9 @@ export default function DamageDetailPage() {
   const [noteSaving, setNoteSaving] = useState(false)
   const [error, setError] = useState('')
   const [toast, setToast] = useState('')
+  const [reminderRefreshKey, setReminderRefreshKey] = useState(0)
   const [showTodoCreate, setShowTodoCreate] = useState(false)
-  const { createLinkedTodo, linkedTodoLoading, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'damageCaseId', caseId: damageCaseId, profile, user })
+  const { createLinkedTodo, linkedTodoLoading, linkedTodoError, reloadLinkedTodos, linkedTodos, todoPartners, todoUsers } = useLinkedTodos({ canCreate: canCreateTodos, canViewMasterData, canViewTodos, caseField: 'damageCaseId', caseId: damageCaseId, profile, user })
 
   async function load() {
     const [entry, history, damageDocuments, damageMovements, damageDeadlines, directory, businessPartners] = await Promise.all([getDamageCase(damageCaseId), listDamageCaseUpdates(damageCaseId), listDamageCaseDocuments(damageCaseId), listDamageCaseMovements(damageCaseId), listDamageCaseDeadlines(damageCaseId), editable ? listVisibleUserDirectory() : Promise.resolve([]), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
@@ -240,30 +243,36 @@ export default function DamageDetailPage() {
     }
   }
 
+  async function reloadAfterReminderChange(afterMutation = true) {
+    setDeadlinesLoading(true)
+    try { await load() }
+    catch (error) { setError(afterMutation ? 'Die Änderung wurde gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte erneut laden.' : 'Die Ansicht konnte nicht geladen werden. Bitte erneut versuchen.'); void reportTechnicalFailure({ module: 'reminders', stage: 'load', error }) }
+    finally { setDeadlinesLoading(false) }
+  }
+
   async function saveDeadline(existingDeadline, values) {
     if (!editable) return
     setError('')
     try {
       if (existingDeadline) await updateDamageCaseDeadline(damageCase, existingDeadline, values, { user, profile })
       else await createDamageCaseDeadline(damageCase, values, { user, profile })
-      await load()
-      setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
     } catch (saveError) {
       setError(saveError.message || 'Der Termin konnte nicht gespeichert werden.')
       throw saveError
     }
+    setReminderRefreshKey((current) => current + 1)
+    setToast(existingDeadline ? 'Termin aktualisiert.' : 'Termin hinzugefügt.')
+    void reloadAfterReminderChange()
   }
 
   async function deleteDeadline(deadline) {
+    if (!editable) return
     setError('')
-    try {
-      await deleteDamageCaseDeadline(damageCase, deadline, { user, profile })
-      await load()
-      setToast('Termin gelöscht.')
-    } catch (deleteError) {
-      setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.')
-      throw deleteError
-    }
+    try { await deleteDamageCaseDeadline(damageCase, deadline, { user, profile }) }
+    catch (deleteError) { setError(deleteError.message || 'Der Termin konnte nicht gelöscht werden.'); throw deleteError }
+    setReminderRefreshKey((current) => current + 1)
+    setToast('Termin gelöscht.')
+    void reloadAfterReminderChange()
   }
 
   if (loading) return <p className="page-state"><StaticText source={"Fall wird geladen …"} /></p>
@@ -287,12 +296,13 @@ export default function DamageDetailPage() {
     <div className="todo-detail-navigation damage-detail-navigation"><BackLink to="/schaeden" /></div>
     <div className="todo-detail-page damage-detail-page">
       <header className="todo-detail-header"><div className="todo-detail-header__title"><h2>{title}</h2></div><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></header>
-      {error && <p className="form-error">{<StaticText source={error} />}</p>}
+      {error && <div><p className="form-error"><StaticText source={error} /></p><button className="button button--secondary" type="button" onClick={() => { setError(''); void reloadAfterReminderChange(false) }}><StaticText source="Erneut laden" /></button></div>}
       <div className="todo-detail-layout">
         <main className="todo-detail-main">
           <section className="todo-detail-content"><DetailSectionHeading onEdit={editable ? () => setEditing('description') : null}><StaticText source={"Schadenbeschreibung"} /></DetailSectionHeading><p className="todo-detail-description">{damageCase.description || <StaticText source={"Keine Schadenbeschreibung hinterlegt."} />}</p></section>
-          <DamageDeadlinesCard canEdit={editable} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
-          {canViewTodos && <LinkedTodosCard canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
+          <CaseReminderResponsibility key={damageCase.id} parentPath={`damageCases/${damageCase.id}`} responsibleUserId={damageCase.responsibleUserId} responsibleUserName={damageCase.responsibleUserName} canEdit={editable} onChanged={(result) => { setDamageCase((current) => ({ ...current, ...result })); setReminderRefreshKey((current) => current + 1); void reloadAfterReminderChange() }} />
+          <DamageDeadlinesCard canEdit={editable} parentPath={`damageCases/${damageCase.id}`} refreshKey={reminderRefreshKey} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+          {canViewTodos && <LinkedTodosCard error={linkedTodoError} onReload={reloadLinkedTodos} canCreate={canCreateTodos} loading={linkedTodoLoading} onCreate={() => setShowTodoCreate(true)} todos={linkedTodos} />}
           <DamageDocumentsCard canEdit={canEditDocuments} documents={documents} loading={documentsLoading} onDelete={(documentItem) => setDocumentConfirmation(documentItem)} onDetails={setDetailsDocument} onEdit={setEditingDocument} onUpload={() => setEditingDocument('new')} />
           <DamageFinancialOverview canEdit={editable} loading={movementsLoading} movements={movements} onDelete={deleteMovement} onSave={saveMovement} />
           {(editable || updatesLoading || manualUpdates.length > 0) && <section className="todo-updates damage-case-updates" aria-labelledby="damage-update-title"><div className="todo-updates__heading"><h3 id="damage-update-title"><StaticText source={"Update zum Schaden"} /></h3>{manualUpdates.length > 0 && <span>{manualUpdates.length}</span>}</div>{editable && <form className="todo-updates__form" onSubmit={saveNote}><TranslatedProps sources={{"aria-label":"Update zum Schaden","placeholder":"Update zum Schaden hinzufügen …"}}><textarea aria-label="Update zum Schaden" rows="2" value={note} maxLength="1000" onChange={(event) => setNote(event.target.value)} placeholder="Update zum Schaden hinzufügen …" /></TranslatedProps><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{<StaticText source={noteSaving ? 'Wird gespeichert …' : 'Update hinzufügen'} />}</button></form>}{updatesLoading ? <p className="todo-updates__empty"><StaticText source={"Updates werden geladen …"} /></p> : manualUpdates.length > 0 && <ol className="todo-updates__list">{manualUpdates.map((update) => <li key={update.id} className="todo-updates__item todo-updates__item--note"><div><strong>{update.createdByName}</strong><span>Update · {formatTimestamp(update.createdAt)}</span></div><p>{update.text}</p></li>)}</ol>}</section>}

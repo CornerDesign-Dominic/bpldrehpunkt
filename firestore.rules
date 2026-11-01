@@ -38,14 +38,68 @@ service cloud.firestore {
         && data.name == 'Mein Kalender' && data.kind == 'personal' && data.ownerUserId == request.auth.uid
         && data.active == true && data.createdAt == request.time && data.updatedAt == request.time;
     }
+    // Reminder wall-clock validation is deliberately independent of recipient
+    // addresses. The central server resolves current authorized users and DST.
+    function validReminderCalendarDay(parts) {
+      let year = int(parts[0]);
+      let month = int(parts[1]);
+      let day = int(parts[2]);
+      let leap = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+      return year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1
+        && day <= (month == 2 ? (leap ? 29 : 28) : (month in [4, 6, 9, 11] ? 30 : 31));
+    }
+    function validReminderDate(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && validReminderCalendarDay(value.split('-'));
+    }
+    function validReminderTime(value) { return value is string && value.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'); }
+    function validReminderOccurrence(data) { return data.get('reminderOccurrence', null) == null || data.get('reminderOccurrence', null) in ['earlier', 'later']; }
+    function optionalReminderSchedule(data) {
+      return (data.get('reminderDate', null) == null || validReminderDate(data.get('reminderDate', null)))
+        && (data.get('reminderTime', null) == null || validReminderTime(data.get('reminderTime', null))) && validReminderOccurrence(data);
+    }
+    function completeReminderSchedule(data) { return validReminderDate(data.get('reminderDate', null)) && validReminderTime(data.get('reminderTime', null)) && validReminderOccurrence(data); }
+    function mainReminderUnchanged(before, after) {
+      return before.get('reminderDate', null) == after.get('reminderDate', null)
+        && before.get('reminderTime', null) == after.get('reminderTime', null)
+        && before.get('reminderOccurrence', null) == after.get('reminderOccurrence', null);
+    }
+    function validNewTodoReminderSchedule(data) { return data.get('reminderDate', null) == null ? data.get('reminderTime', null) == null && validReminderOccurrence(data) : completeReminderSchedule(data); }
+    function validChangedTodoReminderSchedule(before, after) { return mainReminderUnchanged(before, after) || validNewTodoReminderSchedule(after); }
+    function validCalendarReminder(data) {
+      return data.get('reminderEnabled', false) is bool && optionalReminderSchedule(data)
+        && (!data.get('reminderEnabled', false) || completeReminderSchedule(data));
+    }
+    function validDeadlineReminderFields(data) {
+      return validReminderDate(data.date) && (data.get('time', null) == null || validReminderTime(data.get('time', null))) && validReminderOccurrence(data);
+    }
+    function validNewDeadlineReminder(data) {
+      return (!data.reminderEnabled || validReminderTime(data.get('time', null)))
+        && (!data.keys().hasAny(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || data.reminderRecipientEmail == ownProfile().email);
+    }
+    function validChangedDeadlineReminder(before, after) {
+      return !after.diff(before).affectedKeys().hasAny(['reminderRecipientEmail'])
+        && (!after.reminderEnabled || validReminderTime(after.get('time', null))
+          || !after.diff(before).affectedKeys().hasAny(['date', 'time', 'reminderEnabled', 'reminderOccurrence']));
+    }
+    function responsibilityUnchanged(before, after) { return !after.diff(before).affectedKeys().hasAny(['responsibleUserId', 'responsibleUserName']); }
+    function validCaseReminderResponsible(data, module) {
+      let userId = data.get('responsibleUserId', null);
+      let name = data.get('responsibleUserName', null);
+      return (userId == null && name == null)
+        || (userId is string && name is string && activeProfile(userId)
+          && (get(/databases/$(database)/documents/users/$(userId)).data.role == 'superadmin'
+            || get(/databases/$(database)/documents/users/$(userId)).data.get('permissions', {}).get(module, 'none') in ['view', 'edit'])
+          && name == profileName(get(/databases/$(database)/documents/users/$(userId)).data));
+    }
+
     function validCalendarEvent(data) {
       return data.keys().hasAll(['title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'createdByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'createdByUserId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'createdByUserId', 'createdAt', 'updatedAt', 'reminderEnabled', 'reminderDate', 'reminderTime', 'reminderOccurrence'])
         && data.title is string && data.title.size() > 0 && data.title.size() <= 160
         && data.description is string && data.description.size() <= 4000
         && data.startDate is string && data.startDate.size() == 10 && data.endDate is string && data.endDate.size() == 10 && data.endDate >= data.startDate
         && data.allDay is bool && data.startTime is string && data.endTime is string
-        && data.createdByUserId is string;
+        && data.createdByUserId is string && validCalendarReminder(data);
     }
 
     match /users/{userId} {
@@ -129,6 +183,10 @@ service cloud.firestore {
     }
     match /knowledgeGapEvidence/{id} {
       allow read: if view('knowledgeGaps');
+      allow write: if false;
+    }
+    match /knowledgeLearningRuns/{id} {
+      allow read: if view('knowledgeGaps') && view('handbook');
       allow write: if false;
     }
     match /knowledgeGapOccurrences/{id} {
@@ -341,6 +399,7 @@ service cloud.firestore {
       allow read: if view('transportOrders');
       allow write: if false;
       match /history/{entryId} { allow read: if view('transportOrders'); allow write: if false; }
+      match /refreshes/{entryId} { allow read: if view('transportOrders'); allow write: if false; }
       match /receivedMails/{mailId} { allow read: if view('transportOrders'); allow write: if false; }
     }
 
@@ -406,6 +465,10 @@ service cloud.firestore {
     match /tomTomGeocodeCache/{cacheId} { allow read, write: if false; }
     match /tomTomUsageEvents/{eventId} { allow read, write: if false; }
     match /tomTomUsageMonths/{month} { allow read, write: if false; }
+    match /reminderWork/{document=**} { allow read, write: if false; }
+    match /reminderDeliveries/{document=**} { allow read, write: if false; }
+    match /reminderSourceStatus/{document=**} { allow read, write: if false; }
+    match /reminderState/{document=**} { allow read, write: if false; }
     // Diagnostic history is written by server functions and exposed only
     // through an admin-gated callable with bounded, filtered pagination.
     match /diagnosticEvents/{eventId} { allow read, write: if false; }
@@ -418,14 +481,14 @@ service cloud.firestore {
     function insolvencyDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
     function insolvencyKeysAreValid(data) {
       return data.keys().hasAll(['partnerId', 'partnerName', 'insolvencyDate', 'knownDate', 'courtReference', 'courtVenue', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['partnerId', 'partnerName', 'insolvencyDate', 'knownDate', 'courtReference', 'courtVenue', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+        && data.keys().hasOnly(['partnerId', 'partnerName', 'insolvencyDate', 'knownDate', 'courtReference', 'courtVenue', 'description', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName', 'responsibleUserId', 'responsibleUserName']);
     }
     function validInsolvency(data, partnerId) {
       return data.partnerId == partnerId && data.partnerName is string && data.partnerName.size() > 0 && data.partnerName.size() <= 500
         && insolvencyDate(data.insolvencyDate) && insolvencyDate(data.knownDate) && insolvencyText(data.courtReference, 240) && insolvencyText(data.courtVenue, 240) && insolvencyText(data.description, 4000);
     }
     function createdInsolvency(partnerId) {
-      return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId)
+      return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId) && validCaseReminderResponsible(request.resource.data, 'insolvencies')
         && exists(/databases/$(database)/documents/businessPartners/$(partnerId))
         && request.resource.data.partnerName == get(/databases/$(database)/documents/businessPartners/$(partnerId)).data.companyName
         && getAfter(/databases/$(database)/documents/businessPartners/$(partnerId)).data.status == 'insolvency'
@@ -434,7 +497,7 @@ service cloud.firestore {
         && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
     }
     function updatedInsolvency(partnerId) {
-      return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId)
+      return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId) && responsibilityUnchanged(resource.data, request.resource.data)
         && request.resource.data.partnerId == resource.data.partnerId && request.resource.data.partnerName == resource.data.partnerName
         && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
         && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
@@ -526,11 +589,11 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validInsolvencyDeadline(data) {
           return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             && (!data.keys().hasAll(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
             && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320)) && (data.note == null || (data.note is string && data.note.size() <= 4000))
-            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string && validDeadlineReminderFields(data);
         }
         function deadlineParentWasUpdated() {
           return getAfter(/databases/$(database)/documents/insolvencies/$(partnerId)).data.partnerId == partnerId
@@ -541,16 +604,13 @@ service cloud.firestore {
         allow create: if edit('insolvencies') && validInsolvencyDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
-          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
-          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
+          && validNewDeadlineReminder(request.resource.data)
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('insolvencies') && validInsolvencyDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
-            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
-            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && validChangedDeadlineReminder(resource.data, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderOccurrence', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('insolvencies') && deadlineParentWasUpdated();
       }
 
@@ -645,8 +705,7 @@ service cloud.firestore {
     }
     function validDamageResponsible(data) {
       return (data.responsibleUserId == null && data.responsibleUserName == null)
-        || (data.responsibleUserId is string && data.responsibleUserName is string && activeProfile(data.responsibleUserId)
-          && data.responsibleUserName == profileName(get(/databases/$(database)/documents/users/$(data.responsibleUserId)).data));
+        || (data.responsibleUserId is string && data.responsibleUserName is string);
     }
     function hasPartnerReferenceRole(partner, role) {
       return (role == 'customer' && partner.keys().hasAll(['debtorNumber']) && partner.debtorNumber is string && partner.debtorNumber.size() > 0)
@@ -713,7 +772,7 @@ service cloud.firestore {
     }
     function damageCounterAfter(year) { return getAfter(/databases/$(database)/documents/damageCaseCounters/$(year)).data; }
     function isCreatedDamageCase() {
-      return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
+      return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data) && validCaseReminderResponsible(request.resource.data, 'damages')
         && request.resource.data.damageAmount is number
         && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
         && !request.resource.data.keys().hasAny(['damageLocation', 'liabilityNote'])
@@ -724,6 +783,7 @@ service cloud.firestore {
     }
     function isUpdatedDamageCase() {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
+        && (responsibilityUnchanged(resource.data, request.resource.data) || validCaseReminderResponsible(request.resource.data, 'damages'))
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.caseYear == resource.data.caseYear
         && request.resource.data.caseSequence == resource.data.caseSequence && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
@@ -787,11 +847,11 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validDamageDeadline(data) {
           return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             && (!data.keys().hasAll(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
             && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320)) && (data.note == null || (data.note is string && data.note.size() <= 4000))
-            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string && validDeadlineReminderFields(data);
         }
         function deadlineParentWasUpdated() {
           return getAfter(/databases/$(database)/documents/damageCases/$(id)).data.caseNumber is string
@@ -802,16 +862,13 @@ service cloud.firestore {
         allow create: if edit('damages') && validDamageDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
-          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
-          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
+          && validNewDeadlineReminder(request.resource.data)
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('damages') && validDamageDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
-            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
-            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && validChangedDeadlineReminder(resource.data, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderOccurrence', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('damages') && deadlineParentWasUpdated();
       }
 
@@ -877,7 +934,7 @@ service cloud.firestore {
         && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
     }
     function updatedLegalDispute() {
-      return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data)
+      return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data) && responsibilityUnchanged(resource.data, request.resource.data)
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
         && ((!resource.data.keys().hasAny(['caseYear', 'caseSequence']) && !request.resource.data.keys().hasAny(['caseYear', 'caseSequence']))
           || (request.resource.data.caseYear == resource.data.caseYear && request.resource.data.caseSequence == resource.data.caseSequence))
@@ -914,10 +971,10 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validLegalDisputeDeadline(data) {
           return data.keys().hasAll(['type', 'date', 'time', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             && (data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$'))) && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
-            && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+            && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string && validDeadlineReminderFields(data);
         }
         function deadlineParentWasUpdated() {
           return getAfter(/databases/$(database)/documents/legalDisputes/$(id)).data.caseNumber is string
@@ -928,16 +985,13 @@ service cloud.firestore {
         allow create: if edit('legalDisputes') && validLegalDisputeDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
-          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
-          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
+          && validNewDeadlineReminder(request.resource.data)
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('legalDisputes') && validLegalDisputeDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
-            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
-            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && validChangedDeadlineReminder(resource.data, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderOccurrence', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('legalDisputes') && deadlineParentWasUpdated();
       }
 
@@ -1008,6 +1062,7 @@ service cloud.firestore {
     }
     function updatedInkassoCase() {
       return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
+        && (responsibilityUnchanged(resource.data, request.resource.data) || validCaseReminderResponsible(request.resource.data, 'inkasso'))
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.title == resource.data.title
         && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
@@ -1107,11 +1162,11 @@ service cloud.firestore {
       match /deadlines/{deadlineId} {
         function validInkassoDeadline(data) {
           return data.keys().hasAll(['date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+            && data.keys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
             && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
             && (!data.keys().hasAll(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
             && data.reminderEnabled is bool && (!data.keys().hasAll(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320)) && (data.note == null || (data.note is string && data.note.size() <= 4000))
-            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+            && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string && validDeadlineReminderFields(data);
         }
         function deadlineParentWasUpdated() {
           return getAfter(/databases/$(database)/documents/inkassoCases/$(id)).data.caseNumber is string
@@ -1122,16 +1177,13 @@ service cloud.firestore {
         allow create: if edit('inkasso') && validInkassoDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
           && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
-          && (!request.resource.data.reminderEnabled || request.resource.data.time is string)
-          && request.resource.data.reminderRecipientEmail is string && request.resource.data.reminderRecipientEmail == ownProfile().email
+          && validNewDeadlineReminder(request.resource.data)
           && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
         allow update: if edit('inkasso') && validInkassoDeadline(request.resource.data) && deadlineParentWasUpdated()
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && (resource.data.keys().hasAll(['reminderRecipientEmail'])
-            ? request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail
-            : !request.resource.data.keys().hasAll(['reminderRecipientEmail']))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && validChangedDeadlineReminder(resource.data, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['date', 'time', 'reminderEnabled', 'reminderOccurrence', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if edit('inkasso') && deadlineParentWasUpdated();
       }
 
@@ -1184,7 +1236,7 @@ service cloud.firestore {
     }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
     }
     function profileName(profile) { return profile.firstName + ' ' + profile.lastName; }
     function activeProfile(userId) {
@@ -1284,7 +1336,7 @@ service cloud.firestore {
         && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null;
     }
     function isCreatedTodo() {
-      return todoKeysAreValid(request.resource.data) && validTodoContent(request.resource.data)
+      return todoKeysAreValid(request.resource.data) && validTodoContent(request.resource.data) && validNewTodoReminderSchedule(request.resource.data)
         && request.resource.data.creatorUserId == request.auth.uid && request.resource.data.creatorName == profileName(ownProfile())
         && (isCreatedOpenTodo() || isCreatedOwnTodo()) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
     }
@@ -1320,16 +1372,16 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
     }
     function isCreatorContentEdit() {
-      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data)
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
-      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data)
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
@@ -1352,22 +1404,20 @@ service cloud.firestore {
         && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
     }
     function validTodoDeadline(data) {
-      return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+      return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
         && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && (!data.keys().hasAny(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
-        && data.reminderEnabled is bool && (data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
+        && data.reminderEnabled is bool && (!data.keys().hasAny(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
         && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.calendarEntryId is string && data.calendarEntryId.size() > 0
-        && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string;
+        && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string && validDeadlineReminderFields(data);
     }
     function todoDeadlineEditor(todoId) {
       return edit('todos') && (superadmin() || todoDocument(todoId).creatorUserId == request.auth.uid)
         && todoDocument(todoId).status in ['open', 'in_progress'];
     }
     function todoDeadlineParentWasUpdated(todoId) { return todoAfter(todoId).updatedAt == request.time; }
-    function validNewTodoReminder(data) {
-      return !data.reminderEnabled || (data.time is string && data.reminderRecipientEmail is string && data.reminderRecipientEmail == ownProfile().email);
-    }
+    function validNewTodoReminder(data) { return validNewDeadlineReminder(data); }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if edit('todos') && isCreatedTodo();
@@ -1391,8 +1441,8 @@ service cloud.firestore {
         allow update: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id) && validTodoDeadline(request.resource.data)
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
-          && (request.resource.data.reminderRecipientEmail == resource.data.reminderRecipientEmail || (!resource.data.reminderEnabled && request.resource.data.reminderEnabled && request.resource.data.reminderRecipientEmail == ownProfile().email))
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && validChangedDeadlineReminder(resource.data, request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderOccurrence', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id);
       }
     }

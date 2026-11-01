@@ -1,7 +1,7 @@
-import { FiArrowRight, FiClock, FiCornerUpLeft, FiFileText, FiShield } from 'react-icons/fi'
+import { FiArrowRight, FiBriefcase, FiClock, FiCornerUpLeft, FiEdit3, FiFileText, FiShield } from 'react-icons/fi'
 import { TbCalculator } from 'react-icons/tb'
 
-const icons = { reply: FiCornerUpLeft, tracking: FiClock, order: FiFileText, invoice: TbCalculator, terms: FiShield }
+const icons = { compose: FiEdit3, reply: FiCornerUpLeft, tracking: FiClock, order: FiFileText, invoice: TbCalculator, terms: FiShield, todo: FiBriefcase, damage: FiBriefcase, collection: FiBriefcase, court: FiBriefcase, calendar: FiBriefcase }
 export default function MailActionButton({ kind, children, hint, onClick, disabled = false, expanded, state = 'idle' }) {
   const Icon = icons[kind]
   const running = state === 'running'

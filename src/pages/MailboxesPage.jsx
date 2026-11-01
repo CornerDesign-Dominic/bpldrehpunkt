@@ -1,5 +1,8 @@
 import MailboxKnowledgeNote from '../components/mailboxes/MailboxKnowledgeNote.jsx'
 import MailActionButton from '../components/mailboxes/MailActionButton.jsx'
+import MailComposeAction from '../components/mailboxes/MailComposeAction.jsx'
+import MailRecordAction from '../components/mailboxes/MailRecordAction.jsx'
+import { mailboxRecordKinds } from '../../shared/mailboxRecordFields.js'
 import MailInvoiceAction from '../components/mailboxes/MailInvoiceAction.jsx'
 import MailAgbAction from '../components/mailboxes/MailAgbAction.jsx'
 import MailActionIndicators from '../components/mailboxes/MailActionIndicators.jsx'
@@ -46,8 +49,10 @@ export default function MailboxesPage() {
   const [params, setParams] = useSearchParams()
   const dirtyRef = useRef(false)
   const orderDirtyRef = useRef(false)
+  const composeDirtyRef = useRef(false)
   const connectionId = params.get('mailbox') || ''
   const messageId = params.get('message') || ''
+  const replyId = params.get('reply') || ''
   const connection = connections.find(item => item.id === connectionId)
   const pending = params.get('connection') === 'pending'
   const storageKey = 'drehpunkt.mailboxes.last.' + user?.uid
@@ -57,20 +62,21 @@ export default function MailboxesPage() {
     if (!available.length || pending) return
     if (connectionId) {
       if (connection?.status === 'connected') {
-        try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId })) } catch { /* Optional navigation preference. */ }
+        try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId, reply: replyId })) } catch { /* Optional navigation preference. */ }
       }
       return
     }
     let last = null
     try { last = JSON.parse(localStorage.getItem(storageKey)) } catch { /* Invalid or unavailable preference. */ }
     const selected = available.find(item => item.id === last?.mailbox) || available[0]
-    setParams({ mailbox: selected.id, ...(selected.id === last?.mailbox && last?.message ? { message: last.message } : {}) }, { replace: true })
-  }, [connections, connectionId, messageId, connection, storageKey, setParams, pending])
+    setParams({ mailbox: selected.id, ...(selected.id === last?.mailbox && last?.message ? { message: last.message, ...(last.reply ? { reply: last.reply } : {}) } : {}) }, { replace: true })
+  }, [connections, connectionId, messageId, replyId, connection, storageKey, setParams, pending])
 
   function navigate(next) {
-    if ((dirtyRef.current || orderDirtyRef.current) && !window.confirm(w('Es gibt ungespeicherte Eingaben. Trotzdem wechseln?', 'There are unsaved changes. Leave anyway?'))) return
+    if ((dirtyRef.current || orderDirtyRef.current || composeDirtyRef.current) && !window.confirm(w('Es gibt ungespeicherte Eingaben. Trotzdem wechseln?', 'There are unsaved changes. Leave anyway?'))) return
     dirtyRef.current = false
     orderDirtyRef.current = false
+    composeDirtyRef.current = false
     setParams(next)
   }
 
@@ -81,14 +87,14 @@ export default function MailboxesPage() {
     {!loading && !error && !connections.length && <div className="mailbox-empty"><h2>{w('Noch kein Postfach verbunden', 'No mailbox connected')}</h2><p>{w('Deine Postfächer verbindest und benennst du in den Benutzereinstellungen.', 'Connect and name your mailboxes in user settings.')}</p><Link to="/profil#postfaecher">{w('Zu meinen Postfächern in den Einstellungen', 'Open my mailbox settings')}</Link></div>}
     {connection?.status === 'disconnecting' && <div className="mailbox-empty"><p>{w('Die Postfachverbindung wird getrennt. Eine unvollständige Trennung kannst du in den Benutzereinstellungen fortsetzen.', 'This mailbox is being disconnected. Complete an unfinished disconnection in user settings.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
     {connection?.status === 'connected' && <div className="mailbox-layout">
-      <Inbox key={connection.id} connectionId={connection.id} selectedId={messageId} onSelect={id => navigate({ mailbox: connection.id, message: id })} />
-      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId} connection={connection} messageId={messageId} editable={editable} dirtyRef={dirtyRef} orderDirtyRef={orderDirtyRef} /> : <div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>}
+      <Inbox key={connection.id} connectionId={connection.id} selectedId={replyId || messageId} onSelect={id => navigate({ mailbox: connection.id, message: id })} onSelectReply={(sourceId, id) => navigate({ mailbox: connection.id, message: sourceId, reply: id })} />
+      {messageId ? <MailWorkspace key={user?.uid + ':' + connection.id + ':' + messageId + ':' + replyId} connection={connection} messageId={replyId || messageId} sent={Boolean(replyId)} onShowIncoming={() => navigate({ mailbox: connection.id, message: messageId })} editable={editable && !replyId} canCompose={editable} composeDirtyRef={composeDirtyRef} dirtyRef={dirtyRef} orderDirtyRef={orderDirtyRef} /> : <div className="mailbox-workspace"><div className="mailbox-empty">{w('Wähle eine Nachricht aus dem Posteingang.', 'Select a message from the inbox.')}</div>{editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><MailComposeAction connection={connection} dirtyRef={composeDirtyRef} /></aside>}</div>}
     </div>}
     {!loading && Boolean(connections.length) && connectionId && !connection && <div className="mailbox-empty"><p>{w('Dieses Postfach ist nicht verfügbar. Wähle links ein verbundenes Postfach aus.', 'This mailbox is unavailable. Select a connected mailbox in the sidebar.')}</p><Link to="/profil#postfaecher">{w('Postfacheinstellungen öffnen', 'Open mailbox settings')}</Link></div>}
   </section>
 }
 
-function Inbox({ connectionId, selectedId, onSelect }) {
+function Inbox({ connectionId, selectedId, onSelect, onSelectReply }) {
   const { language } = useLanguage()
   const w = useWords()
   const [messages, setMessages] = useState([])
@@ -99,6 +105,11 @@ function Inbox({ connectionId, selectedId, onSelect }) {
   const [search, setSearch] = useState('')
   const request = useRef(0)
   const retryPage = useRef(null)
+  const [replies, setReplies] = useState({})
+  const [replyError, setReplyError] = useState(false)
+  const [replyPartial, setReplyPartial] = useState(false)
+  const [replyReload, setReplyReload] = useState(0)
+  const replyIds = messages.map(message => message.id).join('\n')
   const actionStates = useMailboxActionList(connectionId, messages.map(message => message.id))
   const load = useCallback(async (pageToken) => {
     const version = ++request.current
@@ -109,6 +120,7 @@ function Inbox({ connectionId, selectedId, onSelect }) {
       if (version !== request.current) return
       setMessages((current) => pageToken ? [...new Map([...current, ...result.messages].map((item) => [item.id, item])).values()] : result.messages)
       setNext(result.nextPageToken || null)
+      setReplyReload(value => value + 1)
     } catch { if (version === request.current) setError(w('Nachrichten konnten nicht geladen werden.', 'Could not load messages.')) }
     finally { if (version === request.current) setBusy(false) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,6 +131,32 @@ function Inbox({ connectionId, selectedId, onSelect }) {
     const currentRequest = request
     return () => { clearTimeout(task); ++currentRequest.current }
   }, [load])
+  useEffect(() => {
+    const refresh = () => setReplyReload(value => value + 1)
+    const timer = setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 60000)
+    window.addEventListener('focus', refresh)
+    window.addEventListener('drehpunkt:mail-reply-sent', refresh)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('drehpunkt:mail-reply-sent', refresh) }
+  }, [])
+  useEffect(() => {
+    if (!replyIds) return
+    let active = true
+    const loadReplies = async () => {
+      const ids = replyIds.split('\n')
+      let partial = false
+      try {
+        for (let offset = 0; offset < ids.length; offset += 30) {
+          const result = await mailboxCall('listMailboxReplies', { connectionId, messageIds: ids.slice(offset, offset + 30) })
+          if (!active) return
+          partial ||= result.partial === true
+          setReplies(current => ({ ...current, ...result.replies }))
+        }
+        if (active) { setReplyError(false); setReplyPartial(partial) }
+      } catch { if (active) setReplyError(true) }
+    }
+    void loadReplies()
+    return () => { active = false }
+  }, [connectionId, replyIds, replyReload])
   return <aside className="mailbox-inbox" aria-label={w('Posteingang', 'Inbox')}><div className="mailbox-panel-heading"><h2>{w('Posteingang', 'Inbox')}</h2><button type="button" disabled={busy} onClick={() => load()}>{w('Aktualisieren', 'Refresh')}</button></div>
     <form className="mailbox-search" role="search" onSubmit={event => { event.preventDefault(); const nextSearch = searchInput.trim(); if (nextSearch === search) void load(); else setSearch(nextSearch) }}>
       <div className="mailbox-search-row"><input aria-label={w('Posteingang durchsuchen', 'Search inbox')} id="mailbox-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder={w('Absender, Betreff, Mailtext', 'Sender, subject, message text')} /><button className="mailbox-search-submit" type="submit" aria-label={w('Suchen', 'Search')} title={w('Suchen', 'Search')}><FiSearch size={17} aria-hidden="true" /></button></div>
@@ -126,23 +164,24 @@ function Inbox({ connectionId, selectedId, onSelect }) {
       {search && <small role="status">{w('Suchergebnisse · bis zu 1.000 Treffer', 'Search results · up to 1,000 matches')}</small>}
     </form>
     {error && <Failure message={error} retry={() => load(retryPage.current)} />}
-    <div className="mailbox-message-list">{messages.map((message) => <button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
+    <div className="mailbox-message-list">{messages.map((message) => <div className="mailbox-message-group" key={message.id}><button className={`mailbox-message-item ${selectedId === message.id ? 'is-selected' : ''} ${message.isRead === false ? 'is-unread' : ''}`} type="button" key={message.id} onClick={() => onSelect(message.id)} aria-current={selectedId === message.id ? 'true' : undefined}>
       <span className="mailbox-message-heading"><span>{message.from?.emailAddress?.name || recipientAddress(message.from)}</span><MailActionIndicators identity={{ connectionId, messageId: message.id }} actions={actionStates} /></span><strong>{message.subject || w('(Kein Betreff)', '(No subject)')}</strong><small>{mailDate(message.receivedDateTime, language)} {message.hasAttachments ? ' · 📎' : ''}</small><span className="mailbox-preview">{message.bodyPreview}</span>
-    </button>)}</div>
+    </button>{(replies[message.id] || []).map(reply => <button className={`mailbox-replied-row ${selectedId === reply.id ? 'is-selected' : ''}`} type="button" key={reply.id} onClick={() => onSelectReply(message.id, reply.id)} aria-current={selectedId === reply.id ? 'true' : undefined} aria-label={`${w('Beantwortet', 'Replied')} · ${mailDate(reply.sentDateTime, language)}`}><span>{w('Beantwortet', 'Replied')}</span><time dateTime={reply.sentDateTime}>{mailDate(reply.sentDateTime, language)}</time><span aria-hidden="true">✓</span></button>)}</div>)}</div>
     {busy && <p role="status">{w('Nachrichten werden geladen …', 'Loading messages …')}</p>}
     {!busy && !error && !messages.length && <p role="status">{search ? w('Keine passenden Nachrichten gefunden.', 'No matching messages found.') : w('Der Posteingang ist leer.', 'The inbox is empty.')}</p>}
+    {(replyError || replyPartial) && <small className="mailbox-replies-warning" role="status">{w('Antworten konnten noch nicht vollständig geprüft werden.', 'Replies could not yet be fully checked.')} <button type="button" onClick={() => setReplyReload(value => value + 1)}>{w('Erneut prüfen', 'Check again')}</button></small>}
     {next && <button type="button" disabled={busy} onClick={() => load(next)}>{w('Weitere Nachrichten', 'More messages')}</button>}
   </aside>
 }
 
-function MessageContent({ message, beforeBody }) {
+function MessageContent({ message, beforeBody, sent = false }) {
   const { language } = useLanguage()
   const w = useWords()
-  return <><h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(message.receivedDateTime, language)}</dd></dl>
+  return <><h3>{message.subject || w('(Kein Betreff)', '(No subject)')}</h3><dl className="mailbox-metadata"><dt>{w('Von', 'From')}</dt><dd>{message.from?.emailAddress?.name} &lt;{recipientAddress(message.from)}&gt;</dd><dt>{w('An', 'To')}</dt><dd>{recipientText(message.toRecipients)}</dd>{message.ccRecipients?.length > 0 && <><dt>CC</dt><dd>{recipientText(message.ccRecipients)}</dd></>}<dt>{w('Datum', 'Date')}</dt><dd>{mailDate(sent ? message.sentDateTime : message.receivedDateTime, language)}</dd></dl>
     {beforeBody}<div className="mailbox-body">{message.body?.contentType?.toLowerCase() === 'html' ? w('Diese Nachricht konnte nicht sicher als Text dargestellt werden.', 'This message could not be safely displayed as text.') : splitMailConversation(message.body?.content || message.bodyPreview || w('(Leere Nachricht)', '(Empty message)')).map((part, index) => <div className="mailbox-conversation-part" key={index}>{index > 0 && <hr aria-label={w('Zitierte Nachricht', 'Quoted message')} />}{part}</div>)}</div></>
 }
 
-function MailWorkspace({ connection, messageId, editable, dirtyRef, orderDirtyRef }) {
+function MailWorkspace({ connection, messageId, sent = false, onShowIncoming, editable, canCompose, composeDirtyRef, dirtyRef, orderDirtyRef }) {
   const { profile } = useAuth()
   const w = useWords()
   const [message, setMessage] = useState(null)
@@ -156,16 +195,14 @@ function MailWorkspace({ connection, messageId, editable, dirtyRef, orderDirtyRe
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection.id, messageId, reload])
 
-  if (error) return <Failure message={error} retry={() => setReload((value) => value + 1)} />
-  if (!message) return <p role="status">{w('Nachricht wird geladen …', 'Loading message …')}</p>
-  const { files, inlineImages } = groupMailboxAttachments(message.attachments)
+  const { files, inlineImages } = groupMailboxAttachments(message?.attachments || [])
   return <div className="mailbox-workspace">
-    <article className="mailbox-reader" tabIndex={0} aria-label={w('Schriftverkehr', 'Correspondence')}><div className="mailbox-panel-heading"><h2>{w('Nachricht', 'Message')}</h2></div>
-      <MessageContent message={message} beforeBody={<MailboxAttachmentList attachments={files} identity={identity} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} />
+    <article className="mailbox-reader" tabIndex={0} aria-label={sent ? w('Gesendete Antwort', 'Sent reply') : w('Schriftverkehr', 'Correspondence')}><div className="mailbox-panel-heading"><h2>{sent ? w('Gesendete Antwort', 'Sent reply') : w('Nachricht', 'Message')}</h2>{sent && <button type="button" onClick={onShowIncoming}>{w('Eingangsmail anzeigen', 'Show incoming message')}</button>}</div>
+      {error ? <Failure message={error} retry={() => setReload((value) => value + 1)} /> : !message ? <p role="status">{w('Nachricht wird geladen …', 'Loading message …')}</p> : <><MessageContent message={message} sent={sent} beforeBody={<MailboxAttachmentList attachments={files} identity={identity} truncated={message.attachmentsTruncated} outlookUrl={safeOutlookLink(message.webLink)} />} />
       <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
-      {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}
+      {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}</>}
     </article>
-    {editable && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}{canEdit(profile, 'transportOrders') && canView(profile, 'masterData') && <MailOrderAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} dirtyRef={orderDirtyRef} />}{canEdit(profile, 'transportOrders') && <MailInvoiceAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />}{canView(profile, 'agbChecker') && <MailAgbAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />}</aside>}
+    {(editable || canCompose) && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2>{canCompose && <MailComposeAction connection={connection} dirtyRef={composeDirtyRef} />}{editable && message && !error && <><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{canEdit(profile, 'transportOrders') && <MailTrackingAction identity={identity} mailContent={<MessageContent message={message} />} />}{canEdit(profile, 'transportOrders') && canView(profile, 'masterData') && <MailOrderAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} dirtyRef={orderDirtyRef} />}{canEdit(profile, 'transportOrders') && <MailInvoiceAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />}{canView(profile, 'agbChecker') && <MailAgbAction identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />}<hr className="mailbox-actions-divider" />{Object.entries(mailboxRecordKinds).filter(([kind, config]) => kind === 'calendar' ? canView(profile, config.module) : canEdit(profile, config.module)).map(([kind]) => <MailRecordAction key={kind} kind={kind} identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />)}</>}</aside>}
   </div>
 }
 
@@ -192,6 +229,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   const dismissToast = useCallback(() => setToast(''), [])
   const active = useRef(true)
   const operation = useRef(null)
+  const sending = useRef(false)
   const revision = useRef(0)
   const dirty = Boolean(draft && JSON.stringify(draft) !== saved)
 
@@ -207,10 +245,18 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   useEffect(() => {
     let mounted = true
     active.current = true
-    mailboxCall('getMailboxDraft', identity).then(({ draft: stored }) => {
+    mailboxCall('getMailboxDraft', identity).then(async ({ draft: stored }) => {
       if (!mounted) return
+      const previouslySent = stored?.sendStatus === 'accepted'
+      if (previouslySent) {
+        // Also prepare a fresh reply when returning to a previously answered mail.
+        // This completes before exposing the draft, including an already opened dialog.
+        const result = await mailboxCall('saveMailboxDraft', { ...identity, draft: { ...stored, body: '', suggestion: '', suggestionInstruction: '' } })
+        if (!mounted) return
+        stored = result.draft
+      }
       const initial = stored ? { to: recipientText(stored.toRecipients), cc: recipientText(stored.ccRecipients), bcc: recipientText(stored.bccRecipients), body: stored.sendStatus === 'accepted' ? '' : stored.body || '', replyAll: stored.replyAll === true, suggestion: stored.sendStatus === 'accepted' ? '' : stored.suggestion || '', suggestionInstruction: stored.sendStatus === 'accepted' ? '' : stored.suggestionInstruction || '', suggestionKnowledge: stored.sendStatus === 'accepted' ? null : stored.suggestionKnowledge || null } : { ...replyRecipients(message, ownEmail), body: '', replyAll: false, suggestion: '', suggestionInstruction: '', suggestionKnowledge: null }
-      const cached = stored?.sendStatus === 'accepted' ? null : unsavedDrafts.get(cacheKey)
+      const cached = previouslySent ? null : unsavedDrafts.get(cacheKey)
       latestDraft.current = cached?.draft || initial
       setSuggestionsOpen(Boolean(latestDraft.current.suggestion || latestDraft.current.suggestionInstruction))
       setDraft(cached?.draft || initial); setSaved(cached?.saved || JSON.stringify(initial)); setError(''); setSendState(stored?.sendStatus || '')
@@ -252,12 +298,14 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
     finally { if (active.current) setBusy(false) }
   }
   async function send() {
+    if (sending.current) return
     setError(''); setNotice('')
     let value
     try {
       value = payload()
       if (!value.toRecipients.length || !value.body.trim()) throw new Error('empty')
     } catch { setError(w('Bitte Empfänger und Antworttext prüfen. Adressen mit Semikolon trennen.', 'Check recipients and reply text. Separate addresses with semicolons.')); return }
+    sending.current = true
     setBusy(true)
     try {
       const savedResult = await mailboxCall('saveMailboxDraft', { ...identity, draft: value })
@@ -274,6 +322,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
         setUndoBody(null); setSuggestionsOpen(false); setSuggestionError('')
         setDraft(cleared); setSaved(JSON.stringify(cleared)); setOpen(false)
         setToast(w('Antwort gesendet.', 'Reply sent.'))
+        window.dispatchEvent(new Event('drehpunkt:mail-reply-sent'))
       } else {
         setSaved(JSON.stringify(draft))
         setNotice(w('Versandstatus unklar. Bitte zuerst in Outlook unter „Gesendete Elemente“ prüfen und nicht erneut senden.', 'Sending status is unclear. Check Sent Items in Outlook before sending anything again.'))
@@ -287,6 +336,21 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
         }
         else setError(error?.code === 'functions/aborted' ? w('Der Entwurf wurde in einem anderen Fenster geändert. Es wurde keine Antwort gesendet. Dein Text bleibt erhalten.', 'The draft changed in another window. No reply was sent. Your text remains here.') : error?.code === 'functions/invalid-argument' ? w('Die Antwort wurde abgelehnt. Bitte Eingaben prüfen.', 'The reply was rejected. Check your input.') : w('Entwurf konnte vor dem Versand nicht gespeichert werden. Der Text bleibt erhalten.', 'Could not save draft before sending. Your text remains here.'))
       }
+    } finally { sending.current = false; if (active.current) setBusy(false) }
+  }
+  async function openReply() {
+    setOpen(true)
+    if (sendState !== 'accepted' || busy || !draft) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      // A new draft releases only a confirmed previous send. Unknown sends stay locked.
+      const result = await mailboxCall('saveMailboxDraft', { ...identity, draft: payload() })
+      if (!active.current) return
+      revision.current = result.draft.revision
+      operation.current = null
+      setSendState('')
+    } catch {
+      if (active.current) setError(w('Eine weitere Antwort konnte nicht vorbereitet werden. Bitte schließen und erneut versuchen oder die Seite aktualisieren.', 'Could not prepare another reply. Close and try again, or refresh the page.'))
     } finally { if (active.current) setBusy(false) }
   }
   function changeDraft(next) {
@@ -314,7 +378,7 @@ function ReplyComposer({ identity, message, ownEmail, dirtyRef }) {
   }
   function update(field, value) { changeDraft({ ...draft, [field]: value }); setNotice('') }
   const locked = busy || ['accepted', 'unknown', 'sending'].includes(sendState)
-  return <><MailActionButton kind="reply" onClick={() => setOpen(true)} expanded={open} disabled={sendState === 'accepted'} hint={sendState !== 'accepted' && draft?.body ? w('Entwurf vorhanden', 'Draft available') : undefined}>{sendState === 'accepted' ? w('Antwort gesendet', 'Reply sent') : w('Antworten', 'Reply')}</MailActionButton>
+  return <><MailActionButton kind="reply" onClick={openReply} expanded={open} disabled={busy} hint={sendState !== 'accepted' && draft?.body ? w('Entwurf vorhanden', 'Draft available') : undefined}>{w('Antworten', 'Reply')}</MailActionButton>
     <dialog ref={dialogRef} className="mailbox-reply-dialog" aria-labelledby="mailbox-reply-title" onCancel={event => { event.preventDefault(); if (!busy) setOpen(false) }}>
       <div className="mailbox-panel-heading mailbox-reply-dialog__heading"><h2 id="mailbox-reply-title">{w('Antworten', 'Reply')}</h2><button type="button" disabled={busy} onClick={() => setOpen(false)}>{w('Schließen', 'Close')}</button></div>
       <div className="mailbox-reply-dialog__columns"><article className="mailbox-reader" aria-label={w('Schriftverkehr', 'Correspondence')}><MessageContent message={message} /></article>

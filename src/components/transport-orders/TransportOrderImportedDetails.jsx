@@ -4,14 +4,14 @@ import { formatTransportOrderDocumentDate, transportOrderFinancialDocumentLabels
 
 const present = (value) => value !== null && value !== undefined && value !== ''
 
-export default function TransportOrderImportedDetails({ imported }) {
+export default function TransportOrderImportedDetails({ imported, showDocuments = true }) {
   const { language } = useLanguage()
   const locale = language === 'en' ? 'en-GB' : 'de-DE'
   const number = (value) => present(value) ? new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(value) : '—'
   const money = (value) => new Intl.NumberFormat(locale, { style: 'currency', currency: 'EUR' }).format(value ?? 0)
   const financial = imported?.financial || {}
   return <>
-    {Array.isArray(financial.documents) && <section className="transport-order-detail-section transport-order-detail-section--transport-wide">
+    {showDocuments && Array.isArray(financial.documents) && <section className="transport-order-detail-section transport-order-detail-section--transport-wide">
       <h3><StaticText source="Rechnungen und Gutschriften" /></h3>
       {financial.documents.length === 0 ? <p><StaticText source="Keine Belege übermittelt." /></p> : <div className="transport-order-imported-table"><table className="data-table"><thead><tr>
         {['Belegart', 'Interne Belegnummer', 'Externe Belegnummer', 'Datum interner Beleg', 'Währung', 'Hinweise'].map(label => <th key={label}><StaticText source={label} /></th>)}

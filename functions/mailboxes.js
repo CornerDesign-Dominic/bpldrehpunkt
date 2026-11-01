@@ -1,4 +1,10 @@
-import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge } from './knowledgeReply.js'
+import { cleanKnowledgeMailCopy } from './knowledgeTextClean.js'
+import { listMailboxReplies } from './mailboxReplies.js'
+import { applyMailboxRecord, previewMailboxRecord, searchRecordTargets } from './mailboxRecords.js'
+import { assertRecordAccess } from './mailboxRecordData.js'
+import { recordAttachmentType, validateRecordAttachments } from './mailboxRecordAi.js'
+import { statusMailAiApiKey } from './statusMailAi.js'
+import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge, knowledgeCaseUpdate } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
@@ -53,6 +59,10 @@ export function validateMailboxDraft(data) {
   }
   if (typeof data?.body !== 'string' || data.body.length > 100000 || data.body.includes('\0')) fail('invalid-argument', 'Ungültiger Antworttext.')
   const suggestionFields = {}
+  if (data.subject !== undefined) {
+    if (typeof data.subject !== 'string' || data.subject.length > 255 || [...data.subject].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) fail('invalid-argument', 'Ungültiger Betreff.')
+    suggestionFields.subject = data.subject.trim()
+  }
   for (const [key, max] of [['suggestion', 6000], ['suggestionInstruction', 1000]]) {
     if (data[key] !== undefined) {
       if (typeof data[key] !== 'string' || data[key].length > max || data[key].includes('\0')) fail('invalid-argument', 'Ungültiger Antwortvorschlag.')
@@ -248,6 +258,76 @@ export function createMailboxHandlers(deps = {}) {
     if (!bytes.length || bytes.length > MAX_ATTACHMENT || !bytes.subarray(0, 1024).includes(Buffer.from('%PDF-')) || bytes.toString('base64') !== file.contentBytes) fail('failed-precondition', 'Der Anhang enthält keine unterstützte PDF-Datei.')
     return { id: id(attachmentId), name: clean(file.name || metadata.name, 255) || 'Auftrag.pdf', contentBytes: file.contentBytes }
   }
+  const sendMessage = async (request, compose = false) => {
+    const context = await owned(request, true)
+    const draft = validateMailboxDraft(request.data)
+    assertTestRecipients(draft)
+    if (!draft.body.trim()) fail('invalid-argument', 'Bitte einen Antworttext eingeben.')
+    const operationId = clean(request.data.operationId, 80)
+    if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId)) fail('invalid-argument', 'Ungültige Versandreferenz.')
+    const messageId = compose ? 'compose:new' : id(request.data.messageId)
+    if (compose && !draft.subject) fail('invalid-argument', 'Bitte einen Betreff eingeben.')
+    const revision = request.data.revision
+    if (!Number.isSafeInteger(revision) || revision < 0) fail('invalid-argument', 'Ungültiger Entwurfsstand.')
+    const fingerprint = digest(JSON.stringify({ connectionId: context.connectionId, messageId, draft, ...(compose ? { kind: 'new-message' } : {}) }))
+    const operation = db().doc(`mailboxSendOperations/${digest(`${context.uid}|${operationId}`)}`)
+    const persistedDraft = draftRef({ ...context, messageId })
+    const token = await accessToken(context)
+    const existing = await db().runTransaction(async tx => {
+      const previous = await tx.get(operation)
+      if (previous.exists) {
+        if (previous.data().fingerprint !== fingerprint) fail('already-exists', 'Diese Versandreferenz gehört zu einer anderen Antwort.')
+        return previous.data().status === 'accepted' ? 'accepted' : 'unknown'
+      }
+      const liveConnection = (await tx.get(context.ref)).data()
+      if (liveConnection?.status !== 'connected' || liveConnection.ownerId !== context.uid || liveConnection.secretVersion !== context.connection.secretVersion) fail('aborted', 'Postfachverbindung wurde geändert. Bitte erneut laden.')
+      if (context.credential) {
+        const parent = (await tx.get(context.credential.ref)).data()
+        if (parent?.ownerId !== context.uid || parent.status !== 'connected' || parent.secretVersion !== context.credential.connection.secretVersion || liveConnection.parentConnectionId !== context.credential.connectionId) fail('aborted', 'Das persönliche Microsoft-Konto wurde geändert. Bitte erneut laden.')
+      }
+      const previousDraft = (await tx.get(persistedDraft)).data()
+      if ((previousDraft?.draft?.revision || 0) !== revision || previousDraft?.operationId) fail('aborted', 'Diese Nachricht wurde bereits bearbeitet oder eine Antwort wurde versendet. Bitte zuerst neu laden und den Versandstatus prüfen.')
+      const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
+      const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
+      draft.revision = revision
+      const captureEvidence = evidence?.exists && evidence.data()?.removed !== true
+      if (captureEvidence) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), knowledgeCaseUpdate(evidence.data(), { sentReply: cleanKnowledgeMailCopy(draft.body), sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() }))
+      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(captureEvidence ? { knowledgeEvidenceId: evidenceId } : {}) })
+      tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
+      return null
+    })
+    if (existing) return { status: existing, operationId }
+    try {
+      // Explicit recipient arrays also override reply-all defaults: the domain restriction
+      // is checked against every recipient that is actually submitted.
+      await graph(token, compose ? `${mailboxPath(context)}/sendMail` : `${mailboxPath(context)}/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { ...(compose ? { subject: draft.subject } : {}), ...(context.connection.kind === 'shared' ? { from: { emailAddress: { address: context.connection.email } } } : {}), body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
+      await operation.update({ status: 'accepted', finishedAt: now() })
+      // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
+      try {
+        const receipt = (await operation.get()).data()
+        if (receipt?.knowledgeEvidenceId) await db().runTransaction(async tx => {
+          const evidenceRef = db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`)
+          const evidence = await tx.get(evidenceRef)
+          if (evidence.exists && evidence.data()?.removed !== true) tx.set(evidenceRef, knowledgeCaseUpdate(evidence.data(), { sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
+        })
+      } catch {
+        await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
+      }
+      // Preserve the send receipt, but remove sent text and AI drafting metadata.
+      try {
+        await db().runTransaction(async tx => {
+          const current = (await tx.get(persistedDraft)).data()
+          // Another window may already have started the next reply after acceptance.
+          if (current?.operationId === operationId && current.draft?.revision === revision) tx.update(persistedDraft, { draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } })
+        })
+      } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
+      return { status: 'accepted', operationId }
+    } catch {
+      await operation.update({ status: 'unknown', finishedAt: now() })
+      await diagnose({ stage: 'send', code: 'send_outcome_unknown', message: 'Versandstatus unklar. Vor erneutem Versand in Outlook prüfen.', actorId: context.uid, recordId: operationId })
+      return { status: 'unknown', operationId }
+    }
+  }
   const handlers = {
     beginMailboxConnection: guarded('connect', async request => {
       const { uid, profile } = await check(request, true)
@@ -368,6 +448,32 @@ export function createMailboxHandlers(deps = {}) {
       const reports = await Promise.all(entries.docs.map(async entry => (await db().doc(`invoiceCheckReports/${entry.data().reportId}`).get()).data()?.report))
       return { reports: reports.filter(Boolean) }
     }),
+    previewMailboxRecord: guarded('record-preview', async request => {
+      const context = await owned(request, true)
+      const kind = request.data.kind
+      assertRecordAccess(context, kind)
+      const messageId = id(request.data.messageId)
+      const token = await accessToken(context)
+      const base = `${mailboxPath(context)}/messages/${segment(messageId)}`
+      const mail = await graph(token, `${base}?$select=id,subject,from,receivedDateTime,body,bodyPreview,webLink`)
+      const list = await graph(token, `${base}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
+      const files = []
+      for (const file of validateRecordAttachments(list)) {
+        if (recordAttachmentType(file) === 'unsupported' || file['@odata.type'] !== '#microsoft.graph.fileAttachment') { files.push(file); continue }
+        const full = await graph(token, `${base}/attachments/${segment(file.id)}`)
+        if (typeof full.contentBytes !== 'string' || full.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4) fail('failed-precondition', 'Ein Anhang ist nicht lesbar oder zu groß.')
+        files.push({ ...file, contentBytes: full.contentBytes })
+      }
+      return previewMailboxRecord({ db: db(), actor: context, kind, messageId, mail, files, apiKey: deps.recordApiKey || statusMailAiApiKey.value(), now: now(), extract: deps.extractRecordSources, infer: deps.inferMailboxRecord })
+    }),
+    searchMailboxRecordTargets: guarded('record-search', async request => {
+      const context = await owned(request, true)
+      return searchRecordTargets({ db: db(), actor: context, kind: request.data.kind, data: request.data })
+    }),
+    applyMailboxRecord: guarded('record-apply', async request => {
+      const context = await owned(request, true)
+      return applyMailboxRecord({ db: db(), actor: context, data: request.data, now: now() })
+    }),
     analyzeMailboxAgb: guarded('agb-analyse', async request => {
       const context = await owned(request, true)
       assertMailboxAgbAccess(context)
@@ -448,11 +554,16 @@ export function createMailboxHandlers(deps = {}) {
       }
       return { messages: result.value || [], nextPageToken }
     }),
+    listMailboxReplies: guarded('sent-replies', async request => {
+      const context = await owned(request)
+      const token = await accessToken(context)
+      return listMailboxReplies({ ids: request.data.messageIds, base: mailboxPath(context), validatePage: value => mailboxMessagePagePath(value, context.connection), graph: (path, options) => graph(token, path, options) })
+    }),
     getMailboxMessage: guarded('read', async request => {
       const context = await owned(request)
       const token = await accessToken(context)
       const path = `${mailboxPath(context)}/messages/${segment(request.data.messageId)}`
-      const message = await graph(token, `${path}?$select=id,subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,isRead,hasAttachments,body,webLink`)
+      const message = await graph(token, `${path}?$select=id,subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,isRead,hasAttachments,body,webLink`)
       if (message.body?.contentType?.toLowerCase() !== 'text') fail('unavailable', 'Microsoft hat keine sichere Textansicht geliefert.')
       const attachments = await graph(token, `${path}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
       message.attachments = (attachments.value || []).map(a => ({ id: a.id, name: a.name, contentType: a.contentType, size: a.size, isInline: a.isInline, supported: a['@odata.type'] === '#microsoft.graph.fileAttachment' && a.size <= MAX_ATTACHMENT }))
@@ -477,7 +588,7 @@ export function createMailboxHandlers(deps = {}) {
       const mailKey = digest(`${context.connectionId}|${messageId}`)
       const lock = randomBytes(16).toString('hex')
       const ref = draftRef({ ...context, messageId })
-      await db().runTransaction(async tx => {
+      const replyGeneration = await db().runTransaction(async tx => {
         const quota = (await tx.get(quotaRef)).data() || {}
         const draft = (await tx.get(ref)).data()
         if (draft?.operationId) fail('failed-precondition', 'Für diese Nachricht wurde bereits eine Antwort versendet oder der Versand gestartet.')
@@ -487,6 +598,7 @@ export function createMailboxHandlers(deps = {}) {
         if (attempts.length >= 20) fail('resource-exhausted', 'Du kannst bis zu 20 Vorschläge pro Stunde erstellen. Bitte später erneut versuchen.')
         running[mailKey] = { lock, until: now() + 180000 }
         tx.set(quotaRef, { attempts: [...attempts, now()], running, expiresAt: now() + 7200000 })
+        return draft?.replyGeneration || 0
       })
       try {
         const mail = await graph(await accessToken(context), `${mailboxPath(context)}/messages/${segment(messageId)}?$select=id,subject,body,from,bodyPreview`)
@@ -494,7 +606,8 @@ export function createMailboxHandlers(deps = {}) {
         const selection = catalog ? await (deps.selectReplyKnowledge || selectReplyKnowledge)({ catalog, mail, userId: context.uid }) : null
         const suggestion = validateReplySuggestion(await (deps.generateReplySuggestion || generateReplySuggestion)({ mail, input, userId: context.uid, knowledge: selection }))
         const current = await owned(request, true)
-        if ((await ref.get()).data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
+        const currentDraft = (await ref.get()).data()
+        if (currentDraft?.operationId || (currentDraft?.replyGeneration || 0) !== replyGeneration) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
         if (selection && !hasReplyKnowledgeAccess(current.profile)) fail('permission-denied', 'Die Wissensberechtigung wurde inzwischen geändert.')
         const knowledge = { status: !selection || selection.limited || selection.coverage === 'uncertain' ? 'unavailable' : selection.coverage === 'full' ? 'grounded' : 'unmatched', sources: (selection?.sources || []).map(({ id, kind, revision, title }) => ({ id, kind, revision, title })), warnings: [...(!selection ? ['knowledge_access_unavailable'] : []), ...(selection?.limited ? ['knowledge_search_limited'] : []), ...(selection?.coverage === 'uncertain' ? ['knowledge_match_uncertain'] : [])] }
         await db().runTransaction(async tx => {
@@ -502,7 +615,7 @@ export function createMailboxHandlers(deps = {}) {
           const [draftSnapshot, connectionSnapshot, profileSnapshot, ...sources] = await Promise.all([
             tx.get(ref), tx.get(context.ref), ...(selection ? [tx.get(db().doc(`users/${context.uid}`))] : [Promise.resolve(null)]), ...sourceRefs.map(reference => tx.get(reference)),
           ])
-          if (draftSnapshot.data()?.operationId) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
+          if (draftSnapshot.data()?.operationId || (draftSnapshot.data()?.replyGeneration || 0) !== replyGeneration) fail('aborted', 'Die Antwort wurde inzwischen versendet. Der Vorschlag wird nicht übernommen.')
           if (connectionSnapshot.data()?.ownerId !== context.uid || connectionSnapshot.data()?.status !== 'connected') fail('permission-denied', 'Die Postfachverbindung wurde inzwischen geändert.')
           if (selection) {
             assertMailboxAccess(profileSnapshot.data(), true)
@@ -513,7 +626,7 @@ export function createMailboxHandlers(deps = {}) {
           const previousEvidence = previousEvidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`)) : null
           const gap = selection ? await (deps.recordReplyKnowledgeGap || recordReplyKnowledgeGap)({ db: db(), profile: profileSnapshot.data(), context, mail: { ...mail, id: mail.id || messageId }, selection, catalog, suggestion, transaction: tx }) : null
           const evidenceId = gap?.evidenceId || previousEvidenceId
-          if (!gap?.evidenceId && previousEvidence?.exists) tx.set(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`), { ...previousEvidence.data(), latestSuggestion: suggestion, suggestionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+          if (!gap?.evidenceId && previousEvidence?.exists && previousEvidence.data()?.removed !== true) tx.set(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`), knowledgeCaseUpdate(previousEvidence.data(), { latestSuggestion: cleanKnowledgeMailCopy(suggestion), suggestionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
           tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge }, ...(evidenceId ? { knowledgeEvidenceId: evidenceId } : {}) }, { merge: true })
         })
         return { suggestion, knowledge: publicReplyKnowledge(knowledge) }
@@ -553,71 +666,19 @@ export function createMailboxHandlers(deps = {}) {
       const ref = draftRef({ ...context, messageId: request.data.messageId })
       await db().runTransaction(async tx => {
         const previous = (await tx.get(ref)).data()
-        const lastSuggestion = previous?.lastSuggestion?.hash === replySuggestionHash(draft.suggestion || '') ? previous.lastSuggestion : null
-        if ((previous?.draft?.revision || 0) !== revision || previous?.operationId) fail('aborted', 'Der Entwurf wurde bereits geändert oder versendet. Bitte neu laden; Ihr Text bleibt erhalten.')
+        const previousSend = previous?.operationId ? (await tx.get(db().doc(`mailboxSendOperations/${digest(`${context.uid}|${previous.operationId}`)}`))).data() : null
+        const newReply = Boolean(previous?.operationId)
+        const lastSuggestion = !newReply && previous?.lastSuggestion?.hash === replySuggestionHash(draft.suggestion || '') ? previous.lastSuggestion : null
+        if ((previous?.draft?.revision || 0) !== revision || (newReply && previousSend?.status !== 'accepted')) fail('aborted', 'Der Entwurf wurde bereits geändert oder der Versandstatus ist unklar. Bitte neu laden; Ihr Text bleibt erhalten.')
         draft.revision = revision + 1
-        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}), ...(/^[a-f0-9]{64}$/.test(previous?.knowledgeEvidenceId || '') ? { knowledgeEvidenceId: previous.knowledgeEvidenceId } : {}) })
+        // A confirmed send closes one reply, not the incoming message. Keep its receipt
+        // immutable, and start a fresh versioned draft without the previous AI provenance; retain only the local learning-case link.
+        tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId: id(request.data.messageId), draft, replyGeneration: (previous?.replyGeneration || 0) + (newReply ? 1 : 0), updatedAt: now(), ...(lastSuggestion ? { lastSuggestion } : {}), ...(/^[a-f0-9]{64}$/.test(previous?.knowledgeEvidenceId || '') ? { knowledgeEvidenceId: previous.knowledgeEvidenceId } : {}) })
       })
       return { draft }
     }),
-    sendMailboxReply: guarded('send', async request => {
-      const context = await owned(request, true)
-      const draft = validateMailboxDraft(request.data)
-      assertTestRecipients(draft)
-      if (!draft.body.trim()) fail('invalid-argument', 'Bitte einen Antworttext eingeben.')
-      const operationId = clean(request.data.operationId, 80)
-      if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId)) fail('invalid-argument', 'Ungültige Versandreferenz.')
-      const messageId = id(request.data.messageId)
-      const revision = request.data.revision
-      if (!Number.isSafeInteger(revision) || revision < 0) fail('invalid-argument', 'Ungültiger Entwurfsstand.')
-      const fingerprint = digest(JSON.stringify({ connectionId: context.connectionId, messageId, draft }))
-      const operation = db().doc(`mailboxSendOperations/${digest(`${context.uid}|${operationId}`)}`)
-      const persistedDraft = draftRef({ ...context, messageId })
-      const token = await accessToken(context)
-      const existing = await db().runTransaction(async tx => {
-        const previous = await tx.get(operation)
-        if (previous.exists) {
-          if (previous.data().fingerprint !== fingerprint) fail('already-exists', 'Diese Versandreferenz gehört zu einer anderen Antwort.')
-          return previous.data().status === 'accepted' ? 'accepted' : 'unknown'
-        }
-        const liveConnection = (await tx.get(context.ref)).data()
-        if (liveConnection?.status !== 'connected' || liveConnection.ownerId !== context.uid || liveConnection.secretVersion !== context.connection.secretVersion) fail('aborted', 'Postfachverbindung wurde geändert. Bitte erneut laden.')
-        if (context.credential) {
-          const parent = (await tx.get(context.credential.ref)).data()
-          if (parent?.ownerId !== context.uid || parent.status !== 'connected' || parent.secretVersion !== context.credential.connection.secretVersion || liveConnection.parentConnectionId !== context.credential.connectionId) fail('aborted', 'Das persönliche Microsoft-Konto wurde geändert. Bitte erneut laden.')
-        }
-        const previousDraft = (await tx.get(persistedDraft)).data()
-        if ((previousDraft?.draft?.revision || 0) !== revision || previousDraft?.operationId) fail('aborted', 'Diese Nachricht wurde bereits bearbeitet oder eine Antwort wurde versendet. Bitte zuerst neu laden und den Versandstatus prüfen.')
-        const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
-        const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
-        draft.revision = revision
-        if (evidence?.exists) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), { ...evidence.data(), sentReply: draft.body, sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() })
-        tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(evidence?.exists ? { knowledgeEvidenceId: evidenceId } : {}) })
-        tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
-        return null
-      })
-      if (existing) return { status: existing, operationId }
-      try {
-        // Explicit recipient arrays also override reply-all defaults: the domain restriction
-        // is checked against every recipient that is actually submitted.
-        await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { ...(context.connection.kind === 'shared' ? { from: { emailAddress: { address: context.connection.email } } } : {}), body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
-        await operation.update({ status: 'accepted', finishedAt: now() })
-        // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
-        try {
-          const receipt = (await operation.get()).data()
-          if (receipt?.knowledgeEvidenceId) await db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`).update({ sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
-        } catch {
-          await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
-        }
-        // Preserve the send receipt, but remove sent text and AI drafting metadata.
-        try { await persistedDraft.update({ draft: { ...draft, body: '', suggestion: '', suggestionInstruction: '' } }) } catch { /* Accepted receipt remains authoritative; reads suppress sent text. */ }
-        return { status: 'accepted', operationId }
-      } catch {
-        await operation.update({ status: 'unknown', finishedAt: now() })
-        await diagnose({ stage: 'send', code: 'send_outcome_unknown', message: 'Versandstatus unklar. Vor erneutem Versand in Outlook prüfen.', actorId: context.uid, recordId: operationId })
-        return { status: 'unknown', operationId }
-      }
-    }),
+    sendMailboxReply: guarded('send', request => sendMessage(request)),
+    sendMailboxMessage: guarded('send', request => sendMessage(request, true)),
     disconnectMailbox: guarded('disconnect', async request => {
       const context = await owned(request, true, true)
       if (context.connection.kind === 'shared') {
@@ -708,7 +769,7 @@ export function createMailboxHandlers(deps = {}) {
     for (const snapshot of states.docs) await snapshot.ref.delete()
     const previews = await db().collection('mailboxTrackingPreviews').where('expiresAt', '<', now()).limit(100).get()
     for (const snapshot of previews.docs) await snapshot.ref.delete()
-    for (const collection of ['mailboxReplyQuotas', 'mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns']) {
+    for (const collection of ['mailboxReplyQuotas', 'mailboxOrderPreviews', 'mailboxOrderQuotas', 'mailboxOrderExports', 'mailboxActionRuns', 'mailboxRecordPreviews', 'mailboxRecordQuotas']) {
       const expired = await db().collection(collection).where('expiresAt', '<', now()).limit(100).get()
       for (const snapshot of expired.docs) await snapshot.ref.delete()
     }
@@ -732,12 +793,16 @@ export const applyMailboxTrackingHandler = handlers.applyMailboxTracking
 export const previewMailboxOrderHandler = handlers.previewMailboxOrder
 export const exportMailboxOrderHandler = handlers.exportMailboxOrder
 export const listMailboxMessagesHandler = handlers.listMailboxMessages
+export const listMailboxRepliesHandler = handlers.listMailboxReplies
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment
 export const suggestMailboxReplyHandler = handlers.suggestMailboxReply
 export const getMailboxDraftHandler = handlers.getMailboxDraft
 export const saveMailboxDraftHandler = handlers.saveMailboxDraft
 export const sendMailboxReplyHandler = handlers.sendMailboxReply
+export const sendMailboxMessageHandler = handlers.sendMailboxMessage
+export const searchMailboxRecordTargetsHandler = handlers.searchMailboxRecordTargets
+export const applyMailboxRecordHandler = handlers.applyMailboxRecord
 export const disconnectMailboxHandler = handlers.disconnectMailbox
 export const mailboxOAuthCallbackHandler = handlers.mailboxOAuthCallback
 export const cleanupMailboxConnectionsHandler = handlers.cleanupMailboxConnections

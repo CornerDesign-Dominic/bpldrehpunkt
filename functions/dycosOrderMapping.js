@@ -139,6 +139,7 @@ function stopView(stop) {
     city: stop?.address.city || null,
     originalText: stop ? addressText(stop.address) : null,
     window: stop?.window || { from: null, until: null },
+    fixedAppointment: stop?.fixedAppointment ?? null,
     note: stop?.note || null,
     reference: stop?.deliveryInformation || null,
   }
@@ -154,6 +155,16 @@ function sourceBoolean(value, field) {
   if (typeof value === 'boolean') return value
   if (value === 0 || value === 1) return value === 1
   fail(field)
+}
+
+function distanceValues(row, field, routedKey) {
+  if (!row) return null
+  return {
+    totalKm: sourceNumber(row.Gesamtkilometer, `${field}.Gesamtkilometer`, { positive: true }),
+    motorwayKm: sourceNumber(row.Autobahnkilometer, `${field}.Autobahnkilometer`, { positive: true }),
+    emptyKm: sourceNumber(row.Leerkilometer, `${field}.Leerkilometer`, { positive: true }),
+    routed: sourceBoolean(row[routedKey], `${field}.${routedKey}`),
+  }
 }
 
 function pricePositions(rows, field) {
@@ -232,11 +243,14 @@ export function mapDycosOrder(payload, requestedTa) {
       type: type === 'L' ? 'loading' : type === 'E' ? 'unloading' : 'unknown',
       address: address(row, 'ladeEntladestellen'),
       window: { from, until },
+      fixedAppointment: sourceBoolean(slots.get(id)?.Fixtermin, 'LadeEntladestellen2.Fixtermin'),
       slotUntilTime: clock,
       note: sourceText(row.Bemerkung, 'ladeEntladestellen.Bemerkung'),
       deliveryInformation: sourceText(row.Zustellinformation, 'ladeEntladestellen.Zustellinformation'),
       deliveryNoteNumber: sourceText(row.LieferscheinNr, 'ladeEntladestellen.LieferscheinNr'),
       cargo: {
+        description: sourceText(row.Ware, 'ladeEntladestellen.Ware'),
+        volumetricWeightKg: sourceNumber(slots.get(id)?.Volumengewicht_gesamt_kg, 'LadeEntladestellen2.Volumengewicht_gesamt_kg', { positive: true }),
         weightKg: sourceNumber(row.Gewicht, 'ladeEntladestellen.Gewicht', { positive: true }),
         packages: sourceNumber(row.Kolli, 'ladeEntladestellen.Kolli', { integer: true, positive: true }),
         loadingMeters: sourceNumber(row.Lademeter, 'ladeEntladestellen.Lademeter', { positive: true }),
@@ -281,7 +295,10 @@ export function mapDycosOrder(payload, requestedTa) {
     loading: stopView(stops.find((stop) => stop.type === 'loading')),
     unloading: stopView(stops.filter((stop) => stop.type === 'unloading').at(-1)),
     financial: { revenueNet, costNet, currency: 'EUR', revenuePositions, costPositions, documents },
-    shipment: { licensePlate: plate(payload.tour?.LKWNummer, payload.tour?.Trailer), weightKg: sourceNumber(order.Gewicht, 'auftrag.Gewicht', { positive: true }), loadingMeters: sourceNumber(order.Lademeter, 'auftrag.Lademeter', { positive: true }), packages: sourceNumber(order.AnzahlKolli, 'auftrag.AnzahlKolli', { integer: true, positive: true }), vehicleType: sourceText(payload.fahrzeugart?.Bezeichnung, 'fahrzeugart.Bezeichnung') },
+    shipment: { licensePlate: plate(payload.tour?.LKWNummer, payload.tour?.Trailer), weightKg: sourceNumber(order.Gewicht, 'auftrag.Gewicht', { positive: true }), loadingMeters: sourceNumber(order.Lademeter, 'auftrag.Lademeter', { positive: true }), packages: sourceNumber(order.AnzahlKolli, 'auftrag.AnzahlKolli', { integer: true, positive: true }), vehicleType: sourceText(payload.fahrzeugart?.Bezeichnung, 'fahrzeugart.Bezeichnung'), goodsDescription: sourceText(order.Ware, 'auftrag.Ware'), hazardousGoods: sourceBoolean(order.Gefahrgut, 'auftrag.Gefahrgut'), vehicleInformation: sourceText(payload.fahrzeugart?.Informationen, 'fahrzeugart.Informationen') },
+    // DyCoS source distances are separate from Drehpunkt's calculated route.
+    // Literal zero and false remain supplied values, never inferred facts.
+    distances: { order: distanceValues(order, 'auftrag', 'KMGeroutet'), tour: distanceValues(payload.tour, 'tour', 'Geroutet') },
     // Standard-address selection and Info-1 equivalence have not been confirmed.
     contacts: { carrierForOrder: null, carrierStandardEmail: null, customerForOrder: sourceText(order.ImAuftrag, 'auftrag.ImAuftrag'), customerStandardEmail: null },
     dispatch: { sentAt: plannedDate(payload.tour?.TAPerMailDatum, 'tour.TAPerMailDatum'), sentTo: sourceText(payload.tour?.TAPerMailVersendetAn, 'tour.TAPerMailVersendetAn') },

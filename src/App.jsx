@@ -66,8 +66,10 @@ const InkassoCaseDetailPage = lazy(() => import('./pages/InkassoCaseDetailPage.j
 const AgbCheckerPage = lazy(() => import('./pages/AgbCheckerPage.jsx'))
 const TransportOrdersPage = lazy(() => import('./pages/TransportOrdersPage.jsx'))
 const TransportOrderImportHistoryPage = lazy(() => import('./pages/TransportOrderImportHistoryPage.jsx'))
+const ShipmentTrackingPage = lazy(() => import('./pages/ShipmentTrackingPage.jsx'))
+const LegacyTrackingDetailRedirect = lazy(() => import('./pages/TransportOrderRecordPage.jsx').then(module => ({ default: module.LegacyTrackingDetailRedirect })))
 const TransportOrderImportPage = lazy(() => import('./pages/TransportOrderImportPage.jsx'))
-const TransportOrderDetailPage = lazy(() => import('./pages/TransportOrderDetailPage.jsx'))
+const TransportOrderRecordPage = lazy(() => import('./pages/TransportOrderRecordPage.jsx'))
 const MasterDataImportPage = lazy(() => import('./pages/MasterDataImportPage.jsx'))
 
 function ProtectedAppLayout() {
@@ -112,11 +114,13 @@ export default function App() {
         <Route path="/kunden-unternehmer/stammdaten/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
+        <Route path="/sendungsverfolgung" element={<PermissionRoute module="transportOrders"><ShipmentTrackingPage /></PermissionRoute>} />
+        <Route path="/sendungsverfolgung/:transportOrderId" element={<PermissionRoute module="transportOrders"><LegacyTrackingDetailRedirect /></PermissionRoute>} />
         <Route path="/transportauftraege" element={<PermissionRoute module="transportOrders"><TransportOrdersPage /></PermissionRoute>} />
         <Route path="/transportauftraege/import" element={<PermissionRoute anyModules={["transportOrderSingleImport", "transportOrderBulkImport"]} minimum="edit"><TransportOrderImportPage /></PermissionRoute>} />
         <Route path="/transportauftraege/import/einzel" element={<PermissionRoute module="transportOrderSingleImport" minimum="edit"><TransportOrderImportPage kind="single" /></PermissionRoute>} />
         <Route path="/transportauftraege/import/sammel" element={<PermissionRoute module="transportOrderBulkImport" minimum="edit"><TransportOrderImportPage kind="bulk" /></PermissionRoute>} />
-        <Route path="/transportauftraege/:transportOrderId" element={<PermissionRoute module="transportOrders"><TransportOrderDetailPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/:transportOrderId" element={<PermissionRoute module="transportOrders"><TransportOrderRecordPage /></PermissionRoute>} />
         <Route path="/crm" element={<PermissionRoute module="crm"><CrmPage /></PermissionRoute>} />
         <Route path="/crm/:partnerId" element={<PermissionRoute module="crm"><CrmDetailPage /></PermissionRoute>} />
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />

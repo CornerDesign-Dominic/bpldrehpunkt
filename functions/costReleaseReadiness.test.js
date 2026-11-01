@@ -4,6 +4,7 @@ import { costReadinessPaths, parseReadinessArguments, summarizeCostReadiness } f
 
 test('readiness requires every current generation and complete pallet tour coverage', () => {
   assert.equal(costReadinessPaths.list, 'backgroundWorkState/transport-order-list-v3')
+  assert.equal(costReadinessPaths.reminders, 'reminderState/preparation')
   const states = { tracking: { complete: true }, reminders: { complete: true }, list: { complete: true }, pallets: { version: 1, status: 'ready', generation: 'g', tourCoverage: true } }
   assert.equal(summarizeCostReadiness(states).dataReady, true)
   for (const key of ['tracking', 'reminders', 'list']) {

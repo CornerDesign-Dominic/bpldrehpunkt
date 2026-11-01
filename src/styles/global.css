@@ -1910,10 +1910,10 @@ tbody tr:hover td { background: var(--table-hover-background); }
 .import-status-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
 .import-status { display: inline-flex; min-height: 25px; align-items: center; padding: 0 8px; border: 1px solid var(--border); border-radius: 99px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 11px; font-weight: 700; }
 .import-status--fehlerhaft { color: var(--status-danger-text); border-color: var(--status-danger-text); background: var(--status-danger-background); }.import-status--prüfung-erforderlich { color: var(--status-warning-text); border-color: var(--status-warning-text); background: var(--status-warning-background); }.import-status--neu { color: #35634b; background: #eaf3ed; }.import-status--aktualisiert { color: #1f608b; background: #e2f0fa; }
-.transport-order-detail-layout { display: grid; grid-template-columns: minmax(160px, 205px) 48px minmax(0, 1fr) 48px minmax(180px, 230px); align-items: start; column-gap: 0; }
+.transport-order-detail-layout { display: grid; grid-template-columns: minmax(160px, 205px) 48px minmax(0, 1fr); align-items: start; column-gap: 0; }
 .transport-order-detail-main { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.transport-order-detail-actions, .transport-order-detail-system { display: grid; align-content: start; gap: 12px; min-width: 0; }
-.transport-order-detail-actions { grid-column: 1; }.transport-order-detail-main { grid-column: 3; }.transport-order-detail-system { grid-column: 5; }
+.transport-order-detail-actions { display: grid; align-content: start; gap: 12px; min-width: 0; }
+.transport-order-detail-actions { grid-column: 1; }.transport-order-detail-main { grid-column: 3; }
 .transport-order-received-mails__list { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
 .transport-order-received-mails__list button { display: grid; width: 100%; gap: 4px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--text-primary); background: var(--surface-secondary); text-align: left; cursor: pointer; }
 .transport-order-received-mails__list button:hover { border-color: var(--button-background); }
@@ -1955,22 +1955,11 @@ tbody tr:hover td { background: var(--table-hover-background); }
 @media (max-width: 850px) { .shipment-tracking-editor.transport-order-received-mail-modal { height: calc(100vh - 20px); }.transport-order-received-mail-modal__columns { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 1fr) minmax(170px, .8fr); gap: 10px; min-height: 0; }.transport-order-received-mail-modal__stage .shipment-tracking-editor__time-field > div:has(> .button) { grid-template-columns: minmax(0, 1fr); }.transport-order-received-mail-modal__message .shipment-tracking-editor__actions { flex-wrap: wrap; } }
 
 @media (min-width: 1241px) {
-  .transport-order-detail-actions, .transport-order-detail-system {
+  .transport-order-detail-actions {
     align-self: start;
     position: sticky;
     top: 0;
   }
-  .transport-order-detail-system {
-    display: flex;
-    /* The rail starts inside the 28 px top padding of the scrolling content.
-       Its available height must therefore exclude the 64 px application
-       header as well as both the 28 px top and 36 px bottom content padding. */
-    height: calc(100dvh - 64px - 28px - 36px);
-    max-height: calc(100dvh - 64px - 28px - 36px);
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .transport-order-detail-system > :not(.transport-order-received-mails) { flex: 0 0 auto; }
   .transport-order-received-mails { display: flex; min-height: 0; flex: 0 1 auto; flex-direction: column; overflow: hidden; }
   .transport-order-received-mails__list { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
 }
@@ -2045,20 +2034,17 @@ tbody tr:hover td { background: var(--table-hover-background); }
 @media (max-width: 1240px) and (min-width: 961px) {
   .transport-order-detail-layout { grid-template-columns: minmax(175px, 220px) minmax(0, 1fr); column-gap: 32px; row-gap: 18px; }
   .transport-order-detail-actions, .transport-order-detail-main { grid-column: auto; }
-  .transport-order-detail-system { grid-column: 1 / -1; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .transport-order-detail-system .transport-order-detail-list { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 960px) {
   .transport-order-detail-layout { grid-template-columns: 1fr; row-gap: 16px; }
-  .transport-order-detail-actions, .transport-order-detail-main, .transport-order-detail-system { grid-column: auto; }
+  .transport-order-detail-actions, .transport-order-detail-main { grid-column: auto; }
   .transport-order-detail-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .transport-order-detail-system { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 720px) {
   .shipment-tracking-timeline__header-summary { justify-items: start; text-align: left; }.shipment-tracking-timeline__header-summary > span { justify-content: flex-start; }
-  .transport-order-detail-main, .transport-order-detail-system { grid-template-columns: 1fr; }
+  .transport-order-detail-main { grid-template-columns: 1fr; }
   .shipment-tracking-timeline__heading { grid-template-columns: 1fr; }.shipment-tracking-timeline__forecast-control { justify-self: start; }.shipment-tracking-timeline__status { justify-self: start; }.shipment-tracking-timeline__timeline { padding: 0 0 0 50px; }.shipment-tracking-timeline__timeline::before { top: 22px; bottom: 22px; left: 16px; width: 2px; height: auto; }.shipment-tracking-timeline__truck { top: calc(22px + (100% - 44px) * var(--shipment-progress)); left: 0; transform: translate(-12px, -50%); }.shipment-tracking-timeline__stages { grid-template-columns: 1fr; gap: 0; }.shipment-tracking-timeline__stages li { position: relative; min-height: 61px; justify-items: start; padding-left: 0; text-align: left; }.shipment-tracking-timeline__station { position: absolute; top: 16px; left: -40px; }.shipment-tracking-timeline__stage-label { margin-top: 9px; }.shipment-tracking-timeline__stage-subtitle { max-width: none; }.shipment-tracking-timeline__details { grid-template-columns: 1fr; }
   .shipment-tracking-history__entries li { grid-template-columns: 1fr; }.shipment-tracking-history__entries dl { justify-content: flex-start; }.shipment-tracking-editor-backdrop { padding: 10px; }.shipment-tracking-editor { max-height: calc(100vh - 20px); padding: 14px; }.shipment-tracking-editor__time-grid, .shipment-tracking-editor__source { grid-template-columns: 1fr; }.shipment-tracking-editor__time-field > div { grid-template-columns: minmax(0, 1fr) auto; }.shipment-tracking-editor__time-field select { grid-column: 1 / -1; }
 }

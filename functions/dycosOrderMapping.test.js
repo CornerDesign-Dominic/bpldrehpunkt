@@ -64,6 +64,109 @@ test('maps numbers, identities, first loading and last unloading by station sequ
   assert.equal(result.source.carrierId, '15')
 })
 
+test('transport details retain source descriptions and vehicle information without inventing dimensions', () => {
+  const data = sample()
+  data.auftrag.Ware = '  Handelsware\nauf Paletten  '
+  data.fahrzeugart.Informationen = '  Seitlich beladbar  '
+  data.ladeEntladestellen.find(row => row.ID === 31).Ware = '  Ware der ersten Station  '
+  data.ladeEntladestellen.find(row => row.ID === 31).Masse = 'Ungeklärte Quellenangabe'
+  const result = map(data)
+  assert.equal(result.shipment.goodsDescription, 'Handelsware\nauf Paletten')
+  assert.equal(result.shipment.vehicleInformation, 'Seitlich beladbar')
+  assert.equal(result.stops[0].cargo.description, 'Ware der ersten Station')
+  assert.equal(result.stops[1].cargo.description, null)
+  assert.equal(result.stops[0].cargo.dimensions, undefined)
+  assert.equal(JSON.stringify(result).includes('Ungeklärte Quellenangabe'), false)
+})
+
+test('hazardous goods is an explicit source tri-state and never inferred from goods text', () => {
+  for (const [value, expected] of [[true, true], [false, false], [1, true], [0, false], [null, null], [undefined, null]]) {
+    const data = sample()
+    data.auftrag.Gefahrgut = value
+    data.auftrag.Ware = 'ADR im unveränderten Warenfreitext'
+    assert.equal(map(data).shipment.hazardousGoods, expected)
+  }
+})
+
+test('volumetric station weight follows the supplementary station join and never replaces physical weights', () => {
+  const data = sample()
+  data.LadeEntladestellen2 = [
+    { LadeEntladestellenID: 34, Volumengewicht_gesamt_kg: 0 },
+    { LadeEntladestellenID: 31, Volumengewicht_gesamt_kg: '1.250,50' },
+  ]
+  const result = map(data)
+  assert.deepEqual(result.stops.map(stop => stop.cargo.volumetricWeightKg), [1250.5, null, null, 0])
+  assert.equal(result.shipment.weightKg, 24000.5)
+  assert.equal(result.stops[0].cargo.weightKg, null)
+  data.LadeEntladestellen2.reverse()
+  assert.deepEqual(map(data), result)
+  data.LadeEntladestellen2[0].Volumengewicht_gesamt_kg = null
+  assert.equal(map(data).stops[0].cargo.volumetricWeightKg, null)
+  for (const invalid of [-1, 'unbekannt', true, Number.POSITIVE_INFINITY]) {
+    data.LadeEntladestellen2[0].Volumengewicht_gesamt_kg = invalid
+    assert.throws(() => map(data), error => error instanceof DycosMappingError && error.field === 'LadeEntladestellen2.Volumengewicht_gesamt_kg')
+  }
+})
+
+test('source distances keep order and tour values apart from route calculations and explicit zero stays zero', () => {
+  const data = sample()
+  Object.assign(data.auftrag, { Gesamtkilometer: '100,50', Autobahnkilometer: 70, Leerkilometer: 0, KMGeroutet: false })
+  Object.assign(data.tour, { Gesamtkilometer: 500, Autobahnkilometer: '300,25', Leerkilometer: 10, Geroutet: 1 })
+  const result = map(data)
+  assert.deepEqual(result.distances.order, { totalKm: 100.5, motorwayKm: 70, emptyKm: 0, routed: false })
+  assert.deepEqual(result.distances.tour, { totalKm: 500, motorwayKm: 300.25, emptyKm: 10, routed: true })
+  assert.equal(result.route, undefined)
+  assert.equal(result.shipment.distanceKm, undefined)
+})
+
+test('missing optional transport fields remain unknown, including absent tour or vehicle lookups', () => {
+  const result = map(emptyOrder())
+  assert.equal(result.shipment.goodsDescription, null)
+  assert.equal(result.shipment.vehicleInformation, null)
+  assert.equal(result.shipment.hazardousGoods, null)
+  assert.deepEqual(result.distances.order, { totalKm: null, motorwayKm: null, emptyKm: null, routed: null })
+  assert.equal(result.distances.tour, null)
+  const withTour = map(sample())
+  assert.deepEqual(withTour.distances.tour, { totalKm: null, motorwayKm: null, emptyKm: null, routed: null })
+})
+
+test('legacy preservation retains only its established fields and never substitutes previous transport source values', () => {
+  const previous = {
+    shipment: { goodsDescription: 'Alte Ware', hazardousGoods: true, vehicleInformation: 'Alter Hinweis', weightKg: 100 },
+    distances: { order: { totalKm: 500, routed: true } },
+  }
+  const next = map(emptyOrder())
+  const preserved = preserveDycosUnmappedFields(previous, next)
+  assert.equal(preserved.imported.shipment.weightKg, 100)
+  assert.equal(preserved.imported.shipment.goodsDescription, null)
+  assert.equal(preserved.imported.shipment.hazardousGoods, null)
+  assert.equal(preserved.imported.shipment.vehicleInformation, null)
+  assert.deepEqual(preserved.imported.distances.order, { totalKm: null, motorwayKm: null, emptyKm: null, routed: null })
+  assert.deepEqual(preserved.preservedPaths, ['shipment.weightKg'])
+  assert.equal(next.shipment.weightKg, null)
+  assert.equal(preserved.imported.source.system, 'dycos')
+  assert.equal(preserved.imported.source.schemaVersion, 2)
+})
+
+test('invalid transport detail inputs are rejected without string or boolean coercion', () => {
+  for (const mutate of [
+    data => { data.auftrag.Ware = 12 },
+    data => { data.auftrag.Gefahrgut = 'false' },
+    data => { data.auftrag.Gefahrgut = 2 },
+    data => { data.fahrzeugart.Informationen = {} },
+    data => { data.ladeEntladestellen[0].Ware = false },
+    data => { data.auftrag.Gesamtkilometer = -1 },
+    data => { data.auftrag.Autobahnkilometer = true },
+    data => { data.auftrag.Leerkilometer = 'unbekannt' },
+    data => { data.auftrag.KMGeroutet = 'true' },
+    data => { data.tour.Gesamtkilometer = Number.POSITIVE_INFINITY },
+    data => { data.tour.Geroutet = 3 },
+  ]) {
+    const data = sample(); mutate(data)
+    assert.throws(() => map(data), DycosMappingError)
+  }
+})
+
 test('uses only slot clock and its associated station arrival date without timezone shifting', () => {
   const result = map(sample())
   assert.equal(result.loading.window.from, '2026-11-01T08:00')
@@ -71,6 +174,59 @@ test('uses only slot clock and its associated station arrival date without timez
   assert.equal(result.unloading.window.until, '2026-11-04T11:00')
   assert.equal(result.stops[3].slotUntilTime, '11:00')
   assert.equal(result.dispatch.sentAt, null)
+})
+
+test('joins fixed appointments by station ID, preserving true and false independently from slot times', () => {
+  const data = sample()
+  data.LadeEntladestellen2 = [
+    { LadeEntladestellenID: 34, Fixtermin: false, Slotzeit: '2026-11-04T11:00:00Z' },
+    { LadeEntladestellenID: 32, Fixtermin: true },
+    { LadeEntladestellenID: 31, Fixtermin: true, Slotzeit: null },
+    { LadeEntladestellenID: 33, Fixtermin: false },
+  ]
+  const result = map(data)
+  assert.deepEqual(result.stops.map(stop => [stop.sourceId, stop.fixedAppointment]), [['31', true], ['32', true], ['33', false], ['34', false]])
+  assert.equal(result.loading.fixedAppointment, true)
+  assert.equal(result.loading.window.until, null)
+  assert.equal(result.unloading.fixedAppointment, false)
+  assert.equal(result.unloading.window.until, '2026-11-04T11:00')
+  const reordered = structuredClone(data)
+  reordered.ladeEntladestellen.reverse()
+  reordered.LadeEntladestellen2.reverse()
+  assert.deepEqual(map(reordered), result)
+  assert.deepEqual(map(data), result)
+})
+
+test('normalizes numeric fixed appointments without coercing false into a missing value', () => {
+  const data = sample()
+  data.LadeEntladestellen2[0].Fixtermin = 0
+  data.LadeEntladestellen2[1].Fixtermin = 1
+  const result = map(data)
+  assert.equal(result.stops[0].fixedAppointment, false)
+  assert.equal(result.loading.fixedAppointment, false)
+  assert.equal(result.stops[3].fixedAppointment, true)
+  assert.equal(result.unloading.fixedAppointment, true)
+})
+
+test('missing fixed appointment data remains null and is never inferred from times or notes', () => {
+  const data = sample()
+  data.LadeEntladestellen2[0].Fixtermin = null
+  data.ladeEntladestellen[0].Bemerkung = 'Fixtermin 08:00 Uhr'
+  const result = map(data)
+  assert.deepEqual(result.stops.map(stop => stop.fixedAppointment), [null, null, null, null])
+  assert.equal(result.loading.fixedAppointment, null)
+  assert.equal(result.unloading.fixedAppointment, null)
+  const empty = map(emptyOrder())
+  assert.equal(empty.loading.fixedAppointment, null)
+  assert.equal(empty.unloading.fixedAppointment, null)
+})
+
+test('rejects unconfirmed fixed appointment values instead of guessing a boolean', () => {
+  for (const invalid of ['true', 'false', '0', '1', 2, -1, 0.5, {}, []]) {
+    const data = sample()
+    data.LadeEntladestellen2[0].Fixtermin = invalid
+    assert.throws(() => map(data), error => error instanceof DycosMappingError && error.field === 'LadeEntladestellen2.Fixtermin')
+  }
 })
 
 test('slot without station date retains clock without inventing a timestamp', () => {
@@ -194,7 +350,7 @@ test('station cargo remains per station, pallet exchange is tri-state and creato
   Object.assign(data.ladeEntladestellen[1], { Gewicht: '1.600,00', Kolli: '9', Lademeter: '6,5', Palettentausch: true })
   data.ladeEntladestellen[0].Palettentausch = false
   const result = map(data)
-  assert.deepEqual(result.stops[0].cargo, { weightKg: 1600, packages: 9, loadingMeters: 6.5 })
+  assert.deepEqual(result.stops[0].cargo, { description: null, volumetricWeightKg: null, weightKg: 1600, packages: 9, loadingMeters: 6.5 })
   assert.equal(result.stops[0].palletExchange, true)
   assert.equal(result.stops[1].palletExchange, null)
   assert.equal(result.stops[2].palletExchange, false)
