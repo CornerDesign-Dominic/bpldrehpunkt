@@ -11,13 +11,13 @@ if (enabled) { assert.match(process.env.FIRESTORE_EMULATOR_HOST, /^(127\.0\.0\.1
 const empty = () => ({ schemaVersion: 1, pageSize: 15, hasMore: false, nextNachId: null, auftraege: [], kunden: [], touren: [], unternehmer: [], stationen: [], relationen: [] })
 const data = { ladeDatumVon: '2026-01-01', ladeDatumBis: '2026-01-02' }
 const request = (uid, input = data) => ({ auth: { uid }, data: input })
-async function user(permissions = { dataImports: 'edit' }, active = true) { const uid = randomUUID(); await getFirestore().doc(`users/${uid}`).set({ active, role: 'user', permissions, firstName: 'Test' }); return uid }
+async function user(permissions = { transportOrderBulkImport: 'edit' }, active = true) { const uid = randomUUID(); await getFirestore().doc(`users/${uid}`).set({ active, role: 'user', permissions, firstName: 'Test' }); return uid }
 const deps = (fetchSearch, report = async () => {}) => ({ db: getFirestore(), fetchSearch, report })
 
 test('emulator: search rejects missing, inactive and view-only identities before source access', { skip: !enabled }, async () => {
   let calls = 0; const dependencies = deps(async () => { calls++; return empty() })
   await assert.rejects(searchDycosTransportOrdersHandler({ data }, dependencies), { code: 'unauthenticated' })
-  for (const uid of [await user({ dataImports: 'view' }), await user(undefined, false), randomUUID()]) await assert.rejects(searchDycosTransportOrdersHandler(request(uid), dependencies), { code: 'permission-denied' })
+  for (const uid of [await user({ transportOrderBulkImport: 'view' }), await user(undefined, false), randomUUID()]) await assert.rejects(searchDycosTransportOrdersHandler(request(uid), dependencies), { code: 'permission-denied' })
   const uid = await user()
   await assert.rejects(searchDycosTransportOrdersHandler(request(uid, { ...data, ladeDatumVon: '2025-12-31' }), dependencies), { code: 'invalid-argument' })
   assert.equal(calls, 0)
@@ -39,7 +39,7 @@ test('emulator: parallel searches are bounded and revoked rights prevent preview
   const first = searchDycosTransportOrdersHandler(request(uid), deps(async () => { entered(); await pending; return empty() }))
   await enteredPromise
   await assert.rejects(searchDycosTransportOrdersHandler(request(uid), deps(async () => assert.fail('source must not be called'))), { code: 'aborted' })
-  await getFirestore().doc(`users/${uid}`).update({ 'permissions.dataImports': 'none' }); finish()
+  await getFirestore().doc(`users/${uid}`).update({ 'permissions.transportOrderBulkImport': 'none' }); finish()
   await assert.rejects(first, { code: 'permission-denied' })
 })
 

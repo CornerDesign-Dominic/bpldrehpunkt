@@ -58,14 +58,14 @@ for (const kind of ['customer', 'carrier']) {
 
 test('emulator: historic transport CSV run and its rows remain readable without modifying the saved order', { skip: !enabled }, async () => {
   const db = getFirestore(), key = randomUUID(), uid = `reader-${key}`
-  await db.doc(`users/${uid}`).set({ active: true, permissions: { dataImports: 'edit' } })
+  await db.doc(`users/${uid}`).set({ active: true, role: 'admin', permissions: { dataImports: 'edit' } })
   const run = db.collection('transportOrderImportRuns').doc(key)
   await run.set({ source: 'dycos', fileName: 'original.csv', importedAt: Timestamp.now(), importedByName: 'Historischer Nutzer', counts: { Neu: 1 } })
   await run.collection('rows').doc('row').set({ rowNumber: 2, externalNumber: '260100123', status: 'Neu' })
   const order = db.collection('transportOrders').doc(key)
   await order.set({ externalNumber: '260100123', manual: { note: 'Erhalten' }, importMeta: { fileName: 'original.csv' } })
   const before = (await order.get()).data()
-  const result = await listTransportOrderImportRunsHandler(request(uid, { runId: key }))
+  const result = await listTransportOrderImportRunsHandler(request(uid, { scope: 'all', runId: key }))
   assert.equal(result.run.fileName, 'original.csv')
   assert.equal(result.run.importedByName, 'Historischer Nutzer')
   assert.equal(result.rows[0].externalNumber, '260100123')

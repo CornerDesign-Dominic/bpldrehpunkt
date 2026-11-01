@@ -23,7 +23,7 @@ export default function OrderFinancialDocuments({ financial, customerName, carri
   if (!documents.length) return <section className="transport-order-detail-section">
     <h3>{w('Abrechnungsbelege', 'Billing documents')}</h3>
     <p>{w('Noch keine Abrechnungsbelege übermittelt.', 'No billing documents have been provided yet.')}</p>
-    <p className="order-workspace__muted">{w('Über „Auftragsdaten aktualisieren“ lassen sich neue Belege aus DyCoS abrufen.', 'Use “Update order data” to retrieve new documents from DyCoS.')}</p>
+    <p className="order-workspace__muted">{w('Über „Aktualisieren“ oben rechts lassen sich neue Belege aus DyCoS abrufen.', 'Use “Update” at the top right to retrieve new documents from DyCoS.')}</p>
   </section>
   const titles = { customer: w('Kunde (KU) · Abrechnungsbelege', 'Customer · Billing documents'), carrier: w('Unternehmer (UTN) · Abrechnungsbelege', 'Carrier · Billing documents'), unknown: w('Belege mit offener Zuordnung', 'Documents awaiting classification') }
   return groups.filter(group => group.side !== 'unknown' || group.entries.length).map(group => <section className="transport-order-detail-section order-financial-documents" key={group.side}>

@@ -12,6 +12,7 @@ function Record() {
   const { language } = useLanguage()
   const active = orderRecordTab(params.get('tab'))
   const [mailsOpen, setMailsOpen] = useState(false)
+  const [refreshControlsTarget, setRefreshControlsTarget] = useState(null)
   const [opened, setOpened] = useState(() => ({ tracking: active === 'tracking', order: active !== 'tracking', lastOrderTab: active === 'tracking' ? 'overview' : active }))
   // Keep visited panels mounted, and retain the last business view while tracking
   // is selected. Opening an order alone does not load the tracking implementation.
@@ -31,10 +32,10 @@ function Record() {
       event.preventDefault()
       const target = event.key === 'Home' ? 0 : event.key === 'End' ? orderRecordTabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + orderRecordTabs.length) % orderRecordTabs.length
       select(orderRecordTabs[target]); document.getElementById(`order-tab-${orderRecordTabs[target]}`)?.focus()
-    }}>{labels[index]}</button>)}</div><button type="button" aria-haspopup="dialog" onClick={() => setMailsOpen(true)}>{language === 'en' ? 'Assigned emails' : 'Zugeordnete Mails'}</button></div>
+    }}>{labels[index]}</button>)}</div><button type="button" aria-haspopup="dialog" onClick={() => setMailsOpen(true)}>{language === 'en' ? 'Assigned emails' : 'Zugeordnete Mails'}</button><div className="order-record__refresh" ref={setRefreshControlsTarget} /></div>
     <Suspense fallback={<p className="page-state">{language === 'en' ? 'Loading …' : 'Wird geladen …'}</p>}>
       {opened.tracking && <div hidden={active !== 'tracking'} id="order-panel-tracking" role="tabpanel" aria-labelledby="order-tab-tracking"><Tracking active={active === 'tracking'} mailsOpen={mailsOpen} onCloseMails={() => setMailsOpen(false)} /></div>}
-      {opened.order && <div hidden={active === 'tracking'}><Order active={active !== 'tracking'} showTabs={false} tabOverride={active === 'tracking' ? opened.lastOrderTab : active} /></div>}
+      {opened.order && <div hidden={active === 'tracking'}><Order active={active !== 'tracking'} showTabs={false} tabOverride={active === 'tracking' ? opened.lastOrderTab : active} refreshControlsTarget={refreshControlsTarget} /></div>}
     </Suspense>
   </div>
 }

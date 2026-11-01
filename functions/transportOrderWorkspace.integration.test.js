@@ -8,12 +8,13 @@ import { getFirestore as adminFirestore } from 'firebase-admin/firestore'
 import { initializeApp, deleteApp } from 'firebase/app'
 import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, terminate, setLogLevel } from 'firebase/firestore'
 import { refreshTransportOrderWorkspaceHandler, listTransportOrderRecordsPageHandler } from './transportOrderWorkspace.js'
+import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
 const projectId = 'demo-order-workspace'
 if (enabled) { assert.match(process.env.FIRESTORE_EMULATOR_HOST, /^(localhost|127\.0\.0\.1):/); adminApp({ projectId }) }
 const db = () => adminFirestore()
-async function setup(permissions = { transportOrders: 'view', dataImports: 'edit', masterData: 'edit' }) {
+async function setup(permissions = { transportOrders: 'view', transportOrderRefresh: 'edit', masterData: 'edit' }) {
   const uid = randomUUID(), orderId = `dycos-${Math.floor(261000000 + Math.random() * 900000)}`, partnerId = randomUUID()
   await db().doc(`users/${uid}`).set({ active: true, role: 'user', permissions, firstName: 'Workspace', lastName: 'Test' })
   await db().doc(`businessPartners/${partnerId}`).set({ companyName: 'Synthetic' })
@@ -44,12 +45,27 @@ test('emulator: concurrent identical requests reserve once, persist partial outc
 })
 
 test('emulator: scope rights are enforced before a source call or refresh receipt is created', { skip: !enabled }, async () => {
-  const s = await setup({ transportOrders: 'view', dataImports: 'edit' }); let calls = 0
+  const s = await setup({ transportOrders: 'view', transportOrderRefresh: 'edit' }); let calls = 0
   await assert.rejects(refreshTransportOrderWorkspaceHandler(s.request(), { fetchOrder: async () => { calls++; return {} } }), { code: 'permission-denied' })
   assert.equal(calls, 0)
   assert.equal((await db().collection(`transportOrders/${s.orderId}/refreshes`).get()).size, 0)
   await db().doc(`users/${s.uid}`).update({ active: false })
   await assert.rejects(listTransportOrderRecordsPageHandler({ auth: { uid: s.uid }, data: {} }), { code: 'permission-denied' })
+})
+
+test('emulator: existing workspace orders refresh with only the dedicated refresh right and keep their audited outcome', { skip: !enabled }, async () => {
+  const s = await setup({ transportOrders: 'view', transportOrderRefresh: 'edit' })
+  let calls = 0
+  const result = await refreshTransportOrderWorkspaceHandler(s.request('order'), { fetchOrder: request => {
+    assert.equal(request.data.mode, 'refresh')
+    return fetchDycosTransportOrderHandler(request, { db: db(), report: async () => {}, fetchOrder: async number => {
+      calls++
+      return { auftrag: { ID: 123, Nummer: Number(number), Ladedatum: '2026-11-01' }, ladeEntladestellen: [], LadeEntladestellen2: [], kunde: null, tour: null, unternehmerstamm: null, fahrzeugart: null, relation: null, zahlungsbedingungKunde: null, zahlungsbedingungUnternehmer: null, auftragspreise: [], tourkosten: [], fakturaZeilen: [], fakturaKopf: [] }
+    } })
+  } })
+  assert.equal(result.status, 'success')
+  assert.equal(calls, 1)
+  assert.equal((await db().doc(`transportOrders/${s.orderId}/refreshes/${result.recordId}`).get()).get('result.order.status'), 'updated')
 })
 
 test('emulator: records list contains orders without station dates and returns a bounded cursor page', { skip: !enabled }, async () => {

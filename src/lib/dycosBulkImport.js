@@ -40,15 +40,15 @@ export async function runDycosBulkImport(initial, { fetchOrder, onChange, should
     while (now() < until) { if (shouldStop()) return false; await wait(Math.min(500, until - now())) }
     return !shouldStop()
   }
-  for (const item of job.items) {
+  for (const [selectionIndex, item] of job.items.entries()) {
     if (item.status !== 'pending' || shouldStop()) continue
     if (!await delay(job.lastStartedAt + DYCOS_IMPORT_SPACING_MS)) break
     let retries = 0
     while (!shouldStop()) {
       item.status = 'running'; delete item.error; job.lastStartedAt = now(); await persist()
       try {
-        const result = await fetchOrder({ taNummer: item.taNummer, requestId: item.requestId, expectedSourceId: item.expectedSourceId })
-        if (!completed.has(result?.status) || result.externalNumber !== item.taNummer || String(result.sourceId) !== String(item.expectedSourceId)
+        const result = await fetchOrder({ taNummer: item.taNummer, requestId: item.requestId, ...(item.expectedSourceId != null ? { expectedSourceId: item.expectedSourceId } : {}), ...(job.runId ? { importRunId: job.runId, selectionIndex } : {}) })
+        if (!completed.has(result?.status) || result.externalNumber !== item.taNummer || item.expectedSourceId != null && String(result.sourceId) !== String(item.expectedSourceId)
           || result.requestId !== item.requestId || result.orderId !== `dycos-${item.taNummer}`) throw Object.assign(new Error('Invalid import response'), { code: 'functions/internal' })
         item.status = result.status; item.orderId = result.orderId; item.warningCodes = Array.isArray(result.warningCodes) ? result.warningCodes.slice(0, 50) : []
         await persist(); break

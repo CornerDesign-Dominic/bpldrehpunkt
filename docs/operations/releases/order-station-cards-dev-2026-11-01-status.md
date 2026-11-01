@@ -91,3 +91,21 @@ Identische synthetische Daten: Kopfbereich 338 auf 181 Pixel, zwei Stationen
 Shared-Abgleich sind Teil der Vorprüfung; für diese reine Oberflächenkorrektur
 werden keine Functions, Rules oder Indizes neu bereitgestellt. Der Frontend-Push
 bleibt ausschließlich auf Dev, Vercel-Erfolg am veröffentlichten Commit prüfen.
+
+## Aktualisierung in der Reiterleiste, 01.11.2026
+
+Die fortlaufende Dev-Korrektur verschiebt Zeitpunkt und Aktualisierungsaktion
+für Übersicht, Auftrag, Kunde & UTN und Finanzen nach rechts in die gemeinsame
+Reiterleiste. Der Zeitpunkt bleibt nicht interaktiv; „Aktualisieren“ bleibt ein
+Button mit bisherigen Bereichen, Rechten und Sperre während eines Abrufs.
+Die separate Werkzeugzeile und deren Historienlink entfallen. Die Historie
+bleibt über ihren Fachreiter erreichbar; der Hinweis bei fehlenden Finanzbelegen
+nennt die neue Aktion. Trackingaktionen bleiben unverändert.
+
+Prüfung dieses Folgestands: Lint, Build und Shared-Abgleich (45 Module) bestanden;
+8 bestehende Tests zu Navigation und Aktualisierungsdarstellung bestanden.
+Lokale Browserprüfung mit ausschließlich synthetischen Daten: Gesamtauftrag,
+Geschäftspartner und Auftragsdaten über die neue Aktion abgerufen, die passenden
+Historieneinträge und den Zeitpunkt bestätigt; Leserechte, Englisch/Light und
+Dark geprüft. Bei 545 px Inhaltsbreite Umbruch ohne horizontalen Überlauf.
+Keine neuen Backend-, Rules-, Index- oder Datenänderungen erforderlich.

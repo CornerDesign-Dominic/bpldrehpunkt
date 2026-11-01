@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { normalizeOrderRecordsQuery, orderRecordMatches, requireWorkspaceRefreshAccess, validateWorkspaceRefresh, refreshTransportOrderWorkspaceHandler, listTransportOrderRecordsPageHandler } from './transportOrderWorkspace.js'
 
-const profile = { active: true, firstName: 'Test', lastName: 'User', permissions: { transportOrders: 'view', dataImports: 'edit', masterData: 'edit' } }
+const profile = { active: true, firstName: 'Test', lastName: 'User', permissions: { transportOrders: 'view', transportOrderRefresh: 'edit', masterData: 'edit' } }
 const request = (scope = 'all', requestId = 'request_1234567890') => ({ auth: { uid: 'user' }, data: { orderId: 'dycos-261000482', scope, requestId } })
 
 // In-memory transactions exercise orchestration and replay without connecting
@@ -37,7 +37,7 @@ test('query validation preserves exact search, page sizes and permits orders wit
 
 test('refresh rights are scope-specific and admin does not bypass them', () => {
   assert.doesNotThrow(() => requireWorkspaceRefreshAccess(profile, 'all'))
-  assert.throws(() => requireWorkspaceRefreshAccess({ ...profile, role: 'admin', permissions: { transportOrders: 'edit', dataImports: 'edit' } }, 'all'), { code: 'permission-denied' })
+  assert.throws(() => requireWorkspaceRefreshAccess({ ...profile, role: 'admin', permissions: { transportOrders: 'edit', transportOrderRefresh: 'edit' } }, 'all'), { code: 'permission-denied' })
   assert.doesNotThrow(() => requireWorkspaceRefreshAccess({ ...profile, permissions: { transportOrders: 'view', masterData: 'edit' } }, 'partners'))
   assert.throws(() => validateWorkspaceRefresh({ ...request().data, orderId: '../users' }), { code: 'invalid-argument' })
 })
@@ -46,7 +46,7 @@ test('all refresh uses newly imported partner bindings, records safe outcome and
   const db = memoryDb(initial()); const calls = []
   const deps = {
     db, requireProfile: async () => profile,
-    fetchOrder: async () => { calls.push('order'); db.values.get('transportOrders/dycos-261000482').imported.carrier.partnerId = 'new-carrier'; return { status: 'updated', partnerUpdates: { conflicts: 1 } } },
+    fetchOrder: async request => { assert.equal(request.data.mode, 'refresh'); calls.push('order'); db.values.get('transportOrders/dycos-261000482').imported.carrier.partnerId = 'new-carrier'; return { status: 'updated', partnerUpdates: { conflicts: 1 } } },
     refreshPartner: async req => { calls.push(req.data.partnerId); return { status: 'unchanged', conflicts: 0 } },
   }
   const result = await refreshTransportOrderWorkspaceHandler(request(), deps)

@@ -74,38 +74,81 @@ export async function persistKnowledgeRecord(db, input, actor) {
 }
 
 export function normalizeKnowledgeGapUpdate(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some((key) => !['id', 'expectedRevision', 'status', 'articleId'].includes(key))) invalid()
-  if (!validGroupId(data.id) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 1 || !['open', 'in_progress', 'resolved', 'ignored'].includes(data.status)) invalid('Ungültige Wissenslücke.')
-  const articleId = data.articleId ?? ''
-  if (articleId !== '' && !validId(articleId)) invalid('Ungültige Artikelverknüpfung.')
-  return { id: data.id, expectedRevision: data.expectedRevision, status: data.status, articleId }
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(key => !['id', 'expectedRevision', 'status', 'articleId', 'hidden'].includes(key))) invalid()
+  if (!validGroupId(data.id) || !Number.isSafeInteger(data.expectedRevision) || data.expectedRevision < 0) invalid('Ungültige Wissensgruppe.')
+  const changes = {}
+  if (Object.hasOwn(data, 'status')) {
+    if (!['open', 'in_progress', 'resolved', 'ignored'].includes(data.status)) invalid('Ungültiger Status.')
+    changes.status = data.status
+  }
+  if (Object.hasOwn(data, 'hidden')) {
+    if (typeof data.hidden !== 'boolean') invalid('Ungültige Sichtbarkeit.')
+    changes.hidden = data.hidden
+  }
+  if (Object.hasOwn(data, 'articleId')) {
+    if (typeof data.articleId !== 'string' || data.articleId !== '' && !validId(data.articleId)) invalid('Ungültige Artikelzuordnung.')
+    changes.articleId = data.articleId
+  }
+  if (!Object.keys(changes).length) invalid('Eine Änderung ist erforderlich.')
+  return { id: data.id, expectedRevision: data.expectedRevision, ...changes }
 }
 
 export async function persistKnowledgeGapUpdate(db, input, actor) {
   const ref = db.doc(`knowledgeGaps/${input.id}`)
-  return db.runTransaction(async (tx) => {
-    const [current, user, article] = await Promise.all([
+  const virtualArticleId = input.id.startsWith('article-') && validId(input.id.slice(8)) ? input.id.slice(8) : ''
+  return db.runTransaction(async tx => {
+    const [current, user, article, virtualArticle] = await Promise.all([
       tx.get(ref), tx.get(db.doc(`users/${actor.uid}`)), input.articleId ? tx.get(db.doc(`knowledgeArticles/${input.articleId}`)) : null,
+      input.expectedRevision === 0 && virtualArticleId ? tx.get(db.doc(`knowledgeArticles/${virtualArticleId}`)) : null,
     ])
     const profile = user.exists ? user.data() : null
     requireKnowledgeAccess(profile, true, 'knowledgeGaps')
-    if (!current.exists) throw new HttpsError('not-found', 'Die Wissenslücke wurde nicht gefunden.')
-    const previous = current.data()
-    if (previous.revision !== input.expectedRevision) throw new HttpsError('aborted', 'Die Wissenslücke wurde inzwischen geändert. Bitte neu laden.')
-    if (input.articleId && input.articleId !== previous.articleId) {
-      requireKnowledgeAccess(profile)
-      if (!article.exists) throw new HttpsError('failed-precondition', 'Der verknüpfte Handbuchartikel existiert nicht mehr.')
+    if (!current.exists) {
+      if (input.expectedRevision !== 0 || input.id !== 'unassigned' && !virtualArticleId) throw new HttpsError('not-found', 'Die Wissensgruppe wurde nicht gefunden.')
+      if (virtualArticleId) {
+        requireKnowledgeAccess(profile)
+        if (!virtualArticle?.exists) throw new HttpsError('not-found', 'Der Handbuchartikel wurde nicht gefunden.')
+      }
     }
-    const revision = previous.revision + 1
+    const previous = current.exists ? current.data() : { title: virtualArticle?.data()?.title || 'Nicht zugeordnet', process: virtualArticle?.data()?.process || '', category: virtualArticleId ? 'article' : 'unassigned', classification: virtualArticleId ? 'article' : 'unassigned', articleId: virtualArticleId, status: 'open', hidden: false, count: 0, revision: 0 }
+    if (previous.revision !== input.expectedRevision) throw new HttpsError('aborted', 'Die Wissensgruppe wurde inzwischen geändert. Bitte neu laden.')
+    const legacyStatus = Object.hasOwn(input, 'status')
+    const moveCases = Object.hasOwn(input, 'articleId') && !legacyStatus
+    const targetGapId = moveCases ? input.articleId ? `article-${input.articleId}` : 'unassigned' : input.id
+    if (moveCases && input.articleId || legacyStatus && input.articleId && input.articleId !== previous.articleId) {
+      requireKnowledgeAccess(profile)
+      if (!article?.exists) throw new HttpsError('failed-precondition', 'Der Handbuchartikel existiert nicht mehr.')
+    }
+    let targetRef = null, target = null, cases = []
+    if (moveCases && targetGapId !== input.id) {
+      targetRef = db.doc(`knowledgeGaps/${targetGapId}`)
+      const [targetSnapshot, evidence] = await Promise.all([tx.get(targetRef), tx.get(db.collection('knowledgeGapEvidence').where('gapId', '==', input.id))])
+      target = targetSnapshot
+      cases = evidence.docs.filter(item => item.data().removed !== true)
+      if (cases.length > 400) throw new HttpsError('resource-exhausted', 'Diese Gruppe enthält mehr als 400 aktive Fälle. Bitte Fälle einzeln oder in kleineren Gruppen zuordnen.')
+    }
     const now = FieldValue.serverTimestamp()
-    const resolved = input.status === 'resolved'
-    const alreadyResolved = previous.status === 'resolved'
-    tx.set(ref, { ...previous, status: input.status, articleId: input.articleId, revision, updatedAt: now, updatedBy: actor.uid, updatedByName: name(profile, actor.uid),
-      resolvedAt: resolved ? alreadyResolved && previous.resolvedAt ? previous.resolvedAt : now : null,
-      resolvedBy: resolved ? alreadyResolved && previous.resolvedBy ? previous.resolvedBy : actor.uid : '',
-      resolvedByName: resolved ? alreadyResolved && previous.resolvedByName ? previous.resolvedByName : name(profile, actor.uid) : '',
-    })
-    return { id: input.id, revision }
+    const revision = previous.revision + 1
+    const record = { ...previous, revision, updatedAt: now, updatedBy: actor.uid, updatedByName: name(profile, actor.uid), ...(!current.exists ? { firstSeenAt: now, lastSeenAt: now } : {}), ...(Object.hasOwn(input, 'hidden') ? { hidden: input.hidden } : {}) }
+    if (legacyStatus) {
+      const resolved = input.status === 'resolved'
+      const alreadyResolved = previous.status === 'resolved'
+      Object.assign(record, { status: input.status, ...(Object.hasOwn(input, 'articleId') ? { articleId: input.articleId } : {}),
+        resolvedAt: resolved ? alreadyResolved && previous.resolvedAt ? previous.resolvedAt : now : null,
+        resolvedBy: resolved ? alreadyResolved && previous.resolvedBy ? previous.resolvedBy : actor.uid : '',
+        resolvedByName: resolved ? alreadyResolved && previous.resolvedByName ? previous.resolvedByName : name(profile, actor.uid) : '',
+      })
+    }
+    tx.set(ref, record)
+    if (targetRef) {
+      const previousTarget = target.exists ? target.data() : {}
+      tx.set(targetRef, { ...previousTarget, title: input.articleId ? article.data().title : 'Nicht zugeordnet', process: input.articleId ? article.data().process || '' : '', articleId: input.articleId, category: input.articleId ? 'article' : 'unassigned', classification: input.articleId ? 'article' : 'unassigned', status: previousTarget.status || 'open', hidden: previousTarget.hidden === true, count: previousTarget.count || 0, revision: (previousTarget.revision || 0) + 1, firstSeenAt: previousTarget.firstSeenAt || now, lastSeenAt: now })
+      for (const item of cases) {
+        const value = item.data()
+        tx.update(db.doc(`knowledgeGapEvidence/${item.id}`), { gapId: targetGapId, caseRevision: (Number.isSafeInteger(value.caseRevision) && value.caseRevision > 0 ? value.caseRevision : 1) + 1, movedAt: now, movedBy: actor.uid, updatedAt: now })
+      }
+    }
+    return { id: input.id, revision, ...(moveCases ? { targetGapId, movedCount: cases.length } : {}) }
   })
 }
 

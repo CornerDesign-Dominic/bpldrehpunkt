@@ -10,11 +10,12 @@ function fakeDb(initial = {}) {
   const records = new Map(Object.entries({ 'users/editor': editor, ...initial }))
   const ref = (path) => ({ path, collection: (name) => ({ doc: (id) => ref(`${path}/${name}/${id}`) }) })
   return {
-    records, doc: ref,
+    records, doc: ref, collection: collectionName => ({ collectionName, where: (key, op, value) => ({ collectionName, key, value }) }),
     runTransaction: async (callback) => {
       const writes = []
       const result = await callback({
-        get: async ({ path }) => ({ exists: records.has(path), data: () => records.get(path) }),
+        get: async item => item.collectionName ? { docs: [...records].filter(([path, value]) => path.split('/').length === 2 && path.startsWith(`${item.collectionName}/`) && value[item.key] === item.value).map(([path, value]) => ({ id: path.split('/')[1], data: () => value })) } : { exists: records.has(item.path), data: () => records.get(item.path) },
+        update: (reference, value) => writes.push([reference.path, { ...records.get(reference.path), ...value }]),
         set: (reference, value) => writes.push([reference.path, value]),
         create: (reference, value) => { assert.equal(records.has(reference.path), false); writes.push([reference.path, value]) },
       })
@@ -75,9 +76,9 @@ test('linked rules must exist and current edit rights are checked inside the tra
 
 test('gap mutations allow only status and article link with expected revision', () => {
   const update = { id: 'gap', expectedRevision: 1, status: 'open' }
-  assert.equal(normalizeKnowledgeGapUpdate(update).articleId, '')
-  assert.equal(normalizeKnowledgeGapUpdate({ ...update, status: 'resolved' }).articleId, '')
-  for (const patch of [{ count: 100 }, { title: 'forged' }, { status: 'done' }, { articleId: 'bad/id' }, { expectedRevision: 0 }]) assert.throws(() => normalizeKnowledgeGapUpdate({ ...update, ...patch }), { code: 'invalid-argument' })
+  assert.equal(Object.hasOwn(normalizeKnowledgeGapUpdate(update), 'articleId'), false)
+  assert.equal(Object.hasOwn(normalizeKnowledgeGapUpdate({ ...update, status: 'resolved' }), 'articleId'), false)
+  for (const patch of [{ count: 100 }, { title: 'forged' }, { status: 'done' }, { articleId: 'bad/id' }]) assert.throws(() => normalizeKnowledgeGapUpdate({ ...update, ...patch }), { code: 'invalid-argument' })
 })
 
 test('gap completion permits optional draft context links, preserves demand counts and rejects races', async () => {
@@ -125,4 +126,52 @@ test('gap curators can retain an existing article link but may not infer or add 
   await assert.rejects(persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', status: 'resolved', expectedRevision: 2, articleId: 'other' }), { uid: 'editor' }), { code: 'permission-denied' })
   await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', status: 'resolved', expectedRevision: 2, articleId: '' }), { uid: 'editor' })
   assert.equal(db.records.get('knowledgeGaps/gap').articleId, '')
+})
+
+test('visibility can create virtual unassigned and readable article groups without a status transition', async () => {
+  const db = fakeDb({ 'users/editor': gapEditor })
+  await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'unassigned', expectedRevision: 0, hidden: true }), { uid: 'editor' })
+  assert.equal(db.records.get('knowledgeGaps/unassigned').hidden, true)
+  assert.equal(db.records.get('knowledgeGaps/unassigned').status, 'open')
+  await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'unassigned', expectedRevision: 1, hidden: false }), { uid: 'editor' })
+  assert.equal(db.records.get('knowledgeGaps/unassigned').hidden, false)
+  await assert.rejects(persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'unknown', expectedRevision: 0, hidden: true }), { uid: 'editor' }), { code: 'not-found' })
+  db.records.set('knowledgeArticles/article', { title: 'Artikel', process: 'Transport' })
+  const virtualArticle = normalizeKnowledgeGapUpdate({ id: 'article-article', expectedRevision: 0, hidden: true })
+  await assert.rejects(persistKnowledgeGapUpdate(db, virtualArticle, { uid: 'editor' }), { code: 'permission-denied' })
+  db.records.set('users/editor', { ...gapEditor, permissions: { knowledgeGaps: 'edit', handbook: 'view' } })
+  await persistKnowledgeGapUpdate(db, virtualArticle, { uid: 'editor' })
+  assert.equal(db.records.get('knowledgeGaps/article-article').articleId, 'article')
+  assert.equal(db.records.get('knowledgeGaps/article-article').title, 'Artikel')
+  await assert.rejects(persistKnowledgeGapUpdate(db, virtualArticle, { uid: 'editor' }), { code: 'aborted' })
+  for (const hidden of ['true', null, 1]) assert.throws(() => normalizeKnowledgeGapUpdate({ id: 'unassigned', expectedRevision: 0, hidden }), { code: 'invalid-argument' })
+})
+
+test('article assignment moves every active group case atomically, preserves provenance and hides only the source', async () => {
+  const initialCase = { gapId: 'gap', caseRevision: 2, learnedRevision: 2, sourceArticleId: 'original', sourceRevision: 7, incomingText: 'Private case' }
+  const db = fakeDb({ 'users/editor': { ...gapEditor, permissions: { knowledgeGaps: 'edit', handbook: 'view' } }, 'knowledgeGaps/gap': { revision: 1, status: 'resolved', count: 5 }, 'knowledgeGaps/article-article': { title: 'Old title', hidden: false, revision: 3 }, 'knowledgeArticles/article': { title: 'New title', process: 'Transport' }, 'knowledgeGapEvidence/one': initialCase, 'knowledgeGapEvidence/two': { ...initialCase, caseRevision: 1 }, 'knowledgeGapEvidence/removed': { ...initialCase, removed: true } })
+  const result = await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', expectedRevision: 1, articleId: 'article', hidden: true }), { uid: 'editor' })
+  assert.equal(result.targetGapId, 'article-article')
+  assert.equal(result.movedCount, 2)
+  assert.equal(db.records.get('knowledgeGapEvidence/one').gapId, 'article-article')
+  assert.equal(db.records.get('knowledgeGapEvidence/one').caseRevision, 3)
+  assert.equal(db.records.get('knowledgeGapEvidence/one').learnedRevision, 2)
+  assert.equal(db.records.get('knowledgeGapEvidence/one').sourceArticleId, 'original')
+  assert.equal(db.records.get('knowledgeGapEvidence/removed').gapId, 'gap')
+  assert.equal(db.records.get('knowledgeGaps/gap').hidden, true)
+  assert.equal(db.records.get('knowledgeGaps/gap').status, 'resolved')
+  assert.equal(db.records.get('knowledgeGaps/article-article').hidden, false)
+  assert.equal(db.records.get('knowledgeGaps/article-article').revision, 4)
+  const unassigned = await persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'article-article', expectedRevision: 4, articleId: '' }), { uid: 'editor' })
+  assert.equal(unassigned.movedCount, 2)
+  assert.equal(db.records.get('knowledgeGapEvidence/one').gapId, 'unassigned')
+  assert.equal(db.records.get('knowledgeGaps/unassigned').category, 'unassigned')
+})
+
+test('large group assignments fail without moving a partial subset', async () => {
+  const cases = Object.fromEntries(Array.from({ length: 401 }, (_, index) => [`knowledgeGapEvidence/case-${index}`, { gapId: 'gap', caseRevision: 1 }]))
+  const db = fakeDb({ 'users/editor': gapEditor, 'knowledgeGaps/gap': { revision: 1 }, ...cases })
+  await assert.rejects(persistKnowledgeGapUpdate(db, normalizeKnowledgeGapUpdate({ id: 'gap', expectedRevision: 1, articleId: '' }), { uid: 'editor' }), { code: 'resource-exhausted' })
+  assert.equal(db.records.get('knowledgeGapEvidence/case-0').gapId, 'gap')
+  assert.equal(db.records.get('knowledgeGaps/gap').revision, 1)
 })

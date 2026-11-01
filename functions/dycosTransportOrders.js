@@ -4,6 +4,8 @@ import { createHash, randomUUID } from 'node:crypto'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
+import { hasOrderImportAccess } from './dycosImportAccess.js'
+import { readImportSession, recordImportSessionFailure, writeImportSessionRow } from './transportOrderImports.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { fetchDycosFlowOrder } from './dycosFlowClient.js'
 import { mapDycosOrder, preserveDycosUnmappedFields } from './dycosOrderMapping.js'
@@ -17,7 +19,7 @@ import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatal
 
 const text = (value) => typeof value === 'string' ? value.trim() : ''
 const actorName = (profile) => [text(profile.firstName), text(profile.lastName)].filter(Boolean).join(' ') || text(profile.email) || 'Unbekannt'
-export const hasDycosImportAccess = (profile) => profile?.role === 'superadmin' || profile?.permissions?.dataImports === 'edit'
+export const hasDycosImportAccess = (profile) => hasOrderImportAccess(profile, 'single')
 const orderIdFor = (number) => `dycos-${encodeURIComponent(number)}`
 const leaseMs = 180_000
 const versionOf = (snapshot) => snapshot.updateTime ? `${snapshot.updateTime.seconds}:${snapshot.updateTime.nanoseconds}` : null
@@ -30,7 +32,11 @@ export function validateDycosRequest(data) {
   const requestId = text(data?.requestId)
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(requestId)) throw new HttpsError('invalid-argument', 'Ungültige Anfrage-ID. Bitte die Seite neu laden.')
   if (data?.expectedSourceId != null && (!Number.isInteger(data.expectedSourceId) || data.expectedSourceId < 0 || data.expectedSourceId > 2147483647)) throw new HttpsError('invalid-argument', 'Ungültige Auftragszuordnung.')
-  return { taNummer, requestId, ...(data?.expectedSourceId != null ? { expectedSourceId: data.expectedSourceId } : {}) }
+  if (data?.importRunId != null && (typeof data.importRunId !== 'string' || !/^[a-zA-Z0-9_-]{16,80}$/.test(data.importRunId))) throw new HttpsError('invalid-argument', 'Ungültiger Importvorgang.')
+  if (data?.mode != null && data.mode !== 'refresh') throw new HttpsError('invalid-argument', 'Ungültige Abrufart.')
+  if (data?.mode && data?.importRunId) throw new HttpsError('invalid-argument', 'Ungültige Abrufart.')
+  if (data?.importRunId && (!Number.isInteger(data.selectionIndex) || data.selectionIndex < 0 || data.selectionIndex >= 5000)) throw new HttpsError('invalid-argument', 'Ungültige Auftragsauswahl.')
+  return { taNummer, requestId, ...(data?.expectedSourceId != null ? { expectedSourceId: data.expectedSourceId } : {}), ...(data?.importRunId ? { importRunId: data.importRunId, selectionIndex: data.selectionIndex } : {}), ...(data?.mode ? { mode: data.mode } : {}) }
 }
 
 // Matching by account identity is intentional: a similar company name is not
@@ -90,7 +96,7 @@ function linkPartner(value, plan) {
   return { ...value, partnerId: plan.partner?.id || '', partnerName: plan.partner?.companyName || '', ...(Object.hasOwn(value, 'matchStatus') ? { matchStatus: plan.partner ? (plan.create ? 'created' : 'linked') : 'unlinked' } : {}) }
 }
 
-async function claimRequest(db, uid, data, token, nowMs) {
+async function claimRequest(db, uid, data, token, nowMs, profile) {
   const key = createHash('sha256').update(`${uid}|${data.requestId}`).digest('hex')
   const receiptRef = db.doc(`dycosImportRequests/${key}`)
   const lockRef = db.doc(`dycosImportLocks/${orderIdFor(data.taNummer)}`)
@@ -98,7 +104,11 @@ async function claimRequest(db, uid, data, token, nowMs) {
   const quotaRef = db.doc(`dycosImportQuotas/${uid}`)
   return db.runTransaction(async (transaction) => {
     const [receipt, lock, order, quota] = await Promise.all([transaction.get(receiptRef), transaction.get(lockRef), transaction.get(orderRef), transaction.get(quotaRef)])
+    const session = await readImportSession(transaction, db, data, uid, profile)
+    if (!session && !hasOrderImportAccess(profile, data.mode || 'single')) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Abrufart.')
+    if (data.mode === 'refresh' && !order.exists) throw new HttpsError('not-found', 'Nur bestehende Aufträge können aktualisiert werden.')
     if (receipt.exists) {
+      if ((receipt.get('importRunId') || null) !== (data.importRunId || null)) throw new HttpsError('invalid-argument', 'Die Anfrage gehört zu einem anderen Importvorgang.')
       if (receipt.get('externalNumber') !== data.taNummer) throw new HttpsError('invalid-argument', 'Die Anfrage-ID wurde bereits für einen anderen Auftrag verwendet.')
       if (data.expectedSourceId != null && receipt.get('result.sourceId') !== String(data.expectedSourceId)) throw new HttpsError('failed-precondition', 'Die Auftragszuordnung hat sich geändert. Bitte erneut suchen.', { sourceCode: 'SOURCE_ORDER_CHANGED' })
       return { result: receipt.get('result') }
@@ -121,7 +131,7 @@ async function releaseClaim(db, claim, token) {
 }
 
 export async function saveDycosTransportOrder({ db, request, profile, data, imported, partnerData = {}, claim, token, nowMs = Date.now() }) {
-  const runRef = db.collection('transportOrderImportRuns').doc()
+  const runRef = data.importRunId ? db.doc(`transportOrderImportRuns/${data.importRunId}`) : db.collection('transportOrderImportRuns').doc()
   const rowRef = runRef.collection('rows').doc('request')
   const now = FieldValue.serverTimestamp()
   return db.runTransaction(async (transaction) => {
@@ -131,7 +141,9 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
       transaction.get(db.doc(`users/${request.auth.uid}`)),
     ])
     profile = currentUser.data()
-    if (!profile?.active || !hasDycosImportAccess(profile)) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
+    const session = await readImportSession(transaction, db, data, request.auth.uid, profile)
+    if (profile?.active !== true || !session && !hasOrderImportAccess(profile, data.mode || 'single')) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
+    if (data.mode === 'refresh' && !order.exists) throw new HttpsError('not-found', 'Nur bestehende Aufträge können aktualisiert werden.')
     if (receipt.exists) return receipt.get('result')
     if (lock.get('token') !== token || lock.get('expiresAtMs') <= nowMs) throw new HttpsError('aborted', 'Der Abruf ist abgelaufen. Bitte erneut versuchen.')
     if (versionOf(order) !== claim.baseVersion) throw new HttpsError('aborted', 'Der Auftrag wurde während des Abrufs geändert. Bitte erneut abrufen.')
@@ -224,9 +236,13 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
       })
     }
     if (previous && loadingScheduleMovedEarlier(previous, next) && tracking.exists && tracking.get('lifecycleStatus') === 'active') transaction.update(tracking.ref, { importScheduleSkippedBefore: now, lastImportScheduleChange: { reason: 'loading-moved-earlier', at: now }, updatedAt: now, updatedBy: request.auth.uid, updatedByName: actorName(profile) })
-    transaction.create(runRef, { id: runRef.id, source: 'dycos-api', externalNumber: data.taNummer, importedAt: now, importedByUserId: request.auth.uid, importedByName: actorName(profile), counts })
-    transaction.create(rowRef, { rowNumber: 1, externalNumber: data.taNummer, customerName: next.customer.name, carrierName: next.carrier.originalName, status: { new: 'Neu', updated: 'Aktualisiert', unchanged: 'Unverändert' }[status], changedFields: changes.map((change) => change.label), customerAction: customerPlan.create ? 'neu angelegt' : customer ? 'verwendet' : 'nicht verknüpft', carrierAction: carrierPlan.create ? 'neu angelegt' : carrier ? 'verwendet' : 'nicht verknüpft', createdAt: now })
-    transaction.create(claim.receiptRef, { externalNumber: data.taNummer, result, completedAt: now })
+    const historyRow = { rowNumber: 1, externalNumber: data.taNummer, orderId: claim.orderRef.id, customerName: next.customer.name, carrierName: next.carrier.originalName, status: { new: 'Neu', updated: 'Aktualisiert', unchanged: 'Unverändert' }[status], changedFields: changes.map((change) => change.label), customerAction: customerPlan.create ? 'neu angelegt' : customer ? 'verwendet' : 'nicht verknüpft', carrierAction: carrierPlan.create ? 'neu angelegt' : carrier ? 'verwendet' : 'nicht verknüpft', createdAt: now }
+    if (session) writeImportSessionRow(transaction, session, historyRow)
+    else {
+      transaction.create(runRef, { id: runRef.id, source: 'dycos-api', kind: data.mode || 'single', status: 'completed', externalNumber: data.taNummer, importedAt: now, importedByUserId: request.auth.uid, importedByName: actorName(profile), counts })
+      transaction.create(rowRef, historyRow)
+    }
+    transaction.create(claim.receiptRef, { externalNumber: data.taNummer, importRunId: data.importRunId || null, result, completedAt: now })
     transaction.delete(claim.lockRef)
     return result
   })
@@ -234,10 +250,10 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
 
 export async function fetchDycosTransportOrderHandler(request, { db = getFirestore(), fetchOrder = fetchDycosFlowOrder, report = recordDiagnostic } = {}) {
   const profile = await requireActiveProfile(request)
-  if (!hasDycosImportAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für Datenimporte.')
   const data = validateDycosRequest(request.data)
+  if (!data.importRunId && !hasOrderImportAccess(profile, data.mode || 'single') || data.importRunId && !['single', 'bulk'].some(kind => hasOrderImportAccess(profile, kind))) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Abrufart.')
   const token = randomUUID()
-  const claim = await claimRequest(db, request.auth.uid, data, token, Date.now())
+  const claim = await claimRequest(db, request.auth.uid, data, token, Date.now(), profile)
   if (claim.result) return claim.result
   let stage = 'fetch'
   try {
@@ -251,6 +267,7 @@ export async function fetchDycosTransportOrderHandler(request, { db = getFiresto
     stage = 'save'
     return await saveDycosTransportOrder({ db, request, profile, data, imported, partnerData, claim, token })
   } catch (error) {
+    try { await recordImportSessionFailure(db, request, data, error instanceof HttpsError ? error.message : error?.code === 'ta_not_found' ? 'Die TA-Nummer wurde in DyCoS nicht gefunden.' : 'Der Abruf ist fehlgeschlagen. Bitte erneut versuchen.') } catch { /* Do not mask the actual error; receipt replay reconciles ambiguous saves. */ }
     if (error instanceof HttpsError) throw error
     if (error?.code === 'ta_not_found') throw new HttpsError('not-found', 'Die TA-Nummer wurde in DyCoS nicht gefunden.', { sourceCode: 'TA_NOT_FOUND', requestId: data.requestId })
     const message = stage === 'mapping' ? 'DyCoS hat ungültige oder widersprüchliche Auftragsdaten geliefert. Es wurde kein Auftrag gespeichert.' : stage === 'save' ? 'Der Auftrag konnte nicht zuverlässig gespeichert werden. Bitte denselben Abruf erneut versuchen.' : 'Die DyCoS-Schnittstelle konnte nicht abgerufen werden. Bitte erneut versuchen.'

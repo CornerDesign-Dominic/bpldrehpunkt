@@ -75,7 +75,7 @@ export function validateWorkspaceRefresh(data = {}) {
 }
 
 export function requireWorkspaceRefreshAccess(profile, scope) {
-  if (!access(profile, 'transportOrders') || scope !== 'partners' && !access(profile, 'dataImports', 'edit') || scope !== 'order' && !access(profile, 'masterData', 'edit')) throw new HttpsError('permission-denied', 'Für diese Aktualisierung fehlen Auftrags-, Datenimport- oder Stammdatenrechte.')
+  if (!access(profile, 'transportOrders') || scope !== 'partners' && !access(profile, 'transportOrderRefresh', 'edit') || scope !== 'order' && !access(profile, 'masterData', 'edit')) throw new HttpsError('permission-denied', 'Für diese Aktualisierung fehlen Auftrags-, Aktualisierungs- oder Stammdatenrechte.')
 }
 
 const errorCode = error => {
@@ -153,7 +153,7 @@ export async function refreshTransportOrderWorkspaceHandler(request, deps = {}) 
   let succeeded = 0, failed = 0
   if (data.scope !== 'partners') {
     try {
-      const response = await (deps.fetchOrder || fetchDycosTransportOrderHandler)({ ...request, data: { taNummer: claim.number, requestId: `ow-${hash(`${request.auth.uid}|${data.requestId}|order`)}` } })
+      const response = await (deps.fetchOrder || fetchDycosTransportOrderHandler)({ ...request, data: { taNummer: claim.number, mode: 'refresh', requestId: `ow-${hash(`${request.auth.uid}|${data.requestId}|order`)}` } })
       result.order = safeResult(response, 'order'); succeeded++
     } catch (error) { await reportInvalidResult(error, request, profile, data, deps, db); result.order = { status: 'failed', code: errorCode(error) }; failed++ }
   }

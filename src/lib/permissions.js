@@ -14,9 +14,11 @@ export const MODULES = {
   team: { label: 'Team' },
   masterData: { label: 'Stammdaten' },
   partnerMerges: { label: 'Partner zusammenführen' },
-  // Shared persisted module right; separate views do not introduce new grants.
   transportOrders: { label: 'Transportaufträge & Sendungsverfolgung' },
-  dataImports: { label: 'Datenimporte' },
+  dataImports: { label: 'Stammdatenimporte' },
+  transportOrderSingleImport: { label: 'Transportaufträge: Einzelimport' },
+  transportOrderBulkImport: { label: 'Transportaufträge: Sammelimport' },
+  transportOrderRefresh: { label: 'Transportaufträge: Aktualisieren' },
   crm: { label: 'CRM' },
   pallets: { label: 'Palettenmanagement' },
   news: { label: 'News' },

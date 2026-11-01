@@ -1,5 +1,6 @@
 import { orderRecordPath } from '../lib/orderRecordTabs.js'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useLanguage } from '../i18n/useLanguage.js'
@@ -64,7 +65,7 @@ function ResultCard({ financial, currency, onDetails }) {
   return <Card title="Auftragsergebnis" onDetails={onDetails}><div className="order-workspace__money"><span><StaticText source="Ertrag netto" /></span><span>{currency(financial?.revenueNet)}</span></div><div className="order-workspace__money"><span><StaticText source="Kosten netto" /></span><span>{currency(financial?.costNet)}</span></div><div className={`order-workspace__money order-workspace__money--result${result < 0 ? ' order-workspace__money--negative' : ''}`}><span><StaticText source="Gewinn / Verlust" /></span><span>{currency(result)}</span></div></Card>
 }
 
-function Workspace({ orderId, active, showTabs, tabOverride }) {
+function Workspace({ orderId, active, showTabs, tabOverride, refreshControlsTarget }) {
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
   const locale = language === 'en' ? 'en-GB' : 'de-DE'
@@ -93,7 +94,7 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
   const inFlight = useRef(false)
   const requestIds = useRef({})
   const canReadPartners = canView('masterData') || canView('crm') || canView('pallets')
-  const canRefresh = scope === 'partners' ? canEdit('masterData') : scope === 'all' ? canEdit('dataImports') && canEdit('masterData') : canEdit('dataImports')
+  const canRefresh = scope === 'partners' ? canEdit('masterData') : scope === 'all' ? canEdit('transportOrderRefresh') && canEdit('masterData') : canEdit('transportOrderRefresh')
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   const loadOrder = useCallback(async () => {
     let entry
@@ -194,16 +195,16 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
   const imported = order.imported
   const shipment = imported.shipment || {}
   const cargoEntries = [['Fahrzeugart', shipment.vehicleType], ['Kennzeichen', shipment.licensePlate], ['Kolli', number(shipment.packages)], ['Gewicht', number(shipment.weightKg, ' kg')], ['Lademeter', number(shipment.loadingMeters, ' m')]]
-
+  const refreshControls = active && tab !== 'history' && <div className="order-workspace__refresh" aria-busy={refreshing}><span className="order-workspace__update" aria-live="polite"><StaticText source="Letzte Aktualisierung" />: {date(lastSuccess?.completedAt || (scope === 'order' ? order.importMeta?.lastImportedAt : null))}{latest && latest.status !== 'success' && <> · {statusLabels[latest.status] || w('Aktualisierung prüfen', 'Check update')}</>}</span>{scope && canRefresh && <button className="order-workspace__refresh-action" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? w('Wird aktualisiert …', 'Updating …') : w('Aktualisieren', 'Update')}</button>}</div>
 
   return <div className="order-workspace">
-    {showTabs && <div className="order-workspace__tabs" role="tablist" aria-label={w('Auftragsbereiche', 'Order sections')}>{transportOrderWorkspaceTabs.map((value) => <button key={value} type="button" role="tab" id={`order-tab-${value}`} aria-controls={`order-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)} onKeyDown={(event) => {
+    {showTabs && <div className="order-workspace__navigation"><div className="order-workspace__tabs" role="tablist" aria-label={w('Auftragsbereiche', 'Order sections')}>{transportOrderWorkspaceTabs.map((value) => <button key={value} type="button" role="tab" id={`order-tab-${value}`} aria-controls={`order-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onClick={() => selectTab(value)} onKeyDown={(event) => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
       const index = event.key === 'Home' ? 0 : event.key === 'End' ? transportOrderWorkspaceTabs.length - 1 : (transportOrderWorkspaceTabs.indexOf(value) + (event.key === 'ArrowRight' ? 1 : -1) + transportOrderWorkspaceTabs.length) % transportOrderWorkspaceTabs.length
       const next = transportOrderWorkspaceTabs[index]; selectTab(next); document.getElementById(`order-tab-${next}`)?.focus()
-    }}>{tabLabels[value]}</button>)}</div>}
-    {tab !== 'history' && <div className="order-workspace__toolbar"><div className="order-workspace__update" aria-live="polite"><StaticText source="Letzte Aktualisierung" />: {date(lastSuccess?.completedAt || (scope === 'order' ? order.importMeta?.lastImportedAt : null))}{latest && latest.status !== 'success' && <> · {statusLabels[latest.status] || w('Aktualisierung prüfen', 'Check update')}</>} · <button type="button" className="order-workspace__text-button" onClick={() => selectTab('history')}><StaticText source="Siehe Historie" /></button></div>{scope && canRefresh && <button className="button" type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? w('Wird aktualisiert …', 'Updating …') : scope === 'all' ? w('Auftrag aktualisieren', 'Update order') : scope === 'partners' ? w('Stammdaten aktualisieren', 'Update master data') : w('Auftragsdaten aktualisieren', 'Update order data')}</button>}</div>}
+    }}>{tabLabels[value]}</button>)}</div>{refreshControls}</div>}
+    {!showTabs && refreshControlsTarget && createPortal(refreshControls, refreshControlsTarget)}
     {reloadError && <p className="form-error"><StaticText source="Die Daten wurden gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte lade die Seite neu." /></p>}
     {tab !== 'history' && partnerError && <p className="form-error"><StaticText source="Die Geschäftspartnerdaten konnten nicht geladen werden." /></p>}
     <div className={`order-workspace__layout${tab === 'history' ? ' order-workspace__layout--history' : tab === 'transport' ? ' order-workspace__layout--transport' : tab === 'partners' ? ' order-workspace__layout--partners' : ''}`}><main className="order-workspace__content"><section role="tabpanel" id={`order-panel-${tab}`} aria-labelledby={`order-tab-${tab}`}>
@@ -218,7 +219,7 @@ function Workspace({ orderId, active, showTabs, tabOverride }) {
     </section></main>{tab === 'finance' && <aside className="order-workspace__finance-summary" aria-label={w('Finanzübersicht', 'Financial summary')}><ResultCard financial={imported.financial} currency={currency} /><TransportInvoiceChecks orderId={orderId} number={order.externalNumber} /></aside>}{tab === 'overview' && <aside className="order-workspace__links" aria-label={w('Verknüpfungen zum Auftrag', 'Linked records')}><Card title="Sendungsverfolgung"><p className="order-workspace__muted">TA {order.externalNumber}</p><ContextLink className="button button--secondary" to={orderRecordPath(orderId, 'tracking')} onClick={event => { if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); selectTab('tracking') } }}><StaticText source="Sendungsverfolgung öffnen" /> ↗</ContextLink></Card><TransportOrderLinkedCasesCard key={order.id} transportOrderId={orderId} canEditCase={canEdit} canViewCase={canView} onCreate={createCase} />{canView('pallets') && <TransportOrderPalletMovementsCard key={`pallets-${order.id}`} transportOrder={order} canEdit={canEdit('pallets')} />}{canView('todos') && <TransportOrderTodosCard key={`todos-${order.id}`} canCreate={canEdit('todos')} canView canViewMasterData={canView('masterData')} order={order} profile={profile} user={user} />}</aside>}</div>
   </div>
 }
-export default function TransportOrderDetailPage({ active = true, showTabs = true, tabOverride }) {
+export default function TransportOrderDetailPage({ active = true, showTabs = true, tabOverride, refreshControlsTarget }) {
   const { transportOrderId } = useParams()
-  return <Workspace key={transportOrderId} orderId={transportOrderId} active={active} showTabs={showTabs} tabOverride={tabOverride} />
+  return <Workspace key={transportOrderId} orderId={transportOrderId} active={active} showTabs={showTabs} tabOverride={tabOverride} refreshControlsTarget={refreshControlsTarget} />
 }

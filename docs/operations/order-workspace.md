@@ -20,6 +20,16 @@ Bereitstellung und Nachweise stehen im [Karten-Release](releases/order-station-c
 
 ## Benutzerablauf
 
+In Übersicht, Auftrag, Kunde & UTN sowie Finanzen stehen der letzte bestätigte
+Aktualisierungszeitpunkt und die Aktion „Aktualisieren“ rechts in der gemeinsamen
+Reiterleiste. Der Zeitpunkt ist reiner Text ohne Link; die Aktion ist optisch
+wie ein Reiter gestaltet, bleibt semantisch ein Button und wechselt keine Seite.
+Die zusätzliche Werkzeugzeile unter der Navigation entfällt. Bestehende
+Aktualisierungsbereiche und Bearbeitungsrechte bleiben erhalten; während des
+Abrufs ist die Aktion gesperrt. Details zu Versuchen bleiben in der Historie.
+Bei schmalen Fenstern darf die Reiterleiste umbrechen. Historie und der operative
+Trackingreiter behalten ihre bisherigen eigenen Abläufe.
+
 `/transportauftraege` führt zur Auftragsliste, `/sendungsverfolgung` zur
 operativen Verfolgungsliste. Beide öffnen dieselbe Auftragsakte unter
 `/transportauftraege/:transportOrderId`: Aufträge starten mit Übersicht,
