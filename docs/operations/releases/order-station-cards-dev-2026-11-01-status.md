@@ -109,3 +109,21 @@ Geschäftspartner und Auftragsdaten über die neue Aktion abgerufen, die passend
 Historieneinträge und den Zeitpunkt bestätigt; Leserechte, Englisch/Light und
 Dark geprüft. Bei 545 px Inhaltsbreite Umbruch ohne horizontalen Überlauf.
 Keine neuen Backend-, Rules-, Index- oder Datenänderungen erforderlich.
+
+## Linke Tracking-Aktionsspalte entfernt, 01.11.2026
+
+Die bereits nach Finanzen/Übersicht verlegten Rechnungsprüfungen, Fälle,
+Palettenbewegungen und To-dos werden im Trackingreiter nicht länger dupliziert.
+Der bestehende DyCoS-Abruf sitzt jetzt rechts in der gemeinsamen Reiterleiste;
+sein Importzeitpunkt ist reiner Text. Strecke und Pausieren/Fortführen/Abschließen
+stehen kompakt direkt vor dem Zeitstrahl. Übrige Trackinginhalte bleiben erhalten.
+Es handelt sich ausschließlich um Frontendänderungen; keine neuen Functions,
+Rules oder Indizes und keine Datenmigration erforderlich.
+
+Vor Zusammenführung geprüft: Lint, Build, Shared-Abgleich (45 Module), 7 bestehende
+Tests zu Lebenszyklus, Importfeedback und Reitern erfolgreich. Lokale Browser-
+prüfung ausschließlich mit synthetischen Daten: Pause/Fortführen/Abschluss samt
+Bestätigung und deaktivierten Aktionen nach Abschluss, Abruf mit gesperrtem
+Button während der Anfrage, genau eine Aktion nach Reiterwechsel, Strecke mit
+470 km/Fahrzeitschätzung, Leserechte, Light/Dark und Umbruch bei 545 px ohne
+horizontalen Überlauf. Keine echten Trackingzustände für die Prüfung verändert.

@@ -34,7 +34,7 @@ function Record() {
       select(orderRecordTabs[target]); document.getElementById(`order-tab-${orderRecordTabs[target]}`)?.focus()
     }}>{labels[index]}</button>)}</div><button type="button" aria-haspopup="dialog" onClick={() => setMailsOpen(true)}>{language === 'en' ? 'Assigned emails' : 'Zugeordnete Mails'}</button><div className="order-record__refresh" ref={setRefreshControlsTarget} /></div>
     <Suspense fallback={<p className="page-state">{language === 'en' ? 'Loading …' : 'Wird geladen …'}</p>}>
-      {opened.tracking && <div hidden={active !== 'tracking'} id="order-panel-tracking" role="tabpanel" aria-labelledby="order-tab-tracking"><Tracking active={active === 'tracking'} mailsOpen={mailsOpen} onCloseMails={() => setMailsOpen(false)} /></div>}
+      {opened.tracking && <div hidden={active !== 'tracking'} id="order-panel-tracking" role="tabpanel" aria-labelledby="order-tab-tracking"><Tracking active={active === 'tracking'} mailsOpen={mailsOpen} onCloseMails={() => setMailsOpen(false)} refreshControlsTarget={refreshControlsTarget} /></div>}
       {opened.order && <div hidden={active === 'tracking'}><Order active={active !== 'tracking'} showTabs={false} tabOverride={active === 'tracking' ? opened.lastOrderTab : active} refreshControlsTarget={refreshControlsTarget} /></div>}
     </Suspense>
   </div>

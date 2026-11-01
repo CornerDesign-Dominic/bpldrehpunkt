@@ -149,3 +149,23 @@
 .order-record__refresh { margin-left:auto; }
 .order-record__refresh:empty { display:none; }
 .order-record > [hidden] { display:none; }
+
+.transport-order-detail-layout.transport-order-detail-layout--tracking { display:block; }
+.transport-order-tracking-tools { grid-column:1 / -1; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:start; }
+.transport-order-tracking-tools > .transport-order-detail-section { margin:0; padding:12px 14px; min-width:0; min-height:0; }
+.transport-order-tracking-tools h3 { margin:0; font-size:13px; }
+.transport-order-tracking-tools .transport-order-route-panel { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px 18px; }
+.transport-order-tracking-tools .transport-order-route-panel__heading { display:contents; }
+.transport-order-tracking-tools .transport-order-route-panel__heading .button { grid-column:3; grid-row:1; }
+.transport-order-tracking-tools .transport-order-route-panel__result { grid-column:2; grid-row:1; display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 14px; margin:0; }
+.transport-order-tracking-tools .transport-order-route-panel__result > span { font-size:20px; }
+.transport-order-tracking-tools .transport-order-route-panel > p { grid-column:1 / -1; margin:0; font-size:12px; }
+.transport-order-tracking-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; }
+.transport-order-tracking-controls .transport-order-detail-actions__buttons { display:flex; flex-wrap:wrap; gap:8px; margin:0; }
+.transport-order-tracking-controls .button { width:auto; flex:0 0 auto; min-height:30px; padding:6px 10px; font-size:12px; }
+@media(max-width:1000px) { .transport-order-tracking-tools { grid-template-columns:1fr; } }
+@media(max-width:600px) {
+  .transport-order-tracking-tools .transport-order-route-panel { grid-template-columns:minmax(0,1fr) auto; }
+  .transport-order-tracking-tools .transport-order-route-panel__heading .button { grid-column:2; }
+  .transport-order-tracking-tools .transport-order-route-panel__result { grid-column:1 / -1; grid-row:2; }
+}

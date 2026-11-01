@@ -27,8 +27,18 @@ wie ein Reiter gestaltet, bleibt semantisch ein Button und wechselt keine Seite.
 Die zusätzliche Werkzeugzeile unter der Navigation entfällt. Bestehende
 Aktualisierungsbereiche und Bearbeitungsrechte bleiben erhalten; während des
 Abrufs ist die Aktion gesperrt. Details zu Versuchen bleiben in der Historie.
-Bei schmalen Fenstern darf die Reiterleiste umbrechen. Historie und der operative
-Trackingreiter behalten ihre bisherigen eigenen Abläufe.
+Bei schmalen Fenstern darf die Reiterleiste umbrechen. Historie behält ihren
+eigenen Ablauf. Im Trackingreiter steht der bisherige Auftragsabruf ebenfalls
+rechts in dieser Leiste, einschließlich nicht interaktivem Importzeitpunkt;
+sein bestehender Abruf, Wiederholschutz und Fehlerrückmeldung bleiben erhalten.
+
+Die linke Aktionsspalte der Sendungsverfolgung entfällt. Rechnungsprüfung ist
+weiter in Finanzen verfügbar; Fälle, Palettenbewegungen und To-dos in Übersicht.
+Direkt vor dem Zeitstrahl stehen Strecke und die Trackingaktionen kompakt
+nebeneinander. Streckenwert, Fahrzeitschätzung, Neuberechnung, Fehler- und
+Adressklärungsdialog bleiben erhalten. Pausieren/Fortführen und Abschließen
+verwenden dieselben Bestätigungsdialoge, Rechte, Sperren und serverseitigen
+Aktionen wie zuvor. Schmale Ansichten stellen diese beiden Bereiche untereinander.
 
 `/transportauftraege` führt zur Auftragsliste, `/sendungsverfolgung` zur
 operativen Verfolgungsliste. Beide öffnen dieselbe Auftragsakte unter
