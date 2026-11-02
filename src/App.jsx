@@ -14,6 +14,8 @@ import QualityLayout from './components/layout/QualityLayout.jsx'
 import { qualityModules } from './lib/qualityNavigation.js'
 import DocumentsToolsLayout from './components/layout/DocumentsToolsLayout.jsx'
 import { documentsToolsModules } from './lib/documentsToolsNavigation.js'
+import PersonnelLayout from './components/layout/PersonnelLayout.jsx'
+import { personnelModules } from './lib/personnelNavigation.js'
 
 import DashboardPage from './pages/DashboardPage.jsx'
 
@@ -114,8 +116,11 @@ export default function App() {
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
+        <Route element={<PermissionRoute anyModules={personnelModules}><PersonnelLayout /></PermissionRoute>}>
+        <Route path="/personalwesen" element={null} />
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
         <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />
+        </Route>
         <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="masterData" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/import/unternehmer" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage kind="carrier" /></PermissionRoute>} />

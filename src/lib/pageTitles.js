@@ -7,6 +7,7 @@ const pageTitles = [
   { path: '/dashboard', title: 'Dashboard' },
   { path: '/postfaecher', title: 'Postfächer' },
   { path: '/team', title: 'Team Brennpunkt' },
+  { path: '/personalwesen', title: 'Personalwesen' },
   { path: '/personal', title: 'Personalverwaltung' },
   { path: '/kunden-unternehmer/import/unternehmer', title: 'Unternehmer importieren' },
   { path: '/kunden-unternehmer/import', title: 'Stammdaten importieren' },
