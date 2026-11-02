@@ -10,6 +10,7 @@ import { mergeComparison, mergeDecisionSummary } from '../lib/partnerMergeDecisi
 import PartnerMergeReview from '../components/business-partners/PartnerMergeReview.jsx'
 import CustomerImportHistory from '../components/imports/CustomerImportHistory.jsx'
 import DycosPartnerFetchForm from '../components/business-partners/DycosPartnerFetchForm.jsx'
+import DycosMasterDataImportHistory from '../components/imports/DycosMasterDataImportHistory.jsx'
 
 const statusLabel = (row) => row.kind === 'error' ? 'Fehlerhaft' : row.kind === 'merge' ? 'Zusammenführung erforderlich' : 'Prüfung erforderlich'
 const approvalLabel = (row) => row.approval?.type === 'reviewed' ? 'geprüft übernommen' : 'automatisch übernommen'
@@ -47,6 +48,7 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
   const [notice, setNotice] = useState('')
   const [modal, setModal] = useState(null)
   const [savingReview, setSavingReview] = useState(false)
+  const [importRevision, setImportRevision] = useState(0)
   const allowed = canEdit('masterData') && (!showingResults || canEdit('dataImports'))
 
   async function refresh(runId = selectedRunId) {
@@ -126,7 +128,8 @@ export default function MasterDataImportPage({ kind = 'customer' }) {
     <div className="import-page__navigation"><BackLink to="/kunden-unternehmer" /></div>
     <div className="import-page__heading"><h2>{<StaticText source={showingResults ? `${subject}: Prüfungen & Importverlauf` : 'Stammdaten importieren'} />}</h2><p><StaticText source={showingResults ? "Bisherige Importe und offene Prüfungen bleiben hier verfügbar." : "Kunden und Unternehmer über ihre Debitoren- oder Kreditornummer direkt aus DyCoS übernehmen."} /></p></div>
     {!showingResults && <>
-      <DycosPartnerFetchForm />
+      <DycosPartnerFetchForm onFinished={() => setImportRevision(value => value + 1)} />
+      <DycosMasterDataImportHistory revision={importRevision} />
       {canEdit('dataImports') && <div className="masterdata-import-actions"><Link className="masterdata-import-actions__history" to={`${importPath(kind)}?view=results`}><StaticText source="Prüfungen & Importverlauf anzeigen" /></Link></div>}
     </>}
     {showingResults && <>

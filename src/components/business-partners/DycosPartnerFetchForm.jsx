@@ -7,7 +7,7 @@ import { businessPartnerDetailPath } from '../../lib/businessPartnerLinks.js'
 
 const messages = { new: 'Geschäftspartner wurde angelegt.', updated: 'Geschäftspartner wurde ergänzt.', unchanged: 'Keine Stammdatenänderung erforderlich.' }
 
-export default function DycosPartnerFetchForm({ onImported }) {
+export default function DycosPartnerFetchForm({ onImported, onFinished }) {
   const { canEdit } = usePermissions()
   const [typ, setTyp] = useState('kunde')
   const [nummer, setNummer] = useState('')
@@ -31,7 +31,7 @@ export default function DycosPartnerFetchForm({ onImported }) {
       setResult(response); setNummer(''); attempt.current = null
       onImported?.(response)
     } catch (caught) { setError(dycosMasterDataError(caught)) }
-    finally { submitting.current = false; setPending(false) }
+    finally { submitting.current = false; setPending(false); onFinished?.() }
   }
 
   if (!allowed) return null

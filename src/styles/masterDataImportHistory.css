@@ -1,0 +1,7 @@
+.masterdata-import-history .data-table { min-width: 660px; table-layout: fixed; }
+.masterdata-import-history .data-table th:nth-child(1) { width: 160px; }
+.masterdata-import-history .data-table th:nth-child(2) { width: 170px; }
+.masterdata-import-history .data-table th:nth-child(3) { width: 210px; }
+.masterdata-import-history .data-table td:last-child { height: auto; white-space: normal; overflow-wrap: anywhere; }
+.masterdata-import-history .data-table a { color: var(--text-primary); }
+.masterdata-import-history .import-table-note { display: block; margin-top: 3px; color: var(--text-secondary); line-height: 1.4; }

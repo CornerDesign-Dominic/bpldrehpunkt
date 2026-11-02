@@ -1,5 +1,10 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Debitoren- / Kreditornummer': 'Customer / supplier account number',
+  'Der Importverlauf konnte nicht geladen werden. Bitte erneut versuchen.': 'The import history could not be loaded. Please try again.',
+  'Abweichungen im Stammdatenblatt prüfen.': 'Review differences in the partner record.',
+  'Unter dieser Nummer wurde in DyCoS kein Partner gefunden.': 'No partner was found in DyCoS for this number.',
+  'Die Stammdaten konnten nicht übernommen werden. Bitte den Abruf erneut versuchen.': 'The master data could not be imported. Please try again.',
   "Erfolgreich": "Successful",
   "Mit Fehlern": "With errors",
   "Beendet": "Ended",
