@@ -49,7 +49,7 @@ function StationCargo({ stop, number }) {
       <dt><StaticText source={label} /></dt>
       <dd>{Number.isFinite(value) ? <>{number(value)}{unit && <small> {unit}</small>}</> : <OrderMissingValue />}</dd>
     </div>)}</dl>
-    {Number.isFinite(stop.cargo?.volumetricWeightKg) && <div className="order-station__volume-weight"><p><StaticText source="Volumengewicht (DyCoS)" />: <strong>{number(stop.cargo.volumetricWeightKg)} kg</strong></p></div>}
+    <div className="order-station__dimensions"><h5><StaticText source="Maße (L × B × H)" /></h5><p><OrderMissingValue /></p></div>
   </StationCard>
 }
 

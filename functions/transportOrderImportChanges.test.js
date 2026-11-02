@@ -119,11 +119,10 @@ test('transport source values are audited including explicit false and zero with
   const changes = transportOrderImportChanges(before, after)
   assert.deepEqual(changes.map(change => change.path), [
     'shipment.vehicleInformation', 'shipment.goodsDescription', 'shipment.hazardousGoods',
-    'distances.order.totalKm', 'distances.order.motorwayKm', 'distances.order.emptyKm', 'distances.order.routed',
-    'distances.tour.totalKm', 'distances.tour.motorwayKm', 'distances.tour.emptyKm', 'distances.tour.routed', 'stops',
+    'stops',
   ])
   assert.ok(changes.some(change => change.path === 'shipment.hazardousGoods' && change.oldValue === null && change.newValue === false))
-  assert.ok(changes.some(change => change.path === 'distances.order.totalKm' && change.oldValue === null && change.newValue === 0))
+  assert.equal(changes.some(change => change.path.startsWith('distances.')), false)
   assert.equal(changes.some(change => change.routeRelevant || change.scheduleRelevant), false)
   assert.equal(loadingScheduleMovedEarlier(before, after), false)
   assert.deepEqual(transportOrderImportChanges(after, structuredClone(after)), [])
@@ -133,11 +132,15 @@ test('transport source values are audited including explicit false and zero with
   assert.equal(volumetricChange.shipment.weightKg, before.shipment.weightKg)
 })
 
-test('distance quantity formatting is normalized while source namespaces remain distinct', () => {
-  const before = imported({ distances: { order: { totalKm: 100.5 }, tour: { totalKm: 500 } } })
-  const equivalent = imported({ distances: { order: { totalKm: '100,50' }, tour: { totalKm: '500,00' } } })
-  assert.deepEqual(transportOrderImportChanges(before, equivalent), [])
+test('retired DyCoS distances cannot trigger business updates, false deletion history or route recalculation', () => {
+  const before = imported({ distances: { order: { totalKm: 100.5, routed: true }, tour: { totalKm: 500 } } })
   const changed = structuredClone(before)
   changed.distances.tour.totalKm = 550
-  assert.deepEqual(transportOrderImportChanges(before, changed).map(change => change.path), ['distances.tour.totalKm'])
+  const withoutDistances = structuredClone(before)
+  delete withoutDistances.distances
+  for (const next of [changed, withoutDistances]) {
+    assert.deepEqual(transportOrderImportChanges(before, next), [])
+    assert.equal(transportOrderImportFingerprint(before), transportOrderImportFingerprint(next))
+    assert.equal(loadingScheduleMovedEarlier(before, next), false)
+  }
 })

@@ -191,3 +191,17 @@ Auf Nutzerwunsch entfällt „Zusätzlicher Quellwert; Berechnungsgrundlage nich
 Anzeige vorhandener Nullwerte bleiben unverändert. Unbenutzte Übersetzung und
 Hinweisstil entfernt. Lint, Build und Shared-Abgleich (45 Module) erfolgreich;
 kein Backend-/Rules-/Indexdeploy erforderlich. Aktuellen Dev-Stand ad72002 erhalten.
+
+## Volumengewicht durch Maßfeld ersetzt, 01.11.2026
+
+Volumengewicht wird in der Auftragsansicht nicht mehr ausgegeben. Dort steht
+stattdessen „Maße (L × B × H): —“, ohne erfundene Maße oder Einheiten. Eine
+Maßequelle ist noch offen: 13 vorhandene JSON-Exporte enthalten 22 leere
+Stationsfelder Masse und keine eigenen befüllten Längen-/Breiten-/Höhenfelder.
+Maße in Bemerkungen bleiben vollständig. Bestehende importierte Daten und
+Historien werden nicht gelöscht, Backendmapping unverändert.
+
+Aktuellen Dev-Stand f33c06a vorab erhalten. Lint und Build nach Bereinigung eines
+doppelten Übersetzungseintrags erfolgreich; Shared-Abgleich (45 Module) ebenfalls
+bestanden. Keine Functions, Rules oder Indizes für diese Anzeigeänderung nötig.
+Ein befülltes echtes DyCoS-Beispiel wurde zur Klärung von Quelle/Einheit angefragt.

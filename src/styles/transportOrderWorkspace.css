@@ -69,8 +69,8 @@
 .order-station__cargo dd { margin-top:3px; font-size:14px; font-weight:650; line-height:1.4; font-variant-numeric:tabular-nums; }
 .order-station__cargo dd small { font-size:12px; font-weight:500; }
 .order-field-missing { color:var(--text-muted); font-weight:400; }
-.order-station__volume-weight { margin-top:8px; padding-top:6px; border-top:1px solid var(--border); }
-.order-station__volume-weight > p { font-size:13px; }
+.order-station__dimensions { margin-top:8px; padding-top:6px; border-top:1px solid var(--border); }
+.order-station__dimensions > p { font-size:13px; }
 .order-station__instructions p { font-size:13px; line-height:1.4; }
 .order-general__vehicle { min-width:0; }
 .order-workspace__card .order-general__vehicle-type { margin:3px 0 8px; font-size:14px; font-weight:650; line-height:1.4; }
@@ -86,16 +86,11 @@
 .order-general__totals dd { margin:3px 0 0; font-size:14px; font-weight:650; }
 .order-general__totals small { font-size:12px; font-weight:400; }
 .order-general__information { display:contents; }
-.order-general__goods, .order-general__distances { min-width:0; }
-.order-workspace__card .order-general__goods h4, .order-workspace__card .order-general__distances h4, .order-workspace__card .order-general__vehicle-information h4 { margin:0 0 3px; color:var(--text-muted); font-size:11px; font-weight:700; }
+.order-general__goods { min-width:0; }
+.order-workspace__card .order-general__goods h4, .order-workspace__card .order-general__vehicle-information h4 { margin:0 0 3px; color:var(--text-muted); font-size:11px; font-weight:700; }
 .order-general__goods > p, .order-general__vehicle-information p { font-size:13px; line-height:1.4; }
 .order-general__vehicle-information { margin-top:8px; padding-top:6px; border-top:1px solid var(--border); }
 .order-workspace__card .order-general__hazardous { margin:6px 0 0; padding-top:6px; border-top:1px solid var(--border); font-size:12px; }
-.order-general__distances table { width:100%; table-layout:fixed; font-size:12px; border-collapse:collapse; }
-.order-general__distances th, .order-general__distances td { padding:4px 3px; height:auto; border:0; border-bottom:1px solid var(--border); background:transparent; white-space:normal; overflow-wrap:anywhere; text-align:left; text-transform:none; letter-spacing:normal; }
-.order-general__distances th { color:var(--text-secondary); font-weight:500; }
-.order-general__distances td { font-weight:600; font-variant-numeric:tabular-nums; }
-.order-general__distances p { margin-top:6px; font-size:11px; line-height:1.4; }
 .order-workspace__muted { color:var(--text-secondary); font-size:12px; }
 .order-workspace__money { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-variant-numeric:tabular-nums; }
 .order-workspace__money--result { border-top:1px solid var(--border); margin-top:8px; padding-top:12px; font-weight:700; }

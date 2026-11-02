@@ -345,14 +345,14 @@ weiterhin `source.system = dycos`, `schemaVersion = 2`.
 | `auftrag.Gefahrgut` | `shipment.hazardousGoods` | Eigenes boolean-Kennzeichen des Auftrags; 19 ausdrücklich false. Fehlend bleibt unbekannt; keine weiteren ADR-Daten ableiten. |
 | `fahrzeugart.Informationen` | `shipment.vehicleInformation` | Unveränderter Fahrzeughinweis; 13 befüllt, 2 leer. |
 | `fahrzeugart.Bezeichnung` | `shipment.vehicleType` | Bereits bestehende Fahrzeugart; 15 befüllt. Der separate numerische `FahrzeugTyp`-Code ist nicht fachlich entschlüsselt. |
-| `auftrag.Gesamtkilometer/Autobahnkilometer/Leerkilometer/KMGeroutet` | `distances.order.totalKm/motorwayKm/emptyKm/routed` | Getrennte Quellenwerte des Auftrags. 19 numerische Nullsätze und false-Routingkennzeichen; kein Beleg für gemessene Fahrstrecken. |
-| `tour.Gesamtkilometer/Autobahnkilometer/Leerkilometer/Geroutet` | `distances.tour.totalKm/motorwayKm/emptyKm/routed` | Getrennte Werte der gesamten Tour, nicht diesem Auftrag zurechnen. 14 Nullsätze und false; fehlende Tour bleibt null. |
+| `auftrag.Gesamtkilometer/Autobahnkilometer/Leerkilometer/KMGeroutet` | Ehemals `distances.order.*`; Übernahme entfallen | Auf Nutzerwunsch am 01.11.2026 aus Mapping und Anzeige entfernt. Historische Stichprobe: 19 numerische Nullsätze und false-Routingkennzeichen; kein Beleg für gemessene Fahrstrecken. |
+| `tour.Gesamtkilometer/Autobahnkilometer/Leerkilometer/Geroutet` | Ehemals `distances.tour.*`; Übernahme entfallen | Auf Nutzerwunsch am 01.11.2026 aus Mapping und Anzeige entfernt. Historische Stichprobe: 14 Nullsätze und false; Tourwerte werden nicht weiter verwendet. |
 | `LadeEntladestellen2.Volumengewicht_gesamt_kg` | `stops[].cargo.volumetricWeightKg` | Zusatzwert per Stations-ID; 26 echte 0, 8 positive Werte. kg im Quellfeld explizit; Berechnungsbasis unbestätigt. Eigenes Volumengewicht, niemals Ersatz/Summe tatsächlichen Gewichts. |
 
 Strings und Zahlen werden wie bisher strikt geprüft; Gefahrgut und Routing
 akzeptieren bestätigte boolean-/0-/1-Werte. Unbekannt wird nicht durch 0/false
-ersetzt. Die Anzeige nennt DyCoS-Distanzen ausdrücklich als Quellenwerte und
-trennt sie von der berechneten Drehpunkt-Route. Erweiterte Importhistorien
+ersetzt. Die getrennte berechnete Drehpunkt-Route bleibt erhalten; die zusätzliche
+DyCoS-Streckenanzeige entfällt. Bereits vorhandene Importhistorien
 enthalten skalare Änderungen sowie Stationsbeschreibungen/Volumengewicht.
 Fehlende neue Null-Eigenschaften in Altstationen erzeugen keine Scheinhistorie.
 

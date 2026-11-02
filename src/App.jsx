@@ -8,6 +8,12 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
+import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
+import { caseManagementModules } from './lib/caseManagementNavigation.js'
+import QualityLayout from './components/layout/QualityLayout.jsx'
+import { qualityModules } from './lib/qualityNavigation.js'
+import DocumentsToolsLayout from './components/layout/DocumentsToolsLayout.jsx'
+import { documentsToolsModules } from './lib/documentsToolsNavigation.js'
 
 import DashboardPage from './pages/DashboardPage.jsx'
 
@@ -94,6 +100,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
+        <Route element={<PermissionRoute anyModules={qualityModules}><QualityLayout /></PermissionRoute>}>
+        <Route path="/qualitaet" element={null} />
         <Route path="/qualitaet/kvp" element={<PermissionRoute module="kvp"><QualityPage key="kvp" /></PermissionRoute>} />
         <Route path="/qualitaet/kvp/:topicId" element={<PermissionRoute module="kvp"><QualityProblemDetailPage /></PermissionRoute>} />
         <Route path="/qualitaet/kvp/besprechungen/:meetingId" element={<PermissionRoute module="kvp"><QualityMeetingDetailPage /></PermissionRoute>} />
@@ -102,6 +110,7 @@ export default function App() {
         <Route path="/qualitaet/grundregeln" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="rules" kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
+        </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
@@ -126,13 +135,20 @@ export default function App() {
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
+        <Route element={<PermissionRoute anyModules={documentsToolsModules}><DocumentsToolsLayout /></PermissionRoute>}>
+        <Route path="/dokumente-werkzeuge" element={null} />
+        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
+        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
+        </Route>
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/notizen" element={<NotesPage />} />
+        <Route element={<PermissionRoute anyModules={caseManagementModules}><CaseManagementLayout /></PermissionRoute>}>
+        <Route path="/fallmanagement" element={null} />
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
@@ -141,7 +157,7 @@ export default function App() {
         <Route path="/legal-disputes/:legalDisputeId" element={<PermissionRoute module="legalDisputes"><LegalDisputeDetailPage /></PermissionRoute>} />
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />
         <Route path="/inkasso/:caseId" element={<PermissionRoute module="inkasso"><InkassoCaseDetailPage /></PermissionRoute>} />
-        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
+        </Route>
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
@@ -153,7 +169,6 @@ export default function App() {
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
-        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
         <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

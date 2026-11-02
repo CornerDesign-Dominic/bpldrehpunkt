@@ -128,7 +128,7 @@ der Uhrzeit. Schmale Ansichten stellen die Bereiche untereinander.
 
 Fehlende einzelne Angaben im Reiter Auftrag erscheinen kompakt als „—“:
 Fahrzeugart, allgemeine Hinweise, Warenart/Gefahrgut, Adresse, Termin,
-Referenz, Bemerkung, Warenmengen, Palettentausch und Streckendetails.
+Referenz, Bemerkung, Warenmengen und Palettentausch.
 „Nicht übermittelt“ bleibt per Mauszeiger und für Screenreader verfügbar;
 Englisch nutzt „Not provided“. Echte Nullwerte und false/Nein bleiben Werte.
 Übergreifende Leerzustände und fachliche Warnhinweise werden nicht verkürzt.
@@ -157,10 +157,13 @@ persistierter Tracking-/Adressstatus. Die Originalhinweise bleiben sichtbar.
 
 Gewicht, Kolli und Lademeter stehen je Station im eigenen Warenblock. Tatsächliche
 Nullwerte bleiben sichtbar; fehlende Stationswerte werden nicht aus dem Auftrag
-ersetzt. Die Stations-Warenbeschreibung und ein eigenes Volumengewicht laut
-DyCoS sind ergänzt. Volumengewicht ersetzt weder tatsächliches Gewicht noch
-Auftragstotal. Der zusätzliche Hinweis zur fehlenden Berechnungsgrundlage entfällt
-auf Nutzerwunsch; der Volumengewichtswert bleibt sichtbar. Mehrzeilige Hinweise
+ersetzt. Die Stations-Warenbeschreibung bleibt sichtbar. Das Volumengewicht
+wird auf Nutzerwunsch nicht mehr in der Auftragsansicht angezeigt; bestehende
+Importdaten und Historien bleiben erhalten. Stattdessen steht dort
+„Maße (L × B × H): —“, solange keine bestätigte Maßequelle angebunden ist.
+Ein erneuter Abgleich der 13 vorhandenen JSON-Exportbeispiele ergab 22 leere
+Stationsfelder `Masse` und keine eigenen befüllten Längen-/Breiten-/Höhenfelder;
+Geokoordinaten sind keine Warenmaße. Mehrzeilige Hinweise
 mit Maßangaben bleiben vollständig in der Bemerkung. Das Feld `Masse` ist noch
 nicht als strukturierte Abmessung bestätigt; es werden keine Einheiten ergänzt
 oder Werte aus Texten herausgerechnet. Die Übersicht behält ihre kompakte
@@ -356,14 +359,19 @@ bestätigt den einspaltigen Umbruch ohne horizontales Überlaufen. Keine neuen
 Browserfehler in den geprüften Ansichten. Datenimport, Berechtigungen und
 Backend unverändert; keine echte Dev-Datenänderung oder Veröffentlichung.
 
-## Lokale Karten- und Transportdatenerweiterung nach der Hervorhebung
+## Karten- und Transportdaten; DyCoS-Streckenangaben entfallen
 
-Warenbeschreibung des Auftrags/je Station, Gefahrgutkennzeichen, Fahrzeughinweise
-und getrennte DyCoS-Distanzen für Auftrag/Tour sind zusätzlich gemappt und in der
-Auftragsansicht sichtbar. Das Routingkennzeichen und ein erklärender Hinweis
-verhindern die Gleichsetzung dieser Quellenwerte mit tatsächlich gefahrenen
-Kilometern oder der gesonderten Drehpunkt-Routenberechnung. Tourwerte können
-mehrere Aufträge umfassen. Gefahrgut bleibt boolean/null, ohne Ableitung weiterer
+Die Kilometer- und Routingfelder von DyCoS-Auftrag und -Tour werden auf
+Nutzerwunsch nicht mehr übernommen, geprüft, verglichen oder angezeigt. Der
+Mapper liefert kein `imported.distances` mehr. Beim nächsten regulären Abruf
+ersetzt der bestehende Import das importierte Objekt ohne diese alten Felder;
+es gibt keinen Massenlauf. Ihr Wegfall erzeugt keine fachliche Änderung oder
+zusätzliche Löschhistorie. Vorhandene Historieneinträge bleiben lesbar. Die
+gesonderten Drehpunkt-Routen unter `transportOrderRoutes`, ihre Berechnung,
+Fahrzeitschätzung und Trackinganzeige bleiben unverändert.
+
+Warenbeschreibung des Auftrags/je Station, Gefahrgutkennzeichen und Fahrzeughinweise
+bleiben gemappt und in der Auftragsansicht sichtbar. Gefahrgut bleibt boolean/null, ohne Ableitung weiterer
 ADR-Angaben. Alle neuen Felder werden historisiert; Nullergänzungen erzeugen
 keine Scheinänderungen an Altstationen, echte 0/false bleiben nachvollziehbar.
 Feldquellen, Stichprobe und verbleibende Unklarheiten stehen in der

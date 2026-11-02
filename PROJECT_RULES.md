@@ -50,6 +50,8 @@ fachlich abgenommen wurde. Historische Releases stehen in
 - CRM einschließlich Aktivitäten und Bewertungen
 - Palettenmanagement mit Kontoübersichten und Detailansichten
 - Schäden
+  (gemeinsamer Einstieg [Fallmanagement](docs/operations/case-management.md)
+  mit zunächst leerer Übersicht und Fachreitern für die vier Fallmodule)
 - Insolvenzen
 - Gericht / Streit
 - Inkasso
@@ -62,7 +64,9 @@ fachlich abgenommen wurde. Historische Releases stehen in
   die Abteilungsübersicht zeigt den aktuellen Durchlauf je Problem.
   Datenvertrag und Entwicklungsgrenzen: [Qualität](docs/operations/quality.md).
 
-- Dokumente
+- Dokumente (gemeinsamer Einstieg [Dokumente & Werkzeuge](docs/operations/documents-tools.md)
+  mit zunächst leerer Übersicht und Fachreitern für Feiertagskalender,
+  Dokumente, Vorlagen und AGB-Prüfer)
 - Vorlagen einschließlich Haftbarhaltung und Geschäftsdokumenten
 - AGB-Prüfer
 
