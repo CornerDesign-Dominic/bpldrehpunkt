@@ -40,7 +40,7 @@ Echtzeitabfrage. Rechtevertrag: [FIRESTORE_ACCESS.md](../../../FIRESTORE_ACCESS.
 
 | Bestandteil | Umfang |
 | --- | --- |
-| Functions, Projekt `db-bpl-drehpunkt-dev`, `europe-west3` | `previewPartnerMergeReversal`, `separatePartnerMerge`, `listPalletAccountSummaries`, `reportClientDiagnostic`, `listDiagnosticsPage` |
+| Functions, Projekt `db-bpl-drehpunkt-dev`, `europe-west3` | `previewPartnerMergeReversal`, `separatePartnerMerge`, `listPalletAccountSummaries`, `reportClientDiagnostic`, `listDiagnosticsPage`, `recordCaseTransportOrderLinkCreated`, `recordCaseTransportOrderLinkDeleted` |
 | Firestore-Rules | Gezielte Partner-/Fall-/To-do-Ergänzungen unter Erhalt aktueller Reminder- und Inkasso-Guards |
 | Frontend | Gebündelter Push ausschließlich nach `dev`, Vercel Preview und Dev-Domain prüfen |
 | Shared | Fachliche Quelle und Functions-Kopie der Fall-/TA-Verknüpfungen synchron |
@@ -50,21 +50,39 @@ Vorheriger Dev-Frontendstand: `f83545fa0df031ddb569525761137c975b516a7e`,
 Vercel `dpl_E22PwekUHZKjkbzr4qC6ed5Kxbq9` (Dev-Alias, Preview).
 Vorheriges Dev-Ruleset: `5f4e51d4-dda1-49fd-af10-f1c44bb01a29`.
 Produktions-`main`: `230c2ad86af9700118e2f1456746292241461efc`.
+Die weitere Dev-Importhistorie bis `34c01fa` wurde vor dem Release konfliktfrei
+integriert; beide Übersetzungsgruppen und deren neue Serverexports bleiben
+erhalten. Die beiden Fall-/TA-Historientrigger werden wegen der aktualisierten
+Shared-Typdefinition für Insolvenzen ebenfalls erneuert.
 Vorher-/Nachher-Metadaten werden lokal ignoriert unter `tmp/` abgelegt;
 Zugangsdaten gehören nicht in diesen Beleg.
 
 ## Prüfung und Durchführung
 
-Vor Veröffentlichung: gezielte Frontend-/Shared- und Backendtests, echte lokale
-Firestore-Emulatortests, Lint, Build und Shared-Abgleich auf der zusammengeführten
-aktuellen Dev-Basis. Build besitzt die bekannte Warnung zu großen Bundles.
+Vor Veröffentlichung bestanden:
+
+- 118 Tests der geänderten Logik-/Vertragsdateien in einem gemeinsamen Lauf;
+  zusätzlich gezielte bestehende Navigationstests im Portierungsreview.
+- 43 gezielte Rules-/Integrationstests und elf Tests über tatsächliche
+  Client-Speicherdienste (To-dos und Stammdaten), keine Skips. Sie umfassen
+  erlaubte/verweigerte Zugriffe, historische Namen und Rollenformate,
+  aktuelle Reminder-Rules, Merge/Trennung und das heutige DyCoS-Kontenmodell.
+  Der zusätzliche Herkunftsnachweis-Race wurde im Account-Trennungstest geprüft.
+- Lint, Build, Shared-Abgleich (45 Module) und Diffprüfung auf der aktuellen
+  zusammengeführten Dev-Basis. Build besitzt die bekannte Warnung zu großen Bundles.
 
 Live-Prüfung verwendet das vorhandene angemeldete Dev-Testkonto und klar
 gekennzeichnete, getrennte Testdaten. Keine echten Mails oder DyCoS-/KI-Abrufe
 werden zur Prüfung ausgelöst. Datenanlage dient nur der Testvorbereitung;
 Benutzerabläufe werden anschließend über die tatsächliche Dev-Oberfläche geprüft.
 
-Durchführungsstatus und genaue Ergebnisse werden nach den Schritten ergänzt.
+Serverbereitstellung am 02.11.2026 abgeschlossen: alle sieben Functions melden
+`ACTIVE`; Firestore-Rules wurden erfolgreich kompiliert und veröffentlicht.
+Der live gelesene Rules-Hash stimmt exakt mit der geprüften Release-Datei
+überein. Produktions-Rules und Produktions-Functions sind im Metadatenvergleich
+unverändert. Frontend-Veröffentlichung und Live-Abnahme folgen auf diesem Stand.
+
+Durchführungsstatus und genaue Live-Ergebnisse werden nach den Schritten ergänzt.
 Ein erfolgreicher Vercel-Build allein ist kein Nachweis eines vollständigen
 Backend-Releases. Eine Rückkehr muss Frontend und Rules/Functions abgestimmt
 betrachten; es gibt keine Datenmigration zurückzusetzen.
