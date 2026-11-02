@@ -1,8 +1,8 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
-  [string]$ConfigurationDirectory = "$env:USERPROFILE/.codex/secrets/drehpunkt-production",
-  [string]$DycosIdentityDirectory = "$env:LOCALAPPDATA/Drehpunkt/production-identities/2026-11-02/dycos",
-  [string]$ReminderIdentityDirectory = "$env:LOCALAPPDATA/Drehpunkt/reminder-identities/fcaf916d45bd466b984443bd4365ec8c/production",
+  [string]$ConfigurationDirectory = (Join-Path ([Environment]::GetFolderPath('UserProfile')) '.codex/secrets/drehpunkt-production'),
+  [string]$DycosIdentityDirectory = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Drehpunkt/production-identities/2026-11-02/dycos'),
+  [string]$ReminderIdentityDirectory = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Drehpunkt/reminder-identities/fcaf916d45bd466b984443bd4365ec8c/production'),
   [switch]$Apply
 )
 $ErrorActionPreference = 'Stop'
@@ -23,9 +23,10 @@ $files = [ordered]@{
   REMINDER_CERTIFICATE_PEM = (Join-Path $ReminderIdentityDirectory 'public-certificate.pem')
   REMINDER_PRIVATE_KEY_PEM = (Join-Path $ReminderIdentityDirectory 'private-key.pem')
 }
-foreach ($entry in $files.GetEnumerator()) {
-  if (!(Test-Path -LiteralPath $entry.Value -PathType Leaf) -or (Get-Item -LiteralPath $entry.Value).Length -eq 0) { throw "Die vorbereitete Datei für $($entry.Key) fehlt oder ist leer. Es wurde nichts angelegt." }
-}
+$missingFiles = @($files.GetEnumerator() | Where-Object {
+  !(Test-Path -LiteralPath $_.Value -PathType Leaf) -or (Get-Item -LiteralPath $_.Value).Length -eq 0
+} | ForEach-Object { "$($_.Key): $($_.Value)" })
+if ($missingFiles.Count) { throw ("Vorbereitete Dateien fehlen oder sind leer. Es wurde nichts angelegt.`n" + ($missingFiles -join "`n")) }
 Write-Output "Ziel: $productionProject. 14 vorbereitete Produktions-Secrets; keine Werte werden angezeigt."
 if (!$Apply) { $files.Keys | ForEach-Object { Write-Output $_ }; Write-Output 'Vorschau. Erst mit -Apply werden die Secrets eingerichtet.'; return }
 foreach ($entry in $files.GetEnumerator()) {
