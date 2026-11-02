@@ -28,6 +28,8 @@ fachlich abgenommen wurde. Historische Releases stehen in
 - Kalender und Feiertagskalender
 - News
 - Urlaub, Urlaubsmanagement, Personal und Team
+  (direkter Einstieg [Personalwesen](docs/operations/personnel-navigation.md)
+  mit zunächst leerer Übersicht und Fachreiter Personal)
 - To-dos
 - Persönliche Notizen
 - Persönliches Profil

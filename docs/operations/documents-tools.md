@@ -16,3 +16,7 @@ Module `feiertagskalender`, `documents`, `templates`, `agbChecker`. Jeder Reiter
 und seine bestehenden Routen behalten das jeweilige Modulrecht; Bearbeitungs-
 und serverseitige Rechte bleiben unverändert. Die Übersicht lädt keine
 Fachinhalte. Keine neuen Rechte, Datenabfragen, Functions, Rules oder Indizes.
+
+Der Feiertagskalender nutzt im zweispaltigen Desktoplayout den verfügbaren
+Platz unter der Reiterleiste bis zum unteren Inhaltsrand. Auf schmalen Ansichten
+bleiben Kalender und Länderwahl untereinander mit normalem Seitenscrollen.
