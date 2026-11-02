@@ -1,3 +1,7 @@
+export function MailIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+}
+
 export function DashboardIcon({ size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
 }
@@ -172,4 +176,8 @@ export function LegalDisputesIcon({ size = 20 }) {
 
 export function InkassoIcon({ size = 20 }) {
   return <FaFileInvoiceDollar size={size} aria-hidden="true" focusable="false" />
+}
+
+export function TrackingHistoryIcon({ size = 20 }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8a8 8 0 1 1-1 7M4 3v5h5" /><path d="M12 7v5l3 2" /><circle cx="19" cy="18" r="4" fill="var(--surface-secondary)" /><path d="M19 15.8v2.3m0 1.8v.1" /></svg>
 }

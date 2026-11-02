@@ -1,5 +1,9 @@
 # Prüfung: Bedienoberfläche in Deutsch/Englisch und Dashboard
 
+Historischer Prüfbeleg, bei der Bereinigung vom 28.10.2026 erhalten.
+Die Änderungen sind inzwischen auf beiden Hauptbranches vorhanden. Frühere
+Testzahlen und Restpunkte sind keine heutige Abnahme.
+
 Stand: 2026-10-01. Release-Zuordnung: gezielter Cherry-pick von `dev` nach `main` (Production). Der Nutzer hat die Übernahme beider Änderungen nach `main` beauftragt.
 
 ## Umfang und Benutzerabläufe

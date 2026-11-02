@@ -35,8 +35,8 @@ function createPayload(values) {
   }
 }
 
-export async function listCrmActivities(partnerId) {
-  const cluster = await getPartnerCluster(partnerId)
+export async function listCrmActivities(partnerId, knownCluster = null) {
+  const cluster = knownCluster || await getPartnerCluster(partnerId)
   const snapshots = await Promise.all(cluster.members.map((partner) => getDocs(query(activitiesRef(partner.id), orderBy('date', 'desc')))))
   return snapshots.flatMap((snapshot, index) => snapshot.docs.map((entry) => ({ ...mapSnapshot(entry), originPartnerId: cluster.members[index].id })))
     .filter((activity) => !activity.splitArchivedAt)

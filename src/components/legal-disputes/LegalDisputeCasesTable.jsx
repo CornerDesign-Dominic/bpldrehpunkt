@@ -1,3 +1,5 @@
+import { partnerReferenceName } from '../../lib/partnerReferenceNames.js'
+import PartnerReferenceLink from '../business-partners/PartnerReferenceLink.jsx'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { legalDisputeScheduleTypeLabel, legalDisputeStatusLabel } from '../../lib/legalDisputes.js'
 
@@ -13,7 +15,7 @@ export default function LegalDisputeCasesTable({ cases, emptyMessage, onOpen }) 
 
   return <div className="legal-disputes-cases-table-frame"><table className="data-table todos-table legal-disputes-cases-table"><thead><tr><TableHeader><StaticText source={"Aktenzeichen"} /></TableHeader><TableHeader><StaticText source={"Gegenseite"} /></TableHeader><TableHeader><StaticText source={"Art"} /></TableHeader><TableHeader>Status</TableHeader><TableHeader><StaticText source={"Streitwert"} /></TableHeader><TableHeader><StaticText source={"Nächste Frist / Termin"} /></TableHeader></tr></thead><tbody>{cases.map((legalDispute) => <tr className={onOpen ? 'legal-disputes-cases-table__row' : ''} key={legalDispute.id} tabIndex={onOpen ? 0 : undefined} role={onOpen ? 'link' : undefined} aria-label={onOpen ? `Fall ${legalDispute.caseNumber || legalDispute.reference || ''} öffnen` : undefined} onClick={() => onOpen?.(legalDispute)} onKeyDown={(event) => { if (onOpen && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(legalDispute) } }}>
     <td className="todos-table__title">{legalDispute.caseNumber || legalDispute.reference || '—'}</td>
-    <td>{legalDispute.counterparty || '—'}</td>
+    <td>{partnerReferenceName(legalDispute, 'counterparty') || '—'} <PartnerReferenceLink partnerId={legalDispute.counterpartyPartnerId} /></td>
     <td>{legalDispute.caseType || '—'}</td>
     <td><span className={`todo-status damage-status damage-status--${legalDispute.status}`}>{legalDisputeStatusLabel(legalDispute.status)}</span></td>
     <td>{formatCurrency(legalDispute.amountInDispute)}</td>

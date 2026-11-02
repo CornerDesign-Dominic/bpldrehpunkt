@@ -1,11 +1,18 @@
+import { useLanguage } from '../i18n/useLanguage.js'
+import ReminderStatus from '../components/reminders/ReminderStatus.jsx'
+import { reminderTimestampKey } from '../lib/reminderForm.js'
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import Link from "../components/ui/ContextLink.jsx";
+import { recordDetailPath } from "../lib/recordNavigation.js";
 import TodoQuickEditModal from "../components/todos/TodoQuickEditModal.jsx";
 import TodoDeadlinesCard from "../components/todos/TodoDeadlinesCard.jsx";
 import { TodoPriority } from "../components/todos/TodoPriority.jsx";
 import ConfirmDialog from "../components/ui/ConfirmDialog.jsx";
 import BackLink from "../components/ui/BackLink.jsx";
+import ContextLink from "../components/ui/ContextLink.jsx";
 import Toast from "../components/ui/Toast.jsx";
 import { EditIcon } from "../components/icons.jsx";
 import { useAuth } from "../auth/useAuth.js";
@@ -150,6 +157,7 @@ function TodoActions({ actor, editable, onAction, todo }) {
 }
 
 export default function TodoDetailPage() {
+  const { language } = useLanguage();
   const { todoId } = useParams();
   const { user, profile } = useAuth();
   const { canEdit, canView } = usePermissions();
@@ -202,6 +210,14 @@ export default function TodoDetailPage() {
     setDeadlines(todoDeadlines);
     setUpdatesLoading(false);
     setDeadlinesLoading(false);
+  }
+
+  async function refreshAfterWrite() {
+    try { await loadTodo(); }
+    catch (loadError) {
+      setError(language === 'en' ? 'Change saved. The current data could not be reloaded. Please reload the page.' : 'Änderung gespeichert. Die aktuellen Daten konnten nicht neu geladen werden. Bitte die Seite neu laden.');
+      void reportTechnicalFailure({ module: 'website', stage: 'other', error: loadError });
+    }
   }
 
   useEffect(() => {
@@ -287,7 +303,7 @@ export default function TodoDetailPage() {
       resetAssignment,
       actor,
     );
-    await loadTodo();
+    await refreshAfterWrite();
     setQuickEditing(null);
     setToast(
       resetAssignment
@@ -325,7 +341,7 @@ export default function TodoDetailPage() {
       if (action === "reactivate")
         await reactivateTodoForCurrentUser(todo.id, actor);
       if (action === "withdraw") await withdrawTodo(todo.id, actor);
-      await loadTodo();
+      await refreshAfterWrite();
       setToast(
         {
           assign: "Aufgabe angenommen.",
@@ -348,12 +364,12 @@ export default function TodoDetailPage() {
         await persistQuickEdit(confirmation.values, true);
       if (confirmation.type === "complete") {
         await completeTodoForCurrentUser(confirmation.todo.id, actor);
-        await loadTodo();
+        await refreshAfterWrite();
         setToast("To-do erledigt.");
       }
       if (confirmation.type === "withdraw") {
         await withdrawTodo(confirmation.todo.id, actor);
-        await loadTodo();
+        await refreshAfterWrite();
         setToast("To-do zurückgezogen.");
       }
       setConfirmation(null);
@@ -372,7 +388,7 @@ export default function TodoDetailPage() {
     try {
       await addTodoNote(todoId, note, actor);
       setNote("");
-      await loadTodo();
+      await refreshAfterWrite();
       setToast("Hinweis hinzugefügt.");
     } catch (noteError) {
       setError(
@@ -389,7 +405,7 @@ export default function TodoDetailPage() {
       if (existingDeadline)
         await updateTodoDeadline(result.todo, existingDeadline, values, actor);
       else await createTodoDeadline(result.todo, values, actor);
-      await loadTodo();
+      await refreshAfterWrite();
       setToast(
         existingDeadline ? "Termin aktualisiert." : "Termin hinzugefügt.",
       );
@@ -405,7 +421,7 @@ export default function TodoDetailPage() {
     setError("");
     try {
       await deleteTodoDeadline(result.todo, deadline, actor);
-      await loadTodo();
+      await refreshAfterWrite();
       setToast("Termin gelöscht.");
     } catch (deleteError) {
       setError(
@@ -549,7 +565,7 @@ export default function TodoDetailPage() {
                 {todo.description || <StaticText source={"Keine Beschreibung hinterlegt."} />}
               </p>
             </section>
-            <TodoDeadlinesCard canEdit={canManageSections} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+            <TodoDeadlinesCard todoId={todo.id} refreshKey={reminderTimestampKey(todo.updatedAt)} canEdit={canManageSections} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
             <section
               className="todo-updates"
               aria-labelledby="todo-updates-title"
@@ -654,9 +670,10 @@ export default function TodoDetailPage() {
                   </span>
                 </Detail></TranslatedProps>
                 <TranslatedProps sources={{"label":"Erinnerung am"}}><Detail label="Erinnerung am">
-                  {formatDate(todo.reminderDate)}
+                  {formatDate(todo.reminderDate)}{todo.reminderTime ? ` · ${todo.reminderTime} (Berlin)` : ""}
                 </Detail></TranslatedProps>
               </dl>
+              <ReminderStatus sourcePath={`todos/${todo.id}`} enabled={Boolean(todo.reminderDate)} configured={Boolean(todo.reminderDate || todo.reminderTime)} recipientRule="todo" refreshKey={reminderTimestampKey(todo.updatedAt)} />
             </section>
             <section>
               <DetailSectionHeading
@@ -688,8 +705,7 @@ export default function TodoDetailPage() {
                   {todo.customerId && canViewMasterData ? (
                     <Link
                       to={businessPartnerDetailPath(
-                        effectivePartner(todo.customerId)?.id ||
-                          todo.customerId,
+                        todo.customerId,
                       )}
                     >
                       {effectivePartner(todo.customerId)?.companyName ||
@@ -704,7 +720,7 @@ export default function TodoDetailPage() {
                   {todo.carrierId && canViewMasterData ? (
                     <Link
                       to={businessPartnerDetailPath(
-                        effectivePartner(todo.carrierId)?.id || todo.carrierId,
+                        todo.carrierId,
                       )}
                     >
                       {effectivePartner(todo.carrierId)?.companyName ||
@@ -717,7 +733,7 @@ export default function TodoDetailPage() {
                 </Detail></TranslatedProps>
                 <TranslatedProps sources={{"label":"Schadenfall"}}><Detail label="Schadenfall">
                   {linkedDamageCase ? (
-                    <Link to={`/schaeden/${linkedDamageCase.id}`}>
+                    <Link to={recordDetailPath('damage', linkedDamageCase.id)}>
                       {linkedDamageCaseLabel}
                     </Link>
                   ) : todo.damageCaseId ? (
@@ -733,14 +749,16 @@ export default function TodoDetailPage() {
                     <StaticText source="Insolvenz nicht verfügbar" />
                   ) : null}
                 </Detail>
+                {todo.legalDisputeId && <Detail label="Gericht / Streit">{canView('legalDisputes') ? <Link to={recordDetailPath('legalDispute', todo.legalDisputeId)}><StaticText source="Gericht-/Streitfall öffnen" /></Link> : <StaticText source="Kein Zugriff auf den verknüpften Fall" />}</Detail>}
+                {todo.inkassoCaseId && <Detail label="Inkasso">{canView('inkasso') ? <Link to={recordDetailPath('inkasso', todo.inkassoCaseId)}><StaticText source="Inkassofall öffnen" /></Link> : <StaticText source="Kein Zugriff auf den verknüpften Fall" />}</Detail>}
                 <TranslatedProps sources={{"label":"TA-Nummern"}}><Detail label="TA-Nummern">
-                  {linkedTransportOrders.length
+                  {canViewTransportOrders && linkedTransportOrders.length
                     ? linkedTransportOrders.map((link, index) => (
                         <span key={link.id}>
                           {<StaticText source={index > 0 && ", "} />}
-                          <Link to={transportOrderPath(link.id)}>
+                          <ContextLink to={transportOrderPath(link.id)}>
                             TA {link.number || link.id}
-                          </Link>
+                          </ContextLink>
                         </span>
                       ))
                     : null}

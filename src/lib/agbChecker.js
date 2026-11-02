@@ -11,6 +11,6 @@ async function fileToBase64(file) {
 
 export async function analyzeCustomerOrderTerms(file) {
   const pdfBase64 = await fileToBase64(file)
-  const result = await httpsCallable(functions, 'analyzeCustomerOrderTerms', { timeout: 120_000 })({ pdfBase64, fileName: file.name })
+  const result = await httpsCallable(functions, 'analyzeCustomerOrderTerms', { timeout: 540_000 })({ pdfBase64, fileName: file.name })
   return result.data
 }

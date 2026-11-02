@@ -1,3 +1,4 @@
+import { partnerClusterSearchNames } from '../lib/partnerReferenceNames.js'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerStatusLabel, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
@@ -74,11 +75,12 @@ export default function CustomersPage() {
     listBusinessPartners().then(setPartners).catch(() => setError(true)).finally(() => setLoading(false))
   }, [])
 
+  const clusterSearchNames = useMemo(() => partnerClusterSearchNames(partners), [partners])
   const visiblePartners = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
-    const filteredPartners = partners.filter((partner) => !partner.mergedIntoPartnerId && matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber, partner.timocomNumber, partner.transeuNumber].some((value) => value?.toLocaleLowerCase('de-DE').includes(term))))
+    const filteredPartners = partners.filter((partner) => !partner.mergedIntoPartnerId && matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber, partner.timocomNumber, partner.transeuNumber, ...(clusterSearchNames.get(partner.id) || [])].some((value) => value?.toLocaleLowerCase('de-DE').includes(term))))
     return sortPartners(filteredPartners, sort)
-  }, [filter, partners, search, sort])
+  }, [clusterSearchNames, filter, partners, search, sort])
 
   function toggleSort(key) {
     setSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' })
@@ -106,7 +108,7 @@ export default function CustomersPage() {
       <div className="list-toolbar"><div className="list-controls"><label className="search-field"><span className="sr-only">{t('partners.search')}</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('partners.searchHint')} type="search" /></label><label className="filter-field"><span className="sr-only">{t('partners.filter')}</span><select value={filter} onChange={(event) => setFilter(event.target.value)}>{filters.map(({ value, label }) => {
         const key = { all: 'partners.all', customer: 'partners.customers', supplier: 'partners.carriers', both: 'partners.both', active: 'partners.active', inactive: 'partners.inactive', insolvency: 'partners.insolvency', blocked: 'partners.blocked' }[value]
         return <option key={value} value={value}>{key ? t(key) : label}</option>
-      })}</select></label></div><div className="list-toolbar__actions">{canEdit('dataImports') && <Link className="button button--secondary" to="/kunden-unternehmer/import">{t('partners.import')}</Link>}{canEdit('masterData') && <Link className="button" to="/kunden-unternehmer/neu">{t('partners.create')}</Link>}</div></div>
+      })}</select></label></div><div className="list-toolbar__actions">{canEdit('masterData') && <Link className="button button--secondary" to="/kunden-unternehmer/import" target="_blank" rel="noopener">{t('partners.import')}</Link>}</div></div>
       {error && <p className="form-error">{t('partners.loadError')}</p>}
       <div className="business-partners-table-frame"><table className="data-table"><thead><tr>{renderSortableHeader('companyName', t('partners.companyName'))}{renderSortableHeader('city', t('partners.city'))}{renderSortableHeader('type', t('partners.type'))}{renderSortableHeader('debtorNumber', t('partners.debtor'))}{renderSortableHeader('creditorNumber', t('partners.creditor'))}{renderSortableHeader('timocomNumber', 'TIMOCOM')}{renderSortableHeader('transeuNumber', 'Trans.eu')}{renderSortableHeader('status', t('partners.status'))}</tr></thead><tbody>{loading ? <tr><td colSpan="8" className="table-state">{t('partners.loading')}</td></tr> : error ? <tr><td colSpan="8" className="table-state">{t('partners.unavailable')}</td></tr> : visiblePartners.length ? visiblePartners.map((partner) => <tr className="business-partners-table__row" key={partner.id} role="link" tabIndex="0" onClick={() => openPartner(partner)} onKeyDown={(event) => handlePartnerKeyDown(event, partner)}><td><strong>{partner.companyName}</strong>{partner.shortName && <span className="table-subline">{partner.shortName}</span>}</td><td>{partner.address?.city || '—'}</td><td>{partnerTypeLabel(partner)}</td><td>{partner.debtorNumber || '—'}</td><td>{partner.creditorNumber || '—'}</td><td>{partner.timocomNumber || '—'}</td><td>{partner.transeuNumber || '—'}</td><td><span className={`status-badge status-badge--${partner.status}`}>{partnerStatusLabel(partner.status)}</span></td></tr>) : <tr><td colSpan="8" className="table-state">{t('partners.empty')}</td></tr>}</tbody></table></div>
     </div>

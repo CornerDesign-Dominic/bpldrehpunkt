@@ -1,6 +1,6 @@
 # Zugriffs- und Betriebsmodell für Firestore und Storage
 
-Diese Dokumentation beschreibt den im Repository implementierten Produktionsstand. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions.
+Stand: 28.10.2026. Diese Dokumentation beschreibt das im Repository implementierte Zugriffsmodell. Sie bestätigt keinen identischen Live-Deploy. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions. Umgebungs- und Deploymentprüfungen stehen in `docs/operations/documentation-inventory.md`.
 
 ## Authentifizierung und aktive Profile
 
@@ -23,18 +23,55 @@ Die zulässigen globalen Rollen sind `user`, `admin` und `superadmin`. Ungültig
 | `view` | Lesender Modulzugriff. |
 | `edit` | Lesender und schreibender Modulzugriff, soweit die jeweilige Rule die konkrete Operation zulässt. |
 
-`superadmin` erhält im Client und in den Firestore-/Storage-Rules den `edit`-Override für alle vorhandenen Module. `admin` ist kein pauschaler Modulrechte-Override: Administrative Kontoverwaltung ist möglich, der Fachzugriff folgt aber weiterhin den Modulrechten. Die zentrale Modulliste umfasst Dashboard, Urlaub, Feiertagskalender, Kalender, Team, Stammdaten, CRM, Palettenmanagement, News, Dokumente, Vorlagen, To-dos, Schäden, Insolvenzen, Gericht/Streit, Inkasso, Personal und AGB-Prüfer.
+`superadmin` erhält im Client und in den Firestore-/Storage-Rules den `edit`-Override für alle vorhandenen Module. `admin` ist kein pauschaler Modulrechte-Override: Administrative Kontoverwaltung ist möglich, der Fachzugriff folgt aber weiterhin den Modulrechten. Die zentrale Modulliste umfasst Dashboard, Urlaub, Feiertagskalender, Kalender, Team, Stammdaten, Partner zusammenführen, Auftragsliste, Datenimporte, CRM, Palettenmanagement, News, Dokumente, Vorlagen, To-dos, Schäden, Insolvenzen, Gericht/Streit, Inkasso, Personal und AGB-Prüfer. Maßgeblich bleibt die Registrierung in `src/lib/permissions.js`.
 
 Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt über Firestore durch Browser-Clients angelegt, geändert oder gelöscht werden.
 
 ## Zwei Zugriffsebenen
+
+Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
+unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für
+Browser). `listDycosMasterDataImports` prüft App Check, aktives Profil und
+Stammdaten-Bearbeitungsrechte. Der Benutzerpfad wird aus der Anmeldung gebildet;
+auch Administratoren erhalten über diesen Endpunkt keinen fremden Verlauf.
+Die Abfrage liefert höchstens 25 Einträge und einen geprüften Cursor, ohne
+Quellantworten, Bankdaten oder interne Sperrtokens. Kein zusammengesetzter Index
+und keine Erweiterung der Browserrechte erforderlich.
+
+Die persönliche Postfach-Auftragserfassung verlangt Postfach- und
+Auftragsbearbeitung sowie lesenden Stammdatenzugriff. Private Vorschauen,
+Quoten und Exportbelege sind für direkte Clients gesperrt. Kontobezogene
+DyCoS-IDs (`dycosReferences.accounts`, `dycosImport` und die ältere
+`dycosIdentities`-Darstellung) sind serververwaltet; auch Superadmins dürfen
+sie nicht direkt verändern. Der XML-Export prüft Eigentümer, aktuelle
+Verbindung, genaue Debitorenreferenz und unverändertes Original-PDF erneut.
+[Auftragserfassung](docs/operations/mailbox-order-capture.md) beschreibt den Vertrag.
+
+
+Die eigenständigen Qualitätsmodule `kvp` und `handbook` verwenden ebenfalls
+`none`/`view`/`edit`. `qualityTopics` und `qualityMeetings` einschließlich
+`revisions` sind mit `kvp` lesbar, `qualityHandbook` einschließlich Verlauf mit
+`handbook`. Direkte Schreibzugriffe sind gesperrt. `saveQualityRecord` prüft
+aktives Profil, Bearbeitungsrecht, Abteilung und Revision transaktional und
+schreibt unveränderliche Fassungen. Die Rechte gelten abteilungsübergreifend.
+Details: [Qualität](docs/operations/quality.md).
+
+Das zusätzliche Modul `mailboxes` steuert den persönlichen Mailbereich.
+`view` erlaubt lesende Zugriffe auf eigene verbundene Postfächer; `edit`
+zusätzlich Verknüpfen/Trennen, Entwurf speichern und explizites Antworten.
+Auch ein Superadmin darf keine fremden persönlichen Postfächer abrufen.
+Die inhalts- und zugangsdatenführenden `mailbox*`-Collections sind für Browserzugriffe durch Default-deny
+gesperrt und werden nur durch berechtigte Functions verarbeitet. Tokens liegen
+im Secret Manager, nie in Firestore. Der begrenzte Dev-Vertrag einschließlich
+OAuth und Versand ist unter [Graph-Postfächer](docs/operations/mailboxes-graph.md)
+dokumentiert.
 
 | Ebene | Durchsetzung | Zweck |
 | --- | --- | --- |
 | Browserzugriff | Firestore- und Storage-Rules | Erzwingt aktive Profile, Rollen, Modulrechte, Eigentümerschaft und datenbezogene Validierungen für direkte SDK-Zugriffe. Eine ausgeblendete UI ersetzt diese Rules nicht. |
 | Serverseitiger Zugriff | Firebase Admin SDK in Cloud Functions und Triggern | Führt privilegierte, validierte Abläufe aus. Admin-SDK-Zugriffe unterliegen nicht den Browser-Rules; client-erreichbare Callables müssen deshalb selbst Authentifizierung, aktives Profil, Rollen bzw. Modulrechte und App Check prüfen. |
 
-Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enforceAppCheck: true`. App Check ergänzt Authentifizierung und Rules, ersetzt aber weder das aktive Profil noch die serverseitigen Berechtigungsprüfungen.
+Die Callables verlangen `enforceAppCheck: true`. Der datierte Quellcode-/Live-Abgleich steht in `docs/operations/documentation-inventory.md`; `APP_CHECK_ROLLOUT.md` beschreibt die zusätzliche Schutzschicht. Der HTTP-Mail-Ingest verwendet stattdessen einen serverseitigen Bearer-Token und eine Postfachprüfung. App Check ersetzt weder das aktive Profil noch Berechtigungsprüfungen.
 
 ## Firestore-Schutzgrenzen
 
@@ -44,6 +81,8 @@ Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enf
 - Vollständige Profile werden nicht als allgemeines Verzeichnis bereitgestellt. Reduzierte Verwaltungs- oder Verzeichnissichten stammen aus geschützten Callables.
 - `employeeHrProfiles`, `hrVacationMeta` und `hrVacationAdjustments` sind für Browser-Clients vollständig gesperrt. Der Personalbereich verwendet dafür Callables mit aktivem Profil und `personnel`-Recht.
 - Persönliche Urlaubsanträge können nur im zulässigen eigenen Umfang angelegt werden. Direkte Änderungen, Entscheidungen und Löschungen von `vacationRequests` sind gesperrt; Entscheidungen erfolgen serverseitig nach Prüfung der Urlaubsmanager-Zuständigkeit.
+- Persönliche Notizen unter `users/{uid}/personalNotes` sind nur für den aktiven Eigentümer les- und schreibbar; die Rules validieren Inhalt und Metadaten.
+- Persönliche Auftragslisten-Einstellungen werden ausschließlich über `updateOwnTransportOrderListPreferences` gespeichert. Die Callable verlangt ein aktives Profil, validiert nur die erlaubten Listenfelder und schreibt ausschließlich `userPreferences.transportOrderList` sowie dessen Änderungszeit im eigenen Profil. Rollen und Modulrechte bleiben unverändert.
 
 ### Fach- und Konfigurationsdaten
 
@@ -52,6 +91,63 @@ Der aktuelle Functions-Bestand enthält 43 client-erreichbare Callables mit `enf
 - Die eigenen Firmenstammdaten unter `appSettings/companyMasterData` sind für aktive Profile lesbar. Direkte Browser-Schreibzugriffe sind gesperrt; die Änderung erfolgt über `updateCompanyMasterData` für aktive Admins und Superadmins.
 - Systemmail-Vorlagen, KI-Prompt-Konfigurationen, Kontenmigrationen und Nutzungsprotokolle sind für Browser-Clients vollständig gesperrt.
 - Inkassofälle dürfen im Browser nicht direkt angelegt werden, damit die serverseitige Fallnummernvergabe die einzige Quelle bleibt.
+
+### Importe, Partnerzusammenführung und Aufträge
+
+- `transportOrders` sowie deren Historie und `receivedMails` sind mit `transportOrders: view` lesbar, aber nicht direkt durch Browser schreibbar. Importänderungen und deren Freigabe werden serverseitig geprüft; Rollen und zugewiesene DyCoS-Relationen wirken je nach Aktion zusätzlich.
+- Importläufe und Prüfwarteschlangen werden durch geschützte Callables bereitgestellt. Kunden-/Unternehmerprüfung erfordert `dataImports: edit` und `masterData: edit`; Zusammenführungen zusätzlich `partnerMerges: edit`. Die aktuelle Aktion bleibt für die genaue Rechtekombination maßgeblich.
+- Der manuelle TA-Abruf `fetchDycosTransportOrder` benötigt App Check,
+  Firebase-Anmeldung, ein aktives Profil und `dataImports: edit` (oder
+  Superadmin). Auftragsleserecht allein erlaubt keinen Import. Die Antwort
+  liefert Status und Dokumentreferenz, keine vollständigen SQL-Zeilen.
+  Der Auftragslink und das anschließende Lesen benötigen separat
+  `transportOrders: view`. `dycosImportRequests`, `dycosImportLocks` und
+  `dycosImportQuotas` bleiben durch die standardmäßig verweigernden Rules
+  ausschließlich serverseitig; keine neue Browser-Schreibfreigabe.
+  Die erweiterte Partnerergänzung innerhalb dieses Abrufs verlangt zusätzlich
+  `masterData: edit`. Ohne dieses Recht bleibt der TA-Abruf mit seiner bisherigen
+  minimalen Partneranlage möglich; zusätzliche Stammdaten werden mit sichtbarem
+  Hinweis ausgelassen. Ergänzungen und Konfliktmetadaten liegen beim Partner,
+  nicht im allgemeinen TA-Snapshot oder in technischen Diagnosemeldungen.
+- `partnerMergeOperations` ist einschließlich Untercollections für direkte Browserzugriffe gesperrt. Zusammenführung und Trennung erfolgen serverseitig. Fachobjekte behalten ihre ursprünglichen Partner-IDs; die aktuelle Identität wird über den Partnercluster aufgelöst.
+- `transportOrderTrackings` und `events` sind für Auftragsleser lesbar; Änderungen und Historieneinträge erfolgen ausschließlich serverseitig. Interne Versand-/Automationsdaten haben keine allgemeine Browserfreigabe.
+- `transportOrderRoutes` und `calculations` sind für Auftragsleser lesbar und nur serverseitig schreibbar. TomTom-Cache und Nutzungsdaten sind direkt gesperrt; administrative Verbrauchsübersichten stammen aus Callables.
+- `transportOrderRatings` ist direkt gesperrt. Eigene Bewertungen und fachliche Auswertungen verwenden die berechtigten Callables.
+- `caseTransportOrderLinks` verbindet Schäden, Inkasso, Gericht/Streit und Insolvenzen mit mehreren Aufträgen. Lesen verlangt Auftrags- und Fallzugriff, Anlegen/Löschen zusätzlich Bearbeitungsrecht des Falls. Verknüpfungen sind nicht nachträglich veränderbar und duplizieren keine Fall-/Auftragsdaten. Neue Links auf archivierte Insolvenz-Mergehüllen sind gesperrt.
+- Tracking-Regelkatalog, Prognose, Betriebszeiten, Ankunftsbestätigung und globale Mailpause folgen jeweils eigenen Leseregeln; direkte Änderungen sind gesperrt. Diagnoseereignisse sind ebenfalls nur über geschützte Functions zugänglich.
+
+### Partnerursprung und Folge-To-dos
+
+- Gespeicherte Partner-IDs bleiben Ursprungsreferenzen. Normale Stammdatenlinks
+  lösen den aktuellen Verbund auf; `?archiv=1` zeigt ausdrücklich das historische
+  Blatt. Trennung verändert diese ursprünglichen Fachreferenzen nicht.
+- Gericht/Streit kann Gegenseiten mit `counterpartyPartnerId` und
+  `counterpartyPartnerRole` binden. Neue manuelle Bindungen verlangen passende
+  Rolle, aktuellen Namen und einen aktiven, nicht weitergeleiteten Ursprung.
+  TA-Vorgaben dürfen archivierte Ursprünge verwenden, wenn die exakte Rollen-ID
+  im lesbaren TA und die atomare Verbindung zur Akte nachgewiesen werden.
+  Dabei darf der aktuelle Name oder der exakte historische Name dieser TA-Rolle
+  verwendet werden (`customer.name`/`partnerName` beziehungsweise
+  `carrier.originalName`/`partnerName`); beliebige andere Namen reichen nicht.
+  Eine bewusste Neuauswahl entfernt diesen Herkunftsnachweis; alte Freitexte
+  werden nicht automatisch zugeordnet.
+- Unveränderte Partner-/Namensbindungen in Fällen und To-dos behalten ihre
+  Snapshots nach Umbenennung, Merge und Trennung. Inhalts-, Zuständigkeits-,
+  Rollen- und Auditprüfungen bleiben bestehen. Neue Insolvenzakten prüfen
+  Partnerstatus und mehrere TA-Verknüpfungen atomar.
+- Neue Folge-To-dos dürfen historische Partnernamen aus einem lesbaren Schaden-,
+  Inkasso-, Insolvenz- oder Gerichtsfall oder dem ersten verknüpften TA kopieren.
+  Erforderlich sind exakte ursprüngliche ID/Namenspaare und weiterhin passende
+  Rollen des existierenden Ursprungspartners. Beide historischen Slots müssen
+  gemeinsam durch dieselbe Quelle belegt sein. Aktuelle manuell gewählte Namen
+  brauchen diesen Herkunftsnachweis nicht. Archivierte Insolvenz-Mergehüllen
+  reichen als Quelle nicht aus. Allgemeiner Stammdatenzugriff entsteht dadurch
+  nicht. Wird die einzige Herkunft entfernt, muss die Bindung neu gewählt oder
+  die Herkunft wieder hinzugefügt werden.
+- Rückverweise aus Stammdaten/CRM laden nur erlaubte Fachmodule; To-dos bleiben
+  zusätzlich auf den bestehenden Benutzerumfang beschränkt. Die neuen
+  Diagnosemodule `case-links`, `partner-links` und `legal-disputes` verwenden
+  feste Aktionen, begrenzte technische IDs und bestehende Modulrechte.
 
 ### Historien und Systemdaten
 
@@ -89,6 +185,29 @@ Folgende Änderungen erfolgen nicht über direkte Browser-Schreibrechte:
 
 ## Pre-Live-Tests
 
+### Kostenoptimierungen: Paletten, Kalender und Hintergrundarbeit
+
+Direkte Clientwrites auf `palletMovements` und `palletClosings` sind gesperrt;
+die bisherigen modulabhängigen Leserechte bleiben erhalten. `savePalletRecord`
+verlangt aktives Profil, App Check und `pallets: edit` bzw. Superadmin. Buchung,
+Revision, Historie, Summen und Wiederholungsbeleg entstehen atomar. Die
+Übersichts-Callable verlangt Paletten-Leserecht; auftragsbezogene Bewegungen
+verlangen zusätzlich Transportauftrags-Leserecht. Der Summenaufbau ist allein
+aktiven Superadmins erlaubt. Alte Clients mit direkten Writes benötigen eine
+Aktualisierung; der Übergang steht im [Dev-Releaseplan](docs/operations/cost-efficiency-dev-release.md).
+
+Arbeitsmengen, Aufbauzustände, Relationsverzeichnis/-belege,
+Palettensummengenerationen und Mutationsbelege erhalten keine direkten
+Clientrechte, auch nicht für Superadmins. `prepareBackgroundWork` ist eine
+App-Check- und Superadmin-geschützte Callable; Scheduler und Trigger arbeiten
+serverseitig. Keine Fachhistorie wird als Kostenmaßnahme gelöscht.
+
+`listSystemCalendarSources` prüft die Leserechte aller angeforderten Fachmodule
+und liefert nur die für Kalenderereignisse benötigten Daten im Bereich bzw.
+die nächsten Termine. Kalenderrechte allein gewähren keinen Fallzugriff.
+Paletten-/Kalender-Clientdiagnosen prüfen Modulrechte und feste Meldungstexte;
+`background-work` ist kein erlaubtes Client-Diagnosemodul.
+
 | Profil | Mindestprüfung |
 | --- | --- |
 | Standardnutzer | Anmeldung mit aktivem Profil; Zugriff ausschließlich auf zugewiesene Module; kein Zugriff auf fremde Vollprofile, HR-Daten, Systemmail-Vorlagen oder gesperrte Historien. |
@@ -98,4 +217,38 @@ Folgende Änderungen erfolgen nicht über direkte Browser-Schreibrechte:
 
 ## Betriebsgrenzen
 
+### Zentrale Erinnerungen (lokaler neuer Stand)
+
+Die serverseitigen Collections `reminderWork`, `reminderDeliveries`,
+`reminderSourceStatus` und `reminderState` sind für sämtliche direkten
+Clientzugriffe gesperrt. Status und Empfängernamen liefert ausschließlich
+`listReminderStatuses` nach Prüfung des Zugriffs auf jede Originalquelle;
+Mailadressen werden nicht ausgegeben. Fachfall-Zuständigkeiten verwenden ein
+reduziertes Verzeichnis mit Modul-Bearbeitungsrecht und eine transaktionale
+Callable mit erwarteter bisheriger Zuordnung. Vorbereitung erfordert aktiven
+Superadmin und App Check. Rechte-, Empfänger- und Versandvertrag einschließlich
+des noch nicht geprüften externen Flows: [Zentrale Erinnerungen](docs/operations/reminders.md).
+
 Die Rules und Functions beschreiben den Anwendungszugriff. Die erstmalige Einrichtung eines vertrauenswürdigen Superadmin-Kontos, die konkrete Produktions-Identitätsverwaltung sowie Console-seitige Enforcement-Schalter sind nicht aus dem Repository ableitbar und werden hier nicht festgelegt.
+
+## Eigenständiger Auftragsbereich (Dev-Erweiterung)
+
+Aufträge und Sendungsverfolgung verwenden gemeinsam `transportOrders`.
+Die neue Auftragsliste lädt keine Trackingdaten. Auftragsaktualisierungen
+verlangen zusätzlich `dataImports: edit`, Stammdatenaktualisierungen
+`masterData: edit`; Gesamtaktualisierung verlangt beide Rechte. Refreshbelege
+unter `transportOrders/{id}/refreshes` sind für Auftragsleser lesbar und nur
+serverseitig schreibbar. Reservierungen bleiben direkt gesperrt. Diagnose
+`transport-orders` verlangt Auftragsleserecht. Details und Releaseumfang:
+[Auftragsbereich](docs/operations/order-workspace.md).
+
+### Push-Signale für Mail-Empfehlungen
+
+`mailboxRecommendationSignals/{connectionId}` enthält ausschließlich eine
+Revision und Zeit-/Eigentümermetadaten. Ein einzelnes Dokument darf bei aktivem
+Postfach-Leserecht nur über eine eigene verbundene Verbindung gelesen bzw.
+abonniert werden; gemeinsame Verbindungen benötigen auch eine aktive eigene
+Elternverbindung. Listenzugriff und sämtliche Browserwrites sind verboten.
+Empfehlungen selbst sowie `mailboxRecommendationSubscriptions` und
+`mailboxRecommendationScopes` bleiben server-only. Siehe
+[Entscheidung gegen Kontrollabfragen](docs/decisions/mailbox-recommendations-no-polling.md).

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitCorrections, normalizeTransitEntries, normalizeTransitRemovals } from './shipmentTracking.js'
+import { applyRecipientChanges, canEditTrackingRecipients, createShipmentTrackingDocument, deriveShipmentTrackingPosition, dycosTrackingRecipientUpdate, hasTrackingEditAccess, normalizeRecipientChanges, normalizeTransitCorrections, normalizeTransitEntries, normalizeTransitRemovals } from './shipmentTracking.js'
 
 test('manual transit reports validate position and pause without deriving another tracking stage', () => {
   const entries = normalizeTransitEntries([
@@ -62,7 +62,7 @@ test('a valid TA dispatch address prepopulates the carrier recipient', () => {
     createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'dispo@example.test' }).recipients,
     { carrier: { email: 'dispo@example.test', source: 'transport-order-import' } },
   )
-  assert.deepEqual(createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'not-an-email' }).recipients, {})
+  assert.deepEqual(createShipmentTrackingDocument('order', 'user', 'Name', { carrierRecipientEmail: 'not-an-email' }).recipients, { carrier: { email: '', source: 'transport-order-import' } })
 })
 
 test('manual tracking position only advances to in transit after an actual loading departure', () => {
@@ -87,15 +87,45 @@ test('recipient changes store only explicitly changed manual addresses and prese
 
 test('recipient clearing is explicit and remains historizable', () => {
   const result = applyRecipientChanges({ customer: { email: 'customer@example.test', source: 'manual' }, carrier: { email: 'carrier@example.test', source: 'manual' } }, normalizeRecipientChanges({ customer: null, carrier: null }))
-  assert.deepEqual(result.recipients, {})
+  assert.deepEqual(result.recipients, { customer: { email: '', source: 'manual' }, carrier: { email: '', source: 'manual' } })
   assert.deepEqual(result.oldValue, { recipients: { customer: { email: 'customer@example.test', source: 'manual' }, carrier: { email: 'carrier@example.test', source: 'manual' } } })
-  assert.deepEqual(result.newValue, { recipients: { customer: null, carrier: null } })
+  assert.deepEqual(result.newValue, { recipients: { customer: { email: '', source: 'manual' }, carrier: { email: '', source: 'manual' } } })
 })
 
 test('recipient validation rejects empty and invalid addresses', () => {
   assert.throws(() => normalizeRecipientChanges({ customer: '' }), /ungültig/i)
   assert.throws(() => normalizeRecipientChanges({ customer: 'not-an-email' }), /ungültig/i)
   assert.throws(() => normalizeRecipientChanges({ unknown: 'test@example.test' }), /Ungültige Empfängerangaben/)
+})
+
+test('DyCoS refresh follows an explicitly imported carrier address, clears invalid source addresses and retains the source for a later valid address', () => {
+  const tracking = { lifecycleStatus: 'active', recipients: { carrier: { email: 'old@example.test', source: 'transport-order-import' }, customer: { email: 'customer@example.test', source: 'manual' } } }
+  const updated = dycosTrackingRecipientUpdate(tracking, ' new@example.test ')
+  assert.equal(updated.recipients.carrier.email, 'new@example.test')
+  assert.deepEqual(updated.recipients.customer, tracking.recipients.customer)
+  for (const value of ['', 'not an address', 'a@example.test; b@example.test', 'a@example.test;', '<a@example.test>', null]) {
+    const cleared = dycosTrackingRecipientUpdate(tracking, value)
+    assert.deepEqual(cleared.recipients.carrier, { email: '', source: 'transport-order-import' })
+    assert.equal(dycosTrackingRecipientUpdate({ ...tracking, recipients: cleared.recipients }, 'back@example.test').recipients.carrier.email, 'back@example.test')
+  }
+  assert.equal(dycosTrackingRecipientUpdate(tracking, ' OLD@EXAMPLE.TEST '), null)
+})
+
+test('manual confirmation of the same address and deliberate clearing stop source updates; legacy and completed trackings are never inferred from matching addresses', () => {
+  const recipients = { carrier: { email: 'old@example.test', source: 'transport-order-import' } }
+  for (const email of ['old@example.test', null]) {
+    const manual = applyRecipientChanges(recipients, normalizeRecipientChanges({ carrier: email }))
+    assert.equal(manual.recipients.carrier.source, 'manual')
+    assert.equal(dycosTrackingRecipientUpdate({ lifecycleStatus: 'active', recipients: manual.recipients }, 'new@example.test'), null)
+  }
+  for (const carrier of [{ email: 'old@example.test' }, { email: 'old@example.test', source: 'import' }, undefined]) {
+    assert.equal(dycosTrackingRecipientUpdate({ lifecycleStatus: 'active', recipients: { carrier } }, 'new@example.test'), null)
+  }
+  assert.equal(dycosTrackingRecipientUpdate({ lifecycleStatus: 'completed', recipients }, 'new@example.test'), null)
+  const blank = createShipmentTrackingDocument('order', 'user', 'Name')
+  assert.equal(dycosTrackingRecipientUpdate(blank, 'new@example.test').recipients.carrier.email, 'new@example.test')
+  const customerOnlyEdit = applyRecipientChanges(blank.recipients, normalizeRecipientChanges({ customer: 'customer@example.test' }))
+  assert.equal(customerOnlyEdit.recipients.carrier.source, 'transport-order-import')
 })
 
 test('recipient changes use existing edit access and are locked after completion', () => {

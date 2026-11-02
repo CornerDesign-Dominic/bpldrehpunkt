@@ -1,3 +1,4 @@
+import { DEFAULT_COMPANY_IDENTITY } from '../../shared/companyIdentity.js'
 export const COMPANY_FIELDS = {
   identity: [['legalName', 'Firmierung'], ['tradeName', 'Geschäftsbezeichnung'], ['legalForm', 'Rechtsform'], ['managingDirector', 'Geschäftsführung']],
   address: [['street', 'Straße und Hausnummer'], ['postalCode', 'Postleitzahl'], ['city', 'Ort'], ['country', 'Land']],
@@ -22,10 +23,10 @@ export const COMPANY_FIELD_LIMITS = {
 }
 
 export const DEFAULT_COMPANY_DATA = Object.freeze({
-  legalName: 'Brennpunkt Logistik GmbH', tradeName: '', legalForm: 'GmbH', managingDirector: 'Dieter Elas',
+  legalName: DEFAULT_COMPANY_IDENTITY.legalName, tradeName: '', legalForm: 'GmbH', managingDirector: 'Dieter Elas',
   street: 'Reinshagenstr. 1', postalCode: '42369', city: 'Wuppertal', country: 'Deutschland',
   phone: '+49 202 26155-771', fax: '', email: 'info@brennpunkt-logistik.de', billingEmail: '', website: 'www.brennpunkt-logistik.de', contactPerson: '',
-  registerCourt: 'Wuppertal', registerNumber: 'HRB 27075', vatId: 'DE304818005', taxNumber: '',
+  registerCourt: 'Wuppertal', registerNumber: 'HRB 27075', vatId: DEFAULT_COMPANY_IDENTITY.vatId, taxNumber: '',
   bankName: 'Stadtsparkasse', iban: 'DE16 3405 0000 0000 1318 47', bic: 'WELADED1XXX',
 })
 

@@ -1,5 +1,25 @@
 # Systemmails – Betriebs-Runbook
 
+Stand: 28.10.2026. Umgebungsmatrix: `../docs/operations/environments.md`.
+Für Eingangsmails und KI-Auswertung gilt separat
+`../docs/operations/status-mail-ingest.md`.
+
+Ergänzung 01.11.2026: Der zentrale Erinnerungsdienst ist ausschließlich in Dev
+veröffentlicht und dort tatsächlich mit dem eigenen Power-Automate-Flow
+verbunden. Er verwendet `POWER_AUTOMATE_REMINDER_URL` und fünf
+`REMINDER_*`-Identitäts-/Zertifikatssecrets; anonyme/SAS-Aufrufe sind ausgeschlossen.
+Der Absender ist `drehpunkt@brennpunkt-logistik.de`. Der Dev-Guard lässt vor
+Reservierung und Versand ausschließlich `no-reply@brennpunkt-logistik.de` und das
+nachträglich ausdrücklich freigegebene `bb@brennpunkt-logistik.de` zu;
+es gibt keine Empfängerumleitung. Produktion ist weiterhin nur vorbereitet,
+der neue Produktionsflow bleibt aus. Bestandteile, Datenaufbau, echter
+Firebase-Versandtest mit Posteingangsnachweis und verbleibende Grenzen stehen im
+[Dev-Releasebeleg](../docs/operations/releases/reminders-dev-2026-11-01-status.md).
+Die frühere Providerabnahme und Send-as-Prüfung stehen in
+[`reminder-mailflow-preparation.md`](../docs/operations/reminder-mailflow-preparation.md).
+Die übrigen System-/Tracking-Mailpfade behalten die nachfolgenden Guards und
+Secrets. Aussagen über den bisherigen Fristworker beschreiben den Altstand.
+
 ## Zweck und technische Grenze
 
 Systemmails werden ausschließlich serverseitig durch Firebase Functions in `europe-west3` ausgelöst. Die Functions übergeben Empfänger, Betreff, Text und – bei Systemmail-Vorlagen – HTML an den serverseitig verwalteten Power-Automate-Webhooks. Es gibt keinen direkten Mailversand aus dem Browser.
@@ -8,11 +28,15 @@ Webhook-Adresse und weitere Integrationswerte sind ausschließlich als Functions
 
 ## Umgebungs-Schutz
 
-Externe Wirkungen der Functions sind zentral auf das Firebase-Projekt
-`db-bpl-drehpunkt` begrenzt. Nur dort dürfen die Functions den serverseitig
-verwalteten Power-Automate-Webhook oder OpenAI verwenden. Im Entwicklungsprojekt
-`db-bpl-drehpunkt-dev` sowie bei einer fehlenden oder unbekannten Runtime-
-Projekt-ID werden externe Wirkungen fail-closed übersprungen.
+Automatischer Mailversand außerhalb des oben beschriebenen zentralen Erinnerungsdienstes ist auf die serverseitig erkannte Runtime des
+Firebase-Projekts `db-bpl-drehpunkt` begrenzt. In Dev und bei unbekannter
+Runtime werden diese Versandpfade übersprungen. Eine bewusste Ausnahme ist
+manueller Tracking-Mailversand in Dev: Er verlangt eine hinterlegte Adresse
+mit `@brennpunkt-logistik.de`, Tracking-Bearbeitungsrecht und einen
+funktionsfähigen separaten Tracking-Webhook.
+
+OpenAI-Auswertungen sind keine Mailzustellung. Die Statusmail-KI verwendet
+einen eigenen Secret-Pfad ohne den allgemeinen Production-only-Guard.
 
 Damit lösen Abwesenheits-Trigger in Dev keine Empfängerbenachrichtigungen und
 keine wiederholbaren Zustellfehler aus. Bug-Reports schließen dort erfolgreich
@@ -34,6 +58,24 @@ protokolliert.
 
 Die Urlaubs-Trigger sind mit Wiederholung bei Fehlern konfiguriert. Für jede einzelne Urlaubsmail hält die Function einen Lieferdatensatz unter `vacationRequests/{requestId}/mailDeliveries/` vor. Erfolgreiche Zustellungen werden bei einem erneuten Trigger-Lauf nicht nochmals versendet; ein frischer Versand-Lock begrenzt parallele Wiederholungen.
 
+## Weitere Versandpfade
+
+Zusätzlich zu den oben aufgeführten ursprünglichen Versandpfaden existieren:
+
+| Auslöser | Function / Bedingung | Empfängerkreis |
+| --- | --- | --- |
+| Automatische Tracking-Anfragen und Erinnerungen | `scheduledShipmentTrackingAutomation`, regel- und lebenszyklusabhängig; nur Produktion | Für den Tracking-Ablauf hinterlegter gültiger Empfänger |
+| Bewusste Tracking-Anfrage | `sendManualShipmentTrackingMail`, Vorschau, Tracking-Bearbeitungsrecht und Empfängerprüfung | Hinterlegter Unternehmerempfänger; in Dev nur die freigegebene interne Domain |
+| Bisherige Fristerinnerung (Altstand) | `scheduledCaseDeadlineReminderDispatch`, fällige aktivierte Erinnerung; bisher nur Produktion | Bisher im Fristdatensatz hinterlegter Erinnerungsadressat |
+| Zentrale Termin-/Fristerinnerung (nur lokal vorbereitet) | Derselbe Schedulerexport, neuer Registry-/Providervertrag; Dev und Produktion | Aktuelle zuständige Nutzer bzw. Kalenderleser nach [Erinnerungsvertrag](../docs/operations/reminders.md) |
+
+Tracking-Mails verwenden `POWER_AUTOMATE_TRACKING_NOTIFICATION_URL`, andere
+Systemvorlagen `POWER_AUTOMATE_NOTIFICATION_URL`. Der neue Erinnerungsadapter
+verwendet ausschließlich `POWER_AUTOMATE_REMINDER_URL`, ohne Rückfall auf diese
+allgemeinen Zugänge. Eine Webhook-Annahme bestätigt
+noch keinen Postfacheingang. Die globale automatische Mailpause und bewusste
+manuelle Tracking-Anfragen sind getrennte Abläufe.
+
 ## Berechtigungen und Administration
 
 | Aktion | Serverseitliche Voraussetzung |
@@ -44,10 +86,11 @@ Die Urlaubs-Trigger sind mit Wiederholung bei Fehlern konfiguriert. Für jede ei
 | Fehlermeldung absenden | Aktives Benutzerprofil; die Callable erzwingt App Check |
 | News-Recherche manuell starten | Aktives Profil mit Rolle `superadmin`; eine Mail entsteht nur bei einem Recherchefehler |
 
-Im Entwicklungsprojekt sind Systemmail-Test und externe Benachrichtigungen
-bewusst deaktiviert. Ein Test der tatsächlichen Power-Automate-Auslieferung ist
-deshalb ausschließlich im Produktionsprojekt mit kontrollierter Testadresse und
-nach Betriebsfreigabe zulässig.
+Im Entwicklungsprojekt sind Systemmail-Test und automatische Benachrichtigungen
+deaktiviert. Manuelle Tracking-Anfragen können über die interne Dev-Ausnahme
+echte Mails auslösen; dafür nur kontrollierte, fachlich freigegebene Empfänger
+verwenden. Tests der sonstigen realen Systemmail-Auslieferung erfolgen im
+Produktionsprojekt nach Betriebsfreigabe.
 
 Vorlagen werden über die geschützten Callables gepflegt. Der Browser erhält weder Zugriff auf den Webhook noch eine Berechtigung, E-Mails direkt zu versenden.
 
@@ -67,6 +110,13 @@ Für Fehlermeldungen und die News-Recherche liefern die aufrufende Callable bezi
 Die Ursache zuerst beheben und die Wirkung mit einem einzelnen kontrollierten Test verifizieren. Bestehende Urlaubsanträge nicht durch wiederholtes Schreiben, Kopieren oder Statuswechsel künstlich erneut auslösen: die Trigger sind wiederholbar und die Lieferdatensätze steuern die Duplikatvermeidung.
 
 ## Sicherheitsgrenzen
+
+Bei Tracking-Mails zusätzlich `manualMailDeliveries` bzw.
+`automaticMailDeliveries` am Tracking prüfen. Bei Fristerinnerungen den
+Versandzustand der Frist und Scheduler-Logs prüfen. Vor Wiederholung die
+Duplikat-/Lock-Entscheidung des Ablaufs beachten. `paused` ist kein erfolgreicher
+Versand und garantiert keine spätere Nachzustellung. Globale Pause, Runtime,
+Empfängerfreigabe und Webhook-Verfügbarkeit getrennt untersuchen.
 
 - Webhook-URLs, Secrets, Empfängerlisten und Produktionsdaten werden nicht dokumentiert, exportiert oder in den Client übernommen.
 - Versandberechtigung wird in den Functions über aktives Profil, Rolle und – bei Callables – App Check durchgesetzt; sie darf nicht allein über die Browseroberfläche angenommen werden.

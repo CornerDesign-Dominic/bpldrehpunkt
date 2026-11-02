@@ -1,3 +1,8 @@
+/* Keep the remaining app height definite through the section tabs to the calendar. */
+@media (min-width: 1021px) {
+  .documents-tools-workspace--calendar { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; height: 100%; }
+  .documents-tools-workspace--calendar > .module-sections__content { min-height: 0; }
+}
 .holiday-page { display: grid; grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); grid-template-rows: minmax(0, 1fr); align-items: stretch; gap: 14px; min-height: 0; height: 100%; max-width: var(--list-content-max-width); margin: 0 auto; }
 .holiday-calendar-card, .holiday-countries-card, .school-holidays-card { min-width: 0; border: 1px solid var(--border); border-radius: 7px; background: var(--content-background); }
 .holiday-calendar-card { display: flex; min-height: 0; height: 100%; flex-direction: column; padding: 13px; }

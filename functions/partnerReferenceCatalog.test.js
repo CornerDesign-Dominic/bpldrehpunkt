@@ -24,7 +24,7 @@ test('persisted partner and case reference fields are registered for every linke
     for (const field of persistedPartnerKeys) assert.ok(catalog.get(collection)?.has(field), `${file}: new partner field ${field} must be registered`)
   }
   assert.ok(catalog.get('palletClosings')?.has('partnerId'))
-  assert.deepEqual([...catalog.get('legalDisputes')], ['transportReference'])
+  assert.deepEqual([...catalog.get('legalDisputes')], ['counterpartyPartnerId', 'transportReference'])
   assert.deepEqual([...catalog.get('transportOrders')].sort(), ['imported.carrier.partnerId', 'imported.customer.partnerId'])
 })
 

@@ -5,6 +5,7 @@ const numericPaths = new Set(['financial.revenueNet', 'financial.costNet', 'ship
 const fields = Object.freeze([
   ['relation', 'Mitarbeiterrelation'],
   ['customerReference', 'Kundenreferenz'],
+  ['dispositionNote', 'Dispositionsbemerkung'],
   ['customer.debtorNumber', 'Debitorennummer Kunde'],
   ['customer.name', 'Kunde'],
   ['customer.snapshot.street', 'Kundenadresse – Straße'],
@@ -12,22 +13,35 @@ const fields = Object.freeze([
   ['customer.snapshot.city', 'Kundenadresse – Ort'],
   ['customer.snapshot.country', 'Kundenadresse – Land'],
   ['carrier.originalName', 'Unternehmer'],
+  ['carrier.creditorNumber', 'Kreditorennummer Unternehmer'],
+  ['carrier.snapshot.street', 'Unternehmeradresse – Straße'],
+  ['carrier.snapshot.postalCode', 'Unternehmeradresse – PLZ'],
+  ['carrier.snapshot.city', 'Unternehmeradresse – Ort'],
+  ['carrier.snapshot.country', 'Unternehmeradresse – Land'],
   ['loading.originalText', 'Adresse Ladestelle', { routeRelevant: true }],
   ['loading.city', 'Ort Ladestelle', { routeRelevant: true }],
   ['loading.window.from', 'Termin Ladestelle – von', { scheduleRelevant: true }],
   ['loading.window.until', 'Termin Ladestelle – bis', { scheduleRelevant: true }],
+  ['loading.fixedAppointment', 'Fixtermin Ladestelle'],
   ['loading.note', 'Bemerkung Ladestelle'],
   ['loading.reference', 'Referenz Ladestelle'],
   ['unloading.originalText', 'Adresse Entladestelle', { routeRelevant: true }],
   ['unloading.city', 'Ort Entladestelle', { routeRelevant: true }],
   ['unloading.window.from', 'Termin Entladestelle – von', { scheduleRelevant: true }],
   ['unloading.window.until', 'Termin Entladestelle – bis', { scheduleRelevant: true }],
+  ['unloading.fixedAppointment', 'Fixtermin Entladestelle'],
   ['unloading.note', 'Bemerkung Entladestelle'],
   ['unloading.reference', 'Referenz Entladestelle'],
   ['financial.revenueNet', 'Ertrag netto'],
   ['financial.costNet', 'Kosten netto'],
+  ['financial.revenuePositions', 'Einzelne Ertragspositionen'],
+  ['financial.costPositions', 'Einzelne Kostenpositionen'],
+  ['financial.documents', 'Rechnungen und Gutschriften'],
   ['shipment.licensePlate', 'Import-Kennzeichen'],
   ['shipment.vehicleType', 'Fahrzeugart'],
+  ['shipment.vehicleInformation', 'Fahrzeughinweise'],
+  ['shipment.goodsDescription', 'Warenbeschreibung Auftrag'],
+  ['shipment.hazardousGoods', 'Gefahrgut laut DyCoS'],
   ['shipment.packages', 'Kolli'],
   ['shipment.weightKg', 'Gewicht'],
   ['shipment.loadingMeters', 'Lademeter'],
@@ -37,6 +51,11 @@ const fields = Object.freeze([
   ['contacts.carrierForOrder', 'Info Unternehmer im Auftrag'],
   ['dispatch.sentAt', 'TA-Versandzeitpunkt'],
   ['dispatch.sentTo', 'TA zuletzt versendet an'],
+  // Routing/tracking changes of the first loading/last unloading stop are
+  // handled by the location/window fields above. Cargo changes alone do not
+  // require a new route or change the tracking schedule.
+  ['stops', 'Stationen aus DyCoS'],
+  ['source', 'DyCoS-Quellreferenzen und Hinweise'],
 ])
 
 function valueAtPath(value, path) {
@@ -57,12 +76,19 @@ function normalizedText(value, path) {
 }
 
 export function normalizeTransportOrderImportValue(value, path = '') {
+  if (path === 'financial.documents' && (!Array.isArray(value) || !value.length)) return null
   if (typeof value === 'string') return normalizedText(value, path)
   if (typeof value === 'number') return Number.isFinite(value) ? value : null
   if (value === null || value === undefined) return null
   if (Array.isArray(value)) return value.map((entry, index) => normalizeTransportOrderImportValue(entry, `${path}.${index}`))
   if (typeof value !== 'object') return value
-  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, normalizeTransportOrderImportValue(value[key], path ? `${path}.${key}` : key)]))
+  // Absent and explicitly unknown new flags mean the same thing on legacy
+  // stops. A real false still differs from both unknown and true.
+  const keys = Object.keys(value).filter(key => !(
+    key === 'fixedAppointment' && /^stops\.\d+$/.test(path) && value[key] == null ||
+    ['description', 'volumetricWeightKg'].includes(key) && /^stops\.\d+\.cargo$/.test(path) && value[key] == null
+  ))
+  return Object.fromEntries(keys.sort().map((key) => [key, normalizeTransportOrderImportValue(value[key], path ? `${path}.${key}` : key)]))
 }
 
 export function transportOrderImportFingerprint(imported) {

@@ -33,6 +33,7 @@ export default function ShipmentTrackingRecipientsCard({ tracking, canEdit, canD
   const [carrierEmail, setCarrierEmail] = useState(carrier)
   const [validationError, setValidationError] = useState('')
   const changed = carrierEmail.trim() !== carrier
+  const canConfirmImportedRecipient = tracking?.recipients?.carrier?.source === 'transport-order-import' && emailPattern.test(carrier)
 
   function saveRecipient(event) {
     event.preventDefault()
@@ -55,7 +56,7 @@ export default function ShipmentTrackingRecipientsCard({ tracking, canEdit, canD
     <form className="shipment-tracking-recipients__recipient" onSubmit={saveRecipient} noValidate>
       <label className="shipment-tracking-recipients__recipient-label" htmlFor="shipment-tracking-recipient-email"><StaticText source={"Empfänger E-Mail"} /></label>
       <input id="shipment-tracking-recipient-email" type="email" value={carrierEmail} maxLength="320" autoComplete="email" disabled={!canEdit || saving} onChange={(event) => setCarrierEmail(event.target.value)} placeholder="mail@unternehmen.de" />
-      {canEdit && <button className="button" type="submit" disabled={saving || !changed}>{<StaticText source={saving ? 'Wird gespeichert …' : 'Änderung speichern'} />}</button>}
+      {canEdit && <button className="button" type="submit" disabled={saving || (!changed && !canConfirmImportedRecipient)}>{<StaticText source={saving ? 'Wird gespeichert …' : 'Änderung speichern'} />}</button>}
     </form>
     {validationError && <p className="form-error shipment-tracking-recipients__error">{validationError}</p>}
     {!carrier && !changed && <p className="shipment-tracking-recipients__warning"><StaticText source={"Für den Direktversand zuerst eine Unternehmer-E-Mail hinterlegen."} /></p>}

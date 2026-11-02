@@ -1,8 +1,10 @@
+import { reportTechnicalFailure } from './diagnostics.js'
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
-import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { berlinToday, calendarDaysUntil, caseDeadlineReminder } from './caseDeadline.js'
+import { setTransportOrderCaseLink } from './caseTransportLinks.js'
 
 export const INSOLVENCIES_COLLECTION = 'insolvencies'
 
@@ -52,12 +54,10 @@ function formatDate(value) {
 }
 
 function insolvencyDeadlinePayload(values) {
-  const date = trim(values.date)
-  const time = reminderDeadlineTime(values)
+  const reminder = caseDeadlineReminder(values)
   const note = optionalText(values.note)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   if (note && note.length > 4000) throw new Error('Die Bemerkung darf maximal 4.000 Zeichen enthalten.')
-  return { date, time, reminderEnabled: values.reminderEnabled === true, note }
+  return { ...reminder, note }
 }
 
 function insolvencyDeadlineLabel(value) {
@@ -95,8 +95,9 @@ export async function listInsolvencyPartners() {
   return Array.isArray(result.data?.partners) ? result.data.partners : []
 }
 
-export async function createInsolvency(values, partner, actor) {
+export async function createInsolvency(values, partner, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
   if (!partner?.id || !trim(partner.companyName)) throw new Error('Bitte ein betroffenes Unternehmen auswählen.')
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map(trim).filter(Boolean))]
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, partner.id)
   if ((await getDoc(insolvencyRef)).exists()) throw new Error('Für dieses Unternehmen ist bereits ein Insolvenzfall angelegt.')
 
@@ -116,6 +117,7 @@ export async function createInsolvency(values, partner, actor) {
     ...updateMetadata(actor),
   })
   batch.update(doc(db, 'businessPartners', partner.id), { status: 'insolvency', ...updateMetadata(actor) })
+  linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(batch, { caseType: 'insolvency', caseId: partner.id, transportOrderId, actor }))
   await batch.commit()
   return partner.id
 }
@@ -150,14 +152,12 @@ export function createEmptyInsolvencyQuotaPayment() {
 }
 
 export function createEmptyInsolvencyDeadline() {
-  return { date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
+  return { date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' }
 }
 
 export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
   if (!deadline?.date) return { kind: 'none', label: 'Keine Frist' }
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const date = new Date(`${deadline.date}T12:00:00`)
-  const days = Math.round((date - today) / 86400000)
+  const days = calendarDaysUntil(deadline.date, now)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig` }
   if (days === 0) return { kind: 'today', label: 'heute' }
   if (days <= 2) return { kind: 'urgent', label: `in ${days} ${days === 1 ? 'Tag' : 'Tagen'}` }
@@ -261,9 +261,9 @@ export async function createInsolvencyDeadline(insolvency, values, actor) {
   const actorName = getUserDisplayName(actor.profile, actor.user)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
-  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
+  batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin für ${insolvencyDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }
 
 export async function updateInsolvencyDeadline(insolvency, deadline, values, actor) {
@@ -274,7 +274,7 @@ export async function updateInsolvencyDeadline(insolvency, deadline, values, act
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.update(doc(insolvencyRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(next.date)} geändert.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
   return true
 }
 
@@ -284,5 +284,5 @@ export async function deleteInsolvencyDeadline(insolvency, deadline, actor) {
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.delete(doc(insolvencyRef, 'deadlines', deadline.id))
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(deadline.date)} gelöscht.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }

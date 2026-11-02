@@ -22,6 +22,7 @@ test('shipment tracking diagnostics exclude expected user and permission errors'
 
 test('website errors are assigned to a coarse module area without storing paths', () => {
   assert.equal(websiteDiagnosticStage('/transportauftraege/dev-order'), 'transport-orders')
+  assert.equal(websiteDiagnosticStage('/sendungsverfolgung/dev-order'), 'transport-orders')
   assert.equal(websiteDiagnosticStage('/kunden-unternehmer/partner-1'), 'partners')
   assert.equal(websiteDiagnosticStage('/admin/diagnose'), 'administration')
   assert.equal(websiteDiagnosticStage('/unbekannt'), 'other')

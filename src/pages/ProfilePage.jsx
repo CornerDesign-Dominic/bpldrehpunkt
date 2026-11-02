@@ -1,9 +1,11 @@
 import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { localeForLanguage } from '../i18n/translations.js'
 import Toast from '../components/ui/Toast.jsx'
+import ProfileMailboxSettings from '../components/mailboxes/ProfileMailboxSettings.jsx'
 import {
   deleteCurrentUserSignature,
   loadCurrentUserSignature,
@@ -140,6 +142,17 @@ function LanguageSettingsSection() {
 export default function ProfilePage() {
   const { user, profile } = useAuth()
   const { language, t } = useLanguage()
+  const location = useLocation()
+  const [params, setParams] = useSearchParams()
+  const tabs = ['data', 'settings', 'mailboxes']
+  const active = location.hash === '#postfaecher' || params.has('connection') ? 'mailboxes' : tabs.includes(params.get('tab')) ? params.get('tab') : 'data'
+  const labels = language === 'en' ? ['My details', 'Settings', 'Mailboxes'] : ['Meine Daten', 'Einstellungen', 'Postfächer']
+  function selectTab(tab) {
+    const next = new URLSearchParams(params)
+    next.delete('connection')
+    if (tab === 'data') next.delete('tab'); else next.set('tab', tab)
+    setParams(next, { replace: true })
+  }
   const personalFields = [
     [t('profile.firstName'), profile?.firstName || '—'],
     [t('profile.lastName'), profile?.lastName || '—'],
@@ -149,10 +162,24 @@ export default function ProfilePage() {
   const employmentFields = [
     [t('profile.jobTitle'), profile?.jobTitle || profile?.function || '—'],
     [t('profile.department'), profile?.department || t('profile.unassigned')],
-    [t('profile.role'), roleLabel(profile?.role, t)],
-    [t('profile.employmentStart'), formatDate(profile?.employmentStart, language)],
     [t('profile.personnelNumber'), profile?.personnelNumber || '—'],
+    [t('profile.employmentStart'), formatDate(profile?.employmentStart, language)],
+    [t('profile.role'), roleLabel(profile?.role, t)],
   ]
 
-  return <div className="profile-page"><p className="profile-page__notice">{t('profile.adminNotice')}</p><ProfileInfoSection title={t('profile.personal')} fields={personalFields} /><ProfileInfoSection title={t('profile.work')} fields={employmentFields} /><LanguageSettingsSection /><SignatureSection user={user} /></div>
+  return <div className="profile-page">
+    <div className="profile-tabs" role="tablist" aria-label={language === 'en' ? 'Profile sections' : 'Profilbereiche'}>{tabs.map((tab, index) => <button key={tab} type="button" role="tab" id={`profile-tab-${tab}`} aria-controls={`profile-panel-${tab}`} aria-selected={active === tab} tabIndex={active === tab ? 0 : -1} onClick={() => selectTab(tab)} onKeyDown={event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      event.preventDefault()
+      const target = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+      selectTab(tabs[target]); document.getElementById(`profile-tab-${tabs[target]}`)?.focus()
+    }}>{labels[index]}</button>)}</div>
+    <div hidden={active !== 'data'} id="profile-panel-data" role="tabpanel" aria-labelledby="profile-tab-data">
+      <p className="profile-page__notice">{t('profile.adminNotice')}</p>
+      <div className="profile-data-columns"><ProfileInfoSection title={t('profile.personal')} fields={personalFields} /><ProfileInfoSection title={t('profile.work')} fields={employmentFields} /></div>
+      <SignatureSection user={user} />
+    </div>
+    <div hidden={active !== 'settings'} id="profile-panel-settings" role="tabpanel" aria-labelledby="profile-tab-settings"><LanguageSettingsSection /></div>
+    <div hidden={active !== 'mailboxes'} id="profile-panel-mailboxes" role="tabpanel" aria-labelledby="profile-tab-mailboxes"><ProfileMailboxSettings /></div>
+  </div>
 }

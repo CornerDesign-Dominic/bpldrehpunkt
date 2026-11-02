@@ -1,11 +1,30 @@
 # Produktions- und Entwicklungsumgebungen
 
+Stand: 28.10.2026. Führende Beschreibung der Umgebungsgrenzen im aktuellen Code.
+Datierte Live-Prüfungen stehen in `documentation-inventory.md`; der Releaseweg
+steht in `releases.md`. Die Zuordnung bestätigt nicht automatisch heutige
+Vercel-Werte oder aktive externe Flows.
+
 ## Zielzuordnung
 
 | Umgebung | Git-Branch | Vercel-Ziel | Firebase-Projekt | Vercel-Client-Konfiguration |
 | --- | --- | --- | --- | --- |
 | Produktion | `main` | Production | `db-bpl-drehpunkt` | Die sieben unten aufgeführten `VITE_`-Variablen für die Produktions-Web-App |
 | Entwicklung | `dev` | Preview/Dev | `db-bpl-drehpunkt-dev` | Dieselben sieben Variablennamen mit den Werten der Entwicklungs-Web-App |
+
+Vom Nutzer am 29.10.2026 bestätigte Dev-Webadresse:
+`https://dev.drehpunktlogistik.de`. Sie ist als Rückkehr-Origin für die
+Graph-Postfachverbindung vorgesehen. Diese Angabe ersetzt keinen Live-Abgleich
+der DNS-, Vercel- oder Firebase-Zuordnung.
+
+Die am 29.10.2026 eingerichtete DyCoS-HTTP-Schnittstelle liegt in der
+Power-Automate-Umgebung **Brennpunkt Logistik GmbH (default)** und liest die
+bestehende SQL-Datenquelle. Der Git-Branch `dev` isoliert diesen Flow nicht.
+Die separate Entra-Anwendung **Drehpunkt DyCoS – Dev** ist als technischer
+Aufrufer ausdrücklich zugelassen. Nach den ersten lokalen Abrufprüfungen
+wurden die sechs Dev-Secrets eingerichtet und die benötigten Dev-Functions
+am 29.10.2026 gezielt bereitgestellt. Identität, Zertifikatslaufzeit und Prüfstand stehen in
+[DyCoS-Schnittstellenplanung, Abschnitt 17](../planning/dycos-csv-import-uebergangsloesung.md#17-technische-dev-identität-und-authentifizierte-abrufprüfung).
 
 In Vercel werden diese Variablennamen getrennt für Production und Preview im
 jeweils passenden Zielbereich hinterlegt. Die zugehörigen Werte bleiben in
@@ -46,10 +65,10 @@ nennt. Es gibt keinen Fallback auf Werte des Produktionsprojekts.
 - Functions-Secrets bleiben je Firebase-Projekt serverseitig verwaltet. Dazu
   zählen insbesondere KI-Zugänge und Power-Automate-Webhooks; sie gehören
   nicht in Client-`.env`-Dateien oder Vercel-Client-Variablen.
-- Die Functions erlauben externe Wirkungen (Power Automate und OpenAI) nur bei
-  serverseitig erkannter Runtime-Projekt-ID `db-bpl-drehpunkt`. Im Dev-Projekt
-  `db-bpl-drehpunkt-dev` und bei unbekannter Projekt-ID werden diese Wirkungen
-  fail-closed blockiert; Client-`VITE_`-Werte können den Schutz nicht umgehen.
+- Der allgemeine Guard in `functions/externalEffects.js` erlaubt bestimmte
+  externe Wirkungen nur in der serverseitig erkannten Produktionsumgebung.
+  Er ist kein globaler Schalter für alle Integrationen. Separate Pfade und
+  bewusste Dev-Ausnahmen stehen in der folgenden Matrix.
 - Die automatisierte News-Recherche sowie die automatische Feiertags- und
   Ferien-Synchronisierung enden in Dev erfolgreich als No-op. Die manuelle,
   rollen- und App-Check-geschützte Feiertags-/Ferien-Aktualisierung bleibt eine
@@ -58,9 +77,37 @@ nennt. Es gibt keinen Fallback auf Werte des Produktionsprojekts.
   Variablennamen. `.env.local` bleibt durch `.gitignore` ignoriert, während
   `.env.example` versioniert wird.
 
-## Umfang dieses Schritts
+## Externe Wirkungen nach Integration
 
-Dieser Schritt stellt ausschließlich die Client-Initialisierung auf
-umgebungsbasierte Web-App-Konfiguration um. Er ändert keine Production-Werte in
-Vercel oder Firebase, keine Functions-Secrets sowie keine Firebase-Functions,
-Rules oder fachliche Anwendungslogik.
+Die Matrix beschreibt Codegrenzen, keine erfolgreichen Zustellungen. Erlaubte
+Pfade benötigen weiterhin passende Secrets, Anbieterzugänge und Berechtigungen.
+
+| Integration | Produktion | Entwicklung | Maßgeblicher Code in `functions/` |
+| --- | --- | --- | --- |
+| Manueller DyCoS-TA-Abruf | Noch nicht eingerichtet oder freigegeben | Sechs Dev-Secrets und benötigte Functions bereitgestellt; Oberfläche über Git-Branch `dev`; Benutzerabnahme separat prüfen | `dycosTransportOrders.js`, `dycosFlowClient.js`, `dycosOrderMapping.js`; [Einrichtung und Veröffentlichung](../planning/dycos-csv-import-uebergangsloesung.md#18-manueller-ta-abruf-in-drehpunkt) |
+| Persönliche Graph-Postfächer | Gesperrt | Nur konfiguriertes Testpostfach; Antworten ausschließlich an die exakte Domain `brennpunkt-logistik.de`, einschließlich CC/BCC | `mailboxes.js`; Einrichtung unter [Graph-Postfächer](mailboxes-graph.md) |
+| Postfach-Auftragserfassung und direkter Kunden-/UTN-Abruf | Nicht freigegeben | Gemeinsamer Dev-Testrelease vom 29.10.2026; Funktionen, Rules und neues Stammdaten-URL-Secret bereitgestellt | [Umfang und Nachweise](mailbox-order-dev-release.md) |
+| Automatische System-/Tracking-Mails außer zentralen Erinnerungen | Möglich, soweit der Ablauf nicht pausiert ist | Kein automatischer Versand | `systemMails.js`, `shipmentTrackingAutomation.js` |
+| Zentrale Termin-/Fristerinnerungen | Neuer Dienst nicht veröffentlicht; vorbereiteter Produktionsflow bleibt aus | Am 01.11.2026 veröffentlicht: eigener aktiver Dev-Flow, sechs Dev-Secrets, Scheduler, Trigger, Callables, Rules, Datenaufbau und Oberfläche. Absender `drehpunkt@brennpunkt-logistik.de`; ausschließlich `no-reply@brennpunkt-logistik.de` und zusätzlich ausdrücklich freigegebenes `bb@brennpunkt-logistik.de` als Dev-Empfänger; globale Pause gilt | `reminders.js`, `systemMails.js`; [aktueller Dev-Releasebeleg](releases/reminders-dev-2026-11-01-status.md), [Fachvertrag](reminders.md) |
+| Manueller Tracking-Mailversand | An den hinterlegten geprüften Empfänger möglich | Bewusste Ausnahme nur für hinterlegte Empfänger mit `@brennpunkt-logistik.de`; funktionsfähiger Tracking-Webhook erforderlich | `shipmentTrackingManualDispatch.js`, `systemMails.js` |
+| Systemmail-Test | Admin/Superadmin, kontrollierter eigener Empfänger | Abgewiesen | `systemMails.js` |
+| AGB-Prüfer, Haftbarhaltungs-KI, News-Recherche | Über allgemeinen Production-Guard möglich | Auswertung blockiert bzw. Recherche übersprungen | `agbChecker.js`, `liabilityLetters.js`, `news.js` |
+| Statusmail-Eingang | Bei Postfachanbindung und gültigem Bearer-Token möglich | Ebenfalls möglich; Dev-Flow historisch dokumentiert | `statusMailIngest.js` |
+| Statusmail-KI | Eigener Secret-Pfad ohne allgemeinen Production-only-Guard | Gleicher eigener Pfad; verursacht bei Ausführung API-Aufrufe und Kosten | `statusMailAi.js` |
+| TomTom-Routing, manuell und nach Import | Mit passendem Secret möglich | Ebenfalls möglich; kein allgemeiner Production-only-Guard | `transportOrderRoutes.js` |
+| Automatische Feiertags-/Feriensynchronisierung | Möglich | No-op | `holidays.js` |
+| Manuelle Feiertags-/Feriensynchronisierung | Admin/Superadmin gegen öffentliche APIs | Ebenfalls möglich | `holidays.js`, `schoolHolidays.js` |
+
+Die globale Pause unter `systemSettings/automaticMailDelivery` betrifft
+automatische Mailpfade, keine vollständige Abschaltung externer Dienste.
+Unbekannte Runtime-Projekte werden von den allgemeinen Guards abgewiesen;
+separate Pfade sind unabhängig zu beurteilen. Client-Variablen ersetzen keine
+serverseitigen Projekt- oder Empfängerprüfungen.
+
+## Lokale Arbeit und Deployment
+
+Lokal ausschließlich die Dev-Web-App konfigurieren. Im geprüften Checkout
+existiert keine `.firebaserc`; Firebase-Befehle daher mit explizitem `--project`
+ausführen. Der Ordnername ändert weder Git-Repository noch Firebase-Ziel.
+Ein Push nach `main` veröffentlicht nicht automatisch Functions, Rules oder
+Indizes; deren Bereitstellung folgt `releases.md`.

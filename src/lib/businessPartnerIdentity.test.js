@@ -25,15 +25,18 @@ test('case and to-do selectors use the central role helper rather than accountin
     '../components/damages/DamageCaseForm.jsx',
     '../components/damages/DamageCaseEditModal.jsx',
     '../components/inkasso/InkassoCaseForm.jsx',
-    '../components/legal-disputes/LegalDisputeCaseForm.jsx',
-    '../components/todos/TodoForm.jsx',
+    '../components/legal-disputes/LegalDisputeCounterpartyField.jsx',
+    './linkedTodoCreation.js',
     '../components/todos/TodoQuickEditModal.jsx',
   ]
   for (const modulePath of modules) {
     const source = await readFile(new URL(modulePath, import.meta.url), 'utf8')
-    assert.match(source, /businessPartnerRoles\(partner\)\.(customer|carrier)/, modulePath)
+    assert.match(source, /businessPartnerRoles\(partner\)(\.(customer|carrier)|\[role\])/, modulePath)
     assert.doesNotMatch(source, /partners\.filter\(\(partner\) => partner\.(debtorNumber|creditorNumber)\?\.trim\(\)\)/, modulePath)
   }
+  const todoForm = await readFile(new URL('../components/todos/TodoForm.jsx', import.meta.url), 'utf8')
+  assert.match(todoForm, /linkedTodoPartnerChoices\(partners, 'customer', partnerOrigin\)/)
+  assert.match(todoForm, /linkedTodoPartnerChoices\(partners, 'carrier', partnerOrigin\)/)
 })
 
 test('Inkasso and legal selection controls preserve encoded canonical partner IDs', async () => {
@@ -43,8 +46,17 @@ test('Inkasso and legal selection controls preserve encoded canonical partner ID
   ]
   for (const modulePath of modules) {
     const source = await readFile(new URL(modulePath, import.meta.url), 'utf8')
-    assert.match(source, /businessPartnerRoleSelectionValue\(/, modulePath)
-    assert.match(source, /parseBusinessPartnerRoleSelection\(/, modulePath)
+    if (modulePath.includes('LegalDisputeCaseForm')) {
+      assert.match(source, /LegalDisputeCounterpartyField/, modulePath)
+      const field = await readFile(new URL('../components/legal-disputes/LegalDisputeCounterpartyField.jsx', import.meta.url), 'utf8')
+      assert.match(field, /businessPartnerRoleSelectionValue\(/)
+      assert.match(field, /parseBusinessPartnerRoleSelection\(/)
+      assert.match(field, /counterpartyPartnerId: partnerId/)
+      assert.match(field, /counterpartyPartnerRole: role/)
+    } else {
+      assert.match(source, /businessPartnerRoleSelectionValue\(/, modulePath)
+      assert.match(source, /parseBusinessPartnerRoleSelection\(/, modulePath)
+    }
     assert.doesNotMatch(source, /value\.split\(':'\)/, modulePath)
   }
 })

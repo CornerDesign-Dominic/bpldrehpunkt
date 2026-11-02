@@ -1,7 +1,49 @@
-.profile-page { display: grid; gap: 14px; max-width: 880px; margin: 0 auto; }
+.profile-page { display: grid; gap: 24px; max-width: 1200px; margin: 0 auto; }
+.profile-page [hidden] { display: none !important; }
+.profile-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--border); }
+.profile-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-secondary); padding: 10px 0; font: inherit; font-size: 13px; cursor: pointer; }
+.profile-tabs button[aria-selected="true"] { color: var(--button-background); border-bottom-color: var(--button-background); font-weight: 700; }
+.profile-tabs button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.profile-data-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 16px 0 24px; }
+.profile-data-columns .profile-section { border: 1px solid var(--border); border-radius: 7px; padding: 16px; }
+.profile-data-columns .profile-readonly-grid { grid-template-columns: 1fr 1fr; }
+.profile-data-columns .profile-readonly-grid div { padding: 6px 0; border: 0; background: transparent; }
+.profile-data-columns .profile-readonly-grid dt { font-size: 12px; font-weight: 500; }
+.profile-mailboxes { display: grid; gap: 12px; scroll-margin-top: 24px; }
+.profile-mailboxes > p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.profile-mailboxes > button { justify-self: start; }
+.profile-mailboxes__list { display: grid; gap: 12px; }
+.profile-mailbox { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.profile-mailbox__identity { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.profile-mailbox__identity span { font-size: 12px; color: var(--text-secondary); }
+.profile-mailbox__identity span:empty { display: none; }
+.profile-mailbox__row { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.profile-mailbox__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.profile-mailbox__status { font-size: 12px; }
+.profile-mailbox__menu { position: relative; }
+.profile-mailbox__menu summary { display: grid; place-content: center; width: 34px; height: 34px; border: 1px solid var(--border-strong); border-radius: 5px; cursor: pointer; list-style: none; font-size: 22px; }
+.profile-mailbox__menu summary::-webkit-details-marker { display: none; }
+.profile-mailbox__menu > div { position: absolute; right: 0; top: 40px; z-index: 5; display: grid; min-width: 200px; padding: 5px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface-primary, var(--surface-secondary)); box-shadow: 0 6px 20px #0003; }
+.profile-mailbox__menu button { padding: 10px; border: 0; background: transparent; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
+.profile-mailbox__menu button:hover, .profile-mailbox__menu button:focus-visible { background: var(--surface-active); }
+.profile-mailboxes__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.profile-mailboxes__heading h2 { margin: 0; }
+.profile-mailbox-add { display: grid; gap: 16px; border: 1px solid var(--border); border-radius: 7px; padding: 16px; }
+.profile-mailbox-add h3, .profile-mailbox-add p { margin: 0 0 12px; }
+.profile-mailbox-add > button { justify-self: start; }
+.profile-mailbox-add__choices { display: flex; gap: 8px; flex-wrap: wrap; }
+.profile-mailbox-add__choices button[aria-pressed="true"] { border-color: var(--button-background); background: var(--surface-active); }
+.profile-mailbox__name { display: grid; gap: 6px; }
+.profile-mailbox__name label { font-size: 12px; font-weight: 650; }
+.profile-mailbox__name > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-mailbox__name input { flex: 1 1 220px; min-width: 0; border: 1px solid var(--input-border); border-radius: 5px; padding: 8px; background: var(--input-background); color: var(--text-primary); font: inherit; }
+.profile-mailbox__name small { color: var(--text-muted); }
+.profile-mailbox > button { justify-self: start; }
+.profile-mailbox > a { color: var(--text-primary); text-underline-offset: 3px; justify-self: start; }
 .profile-page__notice { margin: 0; color: var(--text-muted); font-size: 12px; }
 .profile-section { padding: 0 0 14px; border-bottom: 1px solid var(--border); }
 .profile-section:last-child { border-bottom: 0; }
+.profile-data-columns .profile-section:last-child { border-bottom: 1px solid var(--border); }
 .profile-section h2 { margin: 0 0 10px; color: var(--text-primary); font-size: var(--font-size-section-title); font-weight: var(--font-weight-section-title); }
 .profile-readonly-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px 12px; margin: 0; }
 .profile-readonly-grid div { min-width: 0; padding: 8px 9px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
@@ -33,7 +75,22 @@
 .signature-delete-button:disabled { cursor: not-allowed; opacity: .65; }
 .signature-section__error { margin: 0; }
 @media (max-width: 720px) {
+  .profile-data-columns { grid-template-columns: 1fr; gap: 14px; }
+  .profile-data-columns .profile-readonly-grid { grid-template-columns: 1fr; }
+  .profile-mailbox__row { align-items: flex-start; flex-wrap: wrap; }
   .profile-readonly-grid { grid-template-columns: 1fr; }
   .signature-preview { align-items: stretch; flex-direction: column; }
   .signature-preview__actions { justify-content: flex-start; }
 }
+
+.profile-mailbox-shared { display: grid; gap: 12px; max-width: 680px; }
+.profile-mailbox-shared h3, .profile-mailbox-shared p { margin: 0; }
+.profile-mailbox-shared label { display: grid; gap: 6px; }
+.profile-mailbox-shared > button { justify-self: start; }
+.profile-mailbox__identity small { color: var(--text-secondary); }
+
+.profile-mailbox-shared input, .profile-mailbox-shared select { width: 100%; box-sizing: border-box; min-width: 0; border: 1px solid var(--input-border); border-radius: 5px; padding: 8px; background: var(--input-background); color: var(--text-primary); font: inherit; }
+.profile-mailbox-shared label { font-size: 12px; font-weight: 650; }
+.profile-mailbox-shared p, .profile-mailbox__identity small { font-size: 12px; color: var(--text-secondary); }
+.profile-mailbox-recommendations { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary); }
+.profile-mailbox-recommendations label { display: flex; align-items: center; gap: 8px; cursor: pointer; }

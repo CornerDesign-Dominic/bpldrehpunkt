@@ -65,28 +65,17 @@ test('loading-start and loading-end stopwatch limits remain independent', () => 
   assert.equal(afterStart.items.find((item) => item.id === 'loading-wait').severity, 'success')
 })
 
-test('an actual departure keeps incomplete loading times yellow instead of escalating them', () => {
-  const result = shipmentTrackingAttention({
-    tracking: { actualDepartureLoadingAt: '2026-10-06T12:00:00Z' },
-    imported,
-    now: new Date('2026-10-06T18:00:00Z'),
-  })
-  const loading = result.items.find((item) => item.id === 'loading-wait')
-  assert.equal(loading.severity, 'warning')
-  assert.equal(loading.icon, 'stopwatch')
-  assert.equal(loading.label, 'Beladezeiten ergänzen')
+test('departure preserves current unloading warning and separates historical loading gaps', () => {
+  const result = shipmentTrackingAttention({ tracking: { actualDepartureLoadingAt: '2026-10-06T12:00:00Z' }, imported, now: new Date('2026-10-08T18:00:00Z') })
+  assert.equal(result.items.find((item) => item.id === 'unloading-arrival').severity, 'critical')
+  assert.equal(result.items.some((item) => item.icon === 'stopwatch'), false)
+  assert.deepEqual(result.history.missingFields, ['actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt'])
 })
 
-test('completed transports retain only mail review and yellow loading-time follow-ups', () => {
-  const result = shipmentTrackingAttention({
-    tracking: { lifecycleStatus: 'completed', lifecyclePhase: 'in_progress', automationPaused: true, actualArrivalUnloadingAt: '2026-10-07T18:00:00Z' },
-    imported,
-    receivedMails: [{ ai: { reviewRequired: true } }],
-  })
-  assert.deepEqual(result.items.map((item) => item.id), ['loading-wait', 'mail-review'])
-  const loading = result.items.find((item) => item.id === 'loading-wait')
-  assert.equal(loading.severity, 'warning')
-  assert.equal(loading.icon, 'stopwatch')
+test('closed transports hide mail review and pause but retain neutral history', () => {
+  const result = shipmentTrackingAttention({ tracking: { lifecycleStatus: 'completed', automationPaused: true, actualArrivalUnloadingAt: '2026-10-07T18:00:00Z' }, imported, receivedMails: [{ ai: { reviewRequired: true } }] })
+  assert.deepEqual(result.items, [])
+  assert.equal(result.history.severity, 'neutral')
 })
 
 test('a completed unloading or manually completed tracking suppresses every operational truck prompt', () => {
@@ -142,4 +131,68 @@ test('forecast plans a reduced Sunday rest in optimistic and realistic scenarios
   assert.equal(result.inputs.regulatedRestPlanning.realistic.weeklyRestHours, 24)
   assert.equal(result.inputs.regulatedRestPlanning.pessimistic.weeklyRestHours, 45)
   assert.equal(result.assumptions.some((item) => item.startsWith('Wochenendplanung: Bei einer Fahrt bis Sonntag')), true)
+})
+
+test('later loading facts suppress obsolete arrival prompts without inventing times', () => {
+  for (const tracking of [{ loadingStartedAt: '2026-10-06T08:00:00Z' }, { loadingCompletedAt: '2026-10-06T09:00:00Z' }]) {
+    const result = shipmentTrackingAttention({ tracking, imported, now: new Date('2026-10-06T09:15:00Z') })
+    assert.equal(result.items.some((item) => item.id === 'loading-arrival'), false)
+    assert.ok(result.history.missingFields.includes('actualArrivalLoadingAt'))
+    assert.equal(tracking.actualArrivalLoadingAt, undefined)
+  }
+})
+
+test('unloading progress and final closure suppress obsolete warnings and forecasts', () => {
+  for (const tracking of [{ unloadingStartedAt: '2026-10-07T18:00:00Z' }, { unloadingCompletedAt: '2026-10-07T18:00:00Z' }, { lifecycleStatus: 'completed' }]) {
+    const attention = shipmentTrackingAttention({ tracking, imported })
+    assert.deepEqual(attention.items, [])
+    assert.ok(attention.history.missingFields.includes('actualDepartureLoadingAt'))
+    const forecast = buildShipmentTrackingForecast({ tracking, imported })
+    assert.equal(forecast.kind, 'completed')
+    assert.equal(forecast.state, tracking.lifecycleStatus === 'completed' ? 'neutral' : 'unknown')
+  }
+})
+
+test('complete historical facts remove the history icon', () => {
+  const tracking = { licensePlate: 'B AB 123', actualArrivalLoadingAt: '2026-10-06T08:00:00Z', loadingStartedAt: '2026-10-06T08:10:00Z', loadingCompletedAt: '2026-10-06T09:00:00Z', actualDepartureLoadingAt: '2026-10-06T09:10:00Z', actualArrivalUnloadingAt: '2026-10-07T12:00:00Z', unloadingStartedAt: '2026-10-07T12:10:00Z', unloadingCompletedAt: '2026-10-07T13:00:00Z' }
+  assert.equal(shipmentTrackingAttention({ tracking, imported }).history, null)
+})
+
+test('mail pause preserves all live warning colors and only adds a neutral pause notice', () => {
+  const scenarios = [
+    [{}, '2026-10-01T01:00:00Z'],
+    [{ estimatedArrivalLoadingAt: '2026-10-06T08:00:00Z' }, '2026-10-01T01:00:00Z'],
+    [{ actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, '2026-10-07T15:30:00Z'],
+    [{ actualDepartureLoadingAt: '2026-10-06T10:00:00Z' }, '2026-10-09T18:00:00Z'],
+    [{ actualArrivalLoadingAt: '2026-10-06T08:00:00Z' }, '2026-10-06T08:05:00Z'],
+    [{ actualArrivalLoadingAt: '2026-10-06T08:00:00Z' }, '2026-10-09T18:00:00Z'],
+    [{ unloadingStartedAt: '2026-10-07T12:00:00Z' }, '2026-10-07T13:00:00Z'],
+  ]
+  for (const [facts, at] of scenarios) {
+    const tracking = { lifecycleStatus: 'active', lifecyclePhase: 'in_progress', ...facts }
+    const args = { tracking, imported, now: new Date(at), receivedMails: [{ ai: { reviewRequired: true } }] }
+    const active = shipmentTrackingAttention(args)
+    const paused = shipmentTrackingAttention({ ...args, tracking: { ...tracking, automationPaused: true } })
+    assert.deepEqual(paused.items.filter((item) => item.id !== 'automation-paused'), active.items)
+    assert.equal(paused.items.find((item) => item.id === 'automation-paused').severity, 'neutral')
+    assert.deepEqual(paused.history, active.history)
+  }
+})
+
+test('final closure neutralizes even a late arrival without losing its historical result', () => {
+  const tracking = { lifecycleStatus: 'completed', actualArrivalUnloadingAt: '2026-10-09T18:00:00Z', automationPaused: true }
+  const result = buildShipmentTrackingForecast({ tracking, imported })
+  assert.equal(result.kind, 'completed')
+  assert.equal(result.state, 'neutral')
+  assert.equal(result.arrivalState, 'yellow')
+  assert.equal(result.actualArrivalUnloadingAt, tracking.actualArrivalUnloadingAt.replace('Z', '.000Z'))
+  const attention = shipmentTrackingAttention({ tracking, imported, receivedMails: [{ ai: { status: 'error' } }] })
+  assert.deepEqual(attention.visible, [])
+  assert.ok(attention.history)
+})
+
+test('aftercare and past dates alone never count as final closure', () => {
+  const result = shipmentTrackingAttention({ tracking: { lifecycleStatus: 'active', lifecyclePhase: 'aftercare', automationPaused: true }, imported, now: new Date('2026-10-20T18:00:00Z') })
+  assert.ok(result.items.some((item) => item.severity === 'critical'))
+  assert.ok(result.items.some((item) => item.id === 'automation-paused'))
 })

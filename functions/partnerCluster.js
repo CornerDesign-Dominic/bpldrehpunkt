@@ -11,7 +11,7 @@ export const PARTNER_REFERENCE_CATALOG = Object.freeze([
   { collection: 'customerImportRows', fields: ['customerId', 'result.partnerId'] },
   { collection: 'carrierImportRows', fields: ['carrierId', 'result.partnerId'] },
   { collection: 'businessPartners', fields: ['linkedCarrierReference.partnerId'] },
-  { collection: 'legalDisputes', fields: [], originFields: ['transportReference'] },
+  { collection: 'legalDisputes', fields: ['counterpartyPartnerId'], originFields: ['transportReference'] },
 ])
 
 export function resolvePartnerInIndex(partnersById, partnerId) {
@@ -86,4 +86,22 @@ export function ownedPartnerNumbers(source, descendantMembers) {
 export function effectivePartnerReference(partnersById, originalId) {
   const active = resolvePartnerInIndex(partnersById, originalId)
   return { originalPartnerId: originalId || '', effectivePartnerId: active?.id || '', effectivePartnerName: active?.companyName || '' }
+}
+
+// Shared tracking resolver: preserves the existing bounded redirect behavior.
+export async function loadEffectiveTrackingPartner(db, partnerId) {
+  if (!partnerId || typeof partnerId !== 'string' || partnerId.includes('/')) return null
+  const visited = new Set()
+  let currentId = partnerId
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (visited.has(currentId)) return null
+    visited.add(currentId)
+    const snapshot = await db.doc(`businessPartners/${currentId}`).get()
+    if (!snapshot.exists) return null
+    const partner = { id: snapshot.id, ...snapshot.data() }
+    if (!partner.mergedIntoPartnerId && partner.status !== 'merged') return partner
+    if (typeof partner.mergedIntoPartnerId !== 'string' || !partner.mergedIntoPartnerId || partner.mergedIntoPartnerId.includes('/')) return null
+    currentId = partner.mergedIntoPartnerId
+  }
+  return null
 }

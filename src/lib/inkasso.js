@@ -1,8 +1,9 @@
+import { reportTechnicalFailure } from './diagnostics.js'
 import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
-import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { berlinToday, calendarDaysUntil, caseDeadlineReminder } from './caseDeadline.js'
 
 export const INKASSO_CASES_COLLECTION = 'inkassoCases'
 export const INKASSO_CASE_STATUSES = [
@@ -228,23 +229,19 @@ export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, 
 }
 
 function deadlinePayload(values) {
-  const date = trim(values.date)
-  const time = reminderDeadlineTime(values)
+  const reminder = caseDeadlineReminder(values)
   const note = optionalText(values.note)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   if (note && note.length > 4000) throw new Error('Die Bemerkung ist zu lang.')
-  return { date, time, reminderEnabled: values.reminderEnabled === true, note }
+  return { ...reminder, note }
 }
 
 export function createEmptyInkassoDeadline() {
-  return { date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
+  return { date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' }
 }
 
 export function inkassoDeadlinePresentation(deadline, now = new Date()) {
   if (!deadline?.date) return { kind: 'none', label: 'Keine Frist', days: null }
-  const today = new Date(now); today.setHours(0, 0, 0, 0)
-  const due = new Date(`${deadline.date}T12:00:00`)
-  const days = Math.round((due - today) / 86400000)
+  const days = calendarDaysUntil(deadline.date, now)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
   if (days === 0) return { kind: 'today', label: 'Heute', days }
   if (days <= 2) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
@@ -266,8 +263,8 @@ export async function createInkassoCaseDeadline(inkassoCase, values, actor) {
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
-  await batch.commit()
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }
 
 export async function updateInkassoCaseDeadline(inkassoCase, deadline, values, actor) {
@@ -277,7 +274,7 @@ export async function updateInkassoCaseDeadline(inkassoCase, deadline, values, a
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
   return true
 }
 
@@ -286,7 +283,7 @@ export async function deleteInkassoCaseDeadline(inkassoCase, deadline, actor) {
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'deadlines', deadline.id))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }
 
 export async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {

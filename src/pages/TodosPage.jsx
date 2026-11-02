@@ -1,3 +1,7 @@
+import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import { presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
+import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
+import { responsibilityLabel, transportOrderNumbers } from '../lib/todoListPresentation.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -47,20 +51,9 @@ function dueClass(todo) {
       : "due-date";
 }
 
-function responsibilityLabel(todo) {
-  if (todo.audienceType === "person") return todo.audienceId === todo.creatorUserId ? "Persönlich" : todo.audienceLabel || "Person";
-  if (todo.audienceType === "department") return todo.audienceId || todo.audienceLabel || "Abteilung";
-  if (todo.audienceType === "all") return "Alle";
-  if (todo.audienceType === "people") return (todo.audienceIds || []).length > 1 ? "Personengruppe" : (todo.audienceLabel || "Person").replace(/^Personen:\s*/, "");
-  return todo.audienceLabel || "—";
-}
 
-function transportOrderNumbers(todo) {
-  const links = Array.isArray(todo.transportOrderLinks) && todo.transportOrderLinks.length
-    ? todo.transportOrderLinks
-    : todo.transportOrderId ? [{ id: todo.transportOrderId, number: todo.transportOrderNumber || todo.reference || todo.transportOrderId }] : [];
-  return links.map((link) => String(link?.number || link?.id || "").trim()).filter(Boolean);
-}
+
+
 
 export default function TodosPage() {
   const { language } = useLanguage();
@@ -147,11 +140,12 @@ export default function TodosPage() {
     };
   }, [actor, canViewMasterData, editable]);
 
+  const displayedTodos = useMemo(() => presentCasePartnerReferences(todos, 'todo', partners, canViewMasterData), [todos, partners, canViewMasterData]);
   const todoGroups = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("de-DE");
-    const visible = todos.filter((todo) => {
+    const visible = displayedTodos.filter((todo) => {
       const matchesStatus = filter === "all" || (filter === "active" ? ["open", "in_progress"].includes(todo.status) : todo.status === "completed");
-      const matchesSearch = !needle || [todo.title, ...transportOrderNumbers(todo)].some((value) => value.toLocaleLowerCase("de-DE").includes(needle));
+      const matchesSearch = !needle || [todo.title, todo.partnerSearchText, ...transportOrderNumbers(todo)].some((value) => value.toLocaleLowerCase("de-DE").includes(needle));
       return matchesStatus && matchesSearch
         && (!assigneeFilter || (todo.assignedUserName || "Noch nicht übernommen") === assigneeFilter)
         && (!creatorFilter || (todo.creatorName || "—") === creatorFilter)
@@ -180,11 +174,19 @@ export default function TodosPage() {
         "pool",
       ),
     };
-  }, [actor, assigneeFilter, creatorFilter, filter, priorityFilter, responsibilityFilter, search, todos, user.uid]);
+  }, [actor, assigneeFilter, creatorFilter, filter, priorityFilter, responsibilityFilter, search, displayedTodos, user.uid]);
+
+  async function refreshAfterWrite() {
+    try { await loadTodos(); }
+    catch (loadError) {
+      setError(language === 'en' ? 'Change saved. The current tasks could not be reloaded. Please reload the page.' : 'Änderung gespeichert. Die aktuellen To-dos konnten nicht neu geladen werden. Bitte die Seite neu laden.');
+      void reportTechnicalFailure({ module: 'website', stage: 'other', error: loadError });
+    }
+  }
 
   async function addTodo(values) {
     await createTodo(values, actor, usersById);
-    await loadTodos();
+    await refreshAfterWrite();
     setToast("To-do gespeichert.");
   }
 
@@ -199,7 +201,7 @@ export default function TodosPage() {
         message:
           "Das To-do wurde bereits übernommen. Durch diese Änderung wird die Bearbeitung beendet und das To-do wieder geöffnet.",
       });
-      return;
+      return { pendingConfirmation: true };
     }
     await performSave(values, resetAssignment);
   }
@@ -212,7 +214,7 @@ export default function TodosPage() {
       resetAssignment,
       actor,
     );
-    await loadTodos();
+    await refreshAfterWrite();
     setEditing(null);
     setToast(
       resetAssignment
@@ -227,7 +229,7 @@ export default function TodosPage() {
         await performSave(confirmation.values, true);
       if (confirmation.type === "withdraw") {
         await withdrawTodo(confirmation.todo.id, actor);
-        await loadTodos();
+        await refreshAfterWrite();
         setToast("To-do zurückgezogen.");
       }
       setConfirmation(null);
@@ -370,6 +372,7 @@ export default function TodosPage() {
           />
         )}
         {error && <p className="form-error">{<StaticText source={error} />}</p>}
+        <PartnerReferenceWarning records={displayedTodos} />
         {loading ? (
           <p className="todos-gallery__state"><StaticText source={"To-dos werden geladen …"} /></p>
         ) : (

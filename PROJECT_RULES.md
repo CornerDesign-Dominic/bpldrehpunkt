@@ -1,4 +1,4 @@
-# Projektgrundsätze und Live-Release-Umfang
+# Projektgrundsätze und aktueller Produktumfang
 
 ## Zweck und Systemgrenze
 
@@ -13,11 +13,14 @@ Unternehmer. Fachmodule referenzieren diese Daten, statt sie mehrfach zu
 kopieren. Dokumentdateien liegen in Firebase Storage; zugehörige Metadaten und
 fachliche Vorgänge liegen in Firestore.
 
-Der Produktumfang dieses Dokuments ist der aktuelle, auf `main` vorhandene und
-für den ersten Livegang fachlich freigegebene Stand. Es werden damit keine
-zusätzlichen Features angekündigt oder eingeplant.
+Stand: 28.10.2026. Dieses Dokument beschreibt die dauerhaften Grundsätze und
+den vorhandenen Produktumfang im geprüften Code von `main` und `dev`.
+Es ist kein Nachweis, dass jede Funktion bereits in jeder Umgebung deployt oder
+fachlich abgenommen wurde. Historische Releases stehen in
+`docs/release-notes.md`, der laufende Releaseablauf in
+`docs/operations/releases.md`.
 
-## Verbindlicher Umfang des ersten Live-Releases
+## Vorhandener Produktumfang
 
 ### Übersicht und Zusammenarbeit
 
@@ -25,22 +28,49 @@ zusätzlichen Features angekündigt oder eingeplant.
 - Kalender und Feiertagskalender
 - News
 - Urlaub, Urlaubsmanagement, Personal und Team
+  (gemeinsamer Einstieg [Team & Urlaub](docs/operations/team-vacation-navigation.md)
+  mit leerer Übersicht und Fachreitern für die drei bisherigen Bereiche)
+  (direkter Einstieg [Personalwesen](docs/operations/personnel-navigation.md)
+  mit zunächst leerer Übersicht und Fachreiter Personal)
 - To-dos
+- Persönliche Notizen
 - Persönliches Profil
 
 ### Kunden, Vorgänge und Disposition
 
 - Kunden & Unternehmer als Geschäftspartner-Stammdaten
+- Datenimporte aus DyCoS-CSV mit Vorschau, Prüfwarteschlangen und Importverlauf;
+  zusätzlich manueller TA-Abruf über Power Automate (Einrichtung und Prüfstand
+  unter [DyCoS-Schnittstelle](docs/planning/dycos-csv-import-uebergangsloesung.md#18-manueller-ta-abruf-in-drehpunkt)).
+- Kontrollierte Partnerzusammenführung und Trennung mit eigener Berechtigung
+- Transportaufträge mit eigener dreispaltiger Auftragsakte und Fachreitern,
+  eigenständiger Auftragsliste, persönlichen Listenansichten und
+  Verknüpfungen zu Aufgaben, Fällen und Palettenbewegungen
+- Eigenständige Sendungsverfolgung unter `/sendungsverfolgung`; gegenseitige
+  Auftragsverknüpfung, vorerst vollständiger bisheriger Funktionsumfang.
+  Ablauf, Daten- und Aktualisierungsvertrag: [Auftragsbereich](docs/operations/order-workspace.md).
+- Sendungsverfolgung mit manueller Erfassung, Statusmail-Eingang,
+  KI-Auswertung, Handlungshinweisen, Prognose und Routenberechnung
 - CRM einschließlich Aktivitäten und Bewertungen
 - Palettenmanagement mit Kontoübersichten und Detailansichten
 - Schäden
+  (gemeinsamer Einstieg [Fallmanagement](docs/operations/case-management.md)
+  mit zunächst leerer Übersicht und Fachreitern für die vier Fallmodule)
 - Insolvenzen
 - Gericht / Streit
 - Inkasso
 
 ### Dokumente und fachliche Hilfen
 
-- Dokumente
+- Qualität mit K.V.P.-Themen im PDCA-Ablauf, abteilungsbezogenen
+  Besprechungsprotokollen und eigenständigem Situationshandbuch.
+  Jeder Problemvorgang besitzt eine Detailseite mit auswählbaren PDCA-Durchläufen;
+  die Abteilungsübersicht zeigt den aktuellen Durchlauf je Problem.
+  Datenvertrag und Entwicklungsgrenzen: [Qualität](docs/operations/quality.md).
+
+- Dokumente (gemeinsamer Einstieg [Dokumente & Werkzeuge](docs/operations/documents-tools.md)
+  mit zunächst leerer Übersicht und Fachreitern für Feiertagskalender,
+  Dokumente, Vorlagen und AGB-Prüfer)
 - Vorlagen einschließlich Haftbarhaltung und Geschäftsdokumenten
 - AGB-Prüfer
 
@@ -50,17 +80,26 @@ zusätzlichen Features angekündigt oder eingeplant.
 - Rollen, Modulrechte und aktive Benutzerprofile
 - Systemmail-Verwaltung
 - KI-Prompt-Verwaltung
+- Einstellungen für Sendungsverfolgung, automatischen Mailversand und Diagnose
 - Abteilungs-, Personal-, Urlaubs- und Feiertagsverwaltungsabläufe im jeweils
   geschützten Umfang
 
-Alle Fachmodule sind über die zentrale Berechtigungsregistrierung und
-geschützte Routen eingebunden. Der Modulzugriff wird mit den Stufen `none`,
+Die Fachmodule werden zentral in `src/lib/permissions.js` registriert und über
+geschützte Routen eingebunden. Persönliches Profil und persönliche Notizen
+folgen zusätzlich eigenen Zugriffs- bzw. Eigentümerregeln. Der Modulzugriff wird mit den Stufen `none`,
 `view` und `edit` gesteuert. Die globalen Rollen sind `user`, `admin` und
 `superadmin`; nur `superadmin` besitzt den allgemeinen Rechte-Override.
 Administration ist keine Umgehung der Fachrechte: Der Zugriff auf Fachbereiche
 folgt weiterhin dem jeweils zugewiesenen Modulrecht.
 
 ## Zugriffs- und Datenprinzipien
+
+Der neue Bereich **Postfächer** ist als begrenzte Dev-Integration mit Microsoft
+Graph implementiert. Exchange Online führt Nachrichten und Originalanhänge;
+persönliche Antwortentwürfe und Verbindungsmetadaten liegen in Drehpunkt.
+Graph-Tokens liegen ausschließlich im serverseitigen Secret Manager. Modulrechte
+geben keinen Zugriff auf fremde persönliche Postfächer. Umfang, Einrichtung und
+offene echte Abnahme stehen unter [Graph-Postfächer](docs/operations/mailboxes-graph.md).
 
 - Ein nutzbares Konto benötigt Firebase Authentication und ein aktives
   Benutzerprofil. Fehlende oder deaktivierte Profile erhalten keinen
@@ -107,13 +146,13 @@ Enforcement-Entscheidungen stehen in `APP_CHECK_ROLLOUT.md`.
 - Direkte Client-Schreibzugriffe auf geschützte Konten, Rechte, HR-Daten,
   Systemkonfigurationen und Systemhistorien sind keine zulässige
   Erweiterungsoption.
-- Der erste Live-Release umfasst nur die oben aufgeführten, bereits in Routen,
-  Navigation und Berechtigungsmodell vorhandenen Bereiche. Nicht belegbare
-  zukünftige Module gehören nicht zum Release-Umfang.
+- Neue Releaseumfänge werden aus tatsächlich implementierten, geprüften und
+  freigegebenen Änderungen gebildet. Ein Eintrag in diesem Dokument ersetzt
+  keine fachliche Abnahme und keinen Deploymentnachweis.
 
 ## Entwicklung nach dem Livegang
 
-Die laufende Weiterentwicklung erfolgt künftig in einer separaten
+Die laufende Weiterentwicklung erfolgt in einer separaten
 Entwicklungsumgebung. Änderungen werden dort implementiert und geprüft; erst
 freigegebene, gezielte Änderungen werden nach `main` übernommen. Production
 bleibt stabil und ist kein Arbeitsbereich für laufende Entwicklung oder

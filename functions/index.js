@@ -1,3 +1,17 @@
+import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, maintainMailboxRecommendationSubscriptionsHandler, mailboxRecommendationWebhookHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
+import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
+import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
+import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
+import { reminderParentChanged, reminderSourceChanged } from './reminderSources.js'
+import { listCaseReminderUsersHandler, setReminderResponsibilityHandler } from './reminderAdmin.js'
+import { advanceTransportOrderListProjection } from './transportOrderListProjection.js'
+import { reportBackgroundFailure, withBackgroundDiagnostic } from './backgroundWork.js'
+import { listSystemCalendarSourcesHandler } from './calendarQueries.js'
+import { savePalletRecordHandler, listPalletAccountSummariesHandler, rebuildPalletSummariesHandler, listTransportOrderPalletMovementsHandler } from './palletSummaries.js'
+import { searchMailboxOrderCustomersHandler, assignMailboxOrderCustomerHandler } from './mailboxes.js'
+import { reviewMailboxInvoicesHandler, listTransportInvoiceChecksHandler } from './mailboxes.js'
+import { startMailboxActionHandler, getMailboxActionHandler, listMailboxActionsHandler, updateMailboxActionHandler, processMailboxActionRunHandler } from './mailboxActions.js'
+import { analyzeMailboxAgbHandler, assignMailboxAgbCustomerHandler } from './mailboxes.js'
 import { getApps, initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
@@ -6,9 +20,25 @@ import { logger } from 'firebase-functions'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { onTaskDispatched } from 'firebase-functions/v2/tasks'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
+import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
-import { listDiagnosticsPageHandler, reportClientDiagnosticHandler } from './diagnostics.js'
-import { importTransportOrdersHandler, listTransportOrderImportRunsHandler, previewTransportOrderImportHandler } from './transportOrderImports.js'
+import { saveQualityRecordHandler } from './quality.js'
+import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
+import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeLearningHandler } from './knowledgeLearning.js'
+import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { listTransportOrderImportRunsHandler, manageTransportOrderImportHandler } from './transportOrderImports.js'
+import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
+import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
+import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
+import { dycosMasterDataConfigurationSecrets } from './dycosFlowClient.js'
+import { fetchDycosMasterDataHandler } from './dycosMasterData.js'
+import { listDycosMasterDataImportsHandler } from './dycosMasterDataHistory.js'
+import { refreshDycosMasterDataHandler } from './dycosPartnerRefresh.js'
+import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
+import { searchDycosTransportOrdersHandler } from './dycosOrderSearch.js'
+import { dycosOrderSearchConfigurationSecrets } from './dycosFlowClient.js'
 import { getShipmentTrackingActivationHandler, updateManualShipmentTrackingHandler } from './shipmentTracking.js'
 import { getShipmentTrackingDryRunHandler } from './shipmentTrackingDryRun.js'
 import { previewManualShipmentTrackingMailHandler, sendManualShipmentTrackingMailHandler } from './shipmentTrackingManualDispatch.js'
@@ -19,10 +49,10 @@ import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHand
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
-import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
+import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, shipmentTrackingMailAttentionChanged, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
 import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
-import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, importCustomersHandler, listCustomerImportQueueHandler, previewCustomerImportHandler, processCustomerImportHandler, releaseCustomerImportRowHandler } from './customerImports.js'
-import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, processCarrierImportHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
+import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, listCustomerImportQueueHandler, releaseCustomerImportRowHandler } from './customerImports.js'
+import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
 import { mergeCarrierImportPartnersHandler, mergeCustomerImportPartnersHandler, mergeManualPartnersHandler, prepareManualPartnerMergeHandler, previewPartnerMergeReversalHandler, separatePartnerMergeHandler } from './partnerMerges.js'
 import { deleteCompanyStampHandler, getCompanyStampHandler, saveCompanyStampHandler, updateCompanyMasterDataHandler } from './companyMasterData.js'
 import { getOwnSignatureHandler } from './userSignature.js'
@@ -31,6 +61,81 @@ import { ingestStatusMailHandler, statusMailIngestToken, statusMailboxAddress } 
 import { processStatusMailAi, resolveStatusMailReviewHandler, retryStatusMailAiHandler, statusMailAiApiKey } from './statusMailAi.js'
 
 if (!getApps().length) initializeApp()
+const reminderOptions = { region: 'europe-west3', enforceAppCheck: true }
+export const listReminderStatuses = onCall(reminderOptions, async (request) => {
+  try { return await listReminderStatusesHandler(request) }
+  catch (error) {
+    if (!(error instanceof HttpsError)) {
+      try { await recordDiagnostic({ module: 'reminders', stage: 'status', code: 'reminder-status-failed', message: 'Erinnerungsstatus konnte nicht geladen werden.', actorId: request.auth?.uid || 'unknown' }) } catch { /* Keep the original status failure. */ }
+    }
+    throw error
+  }
+})
+export const listCaseReminderUsers = onCall(reminderOptions, listCaseReminderUsersHandler)
+export const setReminderResponsibility = onCall(reminderOptions, setReminderResponsibilityHandler)
+export const prepareReminders = onCall({ ...reminderOptions, timeoutSeconds: 120, maxInstances: 1, concurrency: 1 }, async (request) => {
+  await requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen Erinnerungen vorbereiten.')
+  const db = getFirestore()
+  return withBackgroundDiagnostic(db, 'reminder-preparation', () => advanceReminderPreparation(db))
+})
+
+async function projectReminderParent(event, { refreshMain = true } = {}) {
+  if (!reminderParentChanged(event.data.before.data(), event.data.after.data())) return
+  const db = getFirestore(), startedAt = Date.now()
+  await withBackgroundDiagnostic(db, 'reminder-parent-projection', async () => {
+    while (true) {
+      const page = await refreshReminderParent(db, event.data.after.ref.path, { refreshMain })
+      if (page.complete) return
+      // The per-parent cursor survives trigger retries. Never restart a global
+      // archive scan or block the independently scheduled due-work dispatcher.
+      if (Date.now() - startedAt > 240_000) throw Object.assign(new Error('reminder-parent-projection-incomplete'), { code: 'unavailable' })
+    }
+  })
+}
+const reminderParentOptions = { region: 'europe-west3', retry: true, maxInstances: 3, timeoutSeconds: 300 }
+export const maintainCalendarReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'calendars/{id}' }, projectReminderParent)
+export const maintainDamageReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'damageCases/{id}' }, projectReminderParent)
+export const maintainInkassoReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'inkassoCases/{id}' }, projectReminderParent)
+export const maintainLegalReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'legalDisputes/{id}' }, projectReminderParent)
+export const maintainInsolvencyReminderParent = onDocumentWritten({ ...reminderParentOptions, document: 'insolvencies/{id}' }, projectReminderParent)
+export const maintainCalendarEventReminder = onDocumentWritten({ ...reminderParentOptions, document: 'calendars/{calendarId}/events/{eventId}' }, async (event) => {
+  if (!reminderSourceChanged(event.data.before.data(), event.data.after.data())) return
+  const db = getFirestore()
+  await withBackgroundDiagnostic(db, 'calendar-reminder-projection', () => refreshReminderSource(db, event.data.after.ref.path))
+})
+export const maintainTodoReminders = onDocumentWritten({ ...reminderParentOptions, document: 'todos/{id}' }, async (event) => {
+  const before = event.data.before.data(), after = event.data.after.data()
+  if (reminderSourceChanged(before, after) || reminderParentChanged(before, after)) {
+    const db = getFirestore()
+    await withBackgroundDiagnostic(db, 'todo-reminder-projection', () => refreshReminderSource(db, event.data.after.ref.path))
+  }
+  await projectReminderParent(event, { refreshMain: false })
+})
+// No global User/permission rebuild: future valid jobs stay indexed even while
+// access is blocked. Status, claim and beforeSend each load today's canonical
+// profile and permission; caches never survive one status request.
+const palletOptions = { region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }
+export const savePalletRecord = onCall(palletOptions, savePalletRecordHandler)
+export const listPalletAccountSummaries = onCall({ ...palletOptions, timeoutSeconds: 120 }, listPalletAccountSummariesHandler)
+export const rebuildPalletSummaries = onCall({ ...palletOptions, timeoutSeconds: 120, maxInstances: 1, concurrency: 1 }, rebuildPalletSummariesHandler)
+export const listTransportOrderPalletMovements = onCall(palletOptions, listTransportOrderPalletMovementsHandler)
+export const listSystemCalendarSources = onCall({ region: 'europe-west3', enforceAppCheck: true }, listSystemCalendarSourcesHandler)
+export const prepareBackgroundWork = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540, maxInstances: 1, concurrency: 1 }, async (request) => {
+  await requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen die Arbeitsprojektionen vorbereiten.')
+  const db = getFirestore()
+  try {
+    const tracking = await advanceShipmentTrackingWork(db)
+    const reminders = await advanceDeadlineReminderWork(db)
+    const list = await advanceTransportOrderListProjection(db)
+    return { tracking, reminders, list }
+  } catch (error) { await reportBackgroundFailure(db, 'prepare', error); throw new HttpsError('internal', 'Der Aufbau wurde unterbrochen. Ein erneuter Aufruf setzt ihn fort.') }
+})
+export const saveQualityRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveQualityRecordHandler)
+export const saveKnowledgeRecord = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveKnowledgeRecordHandler)
+export const updateKnowledgeGap = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateKnowledgeGapHandler)
+export const manageKnowledgeCase = onCall({ region: 'europe-west3', enforceAppCheck: true }, manageKnowledgeCaseHandler)
+export const learnKnowledgeCases = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [statusMailAiApiKey], timeoutSeconds: 180, maxInstances: 3 }, learnKnowledgeCasesHandler)
+export const applyKnowledgeLearning = onCall({ region: 'europe-west3', enforceAppCheck: true }, applyKnowledgeLearningHandler)
 export const ingestStatusMail = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [statusMailIngestToken, statusMailboxAddress], maxInstances: 5 }, ingestStatusMailHandler)
 export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, async (event) => {
   if (!event.data) return
@@ -38,7 +143,7 @@ export const processStatusMailAiOnCreate = onDocumentCreated({ region: 'europe-w
 })
 // Forecasts are only recalculated for the three agreed loading facts. A later
 // actual unloading arrival merely replaces the current moving truck with its
-// terminal house state; it never creates another forecast history entry.
+// terminal house state; unloading progress and final closure do the same.
 export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ region: 'europe-west3', document: 'transportOrderTrackings/{orderId}', maxInstances: 3 }, async (event) => {
   if (!event.data?.after.exists) return
   const before = event.data.before.exists ? event.data.before.data() : {}
@@ -52,11 +157,12 @@ export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ regio
   const oldUnload = before?.actualArrivalUnloadingAt?.toMillis?.() ?? before?.actualArrivalUnloadingAt ?? null
   const newUnload = after?.actualArrivalUnloadingAt?.toMillis?.() ?? after?.actualArrivalUnloadingAt ?? null
   if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
-  else if (oldUnload !== newUnload) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
+  else if (oldUnload !== newUnload || ['unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some((field) => (before[field]?.toMillis?.() ?? before[field] ?? null) !== (after[field]?.toMillis?.() ?? after[field] ?? null))) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
 })
-export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3 }, async (event) => {
-  if (!event.data?.after.exists) return
-  await refreshShipmentTrackingAttentionSummary(event.params.orderId)
+export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3, retry: true }, async (event) => {
+  if (!event.data) return
+  if (!shipmentTrackingMailAttentionChanged(event.data.before, event.data.after)) return
+  await withBackgroundDiagnostic(getFirestore(), 'mail-attention', () => refreshShipmentTrackingAttentionSummary(event.params.orderId))
 })
 export const retryStatusMailAi = onCall({ region: 'europe-west3', enforceAppCheck: true, secrets: [statusMailAiApiKey], maxInstances: 3, timeoutSeconds: 120 }, retryStatusMailAiHandler)
 export const resolveStatusMailReview = onCall({ region: 'europe-west3', enforceAppCheck: true }, resolveStatusMailReviewHandler)
@@ -65,10 +171,56 @@ export const getCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck:
 export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck: true }, getOwnSignatureHandler)
 export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
+const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
+const mailboxActionOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, timeoutSeconds: 120, maxInstances: 3 }
+export const getMailboxRecommendationSettings = onCall(mailboxOptions, getMailboxRecommendationSettingsHandler)
+export const setMailboxRecommendationSettings = onCall(mailboxOptions, setMailboxRecommendationSettingsHandler)
+export const listManagedMailboxRecommendations = onCall(mailboxOptions, listManagedMailboxRecommendationsHandler)
+export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
+export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
+export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+
+export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
+export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)
+export const listMailboxActions = onCall(mailboxActionOptions, listMailboxActionsHandler)
+export const updateMailboxAction = onCall(mailboxActionOptions, updateMailboxActionHandler)
+export const processMailboxActionRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxActionRuns/{jobId}', secrets: [mailboxClientSecret, statusMailAiApiKey, ...dycosFlowConfigurationSecrets], timeoutSeconds: 540, memory: '1GiB', concurrency: 1, maxInstances: 3, retry: false }, async event => {
+  if (event.data) await processMailboxActionRunHandler(event.params.jobId)
+})
+export const previewMailboxTracking = onCall({ ...mailboxOptions, timeoutSeconds: 240, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxTrackingHandler)
+export const reviewMailboxInvoices = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey, ...dycosFlowConfigurationSecrets] }, reviewMailboxInvoicesHandler)
+export const listTransportInvoiceChecks = onCall({ region: 'europe-west3', invoker: 'public', enforceAppCheck: true }, listTransportInvoiceChecksHandler)
+export const analyzeMailboxAgb = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, analyzeMailboxAgbHandler)
+export const assignMailboxAgbCustomer = onCall(mailboxOptions, assignMailboxAgbCustomerHandler)
+export const previewMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 540, memory: '1GiB', concurrency: 1, secrets: [mailboxClientSecret, statusMailAiApiKey] }, previewMailboxOrderHandler)
+export const assignMailboxOrderCustomer = onCall({ ...mailboxOptions, timeoutSeconds: 240, maxInstances: 3, concurrency: 4, secrets: [mailboxClientSecret, ...dycosMasterDataConfigurationSecrets] }, assignMailboxOrderCustomerHandler)
+export const searchMailboxOrderCustomers = onCall({ ...mailboxOptions, timeoutSeconds: 480, maxInstances: 3, concurrency: 4, secrets: [mailboxClientSecret, ...dycosMasterDataConfigurationSecrets] }, searchMailboxOrderCustomersHandler)
+export const exportMailboxOrder = onCall({ ...mailboxOptions, timeoutSeconds: 120, concurrency: 4 }, exportMailboxOrderHandler)
+export const applyMailboxTracking = onCall(mailboxOptions, applyMailboxTrackingHandler)
+export const beginMailboxConnection = onCall(mailboxOptions, beginMailboxConnectionHandler)
+export const finishMailboxConnection = onCall(mailboxOptions, finishMailboxConnectionHandler)
+export const listMailboxConnections = onCall(mailboxOptions, listMailboxConnectionsHandler)
+export const addSharedMailbox = onCall(mailboxOptions, addSharedMailboxHandler)
+export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler)
+export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
+export const listMailboxReplies = onCall(mailboxOptions, listMailboxRepliesHandler)
+export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
+export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)
+export const suggestMailboxReply = onCall({ ...mailboxOptions, timeoutSeconds: 180, secrets: [mailboxClientSecret, statusMailAiApiKey] }, suggestMailboxReplyHandler)
+export const getMailboxDraft = onCall(mailboxOptions, getMailboxDraftHandler)
+export const saveMailboxDraft = onCall(mailboxOptions, saveMailboxDraftHandler)
+export const sendMailboxReply = onCall(mailboxOptions, sendMailboxReplyHandler)
+export const sendMailboxMessage = onCall(mailboxOptions, sendMailboxMessageHandler)
+export const searchMailboxRecordTargets = onCall(mailboxOptions, searchMailboxRecordTargetsHandler)
+export const applyMailboxRecord = onCall(mailboxOptions, applyMailboxRecordHandler)
+export const disconnectMailbox = onCall(mailboxOptions, disconnectMailboxHandler)
+export const mailboxOAuthCallback = onRequest({ region: 'europe-west3', invoker: 'public', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }, mailboxOAuthCallbackHandler)
+export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', timeoutSeconds: 120, maxInstances: 1 }, cleanupMailboxConnectionsHandler)
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -1042,11 +1194,18 @@ export { listAiPromptConfigs, publishAiPromptDraft, resetAiPromptDraft, saveAiPr
 export { requireActiveProfileBeforeSignIn } from './authBlocking.js'
 export { createInkassoCase } from './inkassoCases.js'
 export { recordCaseTransportOrderLinkCreated, recordCaseTransportOrderLinkDeleted } from './caseTransportLinks.js'
-export { scheduledShipmentTrackingAutomation } from './shipmentTrackingAutomation.js'
-export { scheduledCaseDeadlineReminderDispatch } from './caseDeadlineReminders.js'
-export const previewTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewTransportOrderImportHandler)
-export const importTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true }, importTransportOrdersHandler)
+export { scheduledShipmentTrackingAutomation, maintainShipmentTrackingOrderWork, maintainShipmentTrackingStateWork, rebuildShipmentTrackingWorkOnSettings, rebuildShipmentTrackingWorkOnPartner, rebuildShipmentTrackingWork } from './shipmentTrackingAutomation.js'
+export { scheduledCaseDeadlineReminderDispatch, maintainCaseDeadlineReminderWork } from './caseDeadlineReminders.js'
+export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchDycosTransportOrderHandler)
+export const listTransportOrderRecordsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listTransportOrderRecordsPageHandler)
+export const refreshTransportOrderWorkspace = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 540, maxInstances: 3, concurrency: 4, secrets: [...new Map([...dycosFlowConfigurationSecrets, ...dycosMasterDataConfigurationSecrets].map(secret => [secret.name, secret])).values()] }, refreshTransportOrderWorkspaceHandler)
+export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
+export const listDycosMasterDataImports = onCall({ region: 'europe-west3', enforceAppCheck: true }, listDycosMasterDataImportsHandler)
+export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, refreshDycosMasterDataHandler)
+export const resolveDycosPartnerConflicts = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, resolveDycosPartnerConflictsHandler)
+export const searchDycosTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosOrderSearchConfigurationSecrets }, searchDycosTransportOrdersHandler)
 export const listTransportOrderImportRuns = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderImportRunsHandler)
+export const manageTransportOrderImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, manageTransportOrderImportHandler)
 export const updateManualShipmentTracking = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateManualShipmentTrackingHandler)
 export const getShipmentTrackingActivation = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingActivationHandler)
 export const previewManualShipmentTrackingMail = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, previewManualShipmentTrackingMailHandler)
@@ -1081,15 +1240,11 @@ export const getShipmentTrackingAttention = onCall({ region: 'europe-west3', enf
 export const refreshShipmentTrackingForecast = onCall({ region: 'europe-west3', enforceAppCheck: true }, refreshShipmentTrackingForecastHandler)
 export const updateShipmentTrackingForecastSettings = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateShipmentTrackingForecastSettingsHandler)
 export const updateAutomaticMailDelivery = onCall({ region: 'europe-west3', enforceAppCheck: true }, updateAutomaticMailDeliveryHandler)
-export const previewCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true }, previewCustomerImportHandler)
-export const importCustomers = onCall({ region: 'europe-west3', enforceAppCheck: true }, importCustomersHandler)
-export const processCustomerImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCustomerImportHandler)
 export const listCustomerImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCustomerImportQueueHandler)
 export const claimCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCustomerImportRowHandler)
 export const releaseCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCustomerImportRowHandler)
 export const approveCustomerImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, approveCustomerImportRowHandler)
 export const mergeCustomerImportPartners = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mergeCustomerImportPartnersHandler)
-export const processCarrierImport = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, processCarrierImportHandler)
 export const listCarrierImportQueue = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listCarrierImportQueueHandler)
 export const claimCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, claimCarrierImportRowHandler)
 export const releaseCarrierImportRow = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, releaseCarrierImportRowHandler)

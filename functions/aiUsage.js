@@ -1,5 +1,6 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions'
+import { recordDiagnostic } from './diagnostics.js'
 
 export const AI_USAGE_COLLECTION = 'aiUsage'
 
@@ -61,39 +62,29 @@ export async function logAiUsage({ feature, userId, model, usage, durationMs, su
 
 // Wrap every server-side AI request with uniform, content-free usage logging.
 // `operation` may return `usage`, `requestId`, `fileSize`, and `pageCount`.
-export async function executeAiOperation({ feature, userId, model, operation }) {
+async function reportUsageFailure(error, entry) {
+  const errorType = getAiErrorType(error)
+  logger.error('KI-Usage konnte nicht protokolliert werden.', { feature: entry.feature, userId: entry.userId, errorType })
+  await recordDiagnostic({ module: 'background-work', stage: 'ai-usage', code: errorType, message: 'Die KI-Nutzung konnte nicht protokolliert werden; das fachliche Ergebnis bleibt erhalten.', actorId: entry.userId || 'system' })
+}
+
+export async function executeAiOperation({ feature, userId, model, operation }, { writeUsage = logAiUsage, reportUsageError = reportUsageFailure } = {}) {
   const startedAt = Date.now()
-  try {
-    const result = await operation()
-    await logAiUsage({
-      feature,
-      userId,
-      model,
-      usage: result?.usage,
-      durationMs: Date.now() - startedAt,
-      success: true,
-      fileSize: result?.fileSize,
-      pageCount: result?.pageCount,
-      requestId: result?.requestId,
-    })
-    return result
-  } catch (error) {
-    try {
-      await logAiUsage({
-        feature,
-        userId,
-        model,
-        usage: error?.usage,
-        durationMs: Date.now() - startedAt,
-        success: false,
-        errorType: getAiErrorType(error),
-        fileSize: error?.fileSize,
-        pageCount: error?.pageCount,
-        requestId: error?.requestId,
-      })
-    } catch (loggingError) {
-      logger.error('KI-Usage konnte nicht protokolliert werden.', { feature, userId, errorType: getAiErrorType(loggingError) })
+  const writeSafely = async (entry) => {
+    try { await writeUsage(entry) }
+    catch (error) {
+      // Telemetry must neither turn an accepted result into a failed operation
+      // nor replace the provider's original error and provoke a paid retry.
+      try { await reportUsageError(error, entry) }
+      catch { logger.warn('KI-Nutzungsdiagnose fehlgeschlagen.', { feature }) }
     }
+  }
+  let result
+  try { result = await operation() }
+  catch (error) {
+    await writeSafely({ feature, userId, model, usage: error?.usage, durationMs: Date.now() - startedAt, success: false, errorType: getAiErrorType(error), fileSize: error?.fileSize, pageCount: error?.pageCount, requestId: error?.requestId })
     throw error
   }
+  await writeSafely({ feature, userId, model, usage: result?.usage, durationMs: Date.now() - startedAt, success: true, fileSize: result?.fileSize, pageCount: result?.pageCount, requestId: result?.requestId })
+  return result
 }

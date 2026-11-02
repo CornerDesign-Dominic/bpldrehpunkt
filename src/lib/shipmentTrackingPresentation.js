@@ -1,3 +1,4 @@
+import { shipmentTrackingProgress } from '../../shared/shipmentTrackingProgress.js'
 import { defaultShipmentTrackingUiModel } from '../components/transport-orders/shipmentTrackingUiModel.js'
 
 const fieldLabels = {
@@ -21,6 +22,10 @@ const fieldLabels = {
 }
 
 const sourceLabels = { manual: 'Manuelle Eingabe', import: 'TA-Import', manual_mail: 'Manueller Mailversand', automatic: 'Sendungsverfolgungs-Automatik', ai_mail: 'KI · Status-Postfach', phone: 'Telefon', other_mailbox: 'Anderes E-Mail-Postfach', other: 'Sonstiges' }
+export function shipmentTrackingSourceLabel(event) {
+  if (event.channel === 'personal_mailbox') return event.source === 'ai_mail' ? 'KI · Persönliches Postfach' : event.originalAiValue ? 'Manuell korrigiert · KI-Vorschlag' : 'Manuelle Eingabe · Persönliches Postfach'
+  return sourceLabels[event.source] || 'Manuelle Eingabe'
+}
 const proofLabels = { unknown: 'unbekannt', open: 'offen', received: 'erhalten' }
 const timeFormatter = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' })
 const berlinDateTimeFormatter = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -138,23 +143,24 @@ function calendarDayDistance(left, right) {
   return Math.abs(Math.round((Date.UTC(right.year, right.month - 1, right.day) - Date.UTC(left.year, left.month - 1, left.day)) / 86400000))
 }
 
-export function formatShipmentTrackingSlot(fromValue, untilValue) {
+export function formatShipmentTrackingSlot(fromValue, untilValue, fixedAppointment = null) {
   const from = berlinParts(fromValue)
   const until = berlinParts(untilValue) || withTimeOnSameDay(from, timeOnlyParts(untilValue))
   if (!from && !until) return 'Sollzeit fehlt'
-  if (from && !until) return hasValue(untilValue) ? `ab ${compactSlotDateTime(from)}` : `FIX\n${compactSlotDateTime(from)}`
-  if (!from && until) return `bis ${compactSlotDateTime(until)}`
+  if (from && !until) return fixedAppointment === true || (fixedAppointment !== false && !hasValue(untilValue)) ? `FIX\n${compactSlotDateTime(from)}` : `ab ${compactSlotDateTime(from)}`
+  if (!from && until) return `${fixedAppointment === true ? 'FIX\n' : ''}bis ${compactSlotDateTime(until)}`
   const sameDay = from.year === until.year && from.month === until.month && from.day === until.day
   const sameTime = from.hour === until.hour && from.minute === until.minute
-  if (sameDay && sameTime) return `FIX\n${compactSlotDateTime(from)}`
-  if (sameDay) return `${compactSlotDateTime(from)}–${until.hour}:${until.minute}`
-  if (from.year === until.year && calendarDayDistance(from, until) <= 7) return `${compactSlotDateTime(from)} – ${compactSlotDateTime(until)}`
+  if (sameDay && sameTime) return `${fixedAppointment === false ? '' : 'FIX\n'}${compactSlotDateTime(from)}`
+  const prefix = fixedAppointment === true ? 'FIX\n' : ''
+  if (sameDay) return `${prefix}${compactSlotDateTime(from)}–${until.hour}:${until.minute}`
+  if (from.year === until.year && calendarDayDistance(from, until) <= 7) return `${prefix}${compactSlotDateTime(from)} – ${compactSlotDateTime(until)}`
   const includeYear = from.year !== until.year
-  return `${expandedSlotDateTime(from, includeYear)} – ${expandedSlotDateTime(until, includeYear)}`
+  return `${prefix}${expandedSlotDateTime(from, includeYear)} – ${expandedSlotDateTime(until, includeYear)}`
 }
 
-function scheduleWindow(from, until) {
-  return { label: formatShipmentTrackingSlot(from, until), dueAt: asDate(until) || asDate(from) }
+function scheduleWindow(from, until, fixedAppointment) {
+  return { label: formatShipmentTrackingSlot(from, until, fixedAppointment), dueAt: asDate(until) || asDate(from) }
 }
 
 function routeDuration(distanceKm) {
@@ -239,14 +245,15 @@ export function shipmentTrackingStationAssessments({ tracking, imported, custome
 }
 
 function loadingWorkflowLabel(tracking, state) {
-  if (state === 'completed') return 'Abfahrt erfolgt'
-  if (tracking?.loadingStartedAt && !tracking?.loadingCompletedAt) return 'Beladung läuft'
+  if (state === 'completed') return tracking?.actualDepartureLoadingAt ? 'Abfahrt erfolgt' : 'Ladestelle passiert'
+  if (tracking?.loadingCompletedAt) return 'Beladung abgeschlossen'
+  if (tracking?.loadingStartedAt) return 'Beladung läuft'
   if (tracking?.actualArrivalLoadingAt) return 'Ankunft erfolgt'
   return 'Ankunft noch offen'
 }
 
 function transitWorkflowLabel(tracking, state, hasReport = false) {
-  if (state === 'completed') return 'Ankunft erfolgt'
+  if (state === 'completed') return tracking?.actualArrivalUnloadingAt ? 'Ankunft erfolgt' : 'Entladestelle erreicht'
   if (state === 'active' && formatTime(tracking?.actualDepartureLoadingAt)) return `Unterwegs seit ${formatTime(tracking.actualDepartureLoadingAt)}`
   if (hasReport) return 'Fahrtmeldung vorhanden'
   return 'Noch nicht unterwegs'
@@ -279,21 +286,20 @@ export function shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners
   if (!tracking) return ['pending', 'pending', 'pending', 'pending', 'pending']
   if (tracking.lifecycleStatus === 'completed') return ['completed', 'completed', 'completed', 'completed', 'completed']
 
-  const loadingTouched = Boolean(tracking.actualArrivalLoadingAt || tracking.loadingStartedAt || tracking.loadingCompletedAt)
-  const unloadingTouched = Boolean(tracking.actualArrivalUnloadingAt || tracking.unloadingStartedAt)
+  const progress = shipmentTrackingProgress(tracking)
   const rating = shipmentTrackingRatingState(ratings, ratingPartners)
   return [
-    licensePlate(tracking) ? 'completed' : 'active',
-    tracking.actualDepartureLoadingAt ? 'completed' : loadingTouched ? 'active' : 'pending',
-    tracking.actualArrivalUnloadingAt ? 'completed' : tracking.actualDepartureLoadingAt ? 'active' : 'pending',
-    tracking.unloadingCompletedAt ? 'completed' : unloadingTouched ? 'active' : 'pending',
+    licensePlate(tracking) || progress.reachedUnloading ? 'completed' : 'active',
+    progress.departed ? 'completed' : progress.reachedLoading ? 'active' : 'pending',
+    progress.reachedUnloading ? 'completed' : progress.departed ? 'active' : 'pending',
+    progress.unloaded ? 'completed' : progress.reachedUnloading ? 'active' : 'pending',
     rating.state,
   ]
 }
 
 export function shipmentTrackingStations({ tracking, imported, route, customerPolicy, now, events, ratings, ratingPartners } = {}) {
-  const loadingPlan = scheduleWindow(imported?.loading?.window?.from, imported?.loading?.window?.until)
-  const unloadingPlan = scheduleWindow(imported?.unloading?.window?.from, imported?.unloading?.window?.until)
+  const loadingPlan = scheduleWindow(imported?.loading?.window?.from, imported?.loading?.window?.until, imported?.loading?.fixedAppointment)
+  const unloadingPlan = scheduleWindow(imported?.unloading?.window?.from, imported?.unloading?.window?.until, imported?.unloading?.fixedAppointment)
   const routePlan = formatShipmentTrackingRoutePlan(route?.roundedDistanceKm)
   const workflowStates = shipmentTrackingWorkflowStates(tracking, ratings, ratingPartners)
   const rating = shipmentTrackingRatingState(ratings, ratingPartners)
@@ -329,7 +335,7 @@ export function shipmentTrackingStations({ tracking, imported, route, customerPo
       id: 'preparation',
       label: 'Vorbereitung',
       workflowState: workflowStates[0],
-      workflowLabel: plate ? 'Kennzeichen vorhanden' : 'Kennzeichen noch offen',
+      workflowLabel: plate ? 'Kennzeichen vorhanden' : workflowStates[0] === 'completed' ? 'Frühere Angaben fehlen' : 'Kennzeichen noch offen',
       plan: null,
       actualRows: plate ? [{ kind: 'license-plate', label: 'Kennzeichen', value: plate }] : [],
       forecastRows: [],
@@ -438,10 +444,10 @@ export function shipmentTrackingStationSummary(station, tracking) {
   } else if (station.id === 'loading') {
     const rowKeys = { arrival: 'arrival', process: 'process', departure: 'departure' }
     rows = [...actual.map((row) => summaryRow(row.label, row.value, 'actual', rowKeys[row.kind], row.label === 'Beladung begonnen' ? null : station.assessments?.[rowKeys[row.kind]], row.ai)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
-    if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
+    if (!rows.length) rows = [summaryRow('', station.workflowState === 'completed' ? 'Frühere Angaben fehlen' : 'Ankunft offen', 'missing', 'arrival', station.assessments?.arrival)]
   } else if (station.id === 'in_transit') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value, row.kind === 'position' || row.kind === 'pause' ? row.kind : 'actual', null, null, row.ai)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
-    if (!rows.length) rows = [summaryRow('', 'Noch nicht unterwegs', 'missing')]
+    if (!rows.length) rows = [summaryRow('', station.workflowState === 'completed' ? 'Entladestelle erreicht' : 'Noch nicht unterwegs', 'missing')]
   } else if (station.id === 'unloading') {
     rows = [...actual.map((row) => summaryRow(row.label, row.value)), ...forecast.map((row) => summaryRow(row.label, row.value, 'forecast'))]
     if (!rows.length) rows = [summaryRow('', 'Ankunft offen', 'missing')]

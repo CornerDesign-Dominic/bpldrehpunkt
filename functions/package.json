@@ -7,7 +7,7 @@
   },
   "main": "index.js",
   "dependencies": {
-    "drehpunkt": "file:..",
+    "@napi-rs/canvas": "1.0.9",
     "firebase-admin": "^14.4.0",
     "firebase-functions": "^7.4.0",
     "pdfjs-dist": "^6.2.108"

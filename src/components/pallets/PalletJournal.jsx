@@ -1,7 +1,7 @@
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { formatPalletDate, formatPalletNumber } from './palletFormatters.js'
 import { PALLET_TYPES } from '../../constants/pallets.js'
-import { Link } from 'react-router-dom'
+import Link from '../ui/ContextLink.jsx'
 import { transportOrderPath } from '../../lib/transportOrderPresentation.js'
 
 export default function PalletJournal({ account, accountError, isEntryFormActive, onAddClosing, onAddMovement, onEditClosing, onEditMovement, canEdit }) {

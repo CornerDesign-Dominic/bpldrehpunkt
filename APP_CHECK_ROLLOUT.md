@@ -1,19 +1,28 @@
 # Firebase App Check – Rollout für Drehpunkt
 
+Dokumentationsstand: 28.10.2026. Dieses Dokument trennt die im Code vorhandene
+Absicherung von späteren Console-Entscheidungen. Aktuelle Console-Schalter
+wurden bei der Dokumentationsbereinigung nicht verändert oder live verifiziert.
+
 ## Aktueller Stand
 
 - Die Produktions- und die Entwicklungs-Web-App initialisieren App Check
   zentral in `src/lib/firebase.js` mit `ReCaptchaEnterpriseProvider`. Jede
   Umgebung verwendet ihre eigene Web-App und ihren eigenen Site-Key; Kennungen
   und Schlüssel werden nicht in Git dokumentiert.
-- Die öffentliche Site-Key-Variable heißt `VITE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY`. Der Key gehört nicht in Git; die Musterdatei dokumentiert ihn. Eine lokale `.env` ist aktuell nicht vorhanden.
+- Die öffentliche Site-Key-Variable heißt `VITE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY`. Projektspezifische Werte bleiben außerhalb von Git; `.env.example` dokumentiert die Namen. Lokal wird eine ignorierte `.env.local` verwendet.
 - Token-Aktualisierung ist aktiviert. In Vite-Entwicklung wird vor der App-Check-Initialisierung ausschließlich lokal der offizielle Firebase-Debug-Provider aktiviert; der Code wird aus dem Production-Build entfernt. Debug-Tokens werden weder gespeichert noch als `VITE_`-Variable verteilt.
 - Firestore- und Storage-Rules sowie Firebase Auth, das aktive Profil und die Rollen-/Modulrechte wurden nicht verändert. App Check ist eine zusätzliche Schicht.
-- Der aktuelle Functions-Bestand enthält 73 `onCall`-Endpunkte; jeder
-  verwendet `enforceAppCheck: true`. Firestore-, Storage- und Auth-Trigger
+- Die vorhandenen `onCall`-Endpunkte verwenden `enforceAppCheck: true`.
+  Der datierte Quellcode-/Deployment-Abgleich steht in
+  `docs/operations/documentation-inventory.md`. Firestore-, Storage- und Auth-Trigger
   sowie Scheduler sind keine direkten Client-Endpunkte und werden nicht über
   diesen Mechanismus geschützt.
 - Das App-Check-Enforcement für Firestore und Storage bleibt unverändert deaktiviert und wird in diesem Schritt nicht aktiviert. Eine spätere Aktivierung setzt die unten beschriebenen Metrik- und Ablaufprüfungen voraus.
+- Diese Deaktivierung ist die dokumentierte Betriebsentscheidung, kein neuer
+  Nachweis des heutigen Console-Zustands. Der öffentliche HTTP-Endpunkt
+  `ingestStatusMail` ist kein Callable: Er prüft Bearer-Token, Postfach und
+  Eingabeformat serverseitig; siehe `docs/operations/status-mail-ingest.md`.
 
 ## Ausgewählte Callable-Kontrollliste
 
@@ -77,7 +86,7 @@ erforderlich.
 2. Den zugehörigen öffentlichen Site-Key als `VITE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY` in der lokalen Entwicklungsumgebung und in der Production-Umgebung von Vercel setzen. Keine Debug-Tokens, OpenAI-Schlüssel oder Webhook-Secrets als `VITE_`-Variable setzen.
 3. Lokal `npm run dev` starten, die Anwendung öffnen und den von Firebase in der Browser-Konsole ausgegebenen Debug-Token kopieren. In **Security > App Check > Apps**, beim Web-App-Eintrag das Mehr-Menü öffnen und **Manage debug tokens** wählen. Token mit einem lokalen Gerätenamen speichern. Der Token bleibt lokal im Browser und gehört nicht ins Repository.
 4. Nach einem späteren Release zuerst die App-Check-Metriken in **Security > App Check** beobachten. Firestore-, Storage- und Authentication-Traffic muss vor dem Erzwingen überwiegend verifiziert sein.
-5. Für Cloud Functions gibt es keinen separaten Console-Schalter: Nach dem späteren Deploy dieser Functions-Änderung werden alle 73 Callables wegen `enforceAppCheck: true` fehlende oder ungültige Tokens ablehnen. Daher erst deployen, wenn die veröffentlichte Web-App den Site-Key enthält und lokale Debug-Tokens getestet wurden.
+5. Callables mit `enforceAppCheck: true` weisen fehlende oder ungültige Tokens bereits durch ihre Function-Konfiguration ab. Bei neuen oder geänderten Callables vor dem Deploy gültige Client-Tokens und lokale Debug-Nutzung prüfen. Die Console-Schalter für Firestore/Storage sind davon getrennt.
 6. Danach in **Security > App Check** jeweils die Metrik von **Cloud Firestore**, dann **Cloud Storage** aufklappen, **Enforce** klicken und bestätigen. Pro Dienst bis zu 15 Minuten Wirkung abwarten und die Anwendung testen.
 7. **Authentication** nur anschließend und nur dann ebenfalls über **Enforce** aktivieren, wenn es in der projektbezogenen App-Check-Ansicht erscheint und die Auth-Metrik legitimen Traffic als verifiziert ausweist. Auth, die Blocking Function und die Profil-/Rollenprüfungen bleiben dabei unverändert erforderlich.
 

@@ -1,3 +1,5 @@
+import { partnerReferenceName } from '../../lib/partnerReferenceNames.js'
+import PartnerReferenceLink from '../business-partners/PartnerReferenceLink.jsx'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { damageCaseStatusLabel, damageDeadlinePresentation } from '../../lib/damages.js'
 
@@ -26,8 +28,8 @@ export default function DamageCasesTable({ cases, onOpen }) {
       <td className="todos-table__title damage-cases-table__case-number">{damageCase.caseNumber}</td>
       <td><span className={`todo-status damage-status damage-status--${damageCase.status}`}>{damageCaseStatusLabel(damageCase.status)}</span></td>
       <td title={damageCase.transportReference || ''}>{damageCase.transportReference || '—'}</td>
-      <td title={damageCase.claimant || ''}>{damageCase.claimant || '—'}</td>
-      <td title={damageCase.contractor || ''}>{damageCase.contractor || '—'}</td>
+      <td title={damageCase.claimant || ''}>{partnerReferenceName(damageCase, 'claimant') || '—'} <PartnerReferenceLink partnerId={damageCase.claimantPartnerId} /></td>
+      <td title={damageCase.contractor || ''}>{partnerReferenceName(damageCase, 'contractor') || '—'} <PartnerReferenceLink partnerId={damageCase.contractorPartnerId} /></td>
       <td>{formatCurrency(damageCase.damageAmount)}</td>
       <td className={`todos-table__due todos-table__due--${due.appearance}`}>{due.value}</td>
     </tr>

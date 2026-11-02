@@ -3,5 +3,5 @@ import PalletAccountDetail from '../components/pallets/PalletAccountDetail.jsx'
 
 export default function PalletAccountDetailPage() {
   const { partnerId } = useParams()
-  return <PalletAccountDetail partnerId={partnerId} />
+  return <PalletAccountDetail key={partnerId} partnerId={partnerId} />
 }

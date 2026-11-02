@@ -1,3 +1,5 @@
+import { getPartnerCluster } from '../../lib/partnerClusterQueries.js'
+import { reportTechnicalFailure } from '../../lib/diagnostics.js'
 import { StaticText, TranslatedProps } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { ACTIVITY_TYPES, listCrmActivities } from '../../lib/crmActivities.js'
@@ -29,7 +31,7 @@ export default function PartnerHistoryPanel({ partnerId, refreshKey }) {
 
   useEffect(() => {
     let current = true
-    Promise.all([listPartnerHistory(partnerId), listCrmActivities(partnerId).catch(() => []), listCrmRatings(partnerId).catch(() => [])])
+    getPartnerCluster(partnerId).then((cluster) => Promise.all([listPartnerHistory(partnerId, cluster), listCrmActivities(partnerId, cluster), listCrmRatings(partnerId, undefined, cluster)]))
       .then(([entries, activities, ratings]) => {
         if (!current) return
         setError('')
@@ -37,7 +39,7 @@ export default function PartnerHistoryPanel({ partnerId, refreshKey }) {
         setLegacyActivities(activities)
         setLegacyRatings(ratings)
       })
-      .catch(() => { if (current) setError('Die Partner-Historie konnte nicht geladen werden.') })
+      .catch((error) => { void reportTechnicalFailure({ module: 'website', stage: 'crm', error }); if (current) setError('Die Partner-Historie konnte nicht geladen werden.') })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [partnerId, refreshKey])

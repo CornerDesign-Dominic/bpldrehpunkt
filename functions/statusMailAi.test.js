@@ -9,6 +9,23 @@ const mail = {
   subject: 'TA 260900123', bodyText: 'ETA Entladestelle heute 15:30 Uhr. Kennzeichen: HH-AB 123.', receivedAt,
 }
 
+test('closed tracking skips inference and context reads, persisting the reason transactionally', async () => {
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: {} }],
+    ['transportOrderTrackings/order-1', { lifecycleStatus: 'completed' }],
+    ['transportOrders/order-1/receivedMails/closed-mail', mail],
+  ])
+  const reads = []
+  const snapshot = (path) => ({ exists: documents.has(path), data: () => documents.get(path) })
+  const ref = (path) => ({ path, get: async () => { reads.push(path); return snapshot(path) }, collection: (name) => ({ doc: (id) => ref(`${path}/${name}/${id}`) }) })
+  const db = { doc: ref, runTransaction: async (operation) => operation({ get: async (reference) => snapshot(reference.path), update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }) }) }
+  const infer = () => { throw new Error('Inference must not run for closed tracking') }
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'closed-mail', infer }), 'skipped')
+  assert.equal(documents.get('transportOrders/order-1/receivedMails/closed-mail').ai.reason, 'tracking_completed')
+  assert(!reads.some((path) => path.startsWith('transportOrderRoutes/')))
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'closed-mail', infer }), 'skipped')
+})
+
 test('converts an explicit remaining drive time using the route planning speed', () => {
   const current = { ...mail, bodyText: 'Der LKW hat noch 45 min zur Entladestelle.' }
   assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'minutes_to_unloading', value: 45, evidence: 'noch 45 min zur Entladestelle', confidence: 'high' }] }, current, 290).map(({ kilometersToDestination }) => kilometersToDestination), [53])

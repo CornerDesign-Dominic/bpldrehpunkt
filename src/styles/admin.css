@@ -363,3 +363,10 @@
   .system-mail-variables__list { grid-template-columns: 1fr; }
   .system-mail-editor { min-height: 430px; }
 }
+
+.managed-mailbox-recommendations { display: grid; gap: 12px; margin: 14px 0; }
+.managed-mailbox-recommendations > div { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; }
+.managed-mailbox-recommendations span { color: var(--text-secondary); font-size: 12px; }
+.managed-mailbox-recommendations strong { overflow-wrap: anywhere; }
+
+.managed-mailbox-recommendations label { display: flex; align-items: center; gap: 8px; cursor: pointer; }

@@ -1,4 +1,6 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
+import RouteContent from './components/layout/RouteContent.jsx'
+
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { reportTechnicalFailure } from './lib/diagnostics.js'
 import { websiteDiagnosticStage } from './lib/diagnosticClassification.js'
@@ -6,56 +8,81 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
-import BusinessPartnerFormPage from './pages/BusinessPartnerFormPage.jsx'
-import CustomersPage from './pages/CustomersPage.jsx'
-import CrmDetailPage from './pages/CrmDetailPage.jsx'
-import CrmPage from './pages/CrmPage.jsx'
+import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
+import { caseManagementModules } from './lib/caseManagementNavigation.js'
+import QualityLayout from './components/layout/QualityLayout.jsx'
+import { qualityModules } from './lib/qualityNavigation.js'
+import DocumentsToolsLayout from './components/layout/DocumentsToolsLayout.jsx'
+import { documentsToolsModules } from './lib/documentsToolsNavigation.js'
+import PersonnelLayout from './components/layout/PersonnelLayout.jsx'
+import { personnelModules } from './lib/personnelNavigation.js'
+import TeamVacationLayout from './components/layout/TeamVacationLayout.jsx'
+
 import DashboardPage from './pages/DashboardPage.jsx'
-import PalletAccountDetailPage from './pages/PalletAccountDetailPage.jsx'
-import PalletsPage from './pages/PalletsPage.jsx'
-import TodosPage from './pages/TodosPage.jsx'
-import NotesPage from './pages/NotesPage.jsx'
-import TodoDetailPage from './pages/TodoDetailPage.jsx'
-import DamagesPage from './pages/DamagesPage.jsx'
-import DamageDetailPage from './pages/DamageDetailPage.jsx'
-import NewsPage from './pages/NewsPage.jsx'
-import DocumentsPage from './pages/DocumentsPage.jsx'
+
 import LoginPage from './pages/LoginPage.jsx'
-import ProfilePage from './pages/ProfilePage.jsx'
-import TeamPage from './pages/TeamPage.jsx'
-import AdminPage from './pages/AdminPage.jsx'
-import ShipmentTrackingAdminPage from './pages/ShipmentTrackingAdminPage.jsx'
-import ShipmentTrackingHelpPage from './pages/ShipmentTrackingHelpPage.jsx'
-import DiagnosticsPage from './pages/DiagnosticsPage.jsx'
-import CompanyMasterDataPage from './pages/CompanyMasterDataPage.jsx'
+
 import { CompanyDataProvider } from './company/CompanyDataProvider.jsx'
-import VacationPage from './pages/VacationPage.jsx'
-import VacationManagementPage from './pages/VacationManagementPage.jsx'
-import CalendarPage from './pages/CalendarPage.jsx'
-import HolidayCalendarPage from './pages/HolidayCalendarPage.jsx'
-import SystemMailsPage from './pages/SystemMailsPage.jsx'
-import AiPromptsPage from './pages/AiPromptsPage.jsx'
-import TemplatesOverviewPage from './pages/TemplatesOverviewPage.jsx'
-import LiabilityLetterPage from './pages/LiabilityLetterPage.jsx'
-import BusinessDocumentPage from './pages/BusinessDocumentPage.jsx'
-import PersonnelPage from './pages/PersonnelPage.jsx'
-import PersonnelDetailPage from './pages/PersonnelDetailPage.jsx'
-import InsolvenciesPage from './pages/InsolvenciesPage.jsx'
-import InsolvencyDetailPage from './pages/InsolvencyDetailPage.jsx'
-import LegalDisputesPage from './pages/LegalDisputesPage.jsx'
-import LegalDisputeDetailPage from './pages/LegalDisputeDetailPage.jsx'
-import InkassoPage from './pages/InkassoPage.jsx'
-import InkassoCaseDetailPage from './pages/InkassoCaseDetailPage.jsx'
-import AgbCheckerPage from './pages/AgbCheckerPage.jsx'
-import TransportOrdersPage from './pages/TransportOrdersPage.jsx'
-import TransportOrderImportPage from './pages/TransportOrderImportPage.jsx'
-import TransportOrderDetailPage from './pages/TransportOrderDetailPage.jsx'
-import MasterDataImportPage from './pages/MasterDataImportPage.jsx'
+
 import { PartnerEvaluationSettingsProvider } from './partner-evaluation/PartnerEvaluationSettingsProvider.jsx'
 import { CompanyHolidaySettingsProvider } from './company-holidays/CompanyHolidaySettingsProvider.jsx'
+import MailboxConnectionsProvider from './mailboxes/MailboxConnectionsProvider.jsx'
+
+const QualityPage = lazy(() => import('./pages/QualityPage.jsx'))
+const KnowledgeCatalogPage = lazy(() => import('./pages/KnowledgeCatalogPage.jsx'))
+const KnowledgeDetailPage = lazy(() => import('./pages/KnowledgeDetailPage.jsx'))
+const KnowledgeGapsPage = lazy(() => import('./pages/KnowledgeGapsPage.jsx'))
+const QualityProblemDetailPage = lazy(() => import('./pages/QualityProblemDetailPage.jsx'))
+const QualityMeetingDetailPage = lazy(() => import('./pages/QualityMeetingDetailPage.jsx'))
+const BusinessPartnerFormPage = lazy(() => import('./pages/BusinessPartnerFormPage.jsx'))
+const CustomersPage = lazy(() => import('./pages/CustomersPage.jsx'))
+const CrmDetailPage = lazy(() => import('./pages/CrmDetailPage.jsx'))
+const CrmPage = lazy(() => import('./pages/CrmPage.jsx'))
+const PalletAccountDetailPage = lazy(() => import('./pages/PalletAccountDetailPage.jsx'))
+const PalletsPage = lazy(() => import('./pages/PalletsPage.jsx'))
+const TodosPage = lazy(() => import('./pages/TodosPage.jsx'))
+const NotesPage = lazy(() => import('./pages/NotesPage.jsx'))
+const TodoDetailPage = lazy(() => import('./pages/TodoDetailPage.jsx'))
+const DamagesPage = lazy(() => import('./pages/DamagesPage.jsx'))
+const DamageDetailPage = lazy(() => import('./pages/DamageDetailPage.jsx'))
+const NewsPage = lazy(() => import('./pages/NewsPage.jsx'))
+const DocumentsPage = lazy(() => import('./pages/DocumentsPage.jsx'))
+const MailboxesPage = lazy(() => import('./pages/MailboxesPage.jsx'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
+const TeamPage = lazy(() => import('./pages/TeamPage.jsx'))
+const AdminPage = lazy(() => import('./pages/AdminPage.jsx'))
+const ShipmentTrackingAdminPage = lazy(() => import('./pages/ShipmentTrackingAdminPage.jsx'))
+const ShipmentTrackingHelpPage = lazy(() => import('./pages/ShipmentTrackingHelpPage.jsx'))
+const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage.jsx'))
+const CompanyMasterDataPage = lazy(() => import('./pages/CompanyMasterDataPage.jsx'))
+const VacationPage = lazy(() => import('./pages/VacationPage.jsx'))
+const VacationManagementPage = lazy(() => import('./pages/VacationManagementPage.jsx'))
+const CalendarPage = lazy(() => import('./pages/CalendarPage.jsx'))
+const HolidayCalendarPage = lazy(() => import('./pages/HolidayCalendarPage.jsx'))
+const SystemMailsPage = lazy(() => import('./pages/SystemMailsPage.jsx'))
+const AiPromptsPage = lazy(() => import('./pages/AiPromptsPage.jsx'))
+const TemplatesOverviewPage = lazy(() => import('./pages/TemplatesOverviewPage.jsx'))
+const LiabilityLetterPage = lazy(() => import('./pages/LiabilityLetterPage.jsx'))
+const BusinessDocumentPage = lazy(() => import('./pages/BusinessDocumentPage.jsx'))
+const PersonnelPage = lazy(() => import('./pages/PersonnelPage.jsx'))
+const PersonnelDetailPage = lazy(() => import('./pages/PersonnelDetailPage.jsx'))
+const InsolvenciesPage = lazy(() => import('./pages/InsolvenciesPage.jsx'))
+const InsolvencyDetailPage = lazy(() => import('./pages/InsolvencyDetailPage.jsx'))
+const LegalDisputesPage = lazy(() => import('./pages/LegalDisputesPage.jsx'))
+const LegalDisputeDetailPage = lazy(() => import('./pages/LegalDisputeDetailPage.jsx'))
+const InkassoPage = lazy(() => import('./pages/InkassoPage.jsx'))
+const InkassoCaseDetailPage = lazy(() => import('./pages/InkassoCaseDetailPage.jsx'))
+const AgbCheckerPage = lazy(() => import('./pages/AgbCheckerPage.jsx'))
+const TransportOrdersPage = lazy(() => import('./pages/TransportOrdersPage.jsx'))
+const TransportOrderImportHistoryPage = lazy(() => import('./pages/TransportOrderImportHistoryPage.jsx'))
+const ShipmentTrackingPage = lazy(() => import('./pages/ShipmentTrackingPage.jsx'))
+const LegacyTrackingDetailRedirect = lazy(() => import('./pages/TransportOrderRecordPage.jsx').then(module => ({ default: module.LegacyTrackingDetailRedirect })))
+const TransportOrderImportPage = lazy(() => import('./pages/TransportOrderImportPage.jsx'))
+const TransportOrderRecordPage = lazy(() => import('./pages/TransportOrderRecordPage.jsx'))
+const MasterDataImportPage = lazy(() => import('./pages/MasterDataImportPage.jsx'))
 
 function ProtectedAppLayout() {
-  return <ProtectedRoute><CompanyDataProvider><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><AppShell><Outlet /></AppShell></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></CompanyDataProvider></ProtectedRoute>
+  return <ProtectedRoute><CompanyDataProvider><PartnerEvaluationSettingsProvider><CompanyHolidaySettingsProvider><MailboxConnectionsProvider><AppShell><RouteContent><Outlet /></RouteContent></AppShell></MailboxConnectionsProvider></CompanyHolidaySettingsProvider></PartnerEvaluationSettingsProvider></CompanyDataProvider></ProtectedRoute>
 }
 
 export default function App() {
@@ -76,32 +103,63 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route element={<ProtectedAppLayout />}>
+        <Route element={<PermissionRoute anyModules={qualityModules}><QualityLayout /></PermissionRoute>}>
+        <Route path="/qualitaet" element={null} />
+        <Route path="/qualitaet/kvp" element={<PermissionRoute module="kvp"><QualityPage key="kvp" /></PermissionRoute>} />
+        <Route path="/qualitaet/kvp/:topicId" element={<PermissionRoute module="kvp"><QualityProblemDetailPage /></PermissionRoute>} />
+        <Route path="/qualitaet/kvp/besprechungen/:meetingId" element={<PermissionRoute module="kvp"><QualityMeetingDetailPage /></PermissionRoute>} />
+        <Route path="/qualitaet/handbuch" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="articles" /></PermissionRoute>} />
+        <Route path="/qualitaet/handbuch/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage /></PermissionRoute>} />
+        <Route path="/qualitaet/grundregeln" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="rules" kind="rule" /></PermissionRoute>} />
+        <Route path="/qualitaet/grundregeln/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage kind="rule" /></PermissionRoute>} />
+        <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
+        </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
+        <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
+        <Route element={<TeamVacationLayout />}>
+        <Route path="/team-urlaub" element={null} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
+        <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
+        <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
+        </Route>
+        <Route element={<PermissionRoute anyModules={personnelModules}><PersonnelLayout /></PermissionRoute>}>
+        <Route path="/personalwesen" element={null} />
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
         <Route path="/personal/:userId" element={<PermissionRoute module="personnel"><PersonnelDetailPage /></PermissionRoute>} />
+        </Route>
         <Route path="/kunden-unternehmer" element={<PermissionRoute module="masterData"><CustomersPage /></PermissionRoute>} />
-        <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
+        <Route path="/kunden-unternehmer/import" element={<PermissionRoute module="masterData" minimum="edit"><MasterDataImportPage /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/import/unternehmer" element={<PermissionRoute module="dataImports" minimum="edit"><MasterDataImportPage kind="carrier" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/neu" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="create" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/stammdaten/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId" element={<PermissionRoute module="masterData"><BusinessPartnerFormPage mode="existing" /></PermissionRoute>} />
         <Route path="/kunden-unternehmer/:partnerId/bearbeiten" element={<Navigate to="/kunden-unternehmer" replace />} />
+        <Route path="/sendungsverfolgung" element={<PermissionRoute module="transportOrders"><ShipmentTrackingPage /></PermissionRoute>} />
+        <Route path="/sendungsverfolgung/:transportOrderId" element={<PermissionRoute module="transportOrders"><LegacyTrackingDetailRedirect /></PermissionRoute>} />
         <Route path="/transportauftraege" element={<PermissionRoute module="transportOrders"><TransportOrdersPage /></PermissionRoute>} />
-        <Route path="/transportauftraege/import" element={<PermissionRoute module="dataImports" minimum="edit"><TransportOrderImportPage /></PermissionRoute>} />
-        <Route path="/transportauftraege/:transportOrderId" element={<PermissionRoute module="transportOrders"><TransportOrderDetailPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/import" element={<PermissionRoute anyModules={["transportOrderSingleImport", "transportOrderBulkImport"]} minimum="edit"><TransportOrderImportPage /></PermissionRoute>} />
+        <Route path="/transportauftraege/import/einzel" element={<PermissionRoute module="transportOrderSingleImport" minimum="edit"><TransportOrderImportPage kind="single" /></PermissionRoute>} />
+        <Route path="/transportauftraege/import/sammel" element={<PermissionRoute module="transportOrderBulkImport" minimum="edit"><TransportOrderImportPage kind="bulk" /></PermissionRoute>} />
+        <Route path="/transportauftraege/:transportOrderId" element={<PermissionRoute module="transportOrders"><TransportOrderRecordPage /></PermissionRoute>} />
         <Route path="/crm" element={<PermissionRoute module="crm"><CrmPage /></PermissionRoute>} />
         <Route path="/crm/:partnerId" element={<PermissionRoute module="crm"><CrmDetailPage /></PermissionRoute>} />
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
+        <Route element={<PermissionRoute anyModules={documentsToolsModules}><DocumentsToolsLayout /></PermissionRoute>}>
+        <Route path="/dokumente-werkzeuge" element={null} />
+        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
+        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
+        </Route>
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/notizen" element={<NotesPage />} />
+        <Route element={<PermissionRoute anyModules={caseManagementModules}><CaseManagementLayout /></PermissionRoute>}>
+        <Route path="/fallmanagement" element={null} />
         <Route path="/schaeden" element={<PermissionRoute module="damages"><DamagesPage /></PermissionRoute>} />
         <Route path="/schaeden/:damageCaseId" element={<PermissionRoute module="damages"><DamageDetailPage /></PermissionRoute>} />
         <Route path="/insolvenzen" element={<PermissionRoute module="insolvencies"><InsolvenciesPage /></PermissionRoute>} />
@@ -110,19 +168,17 @@ export default function App() {
         <Route path="/legal-disputes/:legalDisputeId" element={<PermissionRoute module="legalDisputes"><LegalDisputeDetailPage /></PermissionRoute>} />
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />
         <Route path="/inkasso/:caseId" element={<PermissionRoute module="inkasso"><InkassoCaseDetailPage /></PermissionRoute>} />
-        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
+        </Route>
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
         <Route path="/hilfe/sendungsverfolgung" element={<PermissionRoute module="transportOrders"><ShipmentTrackingHelpPage /></PermissionRoute>} />
+        <Route path="/admin/importverlauf" element={<PermissionRoute requireUserManagement><TransportOrderImportHistoryPage /></PermissionRoute>} />
         <Route path="/admin/diagnose" element={<PermissionRoute requireUserManagement><DiagnosticsPage /></PermissionRoute>} />
         <Route path="/admin/stammdaten" element={<PermissionRoute requireUserManagement><CompanyMasterDataPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
-        <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
-        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
-        <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

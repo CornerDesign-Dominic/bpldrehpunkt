@@ -1,3 +1,4 @@
+import { closedShipmentTrackingForecast, shipmentTrackingProgress } from './shipmentTrackingProgress.js'
 import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, normalizeShipmentTrackingForecastSettings } from './shipmentTrackingForecastSettings.js'
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
@@ -113,6 +114,8 @@ function restPlanningText(label, plan) {
  * carrier ETA into tracking fields and makes every missing input an assumption.
  */
 export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, route = {}, events = [], settings: value, now = new Date() } = {}) {
+  const closed = closedShipmentTrackingForecast(tracking || {}, imported)
+  if (closed) return closed
   const settings = normalizeShipmentTrackingForecastSettings(value)
   const actualUnloading = shipmentTrackingDate(tracking.actualArrivalUnloadingAt)
   const earliestLoading = shipmentTrackingDate(imported?.loading?.window?.from) || shipmentTrackingDate(imported?.loading?.window?.until)
@@ -122,6 +125,8 @@ export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, ro
   if (actualUnloading) {
     return { kind: 'arrival', state: actualUnloading <= latestUnloading ? 'green' : 'yellow', actualArrivalUnloadingAt: serializableDate(actualUnloading), loadingSlotStartAt: serializableDate(earliestLoading), loadingSlotEndAt: serializableDate(latestLoading), slotStartAt: serializableDate(earliestUnloading), deadlineAt: serializableDate(latestUnloading), message: actualUnloading <= latestUnloading ? 'Tatsächliche Ankunft innerhalb des Entladefensters.' : 'Tatsächliche Ankunft nach dem Ende des Entladefensters.' }
   }
+  const progress = shipmentTrackingProgress(tracking)
+  if (progress.reachedUnloading) return { kind: 'completed', state: 'unknown', message: progress.unloaded ? 'Transport beendet · Ankunftszeit fehlt' : 'Entladung läuft · Ankunftszeit fehlt' }
   const vehicle = vehicleForecastProfile(imported?.shipment?.vehicleType, settings)
   const actualDeparture = shipmentTrackingDate(tracking.actualDepartureLoadingAt)
   const actualArrivalLoading = shipmentTrackingDate(tracking.actualArrivalLoadingAt)

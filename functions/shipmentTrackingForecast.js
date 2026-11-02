@@ -79,7 +79,7 @@ export async function refreshShipmentTrackingForecastHandler(request) {
   if (!result.trackingRef) throw new HttpsError('failed-precondition', 'Die Sendungsverfolgung wurde noch nicht gestartet.')
   const forecast = result.forecast
   if (forecast.kind === 'none') throw new HttpsError('failed-precondition', forecast.message)
-  if (forecast.kind === 'arrival') {
+  if (['arrival', 'completed'].includes(forecast.kind)) {
     const current = { ...serializable(forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: request.auth.uid }
     await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
     return { forecast: publicForecast(forecast) }
@@ -99,7 +99,7 @@ export async function refreshAutomaticShipmentTrackingForecast(orderId) {
   const forecast = result.forecast
   const record = { ...serializable(forecast), trigger: 'automatic', createdAt: FieldValue.serverTimestamp(), createdBy: 'system' }
   const current = { ...serializable(forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: 'system' }
-  if (forecast.kind === 'arrival') {
+  if (['arrival', 'completed'].includes(forecast.kind)) {
     await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
     return forecast
   }
@@ -108,24 +108,33 @@ export async function refreshAutomaticShipmentTrackingForecast(orderId) {
   return forecast
 }
 
-/** Terminal conversion only: an actual unloading arrival ends the moving
- * forecast and persists the house state without creating a new calculation
- * history entry. */
+/** Synchronize terminal facts (including corrections) without creating a
+ * forecast history entry. */
 export async function finalizeShipmentTrackingForecastArrival(orderId) {
   const result = await calculate(orderId)
-  if (!result.trackingRef || result.forecast.kind !== 'arrival') return null
-  const current = { ...serializable(result.forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: 'system' }
+  if (!result.trackingRef) return null
+  // A correction may remove the terminal fact; restore the current projection
+  // without inventing another forecast-history calculation.
+  const current = result.forecast.kind === 'none' ? null : { ...serializable(result.forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: 'system' }
   await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
   return result.forecast
 }
 
-export async function refreshShipmentTrackingAttentionSummary(orderId) {
-  const db = getFirestore()
-  const [orderSnapshot, trackingSnapshot, settingsSnapshot, operatingHoursSnapshot, mailSnapshot] = await Promise.all([
-    db.doc(`transportOrders/${orderId}`).get(), db.doc(`transportOrderTrackings/${orderId}`).get(), db.doc(SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH).get(), db.doc(shipmentTrackingOperatingHoursPath).get(), db.collection(`transportOrders/${orderId}/receivedMails`).orderBy('receivedAt', 'desc').limit(50).get(),
-  ])
-  if (!orderSnapshot.exists || !trackingSnapshot.exists) return null
-  const attention = shipmentTrackingAttention({ tracking: trackingSnapshot.data(), imported: orderSnapshot.data()?.imported, receivedMails: mailSnapshot.docs.map((item) => item.data()), settings: settingsSnapshot.exists ? settingsSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, operatingHours: operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS })
-  await trackingSnapshot.ref.set({ attentionSummary: { manualReviewOpen: attention.items.some((item) => item.id === 'mail-review'), updatedAt: FieldValue.serverTimestamp() } }, { merge: true })
-  return attention
+export function shipmentTrackingMailAttentionChanged(before, after) {
+  const review = (snapshot) => snapshot.exists && (snapshot.data()?.ai?.reviewRequired === true || ['needs_review', 'error'].includes(snapshot.data()?.ai?.status))
+  const receivedAt = (snapshot) => snapshot.data()?.receivedAt?.toMillis?.() ?? snapshot.data()?.receivedAt ?? null
+  return before.exists !== after.exists || review(before) !== review(after) || receivedAt(before) !== receivedAt(after)
+}
+
+export async function refreshShipmentTrackingAttentionSummary(orderId, { db = getFirestore() } = {}) {
+  return db.runTransaction(async (transaction) => {
+    const [orderSnapshot, trackingSnapshot, settingsSnapshot, operatingHoursSnapshot, mailSnapshot] = await Promise.all([
+      transaction.get(db.doc(`transportOrders/${orderId}`)), transaction.get(db.doc(`transportOrderTrackings/${orderId}`)), transaction.get(db.doc(SHIPMENT_TRACKING_FORECAST_SETTINGS_PATH)), transaction.get(db.doc(shipmentTrackingOperatingHoursPath)), transaction.get(db.collection(`transportOrders/${orderId}/receivedMails`).orderBy('receivedAt', 'desc').limit(50)),
+    ])
+    if (!orderSnapshot.exists || !trackingSnapshot.exists) return null
+    const attention = shipmentTrackingAttention({ tracking: trackingSnapshot.data(), imported: orderSnapshot.data()?.imported, receivedMails: mailSnapshot.docs.map((item) => item.data()), settings: settingsSnapshot.exists ? settingsSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, operatingHours: operatingHoursSnapshot.exists ? operatingHoursSnapshot.data() : DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS })
+    const manualReviewOpen = mailSnapshot.docs.some((entry) => { const ai = entry.data()?.ai; return ai?.reviewRequired === true || ['needs_review', 'error'].includes(ai?.status) })
+    if (trackingSnapshot.data()?.attentionSummary?.manualReviewOpen !== manualReviewOpen) transaction.set(trackingSnapshot.ref, { attentionSummary: { manualReviewOpen, updatedAt: FieldValue.serverTimestamp() } }, { merge: true })
+    return attention
+  })
 }

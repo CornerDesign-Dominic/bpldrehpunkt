@@ -1,7 +1,24 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
+import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, canReportLinkDiagnostic, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
+
+test('order workspace diagnostics require order access and keep fixed messages', () => {
+  assert.equal(canReportLinkDiagnostic({ permissions: { transportOrders: 'view' } }, 'transport-orders'), true)
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'transport-orders'), false)
+  const event = normalizeClientDiagnostic({ module: 'transport-orders', stage: 'history', code: 'unavailable', orderId: 'dycos-123', message: 'Do not copy source data' })
+  assert.equal(event.message, 'Auftragshistorie konnte nicht geladen werden.')
+})
+
+test('order capture diagnostics use fixed messages and reject private mail identifiers', () => {
+  for (const [stage, message] of [['order-preview', 'Auftrag aus persönlicher Mail konnte nicht ausgewertet werden.'], ['order-export', 'Geprüfter Auftrag konnte nicht als XML erstellt werden.']]) {
+    const event = normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', message: 'private mail and PDF contents' })
+    assert.equal(event.message, message)
+    assert.equal(event.orderId, '')
+    assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', recordId: 'private-mail' }), { code: 'invalid-argument' })
+    assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage, code: 'unavailable', orderId: 'private-order' }), { code: 'invalid-argument' })
+  }
+})
 
 test('diagnostic entries contain bounded, useful fields and no arbitrary payload', () => {
   const event = buildDiagnosticEvent({
@@ -15,7 +32,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -93,4 +110,87 @@ test('diagnosis is admin-only through App Check and Firestore denies direct clie
   assert.match(source, /diagnosticClientQuotas/)
   assert.match(rules, /match \/diagnosticEvents\/\{eventId\} \{ allow read, write: if false; \}/)
   assert.equal(JSON.parse(indexes).indexes.filter((item) => item.collectionGroup === 'diagnosticEvents').length, 3)
+})
+
+test('mailbox diagnostics require module access and exclude personal mail context', () => {
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'mailboxes'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { mailboxes: 'view' } }, 'mailboxes'), true)
+  const event = normalizeClientDiagnostic({ module: 'mailboxes', stage: 'send', code: 'unavailable', message: 'private mail body' })
+  assert.equal(event.message, 'Antwort konnte nicht zuverlässig übermittelt werden.')
+  assert.equal(event.orderId, '')
+  for (const context of [{ orderId: 'order-1' }, { recordId: 'personal-mail-1' }]) {
+    assert.throws(() => normalizeClientDiagnostic({ module: 'mailboxes', stage: 'send', code: 'unavailable', ...context }), { code: 'invalid-argument' })
+  }
+})
+
+test('calendar and pallet diagnostics preserve module boundaries and fixed messages', () => {
+  const profile = (permissions, role = 'user') => ({ active: true, role, permissions })
+  assert.equal(canReportLinkDiagnostic(profile({}, 'admin'), 'pallets'), false)
+  assert.equal(canReportLinkDiagnostic(profile({ pallets: 'view' }), 'pallets'), true)
+  assert.equal(canReportLinkDiagnostic(profile({ calendar: 'view' }), 'pallets'), false)
+  assert.equal(canReportLinkDiagnostic(profile({ damages: 'view' }), 'calendar'), true)
+  assert.equal(canReportLinkDiagnostic(profile({ pallets: 'edit' }), 'calendar'), false)
+  assert.equal(canReportLinkDiagnostic(profile({}, 'superadmin'), 'calendar'), true)
+  for (const module of ['calendar', 'pallets']) {
+    const event = normalizeClientDiagnostic({ module, stage: 'load', code: 'unavailable', recordId: 'record-1', message: 'private content' })
+    assert.equal(event.recordId, 'record-1')
+    assert.equal(event.message.includes('private'), false)
+    assert.throws(() => normalizeClientDiagnostic({ module, stage: 'load', code: 'unavailable', orderId: 'order-1' }), { code: 'invalid-argument' })
+    for (const recordId of ['parent/child', 'a\nb', 123]) {
+      assert.throws(() => normalizeClientDiagnostic({ module, stage: 'load', code: 'unavailable', recordId }), { code: 'invalid-argument' })
+    }
+  }
+})
+
+test('clients cannot submit privileged background-work diagnostics', () => {
+  assert.throws(() => normalizeClientDiagnostic({ module: 'background-work', stage: 'prepare', code: 'internal' }), { code: 'invalid-argument' })
+})
+
+test('reminder client diagnostics require a relevant readable module and cannot impersonate server dispatch', () => {
+  for (const module of ['calendar', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso']) assert.equal(canReportLinkDiagnostic({ active: true, role: 'user', permissions: { [module]: 'view' } }, 'reminders'), true)
+  for (const profile of [{ active: true, role: 'admin', permissions: {} }, { active: false, role: 'superadmin' }, { active: true, role: 'user', permissions: { pallets: 'edit' } }]) assert.equal(canReportLinkDiagnostic(profile, 'reminders'), false)
+  for (const stage of ['load', 'save', 'status', 'responsibility']) {
+    const result = normalizeClientDiagnostic({ module: 'reminders', stage, code: 'unavailable', recordId: 'source-hash', message: 'private note', email: 'private@example.test' })
+    assert.equal(result.module, 'reminders')
+    assert.equal(result.recordId, 'source-hash')
+    assert(!JSON.stringify(result).includes('private'))
+  }
+  assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'dispatch', code: 'internal' }), { code: 'invalid-argument' })
+  assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'status', code: 'internal', orderId: 'order' }), { code: 'invalid-argument' })
+  assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'load', code: 'internal', recordId: 'todos/private' }), { code: 'invalid-argument' })
+})
+
+test('partner resolution diagnostics keep fixed messages and existing access boundaries', () => {
+  for (const stage of ['resolve', 'resolve-list', 'revalidate', 'reload-after-save', 'save']) {
+    const event = normalizeClientDiagnostic({ module: 'partner-links', stage, code: 'internal', recordId: 'origin-1', message: 'private partner data', partner: { companyName: 'private' } })
+    assert.equal(event.stage, stage)
+    assert.equal(event.recordId, 'origin-1')
+    assert.equal(JSON.stringify(event).includes('private'), false)
+  }
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { masterData: 'view' } }, 'partner-links'), true)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { damages: 'edit' } }, 'partner-links'), false)
+})
+
+
+test('link failures retain bounded record context and never accept client-written diagnosis text', () => {
+  const event = normalizeClientDiagnostic({ module: 'case-links', stage: 'save', code: 'unavailable', recordId: 'case-1', orderId: 'order-1', message: 'private source data' })
+  assert.equal(event.recordId, 'case-1')
+  assert.equal(event.orderId, 'order-1')
+  assert.equal(event.message, 'Fallverknüpfung konnte nicht gespeichert werden.')
+  assert.equal(normalizeClientDiagnostic({ module: 'legal-disputes', stage: 'load-counterparty', code: 'internal', recordId: 'case-2' }).message, 'Verknüpfte Gegenseite konnte nicht geladen werden.')
+  for (const recordId of ['../private', 'a'.repeat(241), 'case\nunsafe']) {
+    assert.throws(() => normalizeClientDiagnostic({ module: 'partner-links', stage: 'load', code: 'internal', recordId }), { code: 'invalid-argument' })
+  }
+  assert.equal(normalizeClientDiagnostic({ module: 'website', stage: 'other', code: 'internal', recordId: 'case-1' }).recordId, undefined)
+})
+
+
+test('new link diagnostics retain module boundaries and require order access for an order context', () => {
+  const profile = { role: 'user', permissions: { legalDisputes: 'view', crm: 'view' } }
+  assert.equal(canReportLinkDiagnostic(profile, 'legal-disputes'), true)
+  assert.equal(canReportLinkDiagnostic(profile, 'partner-links'), true)
+  assert.equal(canReportLinkDiagnostic(profile, 'case-links', 'order-1'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'legal-disputes'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: {} }, 'partner-links'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'superadmin' }, 'case-links', 'order-1'), true)
 })

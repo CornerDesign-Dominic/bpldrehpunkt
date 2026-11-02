@@ -1,8 +1,9 @@
+import { reportTechnicalFailure } from './diagnostics.js'
 import { collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 import { setTransportOrderCaseLink } from './caseTransportLinks.js'
-import { deadlineCreatorEmail, reminderDeadlineTime } from './caseDeadline.js'
+import { berlinToday, calendarDaysUntil, caseDeadlineReminder } from './caseDeadline.js'
 
 export const LEGAL_DISPUTES_COLLECTION = 'legalDisputes'
 export const LEGAL_DISPUTE_FINANCIAL_DIRECTIONS = [
@@ -59,12 +60,10 @@ function financialEntryLabel(entry) {
 
 function legalDisputeDeadlinePayload(values) {
   const type = values.type
-  const date = trim(values.date)
-  const time = reminderDeadlineTime(values)
+  const reminder = caseDeadlineReminder(values)
   const note = trim(values.note)
   if (!LEGAL_DISPUTE_SCHEDULE_TYPES.some((item) => item.value === type)) throw new Error('Bitte auswählen, ob es sich um eine Frist oder einen Termin handelt.')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
-  return { type, date, time, reminderEnabled: values.reminderEnabled === true, note: note || null }
+  return { type, ...reminder, note: note || null }
 }
 
 function legalDisputeDeadlineLabel(deadline) {
@@ -83,6 +82,8 @@ export function createEmptyLegalDispute() {
   return {
     caseType: '',
     counterparty: '',
+    counterpartyPartnerId: null,
+    counterpartyPartnerRole: null,
     transportReference: '',
   }
 }
@@ -91,6 +92,8 @@ export async function createLegalDispute(values, actor, { transportOrderId = '',
   const transportReference = trim(values.transportReference)
   if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
   const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
+  const counterpartySourceTransportOrderId = trim(values.counterpartySourceTransportOrderId)
+  if (counterpartySourceTransportOrderId && !linkedTransportOrderIds.includes(counterpartySourceTransportOrderId)) throw new Error('Bitte den ursprünglichen Transportauftrag verknüpfen oder die Gegenseite neu auswählen.')
 
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'legalDisputeCaseCounters', year)
@@ -118,6 +121,9 @@ export async function createLegalDispute(values, actor, { transportOrderId = '',
       caseType: optionalText(values.caseType),
       participant: null,
       counterparty,
+      counterpartyPartnerId: optionalText(values.counterpartyPartnerId),
+      counterpartyPartnerRole: optionalText(values.counterpartyPartnerRole),
+      ...(counterpartySourceTransportOrderId ? { counterpartySourceTransportOrderId } : {}),
       transportReference,
       opposingCounsel: null,
       opposingRepresentation: null,
@@ -179,14 +185,12 @@ export async function listLegalDisputeUpdates(legalDisputeId) {
 }
 
 export function createEmptyLegalDisputeDeadline() {
-  return { type: 'deadline', date: new Date().toISOString().slice(0, 10), time: '', reminderEnabled: false, note: '' }
+  return { type: 'deadline', date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' }
 }
 
 export function legalDisputeDeadlinePresentation(deadline, now = new Date()) {
   if (!deadline?.date) return { kind: 'none', label: 'Kein Termin', days: null }
-  const today = new Date(now); today.setHours(0, 0, 0, 0)
-  const due = new Date(`${deadline.date}T12:00:00`)
-  const days = Math.round((due - today) / 86400000)
+  const days = calendarDaysUntil(deadline.date, now)
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
   if (days === 0) return { kind: 'today', label: 'Heute', days }
   if (days <= 3) return { kind: 'urgent', label: `In ${days} ${days === 1 ? 'Tag' : 'Tagen'}`, days }
@@ -213,9 +217,9 @@ export async function createLegalDisputeDeadline(legalDispute, values, actor) {
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
-  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, reminderRecipientEmail: deadlineCreatorEmail(actor), createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
+  batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} hinzugefügt.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }
 
 export async function updateLegalDisputeDeadline(legalDispute, deadline, values, actor) {
@@ -226,7 +230,7 @@ export async function updateLegalDisputeDeadline(legalDispute, deadline, values,
   batch.update(caseRef, updateMetadata(actor))
   batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(next)} aktualisiert.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
   return true
 }
 
@@ -236,7 +240,7 @@ export async function deleteLegalDisputeDeadline(legalDispute, deadline, actor) 
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'deadlines', deadline.id))
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} gelöscht.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
 }
 
 export function createEmptyLegalDisputeFinancialEntry() {
