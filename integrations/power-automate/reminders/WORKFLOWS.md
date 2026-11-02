@@ -1,5 +1,12 @@
 # Lokale Workflowdefinitionen
 
+Produktionsbetrieb seit 02.11.2026: Der veröffentlichte Flow besitzt die sichtbare
+boolesche Variable `productionTestOnly = false`, die ausschließlich die
+Testempfängerbegrenzung steuert. Authentifizierung und weitere Schutzprüfungen
+bleiben erhalten. Vor Reimport aktuelles Cloudverhalten sichern; die nachfolgenden
+Generatoren bleiben im sicheren Testmodus. Maßgeblich:
+[Produktionsabschluss](../../../docs/operations/releases/production-2026-11-02-status.md).
+
 Die `*.flow-plan.json` bleiben nicht importierbare Umsetzungspläne. Der separate
 Generator `scripts/prepare-reminder-workflows.mjs` erzeugt vollständige WDL mit
 `OpenApiConnection`, `Scope`, `If`, `runAfter` und einer abschließenden HTTP-Response.

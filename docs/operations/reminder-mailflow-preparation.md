@@ -1,5 +1,10 @@
 # Prüfung und Vorbereitung des Erinnerungs-Mailflows
 
+Aktualisierung 02.11.2026: Der Produktionsflow ist inzwischen aktiv und für normale
+Produktions-Empfänger konfiguriert. Sichtbare Testbetriebseinstellung und erfolgreiche
+abgelaufene Prüfung ohne Versand: [Produktionsabschluss](releases/production-2026-11-02-status.md).
+Die nachfolgenden Vorbereitungs- und Dev-Aussagen sind historisch.
+
 Aktualisierung 01.11.2026: **Dev ist inzwischen veröffentlicht und tatsächlich
 angebunden**; der Dev-Providerflow ist aktiv. Sein Firebase-Scheduler verwendet
 die sechs eigenen Dev-Secrets. Die Testbegrenzung in Firebase erlaubt nach

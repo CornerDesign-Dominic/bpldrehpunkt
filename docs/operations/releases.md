@@ -5,10 +5,10 @@ Historische Freigaben bleiben in `release-baseline.md` und `../release-notes.md`
 Umgebungsgrenzen und externe Wirkungen stehen in `environments.md`.
 
 Die ausdrücklich beauftragte gesamte Produktionsübernahme vom 02.11.2026 ist
-im [aktuellen Vorbereitungsbeleg](releases/production-2026-11-02-preparation.md)
+im [Abschlussbeleg](releases/production-2026-11-02-status.md)
 abgegrenzt. Die Erhaltung aller Produktionsnutzer ist verbindlich; der Beleg
-unterscheidet eingerichtete Microsoft-/IAM-Zugänge vom noch ausstehenden
-Backend-/Frontendwechsel und Datenreset.
+bestätigt Backend, Frontend, Sicherung, Reset und erhaltene Benutzer sowie die
+konkreten Grenzen der durchgeführten Abnahme.
 
 ## Entwicklungsstand
 

@@ -1,6 +1,11 @@
 # Zentrale Termin- und Fristerinnerungen
 
-Stand: 01.11.2026. Der Nutzer hat die getrennte Anbindung und Veröffentlichung
+Aktualisierung 02.11.2026: Dienst und separater Providerflow sind nach ausdrücklicher
+Freigabe auch in Produktion veröffentlicht und aktiv. Normale Produktions-Empfänger
+sind freigegeben; Dev bleibt begrenzt. Betriebsmodus, Zeitpläne und Prüfung ohne echten
+Testversand: [Produktionsabschluss](releases/production-2026-11-02-status.md).
+
+Historischer Dev-Stand vom 01.11.2026: Der Nutzer hat die getrennte Anbindung und Veröffentlichung
 in **Firebase Dev** ausdrücklich freigegeben; Produktion und `main` bleiben
 unverändert. Die Durchführung und verbleibenden Abnahmegrenzen stehen im
 [Dev-Releasebeleg](releases/reminders-dev-2026-11-01-status.md) und im

@@ -1,6 +1,9 @@
 # Produktionsübernahme: Vorbereitung vom 02.11.2026
 
-Status: vorbereitet, noch nicht veröffentlicht. Die Freigabe umfasst den gesamten
+Historischer Vorbereitungsbeleg. Die Übernahme ist inzwischen veröffentlicht;
+Durchführung und Abnahmegrenzen stehen im [Abschlussbeleg](production-2026-11-02-status.md).
+Die folgenden Aussagen zu offenen Schritten beschreiben die Vorbereitung.
+Die Freigabe umfasst den gesamten
 veröffentlichten Dev-Stand einschließlich UTN-/KU-Import. Der Nutzer hat die
 Rücksetzung fachlicher Produktionsdaten erlaubt und anschließend ausdrücklich
 festgelegt, dass **alle bestehenden Nutzer** erhalten bleiben.
