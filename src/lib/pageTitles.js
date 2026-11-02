@@ -6,6 +6,7 @@ const pageTitles = [
   { path: '/qualitaet', title: 'Qualität' },
   { path: '/dashboard', title: 'Dashboard' },
   { path: '/postfaecher', title: 'Postfächer' },
+  { path: '/team-urlaub', title: 'Team & Urlaub' },
   { path: '/team', title: 'Team Brennpunkt' },
   { path: '/personalwesen', title: 'Personalwesen' },
   { path: '/personal', title: 'Personalverwaltung' },
