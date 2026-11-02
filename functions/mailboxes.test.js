@@ -47,6 +47,34 @@ const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpu
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
 const newMail = { ...draft, subject: 'Neue unabhängige Mail', revision: 0, operationId: 'new-mail-0123456789' }
 
+test('production permits external To/Cc/Bcc without weakening ownership or creating Dev side effects', async () => {
+  const calls = []
+  const productionConfig = { ...config, project: 'db-bpl-drehpunkt', clientId: '11111111-2222-4333-8444-555555555555', redirect: 'https://europe-west3-db-bpl-drehpunkt.cloudfunctions.net/mailboxOAuthCallback', origin: 'https://drehpunktlogistik.de' }
+  const f = fixture({ config: productionConfig, fetch: async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return response(null, 202) } })
+  const message = { ...newMail, toRecipients: ['customer@example.org'], ccRecipients: ['cc@example.org'], bccRecipients: ['bcc@example.org'] }
+  await assert.rejects(f.handlers.sendMailboxMessage({ auth: { uid: 'other' }, data: { connectionId, ...message } }), { code: 'permission-denied' })
+  assert.equal(calls.length, 0)
+  assert.equal((await f.handlers.sendMailboxMessage(request(message))).status, 'accepted')
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].body.message.bccRecipients[0].emailAddress.address, 'bcc@example.org')
+  const dev = fixture()
+  await assert.rejects(dev.handlers.sendMailboxMessage(request(message)), { code: 'permission-denied' })
+  assert.equal(dev.fetchCount(), 0)
+})
+
+test('production authorization uses its own client and callback; absent or Dev identity cannot start OAuth', async () => {
+  const productionConfig = { ...config, project: 'db-bpl-drehpunkt', clientId: '11111111-2222-4333-8444-555555555555', redirect: 'https://europe-west3-db-bpl-drehpunkt.cloudfunctions.net/mailboxOAuthCallback', origin: 'https://drehpunktlogistik.de' }
+  const f = fixture({ config: productionConfig })
+  const url = new URL((await f.handlers.beginMailboxConnection(request({}))).authorizationUrl)
+  assert.equal(url.searchParams.get('client_id'), productionConfig.clientId)
+  assert.equal(url.searchParams.get('redirect_uri'), productionConfig.redirect)
+  for (const clientId of ['', 'a23dc8d8-e22a-40ef-997c-d28aa753ee29']) {
+    const rejected = fixture({ config: { ...productionConfig, clientId } })
+    await assert.rejects(rejected.handlers.beginMailboxConnection(request({})), { code: 'failed-precondition' })
+    assert.equal([...rejected.db.records.keys()].filter(key => key.startsWith('mailboxOAuthStates/')).length, 0)
+  }
+})
+
 test('record extraction uses owned server mail and attachments, never client-injected content or target routing', async () => {
   const paths = []
   let extracted
@@ -246,11 +274,11 @@ function callbackResponse() {
   return { statusCode: null, location: null, set() {}, status(code) { this.statusCode = code; return this }, send(value) { this.text = value }, redirect(code, location) { this.statusCode = code; this.location = location } }
 }
 
-test('mailbox module needs active profile and edit permission for effects; unknown and prod environments fail closed', () => {
+test('mailbox module needs active profile and edit permission; only approved Dev and production environments are accepted', () => {
   assert.doesNotThrow(() => assertMailboxAccess({ ...profile, permissions: { mailboxes: 'view' } }))
   assert.throws(() => assertMailboxAccess({ ...profile, permissions: { mailboxes: 'view' } }, true), { code: 'permission-denied' })
   assert.throws(() => assertMailboxAccess({ ...profile, active: false }), { code: 'permission-denied' })
-  assert.throws(() => assertMailboxEnvironment('db-bpl-drehpunkt'), { code: 'failed-precondition' })
+  assert.doesNotThrow(() => assertMailboxEnvironment('db-bpl-drehpunkt'))
   assert.throws(() => assertMailboxEnvironment(''), { code: 'failed-precondition' })
 })
 

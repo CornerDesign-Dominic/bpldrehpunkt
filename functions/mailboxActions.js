@@ -4,6 +4,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { runtimeProjectId } from './externalEffects.js'
+import { assertMailboxEnvironment } from './mailboxEnvironment.js'
 import { mailboxRecordKinds } from './shared/mailboxRecordFields.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -25,9 +26,7 @@ export function assertMailboxActionAccess(profile, kind, edit = true) {
 export function createMailboxActionHandlers(deps = {}) {
   const db = () => deps.db || getFirestore()
   const now = () => deps.now?.() ?? Date.now()
-  const environment = () => {
-    if ((deps.project || runtimeProjectId()) !== 'db-bpl-drehpunkt-dev') fail('failed-precondition', 'Die Postfachanbindung ist ausschließlich für die Dev-Umgebung freigegeben.')
-  }
+  const environment = () => assertMailboxEnvironment(deps.project || runtimeProjectId())
   const context = async (request, kind, edit = true) => {
     environment()
     const profile = await (deps.requireProfile || requireActiveProfile)(request)

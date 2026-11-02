@@ -5,7 +5,8 @@ import { PARTNER_REFERENCE_CATALOG, assertFlatPartnerCluster, effectivePartnerRe
 test('reference catalogue covers every stored partner field and distinguishes case origins from free-text TA references', () => {
   const fields = new Set(PARTNER_REFERENCE_CATALOG.flatMap(({ collection, fields: paths }) => paths.map((path) => `${collection}.${path}`)))
   for (const path of ['transportOrders.imported.customer.partnerId', 'transportOrders.imported.carrier.partnerId', 'todos.customerId', 'todos.carrierId', 'damageCases.claimantPartnerId', 'damageCases.contractorPartnerId', 'insolvencies.partnerId', 'inkassoCases.debtorPartnerId', 'palletMovements.partnerId', 'palletClosings.partnerId', 'customerImportRows.customerId', 'carrierImportRows.carrierId', 'businessPartners.linkedCarrierReference.partnerId']) assert.ok(fields.has(path), path)
-  assert.deepEqual(PARTNER_REFERENCE_CATALOG.find((entry) => entry.collection === 'legalDisputes').fields, [])
+  assert.deepEqual(PARTNER_REFERENCE_CATALOG.find((entry) => entry.collection === 'legalDisputes').fields, ['counterpartyPartnerId'])
+  assert.ok(PARTNER_REFERENCE_CATALOG.find((entry) => entry.collection === 'legalDisputes').originFields.includes('transportReference'))
   assert.ok(PARTNER_REFERENCE_CATALOG.find((entry) => entry.collection === 'todos').originFields.includes('damageCaseId'))
 })
 

@@ -31,8 +31,8 @@ test('truncated or invalid provider responses are failures, not misleading recom
     await assert.rejects(classifyRecommendation({ mail: { subject: 'Test' }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async () => ({ ok: true, json: async () => payload }) }))
   }
 })
-test('production monitoring is rejected before any database access', async () => {
-  const handlers = createRecommendationHandlers({ project: 'db-bpl-drehpunkt' })
+test('unknown environments are rejected before any database access', async () => {
+  const handlers = createRecommendationHandlers({ project: 'foreign-project' })
   await assert.rejects(handlers.maintain(), { code: 'failed-precondition' })
   await assert.rejects(handlers.process({ scopeId: 'a'.repeat(64) }), { code: 'failed-precondition' })
 })

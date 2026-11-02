@@ -42,14 +42,23 @@ test('independent kinds can run together; auto-completed reviews differ from con
   assert.ok(listed.every(action => !Object.hasOwn(action, 'result')))
 })
 
-test('production, foreign mailbox and revoked user are blocked before AI work', async () => {
-  const production = fixture({ project: 'db-bpl-drehpunkt' })
-  await assert.rejects(production.handlers.startMailboxAction(production.request()), { code: 'failed-precondition' })
+test('unknown environments, foreign mailbox and revoked user are blocked before AI work', async () => {
+  const unknown = fixture({ project: 'foreign-project' })
+  await assert.rejects(unknown.handlers.startMailboxAction(unknown.request()), { code: 'failed-precondition' })
   const f = fixture()
   await assert.rejects(f.handlers.startMailboxAction(f.request({}, 'foreign')), { code: 'permission-denied' })
   const { action } = await f.handlers.startMailboxAction(f.request()); f.revoke()
   await f.handlers.processMailboxActionRun(action.jobId)
   assert.equal(f.calls(), 0); assert.equal(f.db.records.get(key).state, 'failed')
+})
+
+test('production uses the same ownership checks and explicit review states as Dev', async () => {
+  const f = fixture({ project: 'db-bpl-drehpunkt' })
+  await assert.rejects(f.handlers.startMailboxAction(f.request({}, 'foreign')), { code: 'permission-denied' })
+  const started = await f.handlers.startMailboxAction(f.request())
+  await f.handlers.processMailboxActionRun(started.action.jobId)
+  assert.equal((await f.handlers.getMailboxAction(f.request())).action.state, 'review')
+  assert.equal(f.calls(), 1)
 })
 
 test('failed worker provides a safe error and allows an explicit retry', async () => {

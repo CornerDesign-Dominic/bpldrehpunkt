@@ -17,11 +17,14 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 import { runtimeProjectId } from './externalEffects.js'
+import { assertMailboxEnvironment, assertMailboxOAuthConfiguration, resolveMailboxClientId } from './mailboxEnvironment.js'
+export { assertMailboxEnvironment } from './mailboxEnvironment.js'
 import { assertPersonalTrackingAccess, previewPersonalMailTracking, applyPersonalMailTracking } from './personalMailTracking.js'
 import { assertMailboxAgbAccess, validateAgbAttachments, analyzeMailboxAgb, assignMailboxAgbCustomer } from './mailboxAgb.js'
 import { assertMailboxOrderAccess, previewMailboxOrderCapture, exportMailboxOrderCapture } from './mailboxOrderCapture.js'
 
 export const mailboxClientSecret = defineSecret('MAILBOX_CLIENT_SECRET')
+export const mailboxClientId = defineString('MAILBOX_CLIENT_ID', { default: '' })
 export const mailboxRedirectUri = defineString('MAILBOX_REDIRECT_URI', { default: '' })
 export const mailboxFrontendOrigin = defineString('MAILBOX_FRONTEND_ORIGIN', { default: '' })
 // Legacy deployment parameter; it no longer restricts which tenant users can connect.
@@ -29,7 +32,6 @@ export const mailboxTestAccount = defineString('MAILBOX_TEST_ACCOUNT', { default
 // EUR was explicitly confirmed by the user as the DyCoS company currency.
 export const mailboxOrderCompanyCurrency = defineString('MAILBOX_ORDER_COMPANY_CURRENCY', { default: 'EUR' })
 const TENANT = 'b829bbdc-c0b7-4128-a341-6715a67b451b'
-const CLIENT = 'a23dc8d8-e22a-40ef-997c-d28aa753ee29'
 const SCOPES = 'https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Read.Shared https://graph.microsoft.com/Mail.Send.Shared offline_access'
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const MAX_ATTACHMENT = 5 * 1024 * 1024
@@ -46,10 +48,6 @@ const address = value => {
 
 export function assertMailboxAccess(profile, edit = false) {
   if (profile?.active !== true || !(profile.role === 'superadmin' || (edit ? profile.permissions?.mailboxes === 'edit' : ['view', 'edit'].includes(profile.permissions?.mailboxes)))) fail('permission-denied', 'Keine Berechtigung für Postfächer.')
-}
-
-export function assertMailboxEnvironment(projectId) {
-  if (projectId !== 'db-bpl-drehpunkt-dev') fail('failed-precondition', 'Die Postfachanbindung ist ausschließlich für die Dev-Umgebung freigegeben.')
 }
 
 export function validateMailboxDraft(data) {
@@ -72,9 +70,11 @@ export function validateMailboxDraft(data) {
   return { ...suggestionFields, toRecipients: recipients('toRecipients'), ccRecipients: recipients('ccRecipients'), bccRecipients: recipients('bccRecipients'), body: data.body, replyAll: data.replyAll === true }
 }
 
-export function assertTestRecipients(draft) {
+export function assertTestRecipients(draft, projectId = 'db-bpl-drehpunkt-dev') {
+  assertMailboxEnvironment(projectId)
   const recipients = [...draft.toRecipients, ...draft.ccRecipients, ...draft.bccRecipients]
-  if (!draft.toRecipients.length || recipients.some(r => address(r).split('@')[1] !== 'brennpunkt-logistik.de')) fail('permission-denied', 'Im Dev-Test sind ausschließlich Empfänger mit @brennpunkt-logistik.de erlaubt, auch in CC und BCC.')
+  if (!draft.toRecipients.length) fail('permission-denied', 'Bitte mindestens einen Empfänger angeben.')
+  if (projectId === 'db-bpl-drehpunkt-dev' && recipients.some(r => address(r).split('@')[1] !== 'brennpunkt-logistik.de')) fail('permission-denied', 'Im Dev-Test sind ausschließlich Empfänger mit @brennpunkt-logistik.de erlaubt, auch in CC und BCC.')
 }
 
 // Graph can canonicalize both users and folders to OData key syntax in its
@@ -139,7 +139,8 @@ export function createMailboxHandlers(deps = {}) {
   let recommendationAppToken = null
   const db = () => deps.db || getFirestore()
   const now = () => deps.now?.() ?? Date.now()
-  const config = () => deps.config || { project: runtimeProjectId(), secret: mailboxClientSecret.value(), redirect: mailboxRedirectUri.value(), origin: mailboxFrontendOrigin.value(), testAccount: mailboxTestAccount.value() }
+  const config = () => deps.config || { project: runtimeProjectId(), clientId: mailboxClientId.value(), secret: mailboxClientSecret.value(), redirect: mailboxRedirectUri.value(), origin: mailboxFrontendOrigin.value(), testAccount: mailboxTestAccount.value() }
+  const clientId = () => resolveMailboxClientId(config().project, config().clientId)
   const store = () => deps.secrets || secretStore(config().project)
   const http = deps.fetch || fetch
   const diagnose = async event => {
@@ -183,7 +184,7 @@ export function createMailboxHandlers(deps = {}) {
   const mailboxPath = context => context.connection.kind === 'shared' ? `/users/${segment(context.connection.graphUserId)}` : '/me'
   const tokenRequest = async fields => {
     const c = config()
-    const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: CLIENT, client_secret: c.secret, scope: SCOPES, ...fields }), signal: AbortSignal.timeout(20000) })
+    const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: clientId(), client_secret: c.secret, scope: SCOPES, ...fields }), signal: AbortSignal.timeout(20000) })
     if (!response.ok) fail('failed-precondition', 'Microsoft-Verbindung abgelaufen oder nicht freigegeben. Bitte erneut verbinden.')
     const result = await response.json()
     if (!result.access_token || (fields.grant_type === 'authorization_code' && !result.refresh_token)) fail('failed-precondition', 'Microsoft hat keine vollständige Verbindung bereitgestellt.')
@@ -262,7 +263,7 @@ export function createMailboxHandlers(deps = {}) {
   const sendMessage = async (request, compose = false) => {
     const context = await owned(request, true)
     const draft = validateMailboxDraft(request.data)
-    assertTestRecipients(draft)
+    assertTestRecipients(draft, config().project)
     if (!draft.body.trim()) fail('invalid-argument', 'Bitte einen Antworttext eingeben.')
     const operationId = clean(request.data.operationId, 80)
     if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId)) fail('invalid-argument', 'Ungültige Versandreferenz.')
@@ -334,12 +335,14 @@ export function createMailboxHandlers(deps = {}) {
       const { uid, profile } = await check(request, true)
       const c = config()
       if (!c.secret || !c.redirect.startsWith('https://') || !c.origin.startsWith('https://')) fail('failed-precondition', 'Die Postfachanbindung ist noch nicht eingerichtet.')
+      assertMailboxOAuthConfiguration(c)
+      clientId()
       const proofChallenge = clean(request.data?.proofChallenge, 60)
       if (!/^[a-zA-Z0-9_-]{43}$/.test(proofChallenge)) fail('invalid-argument', 'Ungültige Browserbindung.')
       const state = randomBytes(32).toString('base64url')
       const verifier = randomBytes(48).toString('base64url')
       await db().doc(`mailboxOAuthStates/${digest(state)}`).create({ ownerId: uid, expiresAt: now() + 10 * 60000, verifier: seal(verifier, c.secret), proofChallenge, used: false })
-      const params = new URLSearchParams({ client_id: CLIENT, response_type: 'code', redirect_uri: c.redirect, response_mode: 'query', scope: SCOPES, state, code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', prompt: 'select_account', ...((request.data?.loginHint || profile.email) ? { login_hint: address(request.data?.loginHint || profile.email) } : {}) })
+      const params = new URLSearchParams({ client_id: clientId(), response_type: 'code', redirect_uri: c.redirect, response_mode: 'query', scope: SCOPES, state, code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', prompt: 'select_account', ...((request.data?.loginHint || profile.email) ? { login_hint: address(request.data?.loginHint || profile.email) } : {}) })
       return { authorizationUrl: `https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/authorize?${params}` }
     }),
     finishMailboxConnection: guarded('connect', async request => {
@@ -549,7 +552,7 @@ export function createMailboxHandlers(deps = {}) {
       if (connection.kind === 'shared') {
         base = `/users/${segment(address(connection.email))}`
         if (!recommendationAppToken || recommendationAppToken.expiresAt <= now() + 60000) {
-          const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: CLIENT, client_secret: config().secret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }), signal: AbortSignal.timeout(20000) })
+          const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: clientId(), client_secret: config().secret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }), signal: AbortSignal.timeout(20000) })
           if (!response.ok) fail('failed-precondition', 'Der Microsoft-Anwendungszugriff für gemeinsame Postfächer ist noch nicht eingerichtet.')
           const result = await response.json()
           if (!result.access_token || !Number.isFinite(Number(result.expires_in))) fail('failed-precondition', 'Microsoft-Anwendungszugriff ist unvollständig.')

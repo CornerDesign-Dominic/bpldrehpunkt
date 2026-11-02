@@ -5,6 +5,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { assertMailboxAccess, assertMailboxEnvironment, recommendationGraphHandler, resolveRecommendationMailboxIdentityHandler } from './mailboxes.js'
 import { runtimeProjectId } from './externalEffects.js'
+import { recommendationWebhookUrl } from './mailboxEnvironment.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
 import { executeAiOperation } from './aiUsage.js'
 import { splitMailConversation } from './shared/mailboxConversation.js'
@@ -54,7 +55,6 @@ export async function classifyRecommendation({ mail, userId, apiKey = statusMail
 }
 
 export const RECOMMENDATION_FRESH_MS = 5 * 60000
-export const recommendationWebhookUrl = 'https://europe-west3-db-bpl-drehpunkt-dev.cloudfunctions.net/mailboxRecommendationWebhook'
 const sameSecret = (value, expectedHash) => {
   if (typeof value !== 'string' || value.length > 128 || typeof expectedHash !== 'string' || !/^[a-f0-9]{64}$/.test(expectedHash)) return false
   return timingSafeEqual(Buffer.from(hash(value), 'hex'), Buffer.from(expectedHash, 'hex'))
@@ -129,7 +129,8 @@ export function createRecommendationHandlers(deps = {}) {
       }
       if (!subscription) {
         clientState = randomBytes(32).toString('base64url'); clientStateHash = hash(clientState)
-        subscription = await graphFor(scope, { operation: 'create', data: { changeType: 'created', notificationUrl: recommendationWebhookUrl, lifecycleNotificationUrl: recommendationWebhookUrl, expirationDateTime, clientState, includeResourceData: false } })
+        const webhookUrl = recommendationWebhookUrl(deps.project || runtimeProjectId())
+        subscription = await graphFor(scope, { operation: 'create', data: { changeType: 'created', notificationUrl: webhookUrl, lifecycleNotificationUrl: webhookUrl, expirationDateTime, clientState, includeResourceData: false } })
         created = true
       }
       if (typeof subscription.id !== 'string' || !subscription.id || subscription.id.length > 256 || !clientStateHash || !Number.isFinite(Date.parse(subscription.expirationDateTime))) fail('unavailable', 'Ungültiges Microsoft-Abonnement.')

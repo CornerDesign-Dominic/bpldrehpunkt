@@ -4,6 +4,12 @@ Stand: 28.10.2026. Dieses Runbook beschreibt den laufenden Releaseweg.
 Historische Freigaben bleiben in `release-baseline.md` und `../release-notes.md`.
 Umgebungsgrenzen und externe Wirkungen stehen in `environments.md`.
 
+Die ausdrücklich beauftragte gesamte Produktionsübernahme vom 02.11.2026 ist
+im [aktuellen Vorbereitungsbeleg](releases/production-2026-11-02-preparation.md)
+abgegrenzt. Die Erhaltung aller Produktionsnutzer ist verbindlich; der Beleg
+unterscheidet eingerichtete Microsoft-/IAM-Zugänge vom noch ausstehenden
+Backend-/Frontendwechsel und Datenreset.
+
 ## Entwicklungsstand
 
 Die laufende Entwicklung erfolgt auf `dev` gegen `db-bpl-drehpunkt-dev`.

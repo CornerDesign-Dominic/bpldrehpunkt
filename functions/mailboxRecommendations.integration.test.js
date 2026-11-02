@@ -50,6 +50,18 @@ async function fixture(overrides = {}) {
     await db.terminate(); await deleteApp(app)
   } }
 }
+test('emulator: production subscription targets production callback without scans or changing the five minute freshness limit', { skip: !enabled }, async () => {
+  const f = await fixture({ project: 'db-bpl-drehpunkt' })
+  try {
+    await f.activate()
+    const created = f.calls.find(call => call.operation === 'create')
+    assert.equal(created.data.notificationUrl, 'https://europe-west3-db-bpl-drehpunkt.cloudfunctions.net/mailboxRecommendationWebhook')
+    assert.equal(created.data.lifecycleNotificationUrl, created.data.notificationUrl)
+    assert.equal(created.data.changeType, 'created')
+    assert.ok(f.calls.every(call => ['create', 'renew', 'delete'].includes(call.operation)))
+  } finally { await f.close() }
+})
+
 test('emulator: shared admin activation creates one subscription and duplicate notifications classify once for all delegates', { skip: !enabled }, async () => {
   const f = await fixture()
   try {
