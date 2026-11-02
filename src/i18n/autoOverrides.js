@@ -1,5 +1,7 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Geladene Auswahl verwerfen': 'Discard loaded selection',
+  'Die gespeicherte Suche konnte nicht verworfen werden. Bitte den Browserspeicher prüfen.': 'The saved search could not be discarded. Please check browser storage.',
   'Debitoren- / Kreditornummer': 'Customer / supplier account number',
   'Der Importverlauf konnte nicht geladen werden. Bitte erneut versuchen.': 'The import history could not be loaded. Please try again.',
   'Abweichungen im Stammdatenblatt prüfen.': 'Review differences in the partner record.',

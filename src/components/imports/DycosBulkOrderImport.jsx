@@ -34,6 +34,11 @@ export default function DycosBulkOrderImport({ state: importState, onOpenHistory
     setDraft(null)
     void importer.run(next)
   }
+  function discardSearch() {
+    if (busy || activeJob) return
+    try { runtime.clear(); setDraft(null); setError('') }
+    catch { setError('Die gespeicherte Suche konnte nicht verworfen werden. Bitte den Browserspeicher prüfen.') }
+  }
   function submit(event) {
     event.preventDefault()
     if (busy || activeJob) return
@@ -58,6 +63,7 @@ export default function DycosBulkOrderImport({ state: importState, onOpenHistory
         <span>{search.orders.length} <StaticText source="geladen" /> · {selected.size} <StaticText source="ausgewählt" /></span>
         {search.hasMore && <button className="button button--secondary" type="button" disabled={busy} onClick={() => void runtime.search(search.query, { more: true })}><StaticText source="Weitere Aufträge laden" /></button>}
         <button className="button" type="button" disabled={busy || !selected.size || Boolean(search.error)} onClick={importSelection}><StaticText source="Ausgewählte importieren" /> ({selected.size})</button>
+        <button className="button button--secondary" type="button" disabled={busy} onClick={discardSearch}><StaticText source="Geladene Auswahl verwerfen" /></button>
       </div>
       {!search.orders.length ? <p><StaticText source="Keine passenden Transportaufträge gefunden." /></p> : <div className="transport-orders-table-frame"><table className="data-table dycos-bulk-import__table"><thead><tr>{['Auswahl', 'TA-Nummer', 'Relation', 'Kunde', 'Unternehmer', 'Erste Ladestelle', 'Letzte Entladestelle'].map(label => <th key={label}><StaticText source={label} /></th>)}</tr></thead><tbody>{search.orders.map(order => <tr key={order.sourceId}>
         <td><label><input type="checkbox" checked={selected.has(order.sourceId)} disabled={busy} onChange={event => { const next = new Set(selected); if (event.target.checked) next.add(order.sourceId); else next.delete(order.sourceId); runtime.select([...next]) }} /><span className="sr-only">TA {order.externalNumber}</span></label></td>
