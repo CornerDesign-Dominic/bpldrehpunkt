@@ -11,6 +11,7 @@ import { dycosPartnerRefreshAccounts } from './shared/dycosPartnerRefresh.js'
 import { carrierPartnerPayload, customerPartnerPayload, importPartnerId } from './dycosPartnerPayloads.js'
 import { businessPartnerHistoryChanges, mergePartnerHistoryPatch } from './shared/businessPartnerHistory.js'
 import { fallbackShipmentTrackingRuleCatalog, normalizeShipmentTrackingRuleCatalog, SHIPMENT_TRACKING_RULE_CATALOG_PATH } from './shared/shipmentTrackingRuleCatalog.js'
+import { masterDataHistoryRef } from './dycosMasterDataHistory.js'
 
 const text = value => typeof value === 'string' ? value.trim() : ''
 const actorName = profile => [text(profile.firstName), text(profile.lastName)].filter(Boolean).join(' ') || text(profile.email) || 'Unbekannt'
@@ -65,13 +66,15 @@ export async function resolveSource(transaction, db, source) {
   return [...found.values()][0] || null
 }
 
-async function claimRequest(db, uid, data, token) {
+async function claimRequest(db, uid, data, token, profile) {
   const key = createHash('sha256').update(`${uid}|${data.requestId}`).digest('hex')
   const receiptRef = db.doc(`dycosMasterDataRequests/${key}`)
   const lockRef = db.doc(`dycosMasterDataLocks/${data.typ}-${data.nummer}`)
   const quotaRef = db.doc(`dycosImportQuotas/${uid}`)
+  const historyRef = masterDataHistoryRef(db, uid, data.requestId)
   return db.runTransaction(async tx => {
-    const [receipt, lock, quota] = await Promise.all([tx.get(receiptRef), tx.get(lockRef), tx.get(quotaRef)])
+    const [receipt, lock, quota, history] = await Promise.all([tx.get(receiptRef), tx.get(lockRef), tx.get(quotaRef), tx.get(historyRef)])
+    if (history.exists && (history.get('typ') !== data.typ || history.get('nummer') !== data.nummer)) throw new HttpsError('invalid-argument', 'Diese Anfrage-ID wurde bereits für einen anderen Abruf verwendet.')
     if (receipt.exists) {
       if (receipt.get('typ') !== data.typ || receipt.get('nummer') !== data.nummer) throw new HttpsError('invalid-argument', 'Diese Anfrage-ID wurde bereits für einen anderen Abruf verwendet.')
       return { result: receipt.get('result') }
@@ -83,7 +86,9 @@ async function claimRequest(db, uid, data, token) {
     if (count >= 10) throw new HttpsError('resource-exhausted', 'Zu viele Abrufe. Bitte eine Minute warten.')
     tx.set(quotaRef, { windowStart: start, count: count + 1 })
     tx.set(lockRef, { token, expiresAtMs: now + 180_000 })
-    return { receiptRef, lockRef }
+    tx.set(historyRef, { typ: data.typ, nummer: data.nummer, createdByUserId: uid, createdByName: history.get('createdByName') || actorName(profile),
+      createdAt: history.get('createdAt') || FieldValue.serverTimestamp(), lastStartedAt: FieldValue.serverTimestamp(), status: 'running', attemptToken: token, message: '' })
+    return { receiptRef, lockRef, historyRef }
   })
 }
 
@@ -154,6 +159,7 @@ export async function saveDycosMasterData({ db, request, data, incoming, claim, 
     if (incoming.counterpart && !counterpart) warningCodes.push('PARTNER_COUNTERPART_NOT_MATCHED')
     const result = { status, partnerId: id, typ: data.typ, nummer: data.nummer, requestId: data.requestId, conflicts: dycosConflictRows(patch).length, warningCodes }
     tx.create(claim.receiptRef, { typ: data.typ, nummer: data.nummer, result, completedAt: now })
+    tx.update(claim.historyRef, { status: 'completed', resultStatus: status, partnerId: id, conflicts: result.conflicts, completedAt: now, attemptToken: FieldValue.delete() })
     tx.delete(claim.lockRef)
     return result
   })
@@ -168,7 +174,7 @@ export async function fetchDycosMasterDataHandler(request, { db = getFirestore()
     const partner = snapshot.data()
     if (!snapshot.exists || partner.mergedIntoPartnerId || partner.status === 'merged' || !dycosPartnerRefreshAccounts(partner).some(account => account.typ === data.typ && account.nummer === data.nummer)) throw identityError()
   }
-  const token = randomUUID(); const claim = await claimRequest(db, request.auth.uid, data, token)
+  const token = randomUUID(); const claim = await claimRequest(db, request.auth.uid, data, token, profile)
   if (claim.result) {
     if (data.expectedPartnerId && claim.result.partnerId !== data.expectedPartnerId) throw identityError()
     return claim.result
@@ -181,6 +187,15 @@ export async function fetchDycosMasterDataHandler(request, { db = getFirestore()
     stage = 'save'
     return await saveDycosMasterData({ db, request, data, incoming, claim, token, verify })
   } catch (error) {
+    try {
+      await db.runTransaction(async tx => {
+        const history = await tx.get(claim.historyRef)
+        if (history.get('status') === 'running' && history.get('attemptToken') === token) tx.update(claim.historyRef, {
+          status: 'failed', completedAt: FieldValue.serverTimestamp(), attemptToken: FieldValue.delete(),
+          message: error?.code === 'partner_not_found' ? 'Unter dieser Nummer wurde in DyCoS kein Partner gefunden.' : 'Die Stammdaten konnten nicht übernommen werden. Bitte den Abruf erneut versuchen.',
+        })
+      })
+    } catch { /* Preserve the original error; an interrupted entry remains visible. */ }
     if (error?.code === 'partner_not_found') throw new HttpsError('not-found', 'Unter dieser Nummer wurde in DyCoS kein Partner gefunden.', { sourceCode: 'PARTNER_NOT_FOUND' })
     const message = 'Die Stammdaten konnten nicht zuverlässig übernommen werden. Bitte denselben Abruf erneut versuchen.'
     try { await report({ module: 'dycos-master-data', stage: error?.stage || stage, code: ['source_auth', 'source_configuration', 'source_timeout', 'source_invalid_response', 'source_unavailable', 'partner_not_unique'].includes(error?.code) ? error.code : `dycos_partner_${stage}_failed`, message, actorId: request.auth.uid, actorName: actorName(profile), recordId: data.requestId }, db) } catch { /* Keep original error if diagnostics fail. */ }

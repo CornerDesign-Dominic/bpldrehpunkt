@@ -1,5 +1,27 @@
 # Dev-Veröffentlichung: Sammelimport und zentrale Stammdatenübernahme
 
+## Persönlicher Stammdatenimportverlauf (Dev-Freigabe 02.11.2026)
+
+Direkt unter dem Einzelabruf steht ein eigener Verlauf mit Zeitpunkt, Benutzer,
+Debitoren-/Kreditornummer und Ergebnis sowie einem Link zum Stammdatenblatt.
+Er erfasst neue, ergänzte und unveränderte Übernahmen sowie fehlgeschlagene
+Abrufe. Wiederholungen mit derselben Anfrage-ID aktualisieren denselben Eintrag.
+Abgelaufene Abrufe erscheinen als unterbrochen. Die letzten 25 Einträge werden
+einmalig geladen, weitere 25 erst mit „Mehr anzeigen“. Es gibt kein Polling.
+Nach einem Abruf wird die erste Seite aktualisiert; der vorhandene Bereich für
+frühere CSV-Prüfungen und -Verläufe bleibt erhalten.
+
+Die Zuordnung zu einer Person beginnt mit dieser Erweiterung. Alte Abrufbelege
+enthalten keine zuverlässige Benutzerzuordnung und werden nicht nachträglich
+zugeordnet. Die bisherigen Partner-Änderungshistorien bleiben erhalten.
+
+Für die Veröffentlichung sind `fetchDycosMasterData` und die neue Callable
+`listDycosMasterDataImports` zusammen mit dem Frontend bereitzustellen. Rules,
+Indizes und Power-Automate-Flows benötigen keine Änderung. Die Historie wird
+atomar mit einer erfolgreichen Übernahme gespeichert; Fehler verändern keine
+Partnerdaten. Zugriff wie beim Import mit `masterData: edit`, ausschließlich
+auf den eigenen Verlauf, ohne zusätzliche Datenimportrechte.
+
 ## Partnerliste und separater Import-Tab (Dev, 01.11.2026)
 
 Die Partnerliste bietet oben rechts nur „Stammdaten importieren“. Der Link
@@ -10,7 +32,7 @@ oder Unternehmer und die jeweilige Kontonummer angegeben. Nach erfolgreicher
 sichtbar. Der Tab kann während des Abrufs im Hintergrund geöffnet bleiben.
 
 Für den Einzelabruf reichen weiterhin Stammdaten-Bearbeitungsrechte wie beim
-bisherigen direkten Abruf. Prüfungen und Importverlauf benötigen zusätzlich
+bisherigen direkten Abruf. Frühere CSV-Prüfungen und -Verläufe benötigen zusätzlich
 Datenimport-Bearbeitungsrechte. Bestehende Daten-, Konflikt- und Historieregeln
 bleiben unverändert; keine Änderung am Flow oder an Serverfunktionen erforderlich.
 

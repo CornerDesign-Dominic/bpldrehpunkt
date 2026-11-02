@@ -29,6 +29,15 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
+unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für
+Browser). `listDycosMasterDataImports` prüft App Check, aktives Profil und
+Stammdaten-Bearbeitungsrechte. Der Benutzerpfad wird aus der Anmeldung gebildet;
+auch Administratoren erhalten über diesen Endpunkt keinen fremden Verlauf.
+Die Abfrage liefert höchstens 25 Einträge und einen geprüften Cursor, ohne
+Quellantworten, Bankdaten oder interne Sperrtokens. Kein zusammengesetzter Index
+und keine Erweiterung der Browserrechte erforderlich.
+
 Die persönliche Postfach-Auftragserfassung verlangt Postfach- und
 Auftragsbearbeitung sowie lesenden Stammdatenzugriff. Private Vorschauen,
 Quoten und Exportbelege sind für direkte Clients gesperrt. Kontobezogene

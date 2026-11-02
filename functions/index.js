@@ -34,6 +34,7 @@ import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHan
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
 import { dycosMasterDataConfigurationSecrets } from './dycosFlowClient.js'
 import { fetchDycosMasterDataHandler } from './dycosMasterData.js'
+import { listDycosMasterDataImportsHandler } from './dycosMasterDataHistory.js'
 import { refreshDycosMasterDataHandler } from './dycosPartnerRefresh.js'
 import { resolveDycosPartnerConflictsHandler } from './dycosPartnerReview.js'
 import { searchDycosTransportOrdersHandler } from './dycosOrderSearch.js'
@@ -1199,6 +1200,7 @@ export const fetchDycosTransportOrder = onCall({ region: 'europe-west3', enforce
 export const listTransportOrderRecordsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listTransportOrderRecordsPageHandler)
 export const refreshTransportOrderWorkspace = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 540, maxInstances: 3, concurrency: 4, secrets: [...new Map([...dycosFlowConfigurationSecrets, ...dycosMasterDataConfigurationSecrets].map(secret => [secret.name, secret])).values()] }, refreshTransportOrderWorkspaceHandler)
 export const fetchDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, fetchDycosMasterDataHandler)
+export const listDycosMasterDataImports = onCall({ region: 'europe-west3', enforceAppCheck: true }, listDycosMasterDataImportsHandler)
 export const refreshDycosMasterData = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosMasterDataConfigurationSecrets }, refreshDycosMasterDataHandler)
 export const resolveDycosPartnerConflicts = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, resolveDycosPartnerConflictsHandler)
 export const searchDycosTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosOrderSearchConfigurationSecrets }, searchDycosTransportOrdersHandler)
