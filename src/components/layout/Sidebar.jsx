@@ -1,6 +1,7 @@
 import { isTrackingRecord } from '../../lib/orderRecordTabs.js'
 import { CASE_MANAGEMENT_PATH, caseManagementModules, isCaseManagementPath } from '../../lib/caseManagementNavigation.js'
 import { QUALITY_PATH, qualityModules, isQualityPath } from '../../lib/qualityNavigation.js'
+import { DOCUMENTS_TOOLS_PATH, documentsToolsModules, isDocumentsToolsPath } from '../../lib/documentsToolsNavigation.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -70,6 +71,7 @@ const navigationGroups = [
 const directNavigationGroups = {
   cases: { to: CASE_MANAGEMENT_PATH, modules: caseManagementModules, matches: isCaseManagementPath },
   quality: { to: QUALITY_PATH, modules: qualityModules, matches: isQualityPath },
+  documents: { to: DOCUMENTS_TOOLS_PATH, modules: documentsToolsModules, matches: isDocumentsToolsPath },
 }
 
 const navigationLabelKeys = {

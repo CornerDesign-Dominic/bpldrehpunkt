@@ -12,6 +12,8 @@ import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
 import { caseManagementModules } from './lib/caseManagementNavigation.js'
 import QualityLayout from './components/layout/QualityLayout.jsx'
 import { qualityModules } from './lib/qualityNavigation.js'
+import DocumentsToolsLayout from './components/layout/DocumentsToolsLayout.jsx'
+import { documentsToolsModules } from './lib/documentsToolsNavigation.js'
 
 import DashboardPage from './pages/DashboardPage.jsx'
 
@@ -133,10 +135,15 @@ export default function App() {
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
+        <Route element={<PermissionRoute anyModules={documentsToolsModules}><DocumentsToolsLayout /></PermissionRoute>}>
+        <Route path="/dokumente-werkzeuge" element={null} />
+        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
         <Route path="/dokumente" element={<PermissionRoute module="documents"><DocumentsPage /></PermissionRoute>} />
         <Route path="/vorlagen" element={<PermissionRoute module="templates"><TemplatesOverviewPage /></PermissionRoute>} />
         <Route path="/vorlagen/haftbarhaltung" element={<PermissionRoute module="templates"><LiabilityLetterPage /></PermissionRoute>} />
         <Route path="/vorlagen/geschaeftsdokument" element={<PermissionRoute module="templates"><BusinessDocumentPage /></PermissionRoute>} />
+        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
+        </Route>
         <Route path="/todos" element={<PermissionRoute module="todos"><TodosPage /></PermissionRoute>} />
         <Route path="/todos/:todoId" element={<PermissionRoute module="todos"><TodoDetailPage /></PermissionRoute>} />
         <Route path="/notizen" element={<NotesPage />} />
@@ -151,7 +158,6 @@ export default function App() {
         <Route path="/inkasso" element={<PermissionRoute module="inkasso"><InkassoPage /></PermissionRoute>} />
         <Route path="/inkasso/:caseId" element={<PermissionRoute module="inkasso"><InkassoCaseDetailPage /></PermissionRoute>} />
         </Route>
-        <Route path="/agb-pruefer" element={<PermissionRoute module="agbChecker"><AgbCheckerPage /></PermissionRoute>} />
         <Route path="/profil" element={<ProfilePage />} />
         <Route path="/admin" element={<PermissionRoute requireUserManagement><AdminPage /></PermissionRoute>} />
         <Route path="/admin/sendungsverfolgung" element={<PermissionRoute requireUserManagement><ShipmentTrackingAdminPage /></PermissionRoute>} />
@@ -163,7 +169,6 @@ export default function App() {
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
         <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
-        <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />
         <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>

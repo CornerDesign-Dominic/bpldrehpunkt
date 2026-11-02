@@ -11,7 +11,7 @@ const titleKeys = {
   'Unternehmer importieren': 'title.carrierImport', 'Stammdaten importieren': 'title.masterImport',
   'Kunden & Unternehmer': 'nav.partners', 'Transportaufträge importieren': 'title.orderImport',
   'Sendungsverfolgung': 'nav.shipmentTracking', 'Auftragsliste': 'nav.orders', 'Palettenmanagement': 'nav.pallets', 'News': 'nav.news',
-  'Dokumente': 'nav.documents', 'Vorlagen': 'nav.templates', 'To-dos': 'nav.todos',
+  'Dokumente & Werkzeuge': 'group.documents', 'Dokumente': 'nav.documents', 'Vorlagen': 'nav.templates', 'To-dos': 'nav.todos',
   'Notizen': 'nav.notes', 'Schäden': 'nav.damages', 'Insolvenzen': 'nav.insolvencies',
   'Gericht / Streit': 'nav.disputes', 'Inkasso': 'nav.collections', 'Fallmanagement': 'group.cases', 'AGB-Prüfer': 'nav.termsChecker',
   'Mein Profil': 'nav.profile', 'Systemmails': 'nav.systemMails', 'Stammdaten': 'nav.masterData',

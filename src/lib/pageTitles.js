@@ -19,6 +19,7 @@ const pageTitles = [
   { path: '/crm', title: 'Customer Relationship Management (CRM)' },
   { path: '/paletten', title: 'Palettenmanagement' },
   { path: '/news', title: 'News' },
+  { path: '/dokumente-werkzeuge', title: 'Dokumente & Werkzeuge' },
   { path: '/dokumente', title: 'Dokumente' },
   { path: '/vorlagen', title: 'Vorlagen' },
   { path: '/todos', title: 'To-dos' },
