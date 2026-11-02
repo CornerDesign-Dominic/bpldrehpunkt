@@ -97,3 +97,12 @@ Tracking übernimmt den Rückkehrkontext; der gemeinsame Arbeitsplatz zeigt
 bei vorhandenem Kontext den vorhandenen Zurück-Link. 27 passende bestehende
 Navigation-/Partner-/Registertests sowie Lint und Build bestanden. Dieser
 gezielte Frontend-Nachzug benötigt keine erneute Server-/Rulesbereitstellung.
+
+Weiterer Live-Befund: Bei Partnern ohne zusätzliche Kontonummern war der
+bestehende Nummern-/Merge-Dialog nicht erreichbar. Der Referenzen-Header
+erhält deshalb einen dauerhaften Einstieg „Nummern & Zusammenführungen“,
+unabhängig von vorhandenen Debitoren-/Kreditornummern. Er ist auch im
+Lesemodus erreichbar; die Trennung selbst bleibt über die vorhandenen
+Modal-/Serverrechte geschützt. 17 gezielte Rollen-/Auswahl-/Partnerlinktests,
+Scoped Lint und Build bestanden. Zwei veraltete Strukturprüfungen wurden auf
+die inzwischen zentralisierten Auswahlkomponenten nachgezogen; keine Skips.

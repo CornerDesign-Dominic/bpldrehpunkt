@@ -1,5 +1,6 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Nummern & Zusammenführungen': 'Numbers & merges',
   'Der zugehörige Fall wurde inzwischen gewechselt. Bitte das To-do im aktuellen Fall neu öffnen.': 'The associated case has changed. Please reopen the task in the current case.',
   'Der zugehörige Auftrag wurde inzwischen gewechselt. Bitte das To-do im aktuellen Auftrag neu öffnen.': 'The associated order has changed. Please reopen the task in the current order.',
   'Das To-do konnte nicht gespeichert werden. Bitte prüfe die Verknüpfungen und deine Berechtigungen oder öffne den Vorgang erneut.': 'The task could not be saved. Check its links and your permissions, or reopen the record.',
