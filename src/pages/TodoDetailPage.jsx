@@ -4,7 +4,9 @@ import { reminderTimestampKey } from '../lib/reminderForm.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import Link from "../components/ui/ContextLink.jsx";
+import { recordDetailPath } from "../lib/recordNavigation.js";
 import TodoQuickEditModal from "../components/todos/TodoQuickEditModal.jsx";
 import TodoDeadlinesCard from "../components/todos/TodoDeadlinesCard.jsx";
 import { TodoPriority } from "../components/todos/TodoPriority.jsx";
@@ -703,8 +705,7 @@ export default function TodoDetailPage() {
                   {todo.customerId && canViewMasterData ? (
                     <Link
                       to={businessPartnerDetailPath(
-                        effectivePartner(todo.customerId)?.id ||
-                          todo.customerId,
+                        todo.customerId,
                       )}
                     >
                       {effectivePartner(todo.customerId)?.companyName ||
@@ -719,7 +720,7 @@ export default function TodoDetailPage() {
                   {todo.carrierId && canViewMasterData ? (
                     <Link
                       to={businessPartnerDetailPath(
-                        effectivePartner(todo.carrierId)?.id || todo.carrierId,
+                        todo.carrierId,
                       )}
                     >
                       {effectivePartner(todo.carrierId)?.companyName ||
@@ -732,7 +733,7 @@ export default function TodoDetailPage() {
                 </Detail></TranslatedProps>
                 <TranslatedProps sources={{"label":"Schadenfall"}}><Detail label="Schadenfall">
                   {linkedDamageCase ? (
-                    <Link to={`/schaeden/${linkedDamageCase.id}`}>
+                    <Link to={recordDetailPath('damage', linkedDamageCase.id)}>
                       {linkedDamageCaseLabel}
                     </Link>
                   ) : todo.damageCaseId ? (
@@ -748,8 +749,10 @@ export default function TodoDetailPage() {
                     <StaticText source="Insolvenz nicht verfügbar" />
                   ) : null}
                 </Detail>
+                {todo.legalDisputeId && <Detail label="Gericht / Streit">{canView('legalDisputes') ? <Link to={recordDetailPath('legalDispute', todo.legalDisputeId)}><StaticText source="Gericht-/Streitfall öffnen" /></Link> : <StaticText source="Kein Zugriff auf den verknüpften Fall" />}</Detail>}
+                {todo.inkassoCaseId && <Detail label="Inkasso">{canView('inkasso') ? <Link to={recordDetailPath('inkasso', todo.inkassoCaseId)}><StaticText source="Inkassofall öffnen" /></Link> : <StaticText source="Kein Zugriff auf den verknüpften Fall" />}</Detail>}
                 <TranslatedProps sources={{"label":"TA-Nummern"}}><Detail label="TA-Nummern">
-                  {linkedTransportOrders.length
+                  {canViewTransportOrders && linkedTransportOrders.length
                     ? linkedTransportOrders.map((link, index) => (
                         <span key={link.id}>
                           {<StaticText source={index > 0 && ", "} />}

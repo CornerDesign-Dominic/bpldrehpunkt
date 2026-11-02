@@ -2,22 +2,26 @@ import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import Link from '../ui/ContextLink.jsx'
 import { CASE_TRANSPORT_CASE_TYPES, listCaseLinksForTransportOrder, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from '../../lib/caseTransportLinks.js'
+import { reportTechnicalFailure } from '../../lib/diagnostics.js'
 
 const ACTIONS = Object.freeze({
   damage: { open: 'Zum Schaden', create: 'Schadenfall eröffnen', add: '+ Weiteren Schadenfall hinzufügen' },
   inkasso: { open: 'Zum Inkasso', create: 'Inkassofall eröffnen', add: '+ Weiteren Inkassofall hinzufügen' },
   legalDispute: { open: 'Zum Gericht-/Streitfall', create: 'Gericht-/Streitfall eröffnen', add: '+ Weiteren Gericht-/Streitfall hinzufügen' },
+  insolvency: { open: 'Zur Insolvenzakte', create: 'Insolvenzfall verknüpfen', add: '+ Bestehenden Insolvenzfall verknüpfen' },
 })
 
 const STATUS_LABELS = Object.freeze({
   damage: { documents_missing: 'Unterlagen fehlen', in_progress: 'In Bearbeitung', rejected: 'Abgelehnt', settled: 'Reguliert', economically_closed: 'Wirtschaftlich geschlossen' },
   inkasso: { open: 'Offen', in_progress: 'In Bearbeitung', settled: 'Erledigt', closed: 'Geschlossen' },
   legalDispute: { open: 'Offen', in_progress: 'In Bearbeitung', closed: 'Geschlossen', settled: 'Erledigt' },
+  insolvency: {},
 })
 
 function caseDescription(caseType, caseItem = {}) {
   const values = caseType === 'damage'
     ? [caseItem.title, caseItem.claimant, caseItem.contractor]
+    : caseType === 'insolvency' ? [caseItem.partnerName, caseItem.courtReference]
     : caseType === 'inkasso'
       ? [caseItem.debtorName, caseItem.title]
       : [caseItem.title, caseItem.counterparty]
@@ -51,12 +55,13 @@ export default function TransportOrderLinkedCasesCard({ transportOrderId, canEdi
     }
     listCaseLinksForTransportOrder(transportOrderId, permittedTypes).then((entries) => { if (current) { setLinks(entries); setError('') } }).catch((caught) => {
       console.error('TA-Fallverknüpfungen konnten nicht geladen werden.', { transportOrderId, caseTypes: permittedTypes, code: caught?.code || 'unknown', message: caught?.message || String(caught) })
+      void reportTechnicalFailure({ module: 'case-links', stage: 'load', error: caught, orderId: transportOrderId })
       if (current) setError(loadErrorMessage(caught))
     }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [canViewCase, transportOrderId])
 
-  const groupedLinks = useMemo(() => transportOrderCaseTypeOrder(links).map((type) => ({ type, links: links.filter((link) => link.caseType === type) })), [links])
+  const groupedLinks = useMemo(() => transportOrderCaseTypeOrder(links).filter((type) => canViewCase(CASE_TRANSPORT_CASE_TYPES[type].module)).map((type) => ({ type, links: links.filter((link) => link.caseType === type) })), [links, canViewCase])
   const selectedGroup = groupedLinks.find((group) => group.type === selectedType)
   const selectedAction = selectedType ? ACTIONS[selectedType] : null
 

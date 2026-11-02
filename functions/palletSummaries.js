@@ -142,7 +142,10 @@ export async function listPalletAccountSummariesHandler(request, { db = getFires
         buckets = [...byBucket.values()]; closings = [...byPartner.values()]; mode = 'legacy'
       }
       const clusters = indexPartnerClusters(partners)
-      return { mode, accounts: partners.filter((partner) => !partner.mergedIntoPartnerId).map((partner) => ({ partner, account: accountFromBuckets(buckets, closings, (clusters.get(partner.id) || []).map((member) => member.id)) })) }
+      return { mode, accounts: partners.filter((partner) => !partner.mergedIntoPartnerId).map((partner) => {
+        const members = clusters.get(partner.id) || []
+        return { partner, partnerSearchNames: [...new Set(members.flatMap((member) => [member.companyName, member.shortName]).filter((name) => typeof name === 'string' && name))], account: accountFromBuckets(buckets, closings, members.map((member) => member.id)) }
+      }) }
     })
   } catch (error) {
     if (!(error instanceof HttpsError)) await recordDiagnostic({ module: 'pallets', stage: 'load', code: 'pallet_summary_load_failed', message: 'Palettenkontoübersicht konnte nicht geladen werden.', actorId: request.auth.uid }, db)

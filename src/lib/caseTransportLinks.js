@@ -1,10 +1,10 @@
 import { collection, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, where } from 'firebase/firestore'
-import { CASE_TRANSPORT_CASE_TYPES, CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, caseTransportLinkId, filterTransportOrders, linkedCaseLabel, loadCaseTransportLinks, parseBusinessPartnerRoleSelection, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from '../../shared/caseTransportLinks.js'
+import { CASE_TRANSPORT_CASE_TYPES, CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, caseTransportLinkId, filterTransportOrders, legalDisputeCounterpartyValues, linkedCaseLabel, loadCaseTransportLinks, parseBusinessPartnerRoleSelection, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from '../../shared/caseTransportLinks.js'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 import { getTransportOrder } from './transportOrders.js'
 
-export { CASE_TRANSPORT_CASE_TYPES, CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, filterTransportOrders, linkedCaseLabel, parseBusinessPartnerRoleSelection, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes }
+export { CASE_TRANSPORT_CASE_TYPES, CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, filterTransportOrders, legalDisputeCounterpartyValues, linkedCaseLabel, parseBusinessPartnerRoleSelection, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes }
 
 export const CASE_TRANSPORT_LINKS_COLLECTION = 'caseTransportOrderLinks'
 
@@ -50,7 +50,10 @@ export async function listCaseLinksForTransportOrder(transportOrderId, caseTypes
     },
     readCase: async (caseType, caseId) => {
       const snapshot = await getDoc(caseReference(caseType, caseId))
-      return snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null
+      if (!snapshot.exists()) return null
+      const data = snapshot.data()
+      if (caseType === 'insolvency' && (data.mergedIntoPartnerId || data.splitArchivedAt)) return null
+      return { id: snapshot.id, ...data }
     },
   })
   if (ignored.length) console.warn('TA-Fallverknüpfungen wurden teilweise übersprungen.', { transportOrderId, ignored: ignored.map(({ link, reason }) => ({ linkId: link?.id || null, caseType: link?.caseType || null, reason })) })

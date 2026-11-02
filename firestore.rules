@@ -366,6 +366,13 @@ service cloud.firestore {
       allow delete: if superadmin() && !systemCalendarId(resource.data.calendarId);
     }
 
+    function partnerMergeFields() {
+      return ['mergedIntoPartnerId', 'mergedIntoPartnerName', 'mergedByMergeId', 'mergedAt', 'mergedBy',
+        'statusBeforeMerge', 'latestMergeId', 'lastSeparatedMergeId', 'separatedAt'];
+    }
+    function partnerHasNormalStatus(data) {
+      return data.get('status', 'active') in ['active', 'inactive', 'insolvency', 'blocked'];
+    }
     function trustedPartnerAccounts(data) {
       let refs = data.get('dycosReferences', {});
       return refs is map ? refs.get('accounts', []) : [];
@@ -375,14 +382,23 @@ service cloud.firestore {
       allow read: if view('masterData') || view('crm') || view('pallets');
       // XML export trusts these SQL-ID mappings. Only validated server imports
       // may create/change them; a superadmin client has no bypass.
-      allow create: if edit('masterData') && !request.resource.data.keys().hasAny(['dycosIdentities', 'dycosImport'])
+      allow create: if edit('masterData') && partnerHasNormalStatus(request.resource.data) && !request.resource.data.keys().hasAny(partnerMergeFields())
+        && !request.resource.data.keys().hasAny(['dycosIdentities', 'dycosImport'])
         && trustedPartnerAccounts(request.resource.data).size() == 0;
-      allow delete: if edit('masterData') && resource.data.get('dycosIdentities', {}).size() == 0 && trustedPartnerAccounts(resource.data).size() == 0;
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dycosIdentities', 'dycosImport'])
+      allow delete: if false;
+      allow update: if partnerHasNormalStatus(request.resource.data) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(partnerMergeFields())
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['dycosIdentities', 'dycosImport'])
         && trustedPartnerAccounts(request.resource.data) == trustedPartnerAccounts(resource.data)
         && ((resource.data.get('dycosIdentities', {}).size() == 0 && trustedPartnerAccounts(resource.data).size() == 0) || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['debtorNumber', 'creditorNumber', 'dycosReferences']))
         && ((edit('masterData') && !resource.data.keys().hasAny(['mergedIntoPartnerId'])) || (edit('crm') && !resource.data.keys().hasAny(['mergedIntoPartnerId']) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditLimit', 'crmStatus', 'crmIndustry', 'potential', 'updatedAt'])) || insolvencyStatusUpdate(partnerId));
-      match /history/{entryId} { allow read: if view('masterData') || view('crm'); allow create: if edit('masterData') || edit('crm'); allow update, delete: if false; }
+      match /history/{entryId} {
+        allow read: if view('masterData') || view('crm');
+        allow create: if (edit('masterData') || edit('crm'))
+          && request.resource.data.get('category', '') != 'merge'
+          && !(request.resource.data.get('action', '') in ['merged', 'mergedInto', 'separated'])
+          && !request.resource.data.keys().hasAny(['mergeId']);
+        allow update, delete: if false;
+      }
       match /activities/{entryId} { allow read: if view('crm'); allow create, update: if edit('crm'); allow delete: if false; }
       match /ratings/{ratingId} { allow read: if view('crm'); allow create: if edit('crm'); allow update, delete: if false; }
     }
@@ -414,22 +430,27 @@ service cloud.firestore {
     function caseTransportLinkCaseVisible(data) {
       return (data.caseType == 'damage' && view('damages'))
         || (data.caseType == 'inkasso' && view('inkasso'))
-        || (data.caseType == 'legalDispute' && view('legalDisputes'));
+        || (data.caseType == 'legalDispute' && view('legalDisputes'))
+        || (data.caseType == 'insolvency' && view('insolvencies'));
     }
     function caseTransportLinkCaseEditable(data) {
       return (data.caseType == 'damage' && edit('damages'))
         || (data.caseType == 'inkasso' && edit('inkasso'))
-        || (data.caseType == 'legalDispute' && edit('legalDisputes'));
+        || (data.caseType == 'legalDispute' && edit('legalDisputes'))
+        || (data.caseType == 'insolvency' && edit('insolvencies'));
     }
     function caseTransportLinkCaseExists(data) {
       return (data.caseType == 'damage' && existsAfter(/databases/$(database)/documents/damageCases/$(data.caseId)))
         || (data.caseType == 'inkasso' && existsAfter(/databases/$(database)/documents/inkassoCases/$(data.caseId)))
-        || (data.caseType == 'legalDispute' && existsAfter(/databases/$(database)/documents/legalDisputes/$(data.caseId)));
+        || (data.caseType == 'legalDispute' && existsAfter(/databases/$(database)/documents/legalDisputes/$(data.caseId)))
+        || (data.caseType == 'insolvency' && existsAfter(/databases/$(database)/documents/insolvencies/$(data.caseId))
+          && getAfter(/databases/$(database)/documents/insolvencies/$(data.caseId)).data.get('mergedIntoPartnerId', null) == null
+          && getAfter(/databases/$(database)/documents/insolvencies/$(data.caseId)).data.get('splitArchivedAt', null) == null);
     }
     function validCaseTransportLink(data, linkId) {
       return data.keys().hasAll(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
         && data.keys().hasOnly(['caseType', 'caseId', 'transportOrderId', 'createdAt', 'createdByUserId', 'createdByName'])
-        && data.caseType in ['damage', 'inkasso', 'legalDispute']
+        && data.caseType in ['damage', 'inkasso', 'legalDispute', 'insolvency']
         && data.caseId is string && data.caseId.size() > 0 && data.caseId.size() <= 240 && !data.caseId.matches('.*[/|].*')
         && data.transportOrderId is string && data.transportOrderId.size() > 0 && data.transportOrderId.size() <= 240 && !data.transportOrderId.matches('.*[/|].*')
         && linkId == data.caseType + '|' + data.caseId + '|' + data.transportOrderId
@@ -490,6 +511,8 @@ service cloud.firestore {
     function createdInsolvency(partnerId) {
       return insolvencyKeysAreValid(request.resource.data) && validInsolvency(request.resource.data, partnerId) && validCaseReminderResponsible(request.resource.data, 'insolvencies')
         && exists(/databases/$(database)/documents/businessPartners/$(partnerId))
+        && get(/databases/$(database)/documents/businessPartners/$(partnerId)).data.get('mergedIntoPartnerId', null) == null
+        && get(/databases/$(database)/documents/businessPartners/$(partnerId)).data.get('status', '') != 'merged'
         && request.resource.data.partnerName == get(/databases/$(database)/documents/businessPartners/$(partnerId)).data.companyName
         && getAfter(/databases/$(database)/documents/businessPartners/$(partnerId)).data.status == 'insolvency'
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
@@ -503,7 +526,9 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
     }
     function insolvencyStatusUpdate(partnerId) {
-      return edit('insolvencies') && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy', 'updatedByName'])
+      return edit('insolvencies')
+        && resource.data.get('mergedIntoPartnerId', null) == null && resource.data.get('status', '') != 'merged'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy', 'updatedByName'])
         && request.resource.data.status == 'insolvency' && request.resource.data.updatedAt == request.time
         && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
         && existsAfter(/databases/$(database)/documents/insolvencies/$(partnerId))
@@ -755,7 +780,6 @@ service cloud.firestore {
         && validDamageText(data.description, 4000) && validDamageType(data)
         && validDamageText(data.transportReference, 240) && (!data.keys().hasAny(['damageLocation']) || validDamageText(data.damageLocation, 240))
         && validDamageText(data.claimant, 240) && validDamageText(data.contractor, 240)
-        && validDamageClaimant(data) && validDamageContractor(data)
         && validDamageResponsible(data) && (!data.keys().hasAny(['dueDate']) || data.dueDate == null || (data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (data.damageAmount == null || (data.damageAmount is number && data.damageAmount >= 0))
         && (!data.keys().hasAny(['legalBasis']) || data.legalBasis == null || data.legalBasis in ['cmr', 'national', 'goodwill', 'other'])
@@ -772,7 +796,9 @@ service cloud.firestore {
     }
     function damageCounterAfter(year) { return getAfter(/databases/$(database)/documents/damageCaseCounters/$(year)).data; }
     function isCreatedDamageCase() {
-      return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data) && validCaseReminderResponsible(request.resource.data, 'damages')
+      return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
+        && validCaseReminderResponsible(request.resource.data, 'damages')
+        && validDamageClaimant(request.resource.data) && validDamageContractor(request.resource.data)
         && request.resource.data.damageAmount is number
         && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
         && !request.resource.data.keys().hasAny(['damageLocation', 'liabilityNote'])
@@ -784,6 +810,8 @@ service cloud.firestore {
     function isUpdatedDamageCase() {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
         && (responsibilityUnchanged(resource.data, request.resource.data) || validCaseReminderResponsible(request.resource.data, 'damages'))
+        && (unchangedPartnerBinding(request.resource.data, resource.data, ['claimant', 'claimantPartnerId']) || validDamageClaimant(request.resource.data))
+        && (unchangedPartnerBinding(request.resource.data, resource.data, ['contractor', 'contractorPartnerId']) || validDamageContractor(request.resource.data))
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.caseYear == resource.data.caseYear
         && request.resource.data.caseSequence == resource.data.caseSequence && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
@@ -901,45 +929,62 @@ service cloud.firestore {
     function legalDisputeAmount(value) { return value == null || (value is number && value >= 0); }
     function legalDisputeDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
     function legalDisputeKeysAreValid(data) {
-      return data.keys().hasAll(['caseNumber', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'transportReference', 'opposingCounsel', 'opposingRepresentation', 'opposingReference', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerHandoverDate', 'lawyerPhone', 'lawyerEmail', 'court', 'courtLocation', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
+      let keys = data.keys();
+      return keys.hasAll(['caseNumber', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'opposingCounsel', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerPhone', 'lawyerEmail', 'court', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && keys.hasOnly(['caseNumber', 'caseYear', 'caseSequence', 'status', 'isClosed', 'title', 'description', 'caseType', 'participant', 'counterparty', 'counterpartyPartnerId', 'counterpartyPartnerRole', 'counterpartySourceTransportOrderId', 'transportReference', 'opposingCounsel', 'opposingRepresentation', 'opposingReference', 'responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerHandoverDate', 'lawyerPhone', 'lawyerEmail', 'court', 'courtLocation', 'courtReference', 'judgeOrChamber', 'nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt', 'completedAt', 'originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
-    function validLegalDispute(data) {
+    function validLegalDispute(data, previous) {
+      let changed = data.diff(previous).affectedKeys();
       return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
         && (!data.keys().hasAny(['caseYear', 'caseSequence']) || (data.keys().hasAll(['caseYear', 'caseSequence'])
           && data.caseNumber.matches('^G-[0-9]{4}-[0-9]{4}$') && data.caseYear is string && data.caseYear.matches('^[0-9]{4}$')
           && data.caseSequence is int && data.caseSequence >= 1 && data.caseSequence <= 9999))
         && data.status in ['open', 'completed'] && data.isClosed == (data.status == 'completed')
-        && data.title is string && data.title.size() > 0 && data.title.size() <= 500 && legalDisputeText(data.description, 4000)
-        && legalDisputeText(data.caseType, 120) && legalDisputeText(data.participant, 240) && legalDisputeText(data.counterparty, 240) && (!data.keys().hasAny(['transportReference']) || legalDisputeText(data.transportReference, 240)) && legalDisputeText(data.opposingCounsel, 240)
-        && (!data.keys().hasAny(['opposingRepresentation']) || data.opposingRepresentation == null || data.opposingRepresentation in ['self_represented', 'lawyer']) && (!data.keys().hasAny(['opposingReference']) || legalDisputeText(data.opposingReference, 240))
-        && legalDisputeText(data.responsibleUserId, 240) && legalDisputeText(data.responsibleUserName, 240)
-        && legalDisputeText(data.lawFirm, 240) && legalDisputeText(data.ownCounsel, 240) && legalDisputeText(data.lawyerReference, 240) && (!data.keys().hasAny(['lawyerHandoverDate']) || legalDisputeDate(data.lawyerHandoverDate)) && legalDisputeText(data.lawyerPhone, 80) && legalDisputeText(data.lawyerEmail, 320)
-        && legalDisputeText(data.court, 240) && (!data.keys().hasAny(['courtLocation']) || legalDisputeText(data.courtLocation, 240)) && legalDisputeText(data.courtReference, 240) && legalDisputeText(data.judgeOrChamber, 240)
-        && legalDisputeDate(data.nextDeadline) && legalDisputeText(data.nextDeadlineLabel, 240) && legalDisputeDate(data.nextHearing) && legalDisputeText(data.nextHearingTime, 40)
-        && legalDisputeText(data.procedureType, 120) && legalDisputeText(data.proceedingStage, 120) && legalDisputeText(data.instance, 120) && legalDisputeDate(data.startedAt)
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+        && (!changed.hasAny(['description', 'caseType', 'participant', 'counterparty', 'transportReference', 'opposingCounsel', 'opposingRepresentation', 'opposingReference'])
+          || (legalDisputeText(data.description, 4000)
+        && legalDisputeText(data.caseType, 120) && legalDisputeText(data.participant, 240) && legalDisputeText(data.counterparty, 240) && legalDisputeText(data.get('transportReference', null), 240) && legalDisputeText(data.opposingCounsel, 240)
+        && data.get('opposingRepresentation', null) in [null, 'self_represented', 'lawyer'] && legalDisputeText(data.get('opposingReference', null), 240)))
+        && (!changed.hasAny(['responsibleUserId', 'responsibleUserName', 'lawFirm', 'ownCounsel', 'lawyerReference', 'lawyerHandoverDate', 'lawyerPhone', 'lawyerEmail', 'court', 'courtLocation', 'courtReference', 'judgeOrChamber'])
+          || ((data.diff({'responsibleUserId': null, 'responsibleUserName': null, 'lawFirm': null, 'ownCounsel': null, 'lawyerReference': null, 'lawyerHandoverDate': null, 'lawyerPhone': null, 'lawyerEmail': null, 'court': null, 'courtLocation': null, 'courtReference': null, 'judgeOrChamber': null}).changedKeys().size() == 0
+          || (legalDisputeText(data.responsibleUserId, 240) && legalDisputeText(data.responsibleUserName, 240)
+        && legalDisputeText(data.lawFirm, 240) && legalDisputeText(data.ownCounsel, 240) && legalDisputeText(data.lawyerReference, 240) && legalDisputeDate(data.get('lawyerHandoverDate', null)) && legalDisputeText(data.lawyerPhone, 80) && legalDisputeText(data.lawyerEmail, 320)
+        && legalDisputeText(data.court, 240) && legalDisputeText(data.get('courtLocation', null), 240) && legalDisputeText(data.courtReference, 240) && legalDisputeText(data.judgeOrChamber, 240)))))
+        && (!changed.hasAny(['nextDeadline', 'nextDeadlineLabel', 'nextHearing', 'nextHearingTime', 'procedureType', 'proceedingStage', 'instance', 'startedAt'])
+          || (legalDisputeDate(data.nextDeadline) && legalDisputeText(data.nextDeadlineLabel, 240) && legalDisputeDate(data.nextHearing) && legalDisputeText(data.nextHearingTime, 40)
+        && legalDisputeText(data.procedureType, 120) && legalDisputeText(data.proceedingStage, 120) && legalDisputeText(data.instance, 120) && legalDisputeDate(data.startedAt)))
         && (data.completedAt == null || data.completedAt is timestamp)
-        && legalDisputeAmount(data.originalClaim) && legalDisputeAmount(data.counterClaim) && legalDisputeAmount(data.amountInDispute) && legalDisputeAmount(data.paidAmount) && legalDisputeAmount(data.openAmount) && legalDisputeAmount(data.legalFees) && legalDisputeAmount(data.courtCosts) && legalDisputeAmount(data.otherCosts);
+        && (!changed.hasAny(['originalClaim', 'counterClaim', 'amountInDispute', 'paidAmount', 'openAmount', 'legalFees', 'courtCosts', 'otherCosts'])
+          || (data.diff({'originalClaim': null, 'counterClaim': null, 'amountInDispute': null, 'paidAmount': null, 'openAmount': null, 'legalFees': null, 'courtCosts': null, 'otherCosts': null}).changedKeys().size() == 0
+          || (legalDisputeAmount(data.originalClaim) && legalDisputeAmount(data.counterClaim) && legalDisputeAmount(data.amountInDispute) && legalDisputeAmount(data.paidAmount) && legalDisputeAmount(data.openAmount) && legalDisputeAmount(data.legalFees) && legalDisputeAmount(data.courtCosts) && legalDisputeAmount(data.otherCosts))));
     }
     function legalDisputeCounterAfter(year) { return getAfter(/databases/$(database)/documents/legalDisputeCaseCounters/$(year)).data; }
     function createdLegalDispute(id) {
-      return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data)
-        && request.resource.data.keys().hasAll(['caseYear', 'caseSequence'])
-        && id == request.resource.data.caseNumber
-        && request.resource.data.transportReference is string && request.resource.data.transportReference.size() > 0
-        && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.transportReference + (request.resource.data.counterparty == null ? '' : ' – ' + request.resource.data.counterparty)
-        && request.resource.data.caseSequence == legalDisputeCounterAfter(request.resource.data.caseYear).nextNumber
-        && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
-        && request.resource.data.createdBy == request.auth.uid && request.resource.data.updatedBy == request.auth.uid
-        && request.resource.data.createdByName == profileName(ownProfile()) && request.resource.data.updatedByName == profileName(ownProfile());
+      let data = request.resource.data;
+      let actorName = profileName(ownProfile());
+      return legalDisputeKeysAreValid(data)
+        && (legalDisputeInitialContentIsValid(data) || validLegalDispute(data, legalDisputeContentDefaults()))
+        && validLegalDisputeCounterparty(data)
+        && data.keys().hasAll(['caseYear', 'caseSequence'])
+        && id == data.caseNumber
+        && data.transportReference is string && data.transportReference.size() > 0
+        && data.title == data.caseNumber + ' – ' + data.transportReference + (data.counterparty == null ? '' : ' – ' + data.counterparty)
+        && data.caseSequence == legalDisputeCounterAfter(data.caseYear).nextNumber
+        && data.createdAt == request.time && data.updatedAt == request.time
+        && data.createdBy == request.auth.uid && data.updatedBy == request.auth.uid
+        && data.createdByName == actorName && data.updatedByName == actorName;
     }
     function updatedLegalDispute() {
-      return legalDisputeKeysAreValid(request.resource.data) && validLegalDispute(request.resource.data) && responsibilityUnchanged(resource.data, request.resource.data)
-        && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
-        && ((!resource.data.keys().hasAny(['caseYear', 'caseSequence']) && !request.resource.data.keys().hasAny(['caseYear', 'caseSequence']))
-          || (request.resource.data.caseYear == resource.data.caseYear && request.resource.data.caseSequence == resource.data.caseSequence))
-        && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
-        && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile());
+      let data = request.resource.data;
+      let previous = resource.data;
+      return legalDisputeKeysAreValid(data) && validLegalDispute(data, previous) && responsibilityUnchanged(previous, data)
+        && (unchangedPartnerBinding(data, previous, ['counterparty', 'counterpartyPartnerId', 'counterpartyPartnerRole', 'counterpartySourceTransportOrderId'])
+          || validLegalDisputeCounterparty(data))
+        && data.caseNumber == previous.caseNumber && data.createdAt == previous.createdAt
+        && ((!previous.keys().hasAny(['caseYear', 'caseSequence']) && !data.keys().hasAny(['caseYear', 'caseSequence']))
+          || (data.caseYear == previous.caseYear && data.caseSequence == previous.caseSequence))
+        && data.createdBy == previous.createdBy && data.createdByName == previous.createdByName
+        && data.updatedAt == request.time && data.updatedBy == request.auth.uid && data.updatedByName == profileName(ownProfile());
     }
     match /legalDisputeCaseCounters/{year} {
       allow get: if edit('legalDisputes');
@@ -1053,7 +1098,8 @@ service cloud.firestore {
       return data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
         && inkassoText(data.title, 500) && inkassoText(data.description, 4000) && (!data.keys().hasAny(['collectionAgency']) || inkassoText(data.collectionAgency, 240)) && (!data.keys().hasAny(['collectionReference']) || inkassoText(data.collectionReference, 240))
         && data.status in ['open', 'in_progress', 'completed'] && data.isClosed == (data.status == 'completed')
-        && inkassoText(data.debtorName, 240) && (!data.keys().hasAny(['debtorPartnerId']) || data.debtorPartnerId == null || (data.debtorPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.debtorPartnerId)) && data.debtorName == get(/databases/$(database)/documents/businessPartners/$(data.debtorPartnerId)).data.companyName)) && (!data.keys().hasAny(['debtorPartnerRole']) || data.debtorPartnerRole == null || data.debtorPartnerRole in ['customer', 'carrier']) && inkassoText(data.debtorNumber, 120) && inkassoText(data.debtorContactName, 240) && inkassoText(data.debtorAddress, 1000) && inkassoText(data.debtorEmail, 320) && inkassoText(data.debtorPhone, 80)
+        && inkassoText(data.debtorName, 240) && (!data.keys().hasAny(['debtorPartnerId']) || data.debtorPartnerId == null || data.debtorPartnerId is string)
+        && (!data.keys().hasAny(['debtorPartnerRole']) || data.debtorPartnerRole == null || data.debtorPartnerRole in ['customer', 'carrier']) && inkassoText(data.debtorNumber, 120) && inkassoText(data.debtorContactName, 240) && inkassoText(data.debtorAddress, 1000) && inkassoText(data.debtorEmail, 320) && inkassoText(data.debtorPhone, 80)
         && inkassoText(data.responsibleUserId, 240) && inkassoText(data.responsibleUserName, 240)
         && inkassoText(data.invoiceNumbers, 1000) && (!data.keys().hasAny(['claimAmount']) || data.claimAmount == null || inkassoAmount(data.claimAmount)) && (!data.keys().hasAny(['paidAmount']) || data.paidAmount == null || inkassoAmount(data.paidAmount)) && inkassoDate(data.invoiceDate) && inkassoDate(data.originalDueDate) && inkassoDate(data.lastReminderDate)
         && inkassoText(data.lawFirm, 240) && inkassoText(data.lawyerReference, 240) && inkassoText(data.lawFirmContactName, 240) && inkassoText(data.lawFirmEmail, 320) && inkassoText(data.lawFirmPhone, 80) && inkassoDate(data.lawyerHandoverDate)
@@ -1063,6 +1109,7 @@ service cloud.firestore {
     function updatedInkassoCase() {
       return inkassoCaseKeysAreValid(request.resource.data) && validInkassoCase(request.resource.data)
         && (responsibilityUnchanged(resource.data, request.resource.data) || validCaseReminderResponsible(request.resource.data, 'inkasso'))
+        && (unchangedPartnerBinding(request.resource.data, resource.data, ['debtorPartnerId', 'debtorPartnerRole', 'debtorName']) || validInkassoDebtor(request.resource.data))
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.title == resource.data.title
         && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
@@ -1234,6 +1281,180 @@ service cloud.firestore {
         allow delete: if edit('inkasso');
       }
     }
+    function unchangedPartnerBinding(data, previous, fields) {
+      return !data.diff(previous).affectedKeys().hasAny(fields);
+    }
+    function validInkassoDebtor(data) {
+      let partnerId = data.get('debtorPartnerId', null);
+      return partnerId == null || (partnerId is string
+        && exists(/databases/$(database)/documents/businessPartners/$(partnerId))
+        && data.debtorName == get(/databases/$(database)/documents/businessPartners/$(partnerId)).data.companyName
+        && (data.get('debtorPartnerRole', null) == null
+          || hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(partnerId)).data, data.debtorPartnerRole)));
+    }
+    function legalDisputeContentDefaults() { return {'description': null, 'caseType': null, 'participant': null, 'counterparty': null, 'transportReference': null, 'opposingCounsel': null, 'opposingRepresentation': null, 'opposingReference': null, 'responsibleUserId': null, 'responsibleUserName': null, 'lawFirm': null, 'ownCounsel': null, 'lawyerReference': null, 'lawyerHandoverDate': null, 'lawyerPhone': null, 'lawyerEmail': null, 'court': null, 'courtLocation': null, 'courtReference': null, 'judgeOrChamber': null, 'nextDeadline': null, 'nextDeadlineLabel': null, 'nextHearing': null, 'nextHearingTime': null, 'procedureType': null, 'proceedingStage': null, 'instance': null, 'startedAt': null, 'originalClaim': null, 'counterClaim': null, 'amountInDispute': null, 'paidAmount': null, 'openAmount': null, 'legalFees': null, 'courtCosts': null, 'otherCosts': null}; }
+    function legalDisputeInitialContentIsValid(data) {
+      return data.diff(legalDisputeContentDefaults()).changedKeys().hasOnly(['caseType', 'counterparty', 'transportReference', 'startedAt'])
+        && legalDisputeText(data.caseType, 120) && legalDisputeText(data.counterparty, 240)
+        && legalDisputeText(data.transportReference, 240) && legalDisputeDate(data.startedAt)
+        && data.caseNumber is string && data.caseNumber.size() > 0 && data.caseNumber.size() <= 120
+        && data.caseNumber.matches('^G-[0-9]{4}-[0-9]{4}$')
+        && data.caseYear is string && data.caseYear.matches('^[0-9]{4}$')
+        && data.caseSequence is int && data.caseSequence >= 1 && data.caseSequence <= 9999
+        && data.status in ['open', 'completed'] && data.isClosed == (data.status == 'completed')
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 500
+        && (data.completedAt == null || data.completedAt is timestamp);
+    }
+    function legalDisputeRoleValue(value, role) {
+      let alias = role == 'customer' ? 'kunde' : 'unternehmer';
+      return (value is list && value.hasAny([role, alias]))
+        || (value is string && value in [role, alias])
+        || (value is map && (value.get(role, false) == true || value.get(alias, false) == true));
+    }
+    function legalDisputePartnerHasRole(partner, role) {
+      let number = partner.get(role == 'customer' ? 'debtorNumber' : 'creditorNumber', '');
+      let references = partner.get('dycosReferences', {});
+      let numbers = references is map ? references.get(role == 'customer' ? 'debtorNumbers' : 'creditorNumbers', []) : [];
+      return (number is string && number.size() > 0)
+        || (numbers is list && numbers.size() > 0)
+        || legalDisputeRoleValue(partner.get('businessPartnerRoles', []), role)
+        || legalDisputeRoleValue(partner.get('partnerRoles', []), role)
+        || (role == 'carrier' && hasProvisionalTransportCarrierRole(partner));
+    }
+    function legalDisputePartnerOriginMatches(data, partnerId, partnerRole, orderId) {
+      let linkId = 'legalDispute|' + data.caseNumber + '|' + orderId;
+      let profile = ownProfile();
+      // Both callers already require an active legal editor. Check the extra
+      // module level once, without re-expanding the full active-profile gate.
+      return (profile.role == 'superadmin' || profile.get('permissions', {}).get('transportOrders', 'none') in ['view', 'edit'])
+        && orderId.size() > 0 && orderId.size() <= 240 && !orderId.matches('.*[/|].*')
+        && get(/databases/$(database)/documents/transportOrders/$(orderId)).data.get('imported', {}).get(partnerRole, {}).get('partnerId', null) == partnerId
+        && existsAfter(/databases/$(database)/documents/caseTransportOrderLinks/$(linkId));
+    }
+    function legalDisputeCounterpartyMatches(data, partnerId, partnerRole) {
+      let partner = get(/databases/$(database)/documents/businessPartners/$(partnerId)).data;
+      let orderId = data.get('counterpartySourceTransportOrderId', null);
+      return legalDisputePartnerHasRole(partner, partnerRole)
+        && data.counterparty == partner.companyName
+        && ((orderId == null && partner.get('mergedIntoPartnerId', null) == null && partner.get('status', '') != 'merged')
+          || (orderId is string && legalDisputePartnerOriginMatches(data, partnerId, partnerRole, orderId)));
+    }
+    function validLegalDisputeCounterparty(data) {
+      let partnerId = data.get('counterpartyPartnerId', null);
+      let partnerRole = data.get('counterpartyPartnerRole', null);
+      return (partnerId == null && partnerRole == null && data.get('counterpartySourceTransportOrderId', null) == null)
+        || (partnerId is string && partnerId.size() > 0 && partnerId.size() <= 240 && !partnerId.matches('.*[/].*')
+          && partnerRole in ['customer', 'carrier']
+          && legalDisputeCounterpartyMatches(data, partnerId, partnerRole));
+    }
+    function todoAccess(requiredLevel) {
+      let profile = ownProfile();
+      // Equivalent to view/edit('todos'), without repeatedly expanding the
+      // active-profile and superadmin gates for the same creation/history.
+      return signedIn() && profile.active == true
+        && (profile.role == 'superadmin' || (requiredLevel == 'edit'
+          ? profile.permissions.get('todos', 'none') == 'edit'
+          : profile.permissions.get('todos', 'none') in ['view', 'edit']));
+    }
+    function validTodoPersonAudience(data) {
+      // To-do content is validated only after an active editor gate. The
+      // current user's profile therefore need not be looked up a second time.
+      return data.audienceId == request.auth.uid ? data.audienceLabel == profileName(ownProfile())
+        : activeProfile(data.audienceId) && data.audienceLabel == profileName(get(/databases/$(database)/documents/users/$(data.audienceId)).data);
+    }
+    function todoOriginModuleVisible(profile, module) {
+      return profile.role == 'superadmin' || profile.get('permissions', {}).get(module, 'none') in ['view', 'edit'];
+    }
+    function todoOriginId(value) {
+      return value is string && value.size() > 0 && value.size() <= 240 && !value.matches('.*[/].*');
+    }
+    function todoSourceSlotsMatch(source, data, needs, customerIdKey, customerNameKey, carrierIdKey, carrierNameKey) {
+      return (!needs.customer || (source.get(customerIdKey, null) == data.customerId && source.get(customerNameKey, null) == data.customerName))
+        && (!needs.carrier || (source.get(carrierIdKey, null) == data.carrierId && source.get(carrierNameKey, null) == data.carrierName));
+    }
+    function todoDamageOriginNamesMatch(data, needs) {
+      let source = get(/databases/$(database)/documents/damageCases/$(data.damageCaseId)).data;
+      return todoSourceSlotsMatch(source, data, needs, 'claimantPartnerId', 'claimant', 'contractorPartnerId', 'contractor');
+    }
+    function todoInkassoOriginNamesMatch(data, needs) {
+      let source = get(/databases/$(database)/documents/inkassoCases/$(data.inkassoCaseId)).data;
+      let customer = source.get('debtorPartnerRole', null) == 'customer';
+      return (customer ? !needs.carrier : !needs.customer)
+        && todoSourceSlotsMatch(source, data, needs, 'debtorPartnerId', 'debtorName', 'debtorPartnerId', 'debtorName');
+    }
+    function todoInsolvencyOriginNamesMatch(data, needs) {
+      let source = get(/databases/$(database)/documents/insolvencies/$(data.insolvencyId)).data;
+      return source.get('mergedIntoPartnerId', null) == null && source.get('splitArchivedAt', null) == null
+        && todoSourceSlotsMatch(source, data, needs, 'partnerId', 'partnerName', 'partnerId', 'partnerName');
+    }
+    function todoLegalOriginNamesMatch(data, needs) {
+      let source = get(/databases/$(database)/documents/legalDisputes/$(data.legalDisputeId)).data;
+      let role = source.get('counterpartyPartnerRole', null);
+      return role in ['customer', 'carrier'] && (role == 'customer' ? !needs.carrier : !needs.customer)
+        && todoSourceSlotsMatch(source, data, needs, 'counterpartyPartnerId', 'counterparty', 'counterpartyPartnerId', 'counterparty');
+    }
+    function todoTransportOrderOriginNamesMatch(orderId, data, needs) {
+      let imported = get(/databases/$(database)/documents/transportOrders/$(orderId)).data.get('imported', {});
+      let customer = imported.get('customer', {});
+      let carrier = imported.get('carrier', {});
+      return (!needs.customer || (customer.get('partnerId', null) == data.customerId
+          && (customer.get('name', null) == data.customerName || customer.get('partnerName', null) == data.customerName)))
+        && (!needs.carrier || (carrier.get('partnerId', null) == data.carrierId
+          && (carrier.get('originalName', null) == data.carrierName || carrier.get('partnerName', null) == data.carrierName)));
+    }
+    function todoFirstOrderOriginNamesMatch(data, needs, profile) {
+      let links = data.get('transportOrderLinks', []);
+      let orderId = links is list && links.size() > 0 && links[0] is map ? links[0].get('id', null) : null;
+      return todoOriginId(orderId) && todoOriginModuleVisible(profile, 'transportOrders')
+        && todoTransportOrderOriginNamesMatch(orderId, data, needs);
+    }
+    function todoOriginNamesMatch(data, needs) {
+      let profile = ownProfile();
+      // A follow-up has one origin. All inherited historical slots must be
+      // proven together by the same readable case, or the first linked TA.
+      return (todoOriginId(data.get('damageCaseId', null)) && todoOriginModuleVisible(profile, 'damages') && todoDamageOriginNamesMatch(data, needs))
+        || (todoOriginId(data.get('inkassoCaseId', null)) && todoOriginModuleVisible(profile, 'inkasso') && todoInkassoOriginNamesMatch(data, needs))
+        || (todoOriginId(data.get('insolvencyId', null)) && todoOriginModuleVisible(profile, 'insolvencies') && todoInsolvencyOriginNamesMatch(data, needs))
+        || (todoOriginId(data.get('legalDisputeId', null)) && todoOriginModuleVisible(profile, 'legalDisputes') && todoLegalOriginNamesMatch(data, needs))
+        || todoFirstOrderOriginNamesMatch(data, needs, profile);
+    }
+    function todoPartnerHasRole(partner, role) {
+      let roles = partner.get('businessPartnerRoles', []);
+      // Explicit roles are sufficient evidence in every supported list, string
+      // or map form. Retain the complete predicate for all other role facts.
+      return legalDisputeRoleValue(roles, role)
+        || (role == 'carrier' && 'taImportStatus' in partner && hasProvisionalTransportCarrierRole(partner))
+        || legalDisputePartnerHasRole(partner, role);
+    }
+    function validNewTodoPartnerLinks(data) {
+      let customerId = data.get('customerId', null);
+      let carrierId = data.get('carrierId', null);
+      let customerName = data.get('customerName', null);
+      let carrierName = data.get('carrierName', null);
+      let customer = customerId is string ? get(/databases/$(database)/documents/businessPartners/$(customerId)).data : {};
+      let carrier = carrierId is string ? get(/databases/$(database)/documents/businessPartners/$(carrierId)).data : {};
+      let needs = {
+        'customer': customerId is string && customerName != customer.get('companyName', null),
+        'carrier': carrierId is string && carrierName != carrier.get('companyName', null)
+      };
+      return ((customerId == null && customerName == null && (('customerId' in data) == ('customerName' in data))) || (customerId is string && customerName is string && todoPartnerHasRole(customer, 'customer')))
+        && ((carrierId == null && carrierName == null && (('carrierId' in data) == ('carrierName' in data))) || (carrierId is string && carrierName is string && todoPartnerHasRole(carrier, 'carrier')))
+        && (!(needs.customer || needs.carrier) || todoOriginNamesMatch(data, needs));
+    }
+    function validTodoPartnerLinks(data, previous) {
+      let customerId = data.get('customerId', null);
+      let carrierId = data.get('carrierId', null);
+      let customerChanged = !unchangedPartnerBinding(data, previous, ['customerId', 'customerName']);
+      let carrierChanged = !unchangedPartnerBinding(data, previous, ['carrierId', 'carrierName']);
+      let customer = customerChanged && customerId is string ? get(/databases/$(database)/documents/businessPartners/$(customerId)).data : {};
+      let carrier = carrierChanged && carrierId is string ? get(/databases/$(database)/documents/businessPartners/$(carrierId)).data : {};
+      let needs = {
+        'customer': customerChanged && customerId is string && data.get('customerName', null) is string && data.customerName != customer.get('companyName', null),
+        'carrier': carrierChanged && carrierId is string && data.get('carrierName', null) is string && data.carrierName != carrier.get('companyName', null)
+      };
+      return (!customerChanged || validCustomerLink(data, customer)) && (!carrierChanged || validCarrierLink(data, carrier))
+        && (!(needs.customer || needs.carrier) || todoOriginNamesMatch(data, needs));
+    }
     function todoKeysAreValid(data) {
       return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
         && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
@@ -1250,31 +1471,27 @@ service cloud.firestore {
       return (data.audienceType == 'all' && data.audienceId == null && noAudienceIds(data) && data.audienceLabel == 'Alle')
         || (data.audienceType == 'department' && data.audienceId is string && data.audienceId.size() > 0 && noAudienceIds(data)
           && (data.audienceLabel == data.audienceId || data.audienceLabel == 'Abteilung: ' + data.audienceId))
-        || (data.audienceType == 'person' && data.audienceId is string && activeProfile(data.audienceId)
-          && noAudienceIds(data) && data.audienceLabel == profileName(get(/databases/$(database)/documents/users/$(data.audienceId)).data))
+        || (data.audienceType == 'person' && data.audienceId is string && noAudienceIds(data) && validTodoPersonAudience(data))
         || (data.audienceType == 'people' && data.audienceId == null && data.keys().hasAll(['audienceIds'])
           && data.audienceIds is list && data.audienceIds.size() > 0 && data.audienceIds.size() <= 50
           && data.audienceLabel is string && data.audienceLabel.size() > 0 && data.audienceLabel.size() <= 4000);
     }
-    function validTodoExtras(data) {
-      return (!data.keys().hasAny(['priority']) || data.priority in ['low', 'medium', 'high'])
-        && (!data.keys().hasAny(['reminderDate']) || data.reminderDate == null || (data.reminderDate is string && data.reminderDate.size() == 10))
-        && validCustomerLink(data) && validCarrierLink(data) && validTransportOrderLink(data) && validTransportOrderLinks(data) && validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)
-        && (!data.keys().hasAny(['reference']) || data.reference == null || (data.reference is string && data.reference.size() <= 240));
+    function validTodoExtras(data, previous) {
+      let reminder = data.get('reminderDate', null);
+      let reference = data.get('reference', null);
+      return data.get('priority', 'medium') in ['low', 'medium', 'high']
+        && (reminder == null || (reminder is string && reminder.size() == 10))
+        && (previous.size() == 0 ? validNewTodoPartnerLinks(data) : validTodoPartnerLinks(data, previous))
+        && validTransportOrderLink(data) && validTransportOrderLinks(data) && validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)
+        && (reference == null || (reference is string && reference.size() <= 240));
     }
-    function validCustomerLink(data) {
+    function validCustomerLink(data, partner) {
       return !data.keys().hasAny(['customerId', 'customerName']) || (data.customerId == null && data.customerName == null)
-        || (data.customerId is string && data.customerName is string
-          && exists(/databases/$(database)/documents/businessPartners/$(data.customerId))
-          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data, 'customer')
-          && data.customerName == get(/databases/$(database)/documents/businessPartners/$(data.customerId)).data.companyName);
+        || (data.customerId is string && data.customerName is string && todoPartnerHasRole(partner, 'customer'));
     }
-    function validCarrierLink(data) {
+    function validCarrierLink(data, partner) {
       return !data.keys().hasAny(['carrierId', 'carrierName']) || (data.carrierId == null && data.carrierName == null)
-        || (data.carrierId is string && data.carrierName is string
-          && exists(/databases/$(database)/documents/businessPartners/$(data.carrierId))
-          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data, 'carrier')
-          && data.carrierName == get(/databases/$(database)/documents/businessPartners/$(data.carrierId)).data.companyName);
+        || (data.carrierId is string && data.carrierName is string && todoPartnerHasRole(partner, 'carrier'));
     }
     function validTransportOrderLink(data) {
       return !data.keys().hasAny(['transportOrderId', 'transportOrderNumber']) || (data.transportOrderId == null && data.transportOrderNumber == null)
@@ -1283,30 +1500,32 @@ service cloud.firestore {
           && data.transportOrderNumber == get(/databases/$(database)/documents/transportOrders/$(data.transportOrderId)).data.externalNumber);
     }
     function validTransportOrderLinks(data) {
-      return !data.keys().hasAny(['transportOrderLinks']) || data.transportOrderLinks == null
-        || (data.transportOrderLinks is list && data.transportOrderLinks.size() <= 20);
+      let links = data.get('transportOrderLinks', null);
+      return links == null || (links is list && links.size() <= 20);
     }
     function validDamageCaseLink(data) {
-      return !data.keys().hasAny(['damageCaseId']) || data.damageCaseId == null
-        || (data.damageCaseId is string && exists(/databases/$(database)/documents/damageCases/$(data.damageCaseId)));
+      let id = data.get('damageCaseId', null);
+      return id == null || (id is string && exists(/databases/$(database)/documents/damageCases/$(id)));
     }
     function validInsolvencyLink(data) {
-      return !data.keys().hasAny(['insolvencyId']) || data.insolvencyId == null
-        || (data.insolvencyId is string && exists(/databases/$(database)/documents/insolvencies/$(data.insolvencyId)));
+      let id = data.get('insolvencyId', null);
+      return id == null || (id is string && exists(/databases/$(database)/documents/insolvencies/$(id)));
     }
     function validLegalDisputeLink(data) {
-      return !data.keys().hasAny(['legalDisputeId']) || data.legalDisputeId == null
-        || (data.legalDisputeId is string && exists(/databases/$(database)/documents/legalDisputes/$(data.legalDisputeId)));
+      let id = data.get('legalDisputeId', null);
+      return id == null || (id is string && exists(/databases/$(database)/documents/legalDisputes/$(id)));
     }
     function validInkassoCaseLink(data) {
-      return !data.keys().hasAny(['inkassoCaseId']) || data.inkassoCaseId == null
-        || (data.inkassoCaseId is string && exists(/databases/$(database)/documents/inkassoCases/$(data.inkassoCaseId)));
+      let id = data.get('inkassoCaseId', null);
+      return id == null || (id is string && exists(/databases/$(database)/documents/inkassoCases/$(id)));
     }
-    function validTodoContent(data) {
+    function validTodoContent(data, previous) {
       return data.title is string && data.title.size() > 0 && data.title.size() <= 240
         && data.description is string && data.description.size() <= 4000
         && (data.dueDate == null || data.dueDate is string)
-        && validTodoAudience(data) && validTodoExtras(data);
+        && ((previous.size() == 0 && data.audienceType == 'person' && data.audienceId == request.auth.uid)
+          ? noAudienceIds(data) && data.audienceLabel == data.creatorName
+          : validTodoAudience(data)) && validTodoExtras(data, previous);
     }
     function isTodoAudienceMember(data) {
       return data.audienceType == 'all'
@@ -1315,30 +1534,30 @@ service cloud.firestore {
         || (data.audienceType == 'department' && data.audienceId == ownProfile().department);
     }
     function canReadTodo(data) {
-      return superadmin() || data.creatorUserId == request.auth.uid || data.assignedUserId == request.auth.uid
-        || (data.status != 'withdrawn' && isTodoAudienceMember(data));
+      return data.creatorUserId == request.auth.uid || data.assignedUserId == request.auth.uid
+        || (data.status != 'withdrawn' && isTodoAudienceMember(data)) || superadmin();
     }
-    function isCreatorOrSuperadmin() { return superadmin() || resource.data.creatorUserId == request.auth.uid; }
+    function isCreatorOrSuperadmin() { return resource.data.creatorUserId == request.auth.uid || superadmin(); }
     function hasOpenAssignment(data) {
       return data.status == 'open' && data.assignedUserId == null && data.assignedUserName == null && data.assignedAt == null
         && data.completedAt == null && data.completedByUserId == null && data.completedByName == null
         && data.withdrawnAt == null && data.withdrawnByUserId == null;
     }
-    function isCreatedOpenTodo() {
-      return hasOpenAssignment(request.resource.data);
+    function isCreatedOpenTodo(data) {
+      return hasOpenAssignment(data);
     }
-    function isCreatedOwnTodo() {
-      return request.resource.data.audienceType == 'person' && request.resource.data.audienceId == request.auth.uid
-        && request.resource.data.audienceLabel == profileName(ownProfile())
-        && request.resource.data.status == 'in_progress' && request.resource.data.assignedUserId == request.auth.uid
-        && request.resource.data.assignedUserName == profileName(ownProfile()) && request.resource.data.assignedAt == request.time
-        && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
-        && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null;
+    function isCreatedOwnTodo(data) {
+      return data.audienceType == 'person' && data.audienceId == request.auth.uid && data.audienceLabel == data.creatorName
+        && data.status == 'in_progress' && data.assignedUserId == request.auth.uid
+        && data.assignedUserName == data.creatorName && data.assignedAt == request.time
+        && data.completedAt == null && data.completedByUserId == null && data.completedByName == null
+        && data.withdrawnAt == null && data.withdrawnByUserId == null;
     }
     function isCreatedTodo() {
-      return todoKeysAreValid(request.resource.data) && validTodoContent(request.resource.data) && validNewTodoReminderSchedule(request.resource.data)
-        && request.resource.data.creatorUserId == request.auth.uid && request.resource.data.creatorName == profileName(ownProfile())
-        && (isCreatedOpenTodo() || isCreatedOwnTodo()) && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+      let data = request.resource.data;
+      return todoKeysAreValid(data) && validTodoContent(data, {}) && validNewTodoReminderSchedule(data)
+        && data.creatorUserId == request.auth.uid && data.creatorName == profileName(ownProfile())
+        && (data.status == 'open' ? isCreatedOpenTodo(data) : isCreatedOwnTodo(data)) && data.createdAt == request.time && data.updatedAt == request.time;
     }
     function isTakeover() {
       return resource.data.assignedUserId == null && resource.data.status != 'withdrawn' && isTodoAudienceMember(resource.data)
@@ -1372,14 +1591,14 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
     }
     function isCreatorContentEdit() {
-      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data)
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data, resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data)
         && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt']);
     }
     function isCreatorResetAssignment() {
-      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data)
+      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress'] && validTodoContent(request.resource.data, resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data)
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
     }
@@ -1420,15 +1639,19 @@ service cloud.firestore {
     function validNewTodoReminder(data) { return validNewDeadlineReminder(data); }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
-      allow create: if edit('todos') && isCreatedTodo();
-      allow update: if (edit('todos') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
-        || (view('todos') && todoKeysAreValid(request.resource.data) && isNoteTimestampTouch());
+      allow create: if resource == null && todoAccess('edit') && isCreatedTodo();
+      allow update: if resource != null && ((todoAccess('edit') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
+        || (todoAccess('view') && todoKeysAreValid(request.resource.data) && isNoteTimestampTouch()));
       allow delete: if false;
 
       match /updates/{updateId} {
         allow read: if view('todos') && canReadTodo(todoDocument(id));
-        allow create: if view('todos') && canReadTodo(todoAfter(id)) && validTodoUpdate(request.resource.data)
-          && (request.resource.data.type == 'note' || (request.resource.data.type == 'system' && edit('todos')));
+        // A system entry already requires edit (which includes view). Notes
+        // retain their existing view-only capability; neither branch bypasses
+        // the parent task's audience/ownership or the payload validation.
+        allow create: if ((request.resource.data.type == 'note' && todoAccess('view'))
+            || (request.resource.data.type == 'system' && todoAccess('edit')))
+          && canReadTodo(todoAfter(id)) && validTodoUpdate(request.resource.data);
         allow update, delete: if false;
       }
 

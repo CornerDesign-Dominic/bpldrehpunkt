@@ -73,3 +73,22 @@ test('manual selection rejects archived or inactive candidate partners', () => {
   assert.throws(() => assertManualPartnerState(snapshot({ status: 'active' }), snapshot({ status: 'active', mergedIntoPartnerId: 'target' })), /archiviert/)
   assert.throws(() => assertManualPartnerState(snapshot({ status: 'active', mergedIntoPartnerId: 'target' }), snapshot({ status: 'active' })), /archiviert/)
 })
+
+
+test('splitting an intermediate partner keeps confirmed earlier-member accounts and source IDs with their owners', () => {
+  const partner = (id, numbers, accounts) => ({ id, debtorNumber: numbers[0], dycosReferences: { debtorNumbers: numbers, accounts: accounts.map(([number, sourceId]) => ({ entity: 'customer', number, sourceId })) }, dycosImport: { sourceReferences: accounts.map(([, id]) => ({ entity: 'customer', id })) } })
+  const root = partner('root', ['100', '101', '102'], [['100', '10'], ['101', '11'], ['102', '12']])
+  const archived = partner('middle', ['101', '102'], [['101', '11'], ['102', '12']])
+  const member = partner('member', ['102'], [['102', '12']])
+  const result = splitDycosAccountState(root, archived, { debtors: ['101'], creditors: [] }, [member])
+  assert.deepEqual(result.source.accounts.map(item => item.number), ['101'])
+  assert.deepEqual(result.source.sourceReferences, [{ entity: 'customer', id: '11' }])
+  assert.deepEqual(result.target.accounts.map(item => item.number), ['100', '102'])
+  assert.deepEqual(result.retainedPartnerIds, ['member'])
+  assert.throws(() => splitDycosAccountState(root, archived, { debtors: ['101'], creditors: [] }), { code: 'failed-precondition' })
+  assert.throws(() => splitDycosAccountState(root, archived, { debtors: ['101'], creditors: [] }, [partner('member', ['102'], [['102', '99']])]), { code: 'failed-precondition' })
+  const separatedRoot = partner('root', ['100', '101'], [['100', '10'], ['101', '11']])
+  const separated = splitDycosAccountState(separatedRoot, archived, { debtors: ['101'], creditors: [] }, [member])
+  assert.deepEqual(separated.source, result.source)
+  assert.deepEqual(separated.target.accounts.map(item => item.number), ['100'])
+})

@@ -32,7 +32,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -158,4 +158,39 @@ test('reminder client diagnostics require a relevant readable module and cannot 
   assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'dispatch', code: 'internal' }), { code: 'invalid-argument' })
   assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'status', code: 'internal', orderId: 'order' }), { code: 'invalid-argument' })
   assert.throws(() => normalizeClientDiagnostic({ module: 'reminders', stage: 'load', code: 'internal', recordId: 'todos/private' }), { code: 'invalid-argument' })
+})
+
+test('partner resolution diagnostics keep fixed messages and existing access boundaries', () => {
+  for (const stage of ['resolve', 'resolve-list', 'revalidate', 'reload-after-save', 'save']) {
+    const event = normalizeClientDiagnostic({ module: 'partner-links', stage, code: 'internal', recordId: 'origin-1', message: 'private partner data', partner: { companyName: 'private' } })
+    assert.equal(event.stage, stage)
+    assert.equal(event.recordId, 'origin-1')
+    assert.equal(JSON.stringify(event).includes('private'), false)
+  }
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { masterData: 'view' } }, 'partner-links'), true)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: { damages: 'edit' } }, 'partner-links'), false)
+})
+
+
+test('link failures retain bounded record context and never accept client-written diagnosis text', () => {
+  const event = normalizeClientDiagnostic({ module: 'case-links', stage: 'save', code: 'unavailable', recordId: 'case-1', orderId: 'order-1', message: 'private source data' })
+  assert.equal(event.recordId, 'case-1')
+  assert.equal(event.orderId, 'order-1')
+  assert.equal(event.message, 'Fallverknüpfung konnte nicht gespeichert werden.')
+  assert.equal(normalizeClientDiagnostic({ module: 'legal-disputes', stage: 'load-counterparty', code: 'internal', recordId: 'case-2' }).message, 'Verknüpfte Gegenseite konnte nicht geladen werden.')
+  for (const recordId of ['../private', 'a'.repeat(241), 'case\nunsafe']) {
+    assert.throws(() => normalizeClientDiagnostic({ module: 'partner-links', stage: 'load', code: 'internal', recordId }), { code: 'invalid-argument' })
+  }
+  assert.equal(normalizeClientDiagnostic({ module: 'website', stage: 'other', code: 'internal', recordId: 'case-1' }).recordId, undefined)
+})
+
+
+test('new link diagnostics retain module boundaries and require order access for an order context', () => {
+  const profile = { role: 'user', permissions: { legalDisputes: 'view', crm: 'view' } }
+  assert.equal(canReportLinkDiagnostic(profile, 'legal-disputes'), true)
+  assert.equal(canReportLinkDiagnostic(profile, 'partner-links'), true)
+  assert.equal(canReportLinkDiagnostic(profile, 'case-links', 'order-1'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'legal-disputes'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: {} }, 'partner-links'), false)
+  assert.equal(canReportLinkDiagnostic({ role: 'superadmin' }, 'case-links', 'order-1'), true)
 })

@@ -136,7 +136,7 @@ test('existing legacy detail URLs remain readable', () => {
 test('all partner navigation modules use the central detail path', () => {
   const modules = [
     '../pages/CustomersPage.jsx',
-    '../pages/TransportOrderDetailPage.jsx',
+    '../pages/ShipmentTrackingDetailPage.jsx',
     '../pages/TodoDetailPage.jsx',
     '../pages/DamageDetailPage.jsx',
     '../pages/CrmDetailPage.jsx',
@@ -144,12 +144,13 @@ test('all partner navigation modules use the central detail path', () => {
     '../pages/InkassoCaseDetailPage.jsx',
     '../pages/InsolvencyDetailPage.jsx',
     '../pages/BusinessPartnerFormPage.jsx',
-    '../components/business-partners/BusinessPartnerForm.jsx',
     './customerImportPresentation.js',
   ]
   for (const modulePath of modules) {
     assert.match(readFileSync(new URL(modulePath, import.meta.url), 'utf8'), /businessPartnerDetailPath\(/, modulePath)
   }
+
+  assert.match(readFileSync(new URL('../components/business-partners/BusinessPartnerForm.jsx', import.meta.url), 'utf8'), /businessPartnerArchivePath\(entry\.id\)/)
 
   const app = readFileSync(new URL('../App.jsx', import.meta.url), 'utf8')
   const detailPage = readFileSync(new URL('../pages/BusinessPartnerFormPage.jsx', import.meta.url), 'utf8')

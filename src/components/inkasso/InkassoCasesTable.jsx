@@ -1,3 +1,5 @@
+import { partnerReferenceName } from '../../lib/partnerReferenceNames.js'
+import PartnerReferenceLink from '../business-partners/PartnerReferenceLink.jsx'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { inkassoCaseStatusLabel, inkassoDeadlinePresentation } from '../../lib/inkasso.js'
 
@@ -27,7 +29,7 @@ export default function InkassoCasesTable({ cases, emptyMessage, onOpen }) {
     const due = nextDeadlinePresentation(inkassoCase)
     return <tr className={`${canOpen ? 'inkasso-cases-table__row' : ''} todos-table__row--${due.appearance}`} key={inkassoCase.id} {...(canOpen ? { tabIndex: 0, role: 'link', 'aria-label': `Inkassofall ${inkassoCase.caseNumber || inkassoCase.id} öffnen`, onClick: () => onOpen(inkassoCase), onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(inkassoCase) } } } : {})}>
       <td className="todos-table__title">{inkassoCase.caseNumber || '—'}</td>
-      <td>{inkassoCase.debtorName || inkassoCase.customerName || '—'}</td>
+      <td>{partnerReferenceName(inkassoCase, 'debtorName') || inkassoCase.customerName || '—'} <PartnerReferenceLink partnerId={inkassoCase.debtorPartnerId} /></td>
       <td>{formatCurrency(inkassoCase.claimAmount)}</td>
       <td><span className={`todo-status damage-status damage-status--${inkassoCase.status}`}>{inkassoCaseStatusLabel(inkassoCase.status)}</span></td>
       <td className={`todos-table__due todos-table__due--${due.appearance}`}>{due.value}</td>

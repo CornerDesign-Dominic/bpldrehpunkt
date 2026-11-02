@@ -4,6 +4,7 @@ import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
 import { berlinToday, calendarDaysUntil, caseDeadlineReminder } from './caseDeadline.js'
+import { setTransportOrderCaseLink } from './caseTransportLinks.js'
 
 export const INSOLVENCIES_COLLECTION = 'insolvencies'
 
@@ -94,8 +95,9 @@ export async function listInsolvencyPartners() {
   return Array.isArray(result.data?.partners) ? result.data.partners : []
 }
 
-export async function createInsolvency(values, partner, actor) {
+export async function createInsolvency(values, partner, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
   if (!partner?.id || !trim(partner.companyName)) throw new Error('Bitte ein betroffenes Unternehmen auswählen.')
+  const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map(trim).filter(Boolean))]
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, partner.id)
   if ((await getDoc(insolvencyRef)).exists()) throw new Error('Für dieses Unternehmen ist bereits ein Insolvenzfall angelegt.')
 
@@ -115,6 +117,7 @@ export async function createInsolvency(values, partner, actor) {
     ...updateMetadata(actor),
   })
   batch.update(doc(db, 'businessPartners', partner.id), { status: 'insolvency', ...updateMetadata(actor) })
+  linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(batch, { caseType: 'insolvency', caseId: partner.id, transportOrderId, actor }))
   await batch.commit()
   return partner.id
 }

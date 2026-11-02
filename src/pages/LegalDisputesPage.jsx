@@ -1,5 +1,8 @@
+import { presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
+import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
+import { createReturnState, resolveReturnNavigation, validReturnPath } from '../lib/recordNavigation.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import LegalDisputeCaseForm from '../components/legal-disputes/LegalDisputeCaseForm.jsx'
 import LegalDisputeCasesTable from '../components/legal-disputes/LegalDisputeCasesTable.jsx'
@@ -32,20 +35,22 @@ export default function LegalDisputesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pendingCaseCreation] = useState(() => location.state?.caseCreation?.caseType === 'legalDispute' ? location.state.caseCreation : null)
+  const savingRef = useRef(false)
   const [showForm, setShowForm] = useState(() => Boolean(location.state?.caseCreation?.caseType === 'legalDispute'))
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [criticalOnly, setCriticalOnly] = useState(false)
 
+  const displayedCases = useMemo(() => presentCasePartnerReferences(cases, 'legalDispute', partners, canViewMasterData), [cases, partners, canViewMasterData])
   const filteredCases = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase('de-DE')
-    return cases.filter((legalDispute) => {
-      const haystack = [legalDispute.caseNumber, legalDispute.title, legalDispute.counterparty, legalDispute.caseType].filter(Boolean).join(' ').toLocaleLowerCase('de-DE')
+    return displayedCases.filter((legalDispute) => {
+      const haystack = [legalDispute.caseNumber, legalDispute.title, legalDispute.counterparty, legalDispute.caseType, legalDispute.partnerSearchText].filter(Boolean).join(' ').toLocaleLowerCase('de-DE')
       return (!needle || haystack.includes(needle))
         && (!status || legalDispute.status === status)
         && (!criticalOnly || isCriticalDate(legalDispute.nextDeadline) || isCriticalDate(legalDispute.nextHearing))
     })
-  }, [cases, criticalOnly, search, status])
+  }, [displayedCases, criticalOnly, search, status])
   const currentCases = useMemo(() => filteredCases.filter((legalDispute) => !legalDispute.isClosed), [filteredCases])
   const closedCases = useMemo(() => filteredCases.filter((legalDispute) => legalDispute.isClosed), [filteredCases])
 
@@ -56,7 +61,7 @@ export default function LegalDisputesPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([listLegalDisputes(), editable && canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
+    Promise.all([listLegalDisputes(), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
       .then(([entries, businessPartners]) => { if (current) { setCases(entries); setPartners(businessPartners) } })
       .catch(() => { if (current) setError('Die Fälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })
@@ -65,27 +70,45 @@ export default function LegalDisputesPage() {
 
   useEffect(() => { if (pendingCaseCreation) navigate(location.pathname, { replace: true, state: null }) }, [location.pathname, navigate, pendingCaseCreation])
 
-  async function save(values) {
-    const id = await createLegalDispute(values, { user, profile }, { transportOrderId: pendingCaseCreation?.prefill?.transportOrderId, transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
+  function returnToOrigin() {
+    if (!validReturnPath(pendingCaseCreation?.returnTo)) return false
+    const target = resolveReturnNavigation(pendingCaseCreation, location.pathname)
+    navigate(target.to, { replace: true, state: target.state })
+    return true
+  }
+
+  function cancelCreation() {
+    if (savingRef.current) return
     setShowForm(false)
-    if (pendingCaseCreation?.returnTo) navigate(pendingCaseCreation.returnTo, { replace: true })
-    else navigate(`/legal-disputes/${id}`)
+    returnToOrigin()
+  }
+
+  async function save(values) {
+    savingRef.current = true
+    try {
+      const id = await createLegalDispute(values, { user, profile }, { transportOrderIds: values.transportOrderLinks?.map((link) => link.id) })
+      setShowForm(false)
+      if (!returnToOrigin()) navigate(`/legal-disputes/${id}`)
+    } finally {
+      savingRef.current = false
+    }
   }
 
   return <div className="damages-page legal-disputes-page">
     {editable && <div className="damage-actions"><button className="button" type="button" onClick={() => setShowForm(true)}><StaticText source={"Neuer Fall"} /></button></div>}
     <section className="damages-filter-area" aria-labelledby="legal-disputes-filter-heading"><h2 id="legal-disputes-filter-heading">Filter</h2><div className="damage-filters"><label className="search-field"><span className="sr-only"><StaticText source={"Fälle durchsuchen"} /></span><TranslatedProps sources={{"placeholder":"Aktenzeichen, Betreff, Gegenseite oder Art"}}><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aktenzeichen, Betreff, Gegenseite oder Art" /></TranslatedProps></label><label className="filter-field"><span className="sr-only">Status</span><select value={status} onChange={(event) => setStatus(event.target.value)}><option value=""><StaticText source={"Alle Status"} /></option>{LEGAL_DISPUTE_STATUSES.map((item) => <option key={item.value} value={item.value}>{<StaticText source={item.label} />}</option>)}</select></label><label className={`damage-filter-toggle${criticalOnly ? ' damage-filter-toggle--active' : ''}`}><input type="checkbox" checked={criticalOnly} onChange={(event) => setCriticalOnly(event.target.checked)} /><StaticText source={"Frist / Termin kritisch"} /></label></div></section>
     {error && <p className="form-error">{<StaticText source={error} />}</p>}
+    <PartnerReferenceWarning records={displayedCases} />
     {loading ? <p className="page-state"><StaticText source={"Fälle werden geladen …"} /></p> : <div className="legal-disputes-lists">
       <section className="legal-disputes-list" aria-labelledby="current-legal-disputes-heading">
         <div className="legal-disputes-list__heading"><h2 id="current-legal-disputes-heading"><StaticText source={"Aktuelle Fälle"} /></h2></div>
-        <LegalDisputeCasesTable cases={currentCases} emptyMessage="Keine aktuellen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
+        <LegalDisputeCasesTable cases={currentCases} emptyMessage="Keine aktuellen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`, { state: createReturnState(location) })} />
       </section>
       <section className="legal-disputes-list" aria-labelledby="closed-legal-disputes-heading">
         <div className="legal-disputes-list__heading"><h2 id="closed-legal-disputes-heading"><StaticText source={"Abgeschlossene Fälle"} /></h2></div>
-        <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`)} />
+        <LegalDisputeCasesTable cases={closedCases} emptyMessage="Keine abgeschlossenen Fälle vorhanden." onOpen={(legalDispute) => navigate(`/legal-disputes/${legalDispute.id}`, { state: createReturnState(location) })} />
       </section>
     </div>}
-    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false) }}><TranslatedProps sources={{"aria-label":"Neuen Fall anlegen"}}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={() => setShowForm(false)} onSubmit={save} partners={partners} /></section></TranslatedProps></div>}
+    {showForm && <div className="damage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) cancelCreation() }}><TranslatedProps sources={{"aria-label":"Neuen Fall anlegen"}}><section className="damage-form-modal" role="dialog" aria-modal="true" aria-label="Neuen Fall anlegen"><LegalDisputeCaseForm canViewTransportOrders={canView('transportOrders')} initialValues={caseCreationDefaults('legalDispute', pendingCaseCreation?.prefill)} onCancel={cancelCreation} onSubmit={save} partners={partners} /></section></TranslatedProps></div>}
   </div>
 }

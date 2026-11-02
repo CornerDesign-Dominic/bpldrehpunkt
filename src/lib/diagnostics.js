@@ -19,6 +19,9 @@ export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
   'shipment-tracking': 'Sendungsverfolgung',
   'shipment-tracking-manual-mail': 'Manuelle Tracking-Anfrage',
   'document-templates': 'Dokumentvorlagen',
+  'case-links': 'Fallverknüpfungen',
+  'partner-links': 'Partnerverknüpfungen',
+  'legal-disputes': 'Gericht / Streit',
   website: 'Website',
 })
 

@@ -1,3 +1,4 @@
+import { partnerClusterSearchNames } from '../lib/partnerReferenceNames.js'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { BUSINESS_PARTNER_STATUSES, getBusinessPartnerStatusLabel, getBusinessPartnerType, listBusinessPartners } from '../lib/businessPartners.js'
@@ -74,11 +75,12 @@ export default function CustomersPage() {
     listBusinessPartners().then(setPartners).catch(() => setError(true)).finally(() => setLoading(false))
   }, [])
 
+  const clusterSearchNames = useMemo(() => partnerClusterSearchNames(partners), [partners])
   const visiblePartners = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
-    const filteredPartners = partners.filter((partner) => !partner.mergedIntoPartnerId && matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber, partner.timocomNumber, partner.transeuNumber].some((value) => value?.toLocaleLowerCase('de-DE').includes(term))))
+    const filteredPartners = partners.filter((partner) => !partner.mergedIntoPartnerId && matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber, partner.timocomNumber, partner.transeuNumber, ...(clusterSearchNames.get(partner.id) || [])].some((value) => value?.toLocaleLowerCase('de-DE').includes(term))))
     return sortPartners(filteredPartners, sort)
-  }, [filter, partners, search, sort])
+  }, [clusterSearchNames, filter, partners, search, sort])
 
   function toggleSort(key) {
     setSort((current) => current.key === key ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' } : { key, direction: 'asc' })

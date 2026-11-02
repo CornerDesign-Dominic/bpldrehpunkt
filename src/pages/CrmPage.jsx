@@ -1,3 +1,4 @@
+import { partnerClusterSearchNames } from '../lib/partnerReferenceNames.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -56,7 +57,7 @@ export default function CrmPage() {
     let current = true
     Promise.allSettled([listBusinessPartners(), listCrmTransportRatingSummaries()]).then(([partnerResult, ratingResult]) => {
       if (!current) return
-      if (partnerResult.status === 'fulfilled') setPartners(partnerResult.value.filter((partner) => !partner.mergedIntoPartnerId))
+      if (partnerResult.status === 'fulfilled') setPartners(partnerResult.value)
       else setError('Die CRM-Partnerübersicht konnte nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.')
       if (ratingResult.status === 'fulfilled') setSummaries(ratingResult.value)
       else setRatingError('Die Bewertungen konnten nicht geladen werden. Bitte erneut versuchen.')
@@ -65,18 +66,20 @@ export default function CrmPage() {
     return () => { current = false }
   }, [])
 
+  const clusterSearchNames = useMemo(() => partnerClusterSearchNames(partners), [partners])
   const visiblePartners = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
     const filtered = partners.filter((partner) => {
+      if (partner.mergedIntoPartnerId) return false
       const type = getBusinessPartnerType(partner)
       if (filters.type !== 'all' && (filters.type === 'customer' ? type !== 'Kunde' : filters.type === 'carrier' ? type !== 'Unternehmer' : type !== 'Kunde & Unternehmer')) return false
       if (filters.status !== 'all' && partner.status !== filters.status) return false
       if (filters.potential !== 'all' && (filters.potential === 'none' ? Boolean(partner.potential) : partner.potential !== filters.potential)) return false
       if (!ratingMatches(summaries[partner.id]?.customer, filters.customer) || !ratingMatches(summaries[partner.id]?.carrier, filters.carrier)) return false
-      return !term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber].some((value) => String(value || '').toLocaleLowerCase('de-DE').includes(term))
+      return !term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber, ...(clusterSearchNames.get(partner.id) || [])].some((value) => String(value || '').toLocaleLowerCase('de-DE').includes(term))
     })
     return sortPartners(filtered, sort, summaries)
-  }, [partners, summaries, search, filters, sort])
+  }, [clusterSearchNames, partners, summaries, search, filters, sort])
 
   function updateFilter(key, value) { setFilters((current) => ({ ...current, [key]: value })) }
   function filterSelect(key, label, options) {

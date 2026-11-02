@@ -82,6 +82,8 @@ export function createEmptyLegalDispute() {
   return {
     caseType: '',
     counterparty: '',
+    counterpartyPartnerId: null,
+    counterpartyPartnerRole: null,
     transportReference: '',
   }
 }
@@ -90,6 +92,8 @@ export async function createLegalDispute(values, actor, { transportOrderId = '',
   const transportReference = trim(values.transportReference)
   if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
   const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
+  const counterpartySourceTransportOrderId = trim(values.counterpartySourceTransportOrderId)
+  if (counterpartySourceTransportOrderId && !linkedTransportOrderIds.includes(counterpartySourceTransportOrderId)) throw new Error('Bitte den ursprünglichen Transportauftrag verknüpfen oder die Gegenseite neu auswählen.')
 
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'legalDisputeCaseCounters', year)
@@ -117,6 +121,9 @@ export async function createLegalDispute(values, actor, { transportOrderId = '',
       caseType: optionalText(values.caseType),
       participant: null,
       counterparty,
+      counterpartyPartnerId: optionalText(values.counterpartyPartnerId),
+      counterpartyPartnerRole: optionalText(values.counterpartyPartnerRole),
+      ...(counterpartySourceTransportOrderId ? { counterpartySourceTransportOrderId } : {}),
       transportReference,
       opposingCounsel: null,
       opposingRepresentation: null,
