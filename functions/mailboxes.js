@@ -27,8 +27,6 @@ export const mailboxClientSecret = defineSecret('MAILBOX_CLIENT_SECRET')
 export const mailboxClientId = defineString('MAILBOX_CLIENT_ID', { default: '' })
 export const mailboxRedirectUri = defineString('MAILBOX_REDIRECT_URI', { default: '' })
 export const mailboxFrontendOrigin = defineString('MAILBOX_FRONTEND_ORIGIN', { default: '' })
-// Legacy deployment parameter; it no longer restricts which tenant users can connect.
-export const mailboxTestAccount = defineString('MAILBOX_TEST_ACCOUNT', { default: '' })
 // EUR was explicitly confirmed by the user as the DyCoS company currency.
 export const mailboxOrderCompanyCurrency = defineString('MAILBOX_ORDER_COMPANY_CURRENCY', { default: 'EUR' })
 const TENANT = 'b829bbdc-c0b7-4128-a341-6715a67b451b'
@@ -139,7 +137,7 @@ export function createMailboxHandlers(deps = {}) {
   let recommendationAppToken = null
   const db = () => deps.db || getFirestore()
   const now = () => deps.now?.() ?? Date.now()
-  const config = () => deps.config || { project: runtimeProjectId(), clientId: mailboxClientId.value(), secret: mailboxClientSecret.value(), redirect: mailboxRedirectUri.value(), origin: mailboxFrontendOrigin.value(), testAccount: mailboxTestAccount.value() }
+  const config = () => deps.config || { project: runtimeProjectId(), clientId: mailboxClientId.value(), secret: mailboxClientSecret.value(), redirect: mailboxRedirectUri.value(), origin: mailboxFrontendOrigin.value() }
   const clientId = () => resolveMailboxClientId(config().project, config().clientId)
   const store = () => deps.secrets || secretStore(config().project)
   const http = deps.fetch || fetch

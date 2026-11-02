@@ -227,7 +227,7 @@ Parameter für **db-bpl-drehpunkt-dev**:
 | --- | --- |
 | `MAILBOX_REDIRECT_URI` | `https://europe-west3-db-bpl-drehpunkt-dev.cloudfunctions.net/mailboxOAuthCallback` |
 | `MAILBOX_FRONTEND_ORIGIN` | `https://dev.drehpunktlogistik.de` (vom Nutzer bestätigte Dev-Adresse) |
-| `MAILBOX_TEST_ACCOUNT` | Altparameter aus der Testphase; beschränkt die Konten nicht mehr |
+| `MAILBOX_CLIENT_ID` | Eigene Microsoft-Client-ID je Umgebung; Produktion akzeptiert nicht die Dev-Anwendung |
 
 Die drei nicht geheimen Werte sind lokal in der ignorierten Datei
 `functions/.env.db-bpl-drehpunkt-dev` für das explizite Firebase-Dev-Ziel
