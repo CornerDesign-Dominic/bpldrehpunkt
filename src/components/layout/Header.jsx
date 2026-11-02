@@ -6,7 +6,7 @@ import { useLanguage } from '../../i18n/useLanguage.js'
 const titleKeys = {
   'Qualität': 'group.quality', 'K.V.P.': 'nav.kvp', 'Handbuch': 'nav.handbook',
   'Grundregeln': 'nav.groundRules', 'Wissenslücken': 'nav.knowledgeGaps',
-  'Postfächer': 'nav.mailboxes',
+  'Postfächer': 'nav.mailboxes', 'Team & Urlaub': 'group.people',
   'Dashboard': 'nav.dashboard', 'Team Brennpunkt': 'title.team', 'Personalwesen': 'group.humanResources', 'Personalverwaltung': 'title.personnel',
   'Unternehmer importieren': 'title.carrierImport', 'Stammdaten importieren': 'title.masterImport',
   'Kunden & Unternehmer': 'nav.partners', 'Transportaufträge importieren': 'title.orderImport',

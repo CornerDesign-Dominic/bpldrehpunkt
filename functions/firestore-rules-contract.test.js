@@ -30,12 +30,13 @@ test('case editors may delete the four non-live case root documents', () => {
   assert.match(inkassoRules, /allow delete: if edit\('inkasso'\);/)
 })
 
-test('TA case links allow only damage, inkasso, and legal-dispute cases with their module permissions', () => {
+test('TA case links use independent module permissions for all four case types', () => {
   const linkRules = rules.match(/function caseTransportLinkCaseVisible\(data\) \{[\s\S]*?match \/caseTransportOrderLinks\/\{linkId\} \{[\s\S]*?\n {4}\}/)?.[0] || ''
-  assert.match(linkRules, /data\.caseType in \['damage', 'inkasso', 'legalDispute'\]/)
+  assert.match(linkRules, /data\.caseType in \['damage', 'inkasso', 'legalDispute', 'insolvency'\]/)
   assert.match(linkRules, /view\('transportOrders'\) && caseTransportLinkCaseVisible\(resource\.data\)/)
   assert.match(linkRules, /caseTransportLinkCaseEditable\(request\.resource\.data\)/)
-  assert.doesNotMatch(linkRules, /insolvency|insolvencies/i)
+  assert.match(linkRules, /data\.caseType == 'insolvency' && view\('insolvencies'\)/)
+  assert.match(linkRules, /data\.caseType == 'insolvency' && edit\('insolvencies'\)/)
 })
 
 test('creating a new TA case link does not read the as-yet unauthorized relation document', () => {
@@ -49,15 +50,20 @@ test('creating a new TA case link does not read the as-yet unauthorized relation
 test('case and to-do partner links validate canonical IDs and role facts, not mandatory accounting numbers', () => {
   const partnerRoleRules = rules.match(/function hasPartnerReferenceRole\(partner, role\) \{[\s\S]*?function validDamageClaimant/)?.[0] || ''
   const damageRules = rules.match(/function validDamageClaimant\(data\) \{[\s\S]*?function validDamageCaseContent/)?.[0] || ''
-  const todoRules = rules.match(/function validCustomerLink\(data\) \{[\s\S]*?function validDamageCaseLink/)?.[0] || ''
+  const todoRules = rules.slice(rules.indexOf('function todoAccess'), rules.indexOf('function validDamageCaseLink'))
   assert.match(partnerRoleRules, /function hasBusinessPartnerRole\(partner, role\)/)
   assert.match(partnerRoleRules, /hasProvisionalTransportCarrierRole/)
   assert.match(partnerRoleRules, /dycosReferences/)
   assert.match(partnerRoleRules, /function roleMapContains\(roleMap, role\)/)
   assert.match(damageRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.claimantPartnerId\)\)\.data, 'customer'\)/)
   assert.match(damageRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.contractorPartnerId\)\)\.data, 'carrier'\)/)
-  assert.match(todoRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.customerId\)\)\.data, 'customer'\)/)
-  assert.match(todoRules, /hasBusinessPartnerRole\(get\(\/databases\/\$\(database\)\/documents\/businessPartners\/\$\(data\.carrierId\)\)\.data, 'carrier'\)/)
+  assert.match(todoRules, /todoPartnerHasRole\(partner, 'customer'\)/)
+  assert.match(todoRules, /todoPartnerHasRole\(partner, 'carrier'\)/)
+  const todoRole = rules.slice(rules.indexOf('function todoPartnerHasRole'), rules.indexOf('function validCustomerLink'))
+  assert.match(todoRole, /legalDisputePartnerHasRole\(partner, role\)/)
+  assert.match(todoRules, /validCustomerLink\(data, customer\)/)
+  assert.match(todoRules, /validCarrierLink\(data, carrier\)/)
+  assert.match(todoRules, /todoOriginNamesMatch\(data, needs\)/)
 })
 
 test('an active user may read only their own profile; administration uses a callable projection', () => {

@@ -1,3 +1,4 @@
+import PartnerRelatedRecords from '../components/business-partners/PartnerRelatedRecords.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -182,7 +183,7 @@ export default function CrmDetailPage() {
   const refreshHistory = () => setHistoryVersion((current) => current + 1)
 
   return <div className="crm-detail-layout">
-    <TranslatedProps sources={{"aria-label":"CRM-Navigation"}}><nav className="crm-detail-navigation" aria-label="CRM-Navigation"><BackLink to="/crm" /><Link className="button button--secondary" to={businessPartnerDetailPath(partner.id)}><StaticText source={"Zum Stammdatenblatt"} /></Link></nav></TranslatedProps>
+    <TranslatedProps sources={{"aria-label":"CRM-Navigation"}}><nav className="crm-detail-navigation" aria-label="CRM-Navigation"><BackLink to="/crm" /><Link className="button button--secondary" to={businessPartnerDetailPath(partnerId)}><StaticText source={"Zum Stammdatenblatt"} /></Link></nav></TranslatedProps>
     <div className="crm-detail-page">
       <header className="crm-detail-header">
         <div className="crm-detail-header__identity">
@@ -199,6 +200,7 @@ export default function CrmDetailPage() {
         <div className="crm-current-overview__heading"><h3><StaticText source={"Aktueller Stand"} /></h3></div>
         <div className="crm-current-overview__cards"><CrmStatusEditor key={`crm-${partner.id}-${partner.crmStatus}-${partner.potential}`} partnerId={partner.id} partner={partner} actor={actor} canEdit={canEdit('crm')} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} /><CreditLimitEditor key={`credit-${partner.id}-${partner.creditLimit}-${partner.paymentTermDays}`} partnerId={partner.id} partner={partner} actor={actor} canEditCredit={canEdit('crm')} canEditPayment={canEdit('masterData')} settings={settings} onSaved={(changes) => { setResult((current) => ({ ...current, partner: { ...current.partner, ...changes } })); refreshHistory() }} /></div>
       </section></TranslatedProps>
+      <PartnerRelatedRecords key={partner.id} partnerId={partner.id} />
       <CrmRatingPanel partnerId={partner.id} />
       <CrmActivityPanel partnerId={partner.id} onSaved={refreshHistory} canEdit={canEdit('crm')} />
       <PartnerHistoryPanel partnerId={partner.id} refreshKey={historyVersion} />

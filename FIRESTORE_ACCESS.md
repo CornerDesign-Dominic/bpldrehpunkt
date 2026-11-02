@@ -113,8 +113,41 @@ Die Callables verlangen `enforceAppCheck: true`. Der datierte Quellcode-/Live-Ab
 - `transportOrderTrackings` und `events` sind für Auftragsleser lesbar; Änderungen und Historieneinträge erfolgen ausschließlich serverseitig. Interne Versand-/Automationsdaten haben keine allgemeine Browserfreigabe.
 - `transportOrderRoutes` und `calculations` sind für Auftragsleser lesbar und nur serverseitig schreibbar. TomTom-Cache und Nutzungsdaten sind direkt gesperrt; administrative Verbrauchsübersichten stammen aus Callables.
 - `transportOrderRatings` ist direkt gesperrt. Eigene Bewertungen und fachliche Auswertungen verwenden die berechtigten Callables.
-- `caseTransportOrderLinks` verbindet Schäden, Inkasso und Gericht/Streit mit Aufträgen. Lesen verlangt Auftrags- und Fallzugriff, Anlegen/Löschen zusätzlich Bearbeitungsrecht des Falls. Verknüpfungen sind nicht nachträglich veränderbar und duplizieren keine Fall-/Auftragsdaten.
+- `caseTransportOrderLinks` verbindet Schäden, Inkasso, Gericht/Streit und Insolvenzen mit mehreren Aufträgen. Lesen verlangt Auftrags- und Fallzugriff, Anlegen/Löschen zusätzlich Bearbeitungsrecht des Falls. Verknüpfungen sind nicht nachträglich veränderbar und duplizieren keine Fall-/Auftragsdaten. Neue Links auf archivierte Insolvenz-Mergehüllen sind gesperrt.
 - Tracking-Regelkatalog, Prognose, Betriebszeiten, Ankunftsbestätigung und globale Mailpause folgen jeweils eigenen Leseregeln; direkte Änderungen sind gesperrt. Diagnoseereignisse sind ebenfalls nur über geschützte Functions zugänglich.
+
+### Partnerursprung und Folge-To-dos
+
+- Gespeicherte Partner-IDs bleiben Ursprungsreferenzen. Normale Stammdatenlinks
+  lösen den aktuellen Verbund auf; `?archiv=1` zeigt ausdrücklich das historische
+  Blatt. Trennung verändert diese ursprünglichen Fachreferenzen nicht.
+- Gericht/Streit kann Gegenseiten mit `counterpartyPartnerId` und
+  `counterpartyPartnerRole` binden. Neue manuelle Bindungen verlangen passende
+  Rolle, aktuellen Namen und einen aktiven, nicht weitergeleiteten Ursprung.
+  TA-Vorgaben dürfen archivierte Ursprünge verwenden, wenn die exakte Rollen-ID
+  im lesbaren TA und die atomare Verbindung zur Akte nachgewiesen werden.
+  Dabei darf der aktuelle Name oder der exakte historische Name dieser TA-Rolle
+  verwendet werden (`customer.name`/`partnerName` beziehungsweise
+  `carrier.originalName`/`partnerName`); beliebige andere Namen reichen nicht.
+  Eine bewusste Neuauswahl entfernt diesen Herkunftsnachweis; alte Freitexte
+  werden nicht automatisch zugeordnet.
+- Unveränderte Partner-/Namensbindungen in Fällen und To-dos behalten ihre
+  Snapshots nach Umbenennung, Merge und Trennung. Inhalts-, Zuständigkeits-,
+  Rollen- und Auditprüfungen bleiben bestehen. Neue Insolvenzakten prüfen
+  Partnerstatus und mehrere TA-Verknüpfungen atomar.
+- Neue Folge-To-dos dürfen historische Partnernamen aus einem lesbaren Schaden-,
+  Inkasso-, Insolvenz- oder Gerichtsfall oder dem ersten verknüpften TA kopieren.
+  Erforderlich sind exakte ursprüngliche ID/Namenspaare und weiterhin passende
+  Rollen des existierenden Ursprungspartners. Beide historischen Slots müssen
+  gemeinsam durch dieselbe Quelle belegt sein. Aktuelle manuell gewählte Namen
+  brauchen diesen Herkunftsnachweis nicht. Archivierte Insolvenz-Mergehüllen
+  reichen als Quelle nicht aus. Allgemeiner Stammdatenzugriff entsteht dadurch
+  nicht. Wird die einzige Herkunft entfernt, muss die Bindung neu gewählt oder
+  die Herkunft wieder hinzugefügt werden.
+- Rückverweise aus Stammdaten/CRM laden nur erlaubte Fachmodule; To-dos bleiben
+  zusätzlich auf den bestehenden Benutzerumfang beschränkt. Die neuen
+  Diagnosemodule `case-links`, `partner-links` und `legal-disputes` verwenden
+  feste Aktionen, begrenzte technische IDs und bestehende Modulrechte.
 
 ### Historien und Systemdaten
 

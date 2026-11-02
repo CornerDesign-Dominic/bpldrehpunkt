@@ -69,7 +69,7 @@ export default function PalletAccountList() {
 
   const visibleAccounts = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('de-DE')
-    const filteredAccounts = accountsByPartner.filter(({ partner }) => matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber].some((value) => String(value ?? '').toLocaleLowerCase('de-DE').includes(term))))
+    const filteredAccounts = accountsByPartner.filter(({ partner, partnerSearchNames = [] }) => matchesFilter(partner, filter) && (!term || [partner.companyName, partner.shortName, partner.address?.city, partner.debtorNumber, partner.creditorNumber, ...partnerSearchNames].some((value) => String(value ?? '').toLocaleLowerCase('de-DE').includes(term))))
     return sortAccounts(filteredAccounts, sort)
   }, [accountsByPartner, filter, search, sort])
 

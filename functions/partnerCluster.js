@@ -11,7 +11,7 @@ export const PARTNER_REFERENCE_CATALOG = Object.freeze([
   { collection: 'customerImportRows', fields: ['customerId', 'result.partnerId'] },
   { collection: 'carrierImportRows', fields: ['carrierId', 'result.partnerId'] },
   { collection: 'businessPartners', fields: ['linkedCarrierReference.partnerId'] },
-  { collection: 'legalDisputes', fields: [], originFields: ['transportReference'] },
+  { collection: 'legalDisputes', fields: ['counterpartyPartnerId'], originFields: ['transportReference'] },
 ])
 
 export function resolvePartnerInIndex(partnersById, partnerId) {

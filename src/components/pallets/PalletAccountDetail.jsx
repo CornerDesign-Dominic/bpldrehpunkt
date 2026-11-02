@@ -232,7 +232,7 @@ export default function PalletAccountDetail({ partnerId }) {
   return <div className="pallet-account-page">
     {toast && <Toast message={toast} onDismiss={() => setToast('')} />}
     <TranslatedProps sources={{"confirmLabel":"Löschen"}}><ConfirmDialog open={Boolean(deleteTarget)} title={deleteTarget?.type === 'movement' ? 'Palettenbewegung löschen?' : 'Kontoabschluss löschen?'} message={deleteTarget?.type === 'movement' ? 'Diese Palettenbewegung wird dauerhaft gelöscht.' : 'Dieser Kontoabschluss wird dauerhaft gelöscht.'} confirmLabel="Löschen" submittingLabel="Wird gelöscht …" variant="danger" isSubmitting={isSubmitting} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} /></TranslatedProps>
-    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={businessPartnerDetailPath(activePartnerId)}><StaticText source={"Stammdaten"} /></Link></div>
+    <div className="pallet-account-navigation"><BackLink to="/paletten" /><Link className="button button--secondary" to={businessPartnerDetailPath(partnerId)}><StaticText source={"Stammdaten"} /></Link></div>
     <PalletAccountPartnerCard partner={partner} mergedPartners={clusterMembers.filter((member) => member.id !== partner.id)} />
     <PalletAccountOverviewCard account={account} accountError={accountError} partner={partner} partnerId={activePartnerId} canEdit={canEdit('pallets')} onSaved={(palletNote) => { setPartnerResult((current) => ({ ...current, partner: { ...current.partner, palletNote } })); setToast('Palettenbemerkung gespeichert.') }} />
     <section className="pallet-account-workspace">

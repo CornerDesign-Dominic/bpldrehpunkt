@@ -1,4 +1,6 @@
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import { presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
+import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
 import { responsibilityLabel, transportOrderNumbers } from '../lib/todoListPresentation.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from "react";
@@ -138,11 +140,12 @@ export default function TodosPage() {
     };
   }, [actor, canViewMasterData, editable]);
 
+  const displayedTodos = useMemo(() => presentCasePartnerReferences(todos, 'todo', partners, canViewMasterData), [todos, partners, canViewMasterData]);
   const todoGroups = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("de-DE");
-    const visible = todos.filter((todo) => {
+    const visible = displayedTodos.filter((todo) => {
       const matchesStatus = filter === "all" || (filter === "active" ? ["open", "in_progress"].includes(todo.status) : todo.status === "completed");
-      const matchesSearch = !needle || [todo.title, ...transportOrderNumbers(todo)].some((value) => value.toLocaleLowerCase("de-DE").includes(needle));
+      const matchesSearch = !needle || [todo.title, todo.partnerSearchText, ...transportOrderNumbers(todo)].some((value) => value.toLocaleLowerCase("de-DE").includes(needle));
       return matchesStatus && matchesSearch
         && (!assigneeFilter || (todo.assignedUserName || "Noch nicht übernommen") === assigneeFilter)
         && (!creatorFilter || (todo.creatorName || "—") === creatorFilter)
@@ -171,7 +174,7 @@ export default function TodosPage() {
         "pool",
       ),
     };
-  }, [actor, assigneeFilter, creatorFilter, filter, priorityFilter, responsibilityFilter, search, todos, user.uid]);
+  }, [actor, assigneeFilter, creatorFilter, filter, priorityFilter, responsibilityFilter, search, displayedTodos, user.uid]);
 
   async function refreshAfterWrite() {
     try { await loadTodos(); }
@@ -369,6 +372,7 @@ export default function TodosPage() {
           />
         )}
         {error && <p className="form-error">{<StaticText source={error} />}</p>}
+        <PartnerReferenceWarning records={displayedTodos} />
         {loading ? (
           <p className="todos-gallery__state"><StaticText source={"To-dos werden geladen …"} /></p>
         ) : (

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, caseTransportLinkId, filterTransportOrders, loadCaseTransportLinks, parseBusinessPartnerRoleSelection, transportOrderCasePrefill, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from './caseTransportLinks.js'
+import { CASE_TRANSPORT_CASE_TYPE_IDS, businessPartnerRoleSelectionValue, caseCreationDefaults, caseDetailPath, caseTransportLinkId, filterTransportOrders, legalDisputeCounterpartyValues, loadCaseTransportLinks, parseBusinessPartnerRoleSelection, transportOrderCasePrefill, transportOrderCaseTypeOrder, visibleCaseTransportCaseTypes } from './caseTransportLinks.js'
 
 const order = {
   id: 'dycos-4711', externalNumber: 'TA-4711',
@@ -101,11 +101,13 @@ test('multiple TAs per case and multiple cases per TA retain independent links',
   assert.equal(links.size, 3)
 })
 
-test('linked case types precede create actions and insolvencies are excluded from TA links', () => {
-  assert.deepEqual(CASE_TRANSPORT_CASE_TYPE_IDS, ['damage', 'inkasso', 'legalDispute'])
-  assert.deepEqual(transportOrderCaseTypeOrder([{ caseType: 'legalDispute' }, { caseType: 'damage' }]), ['damage', 'legalDispute', 'inkasso'])
-  assert.throws(() => caseTransportLinkId('insolvency', 'partner-1', 'dycos-4711'), /Ungültige Verknüpfung/)
-  assert.deepEqual(caseCreationDefaults('insolvency', transportOrderCasePrefill(order)), {})
+test('linked case types precede create actions and insolvencies share stable many-to-many links', () => {
+  assert.deepEqual(CASE_TRANSPORT_CASE_TYPE_IDS, ['damage', 'inkasso', 'insolvency', 'legalDispute'])
+  assert.deepEqual(transportOrderCaseTypeOrder([{ caseType: 'legalDispute' }, { caseType: 'damage' }]), ['damage', 'legalDispute', 'inkasso', 'insolvency'])
+  assert.equal(caseTransportLinkId('insolvency', 'partner-1', 'dycos-4711'), 'insolvency|partner-1|dycos-4711')
+  assert.deepEqual(caseCreationDefaults('insolvency', transportOrderCasePrefill(order)), { partnerId: '', transportOrderLinks: [{ id: 'dycos-4711', number: 'TA-4711' }] })
+  assert.equal(caseDetailPath('insolvency', 'partner-1'), '/insolvenzen/partner-1')
+  assert.deepEqual(visibleCaseTransportCaseTypes((module) => module === 'insolvencies'), ['insolvency'])
 })
 
 test('removing a link leaves both source IDs intact and both directions navigate correctly', () => {
@@ -118,4 +120,31 @@ test('removing a link leaves both source IDs intact and both directions navigate
   assert.equal(transportOrderId, 'dycos-4711')
   assert.equal(caseDetailPath('damage', damageId), '/schaeden/damage-1')
   assert.equal(caseDetailPath('inkasso', 'inkasso-1'), '/inkasso/inkasso-1')
+})
+
+test('legal counterparty prefill preserves explicit identity and role without matching a name', () => {
+  const values = caseCreationDefaults('legalDispute', transportOrderCasePrefill(order))
+  assert.equal(values.counterpartyPartnerId, 'carrier-1')
+  assert.equal(values.counterpartyPartnerRole, 'carrier')
+  assert.equal(values.counterpartySourceTransportOrderId, order.id)
+  const legacy = caseCreationDefaults('legalDispute', { customer: { name: 'Kunde GmbH' } })
+  assert.equal(legacy.counterpartyPartnerId, null)
+  assert.equal(legacy.counterpartyPartnerRole, null)
+  assert.equal(legacy.counterpartySourceTransportOrderId, null)
+})
+
+test('creating a legal case keeps the original TA partner even while that partner is merged', () => {
+  const prefill = caseCreationDefaults('legalDispute', transportOrderCasePrefill(order))
+  const values = legalDisputeCounterpartyValues(prefill)
+  assert.equal(values.counterpartyPartnerId, order.imported.carrier.partnerId)
+  assert.equal(values.counterparty, order.imported.carrier.originalName)
+  assert.equal(values.counterpartySourceTransportOrderId, order.id)
+  const customerOnly = { ...order, imported: { customer: order.imported.customer } }
+  const customer = legalDisputeCounterpartyValues(caseCreationDefaults('legalDispute', transportOrderCasePrefill(customerOnly)))
+  assert.equal(customer.counterpartyPartnerId, order.imported.customer.partnerId)
+  assert.equal(customer.counterpartyPartnerRole, 'customer')
+  assert.equal(customer.counterpartySourceTransportOrderId, order.id)
+  const specialId = 'original:% partner'
+  assert.equal(legalDisputeCounterpartyValues({ counterpartySelection: businessPartnerRoleSelectionValue('carrier', specialId) }).counterpartyPartnerId, specialId)
+  assert.deepEqual(legalDisputeCounterpartyValues(), { counterparty: '', counterpartyPartnerId: null, counterpartyPartnerRole: null, counterpartySourceTransportOrderId: null })
 })

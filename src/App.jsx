@@ -16,6 +16,7 @@ import DocumentsToolsLayout from './components/layout/DocumentsToolsLayout.jsx'
 import { documentsToolsModules } from './lib/documentsToolsNavigation.js'
 import PersonnelLayout from './components/layout/PersonnelLayout.jsx'
 import { personnelModules } from './lib/personnelNavigation.js'
+import TeamVacationLayout from './components/layout/TeamVacationLayout.jsx'
 
 import DashboardPage from './pages/DashboardPage.jsx'
 
@@ -115,7 +116,12 @@ export default function App() {
         </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
+        <Route element={<TeamVacationLayout />}>
+        <Route path="/team-urlaub" element={null} />
         <Route path="/team" element={<PermissionRoute module="team"><TeamPage /></PermissionRoute>} />
+        <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
+        <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
+        </Route>
         <Route element={<PermissionRoute anyModules={personnelModules}><PersonnelLayout /></PermissionRoute>}>
         <Route path="/personalwesen" element={null} />
         <Route path="/personal" element={<PermissionRoute module="personnel"><PersonnelPage /></PermissionRoute>} />
@@ -172,9 +178,7 @@ export default function App() {
         <Route path="/admin/stammdaten" element={<PermissionRoute requireUserManagement><CompanyMasterDataPage /></PermissionRoute>} />
         <Route path="/admin/systemmails" element={<PermissionRoute requireSuperadmin><SystemMailsPage /></PermissionRoute>} />
         <Route path="/admin/ki-prompts" element={<PermissionRoute requireSuperadmin><AiPromptsPage /></PermissionRoute>} />
-        <Route path="/urlaub" element={<PermissionRoute module="vacation"><VacationPage /></PermissionRoute>} />
         <Route path="/kalender" element={<PermissionRoute module="calendar"><CalendarPage /></PermissionRoute>} />
-        <Route path="/urlaubsmanagement" element={<PermissionRoute requireVacationManagement><VacationManagementPage /></PermissionRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Route>
     </Routes>

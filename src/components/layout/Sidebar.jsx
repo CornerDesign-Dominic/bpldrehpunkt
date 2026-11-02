@@ -3,6 +3,7 @@ import { CASE_MANAGEMENT_PATH, caseManagementModules, isCaseManagementPath } fro
 import { QUALITY_PATH, qualityModules, isQualityPath } from '../../lib/qualityNavigation.js'
 import { DOCUMENTS_TOOLS_PATH, documentsToolsModules, isDocumentsToolsPath } from '../../lib/documentsToolsNavigation.js'
 import { HUMAN_RESOURCES_PATH, personnelModules, isPersonnelPath } from '../../lib/personnelNavigation.js'
+import { TEAM_VACATION_PATH, canAccessTeamVacation, isTeamVacationPath } from '../../lib/teamVacationNavigation.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -58,7 +59,7 @@ const navigationItems = [
 const navigationGroups = [
   { key: 'general', label: 'Allgemein', icon: DashboardIcon },
   { key: 'mailboxes', label: 'Postfächer', icon: MailIcon },
-  { key: 'people', label: 'Team', icon: UsersIcon },
+  { key: 'people', label: 'Team & Urlaub', icon: UsersIcon },
   { key: 'humanResources', label: 'Personalwesen', icon: VacationIcon },
   { key: 'operations', label: 'Disposition', icon: TruckTrailerIcon },
   { key: 'partnerSales', label: 'Partner & Vertrieb', icon: UserPlusIcon },
@@ -70,6 +71,7 @@ const navigationGroups = [
 ]
 
 const directNavigationGroups = {
+  people: { to: TEAM_VACATION_PATH, canAccess: canAccessTeamVacation, matches: isTeamVacationPath },
   cases: { to: CASE_MANAGEMENT_PATH, modules: caseManagementModules, matches: isCaseManagementPath },
   quality: { to: QUALITY_PATH, modules: qualityModules, matches: isQualityPath },
   documents: { to: DOCUMENTS_TOOLS_PATH, modules: documentsToolsModules, matches: isDocumentsToolsPath },
@@ -118,7 +120,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   const { t } = useLanguage()
   const { connections, loading: mailboxesLoading, error: mailboxesError, refresh: refreshMailboxes } = useMailboxConnections()
   const mailboxAccess = canView(profile, 'mailboxes')
-  const directGroups = new Map(Object.entries(directNavigationGroups).filter(([, group]) => group.modules.some(module => canView(profile, module))))
+  const directGroups = new Map(Object.entries(directNavigationGroups).filter(([, group]) => group.canAccess ? group.canAccess(profile) : group.modules.some(module => canView(profile, module))))
   const mailboxItems = mailboxAccess ? connections.filter(item => item.status === 'connected').map(item => ({ id: `mailbox:${item.id}`, mailboxId: item.id, label: mailboxLabel(item), email: item.email, to: mailboxUrl(item.id), icon: MailIcon, group: 'mailboxes' })) : []
   const [isSigningOut, setIsSigningOut] = useState(false)
   const visibleItems = [...navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module)), ...mailboxItems]

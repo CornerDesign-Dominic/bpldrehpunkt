@@ -44,7 +44,7 @@ function PartnerCard({ type, imported, partner, canOpen, onDetails, full = false
   const number = customer ? partner?.debtorNumber || source.debtorNumber : partner?.creditorNumber || source.creditorNumber
   const contact = customer ? imported.contacts?.customerForOrder : imported.dispatch?.sentTo
   return <Card title={customer ? 'Kunde' : 'Unternehmer'} onDetails={onDetails}>
-    <p className="order-workspace__partner">{canOpen && source.partnerId ? <ContextLink to={businessPartnerDetailPath(partner?.id || source.partnerId)}>{name}</ContextLink> : name}</p>
+    <p className="order-workspace__partner">{canOpen && source.partnerId ? <ContextLink to={businessPartnerDetailPath(source.partnerId)}>{name}</ContextLink> : name}</p>
     <p className="order-workspace__muted"><StaticText source={customer ? 'Debitorennummer' : 'Kreditorennummer'} />: {number || '—'}</p>
     <p>{addressText(partner?.address || source.snapshot) || '—'}</p>
     <div className="order-workspace__contact"><Values entries={[[customer ? 'Kontakt im Auftrag' : 'TA zuletzt versendet an', contact]]} /></div>

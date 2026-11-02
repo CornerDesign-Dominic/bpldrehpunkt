@@ -1,6 +1,7 @@
 export const CASE_TRANSPORT_CASE_TYPES = Object.freeze({
   damage: { module: 'damages', collection: 'damageCases', label: 'Schaden', route: '/schaeden' },
   inkasso: { module: 'inkasso', collection: 'inkassoCases', label: 'Inkasso', route: '/inkasso' },
+  insolvency: { module: 'insolvencies', collection: 'insolvencies', label: 'Insolvenz', route: '/insolvenzen' },
   legalDispute: { module: 'legalDisputes', collection: 'legalDisputes', label: 'Gericht / Streit', route: '/legal-disputes' },
 })
 
@@ -31,6 +32,19 @@ export function parseBusinessPartnerRoleSelection(value) {
   const encodedPartnerId = separator > 0 ? value.slice(separator + 1) : ''
   if (!['customer', 'carrier'].includes(role) || !encodedPartnerId) return { role: '', partnerId: '' }
   try { return { role, partnerId: decodeURIComponent(encodedPartnerId) } } catch { return { role: '', partnerId: '' } }
+}
+
+// The selected source identity survives merges. Only its displayed/current
+// partner is resolved elsewhere; creating a case must not rewrite its origin.
+export function legalDisputeCounterpartyValues(values = {}) {
+  const selection = parseBusinessPartnerRoleSelection(values.counterpartySelection)
+  const partnerId = text(values.counterpartyPartnerId) || selection.partnerId
+  return {
+    counterparty: text(values.counterparty),
+    counterpartyPartnerId: partnerId || null,
+    counterpartyPartnerRole: partnerId ? text(values.counterpartyPartnerRole) || selection.role || null : null,
+    counterpartySourceTransportOrderId: partnerId ? text(values.counterpartySourceTransportOrderId) || null : null,
+  }
 }
 
 function isCaseTransportLinkPart(value) {
@@ -139,8 +153,12 @@ export function caseCreationDefaults(caseType, prefill) {
     debtorPartnerId: preferredDebtor.id || '', debtorPartnerRole: preferredDebtor.role || '', debtorName: preferredDebtor.name || '', debtorNumber: preferredDebtor.number || '',
     transportOrderLinks,
   }
+  if (caseType === 'insolvency') return {
+    partnerId: '', transportOrderLinks,
+  }
   if (caseType === 'legalDispute') return {
-    transportReference: context.transportReference || '', counterparty: preferredDebtor.name || '', counterpartySelection: businessPartnerRoleSelectionValue(preferredDebtor.role, preferredDebtor.id),
+    transportReference: context.transportReference || '', counterparty: preferredDebtor.name || '', counterpartyPartnerId: preferredDebtor.id || null, counterpartyPartnerRole: preferredDebtor.id ? preferredDebtor.role : null, counterpartySelection: businessPartnerRoleSelectionValue(preferredDebtor.role, preferredDebtor.id),
+    counterpartySourceTransportOrderId: preferredDebtor.id ? context.transportOrderId || null : null,
     transportOrderLinks,
   }
   return {}

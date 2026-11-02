@@ -5,8 +5,8 @@ import {
   getDocs,
   orderBy,
   query,
-  serverTimestamp,
   runTransaction,
+  serverTimestamp,
   writeBatch,
 } from 'firebase/firestore'
 import { auth, db } from './firebase.js'
@@ -17,6 +17,7 @@ import { crmIndustryValue } from './crmIndustry.js'
 import { normalizeShipmentTrackingPolicy } from './shipmentTrackingPolicy.js'
 import { businessPartnerRoleLabel, businessPartnerRoles } from '../../shared/businessPartnerRoles.js'
 import { newBusinessPartnerShipmentTrackingPolicy } from './newBusinessPartnerShipmentTrackingPolicy.js'
+import { assertCurrentPartnerReference, partnerReferenceVersion, resolvePartnerReference } from './partnerReference.js'
 export { getPartnerCluster } from './partnerClusterQueries.js'
 
 export const BUSINESS_PARTNERS_COLLECTION = 'businessPartners'
@@ -122,7 +123,7 @@ function createPayload(values, { isNew = false, ruleCatalog = null } = {}) {
 }
 
 function mapSnapshot(snapshot) {
-  return { id: snapshot.id, ...snapshot.data() }
+  return { ...snapshot.data(), id: snapshot.id }
 }
 
 export async function listBusinessPartners() {
@@ -136,17 +137,7 @@ export async function getBusinessPartner(partnerId) {
 }
 
 export async function getEffectiveBusinessPartner(partnerId) {
-  if (!partnerId) return null
-  const visited = new Set()
-  let current = await getBusinessPartner(partnerId)
-  while (current?.mergedIntoPartnerId) {
-    if (visited.has(current.id) || current.mergedIntoPartnerId === current.id) throw new Error('Zyklische Partner-Weiterleitung.')
-    visited.add(current.id)
-    current = await getBusinessPartner(current.mergedIntoPartnerId)
-    if (!current) throw new Error('Weiterleitungsziel nicht vorhanden.')
-  }
-  if (current?.status === 'merged') throw new Error('Archivierter Partner ohne Zielpartner.')
-  return current
+  return resolvePartnerReference(partnerId, getBusinessPartner)
 }
 
 
@@ -169,15 +160,17 @@ export async function createBusinessPartner(values, ruleCatalog = null, actor) {
   return partnerRef.id
 }
 
-export async function updateBusinessPartner(partnerId, values, actor) {
+export async function updateBusinessPartner(partnerId, values, actor, { referencePartnerId = partnerId, expectedReferenceVersion } = {}) {
   const partnerRef = doc(db, BUSINESS_PARTNERS_COLLECTION, partnerId)
   const recordedBy = historyActor(actor)
   const next = createPayload(values)
   const operationId = crypto.randomUUID()
   await runTransaction(db, async (transaction) => {
-    const previousSnapshot = await transaction.get(partnerRef)
-    if (!previousSnapshot.exists()) throw new Error('Geschäftspartner nicht gefunden')
-    const previous = previousSnapshot.data()
+    const previous = await resolvePartnerReference(referencePartnerId, async (id) => {
+      const snapshot = await transaction.get(doc(db, BUSINESS_PARTNERS_COLLECTION, id))
+      return snapshot.exists() ? mapSnapshot(snapshot) : null
+    })
+    assertCurrentPartnerReference(previous, partnerId, expectedReferenceVersion)
     const comparable = { ...previous, paymentTermDays: paymentTermText(previous), crmIndustry: crmIndustryValue(previous), shipmentTrackingPolicy: normalizeShipmentTrackingPolicy(previous.shipmentTrackingPolicy) }
     const changes = businessPartnerHistoryChanges(comparable, next)
     if (!changes.length) return
@@ -199,7 +192,7 @@ export async function updateBusinessPartner(partnerId, values, actor) {
 export async function updateBusinessPartnerCrmFields(partnerId, values, actor) {
   const current = await getBusinessPartner(partnerId)
   if (!current) throw new Error('Geschäftspartner nicht gefunden')
-  await updateBusinessPartner(partnerId, { ...current, ...values }, actor)
+  await updateBusinessPartner(partnerId, { ...current, ...values }, actor, { expectedReferenceVersion: partnerReferenceVersion(current) })
 }
 
 export async function updateBusinessPartnerCreditLimit(partnerId, creditLimit, actor) {

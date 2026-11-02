@@ -4,10 +4,13 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
+  'case-links': ['load', 'save'],
+  'partner-links': ['load', 'resolve', 'resolve-list', 'revalidate', 'reload-after-save', 'save'],
+  'legal-disputes': ['load-counterparty', 'load-counterparty-options'],
   reminders: ['status', 'responsibility', 'save', 'load'],
   'transport-orders': ['load', 'list', 'history', 'refresh'],
   pallets: ['load', 'save', 'rebuild'],
@@ -36,6 +39,9 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
+  'legal-disputes': { 'load-counterparty': 'Verknüpfte Gegenseite konnte nicht geladen werden.', 'load-counterparty-options': 'Partnerauswahl konnte nicht geladen werden.' },
+  'partner-links': { load: 'Verknüpfte Vorgänge des Geschäftspartners konnten nicht vollständig geladen werden.', resolve: 'Die Partner-Weiterleitung konnte nicht aufgelöst werden.', 'resolve-list': 'Einige Partner-Weiterleitungen der Liste konnten nicht aufgelöst werden.', revalidate: 'Die aktuelle Partnerzuordnung konnte nicht erneut geprüft werden.', 'reload-after-save': 'Gespeicherte Stammdaten konnten nicht erneut geladen werden.', save: 'Die Stammdaten konnten nicht gespeichert werden.' },
+  'case-links': { load: 'Fallverknüpfungen konnten nicht geladen werden.', save: 'Fallverknüpfung konnte nicht gespeichert werden.' },
   reminders: { status: 'Erinnerungsstatus konnte nicht geladen werden.', responsibility: 'Zuständigkeit konnte nicht aktualisiert werden.', save: 'Erinnerung konnte nicht gespeichert werden.', load: 'Erinnerungsdaten konnten nicht geladen werden.' },
   'transport-orders': { load: 'Auftrag konnte nicht geladen werden.', list: 'Auftragsliste konnte nicht geladen werden.', history: 'Auftragshistorie konnte nicht geladen werden.', refresh: 'Auftrag konnte nicht aktualisiert werden.' },
   pallets: { load: 'Palettenkonten konnten nicht geladen werden.', save: 'Palettenbuchung konnte nicht gespeichert werden.', rebuild: 'Palettenkonten konnten nicht aufgebaut werden.' },
@@ -46,9 +52,12 @@ const MAILBOX_MESSAGES = {
   mailboxes: { 'invoice-review': 'Rechnung aus persönlicher Mail konnte nicht geprüft werden.', 'invoice-history': 'Gespeicherte Rechnungsprüfung konnte nicht geladen werden.', 'agb-analyse': 'AGB aus persönlicher Mail konnten nicht geprüft werden.', 'agb-customer': 'Kundenzuordnung der AGB-Prüfung konnte nicht gespeichert werden.', 'tracking-preview': 'Persönliche Mail konnte nicht für den Sendungsstatus ausgewertet werden.', 'tracking-apply': 'Sendungsstatus aus persönlicher Mail konnte nicht übernommen werden.', connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
 }
 
-export function canReportLinkDiagnostic(profile, module) {
+export function canReportLinkDiagnostic(profile, module, orderId = '') {
   const view = (key) => profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[key])
   if (module === 'reminders') return profile?.active === true && ['calendar', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
+  if (module === 'legal-disputes') return view('legalDisputes')
+  if (module === 'partner-links') return view('masterData') || view('crm')
+  if (module === 'case-links') return ['damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view) && (!orderId || view('transportOrders'))
   if (module === 'transport-orders') return view('transportOrders')
   if (module === 'pallets') return view('pallets')
   if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
@@ -96,14 +105,14 @@ export function normalizeClientDiagnostic(data) {
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
   if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
-  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
+  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {
   const profile = await requireActiveProfile(request)
   const event = normalizeClientDiagnostic(request.data)
-  if (!canReportLinkDiagnostic(profile, event.module)) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Diagnose.')
+  if (!canReportLinkDiagnostic(profile, event.module, event.orderId)) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Diagnose.')
   if (['shipment-tracking', 'shipment-tracking-manual-mail'].includes(event.module) && !hasTrackingViewAccess(profile)) throw new HttpsError('permission-denied', 'Keine Berechtigung für die Sendungsverfolgung.')
   const db = getFirestore()
   if (event.orderId) {

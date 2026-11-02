@@ -83,6 +83,11 @@ und der tatsächliche Branchschutz sind gesondert zu behandeln.
 
 Abgegrenzte lokale Releasevorbereitungen:
 
+- [Partnermerge und Folge-To-dos, Dev 02.11.2026](releases/partner-merge-followup-dev-2026-11-02.md):
+  freigegebener Umfang, benötigte Bestandteile, aktuelle Prüfungen und
+  Veröffentlichungsstand. Punkte 1 (DyCoS-TA-Wiederabruf) und 2
+  (Auftragsbewertungen) bleiben ausdrücklich offen.
+
 - [Zentrale Erinnerungen](reminders.md): lokaler neuer Stand, Empfängerregeln,
   Providervertrag, Datenaufbau und noch offene Liveprüfungen; keine Freigabe.
   Die spätere ausdrückliche Dev-Freigabe, Veröffentlichung und tatsächliche
