@@ -106,3 +106,84 @@ Lesemodus erreichbar; die Trennung selbst bleibt über die vorhandenen
 Modal-/Serverrechte geschützt. 17 gezielte Rollen-/Auswahl-/Partnerlinktests,
 Scoped Lint und Build bestanden. Zwei veraltete Strukturprüfungen wurden auf
 die inzwischen zentralisierten Auswahlkomponenten nachgezogen; keine Skips.
+
+Zusätzlicher tatsächlicher Neuanlage-Test: Eine Gerichtsakte aus einem TA mit
+historischem Partnernamen wurde zunächst korrekt atomar abgewiesen, weil die
+bisherige Gegenseitenprüfung nur den aktuellen Stammdatennamen akzeptierte.
+Der TA-Herkunftszweig akzeptiert jetzt auch den exakten nichtleeren Rollen-Namen
+aus demselben lesbaren TA, einschließlich der vorhandenen `partnerName`-Aliasse.
+ID, Rolle, TA-Recht und atomare Relation bleiben erforderlich; manuelle
+Zuordnungen behalten den vorherigen strikten Pfad. 27 zusätzliche gezielte
+Emulatorprüfungen (neue vollständige Create-Batches und bestehende
+Gerichts-/Partner-/To-do-Rechte) sowie 29 Rules-Vertragstests bestanden, keine
+Skips. Hierfür ist ausschließlich ein erneutes Dev-Rules-Deployment erforderlich.
+
+## Abschluss der tatsächlichen Dev-Abnahme
+
+Frontend-Nachzüge: `dff0b2f` (Ursprungslinks/Rückwege) und `190a810` (Nummern-/
+Trennungsdialog). Letzter funktionaler Frontendstand ist
+`190a810eb965bd080c660f781101b1ac02091ed7`, Vercel
+`dpl_7EBED3NTUh3orqzW2PkESH4UtRhU`, `READY`. Der abschließende Belegcommit
+selbst ergänzt Rules, Tests und Dokumentation. Parallel veröffentlichter
+Dev-Stand `526fbe0` (Team-/Urlaubsnavigation) wird unverändert erhalten und
+mit Lint, Build und Navigationstests abgeglichen. Der hier geprüfte Fall-,
+Partner-, Auftrags- und To-do-Produktcode bleibt gegenüber `190a810` unverändert.
+
+Mit dem vorhandenen angemeldeten **Superadmin-Testkonto** tatsächlich geprüft:
+
+- Fünf neue To-dos über Schaden, Inkasso, Insolvenz, Gericht und Auftrag;
+  bewusster Partnerwechsel, Entfernen eines Unternehmers, andere TA-Auswahl,
+  erhaltene Fallbindung, Zuständigkeit und Priorität. Alle fünf nach Speicherung
+  direkt aus Dev zurückgelesen; keine Erinnerungsdaten gesetzt.
+- Historische Partnerübernahme nach Merge, einschließlich Entfernen und
+  Wiederwahl des archivierten Ursprungs. Im TA-To-do bleiben beide historischen
+  Partnernamen und beide ursprünglichen IDs gespeichert.
+- Übernahme, Erledigung und Reaktivierung mit vollständiger To-do-Historie;
+  Rücklinks zur konkreten Gerichtsakte und zum bewusst gewählten Partner.
+- Tatsächlicher Merge und anschließende Trennung ohne Kontonummern; normale
+  Ursprungs-URL, expliziter schreibgeschützter Archivzugriff und erneut
+  selbstständiger Ursprung nach Trennung. Ein parallel offen gebliebener Entwurf
+  wird nach Trennung abgewiesen und bleibt erhalten; reguläre Umbenennung
+  danach funktioniert. Die Fall- und To-do-Ursprungsreferenzen bleiben erhalten.
+- Rückverweise aus dem Partnercluster auf alle vier Fallmodule, Auftrag und
+  benutzerbezogene To-dos, ohne doppelte TA-Zeile. Paletten-Suche über den
+  ursprünglichen Partnernamen findet das zusammengeführte Konto.
+- Insolvenz-TA-Link anlegen, öffnen und entfernen, jeweils genau ein passender
+  Historieneintrag. Fall → TA → Tracking/Partnerregister → Zurück erhält den
+  konkreten Fall; alle drei TA-Darstellungen verwenden Ursprungs-URLs.
+- Gerichtsneuanlage aus dem TA mit unverändertem historischem Rollen-Namen:
+  nach dem letzten Rules-Nachzug genau eine Akte, ursprüngliche Partner-ID,
+  TA-Herkunftsfeld und atomare tatsächliche Relation gespeichert. Anschließend
+  über den Auftragsrückverweis geöffnet. Der zunächst abgewiesene Versuch hatte
+  keine Akte angelegt; der bestehende Entwurf wurde einmal erneut gespeichert.
+- Keine unbehandelten Konsolenfehler im geprüften Browserablauf.
+
+Letzte Rules-Veröffentlichung nach zwei vorübergehenden Google-503-Fehlern
+erfolgreich abgeschlossen. Der live gelesene Rules-Hash stimmt mit der
+finalen lokalen Datei überein. Die Cloud-Kompilierung weist zwei Typwarnungen
+an polymorphen Rollen-/Optionalfeldprüfungen aus; sie ist erfolgreich. Die
+betroffenen positiven und negativen Varianten wurden im Emulator geprüft.
+Neue komplexe Fallfelder müssen weiterhin gegen das Firestore-Ausdruckslimit
+mit vollständigen Transaktions-/Batch-Payloads geprüft werden.
+
+51 ausschließlich eigene markierte Testdokumente einschließlich Untercollections,
+Merge-Protokoll und abgeleiteten Statusdaten bereinigt. Zweiter Bereinigungslauf:
+keine weiteren Dokumente. Globale Fallzähler wurden bewusst nicht zurückgesetzt;
+globale Vorbereitungszustände und Providerbelege wurden nicht manuell gelöscht.
+Keine Testmails und keine DyCoS-/KI-Abrufe ausgelöst. Live-Nachweise liegen
+ignoriert unter `tmp/dev-live-audit.json`, `tmp/legal-ta-live-created.json`,
+`tmp/dev-fixture-cleanup*.json` und den Dev-Screenshots.
+
+Abschließender Metadatenvergleich bestätigt unveränderte Produktions-Functions,
+Produktions-Rules, Vercel-Produktionsdeployment
+`dpl_H6NVNYTMRuunkCJwUQAvBCm1QzXW` und `main`
+`230c2ad86af9700118e2f1456746292241461efc`.
+
+Grenzen: Echte eingeschränkte Benutzerkonten wurden nicht umkonfiguriert;
+deren erlaubte/verweigerte Zugriffe sind durch die gezielten Emulatortests
+abgedeckt. Keine Lastabnahme mit vielen gleichzeitigen Nutzern und keine
+Produktionsfreigabe. Zwei ältere reine Beschriftungsbefunde sind separat offen:
+einige Bearbeiten-Labels in Fall-/To-do-Karten enthalten `[object Object]`,
+und die To-do-Updateüberschrift kombiniert zwei vorhandene Texte. Diese
+behinderten die geprüften Funktionen nicht und wurden nicht flächig umgebaut.
+Die ausdrücklich zurückgestellten Punkte 1 und 2 bleiben offen.

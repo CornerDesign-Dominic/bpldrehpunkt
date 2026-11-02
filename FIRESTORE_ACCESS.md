@@ -126,6 +126,9 @@ Die Callables verlangen `enforceAppCheck: true`. Der datierte Quellcode-/Live-Ab
   Rolle, aktuellen Namen und einen aktiven, nicht weitergeleiteten Ursprung.
   TA-Vorgaben dürfen archivierte Ursprünge verwenden, wenn die exakte Rollen-ID
   im lesbaren TA und die atomare Verbindung zur Akte nachgewiesen werden.
+  Dabei darf der aktuelle Name oder der exakte historische Name dieser TA-Rolle
+  verwendet werden (`customer.name`/`partnerName` beziehungsweise
+  `carrier.originalName`/`partnerName`); beliebige andere Namen reichen nicht.
   Eine bewusste Neuauswahl entfernt diesen Herkunftsnachweis; alte Freitexte
   werden nicht automatisch zugeordnet.
 - Unveränderte Partner-/Namensbindungen in Fällen und To-dos behalten ihre

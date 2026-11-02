@@ -1321,23 +1321,32 @@ service cloud.firestore {
         || legalDisputeRoleValue(partner.get('partnerRoles', []), role)
         || (role == 'carrier' && hasProvisionalTransportCarrierRole(partner));
     }
-    function legalDisputePartnerOriginMatches(data, partnerId, partnerRole, orderId) {
+    function legalDisputePartnerOriginMatches(data, partnerId, partnerRole, orderId, currentName) {
       let linkId = 'legalDispute|' + data.caseNumber + '|' + orderId;
       let profile = ownProfile();
-      // Both callers already require an active legal editor. Check the extra
-      // module level once, without re-expanding the full active-profile gate.
+      let origin = get(/databases/$(database)/documents/transportOrders/$(orderId)).data.get('imported', {}).get(partnerRole, {});
+      // The exact readable TA role may prove a historical snapshot. The atomic
+      // relation and current original-partner role are still required.
       return (profile.role == 'superadmin' || profile.get('permissions', {}).get('transportOrders', 'none') in ['view', 'edit'])
         && orderId.size() > 0 && orderId.size() <= 240 && !orderId.matches('.*[/|].*')
-        && get(/databases/$(database)/documents/transportOrders/$(orderId)).data.get('imported', {}).get(partnerRole, {}).get('partnerId', null) == partnerId
+        && origin.get('partnerId', null) == partnerId
+        && (data.counterparty == currentName
+          || (data.counterparty is string && data.counterparty.size() > 0
+            && (data.counterparty == origin.get(partnerRole == 'customer' ? 'name' : 'originalName', null)
+              || data.counterparty == origin.get('partnerName', null))))
         && existsAfter(/databases/$(database)/documents/caseTransportOrderLinks/$(linkId));
     }
     function legalDisputeCounterpartyMatches(data, partnerId, partnerRole) {
       let partner = get(/databases/$(database)/documents/businessPartners/$(partnerId)).data;
       let orderId = data.get('counterpartySourceTransportOrderId', null);
-      return legalDisputePartnerHasRole(partner, partnerRole)
-        && data.counterparty == partner.companyName
-        && ((orderId == null && partner.get('mergedIntoPartnerId', null) == null && partner.get('status', '') != 'merged')
-          || (orderId is string && legalDisputePartnerOriginMatches(data, partnerId, partnerRole, orderId)));
+      return orderId == null
+        ? legalDisputePartnerHasRole(partner, partnerRole) && data.counterparty == partner.companyName
+          && partner.get('mergedIntoPartnerId', null) == null && partner.get('status', '') != 'merged'
+        : orderId is string
+          && (legalDisputeRoleValue(partner.get('businessPartnerRoles', []), partnerRole)
+            || (partnerRole == 'carrier' && 'taImportStatus' in partner && hasProvisionalTransportCarrierRole(partner))
+            || legalDisputePartnerHasRole(partner, partnerRole))
+          && legalDisputePartnerOriginMatches(data, partnerId, partnerRole, orderId, partner.companyName);
     }
     function validLegalDisputeCounterparty(data) {
       let partnerId = data.get('counterpartyPartnerId', null);
