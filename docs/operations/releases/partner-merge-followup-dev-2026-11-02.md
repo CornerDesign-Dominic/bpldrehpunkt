@@ -86,3 +86,14 @@ Durchführungsstatus und genaue Live-Ergebnisse werden nach den Schritten ergän
 Ein erfolgreicher Vercel-Build allein ist kein Nachweis eines vollständigen
 Backend-Releases. Eine Rückkehr muss Frontend und Rules/Functions abgestimmt
 betrachten; es gibt keine Datenmigration zurückzusetzen.
+
+Erster Frontendstand `a12f273b38e94c422dd81d239e86beca0bcae122`,
+Vercel `dpl_Bd5wpoRoJddnJkZDphWz44uRzHzn`, `READY`, Dev-Alias bestätigt.
+In der Live-Abnahme fiel im zwischenzeitlich neu hinzugekommenen
+Auftragsarbeitsplatz eine weitere Ursprungsverkürzung auf: Übersicht und
+Kunde/UTN sowie Tracking verwendeten die aufgelöste Ziel-ID als Link.
+Diese drei Ansichten verwenden nun ebenfalls die gespeicherte Ursprungs-ID.
+Tracking übernimmt den Rückkehrkontext; der gemeinsame Arbeitsplatz zeigt
+bei vorhandenem Kontext den vorhandenen Zurück-Link. 27 passende bestehende
+Navigation-/Partner-/Registertests sowie Lint und Build bestanden. Dieser
+gezielte Frontend-Nachzug benötigt keine erneute Server-/Rulesbereitstellung.

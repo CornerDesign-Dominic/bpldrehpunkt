@@ -1,6 +1,7 @@
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import Link from '../components/ui/ContextLink.jsx'
 import { calculateTransportOrderRoute, getTransportOrder, getTransportOrderRoute } from '../lib/transportOrders.js'
 import { isCarrierMasterDataIncomplete } from '../lib/importedPartnerStatus.js'
 import { businessPartnerDetailPath } from '../lib/businessPartnerLinks.js'
@@ -58,7 +59,7 @@ function usePartnerMasterData(partnerId, version) {
 function PartnerLink({ partner, effectivePartner, warning }) {
   const name = effectivePartner?.companyName || partner?.partnerName || partner?.originalName || partner?.name
   if (!partner?.partnerId) return name || '—'
-  return <span className="transport-order-partner-link"><Link to={businessPartnerDetailPath(effectivePartner?.id || partner.partnerId)}>{name}</Link>{warning && <TranslatedProps sources={{"aria-label":"Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt.","title":"Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt."}}><span className="transport-order-partner-link__warning" role="img" aria-label="Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt." title="Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt.">!</span></TranslatedProps>}</span>
+  return <span className="transport-order-partner-link"><Link to={businessPartnerDetailPath(partner.partnerId)}>{name}</Link>{warning && <TranslatedProps sources={{"aria-label":"Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt.","title":"Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt."}}><span className="transport-order-partner-link__warning" role="img" aria-label="Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt." title="Unternehmer-Stammdaten unvollständig – Kreditorennummer fehlt.">!</span></TranslatedProps>}</span>
 }
 
 export default function ShipmentTrackingDetailPage({ active = true, mailsOpen = false, onCloseMails, refreshControlsTarget }) {

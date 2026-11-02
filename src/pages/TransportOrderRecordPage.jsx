@@ -2,6 +2,8 @@ import { lazy, Suspense, useState } from 'react'
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { orderRecordTab, orderRecordTabs, legacyTrackingDetailPath } from '../lib/orderRecordTabs.js'
+import BackLink from '../components/ui/BackLink.jsx'
+import { validReturnPath } from '../lib/recordNavigation.js'
 
 const Tracking = lazy(() => import('./ShipmentTrackingDetailPage.jsx'))
 const Order = lazy(() => import('./TransportOrderDetailPage.jsx'))
@@ -27,6 +29,7 @@ function Record() {
     ? ['Overview', 'Order', 'Shipment tracking', 'Customer & carrier', 'Finances', 'History']
     : ['Übersicht', 'Auftrag', 'Sendungsverfolgung', 'Kunde & UTN', 'Finanzen', 'Historie']
   return <div className="order-record">
+    {validReturnPath(location.state?.returnTo) && <div className="order-workspace__navigation"><BackLink to="/transportauftraege" /></div>}
     <div className="order-workspace__tabs order-record__tabs"><div className="order-record__section-tabs" role="tablist" aria-label={language === 'en' ? 'Order sections' : 'Auftragsbereiche'}>{orderRecordTabs.map((tab, index) => <button key={tab} type="button" role="tab" id={`order-tab-${tab}`} aria-controls={`order-panel-${tab}`} aria-selected={active === tab} tabIndex={active === tab ? 0 : -1} onClick={() => select(tab)} onKeyDown={event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
