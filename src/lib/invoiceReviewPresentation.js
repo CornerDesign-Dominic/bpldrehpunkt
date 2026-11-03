@@ -46,7 +46,27 @@ export function invoiceTransportChecks(transport = {}) {
   return [{ key: 'ta', label: 'TA-Zuordnung', actual: transport.ta || null, expected: null, status: 'unassigned', color: 'red', message: transport.message || 'Keine eindeutige Zuordnung zu einem Auftrag.' }]
 }
 
-const supplementaryKeys = new Set(['date', 'dueDate', 'serviceDate', 'deliveryDate', 'loadingDate', 'unloadingDate', 'loadingCity', 'unloadingCity', 'licensePlate', 'ocr', 'ocrUncertain', 'ocrDifference', 'lookup'])
+const amountDetailKeys = new Set(['positionSum', 'taxSum', 'foreignVat'])
+const supplementaryKeys = new Set(['date', 'dueDate', 'serviceDate', 'deliveryDate', 'loadingDate', 'unloadingDate', 'loadingCity', 'unloadingCity', 'licensePlate', 'ocr', 'ocrUncertain', 'ocrDifference', 'lookup', ...amountDetailKeys])
+
+export function invoiceAmountDetails(invoice = {}) {
+  if (invoice.totals?.detailChecks) return invoice.totals.detailChecks
+  const checks = invoicePrimarySections(invoice).amounts
+  return checks.some(check => amountDetailKeys.has(check.key)) ? checks : []
+}
+
+function invoiceAmountResults(invoice, amounts) {
+  const checks = amounts.filter(check => !amountDetailKeys.has(check.key))
+  // Older immutable reports stored internal arithmetic/tax checks as extra
+  // main rows. Fold their contradictions into the corresponding amount while
+  // retaining the original values and full check in the amount disclosure.
+  if (invoice.totals?.detailChecks) return checks
+  const affectedBy = { netTotal: 'positionSum', vatTotal: 'foreignVat', grossTotal: 'taxSum' }
+  return checks.map(check => {
+    const detail = amounts.find(item => item.key === affectedBy[check.key] && invoiceCheckColor(item) === 'red')
+    return detail ? { ...check, color: 'red', status: 'mismatch', expected: detail.key === 'foreignVat' ? detail.expected : detail.actual, expectedCurrency: check.actualCurrency || detail.actualCurrency || invoice.currency || null, comparisonOrigin: ({ positionSum: 'invoice_positions', taxSum: 'invoice_arithmetic', foreignVat: 'business_rule' })[detail.key], detailKeys: [detail.key] } : check
+  })
+}
 
 export function invoiceCheckIsSecondary(check = {}) {
   return check.secondary === true || check.scope === 'secondary' || check.key === 'number' && invoiceCheckColor(check) !== 'yellow' || supplementaryKeys.has(check.key?.split('-')[0]) || check.key?.startsWith('warning-')
@@ -56,6 +76,7 @@ export function invoiceCheckIsSecondary(check = {}) {
 // transport are detail, not additional votes in the overall percentage.
 export function invoiceDisplayChecks(invoice = {}) {
   const sections = invoicePrimarySections(invoice)
+  const amounts = invoiceAmountResults(invoice, sections.amounts)
   const primary = [], secondary = [], seen = new Set()
   const add = (check, transport) => {
     const base = check.key?.split('-')[0] || 'check'
@@ -74,11 +95,11 @@ export function invoiceDisplayChecks(invoice = {}) {
     if (supplemental || ['gray', 'blue'].includes(invoiceCheckColor(check))) secondary.push(item)
     else primary.push(item)
   }
-  const aggregateNet = sections.amounts.some(check => check.key === 'netTotal')
+  const aggregateNet = amounts.some(check => check.key === 'netTotal')
   const transports = invoice.transports || []
   const singleNet = transports.length === 1 ? invoiceTransportChecks(transports[0]).find(check => check.key === 'net') : null
   const severity = check => ({ red: 3, yellow: 2, green: 1 })[invoiceCheckColor(check)] || 0
-  for (const check of [...sections.header, ...sections.amounts, ...sections.payment]) {
+  for (const check of [...sections.header, ...amounts, ...sections.payment]) {
     // Keep the more severe result when one transport is also represented by
     // the aggregate comparison. A red position must never disappear in a
     // yellow invoice-level result, or count as a second vote for the same net.

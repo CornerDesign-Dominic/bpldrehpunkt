@@ -64,3 +64,50 @@ angemeldeten Browserabnahme.
 Für die neuen Erkennungs- und Vergleichsregeln bestehende Ergebnisse ausdrücklich
 mit „Mit aktuellen Auftragsdaten erneut prüfen“ neu auswerten; bloßes Öffnen
 ändert unveränderliche Altberichte nicht.
+
+
+## Korrektur nach echtem Test: Hintergrundpfad und Unternehmerreferenz
+
+Der echte Bericht 555/26 vom 03.11.2026, 13:11 Uhr wurde noch mit Prüfversion 2
+erzeugt. Bei der ersten Bereitstellung oben war nur reviewMailboxInvoices aktualisiert
+worden. Die Mailoberfläche verwendet jedoch processMailboxActionRun, dessen eigenes
+Codepaket noch den alten Prüfer enthielt. Der damalige Nachweis der aktiven Callable
+und HTTP401 war korrekt, belegte aber nicht den tatsächlichen Hintergrundpfad.
+Künftiger Releaseumfang für Rechnungsänderungen ist daher immer die Callable plus
+processMailboxActionRun. Keine nachträgliche Umschreibung alter Berichte.
+
+Für den betroffenen Auftrag wurde lesend festgestellt: kein lokaler Auftrag und
+kein lokales Unternehmerblatt unter dem exakten Kreditor oder der Quellidentität.
+Die DyCoS-TA-Antwort enthält USt-ID und Zahlungsbedingung bereits. Diese wurden bisher
+beim Mapping des Auftrags nicht in die Rechnungsreferenz übernommen. Neue Version 4
+übernimmt die exakt gebundenen Referenzen ohne Import, berücksichtigt belegte
+Länderpräfixe und unterscheidet deren Herkunft von Drehpunkt-Werten.
+
+Finanzielle Hauptprüfung jetzt genau Netto, MwSt. und Gesamtbetrag, übrige
+Rechen-/Datenbankunterprüfungen nur in Betragsdetails. Vergleichsherkunft bleibt
+sichtbar. Auch Altberichte werden so kompakter dargestellt; ihre ursprünglichen
+Widersprüche bleiben erhalten. Englische Datumsbelege werden akzeptiert.
+
+Aktuelle Prüfung: 98 gezielte Unit-/Vertragstests, 14 Hintergrundaktionsprüfungen,
+echte Demo-Firestore-Speicherintegration, Lint, Build und Shared-Abgleich bestanden.
+Der lesende Vergleich mit dem echten DyCoS-Auftrag wurde separat geprüft. Kein neuer
+Graph-/KI-Durchlauf der Screenshotrechnung, keine Buchung, kein Versand und keine
+Stammdaten-/Auftragsänderung. Erneute echte Postfachprüfung bleibt Nutzerabnahme.
+
+Beide Rechnungs-Backendfunktionen werden gemeinsam in Dev und Produktion aus
+demselben Codepaket bereitgestellt; der technische Nachweis prüft zusätzlich die
+gleiche Prüfsumme und Größe beider Quellpakete. Frontendstand am zugehörigen Commit.
+
+Bereitstellungsnachweis der Korrektur:
+
+| Projekt | Direkte Prüfung | Hintergrundprozess | Zustand |
+| --- | --- | --- | --- |
+| db-bpl-drehpunkt-dev | reviewmailboxinvoices-00009-sip | processmailboxactionrun-00008-sox | beide ACTIVE |
+| db-bpl-drehpunkt | reviewmailboxinvoices-00003-tor | processmailboxactionrun-00002-qib | beide ACTIVE |
+
+Quellpakete beider Funktionen je Projekt und zwischen beiden Projekten:
+887.767 Bytes, identische Speicherobjekt-Prüfsumme. Damit ist die bisher fehlende
+Übereinstimmung des tatsächlich ausführenden Hintergrundcodes technisch geprüft.
+Der lesende Test des betroffenen DyCoS-Auftrags liefert USt-ID/Zahlungsbedingung,
+Unternehmeridentität über übereinstimmende normalisierte USt-ID sowie drei grüne
+Betragsvergleiche mit ausgewiesener Herkunft. Er ersetzt keinen neuen Mail-/KI-Lauf.

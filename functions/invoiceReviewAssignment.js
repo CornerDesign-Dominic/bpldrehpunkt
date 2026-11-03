@@ -7,7 +7,7 @@ export function invoiceAssignmentEvidence(candidate) {
   const detailKeys = ['loadingCity', 'unloadingCity', 'loadingDate', 'unloadingDate', 'deliveryDate', 'licensePlate']
   const details = detailKeys.filter(key => checks.some(check => check.key.startsWith(`${key}-`) && matched(check)))
     .filter((key, _index, keys) => key !== 'deliveryDate' || !keys.includes('unloadingDate'))
-  const issuer = has('issuer'), vat = has('issuerVatId'), net = has('net')
+  const issuer = has('issuer') && !checks.some(check => check.key === 'issuer' && check.matchedBy === 'vatId'), vat = has('issuerVatId'), net = has('net')
   const identity = issuer || vat
   // Recipient and our VAT ID are deliberately excluded: every incoming invoice
   // may carry them, so they do not distinguish one carrier/order from another.

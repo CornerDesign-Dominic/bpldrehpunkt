@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution } from './invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails } from './invoiceReviewPresentation.js'
 
 test('explicit information/noncritical colors override legacy mismatch status', () => {
   assert.equal(invoiceCheckColor({ status: 'mismatch', color: 'blue' }), 'blue')
@@ -122,4 +122,37 @@ test('deduplicating invoice and transport identities never hides a transport con
   assert.equal(display.primary.length, 1)
   assert.equal(display.primary[0].color, 'red')
   assert.equal(display.primary[0].expected, 'Different carrier')
+})
+
+test('legacy single-invoice financial checks contribute only net, VAT and total amount', () => {
+  const invoice = { headerChecks: [], totals: { checks: [
+    { key: 'netTotal', color: 'green' }, { key: 'vatTotal', color: 'yellow' }, { key: 'grossTotal', color: 'yellow' },
+    { key: 'positionSum', color: 'green' }, { key: 'taxSum', color: 'green' }, { key: 'foreignVat', color: 'green' },
+  ] } }
+  const display = invoiceDisplayChecks(invoice)
+  assert.deepEqual(display.primary.map(check => check.key), ['netTotal', 'vatTotal', 'grossTotal'])
+  assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 1, yellow: 2, red: 0 })
+  assert.equal(invoiceAmountDetails(invoice).length, 6)
+})
+
+test('legacy internal contradictions remain red on their related amount without extra votes', () => {
+  const invoice = { headerChecks: [], totals: { checks: [
+    { key: 'netTotal', color: 'green', actual: 23000, expected: 23000 }, { key: 'vatTotal', color: 'yellow', actual: 4370, expected: null }, { key: 'grossTotal', color: 'green', actual: 27370, expected: 27370 },
+    { key: 'positionSum', color: 'red', actual: 24000, expected: 23000 }, { key: 'taxSum', color: 'red', actual: 28370, expected: 27370 }, { key: 'foreignVat', color: 'red', actual: 4370, expected: 0 },
+  ] } }
+  const display = invoiceDisplayChecks(invoice)
+  assert.equal(display.primary.length, 3)
+  assert.deepEqual(display.primary.map(check => check.expected), [24000, 0, 28370])
+  assert.deepEqual(display.primary.map(check => check.comparisonOrigin), ['invoice_positions', 'business_rule', 'invoice_arithmetic'])
+  assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 0, yellow: 0, red: 3 })
+  assert.equal(invoiceAmountDetails(invoice).filter(check => check.color === 'red').length, 3)
+  assert.equal(invoice.totals.checks[0].color, 'green', 'saved legacy report stays immutable')
+})
+
+test('new consolidated amount rows retain backend results while detail checks never add votes', () => {
+  const details = [{ key: 'netDatabase', color: 'green' }, { key: 'positionSum', color: 'red' }]
+  const invoice = { totals: { checks: [{ key: 'netTotal', color: 'red' }, { key: 'vatTotal', color: 'green' }, { key: 'grossTotal', color: 'yellow' }], detailChecks: details } }
+  const display = invoiceDisplayChecks(invoice)
+  assert.equal(invoiceAmountDetails(invoice), details)
+  assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 1, yellow: 1, red: 1 })
 })

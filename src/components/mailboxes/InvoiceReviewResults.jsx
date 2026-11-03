@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../i18n/useLanguage.js'
-import { invoiceCheckColor, invoiceDisplayChecks, invoiceReviewDistribution, invoiceTransportChecks, formatInvoiceCheckValue } from '../../lib/invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceDisplayChecks, invoiceReviewDistribution, invoiceTransportChecks, invoiceAmountDetails, formatInvoiceCheckValue } from '../../lib/invoiceReviewPresentation.js'
 import '../../styles/invoiceReview.css'
 
 const colorLabels = {
@@ -31,12 +31,22 @@ function Checks({ checks = [], currency }) {
   if (!checks.length) return null
   return <div className="invoice-review-checks"><div className="invoice-review-column-head" aria-hidden="true"><span>{en ? 'Check' : 'Prüfpunkt'}</span><span>{en ? 'Invoice' : 'Rechnung'}</span><span>{en ? 'Reference' : 'Vergleich'}</span><span>{en ? 'Result' : 'Ergebnis'}</span></div>{checks.map((check, index) => {
     const base = check.key?.split('-')[0]
-    const title = en ? labels[base] || check.label : (check.label || check.key || '').replace(' (Cent)', '')
+    const amountTitle = { netTotal: en ? 'Net amount' : 'Netto', vatTotal: en ? 'VAT' : 'MwSt.', grossTotal: en ? 'Total amount' : 'Gesamtbetrag' }[base]
+    const detailTitle = { databaseNetTotal: ['Netto / Auftragsdaten', 'Net amount / order data'], databaseVatTotal: ['MwSt. / Auftragsdaten', 'VAT / order data'], databaseGrossTotal: ['Gesamtbetrag / Auftragsdaten', 'Total amount / order data'] }[base]
+    const title = amountTitle || detailTitle?.[en ? 1 : 0] || (en ? labels[base] || check.label : (check.label || check.key || '').replace(' (Cent)', ''))
+    const referenceOrigin = {
+      database: en ? 'Order data' : 'Auftragsdaten',
+      business_rule: en ? 'Business rule' : 'Prüfregel',
+      reference_calculation: en ? 'Order net + tax rule' : 'Auftragsnetto + Steuerregel',
+      derived_order: en ? 'Order net + tax rule' : 'Auftragsnetto + Steuerregel',
+      invoice_arithmetic: en ? 'Invoice arithmetic' : 'Rechnung intern',
+      invoice_positions: en ? 'Invoice item sum' : 'Rechnungspositionen',
+    }[check.comparisonOrigin]
     const details = [check.message, check.sourceText || check.quote].filter(Boolean).join('\n')
     return <article className="invoice-review-check" key={check.displayId || `${check.key}-${index}`}>
       <div className="invoice-review-check-name"><strong>{title}{check.transportTa && <small>TA {check.transportTa}</small>}</strong><Source text={details} /></div>
       <span className="invoice-review-value" aria-label={en ? 'Invoice' : 'Rechnung'}>{formatInvoiceCheckValue(check, check.actual, { language, currency, side: 'actual' })}</span>
-      <span className="invoice-review-value" aria-label={en ? 'Reference' : 'Vergleich'}>{formatInvoiceCheckValue(check, check.expected, { language, currency, side: 'expected' })}</span>
+      <span className="invoice-review-value" aria-label={en ? 'Reference' : 'Vergleich'}>{formatInvoiceCheckValue(check, check.expected, { language, currency, side: 'expected' })}{referenceOrigin && <small className="invoice-review-file" style={{ display: 'block' }}>{referenceOrigin}</small>}</span>
       <InvoiceReviewStatus status={check.status} color={check.color} />
     </article>
   })}</div>
@@ -80,6 +90,7 @@ export default function InvoiceReviewResults({ report }) {
       {invoices.length > 1 && <Distribution checks={allChecks} />}
       {invoices.map((invoice, index) => {
         const { primary, secondary } = invoiceDisplayChecks(invoice)
+        const amountDetails = invoiceAmountDetails(invoice)
         const secondaryMismatches = secondary.filter(check => invoiceCheckColor(check) === 'red').length
         const metadata = [invoice.extractionMethod && w('Erkennung: ', 'Recognition: ') + invoice.extractionMethod, ...(invoice.warnings || []), ...(invoice.notices || []).map(notice => notice.message || notice)].filter(Boolean).join('\n')
         return <section className="invoice-review-invoice" key={`${report.id || report.createdAt}:${index}`}>
@@ -88,6 +99,7 @@ export default function InvoiceReviewResults({ report }) {
           {invoice.invoicePages?.length > 0 && <p className="invoice-review-file">{w('Rechnungsseiten', 'Invoice pages')}: {invoice.invoicePages.join(', ')}</p>}
           <Distribution checks={primary} />
           <Checks checks={primary} currency={invoice.currency} />
+          {amountDetails.length > 0 && <Disclosure title={w('Betragsdetails', 'Amount details')}><Checks checks={amountDetails} currency={invoice.currency} /></Disclosure>}
           {secondary.length > 0 && <Disclosure title={<>{w('Ergänzende Angaben', 'Additional information')}{secondaryMismatches > 0 && <span className="invoice-review-secondary-alert invoice-review-status--red"><i className="invoice-review-dot" aria-hidden="true" />{secondaryMismatches} {w('abweichend', 'different')}</span>}</>}><Checks checks={secondary} currency={invoice.currency} /></Disclosure>}
           {(invoice.transports || []).length > 0 && <Disclosure title={w('Auftragsvergleich und Quellen', 'Order comparison and sources')}>{invoice.transports.map((transport, i) => <TransportDetails key={i} transport={transport} currency={invoice.currency} w={w} />)}</Disclosure>}
           {metadata && <Disclosure title={w('Erkennungsdetails', 'Recognition details')}><p className="invoice-review-technical">{metadata}</p></Disclosure>}

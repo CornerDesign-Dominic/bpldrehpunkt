@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { compareInvoiceTransport, invoiceTotals, invoiceHeaderChecks, invoicePaymentChecks, recipientAddressCheck, invoiceNotices, sameInvoiceCompany } from './invoiceReviewPolicy.js'
+import { compareInvoiceTransport, invoiceTotals, invoiceHeaderChecks, invoicePaymentChecks, recipientAddressCheck, invoiceNotices, sameInvoiceCompany, compareInvoiceIssuer, sameInvoiceVatId, compareInvoiceVatId } from './invoiceReviewPolicy.js'
 const value = value => ({ value, quote: value })
 const bill = (patch = {}) => ({ number: value('RG-1'), date: value('2026-10-01'), issuer: value('Carrier GmbH'), issuerVatId: value('DE123456789'), issuerCountry: value('Deutschland'), recipient: value('Brennpunkt Logistik GmbH'), recipientVatId: value('DE987654321'), recipientAddress: value('Reinshagenstraße 1, 42369 Wuppertal'), currency: value('EUR'), netTotal: value('500,00'), vatTotal: value('95,00'), grossTotal: value('595,00'), transports: [{ ta: value('260000001'), net: value('500,00') }], ...patch })
 const imported = { carrier: { originalName: 'Carrier GmbH' }, financial: { currency: 'EUR', costPositions: [{ amountNet: 500 }] }, loading: { city: 'Berlin' }, unloading: { city: 'Hamburg' } }
@@ -9,7 +9,9 @@ const company = { legalName: 'Brennpunkt Logistik GmbH', vatId: 'DE987654321' }
 
 test('net, VAT and gross compare exact database cents; missing references are yellow, never implicit zero', () => {
   const complete = invoiceTotals(bill(), { references: [reference] })
-  for (const key of ['netTotal', 'vatTotal', 'grossTotal', 'positionSum', 'taxSum']) assert.equal(complete.checks.find(check => check.key === key).color, 'green')
+  assert.deepEqual(complete.checks.map(check => check.key), ['netTotal', 'vatTotal', 'grossTotal'])
+  for (const key of ['netTotal', 'vatTotal', 'grossTotal']) assert.equal(complete.checks.find(check => check.key === key).color, 'green')
+  for (const key of ['positionSum', 'taxSum']) assert.equal(complete.detailChecks.find(check => check.key === key).color, 'green')
   const missing = invoiceTotals(bill({ vatTotal: value('') }), { references: [{ ...reference, financial: { vatCents: null, grossCents: null } }] })
   assert.equal(missing.checks.find(check => check.key === 'vatTotal').color, 'yellow')
   assert.equal(missing.checks.find(check => check.key === 'grossTotal').color, 'yellow')
@@ -19,10 +21,10 @@ test('net, VAT and gross compare exact database cents; missing references are ye
 
 test('foreign positive VAT is a red business review rule only with supported country evidence', () => {
   const foreign = invoiceTotals(bill(), { references: [{ ...reference, carrierCountry: 'PL' }] })
-  assert.equal(foreign.checks.find(check => check.key === 'foreignVat').color, 'red')
-  assert.match(foreign.checks.find(check => check.key === 'foreignVat').message, /Betriebliche Prüfregel/)
+  assert.equal(foreign.detailChecks.find(check => check.key === 'foreignVat').color, 'red')
+  assert.match(foreign.detailChecks.find(check => check.key === 'foreignVat').message, /Betriebliche Prüfregel/)
   const unknown = invoiceTotals(bill({ issuerCountry: value('') }), { references: [{ ...reference, carrierCountry: null }] })
-  assert.equal(unknown.checks.find(check => check.key === 'foreignVat').color, 'yellow')
+  assert.equal(unknown.detailChecks.find(check => check.key === 'foreignVat').color, 'yellow')
 })
 
 test('different currencies never produce a false red amount comparison; secondary contradictions remain visible without contributing to main checks', () => {
@@ -97,7 +99,7 @@ test('missing currency prevents green database amounts but leaves arithmetic ind
   assert.equal(transport.checks.find(check => check.key === 'currency').color, 'yellow')
   const totals = invoiceTotals(invoice, { references: [reference] })
   for (const key of ['netTotal', 'vatTotal', 'grossTotal']) assert.equal(totals.checks.find(check => check.key === key).color, 'yellow')
-  assert.equal(totals.checks.find(check => check.key === 'taxSum').color, 'green')
+  assert.equal(totals.detailChecks.find(check => check.key === 'taxSum').color, 'green')
 })
 
 test('secondary dates expose real contradictions while missing transport detail stays optional', () => {
@@ -126,4 +128,80 @@ test('header delivery date corroborates unloading only for a single transport', 
   assert.equal(result.checks.find(check => check.key === 'loadingDate-0').actual, null)
   const collection = { ...invoice, transports: [...invoice.transports, { ta: value('260000002'), net: value('100,00') }] }
   assert.equal(compareInvoiceTransport({ rows: invoice.transports, invoice: collection, imported: order, company }).checks.some(check => check.key === 'deliveryDate-0'), false)
+})
+
+test('foreign zero-tax rule supplies a transparent VAT and derived gross comparison without inventing database tax', () => {
+  const invoice = bill({ vatTotal: value('0,00'), grossTotal: value('500,00') })
+  const result = invoiceTotals(invoice, { references: [{ ...reference, carrierCountry: 'RS', financial: { vatCents: null, grossCents: null } }] })
+  assert.deepEqual(result.checks.map(check => check.key), ['netTotal', 'vatTotal', 'grossTotal'])
+  const vat = result.checks.find(check => check.key === 'vatTotal'), gross = result.checks.find(check => check.key === 'grossTotal')
+  assert.equal(vat.color, 'green'); assert.equal(vat.expected, 0); assert.equal(vat.comparisonOrigin, 'business_rule')
+  assert.equal(gross.color, 'green'); assert.equal(gross.expected, 50000); assert.equal(gross.comparisonOrigin, 'reference_calculation')
+  assert.equal(result.detailChecks.find(check => check.key === 'databaseVatTotal').expected, null)
+  assert.equal(result.detailChecks.find(check => check.key === 'databaseGrossTotal').expected, null)
+  assert.ok(result.detailChecks.every(check => check.secondary === true))
+})
+
+test('domestic missing tax reference stays yellow and gross can independently verify invoice arithmetic', () => {
+  const result = invoiceTotals(bill(), { references: [{ ...reference, financial: { vatCents: null, grossCents: null } }] })
+  assert.equal(result.checks.find(check => check.key === 'vatTotal').color, 'yellow')
+  const gross = result.checks.find(check => check.key === 'grossTotal')
+  assert.equal(gross.color, 'green'); assert.equal(gross.comparisonOrigin, 'invoice_arithmetic')
+  assert.equal(gross.expected, 59500)
+})
+
+test('internal amount contradictions propagate into consolidated rows and OCR uncertainty remains yellow', () => {
+  const invoice = bill({ transports: [{ ta: value('260000001'), net: value('490,00') }], grossTotal: value('600,00') })
+  const result = invoiceTotals(invoice, { references: [reference] })
+  const net = result.checks.find(check => check.key === 'netTotal'), gross = result.checks.find(check => check.key === 'grossTotal')
+  assert.equal(net.color, 'red'); assert.equal(net.expected, 49000); assert.equal(net.comparisonOrigin, 'invoice_positions')
+  assert.equal(gross.color, 'red'); assert.equal(gross.expected, 59500); assert.equal(gross.comparisonOrigin, 'invoice_arithmetic')
+  assert.equal(result.detailChecks.find(check => check.key === 'databaseNetTotal').color, 'green')
+  const uncertain = invoiceTotals({ ...invoice, amountUncertainKeys: ['netTotal', 'grossTotal'] }, { references: [reference] })
+  assert.equal(uncertain.checks.find(check => check.key === 'netTotal').color, 'yellow')
+  assert.equal(uncertain.checks.find(check => check.key === 'grossTotal').color, 'yellow')
+})
+
+test('foreign business contradiction is not hidden by a matching positive database VAT amount', () => {
+  const result = invoiceTotals(bill(), { references: [{ ...reference, carrierCountry: 'PL' }] })
+  const vat = result.checks.find(check => check.key === 'vatTotal')
+  assert.equal(vat.color, 'red'); assert.equal(vat.expected, 0); assert.equal(vat.comparisonOrigin, 'business_rule')
+  assert.equal(result.detailChecks.find(check => check.key === 'databaseVatTotal').color, 'green')
+  const negative = invoiceTotals(bill({ vatTotal: value('-10,00'), grossTotal: value('490,00') }), { references: [{ ...reference, carrierCountry: 'PL', financial: { vatCents: null, grossCents: null } }] })
+  assert.equal(negative.checks.find(check => check.key === 'vatTotal').color, 'yellow')
+  assert.equal(negative.checks.find(check => check.key === 'vatTotal').expected, null)
+})
+
+test('authoritative VAT identity resolves substantive company name differences without arbitrary PP or city stripping', () => {
+  const invoice = bill({ issuer: value('S CROWN PP 2020 DOO'), issuerVatId: value('RS109442000') })
+  const name = 'DOO S CROWN2020 Prijepolje'
+  assert.equal(sameInvoiceCompany(invoice.issuer.value, name), false)
+  const issuer = compareInvoiceIssuer(invoice, name, 'RS109442000')
+  assert.equal(issuer.color, 'green'); assert.equal(issuer.matchedBy, 'vatId')
+  assert.equal(issuer.actual, invoice.issuer.value); assert.equal(issuer.expected, name)
+  assert.equal(compareInvoiceIssuer(invoice, name, null).color, 'red')
+  assert.equal(compareInvoiceIssuer(invoice, invoice.issuer.value, 'RS999999999').color, 'red')
+  const checks = invoiceHeaderChecks(invoice, company, [{ ...reference, carrierName: name, carrierVatId: 'RS109442000' }])
+  assert.equal(checks.find(check => check.key === 'issuer').matchedBy, 'vatId')
+})
+
+test('VAT country prefixes normalize only with independently verified carrier country', () => {
+  assert.equal(sameInvoiceVatId('RS112058906', '112058906', 'RS'), true)
+  assert.equal(sameInvoiceVatId('112058906', 'RS112058906', 'RS'), true)
+  assert.equal(sameInvoiceVatId('RS112058906', '112058906'), false)
+  assert.equal(sameInvoiceVatId('DE112058906', '112058906', 'RS'), false)
+  assert.equal(sameInvoiceVatId('DE112058906', 'RS112058906', 'RS'), false)
+  assert.equal(sameInvoiceVatId('RS112058907', '112058906', 'RS'), false)
+  assert.equal(compareInvoiceVatId('issuerVatId', 'USt-ID', 'RS112058906', '112058906').color, 'yellow')
+  const invoice = bill({ issuer: value('S CROWN PP 2020 DOO'), issuerVatId: value('RS112058906') })
+  const partnerReference = { ...reference, carrierName: 'DOO S CROWN2020 Prijepolje', carrierVatId: '112058906', carrierCountry: 'RS' }
+  const header = invoiceHeaderChecks(invoice, company, [partnerReference])
+  const issuer = header.find(check => check.key === 'issuer'), vat = header.find(check => check.key === 'issuerVatId')
+  assert.equal(issuer.color, 'green'); assert.equal(issuer.matchedBy, 'vatId')
+  assert.equal(vat.color, 'green'); assert.equal(vat.actual, 'RS112058906'); assert.equal(vat.expected, '112058906')
+  assert.equal(vat.normalization, 'verified_country_prefix'); assert.equal(vat.normalizationCountry, 'RS')
+  const transport = compareInvoiceTransport({ rows: invoice.transports, invoice, imported, company, carrierName: partnerReference.carrierName, carrierVatId: partnerReference.carrierVatId, carrierCountry: 'RS' })
+  assert.equal(transport.checks.find(check => check.key === 'issuer').color, 'green')
+  assert.equal(transport.checks.find(check => check.key === 'issuerVatId').color, 'green')
+  assert.equal(compareInvoiceIssuer(bill(), 'Carrier GmbH', 'DE123456789').matchedBy, 'name_and_vatId')
 })

@@ -8,6 +8,7 @@ import { executeAiOperation } from './aiUsage.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
 import { fetchDycosFlowOrder } from './dycosFlowClient.js'
 import { mapDycosOrder } from './dycosOrderMapping.js'
+import { mapDycosPartnerData } from './dycosPartnerData.js'
 import { invoiceCents, compareInvoiceTransport, invoiceTotals, invoiceHeaderChecks, invoicePaymentChecks, invoiceNotices, coloredCheck, summarizeChecks } from './invoiceReviewPolicy.js'
 import { loadInvoiceReference } from './invoiceReviewReference.js'
 import { chooseInvoiceAssignment, rankInvoiceAssignments } from './invoiceReviewAssignment.js'
@@ -34,6 +35,27 @@ function disputedAmount(raw, file) {
   // conflicting monetary reading remains a proposal even if the DB agrees.
   return native.has(amount) !== ocr.has(amount) && native.size > 0 && ocr.size > 0 && [...native].some(value => !ocr.has(value)) && [...ocr].some(value => !native.has(value))
 }
+const englishMonths = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+const monthPattern = '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)'
+function dateEvidenceQuotes(text, isoDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate) || Number.isNaN(Date.parse(isoDate)) || new Date(isoDate).toISOString().slice(0, 10) !== isoDate) return []
+  const [year, month, day] = isoDate.split('-')
+  const matches = []
+  const literalDates = new RegExp(`(?<![\\p{L}\\p{N}])(?:${isoDate}|${day}\\.${month}\\.${year}|${day}/${month}/${year})(?![\\p{L}\\p{N}])`, 'gu')
+  for (const match of text.matchAll(literalDates)) matches.push(match[0])
+  const formats = [
+    `(?<month>${monthPattern})\\.?\\s*(?<day>[0-9]{1,2})(?:st|nd|rd|th)?\\s*,?\\s*(?<year>[0-9]{4})`,
+    `(?<day>[0-9]{1,2})(?:st|nd|rd|th)?\\s*(?<month>${monthPattern})\\.?\\s*,?\\s*(?<year>[0-9]{4})`,
+  ]
+  for (const format of formats) {
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${format}(?![\\p{L}\\p{N}])`, 'giu')
+    for (const match of text.matchAll(pattern)) {
+      const monthIndex = englishMonths.findIndex(name => name.startsWith(match.groups.month.toLowerCase().slice(0, 3))) + 1
+      if (Number(match.groups.day) === Number(day) && match.groups.year === year && monthIndex === Number(month)) matches.push(match[0])
+    }
+  }
+  return matches
+}
 function evidenceField(raw, text, key) {
   const value = typeof raw?.value === 'string' ? normalized(raw.value).slice(0, 240) : ''
   let quote = typeof raw?.quote === 'string' ? normalized(raw.quote) : ''
@@ -44,7 +66,7 @@ function evidenceField(raw, text, key) {
     let needles = [value]
     if (['net', 'netTotal', 'vatTotal', 'grossTotal'].includes(key)) needles = (normalized(text).match(/-?\d[\d .\u00a0]*[.,]\d{2}(?!\d)/g) || []).filter(candidate => invoiceCents(candidate.trim()) === invoiceCents(value))
     if (key === 'currency' && value === 'EUR') needles = ['EUR', '€']
-    if ((key.endsWith('Date') || key === 'date') && /^\d{4}-\d{2}-\d{2}$/.test(value)) { const [y,m,d] = value.split('-'); needles = [value, `${d}.${m}.${y}`, `${d}/${m}/${y}`] }
+    if (key.endsWith('Date') || key === 'date') needles = dateEvidenceQuotes(normalized(text), value)
     quote = needles.find(needle => hasQuote(text, needle)) || ''
   }
   if (!quote) return { value: '', quote: '' }
@@ -55,8 +77,7 @@ function evidenceField(raw, text, key) {
     if (cents === null || !candidates.some(candidate => invoiceCents(candidate.trim()) === cents)) return { value: '', quote: '' }
   } else if (key.endsWith('Date') || key === 'date') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)) || new Date(value).toISOString().slice(0,10) !== value) return { value: '', quote: '' }
-    const [year, month, day] = value.split('-')
-    if (![value, `${day}.${month}.${year}`, `${day}/${month}/${year}`].some(date => quote.includes(date))) return { value: '', quote: '' }
+    if (!dateEvidenceQuotes(quote, value).length) return { value: '', quote: '' }
   } else if (key === 'currency' && value === 'EUR' && /€|\bEUR\b/i.test(quote)) {
     // ISO normalization remains grounded in the invoice's currency symbol.
   } else if (key !== 'ta' && !identity(quote).includes(identity(value))) return { value: '', quote: '' }
@@ -195,7 +216,10 @@ export async function resolveInvoiceOrder({ db, ta, fetchOrder = fetchDycosFlowO
   const complete = imported?.financial?.costPositions?.length && imported?.financial?.currency && imported?.carrier?.originalName && imported?.loading?.city && imported?.unloading?.city
   if (complete) return { orderId: local.id, imported, localData, source: 'Drehpunkt', updatedAt: localData.updatedAt?.toDate?.()?.toISOString() || null }
   try {
-    const remote = mapDycosOrder(await fetchOrder(ta), ta)
+    const payload = await fetchOrder(ta)
+    const remote = mapDycosOrder(payload, ta)
+    const sourceRow = payload.unternehmerstamm && Object.fromEntries(['ID', 'Bezeichnung', 'USTID', 'Strasse', 'PLZ', 'Ort', 'Land'].map(key => [key, payload.unternehmerstamm[key]]))
+    const sourcePartner = mapDycosPartnerData({ unternehmerstamm: sourceRow, zahlungsbedingungUnternehmer: payload.zahlungsbedingungUnternehmer }).carrier
     // Local facts take priority. Missing sections alone are filled from the read-only API.
     const fillMissing = (localValue, remoteValue) => {
       if (localValue === undefined || localValue === null || localValue === '' || Array.isArray(localValue) && !localValue.length) return remoteValue
@@ -203,7 +227,7 @@ export async function resolveInvoiceOrder({ db, ta, fetchOrder = fetchDycosFlowO
       return localValue
     }
     const merged = fillMissing(imported, remote)
-    return { orderId: local?.id || `dycos-${ta}`, imported: merged, localData, source: local ? 'Drehpunkt + DyCoS' : 'DyCoS', localExists: Boolean(local) }
+    return { orderId: local?.id || `dycos-${ta}`, imported: merged, sourcePartner, localData, source: local ? 'Drehpunkt + DyCoS' : 'DyCoS', localExists: Boolean(local) }
   } catch (error) { return { orderId: local?.id, imported: imported || null, localData, source: 'Drehpunkt', ...(error?.code === 'ta_not_found' ? { status: 'not_found' } : { lookupFailed: true }) } }
 }
 
@@ -266,8 +290,13 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
     const compare = async (ta, rows, uncertainTa = false) => {
       const match = lookups.get(ta)
       if (!match?.imported) return null
-      const reference = { ...await loadReference({ db, imported: match.imported, invoice, orderId: match.orderId, localData: match.localData }), ta, imported: match.imported }
-      const compared = compareInvoiceTransport({ rows: rows.map(row => ({ ...row, ta: { value: ta, quote: row.ta.value === ta ? row.ta.quote : invoice.documentTaCandidates.find(candidate => candidate.value === ta)?.quote || ta } })), invoice, imported: match.imported, company, carrierVatId: reference.carrierVatId, uncertainTa })
+      const reference = { ...await loadReference({ db, imported: match.imported, sourcePartner: match.sourcePartner, invoice, orderId: match.orderId, localData: match.localData }), ta, imported: match.imported }
+      const compared = compareInvoiceTransport({ rows: rows.map(row => ({ ...row, ta: { value: ta, quote: row.ta.value === ta ? row.ta.quote : invoice.documentTaCandidates.find(candidate => candidate.value === ta)?.quote || ta } })), invoice, imported: match.imported, company, carrierVatId: reference.carrierVatId, carrierName: reference.carrierName, carrierCountry: reference.carrierCountry, uncertainTa })
+      for (const [key, field] of [['issuer', 'carrierName'], ['issuerVatId', 'carrierVatId']]) {
+        const check = compared.checks.find(check => check.key === key)
+        const source = reference.referenceSources?.[field]
+        if (check && source) Object.assign(check, { referenceSource: source, sourceText: `Referenz: ${source}-Unternehmerstamm` })
+      }
       if (invoice.ocrUncertainPages.length || invoice.ocrDifferencePages.length) compared.checks.push(coloredCheck('ocr', 'OCR-Abgleich', 'Unsichere oder abweichende Texterkennung', 'Eindeutig lesbar', 'yellow'))
       if (match.lookupFailed) compared.checks.push(coloredCheck('lookup', 'Fehlende Daten aus DyCoS', null, null, 'yellow'))
       compared.status = summarizeChecks(compared.checks)
@@ -307,13 +336,18 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
     const referenceList = [...references.values()]
     const headerChecks = invoiceHeaderChecks(invoice, company, referenceList)
     const paymentChecks = invoicePaymentChecks(invoice, referenceList)
+    for (const [checks, key, field] of [[headerChecks, 'issuer', 'carrierName'], [headerChecks, 'issuerVatId', 'carrierVatId'], [paymentChecks, 'paymentTerms', 'payment']]) {
+      const check = checks.find(check => check.key === key)
+      const sources = [...new Set(referenceList.map(reference => reference.referenceSources?.[field]).filter(Boolean))]
+      if (check && sources.length) Object.assign(check, { referenceSource: sources.join(' + '), sourceText: `Referenz: ${sources.join(' + ')}-Unternehmerstamm` })
+    }
     const totals = invoiceTotals(invoice, { references: referenceList, allAssigned: transports.length > 0 && transports.every(transport => transport.orderId && !transport.uncertainTa) })
     const notices = invoiceNotices({ headerChecks, paymentChecks, transports, references: referenceList })
     const allChecks = [...headerChecks, ...paymentChecks, ...totals.checks, ...transports.flatMap(transport => transport.checks)]
     const status = summarizeChecks(allChecks)
     results.push({ extractionMethod: invoice.extractionMethod, ocrPages: invoice.ocrPages, ocrUncertainPages: invoice.ocrUncertainPages, ocrDifferencePages: invoice.ocrDifferencePages, invoicePages: invoice.invoicePages || [], fileName: invoice.fileName, sourceId: invoice.sourceId, number: invoice.number.value, date: invoice.date.value, issuer: invoice.issuer.value, currency: invoice.currency.value, warnings: invoice.warnings, notices, headerChecks, paymentChecks, transports, totals, status })
   }
-  const report = { id: reportId, version: 3, documents: documents.map(file => ({ sourceId: file.id, name: file.name, contentType: file.contentType, pageCount: file.pageCount })), createdAt: new Date(now).toISOString(), invoices: results, status: results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den Anhängen erkannt.' : !attachments.size ? 'Keine bestätigte Zuordnung: keine eindeutige TA-Zuordnung vorhanden.' : '', scope: 'Datenabgleich und betriebliche Prüfhinweise, keine Zahlungsfreigabe. Bankverbindung und Ablieferbelege sind nicht geprüft.' }
+  const report = { id: reportId, version: 4, documents: documents.map(file => ({ sourceId: file.id, name: file.name, contentType: file.contentType, pageCount: file.pageCount })), createdAt: new Date(now).toISOString(), invoices: results, status: results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den Anhängen erkannt.' : !attachments.size ? 'Keine bestätigte Zuordnung: keine eindeutige TA-Zuordnung vorhanden.' : '', scope: 'Datenabgleich und betriebliche Prüfhinweise, keine Zahlungsfreigabe. Bankverbindung und Ablieferbelege sind nicht geprüft.' }
   if (Buffer.byteLength(JSON.stringify(report), 'utf8') > 750000) fail('failed-precondition', 'Der Prüfbericht ist zu umfangreich. Es wurde keine Teilprüfung gespeichert.')
   // Immutable snapshots: rerunning with a new request creates a new dated report.
   await revalidate()

@@ -106,7 +106,7 @@ Englisch sowie Light/Dark verwenden denselben Ablauf.
 
 ## Speicherung und Zugriff
 
-Neue unveränderliche Berichte haben version:3. Alte Berichte bleiben lesbar und
+Neue unveränderliche Berichte haben version:4. Alte Berichte bleiben lesbar und
 werden durch die neue Oberfläche dargestellt, nicht rückwirkend neu erkannt oder
 fachlich umgeschrieben. Für neue Erkennung ist „Mit aktuellen Auftragsdaten erneut
 prüfen“ erforderlich. Berichte enthalten Vergleichswerte, kurze Belege,
@@ -123,6 +123,45 @@ listTransportInvoiceChecks benötigt aktives Profil und Transport-Leserecht, abe
 keinen Zugriff auf das persönliche Postfach des Erstellers. Direkte Browserzugriffe
 auf Berichte/Verknüpfungen bleiben gesperrt. Keine neuen Rules oder Indizes.
 
-Backendänderungen dieses Updates betreffen ausschließlich reviewMailboxInvoices;
-Frontend und Backend müssen gemeinsam veröffentlicht werden. Firebase-Ziele:
+Die Mailoberfläche startet die Auswertung über den Hintergrundprozess
+processMailboxActionRun. Dieser importiert den Rechnungshandler in seiner eigenen
+bereitgestellten Codeversion. Bei Änderungen an der Erkennung/Prüfung müssen
+**reviewMailboxInvoices und processMailboxActionRun gemeinsam** bereitgestellt
+werden. Nur die Callable zu aktualisieren ändert die Mail-Hintergrundauswertung
+nicht. Frontend und beide Backendpfade müssen gemeinsam veröffentlicht werden. Firebase-Ziele:
 db-bpl-drehpunkt-dev und nach ausdrücklicher Freigabe db-bpl-drehpunkt.
+
+## Stammdaten- und Betragskorrektur vom 03.11.2026
+
+Lokale Unternehmerstammdaten werden nach exakter Partner-/Kreditoridentität
+aufgelöst; ohne Kreditor ist die exakte DyCoS-Quellidentität zulässig. Fehlt ein
+lokales Blatt oder ein Feld und liegt die authentifizierte TA-Antwort vor, werden
+USt-ID, Name, Land und vollständige Zahlungsbedingung aus deren eindeutig gebundenem
+Unternehmerstamm lesend ergänzt. Lokale Werte haben Vorrang, mehrdeutige lokale
+Zuordnungen blockieren den Ersatz. Herkunft pro Vergleichsfeld wird angezeigt.
+Keine Stammdatenanlage oder Änderung. Zusätzliche Quellfelder, Bank-/Zugangsdaten
+werden nicht in den Rechnungsreferenzpfad übernommen.
+
+Übereinstimmende USt-IDs dürfen Namensvarianten derselben Unternehmeridentität
+bestätigen. Ein fehlendes Länderpräfix einer rein numerischen Referenz darf nur
+mit unabhängig belegtem Unternehmerland ergänzt werden. Unterschiedliche explizite
+Präfixe/Ziffern bleiben widersprüchlich; ohne Länderbeleg bleibt die Präfixfrage
+offen. Die angezeigten Originalwerte bleiben erhalten. Dieselbe USt-ID zählt bei
+der Zuordnung nicht nochmals als unabhängige Namensübereinstimmung.
+
+Die Hauptprüfung enthält genau drei finanzielle Ergebnisse: Netto, MwSt. und
+Gesamtbetrag. Positionssummen, Steuerregel und Rechenkontrolle erscheinen in
+Betragsdetails und liefern keine zusätzlichen Prozentstimmen. Tatsächliche
+Unterprüfungswidersprüche werden in den jeweiligen Hauptbetrag übernommen.
+Bei Sammelrechnungen bleiben die einzelnen TA-Positionsbeträge zusätzlich sichtbar.
+
+Für MwSt. hat ein vorhandener Datenbankreferenzbetrag Vorrang; andernfalls kann die
+bereits bestehende betriebliche Auslands-Nullsteuerregel verwendet werden. Keine
+neue pauschale Inlandssteuerregel. Fehlt eine belastbare Grundlage, bleibt der
+Vergleich gelb. Für den Gesamtbetrag werden vorhandene Referenzwerte oder das
+Auftragsnetto plus bekannte Steuerregel verwendet. Ist nur die rechnerische
+Stimmigkeit innerhalb der Rechnung prüfbar, ist dies ausdrücklich als
+„Rechnung intern“ gekennzeichnet. Fehlende Datenbankwerte werden nie als vorhanden
+ausgegeben. Das Fälligkeitsdatum ist kein Beweis für einen vereinbarten Fristbeginn.
+Englische Datumsbelege mit ausgeschriebenen/abgekürzten Monatsnamen werden anhand
+wörtlicher Rechnungsbelege unterstützt.

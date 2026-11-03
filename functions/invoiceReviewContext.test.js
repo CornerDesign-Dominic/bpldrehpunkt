@@ -104,3 +104,35 @@ test('VAT IDs and labelled invoice/account numbers do not become unrelated TA ca
  const candidates=invoiceContextTaCandidates([{id:'bill',name:'bill.pdf',text:'Rechnung 261999999 USt-IdNr DE317701646 VAT ID 317701647 Telefon: 317701648 Kundenkonto 317701649 TA 261000561'}])
  assert.deepEqual(candidates.map(candidate=>candidate.value),['261000561'])
 })
+
+test('English invoice and due dates retain exact month-name evidence without inventing payment basis', () => {
+  const forms = ['Oct 30, 2026', 'October 30, 2026', 'Oct30,2026', '30 October 2026', '30October2026', '30th October 2026', 'OCT. 30, 2026']
+  for (const dateText of forms) {
+    const documents = [{ id: 'invoice', text: `Rechnung issued ${dateText}; due Nov 30, 2026`, pageCount: 1 }]
+    const checked = validateInvoiceExtraction({ invoices: [invoice({ date: field('2026-10-30', dateText), dueDate: field('2026-11-30', 'Nov 30, 2026') })] }, documents)[0]
+    assert.equal(checked.date.value, '2026-10-30', dateText)
+    assert.equal(checked.dueDate.value, '2026-11-30')
+    assert.equal(checked.paymentBasis.value, '')
+    assert.equal(checked.paymentDays.value, '')
+  }
+})
+
+test('English date reanchoring remains literal, rejects invalid calendar values and cannot use other documents', () => {
+  const documents = [{ id: 'invoice', text: 'Rechnung Oct 30, 2026; due Nov 30, 2026', pageCount: 1 }, { id: 'other', text: 'Oct 31, 2026' }]
+  let checked = validateInvoiceExtraction({ invoices: [invoice({ date: field('2026-10-30', 'wrong provider quote') })] }, documents)[0]
+  assert.equal(checked.date.quote, 'Oct 30, 2026')
+  for (const invalid of ['2026-10-31', '2026-02-30', '2026-10-300', '2026-13-30']) {
+    checked = validateInvoiceExtraction({ invoices: [invoice({ date: field(invalid, 'Oct 30, 2026') })] }, documents)[0]
+    assert.equal(checked.date.value, '', invalid)
+  }
+  checked = validateInvoiceExtraction({ invoices: [invoice({ date: field('2026-10-30', '2026-10-300') })] }, [{ id: 'invoice', text: 'Rechnung 2026-10-300', pageCount: 1 }])[0]
+  assert.equal(checked.date.value, '')
+})
+
+test('literal ISO and numeric European dates remain valid and euro prefix anchors currency', () => {
+  for (const dateText of ['2026-10-30', '30.10.2026', '30/10/2026']) {
+    const checked = validateInvoiceExtraction({ invoices: [invoice({ date: field('2026-10-30', dateText), currency: field('EUR', '€ 200,00') })] }, [{ id: 'invoice', text: `Rechnung ${dateText} € 200,00`, pageCount: 1 }])[0]
+    assert.equal(checked.date.value, '2026-10-30', dateText)
+    assert.equal(checked.currency.value, 'EUR')
+  }
+})

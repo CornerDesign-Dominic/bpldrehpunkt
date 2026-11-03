@@ -38,7 +38,7 @@ test('missing comparison facts cannot be green; known differences are red',()=>{
 })
 test('collection invoice combines charges per TA and checks sums, net/tax/gross separately',()=>{
   assert.equal(compareInvoiceTransport({rows:[row('260000001','300,00'),row('260000001','200,00')],invoice:invoice(),imported,company}).checks.find(check=>check.key==='net').status,'match')
-  const bill=invoice([row('260000001','300,00'),row('260000002','200,00')]);assert.equal(invoiceTotals(bill).checks.find(check=>check.key==='positionSum').status,'match');assert.equal(invoiceTotals(bill).checks.find(check=>check.key==='taxSum').status,'match');assert.equal(invoiceTotals(bill).status,'unknown')
+  const bill=invoice([row('260000001','300,00'),row('260000002','200,00')]);assert.equal(invoiceTotals(bill).detailChecks.find(check=>check.key==='positionSum').status,'match');assert.equal(invoiceTotals(bill).detailChecks.find(check=>check.key==='taxSum').status,'match');assert.equal(invoiceTotals(bill).status,'unknown')
   bill.grossTotal=value('999,00');assert.equal(invoiceTotals(bill).status,'mismatch')
   bill.grossTotal=value('');assert.equal(invoiceTotals(bill).status,'unknown')
 })
@@ -58,7 +58,7 @@ test('full report persists once and is attached to every matched TA without copy
  const original=JSON.stringify([...db.records])
  const bill=invoice([row('260000001','500,00'),row('260000002','500,00')]);bill.netTotal=value('1000,00');bill.grossTotal=value('1000,00')
  const args={db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-000000001',now:1000,extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 1000,00 0,00 TA 260000001 TA 260000002',pageCount:1}),infer:async()=>({invoices:[bill]}),fetchOrder:()=>assert.fail('local order complete')}
- const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,3);assert.equal(report.invoices[0].transports.length,2)
+ const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,4);assert.equal(report.invoices[0].transports.length,2)
  assert.ok(db.records.has(`transportOrders/a/invoiceChecks/${report.id}`));assert.ok(db.records.has(`transportOrders/b/invoiceChecks/${report.id}`))
  assert.equal(JSON.stringify([...db.records].slice(0,3)),original)
  assert.equal((await reviewMailboxInvoices({...args,infer:()=>assert.fail('duplicate request should use receipt')})).id,report.id)
@@ -107,7 +107,7 @@ test('unlabeled but literal TA candidates are checked, ranked, and never multipl
  assert.equal(ocrRequested,true)
  const transport=report.invoices[0].transports[0]
  assert.equal(transport.uncertainTa,false);assert.equal(transport.ta,'260000001');assert.equal(transport.checks.find(check=>check.key==='ta').color,'green');assert.equal(transport.assignmentMethod,'corroborated')
- assert.equal(report.invoices[0].totals.checks.find(check=>check.key==='positionSum').actual,50000)
+ assert.equal(report.invoices[0].totals.detailChecks.find(check=>check.key==='positionSum').actual,50000)
  assert.ok(db.records.has(`transportOrders/a/invoiceChecks/${report.id}`));assert.equal(db.records.has(`transportOrders/b/invoiceChecks/${report.id}`),false)
 })
 
@@ -133,7 +133,7 @@ test('empty extracted positions still show document TA candidates without assign
  const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-empty-positions-001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 Referenz 260000001',pageCount:1}),infer:async()=>({invoices:[invoice([])]}),fetchOrder:()=>assert.fail('local facts complete')})
  const transport=report.invoices[0].transports[0]
  assert.equal(transport.color,'yellow');assert.equal(transport.candidates[0].ta,'260000001');assert.equal(transport.candidates[0].netCents,null)
- assert.equal(report.invoices[0].totals.checks.find(check=>check.key==='positionSum').actual,null)
+ assert.equal(report.invoices[0].totals.detailChecks.find(check=>check.key==='positionSum').actual,null)
 })
 
 test('disputed text/OCR monetary values remain yellow even when the selected channel happens to match the database',()=>{
@@ -141,7 +141,7 @@ test('disputed text/OCR monetary values remain yellow even when the selected cha
  const checked=validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',name:'a.pdf',text:native,nativeText:native,ocrText:ocr,evidenceText:native+'\n'+ocr,extractionMethod:'text_and_ocr',ocrDifferencePages:[1]}])[0]
  assert.deepEqual(checked.amountUncertainKeys,['netTotal','grossTotal']);assert.equal(checked.transports[0].netOcrUncertain,true)
  assert.equal(compareInvoiceTransport({rows:checked.transports,invoice:checked,imported,company}).checks.find(check=>check.key==='net').color,'yellow')
- assert.equal(invoiceTotals(checked).checks.find(check=>check.key==='taxSum').color,'yellow')
+ assert.equal(invoiceTotals(checked).detailChecks.find(check=>check.key==='taxSum').color,'yellow')
  const sameMoney=validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',name:'a.pdf',text:native,nativeText:native+' Telefon 123456',ocrText:native+' Telefon 123457',evidenceText:native,extractionMethod:'text_and_ocr',ocrDifferencePages:[1]}])[0]
  assert.deepEqual(sameMoney.amountUncertainKeys,[]);assert.equal(sameMoney.transports[0].netOcrUncertain,false)
 })
@@ -193,4 +193,14 @@ test('confirmed DyCoS absence is distinct from failed transport lookup',async()=
  const db=database()
  const result=await resolveInvoiceOrder({db,ta:'260000001',fetchOrder:async()=>{throw Object.assign(new Error('missing'),{code:'ta_not_found'})}})
  assert.equal(result.status,'not_found');assert.equal(result.lookupFailed,undefined)
+})
+
+test('remote order resolution preserves only mapped carrier reference data from the same authenticated response',async()=>{
+ const db=database()
+ const payload={auftrag:{ID:71,Nummer:260000001,TourenID:13},tour:{ID:13,UnternehmerID:15},unternehmerstamm:{ID:15,Bezeichnung:'Carrier GmbH',USTID:'DE123456789',Land:'DE',Zahlungsbedingung:23,Logenios_ApiKey:'not-a-reference'},zahlungsbedingungUnternehmer:{ID:23,Bezeichnung:'30 Kalendertage ab Rechnungsdatum'},ladeEntladestellen:[],kunde:null,fahrzeugart:null,auftragspreise:[],tourkosten:[],relation:null,zahlungsbedingungKunde:null,fakturaZeilen:[],fakturaKopf:[],LadeEntladestellen2:[]}
+ const result=await resolveInvoiceOrder({db,ta:'260000001',fetchOrder:async()=>payload})
+ assert.equal(result.sourcePartner.sourceId,result.imported.source.carrierId)
+ assert.equal(result.sourcePartner.fields.companyData.vatId,'DE123456789')
+ assert.equal(result.sourcePartner.fields.paymentTermDays,'30 Kalendertage ab Rechnungsdatum')
+ assert.ok(!JSON.stringify(result).includes('not-a-reference'))
 })

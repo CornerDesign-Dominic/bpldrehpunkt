@@ -31,3 +31,11 @@ test('route and separately documented delivery date can corroborate assignment',
   assert.equal(chooseInvoiceAssignment([a]).ta, a.ta)
   assert.equal(chooseInvoiceAssignment([candidate('261000001', ['issuer', 'unloadingDate-0', 'deliveryDate-0'])]), null)
 })
+
+test('a company-name match proved by VAT is not counted as a second independent identity signal',()=>{
+ const a=candidate('261000001',['issuer','issuerVatId']);a.checks[0].matchedBy='vatId'
+ const ranked=rankInvoiceAssignments([a])[0]
+ assert.equal(ranked.assignmentEvidence.issuer,false)
+ assert.equal(ranked.assignmentEvidence.vat,true)
+ assert.equal(ranked.assignmentEvidence.strong,false)
+})

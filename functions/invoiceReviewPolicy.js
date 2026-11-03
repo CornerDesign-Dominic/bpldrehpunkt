@@ -19,6 +19,34 @@ export function compareCheck(key, label, actual, expected, { optional = false, s
   const color = !supplied(actual) || !supplied(expected) ? optional ? 'gray' : 'yellow' : equal(actual, expected) ? 'green' : 'red'
   return coloredCheck(key, label, actual, expected, color, '', { ...(format ? { format } : {}), ...(secondary ? { secondary: true } : {}) })
 }
+const normalizedVatId = value => identity(value).toUpperCase()
+const vatWithCountry = (value, referenceCountry) => {
+  const normalized = normalizedVatId(value), country = countryCode(referenceCountry)
+  return country && /^\d+$/.test(normalized) ? `${country}${normalized}` : normalized
+}
+export function sameInvoiceVatId(actual, expected, referenceCountry = null) {
+  if (!supplied(actual) || !supplied(expected)) return false
+  return vatWithCountry(actual, referenceCountry) === vatWithCountry(expected, referenceCountry)
+}
+export function compareInvoiceVatId(key, label, actual, expected, referenceCountry = null) {
+  const check = compareCheck(key, label, actual, expected, { equal: (a, b) => sameInvoiceVatId(a, b, referenceCountry) })
+  const a = normalizedVatId(actual), b = normalizedVatId(expected), country = countryCode(referenceCountry)
+  const prefixUnknown = !country && (/^\d+$/.test(a) && /^[A-Z]{2}\d+$/.test(b) && b.slice(2) === a || /^\d+$/.test(b) && /^[A-Z]{2}\d+$/.test(a) && a.slice(2) === b)
+  if (prefixUnknown) return { ...check, color: 'yellow', status: 'unknown', message: 'Länderpräfix der USt-ID nicht unabhängig belegt.' }
+  if (check.color === 'green' && a !== b && country) Object.assign(check, { normalization: 'verified_country_prefix', normalizationCountry: country, message: 'Länderpräfix aus bestätigtem Unternehmerland ergänzt.' })
+  return check
+}
+export function compareInvoiceIssuer(invoice, expectedName, expectedVatId, label = 'Rechnungsaussteller / Unternehmer', referenceCountry = null) {
+  const actualName = field(invoice, 'issuer'), actualVatId = field(invoice, 'issuerVatId')
+  const check = compareCheck('issuer', label, actualName, expectedName, { equal: sameInvoiceCompany })
+  if (supplied(actualVatId) && supplied(expectedVatId)) {
+    const vatCheck = compareInvoiceVatId('issuerVatId', 'USt-ID Unternehmer', actualVatId, expectedVatId, referenceCountry)
+    if (vatCheck.color === 'red') return { ...check, color: 'red', status: 'mismatch', matchedBy: 'vatId', message: 'Unternehmer-USt-ID weicht von der Referenz ab.', actualVatId, expectedVatId }
+    if (vatCheck.color === 'yellow' && check.color === 'red') return { ...check, color: 'yellow', status: 'unknown', message: vatCheck.message, actualVatId, expectedVatId }
+    if (vatCheck.color === 'green' && supplied(actualName) && supplied(expectedName)) return { ...check, color: 'green', status: 'match', matchedBy: sameInvoiceCompany(actualName, expectedName) ? 'name_and_vatId' : 'vatId', message: 'Unternehmer über übereinstimmende USt-ID zugeordnet.', actualVatId, expectedVatId, ...(vatCheck.normalization ? { normalization: vatCheck.normalization, normalizationCountry: vatCheck.normalizationCountry } : {}) }
+  }
+  return check
+}
 export function invoiceCents(value) {
   if (typeof value === 'number') return Number.isFinite(value) && Math.abs(value) <= 1e10 ? Math.round((value + Number.EPSILON) * 100) : null
   let s = text(value).replace(/(?:EUR|PLN|USD|GBP|€)/gi, '').replace(/\s/g, '')
@@ -33,7 +61,7 @@ export function expectedInvoiceNet(imported) {
   const positions = imported?.financial?.costPositions
   return Array.isArray(positions) && positions.length && positions.every(position => Number.isFinite(position.amountNet) && invoiceCents(position.amountNet) !== null && (!position.currency || position.currency === imported.financial.currency)) ? positions.reduce((sum, position) => sum + invoiceCents(position.amountNet), 0) : null
 }
-export function compareInvoiceTransport({ rows, invoice, imported, company = {}, carrierVatId = null, uncertainTa = false }) {
+export function compareInvoiceTransport({ rows, invoice, imported, company = {}, carrierVatId = null, carrierName = null, carrierCountry = null, uncertainTa = false }) {
   const amounts = rows.map(row => invoiceCents(row.net?.value))
   const net = amounts.every(value => value !== null) ? amounts.reduce((sum, value) => sum + value, 0) : null
   const expectedNet = expectedInvoiceNet(imported)
@@ -46,9 +74,9 @@ export function compareInvoiceTransport({ rows, invoice, imported, company = {},
   if (rows.some(row => row.netOcrUncertain)) Object.assign(netCheck, { color: 'yellow', status: 'unknown', message: 'Textebene und OCR liefern unterschiedliche Betragswerte. Bitte Original prüfen.' })
   const checks = [coloredCheck('ta', 'TA-Zuordnung', rows[0]?.ta?.value || '', rows[0]?.ta?.value || '', uncertainTa ? 'yellow' : 'green', uncertainTa ? 'Unsichere Rechnungsreferenz; Datenbanktreffer als Vorschlag.' : ''), netCheck,
     compareCheck('currency', 'Währung', currency || null, expectedCurrency || null),
-    compareCheck('issuer', 'Rechnungsaussteller / Unternehmer', field(invoice, 'issuer'), imported?.carrier?.originalName, { equal: sameInvoiceCompany }),
+    compareInvoiceIssuer(invoice, carrierName || imported?.carrier?.originalName, carrierVatId, 'Rechnungsaussteller / Unternehmer', carrierCountry),
     compareCheck('recipient', 'Rechnungsempfänger', field(invoice, 'recipient'), company.legalName)]
-  checks.push(compareCheck('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), carrierVatId), compareCheck('recipientVatId', 'USt-ID Rechnungsempfänger', field(invoice, 'recipientVatId'), company.vatId))
+  checks.push(compareInvoiceVatId('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), carrierVatId, carrierCountry), compareCheck('recipientVatId', 'USt-ID Rechnungsempfänger', field(invoice, 'recipientVatId'), company.vatId))
   const from = imported?.loading, to = imported?.unloading
   for (const [key, label, expected] of [['loadingDate', 'Ladedatum', from?.window?.from?.slice(0, 10)], ['unloadingDate', 'Entladedatum', (to?.window?.until || to?.window?.from)?.slice(0, 10)], ['loadingCity', 'Ladeort', from?.city], ['unloadingCity', 'Entladeort', to?.city], ['licensePlate', 'Kennzeichen', imported?.shipment?.licensePlate]]) {
     rows.forEach((row, index) => checks.push(compareCheck(`${key}-${index}`, label, row[key]?.value, expected, { optional: true, secondary: true })))
@@ -60,30 +88,62 @@ export function compareInvoiceTransport({ rows, invoice, imported, company = {},
 }
 export function invoiceTotals(invoice, { references = [], allAssigned = true } = {}) {
   const net = invoiceCents(field(invoice, 'netTotal')), vat = invoiceCents(field(invoice, 'vatTotal')), gross = invoiceCents(field(invoice, 'grossTotal'))
-  const values = invoice.transports.map(row => invoiceCents(row.net?.value))
+  const values = (invoice.transports || []).map(row => invoiceCents(row.net?.value))
   const sum = values.length && values.every(value => value !== null) ? values.reduce((a, b) => a + b, 0) : null
   const total = values => values.length && values.every(Number.isFinite) ? values.reduce((a, b) => a + b, 0) : null
   const canCompare = allAssigned && references.length > 0
   const expectedNet = canCompare ? total(references.map(reference => expectedInvoiceNet(reference.imported))) : null
   const expectedVat = canCompare ? total(references.map(reference => reference.financial?.vatCents)) : null
   const expectedGross = canCompare ? total(references.map(reference => reference.financial?.grossCents)) : null
-  const checks = [compareCheck('netTotal', 'Gesamt netto / Aufträge (Cent)', net, expectedNet, { equal: (a, b) => a === b, format: 'money' }), compareCheck('vatTotal', 'MwSt.-Betrag / Datenbank (Cent)', vat, expectedVat, { equal: (a, b) => a === b, format: 'money' }), compareCheck('grossTotal', 'Gesamt brutto / Datenbank (Cent)', gross, expectedGross, { equal: (a, b) => a === b, format: 'money' }), compareCheck('positionSum', 'Summe Positionen / Rechnungsnetto (Cent)', sum, net, { equal: (a, b) => a === b, format: 'money' }), compareCheck('taxSum', 'Netto + MwSt. / Brutto (Cent)', net !== null && vat !== null ? net + vat : null, gross, { equal: (a, b) => a === b, format: 'money' })]
   const currency = field(invoice, 'currency')
   const currencies = [...new Set(references.map(reference => reference.imported?.financial?.currency).filter(Boolean))]
   const expectedCurrency = references.length > 0 && references.every(reference => reference.imported?.financial?.currency) && currencies.length === 1 ? currencies[0] : null
-  for (const check of checks) Object.assign(check, { actualCurrency: currency || null, expectedCurrency: ['netTotal', 'vatTotal', 'grossTotal'].includes(check.key) ? expectedCurrency : currency || null })
-  if (!currency || !expectedCurrency || references.some(reference => identity(currency) !== identity(reference.imported?.financial?.currency))) for (const check of checks.filter(check => ['netTotal', 'vatTotal', 'grossTotal'].includes(check.key))) Object.assign(check, { color: 'yellow', status: 'unknown', message: 'Rechnungs- und Vergleichswährung sind nicht eindeutig gleich. Keine automatische Umrechnung.' })
+  const sameCurrency = Boolean(currency && expectedCurrency && identity(currency) === identity(expectedCurrency))
+  const moneyCheck = (key, label, actual, expected, origin, referenceCurrency = expectedCurrency) => {
+    const check = compareCheck(key, label, actual, expected, { equal: (a, b) => a === b, format: 'money' })
+    Object.assign(check, { actualCurrency: currency || null, expectedCurrency: referenceCurrency || null, comparisonOrigin: origin })
+    if (!origin.startsWith('invoice_') && (!currency || !referenceCurrency || identity(currency) !== identity(referenceCurrency))) Object.assign(check, { color: 'yellow', status: 'unknown', message: 'Rechnungs- und Vergleichswährung sind nicht eindeutig gleich.' })
+    return check
+  }
+  const dbNet = moneyCheck('netTotal', 'Gesamt netto (Cent)', net, expectedNet, 'database')
+  const dbVat = moneyCheck('vatTotal', 'MwSt.-Betrag (Cent)', vat, expectedVat, 'database')
+  const dbGross = moneyCheck('grossTotal', 'Gesamt brutto (Cent)', gross, expectedGross, 'database')
+  // Internal arithmetic remains distinct evidence. It never invents a missing
+  // database tax amount or changes the order's authoritative reference values.
+  const positionSum = moneyCheck('positionSum', 'Summe Positionen / Rechnungsnetto (Cent)', sum, net, 'invoice_arithmetic', currency)
+  const taxSum = moneyCheck('taxSum', 'Netto + MwSt. / Brutto (Cent)', net !== null && vat !== null ? net + vat : null, gross, 'invoice_arithmetic', currency)
   const countries = references.map(reference => countryCode(reference.carrierCountry)).filter(Boolean)
   if (!countries.length) { const country = countryCode(field(invoice, 'issuerCountry')); if (country) countries.push(country) }
   const foreign = countries.some(country => country !== 'DE')
-  checks.push(coloredCheck('foreignVat', 'MwSt. bei ausländischem Unternehmer', vat, foreign ? 0 : null, !countries.length ? vat > 0 ? 'yellow' : 'gray' : foreign && vat > 0 ? 'red' : foreign && vat === 0 ? 'green' : 'gray', foreign && vat > 0 ? 'Betriebliche Prüfregel: MwSt. bei ausländischem Unternehmer berechnet. Bitte prüfen.' : ''))
-  const uncertain = invoice.amountUncertainKeys || []
-  const affected = new Set(uncertain)
-  if (uncertain.length) affected.add('taxSum')
-  if (uncertain.includes('netTotal') || invoice.transports.some(row => row.netOcrUncertain)) affected.add('positionSum')
-  if (uncertain.includes('vatTotal')) affected.add('foreignVat')
-  for (const check of checks) if (affected.has(check.key)) Object.assign(check, { color: 'yellow', status: 'unknown', message: 'Textebene und OCR liefern unterschiedliche Betragswerte. Bitte Original prüfen.' })
-  return { checks, status: summarizeChecks(checks) }
+  const foreignRuleApplicable = foreign && vat !== null && vat >= 0
+  const foreignVat = coloredCheck('foreignVat', 'MwSt. bei ausländischem Unternehmer', vat, foreign ? 0 : null, !countries.length ? vat > 0 ? 'yellow' : 'gray' : foreign && vat > 0 ? 'red' : foreign && vat === 0 ? 'green' : 'gray', foreign && vat > 0 ? 'Betriebliche Prüfregel: MwSt. bei ausländischem Unternehmer berechnet.' : '', { format: 'money', actualCurrency: currency || null, expectedCurrency: currency || null, comparisonOrigin: 'business_rule' })
+  let netCheck = { ...dbNet }, vatCheck = { ...dbVat }, grossCheck = { ...dbGross }
+  if (positionSum.color === 'red') netCheck = { ...moneyCheck('netTotal', 'Gesamt netto (Cent)', net, sum, 'invoice_positions', currency), detailKey: 'positionSum' }
+  // Preserve the established foreign-carrier business rule as a visible VAT
+  // contradiction even if a database booking carries the same positive tax.
+  if ((expectedVat === null || foreignVat.color === 'red') && foreignRuleApplicable) vatCheck = moneyCheck('vatTotal', 'MwSt.-Betrag (Cent)', vat, 0, 'business_rule', currency)
+  const confirmedVat = expectedVat !== null ? expectedVat : foreignRuleApplicable ? 0 : null
+  if (expectedGross === null) {
+    if (expectedNet !== null && confirmedVat !== null && sameCurrency) grossCheck = moneyCheck('grossTotal', 'Gesamt brutto (Cent)', gross, expectedNet + confirmedVat, 'reference_calculation')
+    else grossCheck = moneyCheck('grossTotal', 'Gesamt brutto (Cent)', gross, net !== null && vat !== null ? net + vat : null, 'invoice_arithmetic', currency)
+  }
+  if (taxSum.color === 'red') grossCheck = { ...moneyCheck('grossTotal', 'Gesamt brutto (Cent)', gross, net + vat, 'invoice_arithmetic', currency), detailKey: 'taxSum' }
+  const detailChecks = [positionSum, taxSum, foreignVat]
+  if (netCheck.comparisonOrigin !== 'database') detailChecks.push({ ...dbNet, key: 'databaseNetTotal', label: 'Netto / Datenbank (Cent)' })
+  if (vatCheck.comparisonOrigin !== 'database' || expectedVat === null) detailChecks.push({ ...dbVat, key: 'databaseVatTotal', label: 'MwSt. / Datenbank (Cent)' })
+  if (grossCheck.comparisonOrigin !== 'database' || expectedGross === null) detailChecks.push({ ...dbGross, key: 'databaseGrossTotal', label: 'Brutto / Datenbank (Cent)' })
+  const checks = [netCheck, vatCheck, grossCheck]
+  const uncertain = new Set(invoice.amountUncertainKeys || [])
+  const uncertainPositions = (invoice.transports || []).some(row => row.netOcrUncertain)
+  const markUncertain = check => Object.assign(check, { color: 'yellow', status: 'unknown', message: 'Textebene und OCR liefern unterschiedliche Betragswerte.' })
+  for (const check of checks) {
+    if (uncertain.has(check.key) || check.key === 'netTotal' && uncertainPositions || check.key === 'grossTotal' && (uncertain.has('netTotal') || uncertain.has('vatTotal'))) markUncertain(check)
+  }
+  for (const check of detailChecks) {
+    check.secondary = true
+    if (check.key === 'positionSum' && (uncertain.has('netTotal') || uncertainPositions) || check.key === 'taxSum' && uncertain.size || check.key === 'foreignVat' && uncertain.has('vatTotal') || check.key === 'databaseNetTotal' && uncertain.has('netTotal') || check.key === 'databaseVatTotal' && uncertain.has('vatTotal') || check.key === 'databaseGrossTotal' && uncertain.has('grossTotal')) markUncertain(check)
+  }
+  return { checks, detailChecks, status: summarizeChecks(checks) }
 }
 function countryCode(value) {
   const normalized = identity(value)
@@ -123,12 +183,14 @@ export function recipientAddressCheck(invoice, company = {}) {
 }
 export function invoiceHeaderChecks(invoice, company, references) {
   const unique = values => [...new Set(values.filter(supplied))]
-  const issuers = unique(references.map(reference => reference.imported?.carrier?.originalName))
+  const issuers = unique(references.map(reference => reference.carrierName || reference.imported?.carrier?.originalName))
   const vatIds = unique(references.map(reference => reference.carrierVatId))
+  const countries = unique(references.map(reference => countryCode(reference.carrierCountry)))
+  const carrierCountry = countries.length === 1 ? countries[0] : null
   const billingEvidenceCount = references.reduce((count, reference) => count + (reference.billingEvidence?.length || 0), 0)
   const billingAvailable = references.length > 0 && references.every(reference => reference.billingDataAvailable === true)
   const billing = coloredCheck('billingStatus', 'Bereits abgerechnet / Dublettenabgleich', billingEvidenceCount ? `${billingEvidenceCount} Belegbezüge vorhanden` : null, 'Eindeutiger Abrechnungsstatus', billingAvailable && !billingEvidenceCount ? 'green' : 'yellow', billingEvidenceCount ? 'Belegbezug vorhanden. Dublette, Zahlungsanfrage oder neue Rechnung prüfen.' : billingAvailable ? '' : 'Gebuchte Rechnungen und externe Rechnungsreferenzen sind über die aktuelle Schnittstelle nicht vollständig verfügbar.')
-  return [coloredCheck('number', 'Rechnungsnummer', field(invoice, 'number') || null, null, field(invoice, 'number') ? 'gray' : 'yellow'), coloredCheck('date', 'Rechnungsdatum', field(invoice, 'date') || null, null, 'gray', '', { secondary: true }), compareCheck('issuer', 'Rechnungsaussteller', field(invoice, 'issuer'), issuers.length === 1 ? issuers[0] : null, { equal: sameInvoiceCompany }), compareCheck('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), vatIds.length === 1 ? vatIds[0] : null), compareCheck('recipient', 'Rechnungsempfänger', field(invoice, 'recipient'), company.legalName), compareCheck('recipientVatId', 'Unsere USt-ID', field(invoice, 'recipientVatId'), company.vatId), recipientAddressCheck(invoice, company), billing]
+  return [coloredCheck('number', 'Rechnungsnummer', field(invoice, 'number') || null, null, field(invoice, 'number') ? 'gray' : 'yellow'), coloredCheck('date', 'Rechnungsdatum', field(invoice, 'date') || null, null, 'gray', '', { secondary: true }), compareInvoiceIssuer(invoice, issuers.length === 1 ? issuers[0] : null, vatIds.length === 1 ? vatIds[0] : null, 'Rechnungsaussteller', carrierCountry), compareInvoiceVatId('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), vatIds.length === 1 ? vatIds[0] : null, carrierCountry), compareCheck('recipient', 'Rechnungsempfänger', field(invoice, 'recipient'), company.legalName), compareCheck('recipientVatId', 'Unsere USt-ID', field(invoice, 'recipientVatId'), company.vatId), recipientAddressCheck(invoice, company), billing]
 }
 function paymentBasis(value) {
   const input = identity(value)

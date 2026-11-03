@@ -27,14 +27,16 @@ export function invoicePaymentReference(value) {
   return { text: source, days, dayType, basis, dueDate: null }
 }
 
-export async function loadInvoiceReference({ db, imported }) {
+export async function loadInvoiceReference({ db, imported, sourcePartner }) {
   const carrier = imported?.carrier || {}
   const partnerId = text(carrier.partnerId)
   let partner = null
+  let matchedPartnerId = null
+  let partnerMatch = null
   if (partnerId && partnerId.length <= 240 && !partnerId.includes('/')) {
     const snapshot = await db.doc(`businessPartners/${partnerId}`).get()
     const candidate = snapshot.data()
-    if (candidate && !candidate.mergedIntoPartnerId && candidate.status !== 'merged') partner = candidate
+    if (candidate && !candidate.mergedIntoPartnerId && candidate.status !== 'merged') { partner = candidate; matchedPartnerId = partnerId; partnerMatch = 'partnerId' }
   }
   // A read-only DyCoS fallback does not carry Drehpunkt's partnerId. Its exact
   // creditor account may identify the existing partner, but names/VAT IDs may not.
@@ -50,9 +52,33 @@ export async function loadInvoiceReference({ db, imported }) {
       const candidate = doc.data()
       if (candidate && !candidate.mergedIntoPartnerId && candidate.status !== 'merged') matches.set(doc.id, candidate)
     }
-    if (matches.size === 1) partner = [...matches.values()][0]
+    if (matches.size === 1) { [matchedPartnerId, partner] = [...matches.entries()][0]; partnerMatch = 'creditorNumber' }
     partnerAmbiguous = matches.size > 1
   }
+  const sourceCarrierId = text(imported?.source?.carrierId)
+  // Source identities are a separate namespace from creditor accounts. Only
+  // use the exact entity/id tuple, never a name, invoice VAT ID or substring.
+  if (!partner && !partnerAmbiguous && !creditorNumber && /^[1-9]\d{0,119}$/.test(sourceCarrierId)) {
+    const snapshot = await db.collection('businessPartners').where('dycosImport.sourceReferences', 'array-contains', { entity: 'carrier', id: sourceCarrierId }).limit(2).get()
+    const matches = new Map()
+    for (const doc of snapshot.docs) {
+      const candidate = doc.data()
+      if (candidate && !candidate.mergedIntoPartnerId && candidate.status !== 'merged') matches.set(doc.id, candidate)
+    }
+    if (matches.size === 1) { [matchedPartnerId, partner] = [...matches.entries()][0]; partnerMatch = 'dycosSourceReference' }
+    partnerAmbiguous = matches.size > 1
+  }
+  // The parent has mapped this exact TA's authenticated DyCoS response. Bind
+  // its carrier section again before taking missing comparison values from it.
+  // Ambiguous local identities are not repaired by silently choosing a source.
+  const sourceFields = !partnerAmbiguous && /^[1-9]\d{0,119}$/.test(sourceCarrierId) && sourcePartner?.sourceKind === 'carrier' && text(sourcePartner.sourceId) === sourceCarrierId ? sourcePartner.fields : null
+  const choose = (local, remote) => text(local) ? { value: text(local), source: 'Drehpunkt' } : text(remote) ? { value: text(remote), source: 'DyCoS' } : { value: null, source: null }
+  const name = choose(partner?.companyName, sourceFields?.companyName)
+  const vatId = choose(partner?.companyData?.vatId, sourceFields?.companyData?.vatId)
+  const payment = choose(paymentTermText(partner), paymentTermText(sourceFields))
+  const localCountry = knownCountry(partner?.address?.country)
+  const sourceCountry = knownCountry(sourceFields?.address?.country)
+  const snapshotCountry = knownCountry(carrier.snapshot?.country)
   const billingEvidence = []
   const seen = new Set()
   for (const position of imported?.financial?.costPositions || []) {
@@ -67,9 +93,12 @@ export async function loadInvoiceReference({ db, imported }) {
     })
   }
   return {
-    carrierVatId: text(partner?.companyData?.vatId) || null,
-    carrierCountry: knownCountry(partner?.address?.country) || knownCountry(carrier.snapshot?.country),
-    payment: invoicePaymentReference(paymentTermText(partner)),
+    carrierName: name.value,
+    carrierVatId: vatId.value,
+    carrierCountry: localCountry || sourceCountry || snapshotCountry,
+    payment: invoicePaymentReference(payment.value),
+    referenceSources: { carrierName: name.source, carrierVatId: vatId.source, carrierCountry: localCountry ? 'Drehpunkt' : sourceCountry ? 'DyCoS' : snapshotCountry ? 'Auftrag' : null, payment: payment.source },
+    partnerReference: { partnerId: matchedPartnerId, match: partnerMatch, sourceCarrierId: sourceCarrierId || null, sourcePartnerUsed: [name.source, vatId.source, payment.source].includes('DyCoS') || Boolean(!localCountry && sourceCountry) },
     // Current safe DyCoS mapping excludes invoice heads (unclassified document
     // kinds 2/3/7), external invoice references and tax/gross booking amounts.
     // Technical document IDs are only review indications, never proof of billing.
