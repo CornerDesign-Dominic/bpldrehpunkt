@@ -7,7 +7,7 @@ import { statusMailAiApiKey } from './statusMailAi.js'
 import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge, knowledgeCaseUpdate } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
-import { assertInvoiceReviewAccess, reviewMailboxInvoices } from './invoiceReview.js'
+import { assertInvoiceReviewAccess, reviewMailboxInvoices, validateInvoiceAttachments, validateInvoiceAttachmentBytes } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { getApp } from 'firebase-admin/app'
@@ -433,10 +433,14 @@ export function createMailboxHandlers(deps = {}) {
       const messageId = id(request.data?.messageId)
       const token = await accessToken(context)
       const list = await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
-      const available = validateAgbAttachments(list, 'Rechnungsprüfung')
+      const available = validateInvoiceAttachments(list)
+      const mail = await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}?$select=id,subject,body`)
       const files = []
-      for (const file of available) files.push(await orderPdf(context, token, messageId, file.id))
-      return reviewMailboxInvoices({ db: db(), context, files, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
+      for (const metadata of available) {
+        const file = await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}/attachments/${segment(metadata.id)}`)
+        files.push(validateInvoiceAttachmentBytes(file, metadata))
+      }
+      return reviewMailboxInvoices({ db: db(), context, files, mail, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
     }),
     listTransportInvoiceChecks: guarded('invoice-history', async request => {
       assertMailboxEnvironment(deps.config?.project || runtimeProjectId())

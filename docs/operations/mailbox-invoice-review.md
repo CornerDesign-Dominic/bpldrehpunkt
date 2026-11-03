@@ -1,196 +1,128 @@
 # Rechnungsprüfung aus persönlichen Postfächern
 
-Stand: 30.10.2026. Der Nutzer hat Umsetzung, Test mit drei bereitgestellten
-Rechnungen und Veröffentlichung ausschließlich in Dev ausdrücklich beauftragt.
-Produktion und status@ bleiben unverändert.
+Stand: 03.11.2026. Führender Daten- und Prüfvertrag für die Mailaktion und
+für gespeicherte Ergebnisse im Transportauftrag. Veröffentlichungsstand siehe
+[Releasebeleg](releases/invoice-review-2026-11-03.md).
 
-## Ablauf und Aussagekraft
+## Prüfobjekt und Quellen
 
-Die Mailaktion startet als dauerhafte Hintergrundauswertung; der Arbeitsdialog
-öffnet erst nach bewusstem Klick auf das fertige Ergebnis. Mail/PDF stehen links,
-rechts ein Ergebnis je erkannter Rechnung mit aufklappbarer Zeile je TA.
-Mehrere Rechnungspositionen derselben TA
-werden für den Transportvergleich addiert; unterschiedliche TAs bleiben getrennt.
-Kopf-/Summenprüfung und Gesamtstatus der Rechnung sind von den Transportzeilen
-getrennt. Grün bedeutet Übereinstimmung der aufgeführten Prüfpunkte; Rot eine
-festgestellte Abweichung. Fehlende oder unbelegte Daten sind ausdrücklich
-unvollständig/ungeklärt, niemals automatisch grün.
+Prüfobjekt ist jede erkannte Eingangsrechnung. Mailbetreff, Mailtext und alle
+unterstützten Dateianhänge bleiben gemeinsam als Kontext für die Auftragszuordnung
+erhalten. Ablieferbelege, CMR, Transportaufträge und andere Begleitunterlagen
+werden nicht selbst als Rechnungen bewertet. Eine weitere Datei ist weder
+pauschal dieselbe Rechnung noch pauschal ein Begleitdokument. Mehrere Rechnungen
+in einer Mail oder PDF werden getrennt ausgewertet.
 
-Alle PDF-Dateianhänge werden serverseitig über Graph gelesen. Der Mailtext,
-Dateinamen oder ein anderer Anhang berechtigen nicht zur TA-Zuordnung: Die
-neunstellige TA muss im erkannten Rechnungsdokument selbst belegt sein. Ohne
-TA erfolgt kein Auftragsabruf und keine Verknüpfung. Nicht-Rechnungen werden
-nicht als Rechnung verarbeitet. Geschützte oder auch nach OCR nicht lesbare PDFs brechen mit Hinweis ab.
-Fehlende Textebenen einzelner Seiten lösen automatisch einen OCR-Durchlauf aus. Obergrenzen sind 20 PDFs,
-je 5 MiB, zusammen 20 MiB, 100 Seiten, 160.000 Textzeichen und 50 Transportzeilen.
-Die Vollständigkeitsgrenzen führen zum Abbruch statt stiller Teilprüfung.
+Die KI benennt die Rechnungsseiten eines Dokuments; unklare Seitengrenzen sollen
+einen größeren Seitenumfang einschließen statt mögliche Rechnungsteile zu
+verwerfen. Rechnungswerte und Belege werden serverseitig gegen genau diesen
+Seitenumfang validiert. Begleitunterlagen dürfen keine fehlenden Rechnungsbeträge,
+Aussteller oder Zahlungsbedingungen ersetzen. OCR-Lesbarkeitsflags werden auf die
+Rechnungsseiten begrenzt. Eine Dokumentübersicht und die Rechnungsseiten bleiben
+im Ergebnis sichtbar. Originale verbleiben in Exchange.
 
-Die strukturierte Erkennung verwendet extrahierten PDF-Text und native PDFs,
-gpt-5.4, store:false und das bestehende Dev-Secret STATUS_MAIL_OPENAI_API_KEY.
-Belegwerte werden gegen den Text desselben Dokuments geprüft. Bei abweichender
-visueller/Text-Reihenfolge darf nur auf einen tatsächlich vorhandenen wörtlichen
-Wert neu verankert werden; keine unbelegten Werte werden ergänzt.
+Unterstützt sind PDF, PNG, JPEG und nicht animierte WebP/PNG. GIF/Animationen
+werden ausdrücklich abgewiesen statt nur das erste Bild auszuwerten. Inlinebilder
+wie Signaturen werden nicht als Dateianhänge untersucht. Dateiinhalt, Format,
+Größe und Bildabmessungen werden serverseitig geprüft. Grenzen: 20 Dateien, je
+5 MiB, zusammen 20 MiB, 100 Seiten, zusammen 160.000 Zeichen einschließlich
+Mailkontext und beider Textkanäle, 50 Transportpositionen bzw. mögliche TAs.
+Grenzüberschreitungen führen zum Abbruch ohne stille Teilprüfung.
 
-Verglichen werden Nettobetrag in ganzzahligen Cent, Währung, Aussteller und
-Empfänger; soweit belegt auch USt-ID des Empfängers, Lade-/Entladedatum, Orte und
-Kennzeichen. Die Aussteller-USt-ID wird zusätzlich verglichen, wenn in den
-verknüpften Unternehmerstammdaten vorhanden. Als Referenz für den Nettobetrag
-dienen ausschließlich TA-bezogene imported.financial.costPositions.amountNet;
-costNet kann die gesamte Tour enthalten und ist kein zulässiger Ersatz. Fremde
-Währungspositionen werden nicht stillschweigend addiert. Summen der Positionen,
-Netto + Steuer und Brutto werden separat geprüft. PLN-Umrechnungen neben einer
-EUR-Rechnung werden nicht als weitere Rechnungswährung addiert. Es erfolgt keine
-Zahlung, Buchung oder steuerrechtliche Freigabe; IBAN und Ablieferbelege sind
-nicht Bestandteil dieser ersten Datenprüfung.
+PDF-Textebene und OCR bleiben getrennt; erkannte Geldbetragswidersprüche zwischen
+beiden Quellen machen die betroffenen Vergleiche gelb. Bilder liefern OCR-Belege.
+Tabellenüberschriften gehören zum Kontext: ein belegtes Eurozeichen ist ein
+zulässiger Nachweis für EUR. Liefer-/Leistungsdatum bleibt getrennt von Lade- und
+Entladedatum. Bei genau einem Transport wird es sekundär gegen das Entladedatum
+verglichen, niemals automatisch auf beide Transportdaten übertragen.
 
-## Datenquellen und Speicherung
+Die strukturierte Erkennung nutzt gpt-5.4 und store:false. Nur kurze
+serverseitige Dokumentaliase werden an die KI gegeben; die Rückzuordnung zu
+Graph-IDs ist exakt. Dokumente und Mailtexte sind untrusted Daten, keine
+Anweisungen. Die bestehenden projektspezifischen Secrets werden verwendet.
 
-Vorrang haben vorhandene Drehpunkt-Daten. Fehlende Abschnitte werden über den
-bestehenden, authentifizierten DyCoS-TA-Abruf lesend ergänzt; vorhandene Werte
-werden nicht überschrieben. Mehrdeutige lokale TAs werden nicht automatisch
-gewählt. Abrufe sind auf vier parallele Aufträge und ein Zeitbudget begrenzt;
-fehlgeschlagene Abrufe bleiben im Ergebnis ungeklärt. Ein nicht lokal vorhandener
-Auftrag wird nicht nebenbei importiert. Die Prüfung wird seiner kanonischen
-DyCoS-Auftragsreferenz zugeordnet und ist nach regulärem TA-Import dort abrufbar.
+## Auftragszuordnung und Vergleich
 
-Ein unveränderlicher Bericht liegt serverprivat unter invoiceCheckReports.
-Jeder betroffene Transport erhält unter invoiceChecks lediglich die Referenz
-auf diesen Bericht. Damit ist ein gemeinsamer Sammelbericht ohne große
-Mehrfachkopien mit allen betroffenen Aufträgen verknüpft. Die Speichervorgänge
-sind atomar und wiederholte Aufrufe derselben Nutzer-/Anfrage-ID idempotent.
-Erneut prüfen erstellt mit neuer Anfrage-ID einen neuen datierten Prüfstand.
-Auftragsdaten selbst werden durch die Prüfung nicht verändert. Gespeichert
-werden Vergleichswerte, Abweichungen und kurze Rechnungsbelege, keine PDF-Bytes,
-Mailtexte, Microsoft-Tokens oder persönlichen Absenderdaten.
+Neunstellige Referenzen aus der Rechnung, anderen Anhängen, Betreff und Mailtext
+werden lesend gegen Drehpunkt und bei Bedarf DyCoS geprüft. TA-Bezeichnungen
+umfassen u.a. Transport Auftrag, Auftrag, Komm.-Nr. und ext. Auftrags-Nr.
+Dateinamen allein erzeugen keine Referenz. USt-IDs und ausdrücklich als
+Rechnungs-/Konto-/Telefonnummern beschriftete Werte werden nicht als unbenannte
+TA-Kandidaten behandelt. Jeder Kontextbezug behält Dateiname bzw. Mailquelle und
+einen kurzen wörtlichen Nummernbeleg.
 
-Im Auftrag öffnet die linke Aktionskarte „Rechnungsprüfung“ die letzten 20
-Prüfstände. Originale verbleiben im persönlichen Postfach; andere Nutzer mit
-Transport-Leserecht sehen nur die angehängten Prüfergebnisse, keine fremden
-Postfachzugangsdaten. Der Einstieg benötigt keinen eigenen Postfachzugriff.
+Explizite belegte Rechnungsreferenzen werden direkt verglichen. Unklare oder nur
+im Kontext gefundene Nummern werden bei ausreichender unabhängiger Bestätigung
+automatisch zugeordnet: Unternehmername oder Unternehmer-USt-ID zusammen mit
+passendem Nettobetrag oder mindestens zwei unabhängigen Transportmerkmalen.
+Ein expliziter Rechnungsbezug plus Unternehmeridentität kann auch bei falschem
+Rechnungsbetrag zugeordnet werden; die Betragsabweichung bleibt rot. Unser eigener
+Name und unsere USt-ID sind keine unterscheidenden Zuordnungsmerkmale.
 
-## Rechte und Release
+Internes Ranking: Unternehmername 30, Unternehmer-USt-ID 35, Nettobetrag 40 und je
+unabhängigem Transportmerkmal 10 Punkte. Liefer-/Entladedatum wird nicht doppelt
+gezählt. Ohne expliziten Rechnungsbezug muss der beste ausreichend belegte
+Kandidat mindestens 15 Punkte vor dem nächsten liegen. Gleiche Alternativen oder
+unvollständige/mehrdeutige Kandidatenabrufe bleiben gelb und werden nicht fest
+verknüpft. Rankingpunkte sind keine Erfolgsprozente und werden nicht angezeigt.
+Bestätigtes Nichtvorhandensein einer TA wird vom Schnittstellenfehler unterschieden.
+Mehrere Positionen derselben zugeordneten TA werden vor dem Kostenvergleich
+addiert; alternative Kandidaten vervielfachen niemals Rechnungsbeträge.
 
-reviewMailboxInvoices verlangt App Check, aktives Profil, eigene aktive
-Postfachverbindung, Postfach-Bearbeitung, Transport-Bearbeitung und ausschließlich
-Projekt db-bpl-drehpunkt-dev. Vor Speicherung werden Rechte und Verbindung erneut
-geprüft. Eine serverprivate Quota begrenzt auf 20 Starts pro Nutzer/Stunde.
-listTransportInvoiceChecks benötigt aktives Profil und Transport-Leserecht;
-direkter Clientzugriff auf Berichte und Verknüpfungen bleibt per Default-deny
-gesperrt. Keine neuen Rules oder Indizes sind erforderlich.
+Bekannte Rechtsformvarianten und Inhaberzusätze werden gezielt normalisiert.
+Unterschiedliche ausdrücklich genannte Inhaber bleiben unterscheidbar. Keine
+beliebigen Namenspräfixe oder unscharfen Firmenzusammenführungen.
 
-Gezielt bereitzustellen: reviewMailboxInvoices (MAILBOX_CLIENT_SECRET,
-STATUS_MAIL_OPENAI_API_KEY und vorhandene DYCOS_TENANT_ID, DYCOS_CLIENT_ID,
-DYCOS_SERVICE_PRINCIPAL_ID, DYCOS_CERTIFICATE_PEM, DYCOS_PRIVATE_KEY_PEM,
-DYCOS_FLOW_URL), listTransportInvoiceChecks und reportClientDiagnostic.
-Mit diesem Stand werden die zuvor lokal vorbereitete AGB-Mailaktion
-(analyzeMailboxAgb, assignMailboxAgbCustomer) und die Ladeanzeige der
-Auftragserfassung gemeinsam in Dev bereitgestellt. Es werden ausschließlich
-bestehende Dev-Secrets gebunden und keine Produktionswerte kopiert.
+Vorrang haben lokale Daten; fehlende Abschnitte werden lesend ergänzt, vorhandene
+Werte nicht überschrieben. Mehrdeutige lokale TAs werden nicht automatisch gewählt.
+Nettoreferenz sind ausschließlich TA-bezogene imported.financial.costPositions,
+niemals ein möglicher Tourgesamtbetrag costNet. Keine automatische Währungsumrechnung.
+Fehlende Steuer-/Bruttoreferenzen bleiben offen, nicht null. Zahlungskonditionen
+vergleichen Frist, Fristbeginn und Tagesart; ein gedrucktes Fälligkeitsdatum ersetzt
+keine ausdrücklich vereinbarte Eingangsbasis. Belegverknüpfungen allein beweisen
+weder Dubletten noch Zahlung oder Buchung.
 
-## Prüfung
+## Darstellung und Prozentbalken
 
-Die drei vom Nutzer bereitgestellten PDFs wurden vollständig gelesen und
-visuell geprüft. Echte strukturierte KI-Erkennung und lesender DyCoS-Abruf
-fanden für alle drei Beispiele statt; Nettobeträge und Währungszuordnung wurden
-mit den Quellen abgeglichen. Die Prüfung erkennt reale Namens-/Kennzeichen-
-Abweichungen und fehlende Referenzwerte, statt sie als Erfolg zu kennzeichnen.
-Rechnungsdateien, personenbezogene Finanzdaten, native PDFs, Extraktionsausgaben
-und API-Zugangsdaten werden nicht ins Repository aufgenommen.
+Die Hauptansicht zeigt kompakte Zeilen mit Rechnungswert, Vergleichswert und
+Ergebnis. Grün: vergleichbare Werte stimmen überein. Gelb: benötigte Angabe oder
+Vergleich/Zuordnung fehlt. Rot: vorhandene vergleichbare Angaben widersprechen
+sich. Grau: ergänzend oder nicht anwendbar. Interne Rechenprüfungen sind als solche
+beschriftet; deren Grün bedeutet rechnerische Stimmigkeit, keinen Datenbanknachweis.
+Eine nur erkannte Rechnungsnummer ist kein grüner Datenbankvergleich.
 
-Synthetische Tests decken Sammelrechnungen, Mehrfachpositionen, fehlende TA,
-fremde/fehlende Rechte, unbelegte Werte, fehlende Vergleichsdaten, fehlgeschlagene
-Zuordnung und Summenfehler ab. Echte Demo-Firestore-Integration prüft atomare
-Speicherung und Idempotenz; separate Regeltests verweigern Get/List/Write der
-neuen Collections für Eigentümer, andere Nutzer, Superadmin und deaktivierte
-Konten. Browserprüfung mit synthetischen Daten: Ladeanzeige, Aufklappen, getrennte
-Ergebnisse, Bericht im Auftrag erneut öffnen, Light/Dark, Deutsch/Englisch und
-Fehlerfall bei erneuter Prüfung. Es wurden keine echten Mails versendet.
+Der Balken zeigt die Verteilung gleich gewichteter Hauptprüfpunkte in
+Grün/Gelb/Rot, insgesamt gerundet 100 Prozent, einschließlich Anzahl je Farbe.
+Er ist keine Wahrscheinlichkeit und keine Freigabeentscheidung. Wiederholte
+Kopf-/Transportvergleiche werden nicht mehrfach gezählt. Bei mehreren TAs bleiben
+Positionsabweichungen sichtbar, auch wenn sie sich in der Gesamtsumme aufheben.
 
-Releaseprüfung: 84 gezielte Tests, Demo-Firestore-Regeltest und separate
-Demo-Firestore-Speicherintegration bestanden; Lint, Build und Abgleich von
-38 deploybaren Shared-Modulen erfolgreich. Der bestehende Hinweis auf große
-JavaScript-Chunks bleibt bestehen.
+Lade-/Entladeorte und -daten, Kennzeichen und Erkennungsmetadaten sind sekundär
+und verändern den Balken nicht. Fehlende sekundäre Angaben sind grau; echte
+Widersprüche bleiben farbig und werden am eingeklappten Bereich gezählt.
+Quellen, vollständiger Auftragsvergleich und Erkennungsdetails sind aufklappbar.
+Die Berichtshistorie im Auftrag verwendet dieselbe Prozentberechnung. Deutsch,
+Englisch sowie Light/Dark verwenden denselben Ablauf.
 
+## Speicherung und Zugriff
 
-## Korrektur der Dokumentreferenzen am 30.10.2026
+Neue unveränderliche Berichte haben version:3. Alte Berichte bleiben lesbar und
+werden durch die neue Oberfläche dargestellt, nicht rückwirkend neu erkannt oder
+fachlich umgeschrieben. Für neue Erkennung ist „Mit aktuellen Auftragsdaten erneut
+prüfen“ erforderlich. Berichte enthalten Vergleichswerte, kurze Belege,
+Quellenherkunft und Dokument-/Seitenmetadaten, keine PDF-/Bildbytes, Mailtexte,
+Microsoft-Tokens oder Secrets. invoiceCheckReports bleibt serverprivat;
+transportOrders/{id}/invoiceChecks enthält nur die Berichtsreferenz. Speicherung
+ist atomar und pro Nutzer/Anfrage-ID idempotent. Keine Änderung der Auftragsdaten,
+keine Buchung, Zahlung oder steuerrechtliche Freigabe.
 
-Der echte Mailablauf scheiterte nach erfolgreicher KI-Erkennung: Beim Kopieren
-einer langen opaken Microsoft-Anhangs-ID änderte die KI ein Zeichen. Die
-strenge Belegprüfung verwarf den unbekannten Verweis korrekt. Die Analyse
-übergibt deshalb nur kurze serverseitige Aliase (pdf-1, pdf-2 usw.). Das
-Antwortschema beschränkt sourceId auf genau diese Aliase; der Server ordnet sie
-anschließend exakt den ursprünglichen Anhangs-IDs zu. Opaque Graph-IDs werden
-nicht mehr an die KI übermittelt. Die Belegprüfung bleibt unverändert streng;
-es gibt keine unscharfe Reparatur einer beschädigten ID. Unbekannte Referenzen
-und unbelegte Inhalte haben getrennte inhaltsfreie Diagnosecodes.
+reviewMailboxInvoices benötigt App Check, aktives Profil, eigene aktive
+Postfachverbindung sowie Postfach- und Transport-Bearbeitung. Rechte und Verbindung
+werden vor Speicherung erneut geprüft. Quota: 20 Starts pro Nutzer/Stunde.
+listTransportInvoiceChecks benötigt aktives Profil und Transport-Leserecht, aber
+keinen Zugriff auf das persönliche Postfach des Erstellers. Direkte Browserzugriffe
+auf Berichte/Verknüpfungen bleiben gesperrt. Keine neuen Rules oder Indizes.
 
-Die Ursache wurde mit dem betroffenen echten Mailanhang reproduziert. Nach der
-Korrektur war derselbe KI-/Validierungsablauf erfolgreich. Regressionstests
-prüfen zwei fast gleiche lange Anhangs-IDs, exakte Rückzuordnung, Alias-Enum und
-das Abweisen unbekannter Aliase. Private Mail-/PDF-Inhalte und Providerantworten
-werden nicht eingecheckt.
-
-
-Der Rechnungsbezug „ext. Auftrags-Nr.“ ist eine mögliche Bezeichnung unserer
-TA auf einer Fremdrechnung. Der Prompt unterscheidet ihn ausdrücklich von
-internen Nummern des Ausstellers sowie Rechnungs-/Kundenkontonummern. Wörtlich
-belegte neunstellige Auftragsreferenzen werden als unverbindliche Texthinweise
-mitgegeben; sie ersetzen weder die Zuordnung zur konkreten Position noch den
-anschließenden echten Auftragsabgleich. Es gibt keine automatische Übernahme
-einer beliebigen neunstelligen Zahl oder einer Nummer aus dem Dateinamen.
-
-## Prüfregeln Version 2, 30.10.2026
-
-Die Farben je Prüfpunkt sind grau (leer/optional), blau (ergänzende Information),
-grün (abgeglichen/korrekt), gelb (ungeklärt oder unkritische Abweichung) und rot
-(kritische Abweichung). Der grüne Mailaktionsbutton bedeutet weiterhin nur
-„Auswertung abgeschlossen“. Alte Berichte bleiben unverändert lesbar.
-
-Auch unsichere neunstellige Rechnungsreferenzen werden gegen vorhandene Aufträge
-und gegebenenfalls die lesende Schnittstelle geprüft. Mehrere mögliche Aufträge
-werden getrennt nach Übereinstimmung sortiert und gelb als Vorschläge angezeigt;
-alternative Kandidaten werden niemals als mehrere abgerechnete Transporte addiert.
-Bei mehreren Alternativen erfolgt keine feste Auftragsverknüpfung. Fehlt ein
-Auftrag eindeutig, ist die Zuordnung rot; ein fehlgeschlagener Abruf bleibt gelb.
-
-Netto wird gegen die sicheren TA-Kostenpositionen geprüft. MwSt./Brutto erhalten
-einen eigenen Datenbankvergleich und die Rechnungssummen eine rechnerische
-Prüfung. Fehlende Referenzwerte sind gelb, nicht null. Unterschiedliche Währungen
-sind eine Nebeninformation; Beträge werden nicht ohne passende Währungszuordnung
-verglichen oder umgerechnet. Positive MwSt. bei belegtem ausländischem Unternehmer
-ist eine rote betriebliche Prüfregel, keine abschließende steuerrechtliche Aussage.
-
-Aussteller, beide USt-IDs und Empfänger werden geprüft. Fehlende gewünschte Angaben
-sind gelb, fehlendes Rechnungsdatum grau. Die aktuelle Empfängeranschrift ist
-Reinshagenstraße, 42369 Wuppertal; Heinz-Fangmann-Straße wird als frühere Anschrift
-gelb erkannt. Übliche Straßenabkürzungen und ein bis zwei Buchstabenabweichungen
-werden toleriert. Rosenthalstraße wird ausdrücklich noch nicht berücksichtigt.
-
-Das Zahlungsziel nutzt den vollständigen Vertragstext des verknüpften Unternehmers
-und unterscheidet Rechnungsdatum, Rechnungseingang, Belegeingang sowie Kalender-,
-Werk- und Banktage. Ein Fälligkeitsdatum wird nur mit derselben sicheren Grundlage
-verglichen. Fehlende Grundlagen sind gelb, festgestellte Abweichungen rot.
-
-Rechnungs-PDFs durchlaufen immer zusätzlich OCR. Textebene und OCR bleiben getrennt,
-mit Metadaten für reine OCR sowie Unterschiede. Widersprüchlich erkannte Geldwerte
-werden feldbezogen gelb, auch bei rechnerischer Übereinstimmung mit der Datenbank;
-unterschiedliche Telefonnummern verfälschen keine beidseitig bestätigten Beträge.
-AGB-/Auftragserfassung verwenden weiterhin OCR nur bei Bedarf.
-
-Wichtige kurze Hinweise zu Kostenabweichungen, Empfängeranschrift, Zahlungsziel
-und möglichen Abrechnungsbezügen stehen oben im gelben Feld. Der aktuelle sichere
-DyCoS-Mapper übernimmt keine bestätigten Buchungen oder externen Rechnungsreferenzen
-aus den fachlich noch ungeklärten Belegarten. Eine RechKopfID an einer Kostenposition
-ist nur ein qualifizierter Beleg-Hinweis. Prüfberichte sind niemals Buchungsbelege;
-fehlende Buchungsdaten werden ausdrücklich als ungeklärt dargestellt.
-
-Die rechte Dialoghälfte scrollt vollständig unter einem kompakten Kopf. Es ist
-über alle Rechnungen und TA-Abschnitte höchstens ein Abschnitt geöffnet. Geschlossene
-Abschnitte zeigen Zahl und Farbkugel; Modellwarnungen stehen im Zusatzabschnitt.
-
-Echte Tests mit den drei Nutzerrechnungen wurden mit vollständiger zusätzlicher
-OCR, echter KI-Extraktion und lesend geladenen Unternehmerstammdaten wiederholt.
-Die Prüfberichte wurden ausschließlich lokal gespeichert; keine echten Aufträge
-angelegt und keine E-Mails gesendet. Die Oberfläche wurde mit synthetischen Version-1-
-und Version-2-Berichten geprüft. Bereitstellung nur in Dev: `reviewMailboxInvoices`
-und der gemeinsame Worker `processMailboxActionRun` sowie das Frontend.
+Backendänderungen dieses Updates betreffen ausschließlich reviewMailboxInvoices;
+Frontend und Backend müssen gemeinsam veröffentlicht werden. Firebase-Ziele:
+db-bpl-drehpunkt-dev und nach ausdrücklicher Freigabe db-bpl-drehpunkt.

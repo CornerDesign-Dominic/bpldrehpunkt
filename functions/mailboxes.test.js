@@ -570,11 +570,11 @@ test('invoice action uses server PDF data and refuses missing transport edit rig
   const f=fixture({requireProfile:async()=>({...profile,permissions:{mailboxes:'edit',transportOrders:'edit'}}), fetch:async url=>{
     paths.push(url)
     if(url.includes('/attachments?'))return response({value:[{id:'pdf',name:'invoice.pdf',size:30,contentType:'application/pdf','@odata.type':'#microsoft.graph.fileAttachment'}]})
-    if(url.includes('?$select='))return response({name:'invoice.pdf',size:30,contentType:'application/pdf','@odata.type':'#microsoft.graph.fileAttachment'})
-    return response({contentBytes:Buffer.from('%PDF-1.4 synthetic').toString('base64'),name:'invoice.pdf'})
-  },extractInvoicePdf:async()=>({text:'Server attachment text',pageCount:1}),inferInvoices:async input=>{assert.equal(input.documents[0].text,'Server attachment text');return {invoices:[]}}})
+    if(url.includes('?$select='))return response({subject:'Server TA 261000824',body:{content:'Server mail context'}})
+    return response({'@odata.type':'#microsoft.graph.fileAttachment',contentBytes:Buffer.from('%PDF-1.4 synthetic').toString('base64'),name:'invoice.pdf'})
+  },extractInvoicePdf:async()=>({text:'Server attachment text',pageCount:1}),inferInvoices:async input=>{assert.equal(input.documents[0].text,'Server attachment text');assert.equal(input.mail.subject,'Server TA 261000824');assert.ok(!JSON.stringify(input.mail).includes('forged'));return {invoices:[]}}})
   const result=await f.handlers.reviewMailboxInvoices(request({messageId:'message',operationId:'request-000000001',body:'forged client TA'}))
-  assert.match(result.message,/Keine Rechnung/);assert.ok(paths.every(path=>path.includes('/attachments')))
+  assert.match(result.message,/Keine Rechnung/);assert.equal(paths.filter(path=>!path.includes('/attachments')).length,1)
   await assert.rejects(f.handlers.reviewMailboxInvoices({auth:{uid:'foreign'},data:{connectionId,messageId:'message',operationId:'request-000000001'}}),{code:'permission-denied'})
 })
 test('transport invoice history requires transport access but not personal mailbox access',async()=>{

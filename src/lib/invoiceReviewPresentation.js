@@ -45,3 +45,68 @@ export function invoiceTransportChecks(transport = {}) {
   if (transport.status !== 'unassigned') return transport.checks || []
   return [{ key: 'ta', label: 'TA-Zuordnung', actual: transport.ta || null, expected: null, status: 'unassigned', color: 'red', message: transport.message || 'Keine eindeutige Zuordnung zu einem Auftrag.' }]
 }
+
+const supplementaryKeys = new Set(['date', 'dueDate', 'serviceDate', 'deliveryDate', 'loadingDate', 'unloadingDate', 'loadingCity', 'unloadingCity', 'licensePlate', 'ocr', 'ocrUncertain', 'ocrDifference', 'lookup'])
+
+export function invoiceCheckIsSecondary(check = {}) {
+  return check.secondary === true || check.scope === 'secondary' || check.key === 'number' && invoiceCheckColor(check) !== 'yellow' || supplementaryKeys.has(check.key?.split('-')[0]) || check.key?.startsWith('warning-')
+}
+
+// Build one set of invoice-level results. Repeated header comparisons on every
+// transport are detail, not additional votes in the overall percentage.
+export function invoiceDisplayChecks(invoice = {}) {
+  const sections = invoicePrimarySections(invoice)
+  const primary = [], secondary = [], seen = new Set()
+  const add = (check, transport) => {
+    const base = check.key?.split('-')[0] || 'check'
+    const supplemental = invoiceCheckIsSecondary(check)
+    const global = ['issuer', 'recipient', 'issuerVatId', 'recipientVatId', 'recipientAddress', 'currency'].includes(base)
+    const id = global || !transport ? base : `${transport.ta || transport.orderId || `unassigned-${transport.displayIndex}`}:${check.key}`
+    if (seen.has(id)) {
+      // Conflicting transport references must not be hidden by a broader
+      // invoice-level comparison that could not choose one reference value.
+      const existing = primary.find(item => item.displayId === id)
+      if (global && invoiceCheckColor(check) === 'red' && existing && invoiceCheckColor(existing) !== 'red') Object.assign(existing, check)
+      return
+    }
+    seen.add(id)
+    const item = { ...check, displayId: id, ...(transport ? { transportTa: transport.ta || null } : {}) }
+    if (supplemental || ['gray', 'blue'].includes(invoiceCheckColor(check))) secondary.push(item)
+    else primary.push(item)
+  }
+  const aggregateNet = sections.amounts.some(check => check.key === 'netTotal')
+  const transports = invoice.transports || []
+  const singleNet = transports.length === 1 ? invoiceTransportChecks(transports[0]).find(check => check.key === 'net') : null
+  const severity = check => ({ red: 3, yellow: 2, green: 1 })[invoiceCheckColor(check)] || 0
+  for (const check of [...sections.header, ...sections.amounts, ...sections.payment]) {
+    // Keep the more severe result when one transport is also represented by
+    // the aggregate comparison. A red position must never disappear in a
+    // yellow invoice-level result, or count as a second vote for the same net.
+    add(check.key === 'netTotal' && singleNet && severity(singleNet) > severity(check) ? { ...singleNet, key: 'netTotal', label: check.label } : check)
+  }
+  for (const [index, entry] of transports.entries()) {
+    const transport = { ...entry, displayIndex: index }
+    for (const check of invoiceTransportChecks(transport)) {
+      if (check.key === 'net' && aggregateNet && transports.length === 1) continue
+      add(check, transport)
+    }
+  }
+  return { primary, secondary }
+}
+
+export function invoiceReviewDistribution(checks = []) {
+  const counts = { green: 0, yellow: 0, red: 0 }
+  for (const check of checks) {
+    const color = invoiceCheckColor(check)
+    if (!invoiceCheckIsSecondary(check) && Object.hasOwn(counts, color)) counts[color]++
+  }
+  const total = counts.green + counts.yellow + counts.red
+  const colors = Object.keys(counts)
+  const percentages = Object.fromEntries(colors.map(color => [color, total ? Math.floor(counts[color] * 100 / total) : 0]))
+  // Largest-remainder rounding keeps the displayed segments at exactly 100%.
+  let remainder = total ? 100 - Object.values(percentages).reduce((sum, value) => sum + value, 0) : 0
+  for (const color of colors.toSorted((a, b) => (counts[b] * 100 / total % 1) - (counts[a] * 100 / total % 1))) {
+    if (remainder-- > 0) percentages[color]++
+  }
+  return { counts, percentages, total }
+}

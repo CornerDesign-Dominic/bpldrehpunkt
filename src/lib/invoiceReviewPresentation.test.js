@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue } from './invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution } from './invoiceReviewPresentation.js'
 
 test('explicit information/noncritical colors override legacy mismatch status', () => {
   assert.equal(invoiceCheckColor({ status: 'mismatch', color: 'blue' }), 'blue')
@@ -49,4 +49,77 @@ test('legacy amounts inherit invoice currency while explicitly unknown reference
   assert.doesNotMatch(unknown, /€|EUR/)
   assert.equal(formatInvoiceCheckValue({ key: 'net' }, null, { currency: 'EUR' }), '—')
   assert.match(formatInvoiceCheckValue({ key: 'foreignVat' }, 0, { currency: 'EUR' }), /0,00.*€/)
+})
+
+test('main percentage excludes supplementary checks and rounds to exactly 100 percent', () => {
+  const result = invoiceReviewDistribution([
+    { key: 'issuer', color: 'green' }, { key: 'net', color: 'yellow' }, { key: 'recipientAddress', color: 'red' },
+    { key: 'loadingDate-0', color: 'red' }, { key: 'custom', secondary: true, color: 'green' }, { key: 'date', color: 'blue' },
+  ])
+  assert.equal(result.total, 3)
+  assert.deepEqual(result.counts, { green: 1, yellow: 1, red: 1 })
+  assert.deepEqual(result.percentages, { green: 34, yellow: 33, red: 33 })
+  assert.deepEqual(invoiceReviewDistribution([]), { total: 0, counts: { green: 0, yellow: 0, red: 0 }, percentages: { green: 0, yellow: 0, red: 0 } })
+})
+
+test('invoice score does not count metadata and repeated transport identity or aggregate net twice', () => {
+  const display = invoiceDisplayChecks({
+    headerChecks: [{ key: 'number', color: 'green' }, { key: 'issuer', color: 'green' }],
+    totals: { checks: [{ key: 'netTotal', color: 'green' }] },
+    transports: [{ ta: '261000561', checks: [{ key: 'issuer', color: 'green' }, { key: 'net', color: 'green' }, { key: 'ta', color: 'green' }, { key: 'loadingCity-0', color: 'blue' }] }],
+  })
+  assert.deepEqual(display.primary.map(check => check.key), ['issuer', 'netTotal', 'ta'])
+  assert.deepEqual(display.secondary.map(check => check.key), ['number', 'loadingCity-0'])
+  assert.equal(invoiceReviewDistribution(display.primary).total, 3)
+})
+
+test('multi-order invoices retain individual net mismatches even if aggregate amounts match', () => {
+  const display = invoiceDisplayChecks({
+    totals: { checks: [{ key: 'netTotal', color: 'green' }] },
+    transports: [{ ta: '261000561', checks: [{ key: 'net', color: 'red' }] }, { ta: '261000562', checks: [{ key: 'net', color: 'red' }] }],
+  })
+  assert.equal(invoiceReviewDistribution(display.primary).counts.red, 2)
+  assert.equal(new Set(display.primary.map(check => check.displayId)).size, 3)
+})
+
+test('unresolved candidate alternatives never become additional successful main checks', () => {
+  const display = invoiceDisplayChecks({ transports: [{ ta: '', checks: [{ key: 'ta', color: 'yellow' }], candidates: [{ ta: '261000561', checks: [{ key: 'net', color: 'green' }] }] }] })
+  assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 0, yellow: 1, red: 0 })
+})
+
+test('a missing required invoice number stays visible in main checks while a recognized number is supplementary', () => {
+  const missing = invoiceDisplayChecks({ headerChecks: [{ key: 'number', color: 'yellow', actual: null }] })
+  const present = invoiceDisplayChecks({ headerChecks: [{ key: 'number', color: 'gray', actual: 'RE4408' }] })
+  assert.equal(missing.primary.length, 1)
+  assert.equal(invoiceReviewDistribution(missing.primary).counts.yellow, 1)
+  assert.equal(present.primary.length, 0)
+  assert.equal(present.secondary.length, 1)
+})
+
+test('a red single-position net comparison replaces an unresolved aggregate without a double vote', () => {
+  const display = invoiceDisplayChecks({
+    totals: { checks: [{ key: 'netTotal', color: 'yellow', actual: 23000, expected: null }] },
+    transports: [{ ta: '261000561', checks: [{ key: 'net', color: 'red', actual: 23000, expected: 25000 }] }],
+  })
+  assert.equal(display.primary.length, 1)
+  assert.equal(display.primary[0].color, 'red')
+  assert.equal(display.primary[0].expected, 25000)
+  assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 0, yellow: 0, red: 1 })
+})
+
+test('secondary contradictions remain available without changing the main percentage', () => {
+  const display = invoiceDisplayChecks({ headerChecks: [{ key: 'deliveryDate', color: 'red', actual: '2026-10-28', expected: '2028-10-28' }, { key: 'issuer', color: 'green' }] })
+  assert.equal(display.secondary[0].color, 'red')
+  assert.equal(display.secondary[0].key, 'deliveryDate')
+  assert.deepEqual(invoiceReviewDistribution(display.primary).percentages, { green: 100, yellow: 0, red: 0 })
+})
+
+test('deduplicating invoice and transport identities never hides a transport contradiction', () => {
+  const display = invoiceDisplayChecks({
+    headerChecks: [{ key: 'issuer', color: 'yellow', expected: null }],
+    transports: [{ ta: '261000561', checks: [{ key: 'issuer', color: 'red', expected: 'Different carrier' }] }],
+  })
+  assert.equal(display.primary.length, 1)
+  assert.equal(display.primary[0].color, 'red')
+  assert.equal(display.primary[0].expected, 'Different carrier')
 })
