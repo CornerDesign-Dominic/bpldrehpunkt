@@ -35,17 +35,28 @@ export function liabilityOrderProjection(id, order, partner = null) {
   const sourceStops = Array.isArray(imported.stops) && imported.stops.some(stop => ['loading', 'unloading'].includes(stop.type))
     ? imported.stops.filter(stop => ['loading', 'unloading'].includes(stop.type))
     : ['loading', 'unloading'].filter(type => imported[type]).map(type => ({ type, ...imported[type] }))
-  const stops = sourceStops.map((stop, index) => ({
-    id: text(stop.sourceId) || `${stop.type}-${index}`,
-    type: stop.type, ...address(stop.address || { city: stop.city }),
-    originalText: text(stop.originalText), date: date(stop.window?.from || stop.window?.until),
-  }))
+  const stops = sourceStops.map((stop, index) => {
+    const location = {
+      id: text(stop.sourceId) || `${stop.type}-${index}`,
+      type: stop.type, ...address(stop.address || { city: stop.city }),
+      originalText: text(stop.originalText), date: date(stop.window?.from || stop.window?.until),
+    }
+    // A successful import is not proof of a complete address. Source nulls
+    // stay missing; notes/references are not verified address replacements.
+    location.missingFields = [
+      ...(!location.originalText ? ['company', 'street', 'postalCode', 'city', 'country'].filter(field => !location[field]) : []),
+      ...(!location.date ? ['date'] : []),
+    ]
+    return location
+  })
   return {
     id, externalNumber: text(order?.externalNumber) || text(imported.externalNumber), carrier, stops,
     warningCodes: [
       ...(!carrier.company || !carrier.street || !carrier.postalCode || !carrier.city ? ['CARRIER_ADDRESS_INCOMPLETE'] : []),
       ...(!stops.some(stop => stop.type === 'loading') || !stops.some(stop => stop.type === 'unloading') ? ['STOPS_INCOMPLETE'] : []),
       ...(stops.some(stop => !stop.company && stop.originalText) ? ['LEGACY_STOP_ADDRESS'] : []),
+      ...(stops.some(stop => stop.missingFields.some(field => field !== 'date')) ? ['STOP_ADDRESS_INCOMPLETE'] : []),
+      ...(stops.some(stop => stop.missingFields.includes('date')) ? ['STOP_DATE_INCOMPLETE'] : []),
     ],
   }
 }

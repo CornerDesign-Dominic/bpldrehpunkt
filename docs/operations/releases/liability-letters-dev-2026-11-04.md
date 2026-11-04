@@ -26,3 +26,16 @@ Firebase-Deploy der vier genannten Functions erfolgreich abgeschlossen. Frontend
 Die Browsersteuerung hat den Zugriff beendet, weil die aktuelle URL unter Windows nicht zuverlässig bestimmt werden konnte. Es wurde kein alternativer Zugriff zur Umgehung verwendet. Damit sind der angemeldete Benutzerablauf, der echte DyCoS-Abruf über diesen Einstieg, der bezahlte KI-Vorschlag und die visuelle Prüfung in Light/Dark sowie DE/EN noch offen. Die Emulatorprüfungen ersetzen diese Abnahme nicht.
 
 Gemeinsam in Dev prüfen: vorhandene TA auswählen; fehlende TA abrufen und danach wiederfinden; Stellen auswählen und korrigieren; Sachverhalt vorschlagen/übernehmen/rückgängig; PDF und Druck; Testnutzer mit ausschließlich Vorlagenrecht. Erst danach Production-Übernahme gesondert freigeben.
+
+
+## Korrektur nach Benutzerprüfung
+
+Die erste Dev-Veröffentlichung `5359e3b` erzeugte nach Zustandswechseln doppelte Bereiche. Bestätigte Ursache waren identische React-Keys auf benachbarten Such-, Formular- und Stellenbausteinen. Eindeutige Schlüssel und getrennte Lebenszyklen für Dokumentreset und Auftragsübernahme beseitigen die Kollision. Die Formulierungskomponente bleibt bei Importabschluss montiert.
+
+Der Ablauf ist korrigiert: Suchergebnis ohne Treffer fragt nach dem DyCoS-Import; bestätigter Import startet genau einen Abruf und übernimmt danach unmittelbar. Auftragsfelder einschließlich bisheriger Stellenauswahl sind währenddessen deaktiviert, ausgegraut und mit Ladekreis überlagert. Belegdatum, Sachverhalt und KI-Vorschlag bleiben gleichzeitig bedienbar. Abgeschlossene oder noch laufende KI-Vorschläge werden beim Importabschluss nicht verworfen. Fehler entsperren die Felder und erhalten den Text; erneuter Abruf benutzt dieselbe Anfrage-ID. Der unpassende alte PDF-KI-Vorausfüllbutton wurde aus diesem Ablauf entfernt.
+
+Bei der vom Nutzer gezeigten TA wurde in Dev lesend bestätigt, dass die strukturierten Lade-/Entladeanschriften und die zusammengefassten Adresstexte bereits im gespeicherten Auftrag fehlen. Die vorhandenen SQL-Feldnamen entsprechen dem Mapper; die vorgelagerte Ursache der leeren Daten ist damit noch nicht belegt. Keine Daten wurden dafür geändert und keine Anschriften aus Bemerkungen erfunden. Fehlende Angaben werden jetzt ausdrücklich je Stelle markiert.
+
+Neue Prüfung: `npm run test:liability-ui` besteht mit sechs montierten React-/DOM-Regressionen; beide Abschlussreihenfolgen von Import und KI, bereits übernommener Vorschlag mit Rückgängig, wiederholte TA-Auswahl ohne doppelte Bereiche, Fehler/Wiederholung, Sperrung vorhandener Stellen und Review fehlender Daten vor PDF. jsdom wurde dafür als reine Entwicklungsabhängigkeit ergänzt. Zusätzlich 32 gezielte Backend-/Dokument-/Diagnoseprüfungen, Gesamtlint, Build und 45 Shared-Module erfolgreich. Die bereits geprüften Import-/Berechtigungstransaktionen wurden bei dieser Korrektur nicht geändert; die zusätzlichen Backendänderungen betreffen nur die Kennzeichnung fehlender Dokumentdaten.
+
+Erneutes Dev-Deployment beschränkt sich auf `findLiabilityTransportOrders` und `fetchLiabilityTransportOrder`, anschließend der gebündelte Frontend-Push nach `dev`. Main/Produktion bleiben unverändert. Die montierten Tests verwenden kontrollierte Antworten; sie sind keine neue echte SQL-/KI-Abnahme.

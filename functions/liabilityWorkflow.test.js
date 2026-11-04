@@ -83,3 +83,28 @@ test('wording failures are diagnosed without source text and diagnostic failure 
   assert.equal(JSON.stringify(event).includes('Vertraulicher'), false)
   assert.equal(JSON.stringify(event).includes('provider detail'), false)
 })
+
+
+test('imported null station addresses remain explicitly incomplete instead of being filled from notes', () => {
+  const result = liabilityOrderProjection('ta', { externalNumber: '123', imported: { stops: [
+    { sourceId: '1', type: 'loading', address: { company: null, street: null, postalCode: null, city: null, country: null }, window: { from: '2026-10-02T09:00' }, note: 'Abholung bei Beispiel, Weg 1, 12345 Ort', deliveryInformation: 'Im Auftrag von anderem Partner' },
+    { sourceId: '2', type: 'unloading', address: null, window: {} },
+  ] } })
+  assert.deepEqual(result.stops[0].missingFields, ['company', 'street', 'postalCode', 'city', 'country'])
+  assert.deepEqual(result.stops[1].missingFields, ['company', 'street', 'postalCode', 'city', 'country', 'date'])
+  assert.equal(result.stops[0].date, '2026-10-02')
+  assert.equal(result.stops[0].street, '')
+  assert.equal(result.stops[0].originalText, '')
+  assert.ok(result.warningCodes.includes('STOP_ADDRESS_INCOMPLETE'))
+  assert.ok(result.warningCodes.includes('STOP_DATE_INCOMPLETE'))
+  assert.equal(JSON.stringify(result).includes('Abholung'), false)
+})
+
+test('complete structured stops have no missing-field warning and legacy original text remains supported', () => {
+  const structured = { sourceId: '1', type: 'loading', address: { company: 'Firma', street: 'Weg 1', postalCode: '12345', city: 'Ort', country: 'DE' }, window: { from: '2026-11-04T08:00' } }
+  const result = liabilityOrderProjection('ta', { imported: { stops: [structured, { ...structured, sourceId: '2', type: 'unloading' }] } })
+  assert.deepEqual(result.stops.map(stop => stop.missingFields), [[], []])
+  assert.equal(result.warningCodes.includes('STOP_ADDRESS_INCOMPLETE'), false)
+  const legacy = liabilityOrderProjection('ta', { imported: { loading: { originalText: 'Firma, Weg 1, 12345 Ort, DE', window: { from: '2026-11-04T08:00' } } } })
+  assert.deepEqual(legacy.stops[0].missingFields, [])
+})
