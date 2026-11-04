@@ -72,7 +72,7 @@ $existingScope = Get-ManagementScope -Identity $scopeName -ErrorAction SilentlyC
 if ($existingScope -and (Normalize-Filter $existingScope.RecipientFilter) -ne (Normalize-Filter $recipientFilter)) {
   throw 'Der vorhandene Funktionspostfach-Scope hat einen anderen Filter. Keine automatische Aenderung.'
 }
-$assignments = @(Get-ManagementRoleAssignment -App $identity.ServicePrincipalId -ErrorAction Stop)
+$assignments = @(Get-ManagementRoleAssignment -RoleAssignee $identity.ServicePrincipalId -ErrorAction Stop)
 $existingAssignment = Get-ManagementRoleAssignment -Identity $assignmentName -ErrorAction SilentlyContinue
 if ($existingAssignment -and !($assignments | Where-Object Name -eq $assignmentName)) { throw 'Der Zuweisungsname gehoert zu einer anderen Anwendung.' }
 foreach ($assignment in $assignments | Where-Object { "$($_.Role)" -in @('Application Mail.Read', 'Application Mail.ReadWrite', 'Application Exchange FullAccess') }) {
@@ -99,7 +99,7 @@ if ($beforePersonal | Where-Object InScope -eq $true) { throw 'Persoenliches bb@
 if (!$existingScope) { New-ManagementScope -Name $scopeName -RecipientRestrictionFilter $recipientFilter -ErrorAction Stop | Out-Null }
 if (!$existingAssignment) { New-ManagementRoleAssignment -Name $assignmentName -Role 'Application Mail.Read' -App $identity.ServicePrincipalId -CustomResourceScope $scopeName -ErrorAction Stop | Out-Null }
 
-$confirmed = @(Get-ManagementRoleAssignment -App $identity.ServicePrincipalId -ErrorAction Stop | Where-Object Name -eq $assignmentName)
+$confirmed = @(Get-ManagementRoleAssignment -RoleAssignee $identity.ServicePrincipalId -ErrorAction Stop | Where-Object Name -eq $assignmentName)
 if ($confirmed.Count -ne 1 -or "$($confirmed[0].Role)" -ne 'Application Mail.Read' -or "$($confirmed[0].CustomResourceScope)" -ne $scopeName) { throw 'Die gespeicherte eingeschraenkte Leserolle wurde nicht bestaetigt.' }
 foreach ($mailbox in $mailboxes) {
   $checks = @(Test-ServicePrincipalAuthorization -Identity $identity.ServicePrincipalId -Resource $mailbox -ErrorAction Stop)

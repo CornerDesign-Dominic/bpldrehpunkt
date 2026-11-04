@@ -3,8 +3,11 @@
 Stand: 04.11.2026. Die ursprüngliche Webhookfunktion ist seit der
 [Produktionsübernahme vom 02.11.2026](releases/production-2026-11-02-status.md)
 auch in Produktion veröffentlicht. Die zusätzliche Unterstützung der fünf
-lizenzierten Funktionspostfächer wird lokal vorbereitet und ist noch nicht
-bereitgestellt. Ihr zusätzlicher Exchange-Anwendungszugriff ist noch nicht eingerichtet.
+Funktionspostfächer wird mit diesem Release ausschließlich in Dev bereitgestellt.
+Ihr begrenzter Exchange-Anwendungszugriff ist am 04.11.2026 für Dev eingerichtet.
+Vier neu freigegebene UserMailbox-Adressen liefern bei der tatsächlichen
+Graph-Prüfung noch HTTP 403; die Exchange-Prüfung bestätigt bereits den Scope.
+Produktionsanwendung und deren bestehende Rechte bleiben unverändert.
 
 **Verbindliche Produktentscheidung:**
 [Webhooks ohne Kontrollabfragen](../decisions/mailbox-recommendations-no-polling.md).
@@ -87,7 +90,7 @@ Quellen:
 
 Die neue zentrale Produktzuordnung erweitert für sich allein keine Microsoft-Rechte.
 Für technisch normale Benutzerpostfächer ist ein zusätzlicher, eng begrenzter
-Exchange-Scope vorbereitet. `integrations/microsoft/Enable-FunctionalMailboxWebhooks.ps1`
+Exchange-Scope eingerichtet. `integrations/microsoft/Enable-FunctionalMailboxWebhooks.ps1`
 ändert den vorhandenen Scope `Drehpunkt-Mail-Dev-Shared-Read` ausdrücklich nicht;
 dieser wird inzwischen auch von der Produktionsanwendung verwendet.
 
@@ -123,6 +126,25 @@ als negativer Fall geprüft. Diese RBAC-Prüfung bezieht sich ausschließlich au
 Exchange-Zuweisungen; zusätzliche Entra-Grants sind unabhängig und additiv.
 Danach sind echter Graph-Zugriff und Webhookregistrierung separat zu prüfen.
 Eine lokale Syntaxprüfung oder Vorschau ist kein Nachweis einer Cloudfreigabe.
+
+Live-Einrichtung vom 04.11.2026 ausschließlich für Dev: buchhaltung@, express@,
+transport@ und info@ sind technisch UserMailbox; rechnung@ ist SharedMailbox.
+`Test-ServicePrincipalAuthorization` bestätigt alle fünf und verweigert bb@.
+Der Helfer verwendet bei `Get-ManagementRoleAssignment` den Parameter
+`-RoleAssignee`; beim Anlegen der Zuweisung bleibt `-App` korrekt.
+
+Tatsächliche Graph-Prüfung um 13:07 UTC: rechnung@ und das bestehende no-reply@
+HTTP 200, persönliches bb@ HTTP 403. Die vier neuen UserMailbox-Freigaben noch
+HTTP 403 (`ErrorAccessDenied`). Microsoft dokumentiert 30 Minuten bis zwei Stunden
+RBAC-Cacheverzögerung; die Exchange-Testfunktion umgeht diesen Cache. Damit ist
+die Konfiguration bestätigt, die tatsächliche Graph-Wirksamkeit der vier neuen
+Freigaben jedoch noch offen. Keine Rechteerweiterung als Umgehung vornehmen.
+Quelle: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac#limitations
+
+Ein kurzlebiges created-only Abonnement für rechnung@ gegen den aktualisierten
+Dev-Webhook wurde erfolgreich erstellt (HTTP 201, einschließlich Validierung)
+und unmittelbar gelöscht (HTTP 204). Keine Postfachinhalte ausgelesen, keine
+Testmail gesendet und keine KI-Einstellung für diesen Test aktiviert.
 
 ## Verarbeitung und Sicherheit
 
@@ -171,8 +193,10 @@ abfragen; Usage-Feature `mailbox_action_recommendation`.
 
 Die folgenden Dev-Angaben dokumentieren die ursprüngliche Veröffentlichung vom
 01.11.2026. Der spätere Produktionsstand steht im oben verlinkten Abschlussbeleg.
-Die neue Funktionspostfach-Erweiterung und ihr zusätzlicher Exchange-Scope sind
-in diesem Arbeitsstand noch nicht veröffentlicht oder live geprüft.
+Die Funktionspostfach-Erweiterung vom 04.11.2026 aktualisiert dieselben sieben
+Dev-Functions erfolgreich; die Oberfläche wird gemeinsam über den Dev-Branch
+veröffentlicht. Rules und Indizes benötigen hierfür keine Änderung. Die neuen
+Exchange-Rechte und die verbleibende Graph-Wirksamkeitsprüfung stehen oben.
 
 Dev-Functions gezielt: vier Einstellungs-/Ergebnis-Callables,
 `mailboxRecommendationWebhook`, `maintainMailboxRecommendationSubscriptions`,
@@ -224,4 +248,6 @@ EN/Light geprüft. Der ergänzte Abschaltweg ohne Verbindung ist im Emulator gep
 ein abschließender Browsernachlauf war mangels verfügbarer Browseroberfläche nicht
 möglich. PowerShell-Syntax, beide Vorschauen und simulierte Vorprüfungen für
 Rechteabweichungen, gemischte Postfachtypen und wiederholte Einrichtung erfolgreich.
-Keine echte Exchange-Berechtigung geändert und keine Cloudveröffentlichung erfolgt.
+Die nachfolgende echte Dev-Einrichtung und Bereitstellung ist in den Abschnitten
+Microsoft-Zugriff und Veröffentlichung dokumentiert. Bestehende Aktivierungen
+bleiben erhalten; insbesondere wurde buchhaltung@ nicht automatisch eingeschaltet.
