@@ -93,8 +93,10 @@ tatsächlicher Zahlungstag ersetzen das Rechnungsdatum nicht. Widersprechen sich
 gedruckte Tage und die passende Datumsdifferenz, bleibt der Widerspruch sichtbar.
 Eine sicher belegte Abweichung von der Vereinbarung ist rot. Aus Rechnungsdatum
 und Fälligkeit wird keine Frist ab Rechnungs-/Belegeingang abgeleitet. Stimmen die
-Tage mit einer Vereinbarung wie „45 Tage netto“ überein, kann die Tagesfrist grün
-sein; ein dort nicht genannter Fristbeginn wird im Hinweis ausdrücklich benannt.
+ausdrücklich genannten Tage und die Tagesart überein, wird die Tagesfrist grün,
+auch bei fehlendem Fristbeginn auf einer Seite. Fehlende Wiederholungen auf
+weiteren Rechnungsseiten erzeugen keine Warnung. Ausdrücklich widersprüchliche
+Fristbeginne bleiben rot. Diese Anpassung ist im nächsten lokalen Paket vorbereitet.
 Zahlungsart wie „Überweisung“ ist kein Zahlungsziel und erhält keine eigene
 Anzeige oder Vergleichszeile, auch nicht in historischen Berichtsdarstellungen.
 
@@ -299,3 +301,15 @@ bleibt eine abgeschlossene Auswertung; die Abweichungen stehen im Prüfbericht.
 
 Weitere Änderungen werden auf dem lokalen Branch codex/invoice-next-batch gesammelt.
 Veröffentlichung des Pakets erst auf erneute Anweisung, keine Zwischen-Pushes.
+
+
+### Zahlungsziel – nächstes lokales Paket
+
+Gleiche ausdrücklich erkannte Tagesfristen werden grün bewertet, auch wenn der
+Fristbeginn auf der Rechnung oder in der Vergleichsvereinbarung fehlt. Ein Beleg
+auf einer zugehörigen Rechnungsseite genügt; Wiederholung auf jeder Seite ist
+nicht erforderlich. Ausdrücklich widersprüchliche Fristbeginne oder Tagesarten
+bleiben rot; widersprüchliche Datumsangaben, fehlende Vergleichswerte und uneinheitliche
+Vereinbarungen bleiben ungeklärt. Die Ableitung allein aus Rechnungs-/Fälligkeitsdatum
+ersetzt weiterhin keinen bekannten Fristbeginn ab Rechnungs-/Belegeingang.
+Keine zusätzliche Ergebniszeile; weiterhin genau ein Zahlungsziel-Prüfpunkt.

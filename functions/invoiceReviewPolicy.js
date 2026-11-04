@@ -238,8 +238,8 @@ export function invoicePaymentChecks(invoice, references) {
   else if (comparableDays !== null && expectedDays !== null) {
     if (!dayType || !expectedDayType) message = 'Kalender-, Werk- oder Banktage sind nicht eindeutig angegeben.'
     else if (days === null && expectedDayType !== 'calendar') message = 'Fälligkeitsdatum kann ohne Arbeits-/Banktagskalender nicht mit der Tagesfrist verglichen werden.'
-    else if (new Set(terms.map(term => term.basis).filter(Boolean)).size > 1 || (expectedBasis ? comparableBasis !== expectedBasis : comparableBasis && comparableBasis !== 'invoice_date')) message = 'Der Fristbeginn ist nicht auf beiden Seiten eindeutig vergleichbar.'
-    else { color = comparableDays === expectedDays ? 'green' : 'red'; message = expectedBasis ? '' : 'Tagesfrist verglichen; Fristbeginn in der Vereinbarung nicht angegeben.' }
+    else if (new Set(terms.map(term => term.basis).filter(Boolean)).size > 1 || days === null && (expectedBasis ? comparableBasis !== expectedBasis : comparableBasis && comparableBasis !== 'invoice_date')) message = 'Der Fristbeginn ist nicht auf beiden Seiten eindeutig vergleichbar.'
+    else { color = comparableDays === expectedDays ? 'green' : 'red'; message = '' }
   }
   const dayLabel = type => type === 'working' ? 'Werktage' : type === 'bank' ? 'Banktage' : 'Tage'
   const basisLabel = { invoice_date: 'ab Rechnungsdatum', receipt_date: 'ab Rechnungseingang', documents_received: 'ab vollständigen Belegen', delivery_date: 'ab Lieferung' }
