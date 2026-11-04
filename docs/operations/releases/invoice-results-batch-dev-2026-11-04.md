@@ -14,6 +14,18 @@ Geprüft: 169 gezielte Node-Tests, vollständiges Lint, Vite-Build und 45 gemein
 Module. Keine Änderungen an Rules, Indizes, Secrets oder Berechtigungen.
 Backendziel ausschließlich db-bpl-drehpunkt-dev: reviewMailboxInvoices und
 processMailboxActionRun. Frontend ausschließlich dev / Vercel Preview.
-Veröffentlichung und Browserkontrolle werden nach Abschluss hier ergänzt.
+Veröffentlicht: Code-Commit 0e8fdba auf dev, Vercel erfolgreich
+(Deployment 26bePzCYwpjo1wAANDwhKprSf38o). Beide Functions ACTIVE:
+reviewmailboxinvoices-00015-huq und processmailboxactionrun-00014-xoq;
+identischer Quellartefakt-MD5 F3WfnkkgbQmj8IjQ2OgbFA==.
+Ein zusätzlicher Firestore-Emulatortest (demo-drehpunkt-invoice-batch) bestätigt
+atomare Speicherung, Idempotenz und unlesbare Zusatzanlage; erfolgreich, nicht übersprungen.
+Angemeldete Dev-Browserprüfung eines gespeicherten Berichts erfolgreich:
+zusätzliche Titelzeilen und separater Betragsbereich entfallen; Ext. Belegnummer
+zeigt Bereits gebucht ohne Details; Zahlungsziel kompakt; Währung EUR ohne TA;
+Netto-Details enthalten die Positionssummenprüfung.
+Kein neuer KI-Live-Durchlauf und kein absichtlich ausgelöster technischer Fehler;
+diese Benutzerprüfungen bleiben Teil der anschließenden Tests des Nutzers.
+Main blieb a4b274d; keine Veröffentlichung im Produktions-Firebase-Projekt.
 Für geänderte gespeicherte Bewertungen ist eine erneute Rechnungsprüfung nötig.
 Rückweg: vorheriger Dev-Commit 2c291ae für Frontend und beide Functions gemeinsam.
