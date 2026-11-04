@@ -108,6 +108,7 @@ export function invoiceDisplayChecks(invoice = {}) {
     const supplemental = invoiceCheckIsSecondary(check)
     const global = ['issuer', 'recipient', 'issuerVatId', 'recipientVatId', 'recipientAddress', 'currency', 'factoring'].includes(base)
     const id = global || !transport ? base : `${transport.ta || transport.orderId || `unassigned-${transport.displayIndex}`}:${check.key}`
+    if (base === 'currency') return
     if (seen.has(id)) {
       // Conflicting transport references must not be hidden by a broader
       // invoice-level comparison that could not choose one reference value.
@@ -138,6 +139,12 @@ export function invoiceDisplayChecks(invoice = {}) {
       if (check.key === 'net' && aggregateNet && transports.length === 1) continue
       add(check, transport)
     }
+  }
+  const currencyEvidence = [...sections.header, ...amounts, ...transports.flatMap(invoiceTransportChecks)].find(check => check.key === 'currency')
+  if (Object.hasOwn(invoice, 'currency') || currencyEvidence) {
+    const actual = String(Object.hasOwn(invoice, 'currency') ? invoice.currency || '' : currencyEvidence.actual || '').trim().toUpperCase()
+    const color = !actual ? 'yellow' : actual === 'EUR' ? 'green' : 'red'
+    primary.push({ key: 'currency', displayId: 'currency', label: 'Währung', actual: actual || null, expected: 'EUR', color, status: { green: 'match', yellow: 'unknown', red: 'mismatch' }[color] })
   }
   return { primary, secondary }
 }

@@ -68,12 +68,14 @@ export function evaluateInvoiceDuplicates(invoice, references = [], { allAssigne
     else if (signature(previous.document) !== signature(document)) previous.conflict = true
   }
   const matches = []
+  const relatedNumbers = new Set()
   for (const { document, conflict, fresh } of headers.values()) {
     // Authoritatively excluded headers cannot be this carrier's invoice.
     if (!conflict && (document.cancelled === true || document.eligible === false || carrierId && document.carrierSourceId && document.carrierSourceId !== carrierId)) continue
     const documentComplete = Boolean(document.sourceId && document.carrierSourceId && document.number && document.grossCents !== null && document.currency && document.cancelled === false && document.eligible === true)
     if (conflict || !documentComplete) complete = false
     const sameCarrier = Boolean(issuerConfirmed && carrierId && document.carrierSourceId === carrierId)
+    if (sameCarrier && fresh && !conflict && document.cancelled === false && document.eligible === true && document.number) relatedNumbers.add(document.externalNumber)
     const sameNumber = Boolean(normalizedNumber && normalizedNumber === document.number)
     const sameAmount = invoiceGross !== null && invoiceGross === document.grossCents
     const sameCurrency = Boolean(invoiceCurrency && invoiceCurrency === document.currency)
@@ -87,12 +89,12 @@ export function evaluateInvoiceDuplicates(invoice, references = [], { allAssigne
       externalNumber: document.externalNumber, grossCents: document.grossCents, currency: document.currency || null })
   }
   const red = matches.some(match => match.kind === 'duplicate')
-  const color = red ? 'red' : matches.length || !complete ? 'yellow' : 'green'
+  const color = red ? 'red' : matches.length || relatedNumbers.size || !complete ? 'yellow' : 'green'
   const first = matches.find(match => match.kind === 'duplicate') || matches[0]
   const alerts = matches.map(match => ({ kind: match.kind, color: match.kind === 'duplicate' ? 'red' : 'yellow', sourceId: match.sourceId, externalNumber: match.externalNumber,
     actual: invoiceGross, expected: match.grossCents, currency: invoiceCurrency || null, expectedCurrency: match.currency }))
-  const check = coloredCheck('billingStatus', 'Rechnung bereits in DyCoS vorhanden', cleanText(invoiceNumber).slice(0, 240) || null, first?.externalNumber || null, color,
-    red ? 'Bereits vorhanden' : matches.length ? 'Mögliche Dublette' : complete ? 'Kein Treffer im Auftragsbezug' : 'Abgleich unvollständig',
+  const check = coloredCheck('billingStatus', 'Ext. Belegnummer', cleanText(invoiceNumber).slice(0, 240) || null, first?.externalNumber || [...relatedNumbers].join('; ') || null, color,
+    red ? 'Bereits vorhanden' : matches.length ? 'Mögliche Dublette' : relatedNumbers.size ? 'Abweichende externe Belegnummer im Auftragsbezug' : complete ? 'Kein Treffer im Auftragsbezug' : 'Abgleich unvollständig',
     { comparisonOrigin: 'dycos_invoice_headers', duplicate: red, complete, matchCount: matches.length })
   return { check, alerts, matches }
 }

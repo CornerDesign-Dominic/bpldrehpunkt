@@ -82,7 +82,8 @@ test('near external number can only produce yellow suspicion with all other iden
   }
   for (const patch of [{ externalNumber: 'AB9876/2019' }, { externalNumber: 'RE4409/2026', grossCents: 99900 }]) {
     const result = evaluateInvoiceDuplicates(invoice(), [reference([header(patch)])])
-    assert.equal(result.check.color, 'green')
+    assert.equal(result.check.color, 'yellow')
+    assert.equal(result.check.expected, patch.externalNumber)
     assert.deepEqual(result.alerts, [])
   }
   const nearWrongCurrency = evaluateInvoiceDuplicates(invoice(), [reference([header({ externalNumber: 'RE4409/2026', currency: 'USD' })])])
@@ -183,4 +184,17 @@ test('disputed invoice gross cannot produce a duplicate alert or a green absence
     assert.deepEqual(result.alerts, [])
     assert.deepEqual(result.matches, [])
   }
+})
+
+
+test('other active external numbers for this carrier and order require review without inventing a duplicate', () => {
+  const result = evaluateInvoiceDuplicates(invoice(), [reference([header({ externalNumber: 'OTHER-123' }), header({ sourceId: 'head-82', externalNumber: 'CREDIT-456', grossCents: -27370 })])])
+  assert.equal(result.check.color, 'yellow')
+  assert.equal(result.check.label, 'Ext. Belegnummer')
+  assert.equal(result.check.expected, 'OTHER-123; CREDIT-456')
+  assert.deepEqual(result.alerts, [])
+  assert.deepEqual(result.matches, [])
+  const cancelled = evaluateInvoiceDuplicates(invoice(), [reference([header({ externalNumber: 'OTHER-123', cancelled: true })])])
+  assert.equal(cancelled.check.color, 'green')
+  assert.equal(cancelled.check.expected, null)
 })

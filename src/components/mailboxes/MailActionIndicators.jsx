@@ -14,11 +14,11 @@ export default function MailActionIndicators({ identity, actions, recommendation
   const { language } = useLanguage()
   const { profile } = useAuth()
   const allowed = kind => kind === 'order' ? canEdit(profile, 'transportOrders') && canView(profile, 'masterData') : kind === 'terms' ? canView(profile, 'agbChecker') : kind === 'calendar' ? canView(profile, 'calendar') : canEdit(profile, ({ tracking: 'transportOrders', order: 'transportOrders', invoice: 'transportOrders', todo: 'todos', damage: 'damages', collection: 'inkasso', court: 'legalDisputes' })[kind])
-  const visible = mailboxActionKinds.map(kind => ({ kind, action: { state: mailboxActionDisplayState(actions[mailboxActionKey(identity, kind)], recommendations.includes(kind) && allowed(kind)) } })).filter(({ action }) => ['running', 'review', 'completed', 'recommended'].includes(action.state))
+  const visible = mailboxActionKinds.map(kind => ({ kind, action: { state: mailboxActionDisplayState(actions[mailboxActionKey(identity, kind)], recommendations.includes(kind) && allowed(kind)) } })).filter(({ kind, action }) => ['running', 'review', 'completed', 'recommended'].includes(action.state) || kind === 'invoice' && action.state === 'failed')
   if (!visible.length) return null
   return <span className="mailbox-action-indicators">{visible.map(({ kind, action }) => {
     const Icon = icons[kind]
-    const status = action.state === 'recommended' ? language === 'en' ? 'AI recommendation' : 'KI-Empfehlung' : action.state === 'running' ? language === 'en' ? 'Running' : 'Wird ausgewertet' : action.state === 'review' ? language === 'en' ? 'Review required' : 'Zur Übernahme bereit' : language === 'en' ? 'Completed' : 'Abgeschlossen'
+    const status = action.state === 'failed' ? language === 'en' ? 'Failed' : 'Fehlgeschlagen' : action.state === 'recommended' ? language === 'en' ? 'AI recommendation' : 'KI-Empfehlung' : action.state === 'running' ? language === 'en' ? 'Running' : 'Wird ausgewertet' : action.state === 'review' ? language === 'en' ? 'Review required' : 'Zur Übernahme bereit' : language === 'en' ? 'Completed' : 'Abgeschlossen'
     const label = `${names[kind][language === 'en' ? 1 : 0]} · ${status}`
     return <span key={kind} className={`mailbox-action-indicator mailbox-action-indicator--${action.state}`} role="img" aria-label={label} title={label}>{action.state === 'running' ? <span className="mailbox-action-spinner" aria-hidden="true" /> : <Icon aria-hidden="true" />}</span>
   })}</span>

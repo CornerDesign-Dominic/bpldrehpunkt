@@ -31,9 +31,9 @@ function Checks({ checks = [], currency }) {
   if (!checks.length) return null
   return <div className="invoice-review-checks"><div className="invoice-review-column-head" aria-hidden="true"><span>{en ? 'Check' : 'Prüfpunkt'}</span><span>{en ? 'Invoice' : 'Rechnung'}</span><span>{en ? 'Reference' : 'Vergleich'}</span><span>{en ? 'Result' : 'Ergebnis'}</span></div>{checks.map((check, index) => {
     const base = check.key?.split('-')[0]
-    const amountTitle = { netTotal: en ? 'Net amount' : 'Netto', vatTotal: en ? 'VAT' : 'MwSt.', grossTotal: en ? 'Total amount' : 'Gesamtbetrag' }[base]
+    const amountTitle = { netTotal: en ? 'Net amount' : 'Netto', vatTotal: en ? 'VAT' : 'USt.', grossTotal: en ? 'Gross amount' : 'Brutto' }[base]
     const detailTitle = { databaseNetTotal: ['Netto / Auftragsdaten', 'Net amount / order data'], databaseVatTotal: ['MwSt. / Auftragsdaten', 'VAT / order data'], databaseGrossTotal: ['Gesamtbetrag / Auftragsdaten', 'Total amount / order data'] }[base]
-    const title = base === 'factoring' ? 'Factoring' : base === 'paymentTerms' ? en ? 'Payment term' : 'Zahlungsziel' : amountTitle || detailTitle?.[en ? 1 : 0] || (en ? labels[base] || check.label : (check.label || check.key || '').replace(' (Cent)', ''))
+    const title = base === 'billingStatus' ? en ? 'External document number' : 'Ext. Belegnummer' : base === 'factoring' ? 'Factoring' : base === 'paymentTerms' ? en ? 'Payment term' : 'Zahlungsziel' : amountTitle || detailTitle?.[en ? 1 : 0] || (en ? labels[base] || check.label : (check.label || check.key || '').replace(' (Cent)', ''))
     const referenceOrigin = {
       database: en ? 'Order data' : 'Auftragsdaten',
       business_rule: en ? 'Business rule' : 'Prüfregel',
@@ -42,19 +42,24 @@ function Checks({ checks = [], currency }) {
       invoice_arithmetic: en ? 'Invoice arithmetic' : 'Rechnung intern',
       invoice_positions: en ? 'Invoice item sum' : 'Rechnungspositionen',
     }[check.comparisonOrigin]
-    const paymentDetails = base === 'paymentTerms' ? [check.message, ...(Array.isArray(check.details) ? check.details : [check.details])].filter(value => typeof value === 'string' && value.trim()).join('\n') : ''
-    const evidence = check.paymentEvidence || []
+    const evidence = base === 'paymentTerms' ? [] : check.paymentEvidence || []
     const evidenceName = key => ({ dueDate: en ? 'Due' : 'Fällig', paymentDays: en ? 'Term in days' : 'Frist in Tagen', paymentTerms: en ? 'Payment term' : 'Zahlungsziel' })[key?.split('-')[0]] || (en ? 'Additional information' : 'Ergänzung')
-    const details = [!paymentDetails && check.message, check.sourceText || check.quote, ...evidence.flatMap(item => [item.message, item.sourceText])].filter(Boolean).join('\n')
+    const amountDetails = (check.amountChecks || []).map(item => {
+      const name = en ? labels[item.key] || ({ databaseNetTotal: 'Net / order data', databaseVatTotal: 'VAT / order data', databaseGrossTotal: 'Gross / order data' })[item.key] || item.label : (item.label || item.key).replace(' (Cent)', '')
+      const actual = formatInvoiceCheckValue(item, item.actual, { language, currency, side: 'actual' })
+      const expected = formatInvoiceCheckValue(item, item.expected, { language, currency, side: 'expected' })
+      return `${name}: ${actual} / ${expected} · ${colorLabels[invoiceCheckColor(item)][en ? 1 : 0]}${item.message ? ` · ${item.message}` : ''}`
+    })
+    const details = [...amountDetails, check.message, check.sourceText || check.quote, ...evidence.flatMap(item => [item.message, item.sourceText])].filter(Boolean).join('\n')
     const billingLabel = check.key === 'billingStatus' && check.comparisonOrigin === 'dycos_invoice_headers'
-      ? check.duplicate === true ? en ? 'Present' : 'Vorhanden'
-        : check.matchCount > 0 ? en ? 'Suspected' : 'Verdacht'
-          : check.complete === true ? en ? 'No match' : 'Kein Treffer'
+      ? check.duplicate === true ? en ? 'Already booked' : 'Bereits gebucht'
+        : check.matchCount > 0 || check.expected ? en ? 'Review' : 'Prüfen'
+          : check.complete === true && invoiceCheckColor(check) === 'green' ? en ? 'Not yet booked' : 'Noch nicht gebucht'
             : en ? 'Unresolved' : 'Ungeklärt'
       : undefined
     return <article className="invoice-review-check" key={check.displayId || `${check.key}-${index}`}>
-      <div className="invoice-review-check-name"><strong>{title}{check.transportTa && <small>TA {check.transportTa}</small>}</strong><Source text={details} /></div>
-      <span className="invoice-review-value" aria-label={en ? 'Invoice' : 'Rechnung'}>{formatInvoiceCheckValue(check, check.actual, { language, currency, side: 'actual' })}{paymentDetails && <small className="invoice-review-payment-evidence">{paymentDetails}</small>}{evidence.filter(item => item.actual !== null && item.actual !== undefined && item.actual !== '').map((item, i) => <small className="invoice-review-payment-evidence" key={i}>{evidenceName(item.key)}: {formatInvoiceCheckValue(item, item.actual, { language, side: 'actual' })}</small>)}</span>
+      <div className="invoice-review-check-name"><strong>{title}{check.transportTa && <small>TA {check.transportTa}</small>}</strong>{!['billingStatus', 'paymentTerms'].includes(base) && <Source text={details} />}</div>
+      <span className="invoice-review-value" aria-label={en ? 'Invoice' : 'Rechnung'}>{formatInvoiceCheckValue(check, base === 'paymentTerms' && typeof check.actual === 'string' ? check.actual.split(' · ')[0].replace(/^aus Datumsangaben:\s*/u, '') : check.actual, { language, currency, side: 'actual' })}{evidence.filter(item => item.actual !== null && item.actual !== undefined && item.actual !== '').map((item, i) => <small className="invoice-review-payment-evidence" key={i}>{evidenceName(item.key)}: {formatInvoiceCheckValue(item, item.actual, { language, side: 'actual' })}</small>)}</span>
       <span className="invoice-review-value" aria-label={en ? 'Reference' : 'Vergleich'}>{formatInvoiceCheckValue(check, check.expected, { language, currency, side: 'expected' })}{evidence.filter(item => item.expected !== null && item.expected !== undefined && item.expected !== '').map((item, i) => <small className="invoice-review-payment-evidence" key={i}>{evidenceName(item.key)}: {formatInvoiceCheckValue(item, item.expected, { language, side: 'expected' })}</small>)}{referenceOrigin && <small className="invoice-review-file" style={{ display: 'block' }}>{referenceOrigin}</small>}</span>
       <InvoiceReviewStatus status={check.status} color={check.color} label={invoiceCheckResultLabel(check, language) || billingLabel} />
     </article>
@@ -124,12 +129,9 @@ export default function InvoiceReviewResults({ report }) {
         const amountDetails = invoiceAmountDetails(invoice)
         const secondaryMismatches = secondary.filter(check => invoiceCheckColor(check) === 'red').length
         return <section className="invoice-review-invoice" key={`${report.id || report.createdAt}:${index}`}>
-          <div className="invoice-review-invoice-heading"><h3>{w('Rechnung', 'Invoice')} {invoice.number || '—'}</h3>{invoice.currency && <span className="invoice-review-file">{invoice.currency}</span>}</div>
-          <p className="invoice-review-file">{invoice.issuer}</p>
           <Distribution checks={primary} />
           <InvoiceAlerts invoice={invoice} />
-          <Checks checks={primary} currency={invoice.currency} />
-          {amountDetails.length > 0 && <Disclosure title={w('Betragsdetails', 'Amount details')}><Checks checks={amountDetails} currency={invoice.currency} /></Disclosure>}
+          <Checks checks={primary.map(check => ({ ...check, amountChecks: amountDetails.filter(detail => ({ positionSum: 'netTotal', databaseNetTotal: 'netTotal', netTotal: 'netTotal', foreignVat: 'vatTotal', databaseVatTotal: 'vatTotal', vatTotal: 'vatTotal', taxSum: 'grossTotal', databaseGrossTotal: 'grossTotal', grossTotal: 'grossTotal' })[detail.key] === check.key) }))} currency={invoice.currency} />
           {(secondary.length > 0 || invoice.transports?.length > 0) && <Disclosure title={<>{w('Weitere Abgleichungen', 'Additional comparisons')}{secondaryMismatches > 0 && <span className="invoice-review-secondary-alert invoice-review-status--red"><i className="invoice-review-dot" aria-hidden="true" />{secondaryMismatches} {w('abweichend', 'different')}</span>}</>}>
             {secondary.length > 0 && <Checks checks={secondary} currency={invoice.currency} />}
             {(invoice.transports || []).map((transport, i) => <TransportDetails key={i} transport={transport} currency={invoice.currency} w={w} />)}
