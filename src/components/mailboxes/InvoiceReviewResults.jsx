@@ -113,6 +113,12 @@ export default function InvoiceReviewResults({ report }) {
   const allChecks = invoices.flatMap(invoice => invoiceDisplayChecks(invoice).primary)
   return <div className="invoice-review-results"><header className="invoice-review-summary"><strong>{w('Rechnungsprüfung', 'Invoice review')}</strong>{!Number.isNaN(reviewedAt.getTime()) && <small>{reviewedAt.toLocaleString(language === 'en' ? 'en-GB' : 'de-DE', { timeZone: 'Europe/Berlin' })}</small>}</header>
     <div className="invoice-review-body">
+      {report.incomplete && <div className="invoice-review-alert invoice-review-alert--yellow invoice-review-incomplete" role="status" aria-atomic="true">
+        <strong>{w('Prüfung unvollständig', 'Review incomplete')}</strong>
+        <p>{w('Folgende Anhänge konnten nicht gelesen werden:', 'The following attachments could not be read:')}</p>
+        <ul>{(report.unreadableDocuments || []).map((document, index) => <li key={document.sourceId || index}>{document.name || w('Unbekannter Anhang', 'Unknown attachment')}</li>)}</ul>
+        <p>{w('Die Auswertung berücksichtigt nur lesbare Anlagen. Die ausgelassenen Anhänge können weitere Rechnungen enthalten; sämtliche Anlagen wurden daher nicht vollständig geprüft.', 'The results cover readable attachments only. The omitted attachments may contain additional invoices; the review of all attachments is therefore incomplete.')}</p>
+      </div>}
       {invoices.length > 1 && <Distribution checks={allChecks} />}
       {invoices.map((invoice, index) => {
         const { primary, secondary } = invoiceDisplayChecks(invoice)

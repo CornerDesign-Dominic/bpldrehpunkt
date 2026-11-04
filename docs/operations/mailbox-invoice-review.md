@@ -249,3 +249,26 @@ erfordert eine erneute Auswertung.
 
 Dieser Stand ist ausschließlich für Dev freigegeben. Veröffentlichungsnachweis:
 [Dev-Release vom 04.11.2026](releases/invoice-duplicates-dev-2026-11-04.md).
+
+## Unlesbare Zusatzanlagen (Dev 04.11.2026)
+
+Berichtsversion 7: Lesbare Anlagen werden auch bei einem PDF-/Bild-Lesefehler
+weiter geprüft. Nicht lesbare oder textlose Anlagen stehen unter
+`unreadableDocuments` mit Dateiname und `extraction_failed`; `incomplete` ist
+dann wahr. Ein gelber Hinweis oberhalb aller Rechnungsergebnisse nennt diese
+Dateien und mögliche weitere Rechnungen. Die bekannten Einzelprüfungen bleiben
+erhalten, der Gesamtstatus wird bei sonst vollständiger Übereinstimmung jedoch
+`unknown`. Erkannte Abweichungen bleiben `mismatch`. Transportverknüpfungen und
+Unvollständigkeit werden gemeinsam im unveränderlichen Bericht gespeichert.
+Ohne eine lesbare Anlage wird vor der KI-Auswertung verständlich abgebrochen.
+Ein inhaltsfreier Diagnoseeintrag pro Anfrage erfasst den Lesefehler. Die
+Texterkennung plus zusätzliche OCR bleiben für lesbare Rechnungen unverändert.
+Alte Berichte ändern sich nicht; für neue Auswertung erneut prüfen.
+
+Zusätzlich akzeptiert die Belegvalidierung englische Tausender-/Dezimalformate
+wie `1,300.00 EUR`, ohne benachbarte Tabellenbeträge zusammenzuziehen. Geprüft
+mit FV028/05/2026: 1.300 EUR, 45 Tage ab Dokumenteneingang und TA-Kandidat
+260500383. 90 gezielte Tests sowie der Firestore-Integrationstest mit
+unlesbarem Zusatz-POD, unveränderlichem Bericht und Transportverknüpfung
+erfolgreich. Vier UI-Renderprüfungen für DE/EN und vollständige/unvollständige
+Berichte erfolgreich. Keine Änderung an Rules, Indizes oder Secrets.

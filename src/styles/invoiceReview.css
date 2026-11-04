@@ -53,6 +53,9 @@
 .invoice-review-alert { min-width: 0; padding: 10px 12px; border: 1px solid currentColor; border-radius: 5px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
 .invoice-review-alert--red { color: var(--status-danger-text); background: var(--status-danger-background); }
 .invoice-review-alert--yellow { color: var(--status-warning-text); background: var(--status-warning-background); }
+.invoice-review-incomplete p { margin: 5px 0 0; }
+.invoice-review-incomplete ul { margin-top: 5px; }
+.invoice-review-incomplete li { font-weight: 600; }
 .invoice-review-alert ul { list-style: none; margin: 0; padding: 0; }
 .invoice-review-alert li { display: grid; gap: 2px; }
 .invoice-review-alert li + li { margin-top: 7px; padding-top: 7px; border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent); }

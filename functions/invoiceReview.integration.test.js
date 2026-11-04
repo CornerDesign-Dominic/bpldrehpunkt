@@ -16,11 +16,14 @@ test('invoice snapshot and transport links commit atomically to real Firestore a
  const fields={ta:val(ta),net:val('500,00'),loadingDate:val(''),unloadingDate:val(''),loadingCity:val(''),unloadingCity:val(''),licensePlate:val('')}
  const factoring='Diese Forderung wurde an Example Factor AG abgetreten.'
  const invoice={sourceId:'pdf',invoiceEvidence:'Rechnung',number:val('RG1'),date:{value:'2026-05-14',quote:'14.05.2026'},issuer:val('Carrier'),issuerVatId:val(''),recipient:val('Brennpunkt Logistik GmbH'),recipientVatId:val(''),currency:val('EUR'),netTotal:val('500,00'),vatTotal:val('0,00'),grossTotal:val('500,00'),paymentTerms:val('45 Tage ab Rechnungsdatum'),paymentDays:{value:'45',quote:'45 Tage'},paymentBasis:val('Rechnungsdatum'),dueDate:{value:'2026-06-28',quote:'28.06.2026'},factoring:val(factoring),factoringCompany:val('Example Factor AG'),transports:[fields],warnings:[]}
- const args={db,context:{uid:'invoice-integration-user',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'synthetic.pdf',contentBytes:'YQ=='}],operationId:'invoice-integration-request',extract:async()=>({text:`Rechnung RG1 Rechnungsdatum: 14.05.2026 Carrier Brennpunkt Logistik GmbH EUR 500,00 0,00 TA ${ta} Zahlungsziel: 28.06.2026 (45 Tage ab Rechnungsdatum). ${factoring}`,pageCount:1}),infer:async()=>({invoices:[invoice]}),fetchOrder:()=>assert.fail('local facts complete')}
+ const args={db,context:{uid:'invoice-integration-user',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'unreadable',name:'unreadable-POD.pdf',contentBytes:'YQ=='},{id:'pdf',name:'synthetic.pdf',contentBytes:'YQ=='}],operationId:'invoice-integration-request',extract:async(_bytes,options)=>{if(options.fileName==='unreadable-POD.pdf')throw Error('synthetic OCR failure');return({text:`Rechnung RG1 Rechnungsdatum: 14.05.2026 Carrier Brennpunkt Logistik GmbH EUR 500,00 0,00 TA ${ta} Zahlungsziel: 28.06.2026 (45 Tage ab Rechnungsdatum). ${factoring}`,pageCount:1})},diagnostic:async()=>{},infer:async()=>({invoices:[invoice]}),fetchOrder:()=>assert.fail('local facts complete')}
  const report=await reviewMailboxInvoices(args)
  const link=await db.doc(`transportOrders/${orderId}/invoiceChecks/${report.id}`).get();assert.equal(link.data().reportId,report.id)
  assert.ok((await db.doc(`invoiceCheckReports/${report.id}`).get()).data().report.invoices.length)
- assert.equal(report.version,6)
+ assert.equal(report.version,7)
+ assert.equal(report.incomplete,true)
+ assert.equal(report.unreadableDocuments[0].name,'unreadable-POD.pdf')
+ assert.notEqual(report.status,'match')
  assert.equal(report.invoices[0].paymentChecks.length,1)
  assert.equal(report.invoices[0].paymentChecks[0].key,'paymentTerms')
  assert.match(String(report.invoices[0].paymentChecks[0].actual),/45/)

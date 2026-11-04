@@ -14,6 +14,7 @@ import { loadInvoiceReference } from './invoiceReviewReference.js'
 import { chooseInvoiceAssignment, rankInvoiceAssignments } from './invoiceReviewAssignment.js'
 import { mapInvoiceBillingHeaders } from './invoiceReviewBilling.js'
 import { evaluateInvoiceDuplicates } from './invoiceReviewDuplicates.js'
+import { recordDiagnostic } from './diagnostics.js'
 export { invoiceCents, compareInvoiceTransport, invoiceTotals } from './invoiceReviewPolicy.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -27,7 +28,7 @@ const invoiceFields = ['number', 'date', 'deliveryDate', 'issuer', 'issuerVatId'
 export const invoiceExtractionSchema = { type: 'object', additionalProperties: false, required: ['invoices'], properties: { invoices: { type: 'array', maxItems: 20, items: { type: 'object', additionalProperties: false, required: ['sourceId', 'invoicePages', 'invoiceEvidence', ...invoiceFields, 'transports', 'warnings'], properties: { sourceId: { type: 'string' }, invoicePages: { type: 'array', minItems: 1, maxItems: 100, items: { type: 'integer', minimum: 1, maximum: 100 } }, invoiceEvidence: { type: 'string' }, ...Object.fromEntries(invoiceFields.map(key => [key, fieldSchema])), transports: { type: 'array', maxItems: 50, items: { type: 'object', additionalProperties: false, required: [...fields, 'taUncertain', 'taCandidates'], properties } }, warnings: { type: 'array', maxItems: 10, items: { type: 'string' } } } } } } }
 
 const hasQuote = (text, quote) => quote && quote.length <= 900 && normalized(text).includes(normalized(quote))
-const moneyValues = text => new Set((normalized(text).match(/-?\d[\d .\u00a0]*[.,]\d{2}(?!\d)/g) || []).map(value => invoiceCents(value.trim())).filter(value => value !== null))
+const moneyValues = text => new Set((normalized(text).match(/-?(?:\d{1,3}(?:[., \u00a0]\d{3})+|\d+)[.,]\d{2}(?!\d)/g) || []).map(value => invoiceCents(value.trim())).filter(value => value !== null))
 function disputedAmount(raw, file) {
   const amount = invoiceCents(raw?.value)
   if (amount === null || !file.nativeText?.trim() || !file.ocrText?.trim()) return false
@@ -66,7 +67,7 @@ function evidenceField(raw, text, key) {
   // a literal value actually present in THIS document; never invent evidence.
   if (!hasQuote(text, quote)) {
     let needles = [value]
-    if (['net', 'netTotal', 'vatTotal', 'grossTotal'].includes(key)) needles = (normalized(text).match(/-?\d[\d .\u00a0]*[.,]\d{2}(?!\d)/g) || []).filter(candidate => invoiceCents(candidate.trim()) === invoiceCents(value))
+    if (['net', 'netTotal', 'vatTotal', 'grossTotal'].includes(key)) needles = (normalized(text).match(/-?(?:\d{1,3}(?:[., \u00a0]\d{3})+|\d+)[.,]\d{2}(?!\d)/g) || []).filter(candidate => invoiceCents(candidate.trim()) === invoiceCents(value))
     if (key === 'currency' && value === 'EUR') needles = ['EUR', '€']
     if (key.endsWith('Date') || key === 'date') needles = dateEvidenceQuotes(normalized(text), value)
     quote = needles.find(needle => hasQuote(text, needle)) || ''
@@ -75,7 +76,7 @@ function evidenceField(raw, text, key) {
   if (key === 'ta' && (!/^\d{9}$/.test(value) || !new RegExp(`(?<![0-9])${value}(?![0-9])`).test(quote))) return { value: '', quote: '' }
   if (['net', 'netTotal', 'vatTotal', 'grossTotal'].includes(key)) {
     const cents = invoiceCents(value)
-    const candidates = quote.match(/-?\d[\d .\u00a0]*[.,]\d{2}(?!\d)/g) || []
+    const candidates = quote.match(/-?(?:\d{1,3}(?:[., \u00a0]\d{3})+|\d+)[.,]\d{2}(?!\d)/g) || []
     if (cents === null || !candidates.some(candidate => invoiceCents(candidate.trim()) === cents)) return { value: '', quote: '' }
   } else if (key.endsWith('Date') || key === 'date') {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)) || new Date(value).toISOString().slice(0,10) !== value) return { value: '', quote: '' }
@@ -310,7 +311,7 @@ export async function resolveInvoiceOrder({ db, ta, fetchOrder = fetchDycosFlowO
 export function assertInvoiceReviewAccess(context) {
   if (context.profile?.active !== true || !(context.profile.role === 'superadmin' || context.profile.permissions?.transportOrders === 'edit')) fail('permission-denied', 'Keine Berechtigung für die Rechnungsprüfung.')
 }
-export async function reviewMailboxInvoices({ db, context, files, mail = {}, operationId, now = Date.now(), infer = inferInvoices, extract = extractInvoiceAttachment, fetchOrder = fetchDycosFlowOrder, loadReference = loadInvoiceReference, onBillingError = async () => {}, revalidate = async () => {} }) {
+export async function reviewMailboxInvoices({ db, context, files, mail = {}, operationId, now = Date.now(), infer = inferInvoices, extract = extractInvoiceAttachment, fetchOrder = fetchDycosFlowOrder, loadReference = loadInvoiceReference, onBillingError = async () => {}, revalidate = async () => {}, diagnostic = event => recordDiagnostic(event, db) }) {
   assertInvoiceReviewAccess(context)
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId || '')) fail('invalid-argument', 'Ungültige Prüfanfrage.')
   const reportId = hash(`${context.uid}|${operationId}`)
@@ -326,12 +327,19 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
   })
   const lookupDeadline = Date.now() + 300000
   const ocrCache = new Map()
-  const documents = []
+  const documents = [], unreadableDocuments = []
   const mailContext = invoiceMailContext(mail)
   let totalPages = 0, totalText = mailContext.subject.length + mailContext.body.length
   for (const file of files) {
     let result
-    try { result = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64')), { actorId: context.uid, fileName: file.name, contentType: file.contentType, cache: ocrCache, alwaysOcr: true, ...(extract === extractInvoiceAttachment || extract === extractPdfWithOcr ? { apiKey: statusMailAiApiKey.value() } : {}) }) } catch { fail('failed-precondition', 'Mindestens ein PDF-/Bildanhang konnte auch mit OCR nicht vollständig gelesen werden. Die Prüfung wurde abgebrochen, ohne Teilfreigabe.') }
+    try { result = await extract(new Uint8Array(Buffer.from(file.contentBytes, 'base64')), { actorId: context.uid, fileName: file.name, contentType: file.contentType, cache: ocrCache, alwaysOcr: true, ...(extract === extractInvoiceAttachment || extract === extractPdfWithOcr ? { apiKey: statusMailAiApiKey.value() } : {}) }) } catch {
+      unreadableDocuments.push({ sourceId: file.id, name: file.name, reason: 'extraction_failed' })
+      continue
+    }
+    if (!result.text?.trim()) {
+      unreadableDocuments.push({ sourceId: file.id, name: file.name, reason: 'extraction_failed' })
+      continue
+    }
     totalPages += result.pageCount
     // Count both channels actually sent to the model and all source material
     // used by validation. OCR must not bypass the combined request limit.
@@ -339,6 +347,10 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
     if (totalPages > 100 || totalText > 160000) fail('failed-precondition', 'Die Anlagen sind für eine gemeinsame Prüfung zu umfangreich (100 Seiten / 160.000 Zeichen).')
     documents.push({ id: file.id, name: file.name, contentType: file.contentType || 'application/pdf', contentBytes: file.contentBytes, ...result })
   }
+  if (unreadableDocuments.length) {
+    try { await diagnostic({ module: 'mailboxes', stage: 'invoice-review', code: 'invoice_attachment_unreadable', actorId: context.uid, message: 'Rechnungsprüfung: Mindestens ein Anhang konnte nicht gelesen werden; Anlagenprüfung unvollständig.' }) } catch { /* A diagnosis failure must not hide the available invoice results. */ }
+  }
+  if (!documents.length) fail('failed-precondition', `Keine lesbaren Anhänge für die Rechnungsprüfung. Nicht gelesen: ${unreadableDocuments.map(file => file.name).join(', ')}. Bitte lesbare Dateien bereitstellen.`)
   const invoices = validateInvoiceExtraction(await infer({ documents, mail, actorId: context.uid }), documents, mail)
   const company = (await db.doc('appSettings/companyMasterData').get()).data() || DEFAULT_COMPANY_IDENTITY
   const lookups = new Map(), attachments = new Set()
@@ -458,7 +470,7 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
     const status = summarizeChecks(allChecks)
     results.push({ extractionMethod: invoice.extractionMethod, ocrPages: invoice.ocrPages, ocrUncertainPages: invoice.ocrUncertainPages, ocrDifferencePages: invoice.ocrDifferencePages, invoicePages: invoice.invoicePages || [], fileName: invoice.fileName, sourceId: invoice.sourceId, number: invoice.number.value, date: invoice.date.value, issuer: invoice.issuer.value, currency: invoice.currency.value, warnings: invoice.warnings, notices, alerts: [...duplicate.alerts, ...amountAlerts, ...factoringAlerts], duplicateMatches: duplicate.matches, headerChecks, paymentChecks, transports, totals, status })
   }
-  const report = { id: reportId, version: 6, documents: documents.map(file => ({ sourceId: file.id, name: file.name, contentType: file.contentType, pageCount: file.pageCount })), createdAt: new Date(now).toISOString(), invoices: results, status: results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den Anhängen erkannt.' : !attachments.size ? 'Keine bestätigte Zuordnung: keine eindeutige TA-Zuordnung vorhanden.' : '', scope: 'Datenabgleich und betriebliche Prüfhinweise, keine Zahlungsfreigabe. Bankverbindung und Ablieferbelege sind nicht geprüft.' }
+  const report = { id: reportId, version: 7, incomplete: unreadableDocuments.length > 0, unreadableDocuments, documents: documents.map(file => ({ sourceId: file.id, name: file.name, contentType: file.contentType, pageCount: file.pageCount })), createdAt: new Date(now).toISOString(), invoices: results, status: !unreadableDocuments.length && results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den Anhängen erkannt.' : !attachments.size ? 'Keine bestätigte Zuordnung: keine eindeutige TA-Zuordnung vorhanden.' : '', scope: 'Datenabgleich und betriebliche Prüfhinweise, keine Zahlungsfreigabe. Bankverbindung und Ablieferbelege sind nicht geprüft.' }
   if (Buffer.byteLength(JSON.stringify(report), 'utf8') > 750000) fail('failed-precondition', 'Der Prüfbericht ist zu umfangreich. Es wurde keine Teilprüfung gespeichert.')
   // Immutable snapshots: rerunning with a new request creates a new dated report.
   await revalidate()
