@@ -387,3 +387,87 @@ test('confirmed station delivery information replaces old reference while notes 
   assert.equal(result.imported.stops.find(row => row.sourceId === '31').deliveryNoteNumber, 'LS-123')
   assert.equal(result.preservedPaths.includes('loading.reference'), false)
 })
+
+test('referenced station addresses resolve exact SQL identity and feed first/last summaries', () => {
+  const source = sample()
+  const loading = source.ladeEntladestellen.find(row => row.ID === 31)
+  Object.assign(loading, { AdressID: 15150, Firma: null, Strasse: '', PLZ: ' ', Ort: null, Land: '' })
+  const lastUnloading = source.ladeEntladestellen.find(row => row.ID === 34)
+  Object.assign(lastUnloading, { AdressID: source.kunde.ID, Firma: '', Strasse: '', PLZ: '', Ort: '', Land: '' })
+  source.stationAddresses = [{ ID: 15150, Firma: 'LGH Hamburg', Strasse: 'Bredowstr. 10', PLZ: '22113', Ort: 'Hamburg', Land: 'D', IBAN: 'DO-NOT-COPY', EMailZentrale: 'DO-NOT-COPY' }]
+  const result = map(source)
+  assert.deepEqual(result.stops[0].address, { company: 'LGH Hamburg', street: 'Bredowstr. 10', postalCode: '22113', city: 'Hamburg', country: 'D' })
+  assert.equal(result.stops[0].addressSourceId, '15150')
+  assert.equal(result.stops[0].addressSource, 'reference')
+  assert.equal(result.loading.city, 'Hamburg')
+  assert.equal(result.loading.originalText, 'LGH Hamburg, Bredowstr. 10, D 22113 Hamburg')
+  assert.deepEqual(result.stops[3].address, { company: 'Beispielkunde', street: 'Musterweg 1', postalCode: '10115', city: 'Berlin', country: 'DE' })
+  assert.equal(result.unloading.city, 'Berlin')
+  assert.equal(JSON.stringify(result).includes('DO-NOT-COPY'), false)
+})
+
+test('same-payload customer is used only for the exact referenced SQL ID, never its debtor number', () => {
+  const source = sample()
+  const loading = source.ladeEntladestellen.find(row => row.ID === 31)
+  Object.assign(loading, { Firma: '', Ort: '', AdressID: source.kunde.Debitorennummer })
+  const result = map(source)
+  assert.deepEqual(result.stops[0].address, { company: null, street: null, postalCode: null, city: null, country: null })
+  assert.equal(result.stops[0].addressSource, 'unresolved-reference')
+  assert.ok(result.source.warningCodes.includes('STATION_ADDRESS_REFERENCE_UNRESOLVED'))
+  loading.AdressID = source.kunde.ID
+  const exact = map(source)
+  assert.equal(exact.stops[0].address.company, 'Beispielkunde')
+  assert.equal(exact.stops[0].addressSource, 'reference')
+})
+
+test('explicit address lookup wins over a same-ID customer copy without merging address blocks', () => {
+  const source = sample()
+  Object.assign(source.ladeEntladestellen.find(row => row.ID === 31), { Firma: '', Ort: '', AdressID: source.kunde.ID })
+  source.stationAddresses = [{ ID: source.kunde.ID, Firma: 'Geprüfte Station', Strasse: null, PLZ: null, Ort: null, Land: null }]
+  const result = map(source)
+  assert.deepEqual(result.stops[0].address, { company: 'Geprüfte Station', street: null, postalCode: null, city: null, country: null })
+})
+
+test('partial inline station addresses are preserved as a whole and never fieldwise enriched', () => {
+  const source = sample()
+  Object.assign(source.ladeEntladestellen.find(row => row.ID === 31), { AdressID: 15150, Firma: 'Abweichende Ladestelle', Ort: '' })
+  source.stationAddresses = [{ ID: 15150, Firma: 'Stammadresse', Strasse: 'Andere Straße 1', PLZ: '22113', Ort: 'Hamburg', Land: 'D' }]
+  const result = map(source)
+  assert.deepEqual(result.stops[0].address, { company: 'Abweichende Ladestelle', street: null, postalCode: null, city: null, country: null })
+  assert.equal(result.stops[0].addressSourceId, '15150')
+  assert.equal(result.stops[0].addressSource, 'inline')
+  assert.equal(result.source.warningCodes.includes('STATION_ADDRESS_REFERENCE_UNRESOLVED'), false)
+})
+
+test('missing or empty referenced rows are explicit warnings; legacy no-reference shape stays unchanged', () => {
+  const source = sample()
+  const legacy = map(source)
+  assert.equal(Object.hasOwn(legacy.stops[0], 'addressSource'), false)
+  assert.equal(Object.hasOwn(legacy.stops[0], 'addressSourceId'), false)
+  Object.assign(source.ladeEntladestellen.find(row => row.ID === 31), { AdressID: 15150, Firma: '', Ort: '' })
+  source.stationAddresses = []
+  const unresolved = map(source)
+  assert.ok(unresolved.source.warningCodes.includes('STATION_ADDRESS_REFERENCE_UNRESOLVED'))
+  source.stationAddresses = [{ ID: 15150, Firma: '', Strasse: '', PLZ: null, Ort: null, Land: null }]
+  const empty = map(source)
+  assert.ok(empty.source.warningCodes.includes('STATION_ADDRESS_REFERENCE_EMPTY'))
+  assert.equal(empty.stops[0].addressSource, 'reference')
+})
+
+test('optional station address extension rejects malformed, duplicate and unrelated source identities', () => {
+  for (const invalid of [null, {}, [null], Array.from({ length: 2001 }, () => ({}))]) {
+    const source = sample(); source.stationAddresses = invalid
+    assert.throws(() => map(source), error => error instanceof DycosMappingError && error.field === 'stationAddresses')
+  }
+  for (const [rows, field] of [
+    [[{ ID: 99 }], 'stationAddresses.unrelatedAddress'],
+    [[{ ID: 0 }], 'stationAddresses.ID'],
+    [[{ ID: 15150 }, { ID: '15150' }], 'stationAddresses.duplicateAddress'],
+    [[{ ID: 15150, Firma: {} }], 'stationAddresses.Firma'],
+  ]) {
+    const source = sample(); source.ladeEntladestellen[0].AdressID = 15150; source.stationAddresses = rows
+    assert.throws(() => map(source), error => error instanceof DycosMappingError && error.field === field)
+  }
+  const invalidReference = sample(); invalidReference.ladeEntladestellen[0].AdressID = -1
+  assert.throws(() => map(invalidReference), error => error instanceof DycosMappingError && error.field === 'ladeEntladestellen.AdressID')
+})
