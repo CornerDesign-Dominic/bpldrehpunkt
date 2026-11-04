@@ -11,7 +11,8 @@
     "analyze:vercel": "node scripts/analyze-vercel-output.mjs",
     "build:analyze": "npm run build && npm run analyze:vercel",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:liability-ui": "node scripts/test-liability-ui.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
@@ -30,6 +31,7 @@
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "eslint-plugin-react-refresh": "latest",
-    "globals": "latest"
+    "globals": "latest",
+    "jsdom": "^30.1.3"
   }
 }

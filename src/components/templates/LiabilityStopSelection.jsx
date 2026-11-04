@@ -28,8 +28,9 @@ export default function LiabilityStopSelection({ order, selectedStops, onChange 
         const selected = selectedStops.find(item => item.id === stop.id)
         return <section key={stop.id} className="template-address-section">
           <label className="liability-stop-option"><input type="checkbox" checked={Boolean(selected)} onChange={() => toggle(stop)} /><span><strong>{`${index + 1}. ${stop.type === 'loading' ? w('Ladestelle', 'Loading location') : w('Entladestelle', 'Unloading location')}`}</strong><small>{[stop.company, stop.originalText || [stop.street, stop.postalCode, stop.city, stop.country].filter(Boolean).join(', '), stop.date].filter(Boolean).join(' · ') || w('Adressdaten fehlen', 'Address details missing')}</small></span></label>
+          {selected && (stop.originalText ? !selected.originalText?.trim() || !selected.date : fields.some(([field]) => !String(selected[field] || '').trim())) && <p className="liability-stop-missing" role="status">{w('Fehlende Angaben bitte ergänzen.', 'Please complete the missing details.')}</p>}
           {selected && <div className="template-address-section__grid">
-            {(stop.originalText ? [['originalText', 'Anschrift / Originalangabe', 'Address / original text'], ['date', 'Datum', 'Date']] : fields).map(([field, de, en]) => <label className="form-field" key={field}><span>{w(de, en)}</span><input type={field === 'date' ? 'date' : 'text'} value={selected[field] || ''} onChange={event => edit(stop.id, field, event.target.value)} /></label>)}
+            {(stop.originalText ? [['originalText', 'Anschrift / Originalangabe', 'Address / original text'], ['date', 'Datum', 'Date']] : fields).map(([field, de, en]) => <label className="form-field" key={field}><span>{w(de, en)}</span><input type={field === 'date' ? 'date' : 'text'} value={selected[field] || ''} aria-invalid={!String(selected[field] || '').trim()} onChange={event => edit(stop.id, field, event.target.value)} /></label>)}
           </div>}
         </section>
       })}
