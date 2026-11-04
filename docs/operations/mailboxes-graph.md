@@ -443,3 +443,34 @@ Shared-Abgleich erfolgreich. Es wurden keine echten Mails versendet.
 - [Microsoft: Zuweisung und Zustimmung](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-access-management)
 - [Microsoft: Auf eine Mail antworten](https://learn.microsoft.com/en-us/graph/api/message-reply?view=graph-rest-1.0)
 - [Google: Secret Manager](https://docs.cloud.google.com/secret-manager/docs/creating-and-accessing-secrets)
+
+## Ordner, Gelesen-Status und Nachverfolgung (Dev 04.11.2026)
+
+Posteingang/Gesendet verwenden dieselbe Nachrichtenansicht. Ordnerauswahl steht
+in `folder=inbox|sentitems`; Listen-Cursor sind an Besitzer, Verbindung, Ordner
+und Suche gebunden. Gesendete Cards zeigen Empfänger und Versandzeit. Auswahl,
+Suche und Scrollposition bleiben beim Ordnerwechsel je Postfach erhalten.
+Antwortzeilen im Eingang bleiben erhalten. Gesendet zeigt die gemeinsamen
+Exchange-SentItems, sofern dort Kopien gespeichert sind.
+
+Nach erfolgreich angezeigter Eingangsmail wird der Gelesen-Status explizit gesetzt.
+KI-Verarbeitung und reines API-Lesen ändern ihn nicht. Manuelles Ungelesen bleibt
+für die aktuelle Öffnung erhalten. Fähnchen wechseln zwischen nicht markiert,
+markiert und erledigt. Microsoft führt den Status; Aktualisieren liest Änderungen
+aus Outlook. Bei gemeinsamen Postfächern gilt derselbe Status für alle.
+
+`updateMailboxMessageState` erlaubt ausschließlich `isRead` oder `flagStatus`.
+Eigentümerschaft der Verbindung, aktive Mailbox-Edit-Berechtigung und passende
+delegierte Scopes werden geprüft. View-only bleibt schreibgeschützt. Kein
+Mailtext-/Empfänger-/Löschendpunkt und keine automatische Mailaktion werden ergänzt.
+Client- und Serverdiagnose nutzen den inhaltsfreien Schritt `message-state`.
+
+Nur der Entra-App Drehpunkt Mail – Dev werden Mail.ReadWrite und
+Mail.ReadWrite.Shared delegiert hinzugefügt, mit separat bestätigter
+Administratorzustimmung. Die Produktions-App und der rein lesende Exchange-
+Anwendungszugriff bleiben unverändert. Bestehende Verbindungen zunächst erneuern;
+fehlende Scopes ergeben einen verständlichen Hinweis auf Mein Profil → Postfächer.
+Refreshes erhalten die ursprünglich freigegebenen Scopes. Deshalb alle Mailbox-
+Entrypoints, die Zugangsdaten erneuern können, gemeinsam bereitstellen,
+einschließlich Hintergrundaktionen und Empfehlungssubscription-Wartung.
+Keine Kontrollabfrage, Nachholsuche oder neue Rules/Indizes/Secrets.

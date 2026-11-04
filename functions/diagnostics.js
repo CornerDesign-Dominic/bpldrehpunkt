@@ -18,7 +18,7 @@ const CLIENT_STAGES = Object.freeze({
   kvp: ['load', 'save', 'history'],
   handbook: ['load', 'save', 'history'],
   knowledgeGaps: ['load', 'save'],
-  mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export', 'agb-analyse', 'agb-customer', 'invoice-review', 'invoice-history'],
+  mailboxes: ['message-state', 'connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export', 'agb-analyse', 'agb-customer', 'invoice-review', 'invoice-history'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create', 'order-search', 'order-fetch', 'wording'],
@@ -26,6 +26,7 @@ const CLIENT_STAGES = Object.freeze({
 })
 const CLIENT_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal', 'unknown', 'resource-exhausted', 'runtime-error', 'unhandled-rejection', 'invalid-response', 'access-failure'])
 const CLIENT_MESSAGES = {
+  'message-state': 'Der Gelesen-Status oder das Fähnchen konnte nicht mit Microsoft abgeglichen werden.',
   'order-search': 'Die Auftragssuche für die Haftbarhaltung ist fehlgeschlagen.',
   'order-fetch': 'Der Auftragsabruf für die Haftbarhaltung konnte nicht bestätigt werden.',
   wording: 'Der Formulierungsvorschlag für die Haftbarhaltung ist fehlgeschlagen.',

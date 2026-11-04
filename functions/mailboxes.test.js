@@ -240,6 +240,119 @@ test('a canonical Graph nextLink does not discard the first inbox page and can b
   await assert.rejects(f.handlers.listMailboxMessages(request({ pageToken: `${first.nextPageToken}tampered` })), { code: 'invalid-argument' })
 })
 
+test('sent folder pages include recipients and sent date, with signed search and folder binding', async () => {
+  const calls=[]
+  const nextLink="https://graph.microsoft.com/v1.0/me/mailFolders('sentitems')/messages?$skiptoken=opaque"
+  const f=fixture({fetch:async(url,options)=>{calls.push({url,options});return response({value:[{id:'sent',flag:{flagStatus:'flagged'}}],'@odata.nextLink':nextLink})}})
+  const first=await f.handlers.listMailboxMessages(request({folder:'sentitems'}))
+  const url=new URL(calls[0].url)
+  assert.equal(url.pathname,'/v1.0/me/mailFolders/sentitems/messages')
+  assert.equal(url.searchParams.get('$orderby'),'sentDateTime desc')
+  for(const property of ['toRecipients','sentDateTime','isRead','flag']) assert.ok(url.searchParams.get('$select').split(',').includes(property))
+  await assert.rejects(f.handlers.listMailboxMessages(request({folder:'inbox',pageToken:first.nextPageToken})),{code:'invalid-argument'})
+  await assert.rejects(f.handlers.listMailboxMessages(request({folder:'sentitems',pageToken:first.nextPageToken+'.junk'})),{code:'invalid-argument'})
+  await f.handlers.listMailboxMessages(request({folder:'sentitems',pageToken:first.nextPageToken}))
+  assert.equal(calls.at(-1).url,nextLink)
+  await f.handlers.listMailboxMessages(request({folder:'sentitems',search:'customer'}))
+  assert.equal(new URL(calls.at(-1).url).searchParams.has('$orderby'),false)
+  for(const folder of ['drafts','../messages','/users/other',{},0,null]) await assert.rejects(f.handlers.listMailboxMessages(request({folder})),{code:'invalid-argument'})
+  assert.ok(calls.every(call=>!call.options.method))
+})
+
+const stateRequest=data=>({auth:{uid:'owner'},data:{connectionId,messageId:'message/with+opaque==',...data}})
+const writeSecrets=scopes=>({read:async()=>({accessToken:'write-token',refreshToken:'refresh',expiresAt:1000000,scopes})})
+test('message metadata mutation only patches the requested status on the owned mailbox',async()=>{
+  const calls=[]
+  const f=fixture({secrets:writeSecrets(['Mail.ReadWrite']),fetch:async(url,options)=>{calls.push({url,options});return response({id:'message/with+opaque==',isRead:true,flag:{flagStatus:'notFlagged'}})}})
+  const read=await f.handlers.updateMailboxMessageState(stateRequest({isRead:true}))
+  assert.equal(read.message.isRead,true)
+  assert.equal(calls[0].options.method,'PATCH')
+  assert.deepEqual(JSON.parse(calls[0].options.body),{isRead:true})
+  assert.equal(new URL(calls[0].url).pathname,'/v1.0/me/messages/message%2Fwith%2Bopaque%3D%3D')
+  for(const flagStatus of ['flagged','complete','notFlagged']) {
+    await f.handlers.updateMailboxMessageState(stateRequest({flagStatus}))
+    assert.deepEqual(JSON.parse(calls.at(-1).options.body),{flag:{flagStatus}})
+  }
+  await f.handlers.updateMailboxMessageState(stateRequest({isRead:false}))
+  assert.deepEqual(JSON.parse(calls.at(-1).options.body),{isRead:false})
+})
+
+test('status updates reject extra properties, invalid state, absent identity and foreign connection ownership before Graph',async()=>{
+  const f=fixture({secrets:writeSecrets(['Mail.ReadWrite'])})
+  for(const data of [{},{isRead:'true'},{isRead:null},{flagStatus:'done'},{isRead:true,flagStatus:'flagged'},{isRead:true,body:'overwritten'},{isRead:true,graphUserId:'foreign'},{flag:{flagStatus:'flagged'}}]) await assert.rejects(f.handlers.updateMailboxMessageState(stateRequest(data)),{code:'invalid-argument'})
+  await assert.rejects(f.handlers.updateMailboxMessageState({auth:{uid:'other'},data:{connectionId,messageId:'x',isRead:true}}),{code:'permission-denied'})
+  assert.equal(f.fetchCount(),0)
+})
+
+test('metadata updates require mailbox edit access, while reading never marks a message or flags it',async()=>{
+  const calls=[]
+  const f=fixture({requireProfile:async()=>({...profile,permissions:{mailboxes:'view'}}),fetch:async(url,options)=>{calls.push({url,options});return response(url.includes('attachments?')?{value:[]}:{id:'x',body:{contentType:'text',content:'mail'},isRead:false,flag:{flagStatus:'flagged'}})}})
+  for(const state of [{isRead:true},{flagStatus:'complete'}]) await assert.rejects(f.handlers.updateMailboxMessageState(stateRequest(state)),{code:'permission-denied'})
+  const result=await f.handlers.getMailboxMessage(request({messageId:'x'}))
+  assert.equal(result.message.isRead,false);assert.equal(result.message.flag.flagStatus,'flagged')
+  assert.ok(calls.every(call=>!call.options.method))
+  assert.ok(new URL(calls[0].url).searchParams.get('$select').split(',').includes('flag'))
+})
+
+test('existing read-only token remains usable for browsing but updates require renewed delegated write scope',async()=>{
+  const calls=[]
+  const f=fixture({secrets:writeSecrets(['User.Read','Mail.Read','Mail.Send']),fetch:async(url,options)=>{calls.push({url,options});return response({value:[]})}})
+  await f.handlers.listMailboxMessages(request({}))
+  await assert.rejects(f.handlers.updateMailboxMessageState(stateRequest({isRead:true})),error=>error.code==='failed-precondition'&&error.details.technicalCode==='mailbox_write_scope_required')
+  assert.equal(calls.length,1)
+  assert.equal(calls[0].options.method,undefined)
+})
+
+test('shared status updates use only parent delegated shared write scope and stored target, not personal write or app access',async()=>{
+  const calls=[]
+  const f=sharedFixture({secrets:writeSecrets(['Mail.ReadWrite.Shared']),fetch:async(url,options)=>{calls.push({url,options});return response({id:'shared',isRead:true})}})
+  await f.handlers.updateMailboxMessageState(stateRequest({connectionId:sharedId,isRead:true}))
+  assert.equal(new URL(calls[0].url).pathname,`/v1.0/users/${encodeURIComponent(sharedEmail)}/messages/message%2Fwith%2Bopaque%3D%3D`)
+  assert.equal(calls[0].options.headers.Authorization,'Bearer write-token')
+  const denied=sharedFixture({secrets:writeSecrets(['Mail.ReadWrite'])})
+  await assert.rejects(denied.handlers.updateMailboxMessageState(stateRequest({connectionId:sharedId,flagStatus:'flagged'})),{code:'failed-precondition'})
+  assert.equal(denied.fetchCount(),0)
+})
+
+test('refresh keeps existing scopes until interactive renewal and accepts broader Mail.ReadWrite as read',async()=>{
+  const scopes=[];let stored
+  const f=fixture({secrets:{read:async()=>({refreshToken:'old',expiresAt:0,scopes:['user.read','mail.read','mail.send']}),write:async(_name,value)=>{stored=value;return'test/new'},destroy:async()=>{}},fetch:async(url,options)=>{
+    if(url.includes('/token')){scopes.push(new URLSearchParams(options.body).get('scope'));return response({access_token:'new',refresh_token:'new-refresh',scope:'User.Read Mail.ReadWrite Mail.Send'})}
+    return response({value:[]})
+  }})
+  await f.handlers.listMailboxMessages(request({}))
+  assert.equal(scopes.length,1);assert.ok(!scopes[0].toLowerCase().includes('mail.readwrite'))
+  assert.ok(stored.scopes.includes('mail.readwrite'))
+  const authUrl=new URL((await f.handlers.beginMailboxConnection(request({}))).authorizationUrl)
+  assert.ok(authUrl.searchParams.get('scope').includes('/Mail.ReadWrite '))
+  assert.ok(authUrl.searchParams.get('scope').includes('/Mail.ReadWrite.Shared'))
+})
+
+test('renewed write grants survive attachment, sending and recommendation refreshes without marking mail read',async()=>{
+  let time=1000,serial=0
+  let saved={refreshToken:'old',expiresAt:0,scopes:['user.read','mail.readwrite','mail.send','mail.readwrite.shared','mail.send.shared']}
+  const requested=[],methods=[]
+  const f=fixture({now:()=>time,secrets:{read:async()=>saved,write:async(_name,tokens)=>{saved=tokens;return`test/version-${++serial}`},destroy:async()=>{}},fetch:async(url,options)=>{
+    methods.push({url,method:options.method})
+    if(url.includes('/token')){requested.push(new URLSearchParams(options.body).get('scope'));return response({access_token:'renewed',refresh_token:'new',scope:'User.Read Mail.ReadWrite Mail.Send Mail.ReadWrite.Shared Mail.Send.Shared',expires_in:3600})}
+    if(url.endsWith('/sendMail'))return response(null,202)
+    if(url.includes('/attachments/'))return response({'@odata.type':'#microsoft.graph.fileAttachment',name:'document.pdf',size:2,contentBytes:'e30='})
+    return response({id:'x',body:{contentType:'text',content:'mail'}})
+  }})
+  await f.handlers.getMailboxAttachment(request({messageId:'x',attachmentId:'attachment'}))
+  time+=4000000
+  await f.handlers.sendMailboxMessage(request(newMail))
+  time+=4000000
+  await f.handlers.recommendationGraph({connectionId,operation:'message',messageId:'x'})
+  assert.equal(requested.length,3)
+  for(const scope of requested){assert.ok(scope.toLowerCase().includes('/mail.readwrite '));assert.ok(scope.toLowerCase().includes('/mail.readwrite.shared'))}
+  assert.ok(saved.scopes.includes('mail.readwrite.shared'))
+  assert.ok(!methods.some(call=>call.method==='PATCH'))
+  await f.handlers.updateMailboxMessageState(stateRequest({isRead:true}))
+  assert.ok(methods.at(-1).url.includes('/me/messages/'))
+  assert.equal(methods.at(-1).method,'PATCH')
+})
+
 test('inbox search uses Graph, omits ordering, preserves opaque pages and binds them to the search', async () => {
   const requests = []
   const nextLink = 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?%24skiptoken=opaque-search'
