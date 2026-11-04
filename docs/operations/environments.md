@@ -111,3 +111,7 @@ existiert keine `.firebaserc`; Firebase-Befehle daher mit explizitem `--project`
 ausführen. Der Ordnername ändert weder Git-Repository noch Firebase-Ziel.
 Ein Push nach `main` veröffentlicht nicht automatisch Functions, Rules oder
 Indizes; deren Bereitstellung folgt `releases.md`.
+
+## Haftbarhaltung: bewusster Formulierungsvorschlag
+
+`suggestLiabilityWording` ist für aktive Vorlagennutzer als gezielte Ausnahme in Dev und Produktion technisch zulässig; zunächst nur Dev-Veröffentlichung. Die bestehende PDF-Auswertung bleibt außerhalb Produktion gesperrt. Daten-/Rechtevertrag: [Haftbarhaltung](liability-letters.md).

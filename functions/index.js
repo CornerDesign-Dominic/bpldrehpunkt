@@ -29,6 +29,7 @@ import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeL
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler, manageTransportOrderImportHandler } from './transportOrderImports.js'
+import { findLiabilityTransportOrdersHandler, fetchLiabilityTransportOrderHandler } from './liabilityWorkflow.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
@@ -1187,6 +1188,9 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
 export { submitBugReport, submitIdea } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
+export { suggestLiabilityWording } from './liabilityWorkflow.js'
+export const findLiabilityTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, findLiabilityTransportOrdersHandler)
+export const fetchLiabilityTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchLiabilityTransportOrderHandler)
 export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'
 export { refreshSchoolHolidayData } from './schoolHolidays.js'

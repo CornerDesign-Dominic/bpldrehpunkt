@@ -1,6 +1,6 @@
 import { companyFooterColumns, companySenderLine, DEFAULT_COMPANY_DATA } from './companyDataModel.js'
 import { formatDocumentDate, getLiabilitySubject } from '../templates/liabilityDocumentData.js'
-import { formatLiabilityAddressLine, liabilityRecipientLines, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
+import { liabilityDocumentLocations, liabilityRecipientLines, LIABILITY_LETTER_TEXT } from '../templates/liabilityLetterContent.js'
 import { documentSignature } from '../templates/documentSignature.js'
 
 const PAGE = { left: 19, right: 191, footerLeft: 16, footerRight: 194 }
@@ -112,12 +112,10 @@ export function renderLiabilityLetterPdf({ JsPdf, documentData, headerImage, com
   writeParagraph(getLiabilitySubject(documentData.orderNumber), { bold: true, fontSize: 13, lineHeight: 5.7, spacingAfter: 10 })
   writeParagraph(LIABILITY_LETTER_TEXT.salutation, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.introduction, { spacingAfter: 8 })
-  const loadingHeading = [formatDocumentDate(documentData.loadingDate), 'Erste Ladestelle:'].filter(Boolean).join(' ')
-  const loadingAddress = formatLiabilityAddressLine({ company: documentData.loadingCompany, street: documentData.loadingStreet, zip: documentData.loadingZip, city: documentData.loadingCity, country: documentData.loadingCountry })
-  const unloadingHeading = [formatDocumentDate(documentData.unloadingDate), 'Letzte Entladestelle:'].filter(Boolean).join(' ')
-  const unloadingAddress = formatLiabilityAddressLine({ company: documentData.unloadingCompany, street: documentData.unloadingStreet, zip: documentData.unloadingZip, city: documentData.unloadingCity, country: documentData.unloadingCountry })
-  writeParagraph([loadingHeading, loadingAddress].filter(Boolean).join('\n'), { spacingAfter: 5.4 })
-  writeParagraph([unloadingHeading, unloadingAddress].filter(Boolean).join('\n'), { spacingAfter: 8 })
+  const locations = liabilityDocumentLocations(documentData)
+  locations.forEach((location, index) => {
+    writeParagraph([location.heading, location.address].filter(Boolean).join('\n'), { spacingAfter: index === locations.length - 1 ? 8 : 5.4 })
+  })
   if (documentData.incidentText?.trim()) writeParagraph(documentData.incidentText, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.reservation, { spacingAfter: 5.4 })
   writeParagraph(LIABILITY_LETTER_TEXT.insuranceNotice, { spacingAfter: 5.4 })

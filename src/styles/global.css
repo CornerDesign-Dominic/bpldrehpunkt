@@ -2411,3 +2411,15 @@ dialog.transport-order-import-dialog .data-table th:nth-child(2) { width: 110px;
 dialog.transport-order-import-dialog .data-table :is(td, th) { white-space: normal; overflow-wrap: anywhere; }
 
 .transport-order-import-history > .import-preparation__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+
+.liability-order-search { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
+.liability-order-search .form-field { flex: 1 1 220px; }
+.liability-order-results, .liability-wording { display: grid; gap: 10px; margin-top: 12px; }
+.liability-order-results > .button, .liability-wording > .button { justify-self: start; }
+.liability-wording__suggestion { padding: 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-secondary); }
+.liability-wording__suggestion p { white-space: pre-wrap; }
+.liability-stops { display: grid; gap: 12px; }
+.liability-stop-option { display: flex; align-items: flex-start; gap: 10px; padding-bottom: 12px; cursor: pointer; }
+.liability-stop-option input { width: 17px; height: 17px; margin-top: 2px; accent-color: var(--button-background); }
+.liability-stop-option span { display: grid; gap: 5px; }
+.liability-stop-option small { color: var(--text-secondary); }

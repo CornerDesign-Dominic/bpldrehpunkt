@@ -194,3 +194,11 @@ test('new link diagnostics retain module boundaries and require order access for
   assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: {} }, 'partner-links'), false)
   assert.equal(canReportLinkDiagnostic({ role: 'superadmin' }, 'case-links', 'order-1'), true)
 })
+
+test('liability client diagnostics accept only fixed messages and no order context', () => {
+  for (const stage of ['order-search', 'order-fetch', 'wording']) {
+    const event = normalizeClientDiagnostic({ module: 'document-templates', stage, code: 'unavailable', message: 'Sensitive incident text' })
+    assert.equal(event.message.includes('Sensitive'), false)
+    assert.throws(() => normalizeClientDiagnostic({ module: 'document-templates', stage, code: 'unavailable', orderId: 'private-order' }), { code: 'invalid-argument' })
+  }
+})

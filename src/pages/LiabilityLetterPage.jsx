@@ -1,3 +1,7 @@
+import { liabilityStopNeedsReview } from '../templates/liabilityLetterContent.js'
+import LiabilityOrderPicker from '../components/templates/LiabilityOrderPicker.jsx'
+import LiabilityStopSelection from '../components/templates/LiabilityStopSelection.jsx'
+import { useLanguage } from '../i18n/useLanguage.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
 import { useRef, useState } from 'react'
 import LiabilityLetterForm from '../components/templates/LiabilityLetterForm.jsx'
@@ -34,6 +38,12 @@ function hasLiabilityFormValues(data) {
 }
 
 export default function LiabilityLetterPage() {
+  const { language } = useLanguage()
+  const w = (de, en) => language === 'en' ? en : de
+  const [documentVersion, setDocumentVersion] = useState(0)
+  const [orderBusy, setOrderBusy] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [pendingOrder, setPendingOrder] = useState(null)
   const { company, loading: companyLoading, error: companyError } = useCompanyData()
   const [documentData, setDocumentData] = useState(createLiabilityDocumentData)
   const [isCreatingPdf, setCreatingPdf] = useState(false)
@@ -50,6 +60,7 @@ export default function LiabilityLetterPage() {
   const stamp = useCompanyStamp(setDocumentData)
 
   function updateDocumentData(field, value) {
+    setPdfError('')
     setDocumentData((current) => ({ ...current, [field]: value }))
   }
 
@@ -70,6 +81,12 @@ export default function LiabilityLetterPage() {
     if (companyLoading || companyError || stamp.loading) return
     if (!await ensurePersonalSignature(documentData)) return
     const emptyFields = emptyAiReviewFields(documentData)
+    if (Array.isArray(documentData.selectedStops)) {
+      for (const field of [...emptyFields]) if (field.startsWith('loading') || field.startsWith('unloading')) emptyFields.delete(field)
+      if (!documentData.selectedStops.length) { setPdfError(w('Bitte mindestens eine betroffene Stelle auswählen.', 'Please select at least one affected location.')); return }
+      if (documentData.selectedStops.some(liabilityStopNeedsReview)) emptyFields.add('selectedStops')
+    }
+    if (!documentData.date) emptyFields.add('date')
     setFieldsNeedingReview(emptyFields)
     if (emptyFields.size) {
       setPdfConfirmationAction(action)
@@ -88,6 +105,10 @@ export default function LiabilityLetterPage() {
   }
 
   function resetDocument() {
+    setPdfError('')
+    setDocumentVersion(value => value + 1)
+    setSelectedOrder(null)
+    setPendingOrder(null)
     resetPersonalSignature()
     stamp.reset()
     setDocumentData(createLiabilityDocumentData())
@@ -143,22 +164,48 @@ export default function LiabilityLetterPage() {
   }
 
   function acceptAiDraft() {
+    setDocumentVersion(value => value + 1)
+    setSelectedOrder(null)
     const nextDocumentData = { ...createLiabilityDocumentData(), ...aiDraftData, attachments: documentData.attachments }
     setDocumentData(nextDocumentData)
     setFieldsNeedingReview(emptyAiReviewFields(nextDocumentData))
     closeAiFlow()
   }
 
+  function applyOrder(order) {
+    setDocumentVersion(value => value + 1)
+    const selectedStops = order.stops.length && order.stops.filter(stop => order.stops.filter(item => item.type === stop.type).length === 1).map(stop => ({ ...stop }))
+    setDocumentData(current => ({ ...current, orderNumber: order.externalNumber,
+      transportCompany: order.carrier.company || '', transportStreet: order.carrier.street || '',
+      transportZip: order.carrier.postalCode || '', transportCity: order.carrier.city || '', transportCountry: order.carrier.country || '',
+      selectedStops: order.stops.length ? selectedStops : null,
+      ...Object.fromEntries(liabilityFormFields.filter(field => field.startsWith('loading') || field.startsWith('unloading')).map(field => [field, ''])),
+    }))
+    setSelectedOrder(order)
+    setFieldsNeedingReview(new Set())
+    setPdfError('')
+    setPendingOrder(null)
+  }
+
+  function chooseOrder(order) {
+    if (hasLiabilityFormValues(documentData) || selectedOrder) setPendingOrder(order)
+    else applyOrder(order)
+  }
+
   return <>
+    <ConfirmDialog open={Boolean(pendingOrder)} title={w('Auftragsdaten übernehmen?', 'Use order details?')} message={w('Die bisherigen Auftrags- und Adressangaben sowie die Stellenauswahl werden ersetzt. Belegdatum, Sachverhalt und Unterschrift/Stempel bleiben erhalten.', 'This replaces the order details, addresses and location selection. The document date, description, signature and stamp are preserved.')} confirmLabel={w('Übernehmen', 'Use details')} onCancel={() => setPendingOrder(null)} onConfirm={() => applyOrder(pendingOrder)} />
     <TranslatedProps sources={{"title":"Unvollständige Angaben"}}><ConfirmDialog open={Boolean(pdfConfirmationAction)} title="Unvollständige Angaben" message="Nicht alle Felder sind ausgefüllt. Möchtest du die PDF trotzdem erzeugen?" confirmLabel="Trotzdem erzeugen" onCancel={() => setPdfConfirmationAction(null)} onConfirm={confirmPdfAction} /></TranslatedProps>
     <TranslatedProps sources={{"title":"Neue Haftbarhaltung erstellen?"}}><ConfirmDialog open={newDocumentConfirmationOpen} title="Neue Haftbarhaltung erstellen?" message="Alle eingegebenen Daten werden geleert." confirmLabel="Neu erstellen" onCancel={() => setNewDocumentConfirmationOpen(false)} onConfirm={confirmNewDocument} /></TranslatedProps>
     <div className="liability-page__toolbar">
       <BackLink className="liability-page__back" to="/vorlagen" />
-      <button className="button button--ai" type="button" onClick={() => setAiStep('input')}><StaticText source={"Mit KI vorausfüllen"} /></button>
+      <button className="button button--ai" type="button" disabled={orderBusy} onClick={() => setAiStep('input')}><StaticText source={"Mit KI vorausfüllen"} /></button>
     </div>
     <div className="liability-page">
       <div className="liability-page__header"><div><h2><StaticText source={"Haftbarhaltung"} /></h2></div></div>
-      <LiabilityLetterForm documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={requestNewDocument} />
+      <LiabilityOrderPicker key={documentVersion} onBusyChange={setOrderBusy} onSelect={chooseOrder} disabled={Boolean(aiStep)} />
+      {selectedOrder?.warningCodes?.length > 0 && <p role="status">{w('Bitte die übernommenen Angaben prüfen. Im Auftrag fehlen Daten oder es liegen ältere Adressangaben vor.', 'Please review the imported details. Some order data is missing or uses legacy address information.')}</p>}
+      {selectedOrder && <LiabilityStopSelection key={documentVersion} order={selectedOrder} selectedStops={documentData.selectedStops || []} onChange={value => updateDocumentData('selectedStops', value)} />}
+      <LiabilityLetterForm key={documentVersion} hideStops={Array.isArray(documentData.selectedStops)} enableWording documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={orderBusy ? undefined : requestNewDocument} />
       <div className="liability-page__document-actions">
         <div className="document-signature-settings">
           <PersonalSignatureOption usePersonalSignature={usePersonalSignature} signatureLoading={signatureLoading} signatureNoticeVisible={signatureNoticeVisible} signatureNoticeMessage={signatureNoticeMessage} signatureMissing={signatureMissing} onToggle={togglePersonalSignature} />
@@ -167,8 +214,8 @@ export default function LiabilityLetterPage() {
         {companyError && <p className="form-error" role="alert">{companyError}</p>}
         {pdfError && <p className="form-error" role="alert">{pdfError}</p>}
         <div className="liability-page__actions">
-          <button className="button button--secondary" type="button" disabled={isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isPrintingPdf} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
-          <button className="button" type="button" disabled={isCreatingPdf || isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
+          <button className="button button--secondary" type="button" disabled={orderBusy || isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isPrintingPdf} onClick={() => { void requestPdfAction('print') }}><StaticText source={"PDF drucken"} /></button>
+          <button className="button" type="button" disabled={orderBusy || isCreatingPdf || isPrintingPdf || signatureLoading || stamp.loading || companyLoading || Boolean(companyError)} aria-busy={isCreatingPdf} onClick={() => { void requestPdfAction('create') }}><StaticText source={"PDF erstellen"} /></button>
         </div>
       </div>
       <LiabilityLetterPreview documentData={documentData} paperRef={documentPaperRef} />

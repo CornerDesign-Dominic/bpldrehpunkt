@@ -252,3 +252,7 @@ Elternverbindung. Listenzugriff und sämtliche Browserwrites sind verboten.
 Empfehlungen selbst sowie `mailboxRecommendationSubscriptions` und
 `mailboxRecommendationScopes` bleiben server-only. Siehe
 [Entscheidung gegen Kontrollabfragen](docs/decisions/mailbox-recommendations-no-polling.md).
+
+## Haftbarhaltung aus Auftragsdaten
+
+Der Vorlagenzugriff erlaubt über eigene, serverseitig reduzierte Callables die TA-Suche und den bewussten DyCoS-Abruf mit Speicherung, ohne allgemeine Import-/Auftragsrechte zu verleihen. Die Rules bleiben unverändert; `liabilityWordingQuotas` ist nur serverseitig erreichbar. Vertrag und Abnahme: [Haftbarhaltung](docs/operations/liability-letters.md).
