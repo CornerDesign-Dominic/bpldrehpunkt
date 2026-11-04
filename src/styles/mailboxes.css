@@ -244,3 +244,32 @@
 .mailbox-replied-row time { margin-left: auto; white-space: nowrap; }
 .mailbox-replied-row:last-child { border-radius: 0 0 7px 7px; }
 .mailbox-replies-warning { color: var(--text-secondary); font-size: 11px; }
+.mailbox-folder-tabs { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.mailboxes-page .mailbox-folder-tabs > button { padding: 6px 7px; border-color: transparent; background: transparent; font-size: 13px; font-weight: 500; }
+.mailboxes-page .mailbox-folder-tabs > button.is-active { font-weight: 700; color: var(--button-text); background: var(--button-background); border-color: var(--button-background); }
+.mailbox-message-card { position: relative; min-width: 0; }
+.mailbox-message-card:has(.mailbox-message-state) > .mailbox-message-item { padding-bottom: 37px; }
+.mailbox-message-item .mailbox-message-heading > span { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mailbox-unread-dot { display: inline-block; flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--button-background); }
+.mailboxes-page .mailbox-message-item.is-unread { border-left-width: 5px; background: color-mix(in srgb, var(--button-background) 12%, var(--surface-secondary)); }
+.mailboxes-page .mailbox-message-item.is-unread.is-selected { background: color-mix(in srgb, var(--button-background) 18%, var(--surface-active)); }
+.mailbox-message-item:not(.is-unread) > strong { font-weight: 500; }
+.mailbox-message-item.is-unread > strong { font-weight: 750; }
+.mailbox-message-state-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.mailbox-message-state { margin: 8px 0; }
+.mailboxes-page .mailbox-message-state button { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 5px 8px; }
+.mailboxes-page .mailbox-message-state.is-compact { position: absolute; bottom: 5px; right: 6px; left: 6px; margin: 0; pointer-events: none; }
+.mailbox-message-state.is-compact .mailbox-message-state-buttons { justify-content: flex-end; }
+.mailboxes-page .mailbox-message-state.is-compact button { pointer-events: auto; min-height: 26px; padding: 4px 6px; border-color: transparent; background: transparent; }
+.mailboxes-page .mailbox-message-state .mailbox-flag--flagged { color: var(--status-warning-text); background: var(--status-warning-background); }
+.mailboxes-page .mailbox-message-state .mailbox-flag--complete { color: var(--status-success-text); background: var(--status-success-background); }
+.mailbox-state-error { font-size: 11px; line-height: 1.4; color: var(--status-danger-text); margin: 6px 0; overflow-wrap: anywhere; }
+.mailbox-message-state.is-compact:has(.mailbox-state-error) { position: static; padding: 0 7px 6px; }
+.mailbox-message-state.is-compact .mailbox-state-error { pointer-events: auto; }
+.mailbox-state-error a { color: inherit; text-decoration: underline; }
+@media (max-width: 500px) { .mailbox-inbox > .mailbox-panel-heading { flex-wrap: wrap; } }
+.mailbox-passive-flag { display: inline-flex; padding: 5px; border-radius: 4px; }
+.mailbox-message-card > .mailbox-passive-flag { position: absolute; right: 8px; bottom: 7px; }
+.mailbox-message-card:has(> .mailbox-passive-flag) > .mailbox-message-item { padding-bottom: 32px; }
+.mailbox-passive-flag.mailbox-flag--flagged { color: var(--status-warning-text); }
+.mailbox-passive-flag.mailbox-flag--complete { color: var(--status-success-text); }

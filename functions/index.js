@@ -27,7 +27,7 @@ import { saveQualityRecordHandler } from './quality.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeLearningHandler } from './knowledgeLearning.js'
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, updateMailboxMessageStateHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler, manageTransportOrderImportHandler } from './transportOrderImports.js'
 import { findLiabilityTransportOrdersHandler, fetchLiabilityTransportOrderHandler } from './liabilityWorkflow.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
@@ -207,6 +207,7 @@ export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler
 export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
 export const listMailboxReplies = onCall(mailboxOptions, listMailboxRepliesHandler)
 export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
+export const updateMailboxMessageState = onCall(mailboxOptions, updateMailboxMessageStateHandler)
 export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)
 export const suggestMailboxReply = onCall({ ...mailboxOptions, timeoutSeconds: 180, secrets: [mailboxClientSecret, statusMailAiApiKey] }, suggestMailboxReplyHandler)
 export const getMailboxDraft = onCall(mailboxOptions, getMailboxDraftHandler)
