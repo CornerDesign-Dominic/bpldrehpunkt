@@ -366,3 +366,21 @@ Stationsereignisse übernommen. Zusatzsummen wie `Gesamtgewicht` und `KolliGesam
 werden nicht mit den bereits getrennten Stations-/Auftragsmengen vermischt.
 Maße in Bemerkungstexten bleiben vollständig erhalten; daraus entstehen keine
 neu erfundenen strukturierten Werte.
+
+## Ergänzung 04.11.2026: Kopf-Bruttobetrag für den Rechnungsabgleich (Dev)
+
+Zwei lesende Abrufe über die bestehende Dev-TA-Schnittstelle bestätigen für die
+geprüften Unternehmerköpfe: AdressID verweist auf dieselbe Unternehmer-ID wie der
+TA-Unternehmerstamm; Nettowert plus Mwst ergibt Gesamt. Die zu Gesamt gelieferte
+Originalwährung steht in WaehrungBezFW. Die getrennten EUR-/KW-Felder sind kein
+Ersatz für eine fehlende Originalwährungsangabe. Der Kopf-Gesamtbetrag kann mehrere
+Transportpositionen umfassen und darf nicht als Betrag einer einzelnen TA
+interpretiert werden.
+
+Diese Felder werden für den neuen Dev-Dublettenabgleich privat projiziert, ohne
+Rohzeilen, Bankdaten, Dateipfade oder neue Betragsfelder im allgemeinen
+Transportdatenmodell zu speichern. ExterneBelegnummer wird direkt vom Kopf gelesen;
+Storniert=true schließt ihn aus. Unbekannte Klassifikation/Identität oder fehlende
+benötigte Werte bleiben ungeklärt. Die Existenzprüfung trifft keine Aussage über
+Bezahlung oder einen gesonderten Buchungsstatus. Führender Ablauf und Grenzen:
+[Rechnungsprüfung](../operations/mailbox-invoice-review.md#dubletten-und-hervorgehobene-hinweise-dev-04112026).

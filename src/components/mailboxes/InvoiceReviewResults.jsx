@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../i18n/useLanguage.js'
-import { invoiceCheckColor, invoiceDisplayChecks, invoiceReviewDistribution, invoiceTransportChecks, invoiceAmountDetails, formatInvoiceCheckValue } from '../../lib/invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceDisplayChecks, invoiceReviewDistribution, invoiceTransportChecks, invoiceAmountDetails, invoiceReviewAlerts, formatInvoiceCheckValue } from '../../lib/invoiceReviewPresentation.js'
 import '../../styles/invoiceReview.css'
 
 const colorLabels = {
@@ -9,10 +9,10 @@ const colorLabels = {
   blue: ['Ergänzend', 'Additional'], gray: ['Ergänzend', 'Additional'],
 }
 
-export function InvoiceReviewStatus({ status, color }) {
+export function InvoiceReviewStatus({ status, color, label }) {
   const { language } = useLanguage()
   const tone = invoiceCheckColor({ status, color })
-  return <span className={`invoice-review-status invoice-review-status--${tone === 'blue' ? 'gray' : tone}`}><i className="invoice-review-dot" aria-hidden="true" />{colorLabels[tone][language === 'en' ? 1 : 0]}</span>
+  return <span className={`invoice-review-status invoice-review-status--${tone === 'blue' ? 'gray' : tone}`}><i className="invoice-review-dot" aria-hidden="true" />{label || colorLabels[tone][language === 'en' ? 1 : 0]}</span>
 }
 
 function Source({ text, label }) {
@@ -23,7 +23,7 @@ function Source({ text, label }) {
   return <span className="invoice-review-source"><button type="button" className="invoice-review-source-toggle" aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}>{label || (language === 'en' ? 'Details' : 'Details')}</button><span id={id} className="invoice-review-source-text" hidden={!open}>{text}</span></span>
 }
 
-const labels = { ocr: 'Text recognition', net: 'Net amount', netTotal: 'Net total / orders', vat: 'VAT', vatTotal: 'VAT / reference', gross: 'Gross amount', grossTotal: 'Gross / reference', currency: 'Currency', issuer: 'Invoice issuer / carrier', recipient: 'Invoice recipient', issuerVatId: 'Carrier VAT ID', recipientVatId: 'Recipient VAT ID', recipientAddress: 'Invoice address', loadingDate: 'Loading date', unloadingDate: 'Unloading date', loadingCity: 'Loading city', unloadingCity: 'Unloading city', licensePlate: 'Licence plate', positionSum: 'Item sum / invoice net', taxSum: 'Net + tax / gross', number: 'Invoice number', date: 'Invoice date', lookup: 'DyCoS lookup', paymentDays: 'Payment term', paymentTerms: 'Payment terms', dueDate: 'Due date', foreignVat: 'Foreign-carrier VAT', billingStatus: 'Previous billing / duplicates', ta: 'Transport order', serviceDate: 'Service date', deliveryDate: 'Delivery date' }
+const labels = { ocr: 'Text recognition', net: 'Net amount', netTotal: 'Net total / orders', vat: 'VAT', vatTotal: 'VAT / reference', gross: 'Gross amount', grossTotal: 'Gross / reference', currency: 'Currency', issuer: 'Invoice issuer / carrier', recipient: 'Invoice recipient', issuerVatId: 'Carrier VAT ID', recipientVatId: 'Recipient VAT ID', recipientAddress: 'Invoice address', loadingDate: 'Loading date', unloadingDate: 'Unloading date', loadingCity: 'Loading city', unloadingCity: 'Unloading city', licensePlate: 'Licence plate', positionSum: 'Item sum / invoice net', taxSum: 'Net + tax / gross', number: 'Invoice number', date: 'Invoice date', lookup: 'DyCoS lookup', paymentDays: 'Payment term', paymentTerms: 'Payment terms', dueDate: 'Due date', foreignVat: 'Foreign-carrier VAT', billingStatus: 'Invoice already present in DyCoS', ta: 'Transport order', serviceDate: 'Service date', deliveryDate: 'Delivery date' }
 
 function Checks({ checks = [], currency }) {
   const { language } = useLanguage()
@@ -43,11 +43,17 @@ function Checks({ checks = [], currency }) {
       invoice_positions: en ? 'Invoice item sum' : 'Rechnungspositionen',
     }[check.comparisonOrigin]
     const details = [check.message, check.sourceText || check.quote].filter(Boolean).join('\n')
+    const billingLabel = check.key === 'billingStatus' && check.comparisonOrigin === 'dycos_invoice_headers'
+      ? check.duplicate === true ? en ? 'Present' : 'Vorhanden'
+        : check.matchCount > 0 ? en ? 'Suspected' : 'Verdacht'
+          : check.complete === true ? en ? 'No match' : 'Kein Treffer'
+            : en ? 'Unresolved' : 'Ungeklärt'
+      : undefined
     return <article className="invoice-review-check" key={check.displayId || `${check.key}-${index}`}>
       <div className="invoice-review-check-name"><strong>{title}{check.transportTa && <small>TA {check.transportTa}</small>}</strong><Source text={details} /></div>
       <span className="invoice-review-value" aria-label={en ? 'Invoice' : 'Rechnung'}>{formatInvoiceCheckValue(check, check.actual, { language, currency, side: 'actual' })}</span>
       <span className="invoice-review-value" aria-label={en ? 'Reference' : 'Vergleich'}>{formatInvoiceCheckValue(check, check.expected, { language, currency, side: 'expected' })}{referenceOrigin && <small className="invoice-review-file" style={{ display: 'block' }}>{referenceOrigin}</small>}</span>
-      <InvoiceReviewStatus status={check.status} color={check.color} />
+      <InvoiceReviewStatus status={check.status} color={check.color} label={billingLabel} />
     </article>
   })}</div>
 }
@@ -68,6 +74,23 @@ function Distribution({ checks }) {
 
 function Disclosure({ title, children }) {
   return <details className="invoice-review-disclosure"><summary>{title}</summary>{children}</details>
+}
+
+function InvoiceAlerts({ invoice }) {
+  const { language } = useLanguage()
+  const en = language === 'en'
+  const alerts = invoiceReviewAlerts(invoice)
+  if (!alerts.length) return null
+  return <div className="invoice-review-alerts">{['red', 'yellow'].map(color => {
+    const items = alerts.filter(alert => alert.color === color)
+    if (!items.length) return null
+    return <div className={`invoice-review-alert invoice-review-alert--${color}`} key={color} role={color === 'red' ? 'alert' : 'status'} aria-atomic="true"><ul>{items.map((alert, index) => {
+      const amountName = { net: en ? 'Net amount' : 'Netto', netTotal: en ? 'Net amount' : 'Netto', vat: en ? 'VAT' : 'MwSt.', vatTotal: en ? 'VAT' : 'MwSt.', gross: en ? 'Total amount' : 'Gesamtbetrag', grossTotal: en ? 'Total amount' : 'Gesamtbetrag' }[alert.key] || (en ? 'Amount' : 'Betrag')
+      const title = alert.kind === 'duplicate' ? en ? 'Invoice already present in DyCoS' : 'Rechnung bereits in DyCoS vorhanden' : alert.kind === 'possible_duplicate' ? en ? 'Possible duplicate in DyCoS' : 'Mögliche Dublette in DyCoS' : `${amountName} ${en ? 'differs' : 'abweichend'}`
+      const check = { ...alert, format: 'money' }
+      return <li key={index}><strong>{title}</strong>{alert.kind === 'amount' && <span className="invoice-review-alert-values">{en ? 'Invoice' : 'Rechnung'}: {formatInvoiceCheckValue(check, alert.actual, { language, currency: invoice.currency, side: 'actual' })} · {en ? 'Reference' : 'Vergleich'}: {formatInvoiceCheckValue(check, alert.expected, { language, currency: invoice.currency, side: 'expected' })}</span>}{(alert.ta || alert.externalNumber) && <small>{[alert.ta && `TA ${alert.ta}`, alert.externalNumber && `${en ? 'Document' : 'Beleg'} ${alert.externalNumber}`].filter(Boolean).join(' · ')}</small>}</li>
+    })}</ul></div>
+  })}</div>
 }
 
 function TransportDetails({ transport, currency, w }) {
@@ -98,6 +121,7 @@ export default function InvoiceReviewResults({ report }) {
           <p className="invoice-review-file">{[invoice.issuer, invoice.fileName].filter(Boolean).join(' · ')}</p>
           {invoice.invoicePages?.length > 0 && <p className="invoice-review-file">{w('Rechnungsseiten', 'Invoice pages')}: {invoice.invoicePages.join(', ')}</p>}
           <Distribution checks={primary} />
+          <InvoiceAlerts invoice={invoice} />
           <Checks checks={primary} currency={invoice.currency} />
           {amountDetails.length > 0 && <Disclosure title={w('Betragsdetails', 'Amount details')}><Checks checks={amountDetails} currency={invoice.currency} /></Disclosure>}
           {secondary.length > 0 && <Disclosure title={<>{w('Ergänzende Angaben', 'Additional information')}{secondaryMismatches > 0 && <span className="invoice-review-secondary-alert invoice-review-status--red"><i className="invoice-review-dot" aria-hidden="true" />{secondaryMismatches} {w('abweichend', 'different')}</span>}</>}><Checks checks={secondary} currency={invoice.currency} /></Disclosure>}

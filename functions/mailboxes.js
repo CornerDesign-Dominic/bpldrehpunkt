@@ -440,7 +440,7 @@ export function createMailboxHandlers(deps = {}) {
         const file = await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}/attachments/${segment(metadata.id)}`)
         files.push(validateInvoiceAttachmentBytes(file, metadata))
       }
-      return reviewMailboxInvoices({ db: db(), context, files, mail, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
+      return reviewMailboxInvoices({ db: db(), context, files, mail, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, onBillingError: async error => diagnose({ actorId: context.uid, stage: 'invoice-review', code: 'invoice_billing_lookup_failed', technicalCode: error?.code || 'source_unavailable', message: 'DyCoS-Belegabgleich nicht vollständig möglich.', cause: 'Belegabruf oder Validierung fehlgeschlagen.', causeStatus: 'confirmed', severity: 'warning', source: 'server' }), revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
     }),
     listTransportInvoiceChecks: guarded('invoice-history', async request => {
       assertMailboxEnvironment(deps.config?.project || runtimeProjectId())

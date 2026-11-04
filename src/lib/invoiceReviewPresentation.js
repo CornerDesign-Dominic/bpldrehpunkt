@@ -131,3 +131,25 @@ export function invoiceReviewDistribution(checks = []) {
   }
   return { counts, percentages, total }
 }
+
+// New reports own their alerts. Historical reports may only surface verified
+// monetary mismatches; a cost-position link alone is never duplicate evidence.
+export function invoiceReviewAlerts(invoice = {}) {
+  const declared = Array.isArray(invoice.alerts)
+  const raw = declared ? invoice.alerts : invoiceDisplayChecks(invoice).primary
+    .filter(check => ['netTotal', 'vatTotal', 'grossTotal', 'net', 'vat', 'gross'].includes(check.key) && invoiceCheckColor(check) === 'red')
+    .map(check => ({ ...check, kind: 'amount', color: 'red', ta: check.transportTa || (invoice.transports?.length === 1 ? invoice.transports[0].ta : undefined), currency: invoice.currency }))
+  const alerts = [], seen = new Set()
+  for (const alert of raw) {
+    if (!['duplicate', 'possible_duplicate', 'amount'].includes(alert?.kind)) continue
+    const color = alert.kind === 'possible_duplicate' ? 'yellow' : 'red'
+    if (alert.color !== color) continue
+    if (alert.kind === 'amount' && (!Number.isFinite(alert.actual) || !Number.isFinite(alert.expected))) continue
+    const item = { ...alert, color, key: alert.checkKey || alert.key || null }
+    const id = JSON.stringify([item.kind, item.key, item.ta || null, item.externalNumber || null, item.actual ?? null, item.expected ?? null, item.actualCurrency || item.currency || null, item.expectedCurrency || item.currency || null])
+    if (seen.has(id)) continue
+    seen.add(id)
+    alerts.push(item)
+  }
+  return alerts
+}

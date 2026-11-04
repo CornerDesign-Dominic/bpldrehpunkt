@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails } from './invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails, invoiceReviewAlerts } from './invoiceReviewPresentation.js'
 
 test('explicit information/noncritical colors override legacy mismatch status', () => {
   assert.equal(invoiceCheckColor({ status: 'mismatch', color: 'blue' }), 'blue')
@@ -155,4 +155,61 @@ test('new consolidated amount rows retain backend results while detail checks ne
   const display = invoiceDisplayChecks(invoice)
   assert.equal(invoiceAmountDetails(invoice), details)
   assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 1, yellow: 1, red: 1 })
+})
+
+test('explicit duplicate suspicion and confirmed amount alerts retain their distinct severity', () => {
+  const invoice = { currency: 'EUR', alerts: [
+    { kind: 'possible_duplicate', color: 'yellow', externalNumber: 'RE4408', ta: '261000561' },
+    { kind: 'amount', color: 'red', checkKey: 'netTotal', actual: 25000, expected: 23000, currency: 'EUR' },
+  ] }
+  const alerts = invoiceReviewAlerts(invoice)
+  assert.deepEqual(alerts.map(alert => [alert.kind, alert.color]), [['possible_duplicate', 'yellow'], ['amount', 'red']])
+  assert.equal(alerts[1].key, 'netTotal')
+  assert.equal(alerts[0].externalNumber, 'RE4408')
+  assert.match(formatInvoiceCheckValue({ ...alerts[1], format: 'money' }, alerts[1].actual), /250,00.*€/)
+})
+
+test('legacy alert fallback never interprets a cost-position link as a duplicate', () => {
+  const invoice = { currency: 'EUR', headerChecks: [{ key: 'billingStatus', color: 'yellow', actual: '1 Belegbezüge vorhanden' }], notices: [{ message: 'Kostenposition ist mit einem DyCoS-Beleg verknüpft.' }] }
+  assert.deepEqual(invoiceReviewAlerts(invoice), [])
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, headerChecks: [{ key: 'billingStatus', color: 'red' }] }), [])
+})
+
+test('legacy alerts use monetary primary results without double-counting a single transport net', () => {
+  const invoice = { currency: 'EUR', totals: { checks: [{ key: 'netTotal', color: 'red', actual: 25000, expected: 23000 }] }, transports: [{ ta: '261000561', checks: [{ key: 'net', color: 'red', actual: 25000, expected: 23000 }] }] }
+  const alerts = invoiceReviewAlerts(invoice)
+  assert.equal(alerts.length, 1)
+  assert.equal(alerts[0].kind, 'amount')
+  assert.equal(alerts[0].actual, 25000)
+  assert.equal(alerts[0].expected, 23000)
+  assert.equal(alerts[0].ta, '261000561')
+  assert.equal(invoice.totals.checks[0].color, 'red')
+})
+
+test('legacy collective invoices retain TA-specific amount mismatch alerts and ignore unresolved amounts', () => {
+  const alerts = invoiceReviewAlerts({ currency: 'EUR', transports: [
+    { ta: '261000561', checks: [{ key: 'net', color: 'red', actual: 10000, expected: 11000 }] },
+    { ta: '261000562', checks: [{ key: 'net', color: 'red', actual: 10000, expected: 11000 }] },
+    { ta: '261000563', checks: [{ key: 'net', color: 'yellow', actual: 10000, expected: null }] },
+  ] })
+  assert.deepEqual(alerts.map(alert => alert.ta), ['261000561', '261000562'])
+})
+
+test('declared alerts are authoritative and duplicate lines are collapsed without relying on prose', () => {
+  const mismatch = { totals: { checks: [{ key: 'netTotal', color: 'red', actual: 2, expected: 1 }] } }
+  assert.deepEqual(invoiceReviewAlerts({ ...mismatch, alerts: [] }), [])
+  const alert = { kind: 'duplicate', color: 'red', externalNumber: 'RE4408', message: 'An arbitrary provider explanation' }
+  assert.equal(invoiceReviewAlerts({ alerts: [alert, { ...alert, message: 'Different explanation for same invoice' }] }).length, 1)
+})
+
+test('malformed monetary alerts are not shown as confirmed numerical differences and zero is retained', () => {
+  const alerts = invoiceReviewAlerts({ alerts: [
+    { kind: 'amount', color: 'red', actual: null, expected: 23000 },
+    { kind: 'amount', color: 'yellow', actual: 23000, expected: 22000 },
+    { kind: 'duplicate', color: 'yellow' },
+    { kind: 'amount', color: 'red', actual: 0, expected: 4370, currency: 'EUR', checkKey: 'vatTotal' },
+  ] })
+  assert.equal(alerts.length, 1)
+  assert.equal(alerts[0].actual, 0)
+  assert.equal(alerts[0].key, 'vatTotal')
 })

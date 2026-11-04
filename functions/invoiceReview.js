@@ -12,6 +12,8 @@ import { mapDycosPartnerData } from './dycosPartnerData.js'
 import { invoiceCents, compareInvoiceTransport, invoiceTotals, invoiceHeaderChecks, invoicePaymentChecks, invoiceNotices, coloredCheck, summarizeChecks } from './invoiceReviewPolicy.js'
 import { loadInvoiceReference } from './invoiceReviewReference.js'
 import { chooseInvoiceAssignment, rankInvoiceAssignments } from './invoiceReviewAssignment.js'
+import { mapInvoiceBillingHeaders } from './invoiceReviewBilling.js'
+import { evaluateInvoiceDuplicates } from './invoiceReviewDuplicates.js'
 export { invoiceCents, compareInvoiceTransport, invoiceTotals } from './invoiceReviewPolicy.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -227,14 +229,14 @@ export async function resolveInvoiceOrder({ db, ta, fetchOrder = fetchDycosFlowO
       return localValue
     }
     const merged = fillMissing(imported, remote)
-    return { orderId: local?.id || `dycos-${ta}`, imported: merged, sourcePartner, localData, source: local ? 'Drehpunkt + DyCoS' : 'DyCoS', localExists: Boolean(local) }
+    return { orderId: local?.id || `dycos-${ta}`, imported: merged, sourcePartner, ...mapInvoiceBillingHeaders(payload, remote), localData, source: local ? 'Drehpunkt + DyCoS' : 'DyCoS', localExists: Boolean(local) }
   } catch (error) { return { orderId: local?.id, imported: imported || null, localData, source: 'Drehpunkt', ...(error?.code === 'ta_not_found' ? { status: 'not_found' } : { lookupFailed: true }) } }
 }
 
 export function assertInvoiceReviewAccess(context) {
   if (context.profile?.active !== true || !(context.profile.role === 'superadmin' || context.profile.permissions?.transportOrders === 'edit')) fail('permission-denied', 'Keine Berechtigung für die Rechnungsprüfung.')
 }
-export async function reviewMailboxInvoices({ db, context, files, mail = {}, operationId, now = Date.now(), infer = inferInvoices, extract = extractInvoiceAttachment, fetchOrder = fetchDycosFlowOrder, loadReference = loadInvoiceReference, revalidate = async () => {} }) {
+export async function reviewMailboxInvoices({ db, context, files, mail = {}, operationId, now = Date.now(), infer = inferInvoices, extract = extractInvoiceAttachment, fetchOrder = fetchDycosFlowOrder, loadReference = loadInvoiceReference, onBillingError = async () => {}, revalidate = async () => {} }) {
   assertInvoiceReviewAccess(context)
   if (!/^[a-zA-Z0-9_-]{16,80}$/.test(operationId || '')) fail('invalid-argument', 'Ungültige Prüfanfrage.')
   const reportId = hash(`${context.uid}|${operationId}`)
@@ -275,7 +277,24 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
       lookups.set(ta, Date.now() > lookupDeadline ? { imported: null, lookupFailed: true } : await resolveInvoiceOrder({ db, ta, fetchOrder }))
     }
   }))
-  const results = []
+  const results = [], billingCache = new Map()
+  const billingFor = ta => {
+    if (!billingCache.has(ta)) billingCache.set(ta, (async () => {
+      const match = lookups.get(ta)
+      if (match?.billingDataAvailable === true) return match
+      if (match?.lookupFailed || Date.now() > lookupDeadline) return { billingDocuments: [], billingDataAvailable: false }
+      try {
+        // Local order facts remain authoritative, but a historical order
+        // snapshot cannot prove that today's invoice has not been cancelled.
+        const payload = await fetchOrder(ta), remote = mapDycosOrder(payload, ta)
+        return mapInvoiceBillingHeaders(payload, remote)
+      } catch (error) {
+        try { await onBillingError(error) } catch { /* Keep the original incomplete result. */ }
+        return { billingDocuments: [], billingDataAvailable: false }
+      }
+    })())
+    return billingCache.get(ta)
+  }
   for (const invoice of invoices) {
     const groups = new Map(), uncertain = []
     // A failed position extraction must not hide literal document candidates.
@@ -334,20 +353,35 @@ export async function reviewMailboxInvoices({ db, context, files, mail = {}, ope
       attachments.add(transport.orderId)
     }
     const referenceList = [...references.values()]
+    let billingCursor = 0
+    await Promise.all(Array.from({ length: Math.min(4, referenceList.length) }, async () => {
+      while (billingCursor < referenceList.length) {
+        const reference = referenceList[billingCursor++]
+        const snapshot = await billingFor(reference.ta)
+        reference.billingDocuments = snapshot.billingDocuments || []
+        reference.billingDataAvailable = snapshot.billingDataAvailable === true
+      }
+    }))
+    const allAssigned = transports.length > 0 && transports.every(transport => transport.orderId && !transport.uncertainTa)
+    const duplicate = evaluateInvoiceDuplicates(invoice, referenceList, { allAssigned })
     const headerChecks = invoiceHeaderChecks(invoice, company, referenceList)
+    headerChecks.splice(headerChecks.findIndex(check => check.key === 'billingStatus'), 1, duplicate.check)
     const paymentChecks = invoicePaymentChecks(invoice, referenceList)
     for (const [checks, key, field] of [[headerChecks, 'issuer', 'carrierName'], [headerChecks, 'issuerVatId', 'carrierVatId'], [paymentChecks, 'paymentTerms', 'payment']]) {
       const check = checks.find(check => check.key === key)
       const sources = [...new Set(referenceList.map(reference => reference.referenceSources?.[field]).filter(Boolean))]
       if (check && sources.length) Object.assign(check, { referenceSource: sources.join(' + '), sourceText: `Referenz: ${sources.join(' + ')}-Unternehmerstamm` })
     }
-    const totals = invoiceTotals(invoice, { references: referenceList, allAssigned: transports.length > 0 && transports.every(transport => transport.orderId && !transport.uncertainTa) })
-    const notices = invoiceNotices({ headerChecks, paymentChecks, transports, references: referenceList })
+    const totals = invoiceTotals(invoice, { references: referenceList, allAssigned })
+    const notices = invoiceNotices({ headerChecks, paymentChecks, transports, references: referenceList }).filter(notice => notice.kind !== 'billing')
+    const netTotal = totals.checks.find(check => check.key === 'netTotal')
+    const amountChecks = [...totals.checks, ...transports.flatMap(transport => transport.checks.filter(check => check.key === 'net' && !(transports.length === 1 && netTotal?.color === 'red' && check.actual === netTotal.actual && check.expected === netTotal.expected)).map(check => ({ ...check, ta: transport.ta })))]
+    const amountAlerts = amountChecks.filter(check => check.color === 'red').map(check => ({ kind: 'amount', color: 'red', checkKey: check.key, actual: check.actual, expected: check.expected, actualCurrency: check.actualCurrency || null, expectedCurrency: check.expectedCurrency || null, currency: invoice.currency.value || null, ...(check.ta ? { ta: check.ta } : {}) }))
     const allChecks = [...headerChecks, ...paymentChecks, ...totals.checks, ...transports.flatMap(transport => transport.checks)]
     const status = summarizeChecks(allChecks)
-    results.push({ extractionMethod: invoice.extractionMethod, ocrPages: invoice.ocrPages, ocrUncertainPages: invoice.ocrUncertainPages, ocrDifferencePages: invoice.ocrDifferencePages, invoicePages: invoice.invoicePages || [], fileName: invoice.fileName, sourceId: invoice.sourceId, number: invoice.number.value, date: invoice.date.value, issuer: invoice.issuer.value, currency: invoice.currency.value, warnings: invoice.warnings, notices, headerChecks, paymentChecks, transports, totals, status })
+    results.push({ extractionMethod: invoice.extractionMethod, ocrPages: invoice.ocrPages, ocrUncertainPages: invoice.ocrUncertainPages, ocrDifferencePages: invoice.ocrDifferencePages, invoicePages: invoice.invoicePages || [], fileName: invoice.fileName, sourceId: invoice.sourceId, number: invoice.number.value, date: invoice.date.value, issuer: invoice.issuer.value, currency: invoice.currency.value, warnings: invoice.warnings, notices, alerts: [...duplicate.alerts, ...amountAlerts], duplicateMatches: duplicate.matches, headerChecks, paymentChecks, transports, totals, status })
   }
-  const report = { id: reportId, version: 4, documents: documents.map(file => ({ sourceId: file.id, name: file.name, contentType: file.contentType, pageCount: file.pageCount })), createdAt: new Date(now).toISOString(), invoices: results, status: results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den Anhängen erkannt.' : !attachments.size ? 'Keine bestätigte Zuordnung: keine eindeutige TA-Zuordnung vorhanden.' : '', scope: 'Datenabgleich und betriebliche Prüfhinweise, keine Zahlungsfreigabe. Bankverbindung und Ablieferbelege sind nicht geprüft.' }
+  const report = { id: reportId, version: 5, documents: documents.map(file => ({ sourceId: file.id, name: file.name, contentType: file.contentType, pageCount: file.pageCount })), createdAt: new Date(now).toISOString(), invoices: results, status: results.length && results.every(row => row.status === 'match') ? 'match' : results.some(row => row.status === 'mismatch') ? 'mismatch' : 'unknown', message: !results.length ? 'Keine Rechnung in den Anhängen erkannt.' : !attachments.size ? 'Keine bestätigte Zuordnung: keine eindeutige TA-Zuordnung vorhanden.' : '', scope: 'Datenabgleich und betriebliche Prüfhinweise, keine Zahlungsfreigabe. Bankverbindung und Ablieferbelege sind nicht geprüft.' }
   if (Buffer.byteLength(JSON.stringify(report), 'utf8') > 750000) fail('failed-precondition', 'Der Prüfbericht ist zu umfangreich. Es wurde keine Teilprüfung gespeichert.')
   // Immutable snapshots: rerunning with a new request creates a new dated report.
   await revalidate()

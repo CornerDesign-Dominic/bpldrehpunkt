@@ -58,7 +58,7 @@ test('full report persists once and is attached to every matched TA without copy
  const original=JSON.stringify([...db.records])
  const bill=invoice([row('260000001','500,00'),row('260000002','500,00')]);bill.netTotal=value('1000,00');bill.grossTotal=value('1000,00')
  const args={db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-000000001',now:1000,extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 1000,00 0,00 TA 260000001 TA 260000002',pageCount:1}),infer:async()=>({invoices:[bill]}),fetchOrder:()=>assert.fail('local order complete')}
- const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,4);assert.equal(report.invoices[0].transports.length,2)
+ const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,5);assert.equal(report.invoices[0].transports.length,2)
  assert.ok(db.records.has(`transportOrders/a/invoiceChecks/${report.id}`));assert.ok(db.records.has(`transportOrders/b/invoiceChecks/${report.id}`))
  assert.equal(JSON.stringify([...db.records].slice(0,3)),original)
  assert.equal((await reviewMailboxInvoices({...args,infer:()=>assert.fail('duplicate request should use receipt')})).id,report.id)
@@ -203,4 +203,44 @@ test('remote order resolution preserves only mapped carrier reference data from 
  assert.equal(result.sourcePartner.fields.companyData.vatId,'DE123456789')
  assert.equal(result.sourcePartner.fields.paymentTermDays,'30 Kalendertage ab Rechnungsdatum')
  assert.ok(!JSON.stringify(result).includes('not-a-reference'))
+})
+
+function invoiceBillingPayload({cancelled=false,externalNumber='RG1',amount=500}={}) {
+ return {auftrag:{ID:71,Nummer:260000001,TourenID:13},tour:{ID:13,UnternehmerID:15},unternehmerstamm:{ID:15,Bezeichnung:'Carrier GmbH'},zahlungsbedingungUnternehmer:null,ladeEntladestellen:[],kunde:null,fahrzeugart:null,auftragspreise:[],tourkosten:[],relation:null,zahlungsbedingungKunde:null,fakturaZeilen:[{AuftragID:71,KopfID:91}],fakturaKopf:[{KopfID:91,AdressID:15,ExterneBelegnummer:externalNumber,Nettowert:amount,Mwst:0,Gesamt:amount,WaehrungBezFW:'EUR',bUnternehmer:true,bProformabeleg:true,bRechnungskorrektur:false,Storniert:cancelled,StornoRechungNr:0,PDFDateinameMitPfadFakturaBelegOriginal:'Z:\\private\\ProformaGutschriftUTN_91.pdf'}],LadeEntladestellen2:[]}
+}
+function billingReportArgs(db,bill=invoice()) {
+ db.records.set('transportOrders/a',{externalNumber:'260000001',imported:{...imported,source:{carrierId:'15',orderId:'71'}}})
+ db.records.set('appSettings/companyMasterData',company)
+ return {db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-billing-fresh-001',extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 501,00 0,00 TA 260000001',pageCount:1}),infer:async()=>({invoices:[bill]})}
+}
+test('actual review refreshes billing for a complete local order and exposes exact duplicate alert without changing the order',async()=>{
+ const db=database();let reads=0
+ const args=billingReportArgs(db),original=JSON.stringify(db.records.get('transportOrders/a'))
+ const result=await reviewMailboxInvoices({...args,fetchOrder:async()=>{reads++;return invoiceBillingPayload()}})
+ assert.equal(reads,1)
+ assert.equal(result.invoices[0].headerChecks.find(check=>check.key==='billingStatus').color,'red')
+ assert.equal(result.invoices[0].alerts.filter(alert=>alert.kind==='duplicate').length,1)
+ assert.equal(result.invoices[0].duplicateMatches[0].sourceId,'91')
+ assert.equal(JSON.stringify(db.records.get('transportOrders/a')),original)
+ assert.ok(!JSON.stringify(result).includes('private'))
+})
+test('fresh cancellation prevents a duplicate even if the cached order contains an old active document',async()=>{
+ const db=database(),args=billingReportArgs(db)
+ db.records.get('transportOrders/a').imported.financial={...imported.financial,documents:[{sourceId:'91',cancelled:false,externalNumber:'RG1'}]}
+ const result=await reviewMailboxInvoices({...args,fetchOrder:async()=>invoiceBillingPayload({cancelled:true})})
+ assert.equal(result.invoices[0].headerChecks.find(check=>check.key==='billingStatus').color,'green')
+ assert.deepEqual(result.invoices[0].alerts,[])
+})
+test('confirmed wrong net appears once in report alerts rather than aggregate and single-TA duplicates',async()=>{
+ const db=database(),bill=invoice([row('260000001','501,00')]);bill.netTotal=value('501,00');bill.grossTotal=value('501,00')
+ const result=await reviewMailboxInvoices({...billingReportArgs(db,bill),fetchOrder:async()=>invoiceBillingPayload({externalNumber:'OTHER'})})
+ const alerts=result.invoices[0].alerts.filter(alert=>alert.kind==='amount')
+ assert.equal(alerts.length,1);assert.equal(alerts[0].actual,50100);assert.equal(alerts[0].expected,50000)
+})
+test('billing failure stays unknown, reports diagnosis once across multiple invoices, and diagnosis failure never hides the review',async()=>{
+ const db=database(),args=billingReportArgs(db);let reads=0,diagnoses=0
+ const result=await reviewMailboxInvoices({...args,infer:async()=>({invoices:[invoice(),invoice()]}),fetchOrder:async()=>{reads++;throw new Error('source timeout')},onBillingError:async()=>{diagnoses++;throw new Error('diagnosis unavailable')}})
+ assert.equal(reads,1);assert.equal(diagnoses,1)
+ assert.ok(result.invoices.every(bill=>bill.headerChecks.find(check=>check.key==='billingStatus').color==='yellow'))
+ assert.ok(result.invoices.every(bill=>bill.alerts.length===0))
 })

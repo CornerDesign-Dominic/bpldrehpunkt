@@ -48,6 +48,14 @@
 .invoice-review-empty { margin: 0; color: var(--text-muted); font-size: 12px; }
 .invoice-review-scope { margin: 0; font-size: 10px; }
 .invoice-review-history-item { width: 100%; display: grid; gap: 8px; text-align: left; margin-bottom: 10px; }
+.invoice-review-alerts { display: grid; gap: 7px; min-width: 0; }
+.invoice-review-alert { min-width: 0; padding: 10px 12px; border: 1px solid currentColor; border-radius: 5px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.invoice-review-alert--red { color: var(--status-danger-text); background: var(--status-danger-background); }
+.invoice-review-alert--yellow { color: var(--status-warning-text); background: var(--status-warning-background); }
+.invoice-review-alert ul { list-style: none; margin: 0; padding: 0; }
+.invoice-review-alert li { display: grid; gap: 2px; }
+.invoice-review-alert li + li { margin-top: 7px; padding-top: 7px; border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+.invoice-review-alert-values, .invoice-review-alert small { color: var(--text-primary); font-size: 11px; font-weight: 400; }
 @media (max-width: 600px) {
   .invoice-review-column-head, .invoice-review-check { grid-template-columns: minmax(80px, 1fr) minmax(60px, 1fr) minmax(60px, 1fr); gap: 6px; }
   .invoice-review-column-head > :last-child { display: none; }

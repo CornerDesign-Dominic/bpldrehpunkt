@@ -106,7 +106,7 @@ Englisch sowie Light/Dark verwenden denselben Ablauf.
 
 ## Speicherung und Zugriff
 
-Neue unveränderliche Berichte haben version:4. Alte Berichte bleiben lesbar und
+Neue unveränderliche Berichte haben version:5. Alte Berichte bleiben lesbar und
 werden durch die neue Oberfläche dargestellt, nicht rückwirkend neu erkannt oder
 fachlich umgeschrieben. Für neue Erkennung ist „Mit aktuellen Auftragsdaten erneut
 prüfen“ erforderlich. Berichte enthalten Vergleichswerte, kurze Belege,
@@ -165,3 +165,60 @@ Stimmigkeit innerhalb der Rechnung prüfbar, ist dies ausdrücklich als
 ausgegeben. Das Fälligkeitsdatum ist kein Beweis für einen vereinbarten Fristbeginn.
 Englische Datumsbelege mit ausgeschriebenen/abgekürzten Monatsnamen werden anhand
 wörtlicher Rechnungsbelege unterstützt.
+
+## Dubletten und hervorgehobene Hinweise (Dev, 04.11.2026)
+
+Führende Bezeichnung ist „Rechnung bereits in DyCoS vorhanden“, ohne Aussage über
+Bezahlung oder einen separat bestätigten Buchungsstatus. Für den Vergleich gelten
+zusammen: unabhängig bestätigte Unternehmeridentität, derselbe kanonische UTN,
+externe Belegnummer am Faktura-Kopf, Bruttogesamtbetrag und Originalwährung.
+Stornierte Belege werden ausgeschlossen. Ein bloßer Kostenpositions-/Belegbezug
+begründet keine Dublette.
+
+Belegköpfe werden ausschließlich aus dem nachweislichen Auftragsbezug der
+Faktura-Zeilen bzw. auftragsbezogenen Kosten-/Preispositionen gelesen. Ein grüner
+Nichttreffer bezieht sich auf diese Aufträge, nicht auf eine globale Suche über
+alle DyCoS-Belege. Für bestätigte TAs wird einmal je Prüflauf ein aktueller
+Belegstand gelesen, auch wenn der lokale Auftrag bereits vollständig ist.
+Fehlgeschlagene oder unvollständige Abrufe bleiben gelb; referenzierte, aber nicht
+mitgelieferte Köpfe verhindern ein falsches grünes Ergebnis. Technische
+Abruf-/Validierungsfehler werden inhaltsfrei über die bestehende begrenzte
+Postfachdiagnose gemeldet. Ein Diagnosefehler verändert den Fachbericht nicht.
+
+Private Projektion außerhalb des Transportdatenmodells:
+KopfID als stabile Belegidentität, AdressID als UTN-Quellidentität,
+ExterneBelegnummer als externe Rechnungsnummer, Gesamt als gesamter Bruttobetrag,
+WaehrungBezFW als zugehörige Originalwährung, Storniert als Stornokennzeichen.
+Belegklassifikation verwendet die vorhandenen bestätigten Regeln für externe
+UTN-Rechnungen; Kundenbelege/Korrekturen sind keine Kandidaten, ungeklärte
+Klassifikation bleibt offen. Nettowert + Mwst muss einem vorhandenen Gesamt
+entsprechen. Fehlende Originalwährung wird nicht aus EUR-Umrechnungsfeldern
+ersetzt. Keine Bankdaten, Rohzeilen oder internen Serverpfade in Berichten.
+
+Nummern werden nach Unicode-Normalisierung, Großschreibung und Entfernung von
+Leer-/Trennzeichen exakt verglichen. Eine ähnliche Nummer mit gleichem UTN,
+Betrag und Währung begründet nur gelben Verdacht: maximal eine Änderung ab vier
+Zeichen, maximal zwei ab zehn Zeichen, benachbarte Vertauschung eingeschlossen.
+Explizit unterschiedliche Ziffern werden niemals zu einem roten Exakttreffer
+normalisiert. Eine exakt passende Nummer mit bekanntem anderem Betrag kann
+ebenfalls gelben Verdacht begründen. Fehlender Betrag/Währung oder umstrittene
+OCR-Bruttowerte erzeugen keinen hervorgehobenen Dublettenverdacht. Überlange
+Nummern werden nicht auf einen vermeintlich gleichen Präfix gekürzt.
+
+Der gleiche Kopf wird bei Sammelrechnungen nicht mehrfach addiert. Verglichen wird
+der gesamte Rechnungsbruttobetrag gegen den gesamten Kopf-Bruttobetrag. Identische
+Kopfkopien werden dedupliziert; widersprüchliche gleich aktuelle Kopien bleiben
+offen. Ein frischer Stornostand hat Vorrang vor alten Snapshotkopien.
+
+Unter dem Prozentbalken jeder Rechnung erscheinen kompakte Hinweise: rot bei
+bestätigtem Vorhandensein und bei gesicherten Betragsabweichungen, gelb bei hoher
+Dublettenwahrscheinlichkeit. Betragsabweichungen zeigen Rechnungs-/Vergleichswert,
+Währung und gegebenenfalls die TA. Ein Nettofehler derselben Einzel-TA wird nicht
+nochmals als zusätzlicher Alarm dupliziert. Beide Farben können gemeinsam
+erscheinen. Die Ansicht gilt auch für Berichte im Transportauftrag; Altberichte
+können gesicherte Betragsabweichungen anzeigen, aber aus schwachen alten
+Belegverknüpfungen keinen neuen Dublettentreffer ableiten. Neue Dublettenprüfung
+erfordert eine erneute Auswertung.
+
+Dieser Stand ist ausschließlich für Dev freigegeben. Veröffentlichungsnachweis:
+[Dev-Release vom 04.11.2026](releases/invoice-duplicates-dev-2026-11-04.md).
