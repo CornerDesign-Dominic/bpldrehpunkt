@@ -326,3 +326,29 @@ test('billing failure stays unknown, reports diagnosis once across multiple invo
  assert.ok(result.invoices.every(bill=>bill.headerChecks.find(check=>check.key==='billingStatus').color==='yellow'))
  assert.ok(result.invoices.every(bill=>bill.alerts.length===0))
 })
+
+
+test('foreign invoice headings recover translated or concatenated classification quotes without accepting fabricated values', () => {
+ for (const heading of ['Faktura', 'Invoice', 'Facture', 'Factura', 'Fattura', 'Fatura', 'Faktúra', 'Račun', 'Фактура']) {
+  const text=`${heading} RG1 Carrier GmbH EUR 500,00 0,00 TA 260000001`
+  for (const invoiceEvidence of ['Rechnung', 'Faktura RG1 EUR 500,00', '']) {
+   const raw={...invoice(),invoiceEvidence,recipient:value('Invented recipient'),grossTotal:value('999,00')}
+   const checked=validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',text,pageCount:1}])[0]
+   assert.equal(checked.number.value,'RG1',heading)
+   assert.equal(checked.netTotal.value,'500,00')
+   assert.equal(checked.recipient.value,'')
+   assert.equal(checked.grossTotal.value,'')
+  }
+ }
+})
+
+test('invoice classification recovery cannot borrow a heading from another attachment or excluded page', () => {
+ const raw={...invoice(),invoiceEvidence:'Rechnung',invoicePages:[1]}
+ const pages=['CMR freight document RG1 Carrier GmbH EUR 500,00', 'Faktura RG1 Carrier GmbH EUR 500,00']
+ assert.throws(()=>validateInvoiceExtraction({invoices:[raw]},[{id:'pdf',text:pages.join('\n'),pages,nativePages:pages,pageCount:2},{id:'other',text:'Faktura',pageCount:1}]),e=>e.details?.technicalCode==='invoice_evidence_invalid')
+ assert.throws(()=>validateInvoiceExtraction({invoices:[{...raw,transports:null}]},[{id:'pdf',text:'Faktura',pageCount:1}]),e=>e.details?.technicalCode==='invoice_transports_invalid')
+})
+
+test('Polish customer order number is explicit while the carrier internal order remains separate', () => {
+ assert.deepEqual(invoiceTaReferenceHints('Numer zlecenia od klienta: 260200713 Numer zlecenia: 0029/02/2026/RP').map(hint=>hint.number),['260200713'])
+})
