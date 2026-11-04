@@ -278,3 +278,17 @@ test('concrete factoring alerts remain yellow beside duplicate alerts and malfor
   assert.deepEqual(alerts.map(alert => [alert.kind, alert.color]), [['factoring', 'yellow'], ['duplicate', 'red']])
   assert.equal(alerts[0].message, factoring.message); assert.equal(alerts[0].company, factoring.company)
 })
+
+
+test('invoice currency compares once to EUR without a transport number, also for collective invoices', () => {
+  for (const [currency, color] of [['EUR', 'green'], ['', 'yellow'], ['USD', 'red']]) {
+    for (const count of [0, 1, 2]) {
+      const result = invoiceDisplayChecks({ currency, transports: Array.from({ length: count }, (_, i) => ({ ta: String(i), checks: [{ key: 'currency', actual: 'EUR', expected: 'USD', color: 'red' }] })) })
+      const rows = result.primary.filter(check => check.key === 'currency')
+      assert.equal(rows.length, 1)
+      assert.equal(rows[0].color, color)
+      assert.equal(rows[0].expected, 'EUR')
+      assert.equal(rows[0].transportTa, undefined)
+    }
+  }
+})

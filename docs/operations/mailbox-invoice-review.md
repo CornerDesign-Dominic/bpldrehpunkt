@@ -96,7 +96,7 @@ und Fälligkeit wird keine Frist ab Rechnungs-/Belegeingang abgeleitet. Stimmen 
 ausdrücklich genannten Tage und die Tagesart überein, wird die Tagesfrist grün,
 auch bei fehlendem Fristbeginn auf einer Seite. Fehlende Wiederholungen auf
 weiteren Rechnungsseiten erzeugen keine Warnung. Ausdrücklich widersprüchliche
-Fristbeginne bleiben rot. Diese Anpassung ist im nächsten lokalen Paket vorbereitet.
+Fristbeginne bleiben rot. Diese Anpassung ist im Dev-Paket vom 04.11.2026 enthalten.
 Zahlungsart wie „Überweisung“ ist kein Zahlungsziel und erhält keine eigene
 Anzeige oder Vergleichszeile, auch nicht in historischen Berichtsdarstellungen.
 
@@ -277,8 +277,8 @@ Berichte erfolgreich. Keine Änderung an Rules, Indizes oder Secrets.
 
 ## Kompakte Ansicht und Dokumentquellen (Dev, gesammelt 04.11.2026)
 
-Der Ergebnisheader zeigt die eindeutigen Rechnungs-Dateinamen. Die Unterzeile
-enthält nur noch den Aussteller. Seiten- und Erkennungsinfos sowie die
+Der Ergebnisheader zeigt die eindeutigen Rechnungs-Dateinamen. Die zusätzliche
+Rechnungsnummer-/Ausstellerzeile oberhalb des Balkens entfällt im Dev-Paket vom 04.11.2026; die Werte bleiben in den Prüfergebnissen erhalten. Seiten- und Erkennungsinfos sowie die
 Dokumentübersicht stehen gemeinsam unter Weitere Details; ergänzende Angaben
 und Transportvergleiche unter Weitere Abgleichungen. Der Gewichtungshinweis
 entfällt. Unlesbare Anlagen erscheinen kurz mit Dateinamen im gelben Hinweis.
@@ -289,7 +289,7 @@ Exchange-Typ application/octet-stream. Dies gilt für die gemeinsame Quellenansi
 und die Auftragserfassung. Die Quellenauswahl hat ausreichend Höhe für den Text.
 Keine Änderung an Rules, Indizes, Secrets oder Microsoft-Berechtigungen.
 
-## Nächstes Änderungspaket – lokal vorbereitet, noch unveröffentlicht
+## Gesammeltes Dev-Paket vom 04.11.2026
 
 Bei technisch fehlgeschlagener Rechnungsprüfung (Aktionszustand failed) bleibt das
 Rechnungsprüfungs-Icon in der Mailübersicht sichtbar und rot, einschließlich
@@ -299,11 +299,12 @@ bleibt erhalten, damit Mailliste, Neuladen und erneuter Start konsistent bleiben
 Eine erfolgreich abgeschlossene Auswertung mit fachlichen Rechnungsabweichungen
 bleibt eine abgeschlossene Auswertung; die Abweichungen stehen im Prüfbericht.
 
-Weitere Änderungen werden auf dem lokalen Branch codex/invoice-next-batch gesammelt.
-Veröffentlichung des Pakets erst auf erneute Anweisung, keine Zwischen-Pushes.
+Für Dev freigegeben am 04.11.2026. Frontend und beide Rechnungs-Serverfunktionen
+werden gemeinsam veröffentlicht; Main und Produktion sind nicht freigegeben.
+Nachweis: [Gesammeltes Dev-Paket](releases/invoice-results-batch-dev-2026-11-04.md).
 
 
-### Zahlungsziel – nächstes lokales Paket
+### Zahlungsziel – Dev-Paket 04.11.2026
 
 Gleiche ausdrücklich erkannte Tagesfristen werden grün bewertet, auch wenn der
 Fristbeginn auf der Rechnung oder in der Vergleichsvereinbarung fehlt. Ein Beleg
@@ -313,3 +314,43 @@ bleiben rot; widersprüchliche Datumsangaben, fehlende Vergleichswerte und unein
 Vereinbarungen bleiben ungeklärt. Die Ableitung allein aus Rechnungs-/Fälligkeitsdatum
 ersetzt weiterhin keinen bekannten Fristbeginn ab Rechnungs-/Belegeingang.
 Keine zusätzliche Ergebniszeile; weiterhin genau ein Zahlungsziel-Prüfpunkt.
+
+
+### Drei Betragszeilen – Dev-Paket 04.11.2026
+
+Die Ergebnisansicht zeigt Netto, USt. und Brutto. Der eigene Bereich
+Betragsdetails entfällt. Positionssumme, Steuerregel, Netto-plus-Steuer-Rechnung
+und zusätzliche Datenbankvergleiche stehen jeweils unter Details der zugehörigen
+Betragszeile. Berechnungen, Ergebnisfarben und Gewichtung bleiben erhalten.
+Dies gilt für neue und gespeicherte Berichte in Mail und Transportauftrag.
+
+
+### Externe Belegnummer – Dev-Paket 04.11.2026
+
+Die Hauptzeile heißt Ext. Belegnummer und zeigt Rechnungsnummer gegen externe
+DyCoS-Belegnummer, ohne Details-Schalter. Bestätigte Treffer erscheinen rot als
+Bereits gebucht; vollständig geprüfte zugeordnete Aufträge ohne relevanten Beleg
+grün als Noch nicht gebucht. Diese Aussage bleibt auf den Auftragsbezug begrenzt.
+Andere aktive externe Nummern desselben bestätigten Unternehmers im Auftragsbezug
+werden gelb Prüfen mit den gefundenen Nummern angezeigt, ohne allein dadurch eine
+Dublettenwarnung zu erzeugen. Die bisherigen strengen Treffer-/Verdachtsregeln
+für Unternehmer, Betrag und Währung sowie der Stornoausschluss bleiben bestehen.
+Unvollständige Abfragen ergeben weiterhin keinen grünen Abwesenheitsnachweis.
+
+
+### Kompaktes Zahlungsziel – Dev-Paket 04.11.2026
+
+Die Zahlungsziel-Zeile zeigt nur Rechnungswert, Vergleichswert und Ergebnisfarbe.
+Datumsdifferenz, Erklärtexte, Quellen und Details-Schalter entfallen in dieser Zeile,
+auch bei gespeicherten Berichten. Eine ausschließlich aus Datumsangaben ermittelte
+Frist erscheint als Tageswert. Die gespeicherten Belege und Berechnungen bleiben
+für die Bewertung erhalten: grün übereinstimmend, gelb fehlend/ungeklärt, rot abweichend.
+
+
+### Rechnungswährung – Dev-Paket 04.11.2026
+
+Währung wird pro Rechnungsbeleg einmal gegen EUR geprüft, unabhängig von Anzahl
+und Währungen zugeordneter Transportaufträge. EUR ist grün, fehlende Erkennung gelb,
+eine andere erkannte Währung rot. Die Ergebniszeile trägt keinen TA-Hinweis.
+Dies gilt auch für gespeicherte Berichte. Betragsvergleiche rechnen weiterhin
+keine unterschiedlichen Währungen um und benötigen ihre passende Vergleichswährung.
