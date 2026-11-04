@@ -208,6 +208,20 @@ export function mapDycosOrder(payload, requestedTa) {
   verifyObjectLink(payload.zahlungsbedingungKunde, sourceId(payload.kunde?.Zahlungsbedingung, 'kunde.Zahlungsbedingung'), 'zahlungsbedingungKunde')
   verifyObjectLink(payload.zahlungsbedingungUnternehmer, sourceId(payload.unternehmerstamm?.Zahlungsbedingung, 'unternehmerstamm.Zahlungsbedingung'), 'zahlungsbedingungUnternehmer')
 
+  // Station rows may reference Adressstamm instead of carrying an inline
+  // address. The optional extension contains only exact referenced address IDs;
+  // it is not a general partner export or a business-account-number lookup.
+  const stationAddressIds = new Set(payload.ladeEntladestellen.map(row => sourceId(row.AdressID, 'ladeEntladestellen.AdressID')).filter(Boolean))
+  const stationAddresses = new Map()
+  if (Object.hasOwn(payload, 'stationAddresses')) {
+    if (!Array.isArray(payload.stationAddresses) || payload.stationAddresses.length > 2000 || payload.stationAddresses.some(row => !plainObject(row))) fail('stationAddresses')
+    for (const row of payload.stationAddresses) {
+      const id = sourceId(row.ID, 'stationAddresses.ID', true)
+      if (!stationAddressIds.has(id)) fail('stationAddresses.unrelatedAddress')
+      if (stationAddresses.has(id)) fail('stationAddresses.duplicateAddress')
+      stationAddresses.set(id, address(row, 'stationAddresses'))
+    }
+  }
   const warnings = new Set()
   const slots = new Map()
   for (const row of payload.LadeEntladestellen2) {
@@ -227,11 +241,28 @@ export function mapDycosOrder(payload, requestedTa) {
     if (clock === '00:00') { warnings.add('SLOT_MIDNIGHT_UNCONFIRMED'); until = null }
     if (until && until < from) { warnings.add('SLOT_OVERNIGHT_UNCONFIRMED'); until = null }
     if (type && type !== 'L' && type !== 'E') warnings.add('UNKNOWN_STOP_TYPE')
+    const addressSourceId = sourceId(row.AdressID, 'ladeEntladestellen.AdressID')
+    let stationAddress = address(row, 'ladeEntladestellen')
+    let addressSource = 'inline'
+    // Never splice missing individual fields from a potentially different
+    // master address into a deliberately edited inline station address.
+    if (addressSourceId && Object.values(stationAddress).every(value => value === null)) {
+      const referenced = stationAddresses.get(addressSourceId) || (addressSourceId === customerId && payload.kunde ? address(payload.kunde, 'kunde') : null)
+      if (referenced) {
+        stationAddress = { ...referenced }
+        addressSource = 'reference'
+        if (Object.values(stationAddress).every(value => value === null)) warnings.add('STATION_ADDRESS_REFERENCE_EMPTY')
+      } else {
+        addressSource = 'unresolved-reference'
+        warnings.add('STATION_ADDRESS_REFERENCE_UNRESOLVED')
+      }
+    }
     return {
       sourceId: id,
       sequence: sourceNumber(row.Zeile_In_Auftrag, 'ladeEntladestellen.Zeile_In_Auftrag', { integer: true, positive: true }),
       type: type === 'L' ? 'loading' : type === 'E' ? 'unloading' : 'unknown',
-      address: address(row, 'ladeEntladestellen'),
+      address: stationAddress,
+      ...(addressSourceId ? { addressSourceId, addressSource } : {}),
       window: { from, until },
       fixedAppointment: sourceBoolean(slots.get(id)?.Fixtermin, 'LadeEntladestellen2.Fixtermin'),
       slotUntilTime: clock,

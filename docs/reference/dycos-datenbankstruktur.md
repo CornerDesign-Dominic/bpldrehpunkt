@@ -54,6 +54,7 @@ Pfeile bedeuten hier eine bekannte Join-Zuordnung. Ob SQL Server dafür einen Fr
 | Ausgangstabelle und Spalte | Zugehörige Tabelle und Spalte | Bedeutung / Grenze |
 | --- | --- | --- |
 | [`dbo.Auftraege`](#table-0052).`ID` | [`dbo.LadeEntladestellen`](#table-0313).`AuftragsID` | Stationen eines Auftrags; Quell-ID wird im Adapter geprüft. |
+| `dbo.LadeEntladestellen.AdressID` | `dbo.Adressstamm.ID` | Stationsanschrift als Referenz statt direkter Felder; am 04.11.2026 anhand echter TA-/Adressabrufe bestätigt (u. a. ID 15150). Keine aus SQL ausgelesene FK-Constraint-Garantie. |
 | [`dbo.LadeEntladestellen`](#table-0313).`ID` | [`dbo.LadeEntladestellen2`](#table-0317).`LadeEntladestellenID` | Zusatz-/Slotdaten einer Station; nicht über die Zeilenreihenfolge verbinden. |
 | [`dbo.Auftraege`](#table-0052).`FrachtzahlerID` | [`dbo.Adressstamm`](#table-0004).`ID` | Kunde/Frachtzahler des Auftrags. |
 | [`dbo.Auftraege`](#table-0052).`TourenID` | [`dbo.Touren`](#table-0524).`ID` | Tour des Auftrags. |
@@ -4451,3 +4452,10 @@ Daraus wird hier kein funktionierender Alternativabruf behauptet.
 ### `dbo.ZusatzdokumenteTour`
 
 **Belegt:** technischer Objektname aus Q1. Spalten, Bedeutung, Objekttyp und Verbindungen sind noch nicht erhoben.
+
+
+## Ergänzung 04.11.2026: referenzierte Stationsanschriften (Dev)
+
+Bei TA `261000124` und `261000123` verweist die Ladestelle mit `AdressID=15150` auf `Adressstamm.ID=15150`; die fünf direkten Stationsadressfelder sind leer. Der gezielte echte Adressabruf liefert die vom Nutzer bestätigte LGH-Hamburg-Anschrift. Weitere alte Exporte enthalten denselben Modellfall mit exakt passender `kunde.ID`. `AdressID` ist die interne SQL-Identität, keine Debitorennummer.
+
+Ein separater Dev-TA-Flow ergänzt `stationAddresses` mit ausschließlich `ID,Firma,Strasse,PLZ,Ort,Land` für die in dieser TA vorkommenden Referenzen. Vollständig leere direkte Anschriften werden nach exakter ID aufgelöst. Vorhandene, auch teilweise ausgefüllte direkte Anschriften werden ohne bestätigte Mischregel nicht mit Stammdaten vermischt. Die zugehörige bisher ungeklärte Katalogeinstufung ist durch diese Ergänzung für die Anschriftreferenz konkretisiert; nicht für beliebige andere Verwendungen von AdressID.

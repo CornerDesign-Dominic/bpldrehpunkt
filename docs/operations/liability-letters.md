@@ -25,3 +25,12 @@ Gezielte Tests: `functions/liabilityWorkflow.test.js`, `functions/liabilityWorkf
 Main/Produktion benötigen eine gesonderte Freigabe nach der Dev-Prüfung. Der konkrete Dev-Veröffentlichungsstand steht im Releasebeleg.
 
 Dev-Umsetzung und verbleibende echte Abnahme: [Releasebeleg vom 04.11.2026](releases/liability-letters-dev-2026-11-04.md).
+
+
+## Referenzierte Stationsanschriften
+
+Leere direkte Stationsfelder bedeuten nicht automatisch, dass DyCoS keine Anschrift hat. Im Dev-Abruf wird `LadeEntladestellen.AdressID` gezielt nach `Adressstamm.ID` aufgelöst. Die zusätzliche Liste `stationAddresses` enthält nur ID und fünf Anschriftfelder. Der Adapter prüft exakte Zuordnung, doppelte und fremde IDs; er übernimmt referenzierte Anschriften nur bei vollständig leerem direktem Adressblock. Der exakt passende Auftraggeberdatensatz derselben Antwort kann ebenfalls die Referenz auflösen. Keine Zuordnung über ähnliche Namen oder Geschäftsnummern.
+
+Positive Referenzen bleiben als `stops[].addressSourceId` erhalten; `addressSource` kennzeichnet `reference`, `inline` oder `unresolved-reference`. Ungelöste bzw. leere Referenzen erzeugen Warnungen. Strukturierte Stationen, erste Lade-/letzte Entladezusammenfassung, Suchdaten, Vorschau und PDF verwenden damit dieselbe Anschrift. Bereits gespeicherte Altaufträge benötigen einen bewussten Neuabruf; es gibt keinen stillen Vollimport bei jeder Suche.
+
+Der neue Flow wird ausschließlich in Firebase Dev über Secret-Version 2 von `DYCOS_FLOW_URL` verwendet. Der ursprüngliche TA-Flow bleibt unverändert. Veröffentlichung und echte Abnahme stehen im [Releasebeleg](releases/liability-station-addresses-dev-2026-11-04.md).

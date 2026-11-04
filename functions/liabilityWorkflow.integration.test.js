@@ -87,3 +87,52 @@ test('emulator: template permission revoked during source fetch aborts the whole
   await assert.rejects(fetchLiabilityTransportOrderHandler(request, deps), { code: 'permission-denied' })
   assert.equal((await db.doc(`transportOrders/dycos-${taNummer}`).get()).exists, false)
 })
+
+test('emulator: referenced station address is imported, searched and corrected from an older unresolved import without duplicate history', { skip: !enabled }, async () => {
+  const db = getFirestore()
+  const uid = randomUUID()
+  await db.doc(`users/${uid}`).set({ active: true, role: 'user', permissions: { templates: 'view', transportOrders: 'none', dataImports: 'none' } })
+  const taNummer = String(100000000 + Math.floor(Math.random() * 900000000))
+  const raw = payload(taNummer)
+  Object.assign(raw.ladeEntladestellen[0], { AdressID: 15150, Firma: '', Strasse: '', PLZ: null, Ort: null, Land: null })
+  let fetches = 0
+  const deps = { ...dependencies(), fetchOrder: async () => { fetches++; return structuredClone(raw) } }
+  const request = () => ({ auth: { uid }, data: { taNummer, requestId: randomUUID() } })
+  const first = await fetchLiabilityTransportOrderHandler(request(), deps)
+  assert.equal(first.importStatus, 'new')
+  const ref = db.doc(`transportOrders/${first.order.id}`)
+  assert.equal((await ref.get()).get('imported.loading.originalText'), null)
+  await ref.update({ manual: { note: 'Unverändert erhalten' }, routeNeedsRecalculation: false })
+
+  raw.stationAddresses = [{ ID: 15150, Firma: 'LGH Hamburg', Strasse: 'Bredowstr. 10', PLZ: '22113', Ort: 'Hamburg', Land: 'D' }]
+  const updateRequest = request()
+  const corrected = await fetchLiabilityTransportOrderHandler(updateRequest, deps)
+  assert.equal(corrected.importStatus, 'updated')
+  const saved = (await ref.get()).data()
+  const expectedAddress = { company: 'LGH Hamburg', street: 'Bredowstr. 10', postalCode: '22113', city: 'Hamburg', country: 'D' }
+  assert.deepEqual(saved.imported.stops[0].address, expectedAddress)
+  assert.equal(saved.imported.stops[0].addressSourceId, '15150')
+  assert.equal(saved.imported.stops[0].addressSource, 'reference')
+  assert.equal(saved.imported.loading.originalText, 'LGH Hamburg, Bredowstr. 10, D 22113 Hamburg')
+  assert.equal(saved.imported.loading.city, 'Hamburg')
+  assert.equal(saved.routeNeedsRecalculation, true)
+  assert.equal(saved.manual.note, 'Unverändert erhalten')
+  const found = await findLiabilityTransportOrdersHandler({ auth: { uid }, data: { taNummer } }, dependencies())
+  assert.equal(found.orders.length, 1)
+  const loading = found.orders[0].stops.find(stop => stop.id === '101')
+  for (const [key, value] of Object.entries(expectedAddress)) assert.equal(loading[key], value)
+  assert.deepEqual(loading.missingFields, [])
+  assert.equal(found.orders[0].warningCodes.includes('STOP_ADDRESS_INCOMPLETE'), false)
+  const history = await ref.collection('history').get()
+  assert.ok(history.docs.some(item => item.get('field') === 'loading.originalText' && item.get('oldValue') === null && item.get('newValue') === saved.imported.loading.originalText))
+  const historyCount = history.size
+
+  await ref.update({ routeNeedsRecalculation: false })
+  const repeated = await fetchLiabilityTransportOrderHandler(request(), deps)
+  assert.equal(repeated.importStatus, 'unchanged')
+  assert.equal((await ref.collection('history').get()).size, historyCount)
+  assert.equal((await ref.get()).get('routeNeedsRecalculation'), false)
+  const replay = await fetchLiabilityTransportOrderHandler(updateRequest, deps)
+  assert.equal(replay.order.stops[0].company, 'LGH Hamburg')
+  assert.equal(fetches, 3)
+})
