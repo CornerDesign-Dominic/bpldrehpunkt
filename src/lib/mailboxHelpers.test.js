@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createConnectionProof, mailboxLabel, mailboxUrl, parseRecipients, replyRecipients, safeAttachmentName, safeOutlookLink } from './mailboxHelpers.js'
+import { createConnectionProof, documentAttachmentBlob, mailboxLabel, mailboxUrl, parseRecipients, replyRecipients, safeAttachmentName, safeOutlookLink } from './mailboxHelpers.js'
+
+test('document preview recognizes real signatures despite generic MIME and rejects disguised HTML',async()=>{
+  for(const [bytes,type] of [['%PDF-1.7\ninvoice','application/pdf'],['\x89PNG\r\n\x1a\nimage','image/png'],['\xff\xd8\xffimage','image/jpeg'],['GIF89aimage','image/gif'],['RIFF1234WEBPimage','image/webp']]) {
+    const blob=documentAttachmentBlob({contentBase64:btoa(bytes),contentType:'application/octet-stream',name:'document.pdf'})
+    assert.equal(blob.type,type);assert.equal(blob.size,bytes.length)
+    assert.deepEqual(new Uint8Array(await blob.arrayBuffer()),Uint8Array.from(bytes,c=>c.charCodeAt(0)))
+  }
+  assert.throws(()=>documentAttachmentBlob({contentBase64:btoa('<html>not a PDF</html>'),contentType:'application/pdf',name:'invoice.pdf'}),/unsupported-document/)
+})
 
 test('navigation uses the personal mailbox name or email, never the Microsoft display name', () => {
   const mailbox = { email: 'test@example.com', displayName: 'Microsoft Account Name' }

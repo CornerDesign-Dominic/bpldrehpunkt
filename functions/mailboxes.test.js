@@ -929,8 +929,47 @@ test('webhook adapter reads exactly one owned immutable message and creates a cr
   await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'list-inbox' }), { code: 'invalid-argument' })
 })
 
+test('recommendation attachment reads stay on the notified message and reject inline or oversized file bodies', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => {
+    calls.push({ url, options })
+    if (url.includes('/attachments?')) return response({ value: [] })
+    return response({ '@odata.type': '#microsoft.graph.fileAttachment', name: 'Test.pdf', contentType: 'application/pdf', contentBytes: Buffer.from('%PDF-1.4 test').toString('base64') })
+  } })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'attachment-list', messageId: 'message/one' })
+  const file = await f.handlers.recommendationGraph({ connectionId, operation: 'attachment', messageId: 'message/one', attachmentId: 'attachment/two' })
+  assert.match(calls[0].url, /messages\/message%2Fone\/attachments\?\$select=id,name,contentType,size,isInline&\$top=20$/)
+  assert.match(calls[1].url, /messages\/message%2Fone\/attachments\/attachment%2Ftwo$/)
+  assert.equal(file.name, 'Test.pdf')
+  assert.ok(calls.every(call => !call.url.includes('inbox/messages') && !call.url.includes('delta')))
+  for (const invalid of [{ '@odata.type': '#microsoft.graph.itemAttachment', contentBytes: 'YQ==' }, { '@odata.type': '#microsoft.graph.fileAttachment', isInline: true, contentBytes: 'YQ==' }, { '@odata.type': '#microsoft.graph.fileAttachment', contentBytes: 'not base64' }, { '@odata.type': '#microsoft.graph.fileAttachment', contentBytes: 'YQ=='.repeat(2 * 1024 * 1024) }]) {
+    const g = fixture({ fetch: async () => response(invalid) })
+    await assert.rejects(g.handlers.recommendationGraph({ connectionId, operation: 'attachment', messageId: 'message', attachmentId: 'file' }), { code: 'failed-precondition' })
+  }
+})
+
 test('shared mailbox identity is resolved from the actual inbox, never a client label or alias', async () => {
   const f = fixture({ fetch: async url => { assert.ok(url.endsWith('/me/mailFolders/inbox?$select=id')); return response({ id: 'same-physical-inbox' }) } })
   assert.equal(await f.handlers.resolveRecommendationMailboxIdentity(connectionId), 'same-physical-inbox')
   assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).canonicalMailboxId, 'same-physical-inbox')
+})
+
+test('functional mailbox direct sign-in uses scoped app authentication for automatic recommendations only', async () => {
+  const calls = [], email = 'buchhaltung@brennpunkt-logistik.de'
+  const f = fixture({ fetch: async (url, options) => {
+    calls.push({ url, options })
+    if (url.includes('/oauth2/v2.0/token')) {
+      assert.equal(options.body.get('grant_type'), 'client_credentials')
+      return response({ access_token: 'synthetic-scoped-app-token', expires_in: 3600 })
+    }
+    assert.equal(options.headers.Authorization, 'Bearer synthetic-scoped-app-token')
+    return response({ id: 'message' })
+  } })
+  Object.assign(f.db.records.get(`mailboxConnections/${connectionId}`), { kind: 'personal', email })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'create', data: { changeType: 'created' } })
+  const request = JSON.parse(calls[1].options.body)
+  assert.equal(request.resource, `/users/${encodeURIComponent(email)}/mailFolders('inbox')/messages`)
+  await f.handlers.recommendationGraph({ connectionId, operation: 'message', messageId: 'message' })
+  assert.ok(calls[2].url.includes(`/users/${encodeURIComponent(email)}/messages/message?`))
+  assert.equal(calls.filter(call => call.url.includes('/token')).length, 1)
 })

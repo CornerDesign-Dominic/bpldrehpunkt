@@ -4,6 +4,7 @@ import { FiBriefcase, FiClock, FiFileText, FiShield } from 'react-icons/fi'
 import { TbCalculator } from 'react-icons/tb'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { mailboxActionKey, mailboxActionKinds } from '../../lib/mailboxActionStore.js'
+import { mailboxActionDisplayState } from '../../lib/mailboxActionPresentation.js'
 import '../../styles/mailboxActionIndicators.css'
 
 const icons = { order: FiFileText, tracking: FiClock, terms: FiShield, invoice: TbCalculator, todo: FiBriefcase, damage: FiBriefcase, collection: FiBriefcase, court: FiBriefcase, calendar: FiBriefcase }
@@ -13,7 +14,7 @@ export default function MailActionIndicators({ identity, actions, recommendation
   const { language } = useLanguage()
   const { profile } = useAuth()
   const allowed = kind => kind === 'order' ? canEdit(profile, 'transportOrders') && canView(profile, 'masterData') : kind === 'terms' ? canView(profile, 'agbChecker') : kind === 'calendar' ? canView(profile, 'calendar') : canEdit(profile, ({ tracking: 'transportOrders', order: 'transportOrders', invoice: 'transportOrders', todo: 'todos', damage: 'damages', collection: 'inkasso', court: 'legalDisputes' })[kind])
-  const visible = mailboxActionKinds.map(kind => ({ kind, action: actions[mailboxActionKey(identity, kind)] || (recommendations.includes(kind) && allowed(kind) ? { state: 'recommended' } : null) })).filter(({ kind, action }) => ['running', 'review', 'completed', 'recommended'].includes(action?.state) || kind === 'invoice' && action?.state === 'failed')
+  const visible = mailboxActionKinds.map(kind => ({ kind, action: { state: mailboxActionDisplayState(actions[mailboxActionKey(identity, kind)], recommendations.includes(kind) && allowed(kind)) } })).filter(({ kind, action }) => ['running', 'review', 'completed', 'recommended'].includes(action.state) || kind === 'invoice' && action.state === 'failed')
   if (!visible.length) return null
   return <span className="mailbox-action-indicators">{visible.map(({ kind, action }) => {
     const Icon = icons[kind]

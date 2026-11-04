@@ -20,6 +20,7 @@ export function useMailboxRecommendations(connectionId, messageIds, reload) {
     }, () => { /* No polling fallback: missing hints are explicitly acceptable. */ })
   }, [connectionId])
   useEffect(() => {
+    if (!connectionId) return
     let active = true
     async function load() {
       try {
@@ -35,6 +36,6 @@ export function useMailboxRecommendations(connectionId, messageIds, reload) {
     void load()
     window.addEventListener('drehpunkt:mail-recommendations-changed', load)
     return () => { active = false; window.removeEventListener('drehpunkt:mail-recommendations-changed', load) }
-  }, [connectionId, ids, key, reload])
+  }, [connectionId, ids, key, reload, signal.connectionId, signal.revision])
   return { ...(state.key === key ? { recommendations: state.items, enabled: state.enabled } : { recommendations: {}, enabled: false }), revision: signal.connectionId === connectionId ? signal.revision : null }
 }

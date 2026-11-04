@@ -30,18 +30,43 @@ export function invoiceCheckCounts(checks = []) {
   return counts
 }
 
+const paymentKeys = new Set(['paymentTerms', 'paymentDays', 'dueDate', 'paymentMethod'])
+const isPaymentCheck = check => paymentKeys.has(check.key?.split('-')[0])
+const isPaymentMethod = check => check.key?.split('-')[0] === 'paymentMethod'
+const paymentGoalValue = value => {
+  if (typeof value !== 'string') return value
+  const goal = value.replace(/(?<![\p{L}\p{N}])(?:(?:per|via|by)\s+)?(?:(?:sepa|bank)[\s-]*)?(?:überweisung|transfer)(?![\p{L}\p{N}])/giu, '').replace(/^(?:zahlungsart|payment method)\s*:\s*/iu, '').replace(/\s+/gu, ' ').replace(/^[\s,;·.!-]+|[\s,;·.!-]+$/gu, '').trim()
+  return goal || null
+}
+
+function consolidatePaymentChecks(checks = []) {
+  const payment = checks.filter(check => isPaymentCheck(check) && !isPaymentMethod(check))
+  if (!payment.length) return []
+  const main = payment.find(check => check.key === 'paymentTerms') || payment.find(check => check.key === 'paymentDays') || payment[0]
+  const actual = paymentGoalValue(main.actual), expected = paymentGoalValue(main.expected)
+  const methodOnly = !actual && typeof main.actual === 'string' && main.actual.trim()
+  const paymentEvidence = payment.filter(check => check !== main).map(check => ({ key: check.key, actual: paymentGoalValue(check.actual), expected: paymentGoalValue(check.expected), message: check.message, sourceText: check.sourceText || check.quote }))
+  return [{ ...main, key: 'paymentTerms', actual, expected, ...(methodOnly ? { sourceText: null, quote: null } : {}), paymentEvidence: [...(main.paymentEvidence || []).filter(check => !isPaymentMethod(check)), ...paymentEvidence] }]
+}
+
+export function invoiceCheckResultLabel(check, language = 'de') {
+  if (check.key !== 'factoring' || typeof check.found !== 'boolean') return undefined
+  if (!check.found) return language === 'en' ? 'No indication found' : 'Kein Hinweis gefunden'
+  return language === 'en' ? 'Notice found' : 'Hinweis gefunden'
+}
+
 export function invoicePrimarySections(invoice = {}) {
   const totals = invoice.totals?.checks || []
   const legacyHeaderKeys = new Set(['number', 'date'])
   return {
     header: invoice.headerChecks || totals.filter(check => legacyHeaderKeys.has(check.key)),
     amounts: invoice.headerChecks ? totals : totals.filter(check => !legacyHeaderKeys.has(check.key)),
-    payment: invoice.paymentChecks || [],
+    payment: [...(invoice.paymentChecks || []).filter(check => !isPaymentCheck(check)), ...consolidatePaymentChecks(invoice.paymentChecks)],
   }
 }
 
 export function invoiceTransportChecks(transport = {}) {
-  if (transport.checks?.length) return transport.checks
+  if (transport.checks?.length) return transport.checks.some(isPaymentCheck) ? [...transport.checks.filter(check => !isPaymentCheck(check)), ...consolidatePaymentChecks(transport.checks)] : transport.checks
   if (transport.status !== 'unassigned') return transport.checks || []
   return [{ key: 'ta', label: 'TA-Zuordnung', actual: transport.ta || null, expected: null, status: 'unassigned', color: 'red', message: transport.message || 'Keine eindeutige Zuordnung zu einem Auftrag.' }]
 }
@@ -81,7 +106,7 @@ export function invoiceDisplayChecks(invoice = {}) {
   const add = (check, transport) => {
     const base = check.key?.split('-')[0] || 'check'
     const supplemental = invoiceCheckIsSecondary(check)
-    const global = ['issuer', 'recipient', 'issuerVatId', 'recipientVatId', 'recipientAddress', 'currency'].includes(base)
+    const global = ['issuer', 'recipient', 'issuerVatId', 'recipientVatId', 'recipientAddress', 'currency', 'factoring'].includes(base)
     const id = global || !transport ? base : `${transport.ta || transport.orderId || `unassigned-${transport.displayIndex}`}:${check.key}`
     if (seen.has(id)) {
       // Conflicting transport references must not be hidden by a broader
@@ -98,8 +123,9 @@ export function invoiceDisplayChecks(invoice = {}) {
   const aggregateNet = amounts.some(check => check.key === 'netTotal')
   const transports = invoice.transports || []
   const singleNet = transports.length === 1 ? invoiceTransportChecks(transports[0]).find(check => check.key === 'net') : null
+  const payment = consolidatePaymentChecks([...sections.payment, ...sections.header, ...amounts, ...transports.flatMap(invoiceTransportChecks)])
   const severity = check => ({ red: 3, yellow: 2, green: 1 })[invoiceCheckColor(check)] || 0
-  for (const check of [...sections.header, ...amounts, ...sections.payment]) {
+  for (const check of [...sections.header, ...amounts, ...sections.payment].filter(check => !isPaymentCheck(check)).concat(payment)) {
     // Keep the more severe result when one transport is also represented by
     // the aggregate comparison. A red position must never disappear in a
     // yellow invoice-level result, or count as a second vote for the same net.
@@ -108,6 +134,7 @@ export function invoiceDisplayChecks(invoice = {}) {
   for (const [index, entry] of transports.entries()) {
     const transport = { ...entry, displayIndex: index }
     for (const check of invoiceTransportChecks(transport)) {
+      if (isPaymentCheck(check)) continue
       if (check.key === 'net' && aggregateNet && transports.length === 1) continue
       add(check, transport)
     }
@@ -141,12 +168,13 @@ export function invoiceReviewAlerts(invoice = {}) {
     .map(check => ({ ...check, kind: 'amount', color: 'red', ta: check.transportTa || (invoice.transports?.length === 1 ? invoice.transports[0].ta : undefined), currency: invoice.currency }))
   const alerts = [], seen = new Set()
   for (const alert of raw) {
-    if (!['duplicate', 'possible_duplicate', 'amount'].includes(alert?.kind)) continue
-    const color = alert.kind === 'possible_duplicate' ? 'yellow' : 'red'
+    if (!['duplicate', 'possible_duplicate', 'amount', 'factoring'].includes(alert?.kind)) continue
+    const color = ['possible_duplicate', 'factoring'].includes(alert.kind) ? 'yellow' : 'red'
     if (alert.color !== color) continue
+    if (alert.kind === 'factoring' && (typeof alert.message !== 'string' || !alert.message.trim())) continue
     if (alert.kind === 'amount' && (!Number.isFinite(alert.actual) || !Number.isFinite(alert.expected))) continue
     const item = { ...alert, color, key: alert.checkKey || alert.key || null }
-    const id = JSON.stringify([item.kind, item.key, item.ta || null, item.externalNumber || null, item.actual ?? null, item.expected ?? null, item.actualCurrency || item.currency || null, item.expectedCurrency || item.currency || null])
+    const id = JSON.stringify([item.kind, item.key, item.ta || null, item.externalNumber || null, item.actual ?? null, item.expected ?? null, item.actualCurrency || item.currency || null, item.expectedCurrency || item.currency || null, ...(item.kind === 'factoring' ? [item.company || null] : [])])
     if (seen.has(id)) continue
     seen.add(id)
     alerts.push(item)

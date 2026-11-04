@@ -57,6 +57,10 @@
 .mailbox-actions > .mailbox-action--state-running:disabled { color: var(--text-primary); border-color: #3786c7; background: color-mix(in srgb, #3786c7 12%, var(--content-background)); opacity: 1; cursor: wait; }
 .mailbox-actions > .mailbox-action--state-review { color: var(--status-warning-text); border-color: var(--status-warning-text); background: var(--status-warning-background); }
 .mailbox-actions > .mailbox-action--state-completed { color: var(--status-success-text); border-color: var(--status-success-text); background: var(--status-success-background); }
+.mailbox-actions > .mailbox-action--state-recommended { color: var(--color-ai); border-color: var(--color-ai-border); background: var(--color-ai-soft); }
+.mailbox-action--state-recommended :is(.mailbox-action__icon, .mailbox-action__arrow, .mailbox-action__hint) { color: inherit; }
+.mailbox-action--state-recommended .mailbox-action__icon { background: color-mix(in srgb, var(--color-ai) 12%, transparent); }
+.mailbox-actions > .mailbox-action--state-recommended:hover:not(:disabled) { border-color: var(--color-ai); background: color-mix(in srgb, var(--color-ai) 15%, var(--content-background)); box-shadow: 0 0 0 1px var(--color-ai-border); }
 .mailbox-action:is(.mailbox-action--state-running, .mailbox-action--state-review, .mailbox-action--state-completed) :is(.mailbox-action__icon, .mailbox-action__arrow, .mailbox-action__hint) { color: inherit; }
 .mailbox-action:is(.mailbox-action--state-running, .mailbox-action--state-review, .mailbox-action--state-completed) .mailbox-action__icon { background: color-mix(in srgb, currentColor 12%, transparent); }
 .mailbox-actions > :is(.mailbox-action--state-review, .mailbox-action--state-completed):hover:not(:disabled) { border-color: currentColor; background: color-mix(in srgb, currentColor 13%, var(--content-background)); box-shadow: 0 0 0 1px currentColor; }

@@ -29,6 +29,7 @@ import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeL
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
 import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler, manageTransportOrderImportHandler } from './transportOrderImports.js'
+import { findLiabilityTransportOrdersHandler, fetchLiabilityTransportOrderHandler } from './liabilityWorkflow.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
@@ -179,7 +180,7 @@ export const listManagedMailboxRecommendations = onCall(mailboxOptions, listMana
 export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
 export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
 export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
-export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
 
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)
@@ -1187,6 +1188,9 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
 export { submitBugReport, submitIdea } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
+export { suggestLiabilityWording } from './liabilityWorkflow.js'
+export const findLiabilityTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, findLiabilityTransportOrdersHandler)
+export const fetchLiabilityTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchLiabilityTransportOrderHandler)
 export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'
 export { refreshSchoolHolidayData } from './schoolHolidays.js'

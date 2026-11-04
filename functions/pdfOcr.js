@@ -48,28 +48,50 @@ export async function readPdfPages(bytes) {
     return { pages, imagePages }
   } finally { await task.destroy() }
 }
-export async function renderPdfOcrPages(bytes, pageNumbers) {
+export async function renderPdfOcrPages(bytes, pageNumbers, { signal } = {}) {
+  signal?.throwIfAborted()
   const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  signal?.throwIfAborted()
   const { createCanvas } = await import('@napi-rs/canvas')
+  signal?.throwIfAborted()
   const task = getDocument({ data: new Uint8Array(bytes), disableWorker: true, isEvalSupported: false, enableScripting: false, stopAtErrors: true, verbosity: 0 })
   const images = []
   let imageBytes = 0
+  let activeRenderTask, destroyPromise, rejectAborted
+  const destroy = () => destroyPromise ||= Promise.resolve().then(() => task.destroy())
+  const aborted = signal ? new Promise((_, reject) => { rejectAborted = reject }) : null
+  const wait = promise => aborted ? Promise.race([promise, aborted]) : promise
+  const abort = () => {
+    rejectAborted(signal.reason)
+    activeRenderTask?.cancel()
+    void destroy().catch(() => {})
+  }
+  signal?.addEventListener('abort', abort, { once: true })
   try {
-    const pdf = await task.promise
+    signal?.throwIfAborted()
+    const pdf = await wait(task.promise)
     for (const number of pageNumbers) {
-      const page = await pdf.getPage(number)
-      const base = page.getViewport({ scale: 1 })
-      const viewport = page.getViewport({ scale: Math.min(2.8, 3200 / Math.max(base.width, base.height)) })
-      const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height))
+      signal?.throwIfAborted()
+      const page = await wait(pdf.getPage(number))
+      let canvas
       try {
-        await page.render({ canvasContext: canvas.getContext('2d'), canvas, viewport }).promise
+        signal?.throwIfAborted()
+        const base = page.getViewport({ scale: 1 })
+        const viewport = page.getViewport({ scale: Math.min(2.8, 3200 / Math.max(base.width, base.height)) })
+        canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height))
+        signal?.throwIfAborted()
+        activeRenderTask = page.render({ canvasContext: canvas.getContext('2d'), canvas, viewport })
+        await wait(activeRenderTask.promise)
+        activeRenderTask = null
+        signal?.throwIfAborted()
         const png = canvas.toBuffer('image/png')
         imageBytes += png.length
         if (imageBytes > 20 * 1024 * 1024) problem('Die Scan-Seiten sind für eine einzelne OCR zu umfangreich.', 'document_too_large')
         images.push({ number, dataUrl: `data:image/png;base64,${png.toString('base64')}` })
-      } finally { canvas.width = 1; canvas.height = 1; page.cleanup() }
+      } finally { activeRenderTask = null; if (canvas) { canvas.width = 1; canvas.height = 1 }; page.cleanup() }
     }
-  } finally { await task.destroy() }
+  } catch (error) { signal?.throwIfAborted(); throw error }
+  finally { signal?.removeEventListener('abort', abort); await destroy() }
   return images
 }
 const ocrSchema = { type: 'object', additionalProperties: false, required: ['pages'], properties: { pages: { type: 'array', maxItems: 100, items: { type: 'object', additionalProperties: false, required: ['number', 'text', 'blank', 'uncertain'], properties: { number: { type: 'integer' }, text: { type: 'string' }, blank: { type: 'boolean' }, uncertain: { type: 'boolean' } } } } } }

@@ -21,11 +21,14 @@ const CLIENT_STAGES = Object.freeze({
   mailboxes: ['connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export', 'agb-analyse', 'agb-customer', 'invoice-review', 'invoice-history'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
-  'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create'],
+  'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create', 'order-search', 'order-fetch', 'wording'],
   website: ['dashboard', 'transport-orders', 'partners', 'crm', 'administration', 'other'],
 })
 const CLIENT_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal', 'unknown', 'resource-exhausted', 'runtime-error', 'unhandled-rejection', 'invalid-response', 'access-failure'])
 const CLIENT_MESSAGES = {
+  'order-search': 'Die Auftragssuche für die Haftbarhaltung ist fehlgeschlagen.',
+  'order-fetch': 'Der Auftragsabruf für die Haftbarhaltung konnte nicht bestätigt werden.',
+  wording: 'Der Formulierungsvorschlag für die Haftbarhaltung ist fehlgeschlagen.',
   'order-preview': 'Auftrag aus persönlicher Mail konnte nicht ausgewertet werden.',
   'order-export': 'Geprüfter Auftrag konnte nicht als XML erstellt werden.',
   load: 'Sendungsverfolgung konnte nicht geladen werden.',

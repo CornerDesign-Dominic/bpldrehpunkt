@@ -1,6 +1,6 @@
 # Rechnungsprüfung aus persönlichen Postfächern
 
-Stand: 03.11.2026. Führender Daten- und Prüfvertrag für die Mailaktion und
+Stand: 04.11.2026. Führender Daten- und Prüfvertrag für die Mailaktion und
 für gespeicherte Ergebnisse im Transportauftrag. Veröffentlichungsstand siehe
 [Releasebeleg](releases/invoice-review-2026-11-03.md).
 
@@ -82,6 +82,33 @@ vergleichen Frist, Fristbeginn und Tagesart; ein gedrucktes Fälligkeitsdatum er
 keine ausdrücklich vereinbarte Eingangsbasis. Belegverknüpfungen allein beweisen
 weder Dubletten noch Zahlung oder Buchung.
 
+### Zahlungsziel und Factoring
+
+Das Zahlungsziel bleibt genau eine Prüfzeile. Ausdrücklich gedruckte Fristen
+(z. B. „45 Tage“, „45 dni“) werden getrennt von der Fälligkeit erkannt.
+Fälligkeitsdatum minus echtes Rechnungs-/Belegdatum liefert eine unabhängige
+Kalendertagsdifferenz, die ebenfalls in dieser Zeile steht; vollständige Daten
+und Quellen bleiben unter deren Details. Liefer-/Leistungsdatum, KSeF-Datum und
+tatsächlicher Zahlungstag ersetzen das Rechnungsdatum nicht. Widersprechen sich
+gedruckte Tage und die passende Datumsdifferenz, bleibt der Widerspruch sichtbar.
+Eine sicher belegte Abweichung von der Vereinbarung ist rot. Aus Rechnungsdatum
+und Fälligkeit wird keine Frist ab Rechnungs-/Belegeingang abgeleitet. Stimmen die
+Tage mit einer Vereinbarung wie „45 Tage netto“ überein, kann die Tagesfrist grün
+sein; ein dort nicht genannter Fristbeginn wird im Hinweis ausdrücklich benannt.
+Zahlungsart wie „Überweisung“ ist kein Zahlungsziel und erhält keine eigene
+Anzeige oder Vergleichszeile, auch nicht in historischen Berichtsdarstellungen.
+
+Factoring/Forderungsabtretung erhält genau einen zusätzlichen Hauptprüfpunkt.
+Ein konkreter belegter Hinweis auf Verkauf/Abtretung dieser Rechnungsforderung
+führt zu Gelb und einem kurzen gelben Hinweis oben im Bericht, gegebenenfalls
+mit dem Factoringunternehmen. Firmenname, allgemeine Erwähnung, Ablehnung oder
+ausdrücklich verneinte Abtretung reichen nicht. Der Beleg muss aus den geprüften
+Rechnungsseiten stammen; eine Bankverbindung allein begründet keinen Fund.
+Ohne Fund lautet der Punkt auf ausdrücklichen Nutzerwunsch grün „Kein Hinweis
+gefunden“. Das bezeichnet das Suchergebnis, keine Garantie, dass keine Abtretung
+existiert. Alte Berichte ohne diese Prüfung bekommen keinen nachträglich
+erfundenen grünen Befund.
+
 ## Darstellung und Prozentbalken
 
 Die Hauptansicht zeigt kompakte Zeilen mit Rechnungswert, Vergleichswert und
@@ -106,7 +133,7 @@ Englisch sowie Light/Dark verwenden denselben Ablauf.
 
 ## Speicherung und Zugriff
 
-Neue unveränderliche Berichte haben version:5. Alte Berichte bleiben lesbar und
+Neue unveränderliche Berichte haben version:6. Alte Berichte bleiben lesbar und
 werden durch die neue Oberfläche dargestellt, nicht rückwirkend neu erkannt oder
 fachlich umgeschrieben. Für neue Erkennung ist „Mit aktuellen Auftragsdaten erneut
 prüfen“ erforderlich. Berichte enthalten Vergleichswerte, kurze Belege,
@@ -222,6 +249,43 @@ erfordert eine erneute Auswertung.
 
 Dieser Stand ist ausschließlich für Dev freigegeben. Veröffentlichungsnachweis:
 [Dev-Release vom 04.11.2026](releases/invoice-duplicates-dev-2026-11-04.md).
+
+## Unlesbare Zusatzanlagen (Dev 04.11.2026)
+
+Berichtsversion 7: Lesbare Anlagen werden auch bei einem PDF-/Bild-Lesefehler
+weiter geprüft. Nicht lesbare oder textlose Anlagen stehen unter
+`unreadableDocuments` mit Dateiname und `extraction_failed`; `incomplete` ist
+dann wahr. Ein gelber Hinweis oberhalb aller Rechnungsergebnisse nennt diese
+Dateien und mögliche weitere Rechnungen. Die bekannten Einzelprüfungen bleiben
+erhalten, der Gesamtstatus wird bei sonst vollständiger Übereinstimmung jedoch
+`unknown`. Erkannte Abweichungen bleiben `mismatch`. Transportverknüpfungen und
+Unvollständigkeit werden gemeinsam im unveränderlichen Bericht gespeichert.
+Ohne eine lesbare Anlage wird vor der KI-Auswertung verständlich abgebrochen.
+Ein inhaltsfreier Diagnoseeintrag pro Anfrage erfasst den Lesefehler. Die
+Texterkennung plus zusätzliche OCR bleiben für lesbare Rechnungen unverändert.
+Alte Berichte ändern sich nicht; für neue Auswertung erneut prüfen.
+
+Zusätzlich akzeptiert die Belegvalidierung englische Tausender-/Dezimalformate
+wie `1,300.00 EUR`, ohne benachbarte Tabellenbeträge zusammenzuziehen. Geprüft
+mit FV028/05/2026: 1.300 EUR, 45 Tage ab Dokumenteneingang und TA-Kandidat
+260500383. 90 gezielte Tests sowie der Firestore-Integrationstest mit
+unlesbarem Zusatz-POD, unveränderlichem Bericht und Transportverknüpfung
+erfolgreich. Vier UI-Renderprüfungen für DE/EN und vollständige/unvollständige
+Berichte erfolgreich. Keine Änderung an Rules, Indizes oder Secrets.
+
+## Kompakte Ansicht und Dokumentquellen (Dev, gesammelt 04.11.2026)
+
+Der Ergebnisheader zeigt die eindeutigen Rechnungs-Dateinamen. Die Unterzeile
+enthält nur noch den Aussteller. Seiten- und Erkennungsinfos sowie die
+Dokumentübersicht stehen gemeinsam unter Weitere Details; ergänzende Angaben
+und Transportvergleiche unter Weitere Abgleichungen. Der Gewichtungshinweis
+entfällt. Unlesbare Anlagen erscheinen kurz mit Dateinamen im gelben Hinweis.
+Die Empfängeranschrift akzeptiert direkt vorangestellte deutsche Länderpräfixe
+wie DE42369; echte PLZ-/Hausnummerabweichungen bleiben unverändert bewertet.
+PDF-/Bildvorschauen erkennen den Dateityp anhand der Signatur auch bei dem
+Exchange-Typ application/octet-stream. Dies gilt für die gemeinsame Quellenansicht
+und die Auftragserfassung. Die Quellenauswahl hat ausreichend Höhe für den Text.
+Keine Änderung an Rules, Indizes, Secrets oder Microsoft-Berechtigungen.
 
 ## Nächstes Änderungspaket – lokal vorbereitet, noch unveröffentlicht
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { attachmentBlob } from '../../lib/mailboxHelpers.js'
+import { documentAttachmentBlob } from '../../lib/mailboxHelpers.js'
 import { mailboxCall } from '../../lib/mailboxes.js'
 import '../../styles/mailboxOrder.css'
 
@@ -18,10 +18,10 @@ export default function MailDocumentSources({ identity, mailContent, attachments
     try {
       const file = await mailboxCall('getMailboxAttachment', { ...identity, attachmentId: id })
       if (version !== generation.current) return
-      const contentType = file.contentType?.split(';')[0].toLowerCase()
-      if (!/^(application\/pdf|image\/(jpeg|png|webp|gif))$/.test(contentType || '')) throw new Error('unsupported-document')
+      const blob = documentAttachmentBlob(file)
+      const contentType = blob.type
       if (url.current) URL.revokeObjectURL(url.current)
-      url.current = URL.createObjectURL(attachmentBlob(file))
+      url.current = URL.createObjectURL(blob)
       setPdf({ id, url: url.current, contentType })
     } catch { if (version === generation.current) setError(w('Dokument konnte nicht geladen werden.', 'Could not load document.')) }
     finally { if (version === generation.current) setBusy(false) }

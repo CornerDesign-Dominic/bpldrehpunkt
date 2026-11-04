@@ -111,3 +111,12 @@ existiert keine `.firebaserc`; Firebase-Befehle daher mit explizitem `--project`
 ausführen. Der Ordnername ändert weder Git-Repository noch Firebase-Ziel.
 Ein Push nach `main` veröffentlicht nicht automatisch Functions, Rules oder
 Indizes; deren Bereitstellung folgt `releases.md`.
+
+## Haftbarhaltung: bewusster Formulierungsvorschlag
+
+`suggestLiabilityWording` ist für aktive Vorlagennutzer als gezielte Ausnahme in Dev und Produktion technisch zulässig; zunächst nur Dev-Veröffentlichung. Die bestehende PDF-Auswertung bleibt außerhalb Produktion gesperrt. Daten-/Rechtevertrag: [Haftbarhaltung](liability-letters.md).
+
+
+### Dev-TA-Abruf mit Stationsadressen (04.11.2026)
+
+Die separierte Dev-Kopie **Drehpunkt – DyCoS TA Dev mit Stationsadressen**, Flow-ID `bf08a1eb-5fd8-f111-84e9-6045bd93bcb8`, ergänzt gezielt referenzierte Stationsanschriften. Der bestehende TA-Flow wurde nicht verändert. Nur Dev-Secret `DYCOS_FLOW_URL`, Version 2, verweist auf die Kopie; URL und Schlüssel werden nicht dokumentiert. `fetchDycosTransportOrder`, `fetchLiabilityTransportOrder` und `refreshTransportOrderWorkspace` werden dafür in `db-bpl-drehpunkt-dev` aktualisiert. Die Rechnungsprüfungs-Functions bleiben auf ihrer bisherigen Secret-Version, da sie diese Stationsanschriften nicht verwenden. Main und Produktionskonfiguration bleiben unverändert. [Releasebeleg](releases/liability-station-addresses-dev-2026-11-04.md).

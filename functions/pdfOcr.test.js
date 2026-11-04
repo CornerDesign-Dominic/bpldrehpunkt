@@ -2,7 +2,12 @@ import { addOcrMetadata } from './agbChecker.js'
 import { Buffer } from 'node:buffer'
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { needsPdfOcr, validatePdfOcr, extractPdfWithOcr, recognizePdfPages } from './pdfOcr.js'
+import { needsPdfOcr, validatePdfOcr, extractPdfWithOcr, recognizePdfPages, renderPdfOcrPages } from './pdfOcr.js'
+
+test('PDF rendering rejects a cancelled budget before importing, parsing or rendering', async () => {
+ const controller = new AbortController(); controller.abort()
+ await assert.rejects(renderPdfOcrPages(Buffer.from('not a PDF'), [1, 2], { signal: controller.signal }), { name: 'AbortError' })
+})
 
 test('OCR recognizes missing text, short image captions and broken glyphs, preserving actual native text',()=>{
  assert.equal(needsPdfOcr(''),true);assert.equal(needsPdfOcr('Scanned by office scanner'),true)
