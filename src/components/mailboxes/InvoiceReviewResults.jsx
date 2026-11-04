@@ -71,7 +71,6 @@ function Distribution({ checks }) {
       {total ? colors.filter(color => counts[color]).map(color => <span key={color} className={`invoice-review-segment invoice-review-segment--${color}`} style={{ width: `${counts[color] / total * 100}%` }} />) : <span className="invoice-review-segment invoice-review-segment--gray" style={{ width: '100%' }} />}
     </div>
     <div className="invoice-review-bar-legend">{total ? colors.map(color => <span key={color} className={`invoice-review-status--${color}`}><i className="invoice-review-dot" aria-hidden="true" /><strong>{percentages[color]}%</strong> {colorLabels[color][en ? 1 : 0]} <small>({counts[color]})</small></span>) : <span>{en ? 'No main checks available' : 'Keine Hauptprüfpunkte vorhanden'}</span>}</div>
-    <small className="invoice-review-distribution-caption">{total} {en ? 'main checks · equal weight' : 'Hauptprüfpunkte · gleich gewichtet'}</small>
   </div>
 }
 
@@ -110,37 +109,43 @@ export default function InvoiceReviewResults({ report }) {
   const w = (de, en) => language === 'en' ? en : de
   const invoices = report.invoices || []
   const reviewedAt = new Date(report.createdAt)
+  const fileNames = [...new Set(invoices.map(invoice => invoice.fileName).filter(Boolean))]
+  const systemDetails = [report.message, ...(report.notices || []).map(notice => notice.message || notice)].filter(Boolean)
   const allChecks = invoices.flatMap(invoice => invoiceDisplayChecks(invoice).primary)
-  return <div className="invoice-review-results"><header className="invoice-review-summary"><strong>{w('Rechnungsprüfung', 'Invoice review')}</strong>{!Number.isNaN(reviewedAt.getTime()) && <small>{reviewedAt.toLocaleString(language === 'en' ? 'en-GB' : 'de-DE', { timeZone: 'Europe/Berlin' })}</small>}</header>
+  return <div className="invoice-review-results"><header className="invoice-review-summary"><strong>{w('Rechnungsprüfung', 'Invoice review')}{fileNames.length > 0 && `: ${fileNames.join(', ')}`}</strong>{!Number.isNaN(reviewedAt.getTime()) && <small>{reviewedAt.toLocaleString(language === 'en' ? 'en-GB' : 'de-DE', { timeZone: 'Europe/Berlin' })}</small>}</header>
     <div className="invoice-review-body">
       {report.incomplete && <div className="invoice-review-alert invoice-review-alert--yellow invoice-review-incomplete" role="status" aria-atomic="true">
         <strong>{w('Prüfung unvollständig', 'Review incomplete')}</strong>
-        <p>{w('Folgende Anhänge konnten nicht gelesen werden:', 'The following attachments could not be read:')}</p>
-        <ul>{(report.unreadableDocuments || []).map((document, index) => <li key={document.sourceId || index}>{document.name || w('Unbekannter Anhang', 'Unknown attachment')}</li>)}</ul>
-        <p>{w('Die Auswertung berücksichtigt nur lesbare Anlagen. Die ausgelassenen Anhänge können weitere Rechnungen enthalten; sämtliche Anlagen wurden daher nicht vollständig geprüft.', 'The results cover readable attachments only. The omitted attachments may contain additional invoices; the review of all attachments is therefore incomplete.')}</p>
+        <p>{w('Nicht lesbar und nicht geprüft:', 'Unreadable and not reviewed:')} {(report.unreadableDocuments || []).map(document => document.name || w('Unbekannter Anhang', 'Unknown attachment')).join(', ')}</p>
       </div>}
       {invoices.length > 1 && <Distribution checks={allChecks} />}
       {invoices.map((invoice, index) => {
         const { primary, secondary } = invoiceDisplayChecks(invoice)
         const amountDetails = invoiceAmountDetails(invoice)
         const secondaryMismatches = secondary.filter(check => invoiceCheckColor(check) === 'red').length
-        const metadata = [invoice.extractionMethod && w('Erkennung: ', 'Recognition: ') + invoice.extractionMethod, ...(invoice.warnings || []), ...(invoice.notices || []).map(notice => notice.message || notice)].filter(Boolean).join('\n')
         return <section className="invoice-review-invoice" key={`${report.id || report.createdAt}:${index}`}>
           <div className="invoice-review-invoice-heading"><h3>{w('Rechnung', 'Invoice')} {invoice.number || '—'}</h3>{invoice.currency && <span className="invoice-review-file">{invoice.currency}</span>}</div>
-          <p className="invoice-review-file">{[invoice.issuer, invoice.fileName].filter(Boolean).join(' · ')}</p>
-          {invoice.invoicePages?.length > 0 && <p className="invoice-review-file">{w('Rechnungsseiten', 'Invoice pages')}: {invoice.invoicePages.join(', ')}</p>}
+          <p className="invoice-review-file">{invoice.issuer}</p>
           <Distribution checks={primary} />
           <InvoiceAlerts invoice={invoice} />
           <Checks checks={primary} currency={invoice.currency} />
           {amountDetails.length > 0 && <Disclosure title={w('Betragsdetails', 'Amount details')}><Checks checks={amountDetails} currency={invoice.currency} /></Disclosure>}
-          {secondary.length > 0 && <Disclosure title={<>{w('Ergänzende Angaben', 'Additional information')}{secondaryMismatches > 0 && <span className="invoice-review-secondary-alert invoice-review-status--red"><i className="invoice-review-dot" aria-hidden="true" />{secondaryMismatches} {w('abweichend', 'different')}</span>}</>}><Checks checks={secondary} currency={invoice.currency} /></Disclosure>}
-          {(invoice.transports || []).length > 0 && <Disclosure title={w('Auftragsvergleich und Quellen', 'Order comparison and sources')}>{invoice.transports.map((transport, i) => <TransportDetails key={i} transport={transport} currency={invoice.currency} w={w} />)}</Disclosure>}
-          {metadata && <Disclosure title={w('Erkennungsdetails', 'Recognition details')}><p className="invoice-review-technical">{metadata}</p></Disclosure>}
+          {(secondary.length > 0 || invoice.transports?.length > 0) && <Disclosure title={<>{w('Weitere Abgleichungen', 'Additional comparisons')}{secondaryMismatches > 0 && <span className="invoice-review-secondary-alert invoice-review-status--red"><i className="invoice-review-dot" aria-hidden="true" />{secondaryMismatches} {w('abweichend', 'different')}</span>}</>}>
+            {secondary.length > 0 && <Checks checks={secondary} currency={invoice.currency} />}
+            {(invoice.transports || []).map((transport, i) => <TransportDetails key={i} transport={transport} currency={invoice.currency} w={w} />)}
+          </Disclosure>}
         </section>
       })}
-      {report.documents?.length > 0 && <Disclosure title={w('Dokumentübersicht', 'Document overview')}><div className="invoice-review-document-list">{report.documents.map((document, index) => <div key={document.sourceId || index}><strong>{document.name || w('Dokument', 'Document')}</strong><small>{[document.contentType, document.pageCount && `${document.pageCount} ${w('Seite(n)', 'page(s)')}`].filter(Boolean).join(' · ')}</small></div>)}</div></Disclosure>}
       {!invoices.length && <p className="invoice-review-empty">{report.message || w('Keine Rechnung erkannt.', 'No invoice detected.')}</p>}
-      {(report.message && invoices.length > 0 || report.notices?.length > 0) && <Disclosure title={w('Weitere Details', 'Additional details')}><p className="invoice-review-technical">{[report.message, ...(report.notices || []).map(notice => notice.message || notice)].filter(Boolean).join('\n')}</p></Disclosure>}
+      {(invoices.length > 0 || report.documents?.length > 0 || systemDetails.length > 0) && <Disclosure title={w('Weitere Details', 'Additional details')}>
+        {invoices.map((invoice, index) => <div key={index}>
+          {invoices.length > 1 && <strong>{w('Rechnung', 'Invoice')} {invoice.number || '—'}</strong>}
+          {invoice.invoicePages?.length > 0 && <p className="invoice-review-technical">{w('Geprüfte Rechnungsseiten', 'Reviewed invoice pages')}: {invoice.invoicePages.length} ({invoice.invoicePages.join(', ')})</p>}
+          <p className="invoice-review-technical">{[invoice.extractionMethod && w('Erkennung: ', 'Recognition: ') + invoice.extractionMethod, ...(invoice.warnings || []), ...(invoice.notices || []).map(notice => notice.message || notice)].filter(Boolean).join('\n')}</p>
+        </div>)}
+        {report.documents?.length > 0 && <div className="invoice-review-document-list">{report.documents.map((document, index) => <div key={document.sourceId || index}><strong>{document.name || w('Dokument', 'Document')}</strong><small>{[document.contentType, document.pageCount && `${document.pageCount} ${w('Seite(n)', 'page(s)')}`].filter(Boolean).join(' · ')}</small></div>)}</div>}
+        {systemDetails.length > 0 && <p className="invoice-review-technical">{systemDetails.join('\n')}</p>}
+      </Disclosure>}
       <p className="invoice-review-scope">{w('Datenabgleich · keine Zahlungsfreigabe', 'Data comparison · no payment approval')}</p>
     </div>
   </div>

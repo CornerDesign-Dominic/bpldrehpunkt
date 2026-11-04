@@ -51,6 +51,19 @@ test('current address tolerates two spelling errors, address contradictions are 
   assert.equal(recipientAddressCheck(bill({ recipientAddress: value('Reinshagenstraße 1, 42369 Wuppertal, Polen') })).color, 'red')
 })
 
+test('recipient country labels and attached German postal prefixes do not invalidate the correct address', () => {
+  for (const country of ['Deutschland', 'Germany', 'Niemcy', 'Allemagne', 'Alemania', 'Germania', 'Duitsland', 'Германия']) {
+    for (const prefix of ['', 'DE', 'DE-', 'D-', 'DEU ']) {
+      const actual = `Brennpunkt Logistik GmbH Reinshagenstr. 1 ${prefix}42369 Wuppertal, ${country}`
+      const check = recipientAddressCheck(bill({ recipientAddress: value(actual) }))
+      assert.equal(check.color, 'green', actual)
+      assert.equal(check.actual, actual)
+    }
+  }
+  assert.equal(recipientAddressCheck(bill({ recipientAddress: value('REINSHAGENSTR. 1 DE42287 WUPPERTAL DEUTSCHLAND') })).color, 'red')
+  assert.equal(recipientAddressCheck(bill({ recipientAddress: value('Reinshagenstr. 2 DE42369 Wuppertal Germany') })).color, 'red')
+})
+
 test('wanted VAT IDs missing are yellow, invoice date missing is gray, invoice number missing is yellow', () => {
   const checks = invoiceHeaderChecks(bill({ issuerVatId: value(''), recipientVatId: value(''), date: value(''), number: value('') }), company, [reference])
   for (const key of ['issuerVatId', 'recipientVatId', 'number']) assert.equal(checks.find(check => check.key === key).color, 'yellow')

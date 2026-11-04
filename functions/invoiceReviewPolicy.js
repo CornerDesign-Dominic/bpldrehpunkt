@@ -168,14 +168,17 @@ export function recipientAddressCheck(invoice, company = {}) {
   const actual = field(invoice, 'recipientAddress'), expected = `${street}, ${postalCode} ${city}`
   if (!actual) return coloredCheck('recipientAddress', 'Unsere Rechnungsanschrift', null, expected, 'yellow', 'Empfängeranschrift nicht erkannt.')
   const foreignAddress = /\b(?:Polen|Polska|Poland|Niederlande|Netherlands|Frankreich|France|Österreich|Austria|Tschechien|Czechia|Rumänien|Romania|Belgien|Belgium|Schweiz|Switzerland)\b/i.test(actual)
-  const postalCodes = actual.match(/\b\d{5}\b/g) || []
+  // Country names may accompany the address in any language. A German postal
+  // prefix can also be attached directly to the postcode (e.g. DE42369).
+  const postalText = actual.replace(/(?<![\p{L}\p{N}])(?:DEU|DE|D)[\s-]*(?=\d{5}(?!\d))/giu, ' ')
+  const postalCodes = postalText.match(/\b\d{5}\b/g) || []
   const streetName = street.replace(/\s+\d+\s*[a-z]?(?:\s*[-/]\s*\d+\s*[a-z]?)?$/iu, '')
   const houseNumber = street.slice(streetName.length).trim()
   const actualHouse = text(actual).match(/(?:str(?:aße|asse)?\.?|straße|strasse|weg|platz|allee)\s*(\d+(?:\s*[a-z]\b)?)(?=\s|,|$)/iu)?.[1]
   const placeMatches = approximatelyContains(actual, city)
   const streetMatches = approximatelyContains(actual, streetName)
   const old = approximatelyContains(actual, 'HeinzFangmannstrasse')
-  const statedCity = postalCodes.length > 0 && /\b\d{5}\s+[\p{L}]/u.test(actual)
+  const statedCity = postalCodes.length > 0 && /\b\d{5}\s+[\p{L}]/u.test(postalText)
   const statedStreet = /[\p{L}-]+(?:str\.?|straße|strasse|weg|platz|allee)\s*\d*/iu.test(actual)
   const contradiction = foreignAddress || postalCodes.length > 0 && !postalCodes.includes(postalCode) || statedCity && !placeMatches || statedStreet && !streetMatches || houseNumber && actualHouse && identity(actualHouse) !== identity(houseNumber)
   const complete = postalCodes.includes(postalCode) && streetMatches && placeMatches && (!houseNumber || actualHouse && identity(actualHouse) === identity(houseNumber))

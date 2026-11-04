@@ -272,3 +272,17 @@ mit FV028/05/2026: 1.300 EUR, 45 Tage ab Dokumenteneingang und TA-Kandidat
 unlesbarem Zusatz-POD, unveränderlichem Bericht und Transportverknüpfung
 erfolgreich. Vier UI-Renderprüfungen für DE/EN und vollständige/unvollständige
 Berichte erfolgreich. Keine Änderung an Rules, Indizes oder Secrets.
+
+## Kompakte Ansicht und Dokumentquellen (Dev, gesammelt 04.11.2026)
+
+Der Ergebnisheader zeigt die eindeutigen Rechnungs-Dateinamen. Die Unterzeile
+enthält nur noch den Aussteller. Seiten- und Erkennungsinfos sowie die
+Dokumentübersicht stehen gemeinsam unter Weitere Details; ergänzende Angaben
+und Transportvergleiche unter Weitere Abgleichungen. Der Gewichtungshinweis
+entfällt. Unlesbare Anlagen erscheinen kurz mit Dateinamen im gelben Hinweis.
+Die Empfängeranschrift akzeptiert direkt vorangestellte deutsche Länderpräfixe
+wie DE42369; echte PLZ-/Hausnummerabweichungen bleiben unverändert bewertet.
+PDF-/Bildvorschauen erkennen den Dateityp anhand der Signatur auch bei dem
+Exchange-Typ application/octet-stream. Dies gilt für die gemeinsame Quellenansicht
+und die Auftragserfassung. Die Quellenauswahl hat ausreichend Höhe für den Text.
+Keine Änderung an Rules, Indizes, Secrets oder Microsoft-Berechtigungen.
