@@ -222,3 +222,16 @@ erfordert eine erneute Auswertung.
 
 Dieser Stand ist ausschließlich für Dev freigegeben. Veröffentlichungsnachweis:
 [Dev-Release vom 04.11.2026](releases/invoice-duplicates-dev-2026-11-04.md).
+
+## Nächstes Änderungspaket – lokal vorbereitet, noch unveröffentlicht
+
+Bei technisch fehlgeschlagener Rechnungsprüfung (Aktionszustand failed) bleibt das
+Rechnungsprüfungs-Icon in der Mailübersicht sichtbar und rot, einschließlich
+übersetztem Hinweis/zugänglichem Namen „Fehlgeschlagen“. Der Aktionsbutton rechts
+erscheint wieder neutral mit „Rechnung erneut prüfen“. Der gespeicherte Fehlerstatus
+bleibt erhalten, damit Mailliste, Neuladen und erneuter Start konsistent bleiben.
+Eine erfolgreich abgeschlossene Auswertung mit fachlichen Rechnungsabweichungen
+bleibt eine abgeschlossene Auswertung; die Abweichungen stehen im Prüfbericht.
+
+Weitere Änderungen werden auf dem lokalen Branch codex/invoice-next-batch gesammelt.
+Veröffentlichung des Pakets erst auf erneute Anweisung, keine Zwischen-Pushes.
