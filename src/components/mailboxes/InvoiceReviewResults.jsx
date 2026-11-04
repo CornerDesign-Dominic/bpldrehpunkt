@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '../../i18n/useLanguage.js'
-import { invoiceCheckColor, invoiceDisplayChecks, invoiceReviewDistribution, invoiceTransportChecks, invoiceAmountDetails, invoiceReviewAlerts, formatInvoiceCheckValue } from '../../lib/invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceCheckResultLabel, invoiceDisplayChecks, invoiceReviewDistribution, invoiceTransportChecks, invoiceAmountDetails, invoiceReviewAlerts, formatInvoiceCheckValue } from '../../lib/invoiceReviewPresentation.js'
 import '../../styles/invoiceReview.css'
 
 const colorLabels = {
@@ -33,7 +33,7 @@ function Checks({ checks = [], currency }) {
     const base = check.key?.split('-')[0]
     const amountTitle = { netTotal: en ? 'Net amount' : 'Netto', vatTotal: en ? 'VAT' : 'MwSt.', grossTotal: en ? 'Total amount' : 'Gesamtbetrag' }[base]
     const detailTitle = { databaseNetTotal: ['Netto / Auftragsdaten', 'Net amount / order data'], databaseVatTotal: ['MwSt. / Auftragsdaten', 'VAT / order data'], databaseGrossTotal: ['Gesamtbetrag / Auftragsdaten', 'Total amount / order data'] }[base]
-    const title = amountTitle || detailTitle?.[en ? 1 : 0] || (en ? labels[base] || check.label : (check.label || check.key || '').replace(' (Cent)', ''))
+    const title = base === 'factoring' ? 'Factoring' : base === 'paymentTerms' ? en ? 'Payment term' : 'Zahlungsziel' : amountTitle || detailTitle?.[en ? 1 : 0] || (en ? labels[base] || check.label : (check.label || check.key || '').replace(' (Cent)', ''))
     const referenceOrigin = {
       database: en ? 'Order data' : 'Auftragsdaten',
       business_rule: en ? 'Business rule' : 'Prüfregel',
@@ -42,7 +42,10 @@ function Checks({ checks = [], currency }) {
       invoice_arithmetic: en ? 'Invoice arithmetic' : 'Rechnung intern',
       invoice_positions: en ? 'Invoice item sum' : 'Rechnungspositionen',
     }[check.comparisonOrigin]
-    const details = [check.message, check.sourceText || check.quote].filter(Boolean).join('\n')
+    const paymentDetails = base === 'paymentTerms' ? [check.message, ...(Array.isArray(check.details) ? check.details : [check.details])].filter(value => typeof value === 'string' && value.trim()).join('\n') : ''
+    const evidence = check.paymentEvidence || []
+    const evidenceName = key => ({ dueDate: en ? 'Due' : 'Fällig', paymentDays: en ? 'Term in days' : 'Frist in Tagen', paymentTerms: en ? 'Payment term' : 'Zahlungsziel' })[key?.split('-')[0]] || (en ? 'Additional information' : 'Ergänzung')
+    const details = [!paymentDetails && check.message, check.sourceText || check.quote, ...evidence.flatMap(item => [item.message, item.sourceText])].filter(Boolean).join('\n')
     const billingLabel = check.key === 'billingStatus' && check.comparisonOrigin === 'dycos_invoice_headers'
       ? check.duplicate === true ? en ? 'Present' : 'Vorhanden'
         : check.matchCount > 0 ? en ? 'Suspected' : 'Verdacht'
@@ -51,9 +54,9 @@ function Checks({ checks = [], currency }) {
       : undefined
     return <article className="invoice-review-check" key={check.displayId || `${check.key}-${index}`}>
       <div className="invoice-review-check-name"><strong>{title}{check.transportTa && <small>TA {check.transportTa}</small>}</strong><Source text={details} /></div>
-      <span className="invoice-review-value" aria-label={en ? 'Invoice' : 'Rechnung'}>{formatInvoiceCheckValue(check, check.actual, { language, currency, side: 'actual' })}</span>
-      <span className="invoice-review-value" aria-label={en ? 'Reference' : 'Vergleich'}>{formatInvoiceCheckValue(check, check.expected, { language, currency, side: 'expected' })}{referenceOrigin && <small className="invoice-review-file" style={{ display: 'block' }}>{referenceOrigin}</small>}</span>
-      <InvoiceReviewStatus status={check.status} color={check.color} label={billingLabel} />
+      <span className="invoice-review-value" aria-label={en ? 'Invoice' : 'Rechnung'}>{formatInvoiceCheckValue(check, check.actual, { language, currency, side: 'actual' })}{paymentDetails && <small className="invoice-review-payment-evidence">{paymentDetails}</small>}{evidence.filter(item => item.actual !== null && item.actual !== undefined && item.actual !== '').map((item, i) => <small className="invoice-review-payment-evidence" key={i}>{evidenceName(item.key)}: {formatInvoiceCheckValue(item, item.actual, { language, side: 'actual' })}</small>)}</span>
+      <span className="invoice-review-value" aria-label={en ? 'Reference' : 'Vergleich'}>{formatInvoiceCheckValue(check, check.expected, { language, currency, side: 'expected' })}{evidence.filter(item => item.expected !== null && item.expected !== undefined && item.expected !== '').map((item, i) => <small className="invoice-review-payment-evidence" key={i}>{evidenceName(item.key)}: {formatInvoiceCheckValue(item, item.expected, { language, side: 'expected' })}</small>)}{referenceOrigin && <small className="invoice-review-file" style={{ display: 'block' }}>{referenceOrigin}</small>}</span>
+      <InvoiceReviewStatus status={check.status} color={check.color} label={invoiceCheckResultLabel(check, language) || billingLabel} />
     </article>
   })}</div>
 }
@@ -86,9 +89,9 @@ function InvoiceAlerts({ invoice }) {
     if (!items.length) return null
     return <div className={`invoice-review-alert invoice-review-alert--${color}`} key={color} role={color === 'red' ? 'alert' : 'status'} aria-atomic="true"><ul>{items.map((alert, index) => {
       const amountName = { net: en ? 'Net amount' : 'Netto', netTotal: en ? 'Net amount' : 'Netto', vat: en ? 'VAT' : 'MwSt.', vatTotal: en ? 'VAT' : 'MwSt.', gross: en ? 'Total amount' : 'Gesamtbetrag', grossTotal: en ? 'Total amount' : 'Gesamtbetrag' }[alert.key] || (en ? 'Amount' : 'Betrag')
-      const title = alert.kind === 'duplicate' ? en ? 'Invoice already present in DyCoS' : 'Rechnung bereits in DyCoS vorhanden' : alert.kind === 'possible_duplicate' ? en ? 'Possible duplicate in DyCoS' : 'Mögliche Dublette in DyCoS' : `${amountName} ${en ? 'differs' : 'abweichend'}`
+      const title = alert.kind === 'factoring' ? en ? 'Factoring / assignment notice' : 'Factoring / Abtretungshinweis' : alert.kind === 'duplicate' ? en ? 'Invoice already present in DyCoS' : 'Rechnung bereits in DyCoS vorhanden' : alert.kind === 'possible_duplicate' ? en ? 'Possible duplicate in DyCoS' : 'Mögliche Dublette in DyCoS' : `${amountName} ${en ? 'differs' : 'abweichend'}`
       const check = { ...alert, format: 'money' }
-      return <li key={index}><strong>{title}</strong>{alert.kind === 'amount' && <span className="invoice-review-alert-values">{en ? 'Invoice' : 'Rechnung'}: {formatInvoiceCheckValue(check, alert.actual, { language, currency: invoice.currency, side: 'actual' })} · {en ? 'Reference' : 'Vergleich'}: {formatInvoiceCheckValue(check, alert.expected, { language, currency: invoice.currency, side: 'expected' })}</span>}{(alert.ta || alert.externalNumber) && <small>{[alert.ta && `TA ${alert.ta}`, alert.externalNumber && `${en ? 'Document' : 'Beleg'} ${alert.externalNumber}`].filter(Boolean).join(' · ')}</small>}</li>
+      return <li key={index}><strong>{title}</strong>{alert.kind === 'factoring' && <span className="invoice-review-alert-values">{alert.message}</span>}{alert.kind === 'amount' && <span className="invoice-review-alert-values">{en ? 'Invoice' : 'Rechnung'}: {formatInvoiceCheckValue(check, alert.actual, { language, currency: invoice.currency, side: 'actual' })} · {en ? 'Reference' : 'Vergleich'}: {formatInvoiceCheckValue(check, alert.expected, { language, currency: invoice.currency, side: 'expected' })}</span>}{(alert.ta || alert.externalNumber) && <small>{[alert.ta && `TA ${alert.ta}`, alert.externalNumber && `${en ? 'Document' : 'Beleg'} ${alert.externalNumber}`].filter(Boolean).join(' · ')}</small>}</li>
     })}</ul></div>
   })}</div>
 }

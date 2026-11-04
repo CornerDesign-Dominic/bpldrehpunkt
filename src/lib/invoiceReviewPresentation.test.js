@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails, invoiceReviewAlerts } from './invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceCheckResultLabel, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails, invoiceReviewAlerts } from './invoiceReviewPresentation.js'
 
 test('explicit information/noncritical colors override legacy mismatch status', () => {
   assert.equal(invoiceCheckColor({ status: 'mismatch', color: 'blue' }), 'blue')
@@ -212,4 +212,69 @@ test('malformed monetary alerts are not shown as confirmed numerical differences
   assert.equal(alerts.length, 1)
   assert.equal(alerts[0].actual, 0)
   assert.equal(alerts[0].key, 'vatTotal')
+})
+
+test('payment dates from historical reports stay in one payment row while payment methods are omitted', () => {
+  const payment = { key: 'paymentTerms', actual: '30 Tage ab Rechnungsdatum', expected: '30 Tage', color: 'green' }
+  const due = { key: 'dueDate', actual: '2026-11-30', expected: '2026-11-30', secondary: true, color: 'gray' }
+  const invoice = { paymentChecks: [payment, due, { key: 'paymentMethod', actual: 'Überweisung', color: 'gray' }], transports: [{ checks: [{ key: 'paymentDays', actual: 30, expected: 30, color: 'green' }] }] }
+  const display = invoiceDisplayChecks(invoice)
+  assert.deepEqual(display.primary.map(check => check.key), ['paymentTerms'])
+  assert.equal(display.secondary.length, 0)
+  assert.equal(invoiceReviewDistribution(display.primary).total, 1)
+  assert.equal(display.primary[0].actual, payment.actual)
+  assert.deepEqual(display.primary[0].paymentEvidence.map(item => item.key), ['dueDate', 'paymentTerms'])
+  assert.equal(display.primary[0].paymentEvidence[0].actual, due.actual)
+  assert.equal(invoice.paymentChecks[0], payment); assert.equal(invoice.paymentChecks[1], due)
+  assert.equal(payment.paymentEvidence, undefined, 'immutable historical report is not rewritten')
+})
+
+test('legacy payment methods never become a payment goal or a separate visible result', () => {
+  assert.deepEqual(invoiceDisplayChecks({ paymentChecks: [{ key: 'paymentMethod', actual: 'Überweisung', color: 'green' }] }), { primary: [], secondary: [] })
+  for (const actual of ['Überweisung', 'Bank transfer', 'per Banküberweisung']) {
+    const display = invoiceDisplayChecks({ paymentChecks: [{ key: 'paymentTerms', actual, expected: '30 Tage', color: 'yellow', sourceText: actual }, { key: 'dueDate', actual: '2026-11-30', color: 'gray' }, { key: 'paymentMethod', actual, color: 'gray' }] })
+    assert.equal(display.primary.length, 1); assert.equal(display.secondary.length, 0)
+    assert.equal(display.primary[0].actual, null); assert.equal(display.primary[0].sourceText, null)
+    assert.equal(display.primary[0].color, 'yellow')
+    assert.deepEqual(display.primary[0].paymentEvidence.map(item => item.key), ['dueDate'])
+    assert.equal(JSON.stringify(display).includes(actual), false)
+  }
+  const valid = invoiceDisplayChecks({ paymentChecks: [{ key: 'paymentTerms', actual: '45 Tage ab Rechnungsdatum per Überweisung', expected: '45 days by bank transfer', color: 'green' }] }).primary[0]
+  assert.equal(valid.actual, '45 Tage ab Rechnungsdatum'); assert.equal(valid.expected, '45 days')
+})
+
+test('new payment arithmetic remains on its single payment row, including mismatching explicit days', () => {
+  for (const color of ['green', 'red']) {
+    const payment = { key: 'paymentTerms', actual: '30 Tage · 30.11.2026 − 31.10.2026 = 30 Tage', expected: '30 Tage', color, message: color === 'red' ? 'Explizite 14 Tage widersprechen der Datumsdifferenz von 30 Tagen.' : 'Datumsdifferenz bestätigt die Frist.' }
+    const display = invoiceDisplayChecks({ paymentChecks: [payment] })
+    assert.equal(display.primary.length, 1); assert.equal(display.secondary.length, 0)
+    assert.equal(display.primary[0].actual, payment.actual); assert.equal(display.primary[0].message, payment.message)
+    assert.equal(display.primary[0].color, color)
+  }
+})
+
+test('a legacy due date without a checked payment term never becomes an invented successful comparison', () => {
+  const display = invoiceDisplayChecks({ paymentChecks: [{ key: 'dueDate', actual: '2026-11-30', secondary: true, color: 'gray' }] })
+  assert.equal(display.primary.length, 0)
+  assert.deepEqual(display.secondary.map(check => [check.key, check.actual, check.color]), [['paymentTerms', '2026-11-30', 'gray']])
+})
+
+test('factoring is one primary check with explicit found or no-indication labels, absent from old reports', () => {
+  for (const [found, color, label] of [[true, 'yellow', 'Hinweis gefunden'], [false, 'green', 'Kein Hinweis gefunden']]) {
+    const factoring = { key: 'factoring', actual: found ? 'Factor GmbH' : 'Kein Hinweis gefunden', found, color }
+    const display = invoiceDisplayChecks({ headerChecks: [factoring], transports: [{ checks: [factoring] }] })
+    assert.equal(display.primary.length, 1); assert.equal(display.secondary.length, 0)
+    assert.equal(invoiceCheckResultLabel(display.primary[0]), label)
+    assert.equal(invoiceReviewDistribution(display.primary).counts[color], 1)
+    assert.equal(invoiceCheckResultLabel(factoring, 'en'), found ? 'Notice found' : 'No indication found')
+  }
+  assert.equal(invoiceCheckResultLabel({ key: 'factoring', color: 'green' }), undefined)
+  assert.equal(invoiceDisplayChecks({}).primary.some(check => check.key === 'factoring'), false)
+})
+
+test('concrete factoring alerts remain yellow beside duplicate alerts and malformed findings are omitted', () => {
+  const factoring = { kind: 'factoring', color: 'yellow', company: 'Factor GmbH', message: 'Forderung an Factor GmbH abgetreten. Zahlungsempfänger prüfen.' }
+  const alerts = invoiceReviewAlerts({ alerts: [factoring, { ...factoring }, { kind: 'duplicate', color: 'red', externalNumber: 'RE4408' }, { kind: 'factoring', color: 'yellow', message: '' }, { ...factoring, color: 'red' }] })
+  assert.deepEqual(alerts.map(alert => [alert.kind, alert.color]), [['factoring', 'yellow'], ['duplicate', 'red']])
+  assert.equal(alerts[0].message, factoring.message); assert.equal(alerts[0].company, factoring.company)
 })

@@ -6,6 +6,47 @@ const row = (ta = '260000001', amount = '500,00') => ({ ta: value(ta), net: valu
 const invoice = (transports = [row()]) => ({ sourceId:'pdf', invoiceEvidence:'Rechnung', number:value('RG1'), date:value('2026-02-10','10.02.2026'), issuer:value('Carrier GmbH'), issuerVatId:value(''), recipient:value('Brennpunkt Logistik GmbH'), recipientVatId:value(''), currency:value('EUR'), netTotal:value('500,00'), vatTotal:value('0,00'), grossTotal:value('500,00'), transports, warnings:[] })
 const imported = { carrier:{originalName:'Carrier GmbH'}, financial:{costNet:9999, currency:'EUR',costPositions:[{amountNet:500}]},loading:{city:'Berlin',window:{from:'2026-02-10T08:00'}},unloading:{city:'Hamburg',window:{until:'2026-02-11T08:00'}},shipment:{licensePlate:'A-BC 12'} }
 const company={legalName:'Brennpunkt Logistik GmbH'}
+const extracted = (text, extra = {}, document = {}) => validateInvoiceExtraction({ invoices: [{ ...invoice(), ...extra }] }, [{ id: 'pdf', name: 'invoice.pdf', text, ...document }])[0]
+
+test('printed payment days are recovered across invoice languages and transfer alone is discarded', () => {
+ for (const clause of ['Zahlungsziel: 45 Tage ab Rechnungsdatum', 'Payment terms: 45 days from invoice date', 'Termin płatności: 45 dni od daty wystawienia', 'Délai de paiement: 45 jours']) {
+  const checked=extracted(`Rechnung RG1 10.02.2026. Überweisung. ${clause}.`, {paymentTerms:value('Überweisung'),paymentDays:value(''),paymentBasis:value('')})
+  assert.equal(checked.paymentDays.value,'45',clause); assert.ok(checked.paymentTerms.value.includes('45'),clause)
+  assert.ok(checked.paymentDays.quote.includes(clause),clause)
+ }
+ const checked=extracted('Rechnung. Zahlungsart: Überweisung. Umsatzsteuer 19,00. IBAN DE45454545. Lieferfrist 45 Tage.', {paymentTerms:value('Überweisung'),paymentDays:value('45','DE45454545')})
+ assert.equal(checked.paymentTerms.value,'');assert.equal(checked.paymentDays.value,'')
+})
+
+test('invoice issue date overrides delivery and KSeF processing dates while due date needs its own label', () => {
+ const text='Rechnung. Data wystawienia: 14.05.2026 Data sprzedaży: 13.05.2026 Data przyjęcia KSeF: 15.05.2026 Termin płatności: 28.06.2026'
+ for (const [date,quote] of [['2026-05-13','13.05.2026'],['2026-05-15','15.05.2026'],['2026-05-14','14.05.2026']]) {
+  const checked=extracted(text,{date:value(date,quote),dueDate:value('2026-06-28','28.06.2026')})
+  assert.equal(checked.date.value,'2026-05-14'); assert.equal(checked.dueDate.value,'2026-06-28')
+ }
+ const checked=extracted('Rechnung. Lieferdatum: 13.05.2026 KSeF: 14.05.2026',{date:value('2026-05-13','13.05.2026'),dueDate:value('2026-05-14','14.05.2026')})
+ assert.equal(checked.date.value,'');assert.equal(checked.dueDate.value,'')
+ for(const clause of ['Zahlungsziel: 28.06.2026','Fälligkeit: 28.06.2026','due June 28, 2026']) {
+  assert.equal(extracted(`Rechnung. ${clause}`,{dueDate:value('2026-06-28')}).dueDate.value,'2026-06-28',clause)
+ }
+ assert.equal(extracted('Rechnung. net 30 days.',{paymentDays:value('30','net 30 days')}).paymentDays.value,'30')
+})
+
+test('factoring requires a concrete current invoice assignment and retains exact clause and company', () => {
+ const clause='Die Forderung aus dieser Rechnung wurde an Factor GmbH abgetreten.'
+ const checked=extracted(`Rechnung. ${clause}`,{factoring:value('ja',clause),factoringCompany:value('Factor GmbH',clause)})
+ assert.equal(checked.factoring.value,clause);assert.equal(checked.factoring.quote,clause);assert.equal(checked.factoringCompany.value,'Factor GmbH')
+ for(const text of ['Diese Forderung aus dieser Rechnung wurde an Factor GmbH verkauft.', 'Sämtliche Forderungen sind an Factor GmbH abgetreten.', 'All our receivables have been sold to Factor GmbH.']) assert.equal(extracted(`Rechnung. ${text}`,{factoring:value(text,text)}).factoring.value,text)
+ for (const text of ['Die Forderung aus dieser Rechnung wurde nicht abgetreten.', 'Die Forderung aus dieser Rechnung kann an Factor GmbH abgetreten werden.', 'Wir nutzen Factoring. Bitte zahlen Sie diese Rechnung auf unser Bankkonto.', 'Die Abtretung dieser Rechnung ist verboten.', 'SEPA Lastschrift für diese Rechnung.']) {
+  assert.equal(extracted(`Rechnung. ${text}`,{factoring:value('ja',text),factoringCompany:value('Factor GmbH')}).factoring.value,'',text)
+ }
+})
+
+test('payment and factoring evidence cannot leak from attached order pages', () => {
+ const pages=['Rechnung RG1. Rechnungsdatum: 14.05.2026.', 'Transportauftrag. Zahlungsziel: 45 Tage. Die Forderung aus dieser Rechnung wurde an Factor GmbH abgetreten.']
+ const checked=extracted(pages.join('\n'),{invoicePages:[1],paymentDays:value('45','Zahlungsziel: 45 Tage'),factoring:value('ja','Die Forderung aus dieser Rechnung wurde an Factor GmbH abgetreten.')},{pageCount:2,pages,nativePages:pages})
+ assert.equal(checked.paymentDays.value,'');assert.equal(checked.factoring.value,'')
+})
 function database() {
   const records=new Map()
   const snap=path=>({id:path.split('/').at(-1),exists:records.has(path),data:()=>records.get(path)})
@@ -58,10 +99,20 @@ test('full report persists once and is attached to every matched TA without copy
  const original=JSON.stringify([...db.records])
  const bill=invoice([row('260000001','500,00'),row('260000002','500,00')]);bill.netTotal=value('1000,00');bill.grossTotal=value('1000,00')
  const args={db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-000000001',now:1000,extract:async()=>({text:'Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 1000,00 0,00 TA 260000001 TA 260000002',pageCount:1}),infer:async()=>({invoices:[bill]}),fetchOrder:()=>assert.fail('local order complete')}
- const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,5);assert.equal(report.invoices[0].transports.length,2)
+ const report=await reviewMailboxInvoices(args);assert.equal(report.status,'unknown');assert.equal(report.version,6);assert.equal(report.invoices[0].transports.length,2)
  assert.ok(db.records.has(`transportOrders/a/invoiceChecks/${report.id}`));assert.ok(db.records.has(`transportOrders/b/invoiceChecks/${report.id}`))
  assert.equal(JSON.stringify([...db.records].slice(0,3)),original)
  assert.equal((await reviewMailboxInvoices({...args,infer:()=>assert.fail('duplicate request should use receipt')})).id,report.id)
+})
+
+test('a current invoice assignment persists one factoring check and yellow alert with the exact source',async()=>{
+ const db=database();db.records.set('transportOrders/a',{externalNumber:'260000001',imported});db.records.set('appSettings/companyMasterData',company)
+ const clause='Die Forderung aus dieser Rechnung wurde an Factor GmbH abgetreten.'
+ const bill={...invoice(),factoring:value('ja',clause),factoringCompany:value('Factor GmbH',clause)}
+ const report=await reviewMailboxInvoices({db,context:{uid:'owner',profile:{active:true,permissions:{transportOrders:'edit'}}},files:[{id:'pdf',name:'invoice.pdf',contentBytes:'YQ=='}],operationId:'request-factoring-01',extract:async()=>({text:`Rechnung RG1 10.02.2026 Carrier GmbH Brennpunkt Logistik GmbH EUR 500,00 0,00 TA 260000001. ${clause}`,pageCount:1}),infer:async()=>({invoices:[bill]}),fetchOrder:()=>assert.fail('local order complete')})
+ const checked=report.invoices[0].headerChecks.filter(check=>check.key==='factoring');assert.equal(checked.length,1);assert.equal(checked[0].sourceText,clause)
+ assert.deepEqual(report.invoices[0].alerts.filter(alert=>alert.kind==='factoring'),[{kind:'factoring',color:'yellow',message:'Forderungsabtretung an Factor GmbH: Zahlungsempfänger prüfen.',company:'Factor GmbH'}])
+ assert.equal(db.records.get(`invoiceCheckReports/${report.id}`).report.version,6)
 })
 test('a filename alone never creates a TA candidate and missing reference stays yellow',async()=>{
  const db=database();let queried=false;db.collection=()=>{queried=true;assert.fail('no lookup without invoice TA')}

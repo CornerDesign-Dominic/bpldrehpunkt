@@ -9,8 +9,10 @@ Vier neu freigegebene UserMailbox-Adressen liefern bei der tatsächlichen
 Graph-Prüfung noch HTTP 403; die Exchange-Prüfung bestätigt bereits den Scope.
 Produktionsanwendung und deren bestehende Rechte bleiben unverändert.
 
-Die unten beschriebene zusätzliche Anhangskurzprüfung ist ein nachfolgender,
-lokal vorbereiteter Stand und noch nicht auf Dev oder Produktion veröffentlicht.
+Die unten beschriebene zusätzliche Anhangskurzprüfung ist am 04.11.2026
+ausdrücklich für Dev freigegeben, gemeinsam mit Zahlungsziel und Factoring.
+Produktion bleibt beim bisherigen Stand; Releaseumfang siehe
+[Dev-Releasenotiz](releases/mail-invoice-terms-dev-2026-11-04.md).
 
 **Verbindliche Produktentscheidung:**
 [Webhooks ohne Kontrollabfragen](../decisions/mailbox-recommendations-no-polling.md).
@@ -245,7 +247,7 @@ Ausarbeitungskosten, Grenzen, Umgang mit Anhängen und die konkreten unterstütz
 Aktionen werden vor diesem Ausbau festgelegt. Der aktuelle Stand enthält dafür
 keinen funktionslosen zweiten Haken und keinen automatischen Ausarbeitungsworker.
 
-## Vorbereitete Kurzprüfung bei unklarem Mailinhalt
+## Kurzprüfung bei unklarem Mailinhalt
 
 Nach der Nutzeranforderung vom 04.11.2026 sollen z. B. Mails mit dem Betreff
 „DOKUMENTY“ bei unzureichendem Betreff/Mailtext anhand ihrer Anhänge eingeordnet
@@ -282,12 +284,12 @@ keine vollständige Ausarbeitung und keine automatische Fachaktion.
   `mailbox_action_recommendation_attachment`, OCR
   `mailbox_recommendation_attachment_ocr`.
 
-Bei einer späteren Dev-Freigabe ist `processMailboxRecommendationRun` mit 512 MiB
+Für den Dev-Release ist `processMailboxRecommendationRun` mit 512 MiB
 Speicher gezielt zu aktualisieren; die ergänzte Graph-Anhangsfunktion wird intern
 von diesem Worker verwendet. Die angepassten Erläuterungen im Profil/Adminbereich
 gehören zum selben Release. Bestehende Mail.Read-/Exchange-Leserechte umfassen
 die Anhangslesezugriffe. Rules/Indizes und Microsoft-Grants werden hierfür nicht
-erweitert. Der bisher veröffentlichte Dev-Stand bleibt bis zu diesem Release aktiv.
+erweitert. Die Produktionsbereitstellung ist nicht Teil dieses Releases.
 
 Lokale Abnahme: 104 Unit-/Vertragsprüfungen und 18 Firestore-Emulatorprüfungen
 erfolgreich, keine übersprungenen Tests; außerdem Lint, Build und Shared-Abgleich.

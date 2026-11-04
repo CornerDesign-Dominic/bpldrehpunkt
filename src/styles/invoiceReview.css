@@ -31,6 +31,7 @@
 .invoice-review-check-name > strong { font-size: 11px; font-weight: 600; }
 .invoice-review-check-name small { display: block; color: var(--text-secondary); font-size: 10px; font-weight: 400; }
 .invoice-review-value { white-space: pre-wrap; }
+.invoice-review-payment-evidence { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 10px; line-height: 1.45; white-space: pre-wrap; }
 .invoice-review-check > .invoice-review-status { padding-top: 2px; }
 .invoice-review-disclosure { min-width: 0; border-top: 1px solid var(--border); }
 .invoice-review-disclosure > summary { padding: 10px 0; font-size: 11px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
