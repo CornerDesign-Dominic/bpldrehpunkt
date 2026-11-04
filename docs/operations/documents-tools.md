@@ -20,3 +20,5 @@ Fachinhalte. Keine neuen Rechte, Datenabfragen, Functions, Rules oder Indizes.
 Der Feiertagskalender nutzt im zweispaltigen Desktoplayout den verfügbaren
 Platz unter der Reiterleiste bis zum unteren Inhaltsrand. Auf schmalen Ansichten
 bleiben Kalender und Länderwahl untereinander mit normalem Seitenscrollen.
+
+Die Haftbarhaltung unterstützt zusätzlich die TA-Übernahme und optionale KI-Formulierung. Die besonderen, auf Dokumentdaten begrenzten Zugriffe sind im [Haftbarhaltungsvertrag](liability-letters.md) beschrieben.

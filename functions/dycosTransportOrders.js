@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
+import { hasLiabilityAccess } from './liabilityWorkflowAccess.js'
 import { hasOrderImportAccess } from './dycosImportAccess.js'
 import { readImportSession, recordImportSessionFailure, writeImportSessionRow } from './transportOrderImports.js'
 import { recordDiagnostic } from './diagnostics.js'
@@ -21,6 +22,11 @@ const text = (value) => typeof value === 'string' ? value.trim() : ''
 const actorName = (profile) => [text(profile.firstName), text(profile.lastName)].filter(Boolean).join(' ') || text(profile.email) || 'Unbekannt'
 export const hasDycosImportAccess = (profile) => hasOrderImportAccess(profile, 'single')
 const orderIdFor = (number) => `dycos-${encodeURIComponent(number)}`
+// A server-selected workflow is never read from request.data. Template access
+// permits one TA import only; session, refresh and bulk permissions stay separate.
+const canImportRequest = (profile, data, workflow) => workflow === 'liability'
+  ? hasLiabilityAccess(profile) && !data.importRunId && !data.mode && data.expectedSourceId == null
+  : hasOrderImportAccess(profile, data.mode || 'single')
 const leaseMs = 180_000
 const versionOf = (snapshot) => snapshot.updateTime ? `${snapshot.updateTime.seconds}:${snapshot.updateTime.nanoseconds}` : null
 
@@ -96,7 +102,7 @@ function linkPartner(value, plan) {
   return { ...value, partnerId: plan.partner?.id || '', partnerName: plan.partner?.companyName || '', ...(Object.hasOwn(value, 'matchStatus') ? { matchStatus: plan.partner ? (plan.create ? 'created' : 'linked') : 'unlinked' } : {}) }
 }
 
-async function claimRequest(db, uid, data, token, nowMs, profile) {
+async function claimRequest(db, uid, data, token, nowMs, profile, workflow) {
   const key = createHash('sha256').update(`${uid}|${data.requestId}`).digest('hex')
   const receiptRef = db.doc(`dycosImportRequests/${key}`)
   const lockRef = db.doc(`dycosImportLocks/${orderIdFor(data.taNummer)}`)
@@ -105,7 +111,7 @@ async function claimRequest(db, uid, data, token, nowMs, profile) {
   return db.runTransaction(async (transaction) => {
     const [receipt, lock, order, quota] = await Promise.all([transaction.get(receiptRef), transaction.get(lockRef), transaction.get(orderRef), transaction.get(quotaRef)])
     const session = await readImportSession(transaction, db, data, uid, profile)
-    if (!session && !hasOrderImportAccess(profile, data.mode || 'single')) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Abrufart.')
+    if (!session && !canImportRequest(profile, data, workflow)) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Abrufart.')
     if (data.mode === 'refresh' && !order.exists) throw new HttpsError('not-found', 'Nur bestehende Aufträge können aktualisiert werden.')
     if (receipt.exists) {
       if ((receipt.get('importRunId') || null) !== (data.importRunId || null)) throw new HttpsError('invalid-argument', 'Die Anfrage gehört zu einem anderen Importvorgang.')
@@ -130,7 +136,7 @@ async function releaseClaim(db, claim, token) {
   })
 }
 
-export async function saveDycosTransportOrder({ db, request, profile, data, imported, partnerData = {}, claim, token, nowMs = Date.now() }) {
+export async function saveDycosTransportOrder({ db, request, profile, data, imported, partnerData = {}, claim, token, nowMs = Date.now(), workflow = 'import' }) {
   const runRef = data.importRunId ? db.doc(`transportOrderImportRuns/${data.importRunId}`) : db.collection('transportOrderImportRuns').doc()
   const rowRef = runRef.collection('rows').doc('request')
   const now = FieldValue.serverTimestamp()
@@ -142,7 +148,7 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
     ])
     profile = currentUser.data()
     const session = await readImportSession(transaction, db, data, request.auth.uid, profile)
-    if (profile?.active !== true || !session && !hasOrderImportAccess(profile, data.mode || 'single')) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
+    if (profile?.active !== true || !session && !canImportRequest(profile, data, workflow)) throw new HttpsError('permission-denied', 'Die Importberechtigung wurde inzwischen geändert.')
     if (data.mode === 'refresh' && !order.exists) throw new HttpsError('not-found', 'Nur bestehende Aufträge können aktualisiert werden.')
     if (receipt.exists) return receipt.get('result')
     if (lock.get('token') !== token || lock.get('expiresAtMs') <= nowMs) throw new HttpsError('aborted', 'Der Abruf ist abgelaufen. Bitte erneut versuchen.')
@@ -248,12 +254,19 @@ export async function saveDycosTransportOrder({ db, request, profile, data, impo
   })
 }
 
-export async function fetchDycosTransportOrderHandler(request, { db = getFirestore(), fetchOrder = fetchDycosFlowOrder, report = recordDiagnostic } = {}) {
+export async function fetchDycosTransportOrderHandler(request, dependencies = {}) {
   const profile = await requireActiveProfile(request)
   const data = validateDycosRequest(request.data)
   if (!data.importRunId && !hasOrderImportAccess(profile, data.mode || 'single') || data.importRunId && !['single', 'bulk'].some(kind => hasOrderImportAccess(profile, kind))) throw new HttpsError('permission-denied', 'Keine Berechtigung für diese Abrufart.')
+  return fetchDycosTransportOrderForProfile(request, profile, dependencies)
+}
+
+// Internal shared service. The callable wrappers authenticate and select the
+// authorized workflow; save rechecks the current profile inside its transaction.
+export async function fetchDycosTransportOrderForProfile(request, profile, { db = getFirestore(), fetchOrder = fetchDycosFlowOrder, report = recordDiagnostic, workflow = 'import' } = {}) {
+  const data = validateDycosRequest(request.data)
   const token = randomUUID()
-  const claim = await claimRequest(db, request.auth.uid, data, token, Date.now(), profile)
+  const claim = await claimRequest(db, request.auth.uid, data, token, Date.now(), profile, workflow)
   if (claim.result) return claim.result
   let stage = 'fetch'
   try {
@@ -265,7 +278,7 @@ export async function fetchDycosTransportOrderHandler(request, { db = getFiresto
     if (!eligibility.allowed) throw new HttpsError('failed-precondition', 'Es können nur Aufträge ab Januar 2026 übernommen werden. Ohne Ladedatum muss die TA-Nummer einen gültigen Jahres-/Monatspräfix ab 2601 haben.', { sourceCode: 'ORDER_BEFORE_IMPORT_START' })
     const partnerData = hasDycosMasterDataAccess(profile) ? mapDycosPartnerData(payload) : {}
     stage = 'save'
-    return await saveDycosTransportOrder({ db, request, profile, data, imported, partnerData, claim, token })
+    return await saveDycosTransportOrder({ db, request, profile, data, imported, partnerData, claim, token, workflow })
   } catch (error) {
     try { await recordImportSessionFailure(db, request, data, error instanceof HttpsError ? error.message : error?.code === 'ta_not_found' ? 'Die TA-Nummer wurde in DyCoS nicht gefunden.' : 'Der Abruf ist fehlgeschlagen. Bitte erneut versuchen.') } catch { /* Do not mask the actual error; receipt replay reconciles ambiguous saves. */ }
     if (error instanceof HttpsError) throw error
