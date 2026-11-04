@@ -149,7 +149,7 @@ function paymentEvidence(invoice, text) {
   return { paymentTerms: terms, paymentDays: days || emptyEvidence(), paymentBasis: basis, dueDate: dueContext ? { value: due.value, quote: dueContext.quote } : emptyEvidence() }
 }
 function factoringEvidence(invoice, text) {
-  const assignment = /abgetreten|verkauft|assigned|sold|factored|ceded|c[ée]d[ée]e?|przeniesion|dokonano\s+cesji|obj[ęe]ta\s+cesj|cesja\s+wierzytelno[śs]ci/iu
+  const assignment = /abgetreten|verkauft|\b(?:assigned|sold|factored|ceded)\b|c[ée]d[ée]e?|przeniesion|dokonano\s+cesji|obj[ęe]ta\s+cesj|cesja\s+wierzytelno[śs]ci/iu
   const current = /(?:dieser?|vorliegenden?)\s+Rechnung|this\s+(?:invoice|receivable)|current\s+invoice|(?:tej|niniejszej)\s+faktur|cette\s+facture|(?:diese|die|unsere|s[äa]mtliche|alle(?:\s+unsere)?)\s+Forderung(?:en)?\b|(?:all\s+)?our\s+(?:receivables|claims)\b|receivable\s+(?:under|from)/iu
   const positive = quote => hasQuote(text, quote) && assignment.test(quote) && current.test(quote) && !/(?:nicht|keine?|not|no|sans|aucun|nie|brak|may|might|could|kann|könnte|mo[żz]e).{0,55}(?:abgetreten|verkauft|assigned|sold|factored|ceded|c[ée]d|cesj|przeniesion)|(?:abtretung|verkauf|assignment|sale|cesja).{0,55}(?:verbot|unzulässig|prohibited|excluded|not\s+permitted)/iu.test(quote)
   const proposed = normalized(invoice.factoring?.quote)

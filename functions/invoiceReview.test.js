@@ -6,6 +6,13 @@ const row = (ta = '260000001', amount = '500,00') => ({ ta: value(ta), net: valu
 const invoice = (transports = [row()]) => ({ sourceId:'pdf', invoiceEvidence:'Rechnung', number:value('RG1'), date:value('2026-02-10','10.02.2026'), issuer:value('Carrier GmbH'), issuerVatId:value(''), recipient:value('Brennpunkt Logistik GmbH'), recipientVatId:value(''), currency:value('EUR'), netTotal:value('500,00'), vatTotal:value('0,00'), grossTotal:value('500,00'), transports, warnings:[] })
 const imported = { carrier:{originalName:'Carrier GmbH'}, financial:{costNet:9999, currency:'EUR',costPositions:[{amountNet:500}]},loading:{city:'Berlin',window:{from:'2026-02-10T08:00'}},unloading:{city:'Hamburg',window:{until:'2026-02-11T08:00'}},shipment:{licensePlate:'A-BC 12'} }
 const company={legalName:'Brennpunkt Logistik GmbH'}
+test('negative English assignment words do not create factoring evidence by substring', () => {
+ for(const clause of ['This invoice receivable is unassigned.','This invoice receivable is unsold.','This invoice receivable is unfactored.']) {
+  const text=`Rechnung ${clause}`
+  const checked=validateInvoiceExtraction({invoices:[{...invoice([]),factoring:value(''),factoringCompany:value('')}]},[{id:'pdf',name:'invoice.pdf',text,pageCount:1}])[0]
+  assert.equal(checked.factoring.value,'',clause)
+ }
+})
 const extracted = (text, extra = {}, document = {}) => validateInvoiceExtraction({ invoices: [{ ...invoice(), ...extra }] }, [{ id: 'pdf', name: 'invoice.pdf', text, ...document }])[0]
 
 test('printed payment days are recovered across invoice languages and transfer alone is discarded', () => {
