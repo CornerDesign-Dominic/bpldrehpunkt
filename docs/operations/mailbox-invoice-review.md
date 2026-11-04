@@ -354,3 +354,22 @@ und Währungen zugeordneter Transportaufträge. EUR ist grün, fehlende Erkennun
 eine andere erkannte Währung rot. Die Ergebniszeile trägt keinen TA-Hinweis.
 Dies gilt auch für gespeicherte Berichte. Betragsvergleiche rechnen weiterhin
 keine unterschiedlichen Währungen um und benötigen ihre passende Vergleichswährung.
+
+
+## Fremdsprachige Rechnungen (Dev-Anpassung 04.11.2026)
+
+Der manuelle Start ist der ausdrückliche Auftrag zur Rechnungsauswertung in jeder
+Sprache. Die KI erhält Originalbegriffe (u.a. Faktura/Invoice/Facture/Factura/
+Fattura/Fatura) als gleichwertige Rechnungsbezeichnungen. Allgemeiner Rechnungsbeleg
+und Feldzitate bleiben in der Originalsprache, ohne Übersetzung oder Zusammenfügen.
+Bei einem nicht wörtlich passenden allgemeinen Modellbeleg darf eine tatsächlich
+vorhandene Rechnungsüberschrift auf den ausgewählten Rechnungsseiten die Erkennung
+bestätigen. Quellen-/Seitenbindung und die Einzelvalidierung sämtlicher Werte bleiben
+bestehen: unbelegte Werte werden leer und führen zu ungeklärten Einzelprüfungen.
+Ein Rechnungswort aus einer anderen Anlage oder ausgeschlossenen Seite genügt nicht.
+Ungültige Transportlisten haben einen eigenen technischen Fehlercode und eine
+passende Meldung, getrennt von einer nicht belegbaren Rechnungserkennung.
+Polnisch Numer zlecenia od klienta gilt als ausdrücklicher Kundenauftragsbezug;
+Numer zlecenia allein wird nicht zur eigenen TA erklärt.
+Die bestehende zusätzliche OCR bleibt aktiv; keine weiteren Modellaufrufe pro Lauf.
+Veröffentlichung ausschließlich auf Dev; Main/Produktion bleiben unverändert.
