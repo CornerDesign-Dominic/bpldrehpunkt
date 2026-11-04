@@ -9,15 +9,19 @@ import { recommendationWebhookUrl } from './mailboxEnvironment.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
 import { executeAiOperation } from './aiUsage.js'
 import { splitMailConversation } from './shared/mailboxConversation.js'
+import { FUNCTIONAL_MAILBOXES, isFunctionalMailbox, isManagedRecommendationMailbox } from './mailboxRecommendationPolicy.js'
+import { recordDiagnostic } from './diagnostics.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const kinds = ['tracking', 'order', 'invoice', 'terms', 'todo', 'damage', 'collection', 'court', 'calendar']
 const fail = (code, message) => { throw new HttpsError(code, message) }
 const validId = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 const admin = profile => profile?.active === true && ['admin', 'superadmin'].includes(profile.role)
+const legacyFunctionalScope = scope => scope?.kind === 'personal' && isFunctionalMailbox(scope.email)
 export function recommendationScope(connection) {
-  if (!connection?.tenantId || !connection.email || (connection.kind === 'shared' ? !connection.canonicalMailboxId : !connection.graphUserId)) fail('failed-precondition', 'Postfachidentität fehlt. Bitte die Verbindung erneuern.')
-  return hash(connection.kind === 'shared' ? `${connection.tenantId}|shared|${connection.canonicalMailboxId}` : `${connection.tenantId}|personal|${connection.ownerId}|${connection.graphUserId}`)
+  const managed = isManagedRecommendationMailbox(connection)
+  if (!connection?.tenantId || !connection.email || (managed ? !connection.canonicalMailboxId : !connection.graphUserId)) fail('failed-precondition', 'Postfachidentität fehlt. Bitte die Verbindung erneuern.')
+  return hash(managed ? `${connection.tenantId}|shared|${connection.canonicalMailboxId}` : `${connection.tenantId}|personal|${connection.ownerId}|${connection.graphUserId}`)
 }
 export function recommendationKinds(value) {
   if (!Array.isArray(value) || value.length > 3 || value.some(item => !kinds.includes(item?.kind) || !['high', 'medium', 'low'].includes(item.confidence))) fail('unavailable', 'Ungültige KI-Einordnung.')
@@ -70,7 +74,7 @@ export function createRecommendationHandlers(deps = {}) {
   const environment = () => assertMailboxEnvironment(deps.project || runtimeProjectId())
   const check = async request => { environment(); return (deps.requireProfile || requireActiveProfile)(request) }
   const resolveConnection = async (id, connection) => {
-    if (connection.kind === 'shared' && !connection.canonicalMailboxId) connection.canonicalMailboxId = await (deps.resolveMailboxIdentity || resolveRecommendationMailboxIdentityHandler)(id)
+    if (isManagedRecommendationMailbox(connection) && !connection.canonicalMailboxId) connection.canonicalMailboxId = await (deps.resolveMailboxIdentity || resolveRecommendationMailboxIdentityHandler)(id)
     return connection
   }
   const connectionFor = async (request, edit = false) => {
@@ -78,7 +82,9 @@ export function createRecommendationHandlers(deps = {}) {
     if (!validId(request.data?.connectionId)) fail('invalid-argument', 'Ungültige Postfachreferenz.')
     const connection = (await db().doc(`mailboxConnections/${request.data.connectionId}`).get()).data()
     if (!connection || connection.status !== 'connected') fail('not-found', 'Postfach nicht verbunden.')
-    const managedEdit = edit && connection.kind === 'shared' && admin(profile)
+    const managed = isManagedRecommendationMailbox(connection)
+    if (edit && managed && !admin(profile)) fail('permission-denied', 'Gemeinsame Postfächer werden ausschließlich durch Admins verwaltet.')
+    const managedEdit = edit && managed && admin(profile)
     if (!managedEdit) {
       assertMailboxAccess(profile, edit)
       if (connection.ownerId !== request.auth.uid) fail('permission-denied', 'Kein Zugriff auf dieses Postfach.')
@@ -90,14 +96,14 @@ export function createRecommendationHandlers(deps = {}) {
     await resolveConnection(request.data.connectionId, connection)
     return { profile, connection, scopeId: recommendationScope(connection) }
   }
-  const publicSetting = (connection, value = {}) => ({ enabled: value.enabled === true, managed: connection.kind === 'shared', state: value.state || 'idle', delivery: 'webhook', lastCheckedAt: value.lastCheckedAt || null, lastEventAt: value.lastEventAt || null })
+  const publicSetting = (connection, value = {}) => ({ enabled: value.enabled === true, managed: isManagedRecommendationMailbox(connection), functional: isFunctionalMailbox(connection.email), state: value.state || 'idle', delivery: 'webhook', lastCheckedAt: value.lastCheckedAt || null, lastEventAt: value.lastEventAt || null })
   const connectionsFor = async scope => {
     if (scope.kind !== 'shared') {
       const doc = await db().doc(`mailboxConnections/${scope.connectionId}`).get()
       return doc.exists && doc.data().status === 'connected' ? [{ id: doc.id, ...doc.data() }] : []
     }
     const found = await db().collection('mailboxConnections').where('canonicalMailboxId', '==', scope.canonicalMailboxId).get()
-    return found.docs.filter(doc => doc.data().status === 'connected' && doc.data().kind === 'shared').map(doc => ({ id: doc.id, ...doc.data() }))
+    return found.docs.filter(doc => doc.data().status === 'connected' && doc.data().tenantId === scope.tenantId && isManagedRecommendationMailbox(doc.data())).map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => Number(isFunctionalMailbox(b.email)) - Number(isFunctionalMailbox(a.email)))
   }
   const graphFor = async (scope, input) => graph({ connectionId: scope.kind === 'shared' ? (await connectionsFor(scope))[0]?.id || scope.connectionId : scope.connectionId, ...input })
   const signal = async scope => {
@@ -108,11 +114,20 @@ export function createRecommendationHandlers(deps = {}) {
     await subscriptions().doc(hash(id)).set({ active: false }, { merge: true })
     try { await graphFor(scope, { operation: 'delete', subscriptionId: id }) } catch { /* Inactive registry blocks callbacks until Graph expiry. */ }
   }
+  const retireLegacyFunctionalScope = async (ref, scope) => {
+    const changed = await db().runTransaction(async tx => {
+      const current = (await tx.get(ref)).data()
+      if (!current?.enabled || !legacyFunctionalScope(current)) return false
+      tx.update(ref, { enabled: false, generation: randomUUID(), state: 'idle', updatedAt: now(), supersededByManagement: true })
+      return true
+    })
+    if (changed && scope.subscriptionId) await retire(scope, scope.subscriptionId)
+  }
   const provision = async (scopeId, force = false) => {
     const ref = scopes().doc(scopeId), setupLease = randomUUID()
     const scope = await db().runTransaction(async tx => {
       const value = (await tx.get(ref)).data()
-      if (!value?.enabled || value.delivery !== 'webhook' || value.setupUntil > now()) return null
+      if (!value?.enabled || legacyFunctionalScope(value) || value.delivery !== 'webhook' || value.setupUntil > now()) return null
       if (!force && value.subscriptionId && value.subscriptionExpiresAt > now() + 86400000) return null
       tx.update(ref, { setupLease, setupUntil: now() + 120000 })
       return value
@@ -145,8 +160,15 @@ export function createRecommendationHandlers(deps = {}) {
     } catch (error) {
       await db().runTransaction(async tx => {
         const current = (await tx.get(ref)).data()
-        if (current?.setupLease === setupLease) tx.update(ref, { setupLease: '', setupUntil: 0, state: scope.kind === 'shared' && ['permission-denied', 'failed-precondition'].includes(error.code) ? 'permission_required' : 'error' })
+        if (current?.setupLease === setupLease) {
+          const state = scope.kind === 'shared' && ['permission-denied', 'failed-precondition'].includes(error.code) ? 'permission_required' : 'error'
+          tx.update(ref, { setupLease: '', setupUntil: 0, state })
+        }
       })
+      // Only a change into a failure state emits a diagnostic; no mailbox content or raw provider error.
+      if (!['error', 'permission_required'].includes(scope.state)) {
+        try { await (deps.diagnostic || (event => recordDiagnostic(event, db())))({ module: 'mailboxes', stage: 'recommendation-subscription', code: ['permission-denied', 'failed-precondition'].includes(error.code) ? error.code : 'unavailable', actorId: scope.updatedBy || scope.ownerId || '', message: 'Microsoft-Webhook für KI-Handlungsempfehlungen konnte nicht eingerichtet werden.' }) } catch { /* Keep original setup failure. */ }
+      }
       throw error
     }
   }
@@ -166,8 +188,23 @@ export function createRecommendationHandlers(deps = {}) {
     return publicSetting(connection, (await scopes().doc(scopeId).get()).data())
   }
   const setSettings = async request => {
+    if (request.data?.managedScopeId !== undefined) {
+      const profile = await check(request)
+      if (!admin(profile)) fail('permission-denied', 'Gemeinsame Postfächer werden ausschließlich durch Admins verwaltet.')
+      if (!validId(request.data.managedScopeId) || request.data.enabled !== false) fail('invalid-argument', 'Ohne Postfachverbindung kann nur deaktiviert werden.')
+      const ref = scopes().doc(request.data.managedScopeId)
+      const previous = await db().runTransaction(async tx => {
+        const saved = (await tx.get(ref)).data()
+        if (saved?.kind !== 'shared') fail('permission-denied', 'Keine zentrale Postfacheinstellung.')
+        tx.update(ref, { enabled: false, generation: randomUUID(), state: 'idle', subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, updatedAt: now(), updatedBy: request.auth.uid })
+        return saved
+      })
+      if (previous.subscriptionId) await retire(previous, previous.subscriptionId)
+      await signal(previous)
+      return publicSetting({ kind: 'shared', email: previous.email }, (await ref.get()).data())
+    }
     const { profile, connection, scopeId } = await connectionFor(request, true)
-    if (connection.kind === 'shared' && !admin(profile)) fail('permission-denied', 'Gemeinsame Postfächer werden ausschließlich durch Admins verwaltet.')
+    if (isManagedRecommendationMailbox(connection) && !admin(profile)) fail('permission-denied', 'Gemeinsame Postfächer werden ausschließlich durch Admins verwaltet.')
     if (typeof request.data.enabled !== 'boolean') fail('invalid-argument', 'Aktivierung fehlt.')
     const ref = scopes().doc(scopeId)
     let retired = null
@@ -175,7 +212,8 @@ export function createRecommendationHandlers(deps = {}) {
       const previous = (await tx.get(ref)).data()
       if (previous?.enabled === request.data.enabled && previous.delivery === 'webhook') return
       retired = previous
-      tx.set(ref, { kind: connection.kind === 'shared' ? 'shared' : 'personal', email: connection.email.toLowerCase(), tenantId: connection.tenantId, canonicalMailboxId: connection.canonicalMailboxId || null, ownerId: connection.kind === 'shared' ? null : connection.ownerId, connectionId: request.data.connectionId, enabled: request.data.enabled, delivery: 'webhook', since: now(), generation: randomUUID(), subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, state: request.data.enabled ? 'connecting' : 'idle', updatedAt: now(), updatedBy: request.auth.uid }, { merge: true })
+      const managed = isManagedRecommendationMailbox(connection)
+      tx.set(ref, { kind: managed ? 'shared' : 'personal', email: connection.email.toLowerCase(), tenantId: connection.tenantId, canonicalMailboxId: connection.canonicalMailboxId || null, ownerId: managed ? null : connection.ownerId, connectionId: request.data.connectionId, enabled: request.data.enabled, delivery: 'webhook', since: now(), generation: randomUUID(), subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, state: request.data.enabled ? 'connecting' : 'idle', updatedAt: now(), updatedBy: request.auth.uid }, { merge: true })
     })
     if (retired?.subscriptionId) await retire(retired, retired.subscriptionId)
     if (request.data.enabled) {
@@ -189,17 +227,43 @@ export function createRecommendationHandlers(deps = {}) {
   const listManaged = async request => {
     const profile = await check(request)
     if (!admin(profile)) fail('permission-denied', 'Nur Admins dürfen gemeinsame Postfächer verwalten.')
-    const found = await db().collection('mailboxConnections').where('kind', '==', 'shared').get(), unique = new Map()
-    for (const doc of found.docs) {
+    const [shared, functional, saved] = await Promise.all([db().collection('mailboxConnections').where('kind', '==', 'shared').get(), db().collection('mailboxConnections').where('email', 'in', FUNCTIONAL_MAILBOXES).get(), scopes().where('kind', '==', 'shared').get()])
+    const stored = new Map(saved.docs.map(doc => [doc.id, doc.data()])), unique = new Map(), references = new Map()
+    const connections = [...new Map([...shared.docs, ...functional.docs].map(doc => [doc.id, doc])).values()]
+    for (const doc of connections) {
+      const connection = doc.data(), email = connection.email?.toLowerCase()
+      if (isFunctionalMailbox(email) && connection.tenantId && connection.canonicalMailboxId) {
+        if (!references.has(email)) references.set(email, new Set())
+        references.get(email).add(recommendationScope(connection))
+      }
+    }
+    for (const doc of connections) {
       const connection = doc.data()
       if (connection.status !== 'connected') continue
-      try { await resolveConnection(doc.id, connection); unique.set(recommendationScope(connection), { connectionId: doc.id, connection }) }
-      catch { unique.set(doc.id, { connectionId: doc.id, connection, unavailable: true }) }
+      try {
+        await resolveConnection(doc.id, connection)
+        const scopeId = recommendationScope(connection), previous = unique.get(scopeId)
+        const addresses = new Set([...(previous?.addresses || []), connection.email.toLowerCase()])
+        const preferred = !previous || (isFunctionalMailbox(connection.email) && !isFunctionalMailbox(previous.connection.email))
+        unique.set(scopeId, { ...(preferred ? { connectionId: doc.id, connection } : previous), addresses })
+      } catch { unique.set(doc.id, { connectionId: doc.id, connection, unavailable: true, addresses: new Set([connection.email.toLowerCase()]) }) }
     }
-    return { mailboxes: await Promise.all([...unique].map(async ([scopeId, item]) => {
+    const rows = await Promise.all([...unique].map(async ([scopeId, item]) => {
       if (!item.unavailable) await ensureWebhook(scopeId)
-      return { connectionId: item.connectionId, email: item.connection.email, ...publicSetting(item.connection, item.unavailable ? { state: 'error' } : (await scopes().doc(scopeId).get()).data()) }
-    })) }
+      return { scopeId: item.unavailable ? null : scopeId, addresses: [...item.addresses], connectionId: item.connectionId, email: item.connection.email, available: true, ...publicSetting(item.connection, item.unavailable ? { state: 'error' } : (await scopes().doc(scopeId).get()).data()) }
+    }))
+    const configured = FUNCTIONAL_MAILBOXES.map(email => {
+      const candidates = rows.filter(item => item.addresses.includes(email) || references.get(email)?.has(item.scopeId) || stored.get(item.scopeId)?.email?.toLowerCase() === email)
+      const connected = candidates.find(item => item.scopeId)
+      if (connected) return { ...connected, email, functional: true }
+      const previous = [...stored].filter(([id, value]) => value.email?.toLowerCase() === email || references.get(email)?.has(id)).sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0))[0]
+      if (candidates[0] && previous) return { email, scopeId: previous[0], connectionId: null, available: false, ...publicSetting({ kind: 'shared', email }, { ...previous[1], state: 'error' }) }
+      if (candidates[0]) return { ...candidates[0], email, functional: true }
+      return { email, scopeId: previous?.[0] || null, connectionId: null, available: false, ...publicSetting({ kind: 'shared', email }, previous?.[1] || { state: 'not_connected' }) }
+    })
+    const configuredScopes = new Set(configured.map(item => item.scopeId).filter(Boolean))
+    const extra = rows.filter(item => !configuredScopes.has(item.scopeId) && !item.addresses.some(isFunctionalMailbox) && !isFunctionalMailbox(stored.get(item.scopeId)?.email))
+    return { mailboxes: [...configured, ...extra].map(item => { const result = { ...item }; delete result.addresses; return result }) }
   }
   const list = async request => {
     const { scopeId } = await connectionFor(request), ids = request.data.messageIds
@@ -214,6 +278,7 @@ export function createRecommendationHandlers(deps = {}) {
     environment()
     const enabled = await scopes().where('enabled', '==', true).get()
     for (const doc of enabled.docs) {
+      if (legacyFunctionalScope(doc.data())) { await retireLegacyFunctionalScope(doc.ref, doc.data()); continue }
       await ensureWebhook(doc.id)
       try { await provision(doc.id) } catch { /* State is persisted by provision. */ }
     }
@@ -233,7 +298,7 @@ export function createRecommendationHandlers(deps = {}) {
         const registration = (await subscriptions().doc(hash(item.subscriptionId)).get()).data()
         if (!registration?.active || registration.expiresAt < now() || !sameSecret(item.clientState, registration.clientStateHash)) continue
         const ref = scopes().doc(registration.scopeId), scope = (await ref.get()).data()
-        if (!scope?.enabled || scope.delivery !== 'webhook' || scope.generation !== registration.generation || scope.subscriptionId !== item.subscriptionId) continue
+        if (!scope?.enabled || legacyFunctionalScope(scope) || scope.delivery !== 'webhook' || scope.generation !== registration.generation || scope.subscriptionId !== item.subscriptionId) continue
         if (item.lifecycleEvent) {
           if (['subscriptionRemoved', 'reauthorizationRequired'].includes(item.lifecycleEvent)) {
             if (item.lifecycleEvent === 'subscriptionRemoved') await ref.update({ subscriptionExpiresAt: 0, subscriptionId: null })
@@ -255,7 +320,7 @@ export function createRecommendationHandlers(deps = {}) {
     environment()
     if (!validId(run?.scopeId)) return
     const ref = scopes().doc(run.scopeId), scope = (await ref.get()).data()
-    if (!scope?.enabled || scope.delivery !== 'webhook' || scope.generation !== run.generation) return
+    if (!scope?.enabled || legacyFunctionalScope(scope) || scope.delivery !== 'webhook' || scope.generation !== run.generation) return
     if (run.type === 'renew') { try { await provision(run.scopeId, true) } catch { /* Persisted state. */ } return }
     if (run.type !== 'message' || typeof run.messageId !== 'string' || now() - run.createdAt > RECOMMENDATION_FRESH_MS) return
     const messageRef = ref.collection('messages').doc(hash(run.messageId)), lease = randomUUID()

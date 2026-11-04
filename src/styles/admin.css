@@ -370,3 +370,8 @@
 .managed-mailbox-recommendations strong { overflow-wrap: anywhere; }
 
 .managed-mailbox-recommendations label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.managed-mailbox-recommendations label:has(input:disabled) { cursor: default; }
+.managed-mailbox-recommendations__identity { display: grid; gap: 4px; min-width: 0; }
+.managed-mailbox-recommendations__identity small { padding-left: 24px; color: var(--text-secondary); font-size: 12px; }
+.managed-mailbox-recommendations__status { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.managed-mailbox-recommendations__profile-link { color: var(--button-background); text-underline-offset: 2px; }

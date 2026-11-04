@@ -1,6 +1,10 @@
 # Automatische KI-Handlungsempfehlungen für Postfächer
 
-Stand: 01.11.2026. Ausschließlich Dev freigegeben.
+Stand: 04.11.2026. Die ursprüngliche Webhookfunktion ist seit der
+[Produktionsübernahme vom 02.11.2026](releases/production-2026-11-02-status.md)
+auch in Produktion veröffentlicht. Die zusätzliche Unterstützung der fünf
+lizenzierten Funktionspostfächer wird lokal vorbereitet und ist noch nicht
+bereitgestellt. Ihr zusätzlicher Exchange-Anwendungszugriff ist noch nicht eingerichtet.
 
 **Verbindliche Produktentscheidung:**
 [Webhooks ohne Kontrollabfragen](../decisions/mailbox-recommendations-no-polling.md).
@@ -15,6 +19,24 @@ bereitgestellte Fünf-Minuten-Abfrage ist entfernt, einschließlich Cloud Schedu
 - Gemeinsames Postfach: Adminbereich → Postfächer · KI-Handlungsempfehlungen.
   Nur aktive Admins/Superadmins aktivieren zentral. Alle Nutzer erhalten dieselbe
   gespeicherte Empfehlung. Der Zustand wird im Profil nur angezeigt.
+- Als gemeinsame Funktionspostfächer gelten außerdem ausdrücklich
+  `buchhaltung@brennpunkt-logistik.de`, `express@brennpunkt-logistik.de`,
+  `transport@brennpunkt-logistik.de`, `info@brennpunkt-logistik.de` und
+  `rechnung@brennpunkt-logistik.de`. Sie werden unabhängig davon zentral verwaltet,
+  ob sie mit eigener Microsoft-Anmeldung oder über einen delegierten Zugang
+  eingebunden sind. Ihr technischer Exchange-Typ darf `UserMailbox` bleiben.
+  Ein normaler Nutzer kann die zentrale Einstellung auch bei eigener Anmeldung
+  an einem solchen Funktionskonto nicht im Profil überschreiben.
+- Die Adminübersicht zeigt alle fünf benannten Adressen auch vor ihrer Einbindung.
+  Für noch nicht verbundene Adressen ist die Aktivierung gesperrt; zuerst ist eine
+  gültige Postfachverbindung erforderlich. Andere bestehende gemeinsame Postfächer
+  bleiben ebenfalls in der Übersicht. Das Hinzufügen einer Verbindung aktiviert
+  die KI-Empfehlungen nicht automatisch.
+- Nach dem Trennen der letzten Verbindung bleibt die gespeicherte zentrale
+  Aktivierung sichtbar und durch Admins ausschaltbar. Ohne gültige Verbindung
+  kann sie nicht eingeschaltet werden. Eine erneute Verbindung hebt eine
+  ausdrücklich vorgenommene Deaktivierung nicht auf. Alias-Verbindungen werden
+  über die gemeinsame Microsoft-Inbox-Identität zusammengeführt.
 - Ein neuer Eingang löst über Microsoft Graph eine einzelne grobe Einordnung
   von Betreff und neuestem Klartext aus. Erkannte ältere Zitate werden abgetrennt.
   Keine Anhänge/OCR, Auftragszuordnung, Feldextraktion oder automatische Aktion.
@@ -29,9 +51,9 @@ bereitgestellte Fünf-Minuten-Abfrage ist entfernt, einschließlich Cloud Schedu
 
 ## Microsoft-Zugriff
 
-Persönliche Webhooks nutzen den vorhandenen delegierten `Mail.Read`-Zugriff.
-Gemeinsame Postfach-Webhooks benötigen Anwendungszugriff: `Mail.Read.Shared`
-unterstützt dafür keine Subscriptions.
+Persönliche Mitarbeiter-Webhooks nutzen den vorhandenen delegierten `Mail.Read`-Zugriff.
+Gemeinsame und zentral verwaltete Funktionspostfach-Webhooks benötigen
+Anwendungszugriff: `Mail.Read.Shared` unterstützt dafür keine Subscriptions.
 
 Der Nutzer hat den rein lesenden Zugriff auf **alle echten gemeinsamen Exchange-
 Postfächer**, einschließlich später eingebundener, ausdrücklich freigegeben.
@@ -43,7 +65,7 @@ Die Dev-Anwendung erhält über Exchange Application RBAC:
 - RecipientRestrictionFilter: `RecipientTypeDetails -eq 'SharedMailbox'`.
 - Rolle: `Application Mail.Read`. Kein Mail.Send, kein Mail.ReadWrite.
 - Kein unbeschränkter Application-Mail.Read-Grant in Entra. Delegierte Rechte
-  bleiben erhalten. Persönliche Postfächer gehören nicht zum Application-Scope.
+  bleiben erhalten. Persönliche Mitarbeiterpostfächer gehören nicht zum Application-Scope.
 
 Einrichtungshelfer: `integrations/microsoft/Enable-DevSharedMailboxWebhooks.ps1`
 mit `-AllSharedMailboxes -Apply`; ohne `-Apply` nur Vorschau. Exchange-Adminrechte
@@ -61,11 +83,54 @@ Quellen:
 - https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks
 - https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
 
+### Zusätzliche Freigabe für die fünf Funktionspostfächer
+
+Die neue zentrale Produktzuordnung erweitert für sich allein keine Microsoft-Rechte.
+Für technisch normale Benutzerpostfächer ist ein zusätzlicher, eng begrenzter
+Exchange-Scope vorbereitet. `integrations/microsoft/Enable-FunctionalMailboxWebhooks.ps1`
+ändert den vorhandenen Scope `Drehpunkt-Mail-Dev-Shared-Read` ausdrücklich nicht;
+dieser wird inzwischen auch von der Produktionsanwendung verwendet.
+
+- Neuer Scope: `Drehpunkt-Mail-Functional-Read`.
+- Filter: `RecipientTypeDetails -eq 'UserMailbox'` UND exakt eine der fünf oben
+  genannten primären Mailadressen. Kein Zugriff auf andere Benutzerpostfächer.
+- Separate Rollenzuweisung pro Anwendung: `Drehpunkt-Mail-Dev-Functional-Read`
+  bzw. `Drehpunkt-Mail-Production-Functional-Read`, jeweils `Application Mail.Read`.
+- Technisch bereits gemeinsame Adressen aus den fünf bleiben über die vorhandene
+  SharedMailbox-Freigabe erreichbar. Der neue Filter erfasst nur die tatsächliche
+  UserMailbox-Teilmenge; die fünf Adressen müssen nicht alle denselben Typ haben.
+- Kein Senden, Schreiben oder unbeschränkter Entra-Anwendungsgrant. Delegierte
+  persönliche Zugriffe und die bisherigen Rollenzuweisungen bleiben erhalten.
+
+Der Helfer hat standardmäßig `-Environment Dev` und führt ohne `-Apply` weder
+Anmeldung noch Netzwerkzugriffe aus. Beispiel für eine spätere freigegebene
+Einrichtung in einer bereits angemeldeten Exchange-Online-Administratorsitzung:
+
+```powershell
+# Vorschau ohne Cloudänderung
+& .\integrations\microsoft\Enable-FunctionalMailboxWebhooks.ps1 -Environment Dev
+# Erst bei freigegebener Einrichtung:
+& .\integrations\microsoft\Enable-FunctionalMailboxWebhooks.ps1 -Environment Dev -Apply
+```
+
+Produktion muss ausdrücklich mit `-Environment Production` gewählt werden und
+benötigt eine eigene Veröffentlichungsfreigabe. Vor der ersten Mutation prüft
+der Helfer alle fünf primären Adressen und deren Typ, die bestehende korrekte
+Exchange-Dienstidentität, vorhandene Rollen-/Scope-Bindungen und die Filtervorschau.
+Bei abweichenden vorhandenen Bindungen bricht er ab, statt sie umzuschreiben.
+Nach der Einrichtung werden alle fünf positiven Zugriffe und das persönliche bb@
+als negativer Fall geprüft. Diese RBAC-Prüfung bezieht sich ausschließlich auf
+Exchange-Zuweisungen; zusätzliche Entra-Grants sind unabhängig und additiv.
+Danach sind echter Graph-Zugriff und Webhookregistrierung separat zu prüfen.
+Eine lokale Syntaxprüfung oder Vorschau ist kein Nachweis einer Cloudfreigabe.
+
 ## Verarbeitung und Sicherheit
 
 Aktivieren registriert ein created-only Microsoft-Abonnement für die Inbox,
 ohne eingebettete Mailinhalte. Persönlich wird delegiert zugegriffen, gemeinsam
-mit der bestehenden Dev-App-Identität und dem begrenzten Application-Zugriff.
+mit der jeweiligen Umgebungs-App-Identität und dem begrenzten Application-Zugriff.
+Für die fünf Funktionspostfächer wird derselbe zentrale Application-Pfad verwendet,
+auch wenn die gespeicherte Verbindung aus einer eigenen Kontoanmeldung stammt.
 Microsoft-Inbox-Identität vereinheitlicht Aliase und verschiedene Benutzerzugänge.
 Microsoft-Nachrichten verwenden Immutable IDs.
 
@@ -98,11 +163,16 @@ Private Collections: `mailboxRecommendationScopes` (Konfiguration/Ergebnisse),
 Eigentümer-/Zeitmetadaten; ausschließlich der berechtigte Verbindungseigentümer
 darf dieses einzelne Dokument abonnieren. Kein Listen- oder Schreibrecht.
 
-KI unverändert: bestehendes Dev-Secret, `gpt-5.4`, `store: false`, maximal
+KI unverändert: projektbezogenes Secret, `gpt-5.4`, `store: false`, maximal
 12.000 Zeichen Mailtext und 1.000 Zeichen Betreff, keine Tools oder Geschäftsdaten-
 abfragen; Usage-Feature `mailbox_action_recommendation`.
 
 ## Veröffentlichung
+
+Die folgenden Dev-Angaben dokumentieren die ursprüngliche Veröffentlichung vom
+01.11.2026. Der spätere Produktionsstand steht im oben verlinkten Abschlussbeleg.
+Die neue Funktionspostfach-Erweiterung und ihr zusätzlicher Exchange-Scope sind
+in diesem Arbeitsstand noch nicht veröffentlicht oder live geprüft.
 
 Dev-Functions gezielt: vier Einstellungs-/Ergebnis-Callables,
 `mailboxRecommendationWebhook`, `maintainMailboxRecommendationSubscriptions`,
@@ -117,3 +187,41 @@ Abschalten, Lifecycle-Fälle und Abonnementpflege ohne Inhaltsabfrage. Zusätzli
 Lint, Build, Shared-Abgleich, echte Microsoft-Zugriffs-/Handshakeprüfungen und
 Browserprüfung in Dev. Der alte Pollingweg darf nicht als Rollback reaktiviert
 werden; bei Problemen Webhooks deaktivieren und manuelle Aktionen nutzen.
+
+## Spätere getrennte Einstellung für vollständige Ausarbeitung
+
+Die vom Nutzer gewünschte automatische vollständige Ausarbeitung ist ausdrücklich
+eine nächste Ausbaustufe und kein weiterer Effekt des jetzigen Schalters.
+Eine spätere Einstellung, beispielsweise `autoPrepare`, muss getrennt von
+`enabled` gespeichert und serverseitig autorisiert werden: für persönliche
+Mitarbeiterpostfächer durch ihren Eigentümer, für die fünf Funktionspostfächer und
+weitere gemeinsame Postfächer zentral ausschließlich durch Admins/Superadmins.
+Auch dieser zweite Modus muss bei gemeinsam verwendeten Postfächern einmalig
+verarbeitet und einheitlich angezeigt werden, statt pro Nutzer doppelte Arbeit
+auszulösen. Er benötigt eine eigene ausdrückliche Aktivierung; vorhandene aktive
+Handlungsempfehlungen dürfen beim späteren Release keine automatische Ausarbeitung
+einschalten.
+
+Gemeint sind vorbereitete Ergebnisse zur Nutzerprüfung, etwa Antwortentwurf,
+vorgeschlagene Sendungsstatuswerte oder fertiges Rechnungsergebnis. Das bedeutet
+keinen automatischen Mailversand und keine automatische Übernahme von Fachwerten.
+Ausarbeitungskosten, Grenzen, Umgang mit Anhängen und die konkreten unterstützten
+Aktionen werden vor diesem Ausbau festgelegt. Der aktuelle Stand enthält dafür
+keinen funktionslosen zweiten Haken und keinen automatischen Ausarbeitungsworker.
+
+## Lokale Prüfung der Erweiterung vom 04.11.2026
+
+73 Unit-/Vertragsprüfungen und 14 isolierte Firestore-Emulatorprüfungen erfolgreich,
+keine übersprungenen Tests. Geprüft sind zentrale Rechte auch bei direkter
+Funktionskonto-Anmeldung, einmalige Verarbeitung über verschiedene Zugänge,
+Aliasgruppierung, Deaktivierung nach Verbindungsverlust/Identitätsfehler,
+Schutz persönlicher Einstellungen und Stilllegung früherer individueller Scopes.
+Die bestehende Testabsicherung gegen Kontrollpolling bleibt erhalten.
+
+Lint, Build und Shared-Abgleich erfolgreich. Lokale Browserfixture für verbundene
+und unverbundene Zeilen sowie zentrale/persönliche Profilsteuerung in DE/Dark und
+EN/Light geprüft. Der ergänzte Abschaltweg ohne Verbindung ist im Emulator geprüft;
+ein abschließender Browsernachlauf war mangels verfügbarer Browseroberfläche nicht
+möglich. PowerShell-Syntax, beide Vorschauen und simulierte Vorprüfungen für
+Rechteabweichungen, gemischte Postfachtypen und wiederholte Einrichtung erfolgreich.
+Keine echte Exchange-Berechtigung geändert und keine Cloudveröffentlichung erfolgt.

@@ -934,3 +934,23 @@ test('shared mailbox identity is resolved from the actual inbox, never a client 
   assert.equal(await f.handlers.resolveRecommendationMailboxIdentity(connectionId), 'same-physical-inbox')
   assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).canonicalMailboxId, 'same-physical-inbox')
 })
+
+test('functional mailbox direct sign-in uses scoped app authentication for automatic recommendations only', async () => {
+  const calls = [], email = 'buchhaltung@brennpunkt-logistik.de'
+  const f = fixture({ fetch: async (url, options) => {
+    calls.push({ url, options })
+    if (url.includes('/oauth2/v2.0/token')) {
+      assert.equal(options.body.get('grant_type'), 'client_credentials')
+      return response({ access_token: 'synthetic-scoped-app-token', expires_in: 3600 })
+    }
+    assert.equal(options.headers.Authorization, 'Bearer synthetic-scoped-app-token')
+    return response({ id: 'message' })
+  } })
+  Object.assign(f.db.records.get(`mailboxConnections/${connectionId}`), { kind: 'personal', email })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'create', data: { changeType: 'created' } })
+  const request = JSON.parse(calls[1].options.body)
+  assert.equal(request.resource, `/users/${encodeURIComponent(email)}/mailFolders('inbox')/messages`)
+  await f.handlers.recommendationGraph({ connectionId, operation: 'message', messageId: 'message' })
+  assert.ok(calls[2].url.includes(`/users/${encodeURIComponent(email)}/messages/message?`))
+  assert.equal(calls.filter(call => call.url.includes('/token')).length, 1)
+})

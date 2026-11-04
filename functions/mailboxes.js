@@ -16,6 +16,7 @@ import { defineSecret, defineString } from 'firebase-functions/params'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
+import { isManagedRecommendationMailbox } from './mailboxRecommendationPolicy.js'
 import { runtimeProjectId } from './externalEffects.js'
 import { assertMailboxEnvironment, assertMailboxOAuthConfiguration, resolveMailboxClientId } from './mailboxEnvironment.js'
 export { assertMailboxEnvironment } from './mailboxEnvironment.js'
@@ -551,7 +552,7 @@ export function createMailboxHandlers(deps = {}) {
       const connection = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
       if (connection?.status !== 'connected') fail('failed-precondition', 'Postfach ist nicht verbunden.')
       let token, base
-      if (connection.kind === 'shared') {
+      if (isManagedRecommendationMailbox(connection)) {
         base = `/users/${segment(address(connection.email))}`
         if (!recommendationAppToken || recommendationAppToken.expiresAt <= now() + 60000) {
           const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: clientId(), client_secret: config().secret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }), signal: AbortSignal.timeout(20000) })
