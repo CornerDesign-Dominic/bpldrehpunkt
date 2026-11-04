@@ -547,7 +547,7 @@ export function createMailboxHandlers(deps = {}) {
       return folder.id
     },
     // Internal webhook adapter. There is intentionally no inbox-list operation.
-    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId }) {
+    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId, attachmentId }) {
       assertMailboxEnvironment(config().project)
       const connection = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
       if (connection?.status !== 'connected') fail('failed-precondition', 'Postfach ist nicht verbunden.')
@@ -568,7 +568,15 @@ export function createMailboxHandlers(deps = {}) {
         base = '/me'
       }
       if (operation === 'create') return graph(token, '/subscriptions', { method: 'POST', body: JSON.stringify({ ...data, resource: `${base}/mailFolders('inbox')/messages` }) })
-      if (operation === 'message') return graph(token, `${base}/messages/${segment(messageId)}?$select=id,subject,body,receivedDateTime`)
+      if (operation === 'message') return graph(token, `${base}/messages/${segment(messageId)}?$select=id,subject,body,receivedDateTime,hasAttachments`)
+      if (operation === 'attachment-list') return graph(token, `${base}/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=20`)
+      if (operation === 'attachment') {
+        const file = await graph(token, `${base}/messages/${segment(messageId)}/attachments/${segment(attachmentId)}`)
+        if (file?.['@odata.type'] !== '#microsoft.graph.fileAttachment' || file.isInline || typeof file.contentBytes !== 'string' || file.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.contentBytes)) fail('failed-precondition', 'Anhang für Empfehlung nicht lesbar.')
+        const bytes = Buffer.from(file.contentBytes, 'base64')
+        if (!bytes.length || bytes.length > MAX_ATTACHMENT || bytes.toString('base64') !== file.contentBytes) fail('failed-precondition', 'Anhang für Empfehlung nicht lesbar.')
+        return { name: clean(file.name, 255), contentType: file.contentType, contentBytes: file.contentBytes }
+      }
       if (!['renew', 'delete'].includes(operation)) fail('invalid-argument', 'Ungültiger Webhook-Vorgang.')
       return graph(token, `/subscriptions/${segment(subscriptionId)}`, operation === 'delete' ? { method: 'DELETE' } : { method: 'PATCH', body: JSON.stringify(data) })
     },

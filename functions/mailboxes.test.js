@@ -929,6 +929,25 @@ test('webhook adapter reads exactly one owned immutable message and creates a cr
   await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'list-inbox' }), { code: 'invalid-argument' })
 })
 
+test('recommendation attachment reads stay on the notified message and reject inline or oversized file bodies', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => {
+    calls.push({ url, options })
+    if (url.includes('/attachments?')) return response({ value: [] })
+    return response({ '@odata.type': '#microsoft.graph.fileAttachment', name: 'Test.pdf', contentType: 'application/pdf', contentBytes: Buffer.from('%PDF-1.4 test').toString('base64') })
+  } })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'attachment-list', messageId: 'message/one' })
+  const file = await f.handlers.recommendationGraph({ connectionId, operation: 'attachment', messageId: 'message/one', attachmentId: 'attachment/two' })
+  assert.match(calls[0].url, /messages\/message%2Fone\/attachments\?\$select=id,name,contentType,size,isInline&\$top=20$/)
+  assert.match(calls[1].url, /messages\/message%2Fone\/attachments\/attachment%2Ftwo$/)
+  assert.equal(file.name, 'Test.pdf')
+  assert.ok(calls.every(call => !call.url.includes('inbox/messages') && !call.url.includes('delta')))
+  for (const invalid of [{ '@odata.type': '#microsoft.graph.itemAttachment', contentBytes: 'YQ==' }, { '@odata.type': '#microsoft.graph.fileAttachment', isInline: true, contentBytes: 'YQ==' }, { '@odata.type': '#microsoft.graph.fileAttachment', contentBytes: 'not base64' }, { '@odata.type': '#microsoft.graph.fileAttachment', contentBytes: 'YQ=='.repeat(2 * 1024 * 1024) }]) {
+    const g = fixture({ fetch: async () => response(invalid) })
+    await assert.rejects(g.handlers.recommendationGraph({ connectionId, operation: 'attachment', messageId: 'message', attachmentId: 'file' }), { code: 'failed-precondition' })
+  }
+})
+
 test('shared mailbox identity is resolved from the actual inbox, never a client label or alias', async () => {
   const f = fixture({ fetch: async url => { assert.ok(url.endsWith('/me/mailFolders/inbox?$select=id')); return response({ id: 'same-physical-inbox' }) } })
   assert.equal(await f.handlers.resolveRecommendationMailboxIdentity(connectionId), 'same-physical-inbox')

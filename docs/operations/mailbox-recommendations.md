@@ -9,6 +9,9 @@ Vier neu freigegebene UserMailbox-Adressen liefern bei der tatsächlichen
 Graph-Prüfung noch HTTP 403; die Exchange-Prüfung bestätigt bereits den Scope.
 Produktionsanwendung und deren bestehende Rechte bleiben unverändert.
 
+Die unten beschriebene zusätzliche Anhangskurzprüfung ist ein nachfolgender,
+lokal vorbereiteter Stand und noch nicht auf Dev oder Produktion veröffentlicht.
+
 **Verbindliche Produktentscheidung:**
 [Webhooks ohne Kontrollabfragen](../decisions/mailbox-recommendations-no-polling.md).
 Keine periodischen Inbox-/Deltaabfragen, kein Nachholen verlorener Meldungen.
@@ -241,6 +244,64 @@ keinen automatischen Mailversand und keine automatische Übernahme von Fachwerte
 Ausarbeitungskosten, Grenzen, Umgang mit Anhängen und die konkreten unterstützten
 Aktionen werden vor diesem Ausbau festgelegt. Der aktuelle Stand enthält dafür
 keinen funktionslosen zweiten Haken und keinen automatischen Ausarbeitungsworker.
+
+## Vorbereitete Kurzprüfung bei unklarem Mailinhalt
+
+Nach der Nutzeranforderung vom 04.11.2026 sollen z. B. Mails mit dem Betreff
+„DOKUMENTY“ bei unzureichendem Betreff/Mailtext anhand ihrer Anhänge eingeordnet
+werden können. Das ist eine Dokumentart-Erkennung für die Handlungsempfehlung,
+keine vollständige Ausarbeitung und keine automatische Fachaktion.
+
+- Die erste KI-Einordnung entscheidet ausdrücklich, ob fehlender Kontext eine
+  Anhangskurzprüfung erfordert. Bei einer sicheren Aktion, eindeutig irrelevanten
+  Mails, reinen Statusfragen oder erledigten/ausdrücklich nicht zu bearbeitenden
+  Inhalten erfolgt keine Zusatzprüfung.
+- Nur Anhänge der über die Benachrichtigung gemeldeten Nachricht; keine Suche
+  im Postfach, keine Folgeseiten der Anhangsliste und kein Nachholen alter Mails.
+  Maximal 20 Metadateneinträge und davon höchstens zwei unterstützte Dateien,
+  jeweils höchstens 5 MiB. Inline-Bilder und angehängte Outlook-Nachrichten
+  werden ausgeschlossen.
+- Unterstützt: PDF, PNG/JPEG/WebP und UTF-8-Klartext. Aus PDFs werden höchstens
+  die ersten zwei Seiten gelesen, höchstens 6.000 Zeichen je Dokument. Fehlt eine
+  brauchbare Textebene, werden nur die betroffenen Seiten innerhalb dieser ersten
+  zwei Seiten gemeinsam für eine kurze OCR herangezogen.
+  Die OCR ist auf 20 Sekunden und 1.200 Ausgabetokens begrenzt; keine Wiederholung.
+  Unsichere OCR-Texte begründen keine Empfehlung.
+- Eine zweite Einordnung erhält nur die begrenzten Textausschnitte und den
+  bisherigen Mailkontext. Der aktuelle Absendertext hat weiterhin Vorrang.
+  Dokumentanweisungen bleiben unzuverlässige Quelldaten. Keine Tools, keine
+  Auftragszuordnung, keine Rechnungs-/Betragsprüfung und kein automatisches Öffnen.
+- Das zentrale Scope-/Lease-Verfahren verarbeitet gemeinsame Postfächer weiter
+  einmalig. Fünf-Minuten-Frischegrenze, Abschalten und Generationsschutz gelten
+  vor Zusatzarbeit und erneut vor Veröffentlichung. Ein Arbeitsbudget verhindert
+  neue Zusatzschritte bei zu wenig Restzeit. Keine neuen Timer oder Kontrollabfragen.
+- Dokumentbytes und Ausschnitte werden nur während der Verarbeitung verwendet,
+  nicht in Firestore/Storage als neue Datei oder Empfehlungstext abgelegt.
+  Fehlerdiagnosen enthalten keine Dokumentinhalte. Kosten werden über die
+  vorhandene KI-Nutzungsprotokollierung getrennt erfasst: Zusatzklassifikation
+  `mailbox_action_recommendation_attachment`, OCR
+  `mailbox_recommendation_attachment_ocr`.
+
+Bei einer späteren Dev-Freigabe ist `processMailboxRecommendationRun` mit 512 MiB
+Speicher gezielt zu aktualisieren; die ergänzte Graph-Anhangsfunktion wird intern
+von diesem Worker verwendet. Die angepassten Erläuterungen im Profil/Adminbereich
+gehören zum selben Release. Bestehende Mail.Read-/Exchange-Leserechte umfassen
+die Anhangslesezugriffe. Rules/Indizes und Microsoft-Grants werden hierfür nicht
+erweitert. Der bisher veröffentlichte Dev-Stand bleibt bis zu diesem Release aktiv.
+
+Lokale Abnahme: 104 Unit-/Vertragsprüfungen und 18 Firestore-Emulatorprüfungen
+erfolgreich, keine übersprungenen Tests; außerdem Lint, Build und Shared-Abgleich.
+Die unabhängige Nachprüfung bestätigt den bis zum PDF-Renderer wirksamen Abbruch
+und die Freigabe von PDF-/Canvas-Ressourcen. Bestehende OCR-Aufrufer ohne Signal
+bleiben kompatibel.
+
+Kontrollierte Modellprüfung ohne Speicherung neuer Empfehlungen: Die bekannte
+„DOKUMENTY“-Mail fordert fehlenden Anhangskontext an. Ihr erster PDF-Ausschnitt
+enthält CMR und Wareneingangsbeleg, keine erfundene Rechnungsempfehlung. Eine
+echte Rechnungs-PDF aus dem Testpostfach wird unter einem neutralen Testbetreff
+als Rechnung erkannt. Sichere Rechnungseinreichungen, Archivvermerke und reine
+Statusfragen benötigen bereits im ersten Schritt keine Anhangsprüfung. Diese
+Proben verändern keine vorhandenen Mailergebnisse oder KI-Schalter.
 
 ## Lokale Prüfung der Erweiterung vom 04.11.2026
 

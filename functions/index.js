@@ -179,7 +179,7 @@ export const listManagedMailboxRecommendations = onCall(mailboxOptions, listMana
 export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
 export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
 export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
-export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
 
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)

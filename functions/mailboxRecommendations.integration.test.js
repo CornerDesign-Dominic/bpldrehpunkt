@@ -32,7 +32,9 @@ async function fixture(overrides = {}) {
     }
     if (input.operation === 'renew') return { ...subscriptions.get(input.subscriptionId), expirationDateTime: input.data.expirationDateTime }
     if (input.operation === 'delete') { subscriptions.delete(input.subscriptionId); return null }
-    if (input.operation === 'message') return { id: input.messageId, subject: 'Status', body: { contentType: 'text', content: 'Ankunft 18 Uhr' }, receivedDateTime: new Date(at + 1000).toISOString() }
+    if (input.operation === 'message') return { id: input.messageId, subject: 'Status', hasAttachments: overrides.hasAttachments === true, body: { contentType: 'text', content: 'Ankunft 18 Uhr' }, receivedDateTime: new Date(at + 1000).toISOString() }
+    if (input.operation === 'attachment-list') return overrides.attachmentList || { value: [] }
+    if (input.operation === 'attachment') return { name: '19269.pdf', contentType: 'application/pdf', contentBytes: 'JVBERi0=' }
     throw new Error('An inbox scan is forbidden')
   }
   const handlers = createRecommendationHandlers({ db, project: 'db-bpl-drehpunkt-dev', tenantId: 'tenant', now: () => clock, requireProfile: async () => actor, classify: async () => { classifications++; return ['tracking'] }, graph, ...overrides })
@@ -263,6 +265,71 @@ test('emulator: already handled actions suppress an otherwise valid recommendati
     assert.deepEqual((await f.handlers.list(f.request({ messageIds: ['immutable'] }))).recommendations.immutable, [])
   } finally { await f.close() }
 })
+test('emulator: uncertain mail inspects at most two suitable attachments once and shares only final kinds', { skip: !enabled }, async () => {
+  const file = { id: 'pdf', name: '19269.pdf', contentType: 'application/pdf', size: 100, '@odata.type': '#microsoft.graph.fileAttachment' }
+  let decisions = 0, extractions = 0
+  const f = await fixture({ hasAttachments: true, recommendationApiKey: 'synthetic', attachmentList: { value: [{ ...file, id: 'inline', isInline: true }, { ...file, id: 'big', size: 10 * 1024 * 1024 }, { ...file, id: 'zip', name: 'x.zip', contentType: 'application/zip' }, file, { ...file, id: 'second' }, { ...file, id: 'third' }], '@odata.nextLink': 'NEVER FOLLOW' }, classifyDecision: async input => {
+    decisions++
+    if (!input.documents) return { kinds: [], inspectAttachments: true }
+    assert.equal(input.documents.length, 2)
+    assert.match(input.documents[0].text, /Rechnung/)
+    return { kinds: ['invoice'], inspectAttachments: false }
+  }, extractRecommendationDocument: async () => { extractions++; return { text: 'Rechnung 123', method: 'native_text', inspectedPages: 2, uncertain: false } } })
+  try {
+    await f.activate(); await f.deliver(); const [run] = await f.runs()
+    await f.handlers.process(run); await f.handlers.process(run)
+    assert.equal(decisions, 2); assert.equal(extractions, 2)
+    assert.deepEqual(f.calls.filter(call => call.operation === 'attachment').map(call => call.attachmentId), ['pdf', 'second'])
+    f.actor(profile)
+    const result = await f.handlers.list(f.request({ messageIds: ['immutable'] }))
+    assert.deepEqual(result.recommendations.immutable, ['invoice'])
+    assert.deepEqual((await f.handlers.list(f.request({ connectionId: f.c2, messageIds: ['immutable'] }, f.other))).recommendations, result.recommendations)
+    const stored = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}/messages/${hash('immutable')}`).get()).data()
+    assert.ok(!JSON.stringify(stored).includes('Rechnung')); assert.equal(stored.documents, undefined)
+  } finally { await f.close() }
+})
+
+test('emulator: decisive mail, absent attachments or explicit no-fallback never download documents', { skip: !enabled }, async () => {
+  for (const [hasAttachments, decision] of [[true, { kinds: ['tracking'], inspectAttachments: true }], [true, { kinds: [], inspectAttachments: false }], [false, { kinds: [], inspectAttachments: true }]]) {
+    const f = await fixture({ hasAttachments, classifyDecision: async () => decision })
+    try {
+      await f.activate(); await f.deliver(); await f.handlers.process((await f.runs())[0])
+      assert.ok(f.calls.every(call => !call.operation.startsWith('attachment')))
+    } finally { await f.close() }
+  }
+})
+
+test('emulator: attachment budget, stale results and uncertain OCR cannot produce late or guessed recommendations', { skip: !enabled }, async () => {
+  for (const offset of [70000, 302000]) {
+    let f
+    f = await fixture({ hasAttachments: true, classifyDecision: async () => { f.clock(at + offset); return { kinds: [], inspectAttachments: true } } })
+    try {
+      await f.activate(); await f.deliver(); await f.handlers.process((await f.runs())[0])
+      assert.ok(f.calls.every(call => !call.operation.startsWith('attachment')))
+    } finally { await f.close() }
+  }
+  let calls = 0
+  const f = await fixture({ hasAttachments: true, recommendationApiKey: 'synthetic', attachmentList: { value: [{ id: 'pdf', name: 'Scan.pdf', contentType: 'application/pdf', size: 100, '@odata.type': '#microsoft.graph.fileAttachment' }] }, classifyDecision: async () => { calls++; return { kinds: [], inspectAttachments: true } }, extractRecommendationDocument: async () => ({ text: 'Uncertain invoice', uncertain: true }) })
+  try {
+    await f.activate(); await f.deliver(); await f.handlers.process((await f.runs())[0])
+    assert.equal(calls, 1)
+    f.actor(profile); assert.deepEqual((await f.handlers.list(f.request({ messageIds: ['immutable'] }))).recommendations.immutable, [])
+  } finally { await f.close() }
+})
+
+test('emulator: attachment failures emit a content-free diagnostic and remain a completed empty recommendation', { skip: !enabled }, async () => {
+  const diagnostics = []
+  const f = await fixture({ hasAttachments: true, recommendationApiKey: 'synthetic', attachmentList: { value: [{ id: 'pdf', name: 'Scan.pdf', contentType: 'application/pdf', size: 100, '@odata.type': '#microsoft.graph.fileAttachment' }] }, classifyDecision: async () => ({ kinds: [], inspectAttachments: true }), extractRecommendationDocument: async () => { throw new Error('SECRET DOCUMENT CONTENT') }, diagnostic: async event => { diagnostics.push(event); throw new Error('diagnostic unavailable') } })
+  try {
+    await f.activate(); await f.deliver(); const [run] = await f.runs(); await f.handlers.process(run); await f.handlers.process(run)
+    assert.equal(diagnostics.length, 1)
+    assert.equal(diagnostics[0].stage, 'recommendation-attachment')
+    assert.ok(!JSON.stringify(diagnostics).includes('SECRET'))
+    const stored = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}/messages/${hash('immutable')}`).get()).data()
+    assert.equal(stored.state, 'completed'); assert.deepEqual(stored.kinds, [])
+  } finally { await f.close() }
+})
+
 test('emulator: personal activation stays owned; missing shared application permission is visible', { skip: !enabled }, async () => {
   const f = await fixture()
   try {
