@@ -74,6 +74,9 @@ export default function MailboxesPage() {
     if (!available.length || pending) return
     if (connectionId) {
       if (connection?.status === 'connected') {
+        const cached = folderViews.read(`${connectionId}:${folder}`)
+        if (!messageId && cached?.message) { setParams(mailboxFolderParams(connectionId, folder, cached), { replace: true }); return }
+        if (messageId) folderViews.write(`${connectionId}:${folder}`, { message: messageId, reply: replyId })
         try { localStorage.setItem(storageKey, JSON.stringify({ mailbox: connectionId, message: messageId, reply: replyId, folder })) } catch { /* Optional navigation preference. */ }
       }
       return
@@ -82,7 +85,7 @@ export default function MailboxesPage() {
     try { last = JSON.parse(localStorage.getItem(storageKey)) } catch { /* Invalid or unavailable preference. */ }
     const selected = available.find(item => item.id === last?.mailbox) || available[0]
     setParams({ mailbox: selected.id, folder: selected.id === last?.mailbox ? mailboxFolder(last?.folder) : 'inbox', ...(selected.id === last?.mailbox && last?.message ? { message: last.message, ...(last.reply ? { reply: last.reply } : {}) } : {}) }, { replace: true })
-  }, [connections, connectionId, messageId, replyId, folder, connection, storageKey, setParams, pending])
+  }, [connections, connectionId, messageId, replyId, folder, connection, storageKey, setParams, pending, folderViews])
 
   function navigate(next) {
     if ((dirtyRef.current || orderDirtyRef.current || composeDirtyRef.current) && !window.confirm(w('Es gibt ungespeicherte Eingaben. Trotzdem wechseln?', 'There are unsaved changes. Leave anyway?'))) return
