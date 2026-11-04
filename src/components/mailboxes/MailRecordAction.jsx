@@ -26,13 +26,13 @@ function InvoiceDraftFields({ rows, onChange, disabled }) {
   const change = (index, key, value) => onChange(rows.map((row, i) => i === index ? { ...row, [key]: value } : row))
   return <section className="mail-record-invoices"><h4>Rechnungen zum Inkassofall hinzufügen</h4><p className="mailbox-hint">Die Forderung wird aus diesen Rechnungen berechnet. Bestehende Rechnungen und Zahlungen werden nicht überschrieben. Unvollständige Zeilen bitte ergänzen oder abwählen.</p>{rows.map((row, index) => <div className="mail-record-field" key={index}><label className="mail-record-field-heading"><input type="checkbox" checked={row.enabled} disabled={disabled} onChange={event => change(index, 'enabled', event.target.checked)} />Rechnung {index + 1} übernehmen</label><label>Rechnungsnummer<input aria-label={`Rechnungsnummer ${index + 1}`} type="text" value={row.invoiceNumber} maxLength={240} disabled={disabled || !row.enabled} onChange={event => change(index, 'invoiceNumber', event.target.value)} /></label>{[['netAmount', 'Netto'], ['vatAmount', 'USt.-Betrag']].map(([key, label]) => <label key={key}>{label}<input aria-label={`${label} Rechnung ${index + 1}`} type="number" step="0.01" min="0" value={row[key]} disabled={disabled || !row.enabled} onChange={event => change(index, key, event.target.value)} /></label>)}{row.evidence && <details className="mail-record-evidence"><summary>Quelle</summary>{Object.values(row.evidence).map((entry, i) => <p key={i}>{entry.source}: {entry.quote}</p>)}</details>}</div>)}<button type="button" disabled={disabled || rows.length >= 50} onClick={() => onChange([...rows, { invoiceNumber: '', netAmount: '', vatAmount: '', enabled: true }])}>Rechnung ergänzen</button></section>
 }
-export default function MailRecordAction({ kind, identity, mailContent, attachments = [] }) {
+export default function MailRecordAction({ kind, identity, mailContent, attachments = [], recommended = false }) {
   const { user, profile } = useAuth()
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
   const config = mailboxRecordKinds[kind]
   const masterDataAccess = canView(profile, 'masterData')
-  const action = useMailboxAction(identity, kind)
+  const action = useMailboxAction(identity, kind, recommended)
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState('')
   const [target, setTarget] = useState(null)
@@ -139,7 +139,7 @@ export default function MailRecordAction({ kind, identity, mailContent, attachme
   const otherFiles = attachments.filter(file => !isPdf(file) && (!file.isInline || !/(?:signatur|signature|logo|banner|facebook|linkedin|instagram|twitter|icon)/i.test(file.name || '')))
   const editing = view === 'create' || view === 'existing' && target && !manual
   return <>
-    <MailActionButton kind={kind} state={completed ? 'completed' : action.state} expanded={open} disabled={action.busy || saving} onClick={() => void click()}>{buttonText}</MailActionButton>
+    <MailActionButton kind={kind} state={completed ? 'completed' : action.displayState} expanded={open} disabled={action.busy || saving} onClick={() => void click()}>{buttonText}</MailActionButton>
     {!open && (error || action.error) && <p className="mailbox-action-error" role="alert">{error || action.error?.message}</p>}
     <MailWorkDialog open={open} id={`mail-record-${kind}`} title={`${config.label} aus Mail`} left={<MailDocumentSources identity={identity} attachments={attachments.filter(isPdf)} w={w} mailContent={<>{mailContent}<MailboxAttachmentList identity={identity} attachments={otherFiles} /></>} />} onClose={() => setOpen(false)} busy={saving} rightLoading={action.loadingResult} loadingLabel="Ergebnis wird geladen …">
       {error && <p className="mail-record-error" role="alert">{error}</p>}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useAuth } from '../auth/useAuth.js'
 import { mailboxCall } from '../lib/mailboxes.js'
 import { createMailboxActionStore, mailboxActionKey } from '../lib/mailboxActionStore.js'
+import { mailboxActionDisplayState } from '../lib/mailboxActionPresentation.js'
 
 let owner = '', currentStore = createMailboxActionStore(mailboxCall)
 export function resetMailboxActionOwner(uid = '') {
@@ -15,7 +16,7 @@ function ownerStore(uid) {
   return currentStore
 }
 
-export function useMailboxAction(identity, kind) {
+export function useMailboxAction(identity, kind, recommended = false) {
   const { user } = useAuth()
   const uid = user?.uid || ''
   const store = ownerStore(uid)
@@ -34,7 +35,8 @@ export function useMailboxAction(identity, kind) {
   const state = action.state === 'discarded' ? 'idle' : action.state
   const error = useMemo(() => action.error ? { ...action.error, message: action.error.message, code: action.error.code?.startsWith('functions/') ? action.error.code : `functions/${action.error.code || 'unknown'}` } : null, [action.error])
   const loadingResult = ['review', 'completed'].includes(state) && !action.result && !error
-  return { ...action, error, state, loadingResult, busy: state === 'running' || Boolean(action.pending) || loadingResult, start, discard, complete, refresh }
+  const displayState = mailboxActionDisplayState(snapshot[mailboxActionKey(stableIdentity, kind)], recommended)
+  return { ...action, error, state, displayState, loadingResult, busy: state === 'running' || Boolean(action.pending) || loadingResult, start, discard, complete, refresh }
 }
 
 export function useMailboxActionList(connectionId, messageIds) {

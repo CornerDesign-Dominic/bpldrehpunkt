@@ -40,11 +40,11 @@ function AssignmentDialog({ open, busy, candidates, error, onAssign, onClose, w 
   </dialog>
 }
 
-export default function MailTrackingAction({ identity, mailContent }) {
+export default function MailTrackingAction({ identity, mailContent, recommended = false }) {
   const formId = useId()
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
-  const action = useMailboxAction(identity, 'tracking')
+  const action = useMailboxAction(identity, 'tracking', recommended)
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(null)
   const [values, setValues] = useState({})
@@ -130,7 +130,7 @@ export default function MailTrackingAction({ identity, mailContent }) {
     } catch (caught) { setError(errorText(caught, w)) }
     finally { setSaving(false) }
   }
-  return <><MailActionButton kind="tracking" state={action.state} expanded={open} disabled={busy || saving || action.busy} onClick={activate}>{action.state === 'running' || busy ? w('Status wird ausgelesen …', 'Reading status …') : action.state === 'review' ? w('Statusangaben prüfen', 'Review status information') : action.state === 'completed' ? w('Status übernommen', 'Status applied') : action.state === 'failed' ? w('Statusauswertung prüfen', 'Review status analysis') : w('Sendungsstatus aktualisieren', 'Update shipment status')}</MailActionButton>
+  return <><MailActionButton kind="tracking" state={action.displayState} expanded={open} disabled={busy || saving || action.busy} onClick={activate}>{action.state === 'running' || busy ? w('Status wird ausgelesen …', 'Reading status …') : action.state === 'review' ? w('Statusangaben prüfen', 'Review status information') : action.state === 'completed' ? w('Status übernommen', 'Status applied') : action.state === 'failed' ? w('Statusauswertung prüfen', 'Review status analysis') : w('Sendungsstatus aktualisieren', 'Update shipment status')}</MailActionButton>
     <MailWorkDialog open={open} title={w('Sendungsstatus aktualisieren', 'Update shipment status')} subtitle={preview?.order ? `TA ${preview.order.number} · ${preview.order.loading} → ${preview.order.unloading}` : undefined} left={mailContent} onClose={close} busy={saving} rightLoading={busy || saving || action.busy} loadingLabel={saving ? w('Angaben werden übernommen …', 'Applying information …') : w('Auftrag wird gesucht – KI wertet die Mail aus …', 'Finding order – AI is analysing the message …')} footer={action.state !== 'completed' && <>
       {action.state === 'review' && <button className="mail-work-footer__discard" type="button" disabled={busy || saving || action.busy} onClick={() => void discard()}>{w('Ergebnis verwerfen', 'Discard result')}</button>}
       <button className="mail-work-footer__secondary" type="button" disabled={busy || saving || action.busy} onClick={() => void analyse(preview?.order?.number)}>{w('Erneut auswerten', 'Analyse again')}</button>

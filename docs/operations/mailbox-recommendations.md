@@ -41,11 +41,20 @@ bereitgestellte Fünf-Minuten-Abfrage ist entfernt, einschließlich Cloud Schedu
   ausdrücklich vorgenommene Deaktivierung nicht auf. Alias-Verbindungen werden
   über die gemeinsame Microsoft-Inbox-Identität zusammengeführt.
 - Ein neuer Eingang löst über Microsoft Graph eine einzelne grobe Einordnung
-  von Betreff und neuestem Klartext aus. Erkannte ältere Zitate werden abgetrennt.
+  von Betreff und neuestem Klartext aus. Erkannte ältere Antwortzitate werden
+  abgetrennt. Bei ausdrücklich weitergeleiteten Mails (WG/FW/FWD im Betreff)
+  gehört der erste weitergeleitete Nachrichtenblock zur aktuellen Einreichung;
+  er wird separat und nachrangig zum aktuellen Absendertext berücksichtigt.
+  Beide Textblöcke teilen dieselbe Grenze von 12.000 Zeichen. Eine konkret
+  eingereichte Rechnung im Betreff/Text genügt für die Empfehlung; tatsächliche
+  Anhangsinhalte werden dabei weder behauptet noch überprüft.
   Keine Anhänge/OCR, Auftragszuordnung, Feldextraktion oder automatische Aktion.
 - Maximal drei sichere Aktionsicons in der KI-Akzentfarbe; kein automatisches
   Modal. Vorhandene Aktionszustände haben Vorrang. Bereits gestartete, fertige
   oder verworfene passende Aktionen werden bei der Veröffentlichung berücksichtigt.
+  Dieselbe Empfehlung kennzeichnet auch den passenden rechten Aktionsbutton.
+  Gespeicherte manuelle Aktionszustände einschließlich „verworfen“ haben dort
+  ebenfalls Vorrang; allein eine Empfehlung öffnet oder startet nichts.
 - Fünf Minuten sind nur die Frischegrenze, kein Intervall: ältere Mails und zu
   spät fertiggestellte Auswertungen erhalten keine neue Empfehlung.
 - Ein inhaltsfreies Firestore-Pushsignal aktualisiert die geöffnete Oberfläche.
@@ -251,3 +260,29 @@ Rechteabweichungen, gemischte Postfachtypen und wiederholte Einrichtung erfolgre
 Die nachfolgende echte Dev-Einrichtung und Bereitstellung ist in den Abschnitten
 Microsoft-Zugriff und Veröffentlichung dokumentiert. Bestehende Aktivierungen
 bleiben erhalten; insbesondere wurde buchhaltung@ nicht automatisch eingeschaltet.
+
+### Rechnungsempfehlungen bei Weiterleitungen, Dev-Korrektur vom 04.11.2026
+
+Die Live-Diagnose von rechnung@ bestätigte ein vorhandenes Microsoft-Abonnement,
+erfolgreiche Webhookzustellung und abgeschlossene Workerläufe mit leerer
+Aktionsliste. Bei den vier gemeldeten Weiterleitungen enthielt der verwendete
+erste Textblock nur die Signatur; die aktuelle weitergeleitete Einreichung wurde
+als Antwortgeschichte abgeschnitten. Zusätzlich erreichten Empfehlungen bislang
+nur die Listenicons, nicht die rechten Aktionsbuttons.
+
+Die oben beschriebene Weiterleitungsbehandlung und eine eindeutige Abgrenzung
+konkreter Rechnungseinreichungen korrigieren die Einordnung. Die ausgewählte
+Mail lädt ihre Empfehlungen auch unabhängig von der sichtbaren Listenfilterung.
+Das vorhandene Firestore-Revisionssignal lädt die Empfehlungen unmittelbar neu;
+kein zusätzlicher Timer. Eine gemeinsame Darstellungsregel lässt manuelle
+Aktionszustände vorgehen und hält verworfene Ergebnisse neutral.
+
+Gezielt geprüft: 19 Unit-/Vertragstests und 14 Firestore-Emulatortests erfolgreich,
+keine übersprungenen Tests; Lint, Build und Shared-Abgleich. Reale Modellprüfung
+mit vier bereits bekannten Testweiterleitungen und sechs positiven/negativen
+Gegenfällen: alle zehn erwartungsgemäß. Die lokale Modellprüfung speichert keine
+Empfehlungen an diesen alten Nachrichten; deren lokale Nutzungsprotokollierung
+war nicht verfügbar. Keine alten Nachrichten nachträglich automatisch
+klassifizieren oder Frischegrenzen ändern. Der korrigierte Worker ist gezielt im
+Dev-Projekt bereitgestellt; Oberfläche folgt im selben Dev-Release. Kein neuer
+Microsoft-Grant und keine Änderung an Produktion, Rules oder Indizes erforderlich.

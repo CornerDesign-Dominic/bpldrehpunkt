@@ -14,12 +14,12 @@ import { useMailboxAction } from '../../mailboxes/useMailboxAction.js'
 const pdfsOf = attachments => attachments.filter(item => item.contentType?.split(';')[0].toLowerCase() === 'application/pdf' || /\.pdf$/i.test(item.name || ''))
 const debtorNumbers = partner => [...new Set([partner.debtorNumber, ...(partner.dycosReferences?.debtorNumbers || [])].map(value => String(value ?? '').trim()).filter(Boolean))]
 
-export default function MailAgbAction({ identity, mailContent, attachments = [] }) {
+export default function MailAgbAction({ identity, mailContent, attachments = [], recommended = false }) {
   const { profile } = useAuth()
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
   const [open, setOpen] = useState(false)
-  const action = useMailboxAction(identity, 'terms')
+  const action = useMailboxAction(identity, 'terms', recommended)
   const analysis = action.result
   const busy = action.busy || action.state === 'running'
   const [startError, setStartError] = useState('')
@@ -62,7 +62,7 @@ export default function MailAgbAction({ identity, mailContent, attachments = [] 
     finally { if (active.current) setAssigning(false) }
   }
   const error = startError || action.error?.message || (typeof action.error === 'string' ? action.error : '')
-  return <><MailActionButton kind="terms" state={action.state} disabled={busy} expanded={open} onClick={() => { if (action.state === 'completed') { if (analysis) setOpen(true); else void action.refresh().catch(() => {}) } else void analyse() }}>{busy ? w('AGB werden geprüft …', 'Reviewing terms …') : action.state === 'completed' ? analysis ? w('AGB-Ergebnis ansehen', 'View terms result') : w('AGB-Ergebnis erneut laden', 'Reload terms result') : action.state === 'failed' ? w('AGB erneut prüfen', 'Retry terms review') : w('AGB prüfen', 'Review terms')}</MailActionButton>
+  return <><MailActionButton kind="terms" state={action.displayState} disabled={busy} expanded={open} onClick={() => { if (action.state === 'completed') { if (analysis) setOpen(true); else void action.refresh().catch(() => {}) } else void analyse() }}>{busy ? w('AGB werden geprüft …', 'Reviewing terms …') : action.state === 'completed' ? analysis ? w('AGB-Ergebnis ansehen', 'View terms result') : w('AGB-Ergebnis erneut laden', 'Reload terms result') : action.state === 'failed' ? w('AGB erneut prüfen', 'Retry terms review') : w('AGB prüfen', 'Review terms')}</MailActionButton>
     {error && <p className="mailbox-action-error" role="alert">{error}</p>}
     <MailWorkDialog open={open} title={w('AGB prüfen', 'Review terms')} left={<MailDocumentSources identity={identity} attachments={pdfsOf(attachments)} mailContent={mailContent} w={w} />} onClose={() => setOpen(false)} busy={assigning} rightLoading={busy} loadingLabel={w('PDFs werden gelesen – bei Bedarf mit OCR – und AGB geprüft …', 'Reading PDFs – using OCR if needed – and reviewing terms …')} footer={analysis && <button className="mail-work-footer__secondary" type="button" disabled={busy || assigning} onClick={() => void analyse(true)}>{w('AGB erneut prüfen', 'Review terms again')}</button>}>
       {analysis && <><p className="mailbox-hint" role="status">{w('Im AGB-Prüfer gespeichert.', 'Saved in the terms checker.')}</p>{analysis.sourceFiles?.length > 0 && <details className="mail-review-files"><summary>{w('Geprüfte PDFs', 'Reviewed PDFs')} ({analysis.sourceFiles.length})</summary><ul>{analysis.sourceFiles.map((file, index) => <li key={index}>{file.name}</li>)}</ul></details>}<AgbCheckerResults analysis={analysis} />

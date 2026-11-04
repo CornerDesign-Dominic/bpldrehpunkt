@@ -26,6 +26,42 @@ test('classification sends only bounded subject/newest text; no tools, attachmen
   assert.ok(!body.input[0].content[0].text.includes('Gehe zu Gericht'))
   assert.ok(!JSON.stringify(body).includes('NEVER SENT'))
 })
+
+test('forwarded submissions include the first forwarded message, with current text kept separate and old reply history excluded', async () => {
+  for (const prefix of ['WG:', 'Fw:', 'FWD:']) {
+    let input
+    const result = await classifyRecommendation({ mail: { subject: `${prefix} 260200713`, body: { contentType: 'text', content: 'Mit freundlichen Grüßen\nTeam\n\nVon: Lieferant <sender@example.invalid>\nGesendet: Heute\nAn: Rechnung <invoice@example.invalid>\nBetreff: 260200713\n\nAnbei unsere Rechnung.\n\nOn Friday someone wrote:\nALTE MAHNUNG' } }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async (url, options) => {
+      input = JSON.parse(JSON.parse(options.body).input[0].content[0].text)
+      return { ok: true, json: async () => ({ status: 'completed', output_text: JSON.stringify({ actions: [{ kind: 'invoice', confidence: 'high' }] }) }) }
+    } })
+    assert.deepEqual(result, ['invoice'])
+    assert.match(input.body, /Mit freundlichen/)
+    assert.doesNotMatch(input.body, /Anbei/)
+    assert.match(input.forwardedMessage, /Anbei unsere Rechnung/)
+    assert.doesNotMatch(input.forwardedMessage, /ALTE MAHNUNG/)
+  }
+})
+
+test('forwarded recommendation input shares the 12000 character budget and explicit current instructions remain present', async () => {
+  let input
+  await classifyRecommendation({ mail: { subject: 'WG: Rechnung', body: { contentType: 'text', content: 'Nur zur Ablage, keine neue Rechnung.\n' + 'x'.repeat(11000) + '\n\nOn Friday sender wrote:\n' + 'r'.repeat(8000) } }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async (url, options) => {
+    input = JSON.parse(JSON.parse(options.body).input[0].content[0].text)
+    return { ok: true, json: async () => ({ status: 'completed', output_text: '{"actions":[]}' }) }
+  } })
+  assert.match(input.body, /^Nur zur Ablage/)
+  assert.equal(input.body.length + input.forwardedMessage.length, 12000)
+})
+
+test('a reply to an earlier forward does not reintroduce the forwarded invoice', async () => {
+  let input
+  await classifyRecommendation({ mail: { subject: 'AW: WG: Rechnung 123', body: { contentType: 'text', content: 'Ist diese Rechnung bereits bezahlt?\n\nOn Friday someone wrote:\nAnbei unsere Rechnung.' } }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async (url, options) => {
+    input = JSON.parse(JSON.parse(options.body).input[0].content[0].text)
+    return { ok: true, json: async () => ({ status: 'completed', output_text: '{"actions":[]}' }) }
+  } })
+  assert.match(input.body, /bereits bezahlt/)
+  assert.doesNotMatch(input.body, /Anbei/)
+  assert.equal(input.forwardedMessage, undefined)
+})
 test('truncated or invalid provider responses are failures, not misleading recommendations', async () => {
   for (const payload of [{ status: 'incomplete' }, { status: 'completed', output_text: '{bad' }]) {
     await assert.rejects(classifyRecommendation({ mail: { subject: 'Test' }, userId: 'user', apiKey: 'synthetic', execute: async ({ operation }) => operation(), http: async () => ({ ok: true, json: async () => payload }) }))
