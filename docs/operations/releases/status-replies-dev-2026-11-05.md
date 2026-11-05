@@ -93,3 +93,20 @@ und die angemeldete Kontrolle von Postfach/Sendungsverfolgung sind zusätzliche
 Abschlusskriterien. Neue echte Antwortmails bleiben Gegenstand der Nutzerabnahme.
 Keine echten Testmails versendet, keine vorhandenen Statuszeiten zu Testzwecken
 geändert. Keine nachträgliche automatische Auswertung alter Mails gestartet.
+
+
+## Frontend und Livekontrolle
+
+Frontendcommit c31c5aa94684d53aa20d3edcead40ebebbac1f70 erfolgreich nach dev
+gepusht. Vercel meldet success:
+[Deployment](https://vercel.com/cornerdesign-dominics-projects/bpldrehpunkt/2c2v7wvnM1nmiHFP1ik4TqskCBjq).
+Die angemeldete Dev-Sitzung lädt den veröffentlichten Stand unter
+https://dev.drehpunktlogistik.de. Postfach samt vorhandenen Aktionen sowie die
+Sendungsverfolgung mit Filtern und real geladenen Auftragsdaten geprüft; keine
+Browser-Konsolenfehler. Es wurden keine Statuszeiten übernommen/geändert und
+keine neuen KI-Läufe auf vorhandenen Mails gestartet. Der fachliche Test der
+neuen Herleitungen mit echten Antwortmails bleibt die angekündigte Nutzerabnahme.
+
+Main nach Veröffentlichung weiterhin a4b274d09399bdfdbdb298e3b09b5842fcf01c71.
+Dieser Nachtrag dokumentiert ausschließlich die Abnahme; keine weitere
+Laufzeitcodeänderung gegenüber dem geprüften Frontendcommit.
