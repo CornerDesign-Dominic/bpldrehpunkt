@@ -13,6 +13,11 @@ insbesondere keine Transportauftrags-, Fall-, To-do-, CRM- oder Stammdatenlinks.
   übernommen. Zusammengeführter Frontendstand `5ec0363d4c158a5ac8f517cc83c9ebc02a5397ca`;
   [Vercel-Erfolg](https://vercel.com/cornerdesign-dominics-projects/bpldrehpunkt/2ohDBXoVTGkJ6AeNz5TVgGb5rKmS)
   und Live-Alias `https://dev.drehpunktlogistik.de` bestätigt.
+- Abschließend den parallelen Maileinordnungs-/Rechnungsstand bis `35b3ae2`
+  erhalten. Dessen bereits veröffentlichter Frontendquellstand ist identisch
+  mit dem abschließend geprüften `src/`-Stand; die verbleibenden Ergänzungen
+  betreffen PDF-Backend/Rules, Tests und den Abschlussbeleg. Zusammengeführte
+  Diagnoseexports beider Veröffentlichungen bleiben erhalten.
 - PDF-Korrektur im Fachstand `f640c6f`: Storage-Zugriff über Benutzerprofil und
   serververwalteten Status-/Größen-Slot in der Vertragswurzel.
 - Firebase-Ziel ausschließlich `db-bpl-drehpunkt-dev`, Functions `europe-west3`:
@@ -39,7 +44,9 @@ sind nun explizit geprüft.
 
 - Projekt-Lint und Frontendbuild erfolgreich, auch nach Übernahme des aktuellen
   Dev-Zwischenstands. Es bleibt die bekannte Buildwarnung zu großen Chunks.
-- Shared-Abgleich: 45 Module unverändert.
+- Shared-Abgleich vor der parallelen Zusammenführung: 45 Module; danach alle
+  46 deploybaren Module synchron. Abschließend 49 gezielte Vertrags-, Kalender-,
+  Diagnose- und Sprach-/Navigationstests erfolgreich.
 - Releaseprüfungen für Validierung, Fremdverknüpfungen, Kalenderrechte,
   Kalendernavigation, Diagnose, Beträge und Monatsanker erfolgreich.
 - Nach PDF-Korrektur 18 echte Firestore-/Storage-/Transaktionsprüfungen im
