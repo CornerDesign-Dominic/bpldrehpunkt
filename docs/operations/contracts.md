@@ -7,6 +7,13 @@ nicht veröffentlicht. Führende Zugriffsregeln stehen in
 
 ## Fachlicher Umfang
 
+Vertragsmanagement führt betriebliche Begleitverträge, beispielsweise Miete,
+Mobilfunk, Internet und Versicherungen. Es ist kein Modul für Transportverträge.
+Die Akten besitzen ausschließlich die fachliche Kalenderanbindung: keine
+Auftrags-, Fall-, To-do-, CRM- oder Geschäftspartnerverknüpfungen. Die
+Vertragspartnerbezeichnung ist Freitext. Unbekannte Verknüpfungsfelder werden
+von der serverseitigen Eingabevalidierung abgewiesen.
+
 Ein Vertrag besitzt einen frei erfassten Vertragspartner. Vertragsnummer und
 Kundennummer sind optionale Angaben; die Kundennummer bezeichnet die eigene
 Nummer beim jeweiligen Vertragspartner und ist keine automatische Verknüpfung

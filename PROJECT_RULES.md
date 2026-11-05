@@ -60,6 +60,8 @@ fachlich abgenommen wurde. Historische Releases stehen in
 - Gericht / Streit
 - Inkasso
 - Vertragsmanagement mit Übersicht, Vertragsliste und Vertragsakten.
+  Es führt betriebliche Begleitverträge wie Miete, Mobilfunk, Internet und
+  Versicherungen; außer dem Kalender gibt es keine fachlichen Verknüpfungen.
   Der lokale Aktenausbau ergänzt Vertrags-/Kundennummer, Brutto-Positionen mit
   Rhythmus und Bezugsdatum, Aktenfristen samt virtuellem Kalender, PDF-Dokumente,
   Notizen und Historie. Modulrecht: `contracts`. Vertrag und Veröffentlichungsstand:

@@ -17,6 +17,13 @@ test('contract positions bind gross cents, supported billing cycles and a real a
   assert.equal(normalizeContractMutation({ ...input, values: { ...input.values, billingCycle: 'half-yearly' } }).values.billingCycle, 'half-yearly')
   for (const values of [{ grossAmountCents: 12.2 }, { grossAmountCents: -1 }, { grossAmountCents: 1e11 + 1 }, { billingCycle: 'weekly' }, { title: '' }, { anchorDate: '' }, { anchorDate: '2026-02-29' }, { quantity: 1 }, { unitPriceCents: 1 }, { reference: 'old' }]) assert.throws(() => normalizeContractMutation({ ...input, values: { ...input.values, ...values } }), { code: 'invalid-argument' })
 })
+
+test('ordinary business contracts reject transport, case and other module links', () => {
+  for (const field of ['transportOrderId', 'transportOrderLinks', 'caseId', 'damageCaseId', 'businessPartnerId', 'todoId', 'crmId']) {
+    assert.throws(() => normalizeContractMutation({ ...base, values: { ...base.values, [field]: 'foreign-record' } }), { code: 'invalid-argument' })
+    assert.throws(() => normalizeContractMutation({ ...base, [field]: 'foreign-record' }), { code: 'invalid-argument' })
+  }
+})
 test('contract deadlines require real dates and valid local times', () => {
   const input = { ...base, action: 'deadline.save', values: { title: 'Kündigung', type: 'cancellation', date: '2028-02-29', time: '23:59', completed: false } }
   assert.equal(normalizeContractMutation(input).values.date, '2028-02-29')
