@@ -50,8 +50,8 @@ Der virtuelle Systemkalender `system-contracts` prüft `contracts:view` und
 liefert ausschließlich offene Aktenfristen mit reduziertem Elternbezug.
 Technische Fehler verwenden das Diagnosemodul `contracts` ohne freie
 Vertragsinhalte. Datenvertrag, Wiederaufnahme und notwendige Releasebestandteile:
-[Vertragsakte](docs/operations/contracts.md). Dieser lokale Ausbau ist noch
-nicht veröffentlicht.
+[Vertragsakte](docs/operations/contracts.md). Der Ausbau ist auf Dev veröffentlicht;
+der dort verlinkte Abschlussbeleg dokumentiert die echte Abnahme.
 
 Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
 unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für

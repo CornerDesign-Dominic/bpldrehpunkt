@@ -62,7 +62,7 @@ fachlich abgenommen wurde. Historische Releases stehen in
 - Vertragsmanagement mit Übersicht, Vertragsliste und Vertragsakten.
   Es führt betriebliche Begleitverträge wie Miete, Mobilfunk, Internet und
   Versicherungen; außer dem Kalender gibt es keine fachlichen Verknüpfungen.
-  Der lokale Aktenausbau ergänzt Vertrags-/Kundennummer, Brutto-Positionen mit
+  Der auf Dev veröffentlichte Aktenausbau ergänzt Vertrags-/Kundennummer, Brutto-Positionen mit
   Rhythmus und Bezugsdatum, Aktenfristen samt virtuellem Kalender, PDF-Dokumente,
   Notizen und Historie. Modulrecht: `contracts`. Vertrag und Veröffentlichungsstand:
   [Vertragsakte](docs/operations/contracts.md).

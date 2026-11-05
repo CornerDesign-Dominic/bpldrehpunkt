@@ -1,8 +1,9 @@
 # Vertragsakten
 
-Stand: 05.11.2026. Die erste Vertragsliste/Anlage wurde auf Dev veröffentlicht.
-Der hier beschriebene Aktenausbau ist lokal implementiert und geprüft, noch
-nicht veröffentlicht. Führende Zugriffsregeln stehen in
+Stand: 05.11.2026. Vertragsliste und erweiterte Vertragsakte sind auf Dev
+veröffentlicht und im echten Browserablauf geprüft. Der konkrete Nachweis steht
+im [Dev-Abschlussbeleg](releases/contracts-file-dev-2026-11-05.md).
+Führende Zugriffsregeln stehen in
 [FIRESTORE_ACCESS.md](../../FIRESTORE_ACCESS.md).
 
 ## Fachlicher Umfang
@@ -90,7 +91,7 @@ werden. Fremde laufende Vorgänge zeigen ihren Status und werden nicht durch
 Übernahme fremder Mutations-IDs fortgesetzt. Ein erfolgreicher Schreibvorgang
 wird bei anschließendem Ladefehler weiterhin als gespeichert ausgewiesen.
 
-## Prüfstand und spätere Veröffentlichung
+## Prüfstand und Veröffentlichung
 
 Geprüft wurden Feldvalidierung, Revisionskonflikte, Wiederholungen und
 unterbrochene Dokumentübergänge sowie erlaubte/verweigerte Firestore- und
@@ -98,12 +99,14 @@ Storage-Zugriffe im expliziten Demo-Emulator. Lokale Browserprüfung mit echten
 Komponenten und synthetischen API-Grenzen: Vertrags-/Kundennummer, fünf
 Handypositionen, Einmalkosten, Bezugsdatum, Frist, Kalenderziel, Notiz,
 PDF-Upload/-Bearbeitung/-Download, Löschen, Neuladen, ungespeicherte Eingaben,
-Leserechte, Deutsch/Englisch und Light-/Dark-Mode. Die lokale UI-Datenquelle
-ersetzt keine noch ausstehende echte Dev-Abnahme des neuen Backends.
+Leserechte, Deutsch/Englisch und Light-/Dark-Mode. Anschließend wurde der echte
+Dev-Ablauf einschließlich Kalender, PDF-Wiederaufnahme, Download und Neuladen
+geprüft; dabei wurde das Storage-Abfragebudget korrigiert. Details und Grenzen
+stehen im verlinkten Abschlussbeleg.
 
-Für eine spätere freigegebene Dev-Veröffentlichung gemeinsam bereitstellen:
-Frontend, neue Callable `mutateContract`, aktualisierte
-`listSystemCalendarSources`/Diagnose-Functions und Firestore-/Storage-Rules.
+Auf `db-bpl-drehpunkt-dev` bereitgestellt: Frontend, neue Callable
+`mutateContract`, aktualisierte `listSystemCalendarSources`/Diagnose-Functions
+und Firestore-/Storage-Rules.
 Die Vertragsfristen sind keine Quelle der automatischen Erinnerungsabläufe.
 Zusätzliche Indizes, Secrets und Datenmigrationen sind nicht erforderlich.
 Bestehende Dreifeld-Verträge
