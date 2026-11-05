@@ -96,3 +96,40 @@ test('owner disposal ignores late private results', async () => {
   assert.equal(updates, 1)
   assert.deepEqual(store.getSnapshot(), {})
 })
+
+
+test('manual invoice completion and reopen keep the same report and survive rehydration; failed saves retain state', async () => {
+  const result = { id: 'saved-report', invoices: [{ number: 'RE1' }] }
+  let saved = action('invoice', 'review', { result })
+  let rejectReopen = false
+  const call = async (name, data) => {
+    if (name === 'startMailboxAction') return { action: saved }
+    if (name === 'listMailboxActions') return { actions: [{ ...saved, result: undefined }] }
+    if (name === 'getMailboxAction') return { action: saved }
+    if (name === 'updateMailboxAction') {
+      assert.equal(data.kind, 'invoice'); assert.equal(data.jobId, 'run-invoice')
+      if (rejectReopen) throw Error('save failed')
+      saved = { ...saved, state: data.action === 'reopen' ? 'review' : 'completed', completion: data.action === 'reopen' ? null : { invoiceReviewed: true }, updatedAtMillis: saved.updatedAtMillis + 1 }
+      return { action: saved }
+    }
+  }
+  const store = createMailboxActionStore(call, timers)
+  await store.start(identity, 'invoice')
+  await store.complete(identity, 'invoice')
+  assert.equal(store.getAction(identity, 'invoice').completion.invoiceReviewed, true)
+  rejectReopen = true
+  await assert.rejects(store.reopen(identity, 'invoice'))
+  assert.equal(store.getAction(identity, 'invoice').state, 'completed')
+  rejectReopen = false
+  await store.reopen(identity, 'invoice')
+  assert.equal(store.getAction(identity, 'invoice').state, 'review')
+  assert.equal(store.getAction(identity, 'invoice').completion, null)
+  assert.deepEqual(store.getAction(identity, 'invoice').result, result)
+  store.dispose()
+  const restored = createMailboxActionStore(call, timers)
+  restored.watch({ ...identity, kind: 'invoice' })
+  await restored.refresh(identity.connectionId)
+  assert.equal(restored.getAction(identity, 'invoice').state, 'review')
+  assert.deepEqual(restored.getAction(identity, 'invoice').result, result)
+  restored.dispose()
+})

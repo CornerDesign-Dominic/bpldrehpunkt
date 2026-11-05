@@ -30,13 +30,14 @@ export function useMailboxAction(identity, kind, recommended = false) {
   const start = useCallback(data => store.start(stableIdentity, kind, data), [store, stableIdentity, kind])
   const discard = useCallback(() => store.discard(stableIdentity, kind), [store, stableIdentity, kind])
   const complete = useCallback(proof => store.complete(stableIdentity, kind, proof), [store, stableIdentity, kind])
+  const reopen = useCallback(() => store.reopen(stableIdentity, kind), [store, stableIdentity, kind])
   const refresh = useCallback(() => store.refreshAction(stableIdentity, kind), [store, stableIdentity, kind])
   const action = snapshot[mailboxActionKey(stableIdentity, kind)] || store.getAction(stableIdentity, kind)
   const state = action.state === 'discarded' ? 'idle' : action.state
   const error = useMemo(() => action.error ? { ...action.error, message: action.error.message, code: action.error.code?.startsWith('functions/') ? action.error.code : `functions/${action.error.code || 'unknown'}` } : null, [action.error])
   const loadingResult = ['review', 'completed'].includes(state) && !action.result && !error
   const displayState = mailboxActionDisplayState(snapshot[mailboxActionKey(stableIdentity, kind)], recommended)
-  return { ...action, error, state, displayState, loadingResult, busy: state === 'running' || Boolean(action.pending) || loadingResult, start, discard, complete, refresh }
+  return { ...action, error, state, displayState, loadingResult, busy: state === 'running' || Boolean(action.pending) || loadingResult, start, discard, complete, reopen, refresh }
 }
 
 export function useMailboxActionList(connectionId, messageIds) {

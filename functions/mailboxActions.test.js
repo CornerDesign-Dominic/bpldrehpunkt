@@ -13,7 +13,7 @@ function database() {
   return { records, doc, collection, runTransaction(fn) { const result = queue.then(() => fn({ get: ref => ref.get(), create: (ref, value) => ref.create(value), set: (ref, value) => ref.set(value), update: (ref, value) => ref.update(value) })); queue = result.catch(() => {}); return result } }
 }
 function fixture(options = {}) {
-  const db = database(); const clock = { value: 1000 }; let permission = structuredClone(profile), calls = 0
+  const db = database(); const clock = { value: 1000 }; let permission = structuredClone(options.profile || profile), calls = 0
   db.records.set(`mailboxConnections/${connectionId}`, { ownerId: 'owner', status: 'connected', tenantId: 'tenant', graphUserId: 'graph' })
   const defaults = Object.fromEntries(['previewMailboxOrder', 'previewMailboxTracking', 'analyzeMailboxAgb', 'reviewMailboxInvoices'].map(name => [name, async () => { calls++; return { label: name } }]))
   const handlers = createMailboxActionHandlers({ db, project: options.project || 'db-bpl-drehpunkt-dev', now: () => clock.value, requireProfile: async request => { if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.'); return permission }, handlers: { ...defaults, ...options.handlers } })
@@ -38,7 +38,7 @@ test('independent kinds can run together; auto-completed reviews differ from con
   assert.equal(new Set(jobs.map(job => job.action.jobId)).size, 4)
   await Promise.all(jobs.map(job => f.handlers.processMailboxActionRun(job.action.jobId)))
   const listed = (await f.handlers.listMailboxActions(f.request({ messageIds: ['message'] }))).actions
-  assert.deepEqual(Object.fromEntries(listed.map(action => [action.kind, action.state])), { order: 'review', tracking: 'review', terms: 'completed', invoice: 'completed' })
+  assert.deepEqual(Object.fromEntries(listed.map(action => [action.kind, action.state])), { order: 'review', tracking: 'review', terms: 'completed', invoice: 'review' })
   assert.ok(listed.every(action => !Object.hasOwn(action, 'result')))
 })
 
@@ -174,4 +174,88 @@ test('a just-claimed worker is not failed by stale metadata read before its clai
     return fn(tx)
   })
   assert.equal((await f.handlers.getMailboxAction(f.request())).action.state, 'running')
+})
+
+
+const invoiceKey = `mailboxActionScopes/${hash(`owner|${connectionId}`)}/actions/${hash('message|invoice')}`
+
+test('invoice analysis waits for manual completion, supports reopen and never changes its result or financial records', async () => {
+  const f = fixture({ handlers: { reviewMailboxInvoices: async () => ({ report: { id: 'invoice-report', invoices: [{ number: 'RG1', grossTotal: 500 }] }, alreadyApplied: true }) } })
+  f.db.records.set('invoiceCheckReports/invoice-report', { immutable: true })
+  f.db.records.set('transportOrders/invoice-order', { amount: 500 })
+  const { action } = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  await f.handlers.processMailboxActionRun(action.jobId)
+  const pending = (await f.handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action
+  assert.equal(pending.state, 'review')
+  assert.equal(pending.completion, undefined)
+  const before = structuredClone([...f.db.records].filter(([path]) => path !== invoiceKey))
+  f.clock.value = 2000
+  const completed = (await f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'complete', jobId: action.jobId, proof: { invoiceReviewed: true, actorId: 'forged', reviewedAt: 1 } }))).action
+  assert.equal(completed.state, 'completed')
+  assert.deepEqual(completed.completion, { invoiceReviewed: true, actorId: 'owner', reviewedAt: 2000 })
+  assert.deepEqual(completed.result, pending.result)
+  assert.equal(completed.jobId, action.jobId)
+  f.clock.value = 3000
+  const repeated = (await f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'complete', jobId: action.jobId }))).action
+  assert.deepEqual(repeated.completion, completed.completion)
+  const listed = (await f.handlers.listMailboxActions(f.request({ messageIds: ['message'] }))).actions.find(action => action.kind === 'invoice')
+  assert.equal(listed.state, 'completed'); assert.deepEqual(listed.completion, completed.completion)
+  const reopened = (await f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'reopen', jobId: action.jobId }))).action
+  assert.equal(reopened.state, 'review'); assert.equal(reopened.completion, null)
+  assert.deepEqual(reopened.result, pending.result); assert.equal(reopened.jobId, action.jobId)
+  assert.deepEqual([...f.db.records].filter(([path]) => path !== invoiceKey), before)
+})
+
+test('legacy automatic invoice completion is publicly pending until explicitly reviewed', async () => {
+  const f = fixture()
+  const { action } = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  await f.handlers.processMailboxActionRun(action.jobId)
+  f.db.records.get(invoiceKey).state = 'completed'
+  const original = structuredClone(f.db.records.get(invoiceKey))
+  assert.equal((await f.handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action.state, 'review')
+  assert.equal((await f.handlers.listMailboxActions(f.request({ messageIds: ['message'] }))).actions[0].state, 'review')
+  assert.deepEqual(f.db.records.get(invoiceKey), original, 'read-time compatibility must not rewrite old records')
+  const completed = (await f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'complete', jobId: action.jobId }))).action
+  assert.equal(completed.state, 'completed'); assert.equal(completed.completion.invoiceReviewed, true)
+})
+
+test('invoice manual transitions require ownership, permissions, a current successful job and cannot affect other action kinds', async () => {
+  const f = fixture()
+  const { action } = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  for (const update of ['complete', 'reopen']) {
+    await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: update, jobId: action.jobId })), { code: 'failed-precondition' })
+    await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: update, jobId: action.jobId }, 'foreign')), { code: 'permission-denied' })
+    await assert.rejects(f.handlers.updateMailboxAction({ data: f.request({ kind: 'invoice', action: update, jobId: action.jobId }).data }), { code: 'unauthenticated' })
+  }
+  await f.handlers.processMailboxActionRun(action.jobId)
+  await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'complete', jobId: 'stale-job' })), { code: 'aborted' })
+  const { action: terms } = await f.handlers.startMailboxAction(f.request({ kind: 'terms' }))
+  await f.handlers.processMailboxActionRun(terms.jobId)
+  await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'terms', action: 'reopen', jobId: terms.jobId })), { code: 'failed-precondition' })
+  f.revoke()
+  await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'complete', jobId: action.jobId })), { code: 'permission-denied' })
+})
+
+test('forced invoice reruns clear manual completion and stale completion/reopen requests cannot overwrite the new job', async () => {
+  const f = fixture()
+  const { action } = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  await f.handlers.processMailboxActionRun(action.jobId)
+  await f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'complete', jobId: action.jobId }))
+  const next = (await f.handlers.startMailboxAction(f.request({ kind: 'invoice', force: true }))).action
+  assert.notEqual(next.jobId, action.jobId); assert.equal(next.state, 'running'); assert.equal(next.completion, undefined)
+  for (const update of ['complete', 'reopen']) await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: update, jobId: action.jobId })), { code: 'aborted' })
+  await f.handlers.processMailboxActionRun(next.jobId)
+  assert.equal((await f.handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action.state, 'review')
+})
+
+
+test('invoice completion and reopening enforce module rights and the original mailbox identity', async () => {
+  const restricted = fixture({ profile: { ...profile, permissions: { ...profile.permissions, transportOrders: 'view' } } })
+  for (const action of ['complete', 'reopen']) await assert.rejects(restricted.handlers.updateMailboxAction(restricted.request({ kind: 'invoice', action, jobId: 'any-job' })), { code: 'permission-denied' })
+  const f = fixture()
+  const { action } = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  await f.handlers.processMailboxActionRun(action.jobId)
+  f.db.records.get(`mailboxConnections/${connectionId}`).graphUserId = 'different-mailbox'
+  for (const update of ['complete', 'reopen']) await assert.rejects(f.handlers.updateMailboxAction(f.request({ kind: 'invoice', action: update, jobId: action.jobId })), { code: 'permission-denied' })
+  assert.equal(f.db.records.get(invoiceKey).state, 'review')
 })
