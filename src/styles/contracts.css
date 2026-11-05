@@ -1,0 +1,18 @@
+.contracts-page { display: grid; align-content: start; gap: 20px; min-width: 0; }
+.contracts-page > .back-link, .contracts-page > .button { justify-self: start; }
+.contracts-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.contracts-toolbar h2 { margin: 0; }
+.contract-panel { padding: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--content-background); }
+.contract-panel h2, .contract-panel h3 { margin-top: 0; }
+.contract-panel p { color: var(--text-secondary); }
+.contracts-table-frame { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.contracts-table-frame td:first-child { overflow-wrap: anywhere; }
+.contracts-table-frame a { color: var(--text-primary); text-decoration: underline; text-underline-offset: 3px; }
+.contracts-table-frame a:hover { color: var(--text-secondary); }
+.contracts-table-frame a:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.contract-details { display: flex; flex-wrap: wrap; gap: 24px 48px; margin-bottom: 0; }
+.contract-details dt { color: var(--text-secondary); }
+.contract-details dd { margin: 6px 0 0; overflow-wrap: anywhere; }
+.contract-create-dialog { width: min(480px, calc(100vw - 40px)); max-height: calc(100vh - 40px); padding: 24px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--content-background); }
+.contract-create-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.contract-create-dialog h2 { margin: 0; }

@@ -4,6 +4,7 @@ import { usePageHeader } from '../../lib/pageHeader.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
 
 const titleKeys = {
+  'Vertragsmanagement': 'nav.contracts',
   'Qualität': 'group.quality', 'K.V.P.': 'nav.kvp', 'Handbuch': 'nav.handbook',
   'Grundregeln': 'nav.groundRules', 'Wissenslücken': 'nav.knowledgeGaps',
   'Postfächer': 'nav.mailboxes', 'Team & Urlaub': 'group.people',

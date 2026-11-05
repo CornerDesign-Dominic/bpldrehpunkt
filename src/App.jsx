@@ -8,6 +8,7 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
+import ContractManagementLayout from './components/layout/ContractManagementLayout.jsx'
 import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
 import { caseManagementModules } from './lib/caseManagementNavigation.js'
 import QualityLayout from './components/layout/QualityLayout.jsx'
@@ -47,6 +48,8 @@ const DamagesPage = lazy(() => import('./pages/DamagesPage.jsx'))
 const DamageDetailPage = lazy(() => import('./pages/DamageDetailPage.jsx'))
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'))
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage.jsx'))
+const ContractManagementPage = lazy(() => import('./pages/ContractManagementPage.jsx'))
+const ContractDetailPage = lazy(() => import('./pages/ContractDetailPage.jsx'))
 const MailboxesPage = lazy(() => import('./pages/MailboxesPage.jsx'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
 const TeamPage = lazy(() => import('./pages/TeamPage.jsx'))
@@ -146,6 +149,11 @@ export default function App() {
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
+        <Route element={<PermissionRoute module="contracts"><ContractManagementLayout /></PermissionRoute>}>
+        <Route path="/vertragsmanagement" element={null} />
+        <Route path="/vertragsmanagement/vertraege" element={<ContractManagementPage />} />
+        <Route path="/vertragsmanagement/vertraege/:id" element={<ContractDetailPage />} />
+        </Route>
         <Route element={<PermissionRoute anyModules={documentsToolsModules}><DocumentsToolsLayout /></PermissionRoute>}>
         <Route path="/dokumente-werkzeuge" element={null} />
         <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />

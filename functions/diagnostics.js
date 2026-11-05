@@ -4,10 +4,11 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
+  contracts: ['load', 'save'],
   'case-links': ['load', 'save'],
   'partner-links': ['load', 'resolve', 'resolve-list', 'revalidate', 'reload-after-save', 'save'],
   'legal-disputes': ['load-counterparty', 'load-counterparty-options'],
@@ -43,6 +44,7 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
+  contracts: { load: 'Verträge konnten nicht geladen werden.', save: 'Vertrag konnte nicht angelegt werden.' },
   'legal-disputes': { 'load-counterparty': 'Verknüpfte Gegenseite konnte nicht geladen werden.', 'load-counterparty-options': 'Partnerauswahl konnte nicht geladen werden.' },
   'partner-links': { load: 'Verknüpfte Vorgänge des Geschäftspartners konnten nicht vollständig geladen werden.', resolve: 'Die Partner-Weiterleitung konnte nicht aufgelöst werden.', 'resolve-list': 'Einige Partner-Weiterleitungen der Liste konnten nicht aufgelöst werden.', revalidate: 'Die aktuelle Partnerzuordnung konnte nicht erneut geprüft werden.', 'reload-after-save': 'Gespeicherte Stammdaten konnten nicht erneut geladen werden.', save: 'Die Stammdaten konnten nicht gespeichert werden.' },
   'case-links': { load: 'Fallverknüpfungen konnten nicht geladen werden.', save: 'Fallverknüpfung konnte nicht gespeichert werden.' },
@@ -65,7 +67,7 @@ export function canReportLinkDiagnostic(profile, module, orderId = '') {
   if (module === 'transport-orders') return view('transportOrders')
   if (module === 'pallets') return view('pallets')
   if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
-  if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps'].includes(module)) return true
+  if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'contracts'].includes(module)) return true
   return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[module])
 }
 
@@ -107,10 +109,10 @@ export function normalizeClientDiagnostic(data) {
   const recordId = safeText(data?.recordId, 240)
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
-  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'contracts'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
-  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
+  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {

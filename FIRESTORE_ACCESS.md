@@ -29,6 +29,20 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Vertragsmanagement verwendet das eigene Modulrecht `contracts`. Aktive Profile
+mit `view` dürfen `contracts/{id}` lesen; `edit` erlaubt zusätzlich das Anlegen.
+Die bestehende Rechteverwaltung bietet das Modul an; der Superadmin-Override
+bleibt erhalten. Ein Adminstatus allein gewährt keinen Fachzugriff.
+Der erste Datenvertrag besteht ausschließlich aus `partnerName` (getrimmter,
+freier Pflichtname mit 1–240 Zeichen), `createdBy` (authentifizierter Benutzer)
+und `createdAt` (Serverzeit). Updates, Löschungen und Untercollections bleiben
+bis zum Ausbau der Vertragsakte gesperrt. Das Anlegen verwendet eine stabile
+Dokument-ID und Transaktion für Wiederholungen desselben Anlegeversuchs.
+Technische Lade-/Anlegefehler verwenden das Diagnosemodul `contracts`, ohne
+den Vertragspartnernamen zu protokollieren. Frontend, Benutzerverwaltungs- und
+Diagnose-Functions sowie Firestore Rules gehören gemeinsam zum Releaseumfang.
+Neue Indizes oder Storage-Rechte werden dafür nicht benötigt.
+
 Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
 unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für
 Browser). `listDycosMasterDataImports` prüft App Check, aktives Profil und

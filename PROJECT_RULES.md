@@ -59,6 +59,9 @@ fachlich abgenommen wurde. Historische Releases stehen in
 - Insolvenzen
 - Gericht / Streit
 - Inkasso
+- Vertragsmanagement mit Übersicht, Vertragsliste und ersten Vertragsakten.
+  Ein freier Vertragspartnername ist beim Anlegen verpflichtend. Modulrecht:
+  `contracts`; weitere Akteninhalte folgen in einem späteren Ausbau.
 
 ### Dokumente und fachliche Hilfen
 
