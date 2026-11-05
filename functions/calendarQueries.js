@@ -8,6 +8,7 @@ const calendars = {
   'system-insolvencies': { module: 'insolvencies', collection: 'insolvencies', dates: ['insolvencyDate'] },
   'system-legal-disputes': { module: 'legalDisputes', collection: 'legalDisputes' },
   'system-inkasso': { module: 'inkasso', collection: 'inkassoCases', dates: ['originalDueDate', 'lastReminderDate', 'lawyerHandoverDate', 'paymentOrderDate', 'enforcementOrderDate'] },
+  'system-contracts': { module: 'contracts', collection: 'contracts' },
 }
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const canView = (profile, module) => profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[module])
@@ -19,7 +20,8 @@ const validDate = (value) => {
 const parentFields = ['caseNumber', 'title', 'partnerName', 'courtReference', 'debtorName', 'insolvencyDate', 'originalDueDate', 'lastReminderDate', 'lawyerHandoverDate', 'paymentOrderDate', 'enforcementOrderDate']
 function parentSource(snapshot) {
   const data = snapshot.data()
-  return { id: snapshot.id, ...Object.fromEntries(parentFields.filter((field) => Object.hasOwn(data, field)).map((field) => [field, data[field]])) }
+  const fields = snapshot.ref.path.startsWith('contracts/') ? ['partnerName', 'contractNumber'] : parentFields
+  return { id: snapshot.id, ...Object.fromEntries(fields.filter((field) => Object.hasOwn(data, field)).map((field) => [field, data[field]])) }
 }
 
 export function validateSystemCalendarQuery(data, profile) {
@@ -35,7 +37,9 @@ function visibleParent(collection, data) {
   return collection !== 'insolvencies' || (!data.splitArchivedAt && !data.mergedIntoPartnerId)
 }
 function visibleDeadline(parentPath, data) {
-  return typeof data.date === 'string' && datePattern.test(data.date) && (!parentPath.startsWith('insolvencies/') || !data.splitArchivedAt)
+  return typeof data.date === 'string' && datePattern.test(data.date)
+    && (!parentPath.startsWith('insolvencies/') || !data.splitArchivedAt)
+    && (!parentPath.startsWith('contracts/') || (data.completed !== true && validDate(data.date)))
 }
 
 // Deadline collection-group access stays server-only. Shared names also occur
@@ -51,7 +55,7 @@ export async function loadSystemCalendarSources(db, options) {
   const parents = new Map()
   const deadlines = new Map()
   const loadParents = async (snapshots) => {
-    const paths = [...new Set(snapshots.map((item) => calendarDeadlineParent(item.ref.path, allowed)).filter(Boolean))].filter((path) => !parents.has(path))
+    const paths = [...new Set(snapshots.filter((item) => !item.ref.path.startsWith('contracts/') || visibleDeadline(item.ref.path, item.data())).map((item) => calendarDeadlineParent(item.ref.path, allowed)).filter(Boolean))].filter((path) => !parents.has(path))
     for (let offset = 0; offset < paths.length; offset += 200) {
       const values = await db.getAll(...paths.slice(offset, offset + 200).map((path) => db.doc(path)))
       values.forEach((item) => parents.set(item.ref.path, item.exists && visibleParent(item.ref.path.split('/')[0], item.data()) ? parentSource(item) : null))
@@ -60,7 +64,7 @@ export async function loadSystemCalendarSources(db, options) {
       const path = calendarDeadlineParent(item.ref.path, allowed)
       if (path && parents.get(path) && visibleDeadline(path, item.data())) {
         const data = item.data()
-        deadlines.set(item.ref.path, { id: item.id, parentPath: path, date: data.date, time: data.time || '', type: data.type || '', note: data.note || '', reminderEnabled: data.reminderEnabled === true })
+        deadlines.set(item.ref.path, { id: item.id, parentPath: path, date: data.date, time: data.time || '', type: data.type || '', note: data.note || '', reminderEnabled: data.reminderEnabled === true, ...(path.startsWith('contracts/') ? { title: data.title || '' } : {}) })
       }
     }
   }

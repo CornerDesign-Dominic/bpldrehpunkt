@@ -30,18 +30,25 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 ## Zwei Zugriffsebenen
 
 Vertragsmanagement verwendet das eigene Modulrecht `contracts`. Aktive Profile
-mit `view` dürfen `contracts/{id}` lesen; `edit` erlaubt zusätzlich das Anlegen.
-Die bestehende Rechteverwaltung bietet das Modul an; der Superadmin-Override
+mit `view` dürfen die Akte einschließlich Positionen, Fristen, Notizen, Historie
+und Dokumentmetadaten lesen; `edit` erlaubt das Anlegen und Änderungen über die
+App-Check-geschützte Callable `mutateContract`. Der bestehende Superadmin-Override
 bleibt erhalten. Ein Adminstatus allein gewährt keinen Fachzugriff.
-Der erste Datenvertrag besteht ausschließlich aus `partnerName` (getrimmter,
-freier Pflichtname mit 1–240 Zeichen), `createdBy` (authentifizierter Benutzer)
-und `createdAt` (Serverzeit). Updates, Löschungen und Untercollections bleiben
-bis zum Ausbau der Vertragsakte gesperrt. Das Anlegen verwendet eine stabile
-Dokument-ID und Transaktion für Wiederholungen desselben Anlegeversuchs.
-Technische Lade-/Anlegefehler verwenden das Diagnosemodul `contracts`, ohne
-den Vertragspartnernamen zu protokollieren. Frontend, Benutzerverwaltungs- und
-Diagnose-Functions sowie Firestore Rules gehören gemeinsam zum Releaseumfang.
-Neue Indizes oder Storage-Rechte werden dafür nicht benötigt.
+Die direkte Erstanlage unter `contracts/{id}` bleibt auf `partnerName`,
+`createdBy` und `createdAt` beschränkt. Direkte Updates, Löschungen und sämtliche
+Schreibzugriffe auf Untercollections sind gesperrt. Die Callable prüft aktives
+Profil und Fachrecht erneut in der Transaktion, validiert Werte und Revisionen
+und schreibt eine unveränderliche Historie samt Wiederholungsbeleg.
+`contracts/{id}/mutations` bleibt vollständig für Clients gesperrt.
+PDFs unter `contracts/{id}/documents/{documentId}.pdf` erfordern einen bestehenden
+Vertrag und reservierte Metadaten. Unveränderliche Uploads sind auf PDF bis
+20 MiB beschränkt; lesbar werden sie erst nach serverseitiger Bestätigung.
+Der virtuelle Systemkalender `system-contracts` prüft `contracts:view` und
+liefert ausschließlich offene Aktenfristen mit reduziertem Elternbezug.
+Technische Fehler verwenden das Diagnosemodul `contracts` ohne freie
+Vertragsinhalte. Datenvertrag, Wiederaufnahme und notwendige Releasebestandteile:
+[Vertragsakte](docs/operations/contracts.md). Dieser lokale Ausbau ist noch
+nicht veröffentlicht.
 
 Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
 unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für

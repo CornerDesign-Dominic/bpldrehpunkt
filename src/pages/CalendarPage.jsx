@@ -1,6 +1,6 @@
 import { StaticText } from '../i18n/AutoTranslate.jsx'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { useCompanyHolidaySettings } from '../company-holidays/useCompanyHolidaySettings.js'
 import CalendarEventModal from '../components/calendar/CalendarEventModal.jsx'
@@ -13,6 +13,8 @@ import { canView } from '../lib/permissions.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { calendarQueryRange } from '../lib/calendarQueryRange.js'
 import { resolveVisibleCalendarIds } from '../lib/calendarSelection.js'
+import { contractCalendarDeepLink, contractCalendarReturnSource, contractCalendarVisibleIds } from '../lib/contractCalendarPresentation.js'
+import { createReturnState } from '../lib/recordNavigation.js'
 import { berlinToday } from '../../shared/reminderTime.js'
 import '../styles/calendar.css'
 
@@ -118,9 +120,11 @@ export default function CalendarPage() {
   const { user, profile } = useAuth()
   const { calendarEntries: companyHolidayEntries } = useCompanyHolidaySettings()
   const navigate = useNavigate()
+  const location = useLocation()
+  const contractDeepLink = useMemo(() => contractCalendarDeepLink(location.search), [location.search])
   const now = new Date()
-  const [year, setYear] = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth())
+  const [year, setYear] = useState(() => contractDeepLink?.year ?? now.getFullYear())
+  const [month, setMonth] = useState(() => contractDeepLink?.month ?? now.getMonth())
   const [calendars, setCalendars] = useState([])
   const [events, setEvents] = useState([])
   const [visibleCalendarIds, setVisibleCalendarIds] = useState(null)
@@ -150,12 +154,13 @@ export default function CalendarPage() {
         setCalendars(availableCalendars)
         let stored = null
         try { stored = localStorage.getItem(storageKey) } catch { /* Use the default selection when browser storage is unavailable. */ }
-        setVisibleCalendarIds((current) => resolveVisibleCalendarIds(availableCalendars, current, stored))
+        setVisibleCalendarIds((current) => contractDeepLink ? contractCalendarVisibleIds(availableCalendars, current, stored, contractDeepLink) : resolveVisibleCalendarIds(availableCalendars, current, stored))
+        if (contractDeepLink) { setYear(contractDeepLink.year); setMonth(contractDeepLink.month) }
         setMetadataReady(true)
       })
       .catch((error) => { void reportTechnicalFailure({ module: 'calendar', stage: 'load', error }); if (active) { setError('Kalenderdaten konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.'); setLoading(false) } })
     return () => { active = false }
-  }, [isSuperadmin, profile, storageKey, userId])
+  }, [isSuperadmin, profile, storageKey, userId, contractDeepLink])
 
   useEffect(() => {
     if (!metadataReady) return undefined
@@ -178,10 +183,10 @@ export default function CalendarPage() {
   }, [storageKey, visibleCalendarIds])
 
   const visibleEvents = useMemo(() => [...events.filter((event) => selectedIds.includes(event.calendarId)), ...companyHolidayEntries], [companyHolidayEntries, events, selectedIds])
-  const editableCalendars = useMemo(() => calendars.filter((calendar) => calendar.accessLevel === 'edit' || calendar.ownerUserId === userId || isSuperadmin), [calendars, isSuperadmin, userId])
+  const editableCalendars = useMemo(() => calendars.filter((calendar) => !calendar.systemCalendar && (calendar.accessLevel === 'edit' || calendar.ownerUserId === userId || isSuperadmin)), [calendars, isSuperadmin, userId])
   const monthStart = dateValue(year, month, 1)
   const monthEnd = dateValue(year, month + 1, 0)
-  const selectableYears = Array.from({ length: 9 }, (_, index) => now.getFullYear() - 3 + index)
+  const selectableYears = [...new Set([...Array.from({ length: 9 }, (_, index) => now.getFullYear() - 3 + index), year])].sort((left, right) => left - right)
   const upcoming = useMemo(() => visibleEvents.filter((event) => event.kind !== 'company-holiday' && event.endDate >= todayValue()).sort((left, right) => left.startDate.localeCompare(right.startDate) || (left.startTime || '').localeCompare(right.startTime || '')).slice(0, 10), [visibleEvents])
   const monthEvents = useMemo(() => visibleEvents.filter((event) => overlaps(event, monthStart, monthEnd)), [monthEnd, monthStart, visibleEvents])
 
@@ -225,6 +230,10 @@ export default function CalendarPage() {
   }
 
   function openEvent(event) {
+    if (event.calendarId === 'system-contracts' && event.systemCalendar && event.targetPath) {
+      navigate(event.targetPath, { state: createReturnState(contractCalendarReturnSource(location, year, month, event.id)) })
+      return
+    }
     if ((event.systemCalendar || event.todoDeadline) && event.targetPath) {
       navigate(event.targetPath)
       return
