@@ -52,7 +52,7 @@ export default function LiabilityOrderPicker({ onSelect, onImported, onActivityC
     } finally { activity(null) }
   }
   return <section className="template-form-section" aria-labelledby="liability-order-heading" aria-busy={busy}>
-    <div className="template-section-heading"><div><h2 id="liability-order-heading">{w('Transportauftrag übernehmen', 'Use transport order')}</h2><p>{w('TA-Nummer eingeben und in Drehpunkt suchen.', 'Enter the order number and search Drehpunkt.')}</p></div></div>
+    <div className="template-section-heading"><div><h2 id="liability-order-heading">{w('Auftragsdaten abholen', 'Retrieve order details')}</h2><p>{w('TA-Nummer in Drehpunkt suchen oder fehlende Aufträge über die DyCoS-Schnittstelle importieren.', 'Search Drehpunkt by order number or import missing orders through the DyCoS interface.')}</p></div></div>
     <form className="liability-order-search" onSubmit={search}>
       <label className="form-field"><span>{w('TA-Nummer', 'Order number')}</span><input inputMode="numeric" value={number} maxLength={10} disabled={busy} onChange={event => { setNumber(event.target.value); setOrders(null); setError(''); setNotice('') }} /></label>
       <button type="submit" className="button" disabled={!valid || busy}>{phase === 'search' ? w('Suche läuft …', 'Searching …') : w('In Drehpunkt suchen', 'Search Drehpunkt')}</button>
