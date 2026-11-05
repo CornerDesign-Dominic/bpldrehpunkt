@@ -104,3 +104,16 @@ Die vollständige Fachabnahme mit neuen eingehenden Mails übernimmt der Nutzer.
 Bestehende Mails werden nicht rückwirkend automatisch neu eingeordnet. Für neue
 Normalnutzer müssen die Qualitätsrechte bei Bedarf ausdrücklich vergeben werden;
 keine Profile wurden pauschal erweitert.
+
+
+## Nachkontrolle der gemeinsamen Veröffentlichung
+
+Alle 24 benötigten Exporte anschließend ACTIVE bestätigt, einschließlich der
+zusammengeführten Diagnose: reportclientdiagnostic-00029-fam und
+listdiagnosticspage-00023-dag. Der erste Vercel-Build 73c9bb1 war erfolgreich.
+Die echte angemeldete Browserkontrolle deckte danach eine fehlende Sprachzuordnung
+für den neuen Sidebar-Eintrag auf (leere Seite nach Anmeldung). Die explizite
+Zuordnung und deutsche/englische Texte wurden ergänzt. Eine zusätzliche Prüfung
+aller statischen Sidebarziele verhindert solche fehlenden Zuordnungen; fünf
+Sprach-/Navigationsprüfungen, Projektlint und Build sind erfolgreich.
+Der entsprechende korrigierte Frontendstand ersetzt den ersten Build.

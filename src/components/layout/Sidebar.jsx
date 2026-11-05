@@ -84,6 +84,7 @@ const directNavigationGroups = {
 
 const navigationLabelKeys = {
   '/qualitaet/kvp': 'nav.kvp', '/qualitaet/handbuch': 'nav.handbook',
+  '/qualitaet/maileinordnung': 'nav.mailTriage',
   '/qualitaet/grundregeln': 'nav.groundRules', '/qualitaet/wissensluecken': 'nav.knowledgeGaps',
   '/postfaecher': 'nav.mailboxes',
   '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
