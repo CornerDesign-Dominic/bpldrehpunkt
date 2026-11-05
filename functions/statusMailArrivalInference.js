@@ -1,3 +1,4 @@
+import { getStatusMailReplyContext, statusReplyFieldBasis, replyAffirmsArrival } from './statusMailReplyContext.js'
 const FIVE_MINUTES = 5 * 60000
 const arrivalFields = new Set(['actualArrivalLoadingAt', 'actualArrivalUnloadingAt', 'estimatedArrivalLoadingAt', 'estimatedArrivalUnloadingAt'])
 const loadingContextFields = ['actualArrivalLoadingAt', 'loadingStartedAt', 'loadingCompletedAt', 'estimatedDepartureLoadingAt', 'actualDepartureLoadingAt']
@@ -34,7 +35,7 @@ function relativeMeaning(evidence, basis) {
   return arrived && (basis === 'mail_just_arrived' ? just : !just)
 }
 
-function explicitStation(evidence, mail, order) {
+export function explicitStatusStation(evidence, mail, order) {
   const loadingCity = normalize(order?.imported?.loading?.city)
   const unloadingCity = normalize(order?.imported?.unloading?.city)
   const stationIn = source => {
@@ -53,31 +54,42 @@ function explicitStation(evidence, mail, order) {
 }
 
 export function storedArrivalDerivation(value) {
-  if (!value || !bases.has(value.timeBasis) || !['explicit', 'tracking_context'].includes(value.stationBasis)) return null
+  if (!value || !bases.has(value.timeBasis) || !['explicit', 'tracking_context', 'reply_context'].includes(value.stationBasis)) return null
   const received = dateOf(value.mailReceivedAt)
   if (!received) return null
-  return { timeBasis: value.timeBasis, stationBasis: value.stationBasis, basedOnFields: Array.isArray(value.basedOnFields) ? value.basedOnFields.filter(field => loadingContextFields.includes(field)).slice(0, 5) : [], mailReceivedAt: received.toISOString(), timingApproximate: value.timingApproximate === true, ruleVersion: 1 }
+  return { timeBasis: value.timeBasis, stationBasis: value.stationBasis, basedOnFields: Array.isArray(value.basedOnFields) ? value.basedOnFields.filter(field => loadingContextFields.includes(field)).slice(0, 5) : [], mailReceivedAt: received.toISOString(), timingApproximate: value.timingApproximate === true, ...(value.stationBasis === 'reply_context' && /^[a-z_]{3,50}$/.test(value.questionKind || '') ? { questionKind: value.questionKind } : {}), ruleVersion: value.stationBasis === 'reply_context' ? 2 : 1 }
 }
 
 export function arrivalDerivation(update, mail, { tracking, order } = {}) {
   const timeBasis = update.timeBasis || 'explicit'
-  const stationBasis = update.stationBasis || 'explicit'
-  if (!bases.has(timeBasis) || !['explicit', 'tracking_context'].includes(stationBasis)) return null
-  if (!isCurrentArrivalStatement(update.evidence, mail)) return null
+  let stationBasis = update.stationBasis || 'explicit'
+  if (!bases.has(timeBasis) || !['explicit', 'tracking_context', 'reply_context'].includes(stationBasis)) return null
+  const reply = statusReplyFieldBasis(update.field, mail, update.evidence)
+  const replyAffirmed = replyAffirmsArrival(mail, update.evidence, update.field)
+  const negativeEtaReply = update.field.startsWith('estimatedArrival') && timeBasis === 'explicit' && reply && /^(?:nein\b|no\b|noch nicht\b|not yet\b)/i.test(update.evidence.trim()) && !/[?？]/.test(update.evidence)
+  if (!isCurrentArrivalStatement(update.evidence, mail) && !replyAffirmed && !negativeEtaReply) return null
   const received = dateOf(mail.receivedAt)
   if (!received) return null
   const relative = timeBasis !== 'explicit'
-  if (relative && (!arrivalFields.has(update.field) || !relativeMeaning(update.evidence, timeBasis))) return null
-  if (relative && (update.field.startsWith('estimated') !== (timeBasis === 'mail_arriving_soon'))) return null
-  // An explicit clock or duration in the excerpt must not be silently replaced
-  // by a timestamp derived from when the message happened to arrive.
-  if (relative && /\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s*(?:uhr|h|am|pm|minutes?|minuten|stunden|hours?)\b/i.test(update.evidence)) return null
-  const target = update.field.includes('Unloading') ? 'unloading' : 'loading'
-  const named = explicitStation(update.evidence, mail, order)
+  const target = update.field.includes('Unloading') || update.field.startsWith('unloading') ? 'unloading' : 'loading'
+  const named = explicitStatusStation(update.evidence, mail, order)
   if (named && named !== target) return null
+  const originalQuestion = getStatusMailReplyContext(mail)
+  // A direct statement names its own stop. Otherwise, a grounded reply takes
+  // priority over a later transport phase; a bare Yes cannot answer two facts.
+  if (named) stationBasis = 'explicit'
+  else if (reply) stationBasis = 'reply_context'
+  else if (stationBasis === 'reply_context' || originalQuestion?.station && originalQuestion.station !== target) return null
+  const affirmativeArrival = stationBasis === 'reply_context' && timeBasis === 'mail_already_arrived' && replyAffirmsArrival(mail, update.evidence, update.field)
+  if (relative && (!arrivalFields.has(update.field) || !relativeMeaning(update.evidence, timeBasis) && !affirmativeArrival)) return null
+  if (relative && (update.field.startsWith('estimated') !== (timeBasis === 'mail_arriving_soon'))) return null
+  // An explicit clock or duration must never be replaced by a mail-time guess.
+  if (relative && /\b\d{1,2}[:.]\d{2}\b|\b\d{1,2}\s*(?:uhr|h|am|pm|minutes?|minuten|stunden|hours?)\b/i.test(update.evidence)) return null
   let basedOnFields = []
   if (stationBasis === 'explicit') {
     if (relative && named !== target) return null
+  } else if (stationBasis === 'reply_context') {
+    if (!reply || reply.station !== target) return null
   } else {
     if (!arrivalFields.has(update.field) || target !== 'unloading' || tracking?.lifecycleStatus === 'completed' || dateOf(tracking?.unloadingCompletedAt)) return null
     const requested = Array.isArray(update.contextFields) ? [...new Set(update.contextFields)] : []
@@ -87,11 +99,9 @@ export function arrivalDerivation(update, mail, { tracking, order } = {}) {
       return at && at < received && source?.requiresConfirmation !== true && source?.derivation?.timingApproximate !== true && (!source?.derivation || Boolean(source.confirmedBy))
     })
     if (basedOnFields.length !== requested.length) return null
-    // A newer confirmed departure must never be dated after the proposed actual
-    // arrival. The caller applies this once the explicit/relative time is known.
   }
   if (!relative && stationBasis === 'explicit') return null
-  return { timeBasis, stationBasis, basedOnFields, mailReceivedAt: received.toISOString(), timingApproximate: relative, ruleVersion: 1 }
+  return { timeBasis, stationBasis, basedOnFields, mailReceivedAt: received.toISOString(), timingApproximate: relative, ...(stationBasis === 'reply_context' ? { questionKind: reply.questionKind } : {}), ruleVersion: stationBasis === 'reply_context' ? 2 : 1 }
 }
 
 export function arrivalChronologyFits(field, value, tracking) {

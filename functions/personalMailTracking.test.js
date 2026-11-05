@@ -1,3 +1,5 @@
+import { shipmentTrackingArrivalConfirmationRule } from './shared/shipmentTrackingDryRun.js'
+import { shipmentTrackingProgress } from './shared/shipmentTrackingProgress.js'
 import { managedActionScope } from './mailboxSharedActions.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -245,4 +247,60 @@ test('preview and correction history preserve earlier arrival approximation with
   assert.equal(event.oldDerivation.timingApproximate, true)
   assert.equal(event.derivation, undefined)
   assert.equal(f.db.records.get('transportOrderTrackings/order-1').fieldSources.actualArrivalLoadingAt.derivation, undefined)
+})
+
+
+function replyFixture(answer, question, field = 'actualArrivalLoadingAt', options = {}) {
+  const f = fixture(options)
+  const text = `${answer}\n\nVon: Disposition <team@example.invalid>\nGesendet: Donnerstag, 29. Oktober 2026 10:00\nAn: Fahrer <driver@example.invalid>\nBetreff: TA 123456789\n\n${question}`
+  const update = { field, value: '', evidence: answer, confidence: 'medium', timeBasis: 'mail_already_arrived', stationBasis: 'reply_context', contextFields: [] }
+  f.args = { ...f.args, mail: { ...mail, receivedDateTime: '2026-10-29T10:02:37.000Z', body: { contentType: 'text', content: text } }, infer: async () => ({ isStatusUpdate: true, reviewRequired: false, updates: [update], transitUpdates: [], pauseUpdates: [] }) }
+  return f
+}
+
+test('a short answer to the actual loading question overrides timeline inference without copying the question', async () => {
+  const f = replyFixture('Ja.', 'Ist das Fahrzeug an der Ladestelle?', 'actualArrivalLoadingAt', { tracking: { lifecycleStatus: 'active', stageId: 'in_transit', actualDepartureLoadingAt: Timestamp.fromDate(new Date('2026-10-29T08:00:00Z')), estimatedArrivalLoadingAt: Timestamp.fromDate(new Date('2026-10-29T09:00:00Z')) } })
+  const preview = await previewPersonalMailTracking(f.args)
+  assert.equal(preview.proposals.actualArrivalLoadingAt, '2026-10-29T10:00:00.000Z')
+  assert.equal(preview.proposals.actualArrivalUnloadingAt, undefined)
+  assert.equal(preview.proposalDetails.actualArrivalLoadingAt.derivation.stationBasis, 'reply_context')
+  assert.ok(!JSON.stringify([...f.db.records]).includes('Ist das Fahrzeug an der Ladestelle?'))
+  await f.apply(preview, preview.proposals, [])
+  const tracking = f.db.records.get('transportOrderTrackings/order-1')
+  assert.equal(shipmentTrackingProgress(tracking).reachedLoading, true)
+  const arrivalRule = shipmentTrackingArrivalConfirmationRule({ tracking, carrier: { shipmentTrackingPolicy: { carrier: { actualArrivalConfirmationEnabled: true } } }, now: new Date('2026-10-29T12:00:00Z') })
+  assert.equal(arrivalRule.status, 'notRequired')
+})
+
+test('a Ja to a compound question is not turned into an arrival or a departure', async () => {
+  const f = replyFixture('Ja.', 'Läuft alles nach Plan? Habt Ihr bereits eine Ankunftszeit für uns? Ladestelle: Hamburg')
+  const preview = await previewPersonalMailTracking(f.args)
+  assert.deepEqual(preview.proposals, {})
+  assert.equal(f.db.records.has('transportOrderTrackings/order-1'), false)
+})
+
+test('remaining distance from a bare answer retains reply provenance and manual correction audit', async () => {
+  for (const corrected of [false, true]) {
+    const f = replyFixture('80', 'Wie viel Kilometer sind noch bis zur Entladestelle?')
+    f.args.infer = async () => ({ isStatusUpdate: true, reviewRequired: false, updates: [], transitUpdates: [{ kind: 'kilometers_to_unloading', value: 80, location: '', evidence: '80', confidence: 'high' }], pauseUpdates: [] })
+    const preview = await previewPersonalMailTracking(f.args)
+    assert.equal(preview.transitProposals[0].kilometersToDestination, 80)
+    assert.equal(preview.transitProposals[0].derivation.stationBasis, 'reply_context')
+    assert.equal(preview.reviewRequired, true)
+    await f.apply(preview, {}, [{ ...preview.transitProposals[0], ...(corrected ? { kilometersToDestination: 75 } : {}), proposalIndex: 0 }])
+    const event = [...f.db.records.values()].find(value => value.eventType === 'transit_position_reported')
+    assert.equal(event.source, corrected ? 'manual' : 'ai_mail')
+    assert.equal(corrected ? event.originalAiDerivation.stationBasis : event.derivation.stationBasis, 'reply_context')
+    assert.equal(event.newValue.transitEntry.kilometersToDestination, corrected ? 75 : 80)
+    assert.ok(!JSON.stringify([...f.db.records]).includes('Wie viel Kilometer'))
+  }
+})
+
+
+test('a known arrival from a single answered question survives an overly cautious no-status model result', async () => {
+  const f = replyFixture('Ja.', 'Ist das Fahrzeug an der Ladestelle?')
+  f.args.infer = async () => ({ isStatusUpdate: false, reviewRequired: false, updates: [], transitUpdates: [], pauseUpdates: [] })
+  const preview = await previewPersonalMailTracking(f.args)
+  assert.equal(preview.proposals.actualArrivalLoadingAt, '2026-10-29T10:00:00.000Z')
+  assert.equal(preview.reviewRequired, true)
 })

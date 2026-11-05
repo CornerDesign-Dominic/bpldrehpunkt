@@ -254,3 +254,63 @@ geprüft, keine Browser-Konsolenfehler. Nur die Servicegrenze war simuliert; kei
 Nachweis einer echten neuen Mail oder einer realen Modellantwort dieses Pakets.
 Keine echten Mails versendet, keine Live-Datensätze geändert, kein Push/Deployment.
 Abnahme mit echten neuen Mails erfolgt erst nach späterer ausdrücklicher Dev-Freigabe.
+
+
+## Lokales Sammelpaket: konkrete Antwort vor Verlaufsschätzung (05.11.2026)
+
+Ebenfalls nur lokal, ohne Veröffentlichung. Die unmittelbar beantwortete Frage
+wird aus dem vorhandenen zitierten Schriftverkehr gelesen. Es gibt keine neue
+Kopie oder Versionierung des Fragetexts, keine zusätzlichen Graphabrufe und
+keinen neuen KI-Aufruf. Geänderte Vorlagen-/Versandtexte werden nicht anhand der
+Vorlagen-ID rückwirkend rekonstruiert. Maßgeblich ist der mitgelieferte Inhalt.
+
+Die Auswertung nutzt ausschließlich die nächste zitierte Nachricht; ein älterer
+passender Fragetext darf eine dazwischenliegende Antwort nicht überspringen.
+Übliche Outlook-/On-wrote-/Quoteformate sind unterstützt. Bilinguale Wiederholungen
+zählen als dieselbe Frage. Explizit widersprechende TA-Bezüge sperren den Kontext.
+Fehlt die Frage tatsächlich im Text, bleibt der bisherige vorsichtige Ablauf.
+
+Reihenfolge: konkrete aktuelle Aussage, eindeutiger Antwortbezug, erst danach
+plausible Verlaufsschätzung. Eine eindeutig beantwortete Ladeankunftsfrage wird
+nicht wegen einer späteren Transportphase zur Entladeankunft. „Ja“ auf eine
+Mehrfachfrage (z.B. Plan eingehalten und ETA vorhanden) bestätigt nicht alle Punkte.
+„Fertig/beladen“ bestätigt insbesondere keine Abfahrt. Bei Zeitangaben aus dem
+Betreff einer alten Anfrage entsteht kein neuer Ist-Zeitbeleg.
+
+„Ja“ auf eine einzelne Ankunftsfrage und „LKW ist da“ mit eindeutigem Bezug bleiben
+als Ankunft verwertbar, auch wenn das Modell zunächst keinen Status meldet. Der
+eng begrenzte belegprüfende Ersatzpfad schlägt dann die Mailzeit auf fünf Minuten
+abgerundet vor; Näherungskennzeichnung und Nutzerbestätigung bleiben erforderlich.
+Eine echte Uhrzeit/Dauer in der aktuellen Antwort wird niemals durch die Mailzeit
+ersetzt. Nach bestätigter Übernahme zählt die Ankunft für den Fortschritt und
+macht eine erneute Ankunftsabfrage überflüssig; nächste offene Schritte bleiben offen.
+
+Die bloße Antwort „80“ auf eine eindeutige Restkilometerfrage kann als 80 km
+vorgeschlagen werden. Ohne die passende Frage wird keine Einheit erfunden.
+Der Betreff „ETA Entladestelle“ allein beweist keine Kilometerfrage. Bestehende
+Strecken-/Wertgrenzen bleiben erhalten. Hergeleitete Entfernungen werden auch im
+automatischen Status-Postfach nicht ungeprüft übernommen.
+
+Neue Herkunft stationBasis=reply_context, questionKind als begrenzter Fachcode und
+ruleVersion=2. Es werden keine Originalfragen in dieser Herkunft gespeichert.
+Bestehende proposals/Transitvorschläge und der bestätigte Übernahmepfad bleiben
+kompatibel. Transitvorschläge enthalten optional derivation/requiresConfirmation;
+Vergleich und Speicherung verwenden die fachlichen Positionswerte ohne diese
+Zusatzmerkmale. Manuelle Änderungen behalten die ursprüngliche Herleitung nur
+als ursprünglichen Vorschlag im Änderungsbeleg.
+
+Prüfstand dieses Nachtrags: 314 gezielte Unit-/Regressionsprüfungen erfolgreich,
+keine übersprungen. Realer Firestore-Emulatorlauf mit explizitem Demo-Projekt:
+14 Prüfungen erfolgreich, darunter Hintergrundjobs, wiederhergestellte Vorschau,
+Antwortbezug ohne Fragetextkopie, bestätigte Ankunft mit erhaltenem Fortschritt,
+Kilometervorschlag mit Herkunft und unveränderte automatische Schreibsperre für
+hergeleitete Werte. Negative/Futur-Antworten, Mehrfachfragen, aktuelle Aussagen
+gegenüber altem Betreff, fremde Aufträge und höfliche Kurzantworten sind gesondert
+abgedeckt. Vollständiges Lint, Build und Shared-Abgleich (46 Module) erfolgreich;
+bestehende Bundlegrößenwarnung unverändert.
+
+Keine realen Mails, Live-Schreibzugriffe oder Modellaufrufe zur Prüfung dieses
+Nachtrags. Eine erneute Browser-/Fachprüfung mit echten neuen Antwortmails bleibt
+für die spätere ausdrücklich freigegebene Dev-Veröffentlichung offen. Die vorherige
+lokale Dialogprüfung des Zeitregelpakets ersetzt diese Fachabnahme nicht.
+Kein Push, kein Deployment; keine neuen Rechte, Rules, Indizes oder Secrets.

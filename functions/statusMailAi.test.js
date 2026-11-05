@@ -317,3 +317,154 @@ test('a later exact arrival preserves the previous surrogate derivation in histo
   assert.equal(event.mailReceivedAt, receivedAt)
   assert.equal(documents.get('transportOrderTrackings/order-1').fieldSources.actualArrivalUnloadingAt.derivation, undefined)
 })
+
+
+function replyMail(answer, question) {
+  return { ...mail, bodyText: answer, transportOrderNumber: '123456789', receivedAt: Timestamp.fromDate(new Date('2026-11-05T13:12:37Z')), quotedContext: `From: Dispatch <dispatch@example.invalid>\nSent: Thu, 5 Nov 2026 13:00:00 +0100\nTo: Carrier <carrier@example.invalid>\nSubject: TA 123456789\n\n${question}` }
+}
+const loadingArrivalQuestion = 'Ist das Fahrzeug an der Ladestelle?\n\nIs the vehicle at the loading place?'
+
+test('a literal Yes to one quoted arrival question survives a missed model classification and outranks the transport phase', () => {
+  const current = replyMail('Ja.', loadingArrivalQuestion)
+  const accepted = validateStatusMailAiResult({ isStatusUpdate: false, updates: [] }, current, { tracking: { stageId: 'unloading', actualDepartureLoadingAt: Timestamp.fromDate(new Date('2026-11-05T10:00:00Z')) } })
+  assert.deepEqual(accepted.map(item => item.field), ['actualArrivalLoadingAt'])
+  assert.equal(accepted[0].value, '2026-11-05T13:10:00.000Z')
+  assert.equal(accepted[0].derivation.stationBasis, 'reply_context')
+  assert.equal(accepted[0].derivation.questionKind, 'loading_arrival')
+  assert.equal(accepted[0].requiresConfirmation, true)
+  assert.deepEqual(planStatusMailAiChanges({}, accepted, current.receivedAt), { changes: {}, applied: [] })
+  assert.equal(JSON.stringify(accepted).includes('Ist das Fahrzeug'), false)
+})
+
+test('a compound Yes never confirms arrival, and an explicit clock is not replaced by rounded mail time', () => {
+  const compound = replyMail('Ja.', 'Läuft alles nach Plan? Habt Ihr bereits eine Ankunftszeit für uns?\nLadestelle / Loading site: Hamburg')
+  assert.deepEqual(validateStatusMailAiResult({ isStatusUpdate: true, updates: [] }, compound), [])
+  const exact = replyMail('Ja, um 13:30 Uhr.', loadingArrivalQuestion)
+  assert.deepEqual(validateStatusMailAiResult({ isStatusUpdate: true, updates: [] }, exact), [])
+})
+
+test('current arrival statement follows its answered loading question instead of a conflicting unloading guess', () => {
+  const current = replyMail('LKW ist da.', loadingArrivalQuestion)
+  const accepted = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalUnloadingAt', value: '', evidence: current.bodyText, confidence: 'medium', timeBasis: 'mail_already_arrived', stationBasis: 'tracking_context', contextFields: ['actualDepartureLoadingAt'] }] }, current, { tracking: { actualDepartureLoadingAt: Timestamp.fromDate(new Date('2026-11-05T10:00:00Z')) } })
+  assert.deepEqual(accepted.map(item => item.field), ['actualArrivalLoadingAt'])
+  const named = replyMail('Bereits an der Entladestelle angekommen.', loadingArrivalQuestion)
+  const explicit = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalUnloadingAt', value: '', evidence: named.bodyText, confidence: 'medium', timeBasis: 'mail_already_arrived', stationBasis: 'reply_context', contextFields: [] }] }, named)
+  assert.equal(explicit[0].field, 'actualArrivalUnloadingAt')
+  assert.equal(explicit[0].derivation.stationBasis, 'explicit')
+})
+
+test('a clock-only ETA reply keeps its literal time and exposes original question only transiently in prompt context', () => {
+  const current = replyMail('15:00 Uhr.', 'Wann kommt Ihr etwa an der Ladestelle an?')
+  const accepted = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'estimatedArrivalLoadingAt', value: '2026-11-05T15:00:00+01:00', evidence: current.bodyText, confidence: 'high', timeBasis: 'explicit', stationBasis: 'explicit', contextFields: [] }] }, current)
+  assert.equal(accepted[0].value, '2026-11-05T14:00:00.000Z')
+  assert.equal(accepted[0].derivation.stationBasis, 'reply_context')
+  assert.equal(accepted[0].derivation.timingApproximate, false)
+  assert.equal(accepted[0].requiresConfirmation, true)
+  const context = statusMailPromptContext({ mail: current, order: {}, tracking: {}, route: null })
+  assert.match(context.replyContext.questionText, /Wann kommt/)
+  assert.equal(JSON.stringify(accepted).includes('Wann kommt'), false)
+})
+
+test('unitless remaining distance uses only a unique quoted kilometer question and remains reviewable', () => {
+  const current = replyMail('80', 'Wie viel Kilometer sind noch bis zur Entladestelle?\nHow many kilometers are left until the unloading point?')
+  const accepted = validateStatusMailTransitUpdates({ transitUpdates: [] }, current, 300)
+  assert.equal(accepted[0].kilometersToDestination, 80)
+  assert.equal(accepted[0].requiresConfirmation, true)
+  assert.equal(accepted[0].derivation.questionKind, 'unloading_distance')
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [] }, { ...current, quotedContext: '' }, 300), [])
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'kilometers_to_unloading', value: 80, evidence: '80', confidence: 'medium' }] }, { ...current, bodyText: 'Danke.' }, 300), [])
+})
+
+test('automatic ingestion saves inferred distance for review and creates neither tracking nor a position event', async () => {
+  const current = replyMail('80', 'Wie viel Kilometer sind noch bis zur Entladestelle?')
+  const documents = new Map([
+    ['transportOrders/order-1', { externalNumber: '123456789', imported: {} }],
+    ['transportOrders/order-1/receivedMails/reply-distance', current],
+    ['transportOrderRoutes/order-1', { roundedDistanceKm: 300 }],
+  ])
+  const ref = path => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }) })
+  const db = { doc: ref, runTransaction: async callback => callback({
+    get: async reference => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+    create: (reference, data) => documents.set(reference.path, data),
+    update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+  }) }
+  const infer = async () => ({ isStatusUpdate: false, reviewRequired: false, reviewReason: '', updates: [], transitUpdates: [], pauseUpdates: [] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'reply-distance', infer }), 'needs_review')
+  const stored = documents.get('transportOrders/order-1/receivedMails/reply-distance').ai
+  assert.equal(stored.reviewRequired, true)
+  assert.equal(stored.transitUpdates[0].kilometersToDestination, 80)
+  assert.equal(stored.transitUpdates[0].applied, false)
+  assert.equal(documents.has('transportOrderTrackings/order-1'), false)
+})
+
+
+test('an old reply subject clock is not evidence of a new arrival time', () => {
+  const current = { ...replyMail('Ja.', loadingArrivalQuestion), subject: 'RE: Ankunft Ladestelle heute 14:00 Uhr.' }
+  const accepted = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalLoadingAt', value: '2026-11-05T14:00:00+01:00', evidence: 'Ankunft Ladestelle heute 14:00 Uhr.', confidence: 'high', timeBasis: 'explicit', stationBasis: 'explicit', contextFields: [] }] }, current)
+  assert.equal(accepted.length, 1)
+  assert.equal(accepted[0].value, '2026-11-05T13:10:00.000Z')
+  assert.equal(accepted[0].derivation.timeBasis, 'mail_already_arrived')
+})
+
+test('an actual arrival is not erased by a negative statement about later departure', () => {
+  const current = replyMail('Ja, LKW ist da, aber noch nicht abgefahren.', loadingArrivalQuestion)
+  const accepted = validateStatusMailAiResult({ isStatusUpdate: false, updates: [] }, current)
+  assert.equal(accepted[0].field, 'actualArrivalLoadingAt')
+  assert.equal(accepted[0].derivation.timeBasis, 'mail_already_arrived')
+})
+
+
+test('explicit units do not turn a loading reply into an unloading distance, and a question-derived destination remains reviewable', () => {
+  const item = { kind: 'kilometers_to_unloading', value: 80, evidence: '80 km', confidence: 'high' }
+  assert.deepEqual(validateStatusMailTransitUpdates({ transitUpdates: [item] }, replyMail('80 km', 'Wann kommt Ihr etwa an der Ladestelle an?'), 300), [])
+  const accepted = validateStatusMailTransitUpdates({ transitUpdates: [item] }, replyMail('80 km', 'Wie viele Kilometer sind noch bis zur Entladestelle?'), 300)
+  assert.equal(accepted[0].requiresConfirmation, true)
+  assert.equal(accepted[0].derivation.stationBasis, 'reply_context')
+  const explicit = replyMail('Noch 80 km zur Entladestelle.', 'Wann kommt Ihr etwa an der Ladestelle an?')
+  assert.equal(validateStatusMailTransitUpdates({ transitUpdates: [{ ...item, evidence: explicit.bodyText }] }, explicit, 300)[0].kilometersToDestination, 80)
+})
+
+
+test('the model cannot bypass the answered stop or ETA meaning by calling a clock-only reply explicit', () => {
+  const current = replyMail('15:00 Uhr.', 'Wann kommt Ihr etwa an der Ladestelle an?')
+  const candidate = { value: '2026-11-05T15:00:00+01:00', evidence: current.bodyText, confidence: 'high', timeBasis: 'explicit', stationBasis: 'explicit', contextFields: [] }
+  assert.deepEqual(validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ ...candidate, field: 'estimatedArrivalUnloadingAt' }] }, current), [])
+  assert.deepEqual(validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ ...candidate, field: 'actualArrivalLoadingAt' }] }, current), [])
+})
+
+
+test('a negative arrival answer with a clock cannot bypass reply routing as a high-confidence explicit actual time', () => {
+  for (const answer of ['Nein, um 14 Uhr.', 'No, at 14:00.', 'Nein, an der Ladestelle um 14 Uhr.']) {
+    const current = replyMail(answer, loadingArrivalQuestion)
+    const accepted = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalLoadingAt', value: '2026-11-05T14:00:00+01:00', evidence: answer, confidence: 'high', timeBasis: 'explicit', stationBasis: 'explicit', contextFields: [] }] }, current)
+    assert.deepEqual(accepted, [], answer)
+  }
+})
+
+
+test('a negative arrival confirmation with an explicit clock may propose ETA, not actual arrival', () => {
+  const current = replyMail('Noch nicht, um 15 Uhr.', loadingArrivalQuestion)
+  const accepted = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'estimatedArrivalLoadingAt', value: '2026-11-05T15:00:00+01:00', evidence: current.bodyText, confidence: 'medium', timeBasis: 'explicit', stationBasis: 'reply_context', contextFields: [] }] }, current)
+  assert.equal(accepted[0].field, 'estimatedArrivalLoadingAt')
+  assert.equal(accepted[0].requiresConfirmation, true)
+  assert.equal(accepted[0].value, '2026-11-05T14:00:00.000Z')
+})
+
+
+test('a rejected model distance cannot erase a literal numeric reply to the kilometer question', () => {
+  const current = replyMail('80', 'Wie viele Kilometer sind noch bis zur Entladestelle?')
+  const accepted = validateStatusMailTransitUpdates({ transitUpdates: [{ kind: 'kilometers_to_unloading', value: 800, evidence: '80', confidence: 'high' }] }, current, 300)
+  assert.equal(accepted[0].kilometersToDestination, 80)
+  assert.equal(accepted[0].requiresConfirmation, true)
+})
+
+
+test('lowercase unloading process fields retain their own stop with explicit and replied completion times', () => {
+  const current = replyMail('Entladung fertig um 14 Uhr.', 'Bitte um kurzes Update zur Entladung.\nEntladestelle / Unloading site: Berlin')
+  const result = { isStatusUpdate: true, updates: [{ field: 'unloadingCompletedAt', value: '2026-11-05T14:00:00+01:00', evidence: current.bodyText, confidence: 'high', timeBasis: 'explicit', stationBasis: 'explicit', contextFields: [] }] }
+  assert.equal(validateStatusMailAiResult(result, current)[0].field, 'unloadingCompletedAt')
+  const replied = { ...current, bodyText: 'Fertig um 14 Uhr.' }
+  const proposed = validateStatusMailAiResult({ ...result, updates: [{ ...result.updates[0], evidence: replied.bodyText }] }, replied)
+  assert.equal(proposed[0].derivation.stationBasis, 'reply_context')
+  assert.equal(proposed[0].requiresConfirmation, true)
+})

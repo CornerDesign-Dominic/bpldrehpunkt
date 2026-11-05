@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { trackingDerivationLabels, trackingHistoryTimes, trackingEventDerivations, trackingReviewProposals, trackingArrivalOutcomeLabel } from './shipmentTrackingDerivation.js'
+import { trackingDerivationLabels, trackingHistoryTimes, trackingEventDerivations, trackingReviewProposals, trackingArrivalOutcomeLabel, trackingReviewTransitProposals, trackingUnchangedTransitDerivation } from './shipmentTrackingDerivation.js'
 
 test('relative arrival hints distinguish placeholder actual time and an estimated arrival in both languages', () => {
   assert.deepEqual(trackingDerivationLabels(null), [])
@@ -55,4 +55,31 @@ test('unknown or approximate arrival is never labelled late or punctual from a s
   }
   assert.match(trackingArrivalOutcomeLabel({ state: 'green' }, 'en'), /within/)
   assert.match(trackingArrivalOutcomeLabel({ state: 'yellow' }, 'en'), /after/)
+})
+
+
+test('reply-context provenance is visible without retaining or echoing a question transcript', () => {
+  for (const language of ['de', 'en']) {
+    const labels = trackingDerivationLabels({ timeBasis: 'explicit', stationBasis: 'reply_context', questionKind: 'unloading_distance', ruleVersion: 2 }, language)
+    assert.equal(labels.length, 1)
+    assert.match(labels[0], language === 'en' ? /reply to a follow-up question/ : /Antwort auf Rückfrage/)
+    assert.ok(!labels[0].includes('unloading_distance'))
+  }
+  assert.equal(trackingEventDerivations({ changedFields: ['transitEntry'], derivation: { stationBasis: 'reply_context' } }).length, 1)
+})
+
+test('pending distance suggestions are bounded and never shown as already applied', () => {
+  const proposal = { kilometersToDestination: 80, requiresConfirmation: true, applied: false, derivation: { stationBasis: 'reply_context' } }
+  assert.deepEqual(trackingReviewTransitProposals([proposal, { ...proposal, applied: true }, { ...proposal, requiresConfirmation: false }, { ...proposal, kilometersToDestination: -1 }, { ...proposal, kilometersToDestination: 100001 }, { ...proposal, kilometersToDestination: '80' }, null]), [proposal])
+  assert.deepEqual(trackingReviewTransitProposals(undefined), [])
+})
+
+test('editing a distance, place or report time removes active question-derived provenance until restored', () => {
+  const original = { id: 'proposal-0', kind: 'position', at: '2026-11-05T14:10', kilometersToDestination: 80, location: '', requiresConfirmation: true, derivation: { stationBasis: 'reply_context' } }
+  assert.deepEqual(trackingUnchangedTransitDerivation({ ...original, kilometersToDestination: '80' }, [original]), original.derivation)
+  for (const change of [{ kilometersToDestination: 81 }, { kilometersToDestination: '' }, { at: '2026-11-05T14:11' }, { location: 'Other place' }, { id: 'new-position' }, { kind: 'pause' }]) {
+    assert.equal(trackingUnchangedTransitDerivation({ ...original, ...change }, [original]), null)
+  }
+  assert.equal(trackingUnchangedTransitDerivation(original, []), null)
+  assert.equal(trackingUnchangedTransitDerivation({ ...original, at: 'invalid' }, [original]), null)
 })

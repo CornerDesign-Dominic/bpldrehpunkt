@@ -73,3 +73,65 @@ test('emulator: automatic status-mail ingestion retains a derived arrival for re
     assert.equal((await tracking.collection('events').get()).empty, true)
   } finally { await db.terminate(); await deleteApp(app) }
 })
+
+
+test('emulator: reply-grounded arrival and distance survive reload and retain only bounded provenance', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+  const projectId = process.env.GCLOUD_PROJECT || 'demo-tracking-reply-context'
+  assert.ok(projectId.startsWith('demo-'))
+  const app = initializeApp({ projectId }, `reply-time-${randomUUID()}`), db = getFirestore(app)
+  const uid = `reply-${randomUUID()}`, orderId = uid, connectionId = uid, number = '899991235'
+  const profile = { active: true, role: 'user', firstName: 'Synthetic', permissions: { transportOrders: 'edit', mailboxes: 'edit' } }
+  const connection = { ownerId: uid, status: 'connected', graphUserId: uid, tenantId: 'synthetic' }
+  const context = { uid, profile, connectionId, connection, ref: db.doc(`mailboxConnections/${connectionId}`) }
+  const quoted = question => `\n\nFrom: Team <team@example.invalid>\nSent: Thursday, 5 November 2026 13:00\nTo: Driver <driver@example.invalid>\nSubject: TA ${number}\n\n${question}`
+  try {
+    await Promise.all([db.doc(`users/${uid}`).set(profile), context.ref.set(connection), db.doc(`transportOrders/${orderId}`).set({ externalNumber: number, imported: { loading: { city: 'Hamburg' }, unloading: { city: 'Berlin' } } })])
+    const firstMail = { id: `${uid}-arrival`, subject: `TA ${number}`, receivedDateTime: '2026-11-05T13:12:37.000Z', body: { contentType: 'text', content: `Yes.${quoted('Is the vehicle at the loading place?')}` } }
+    const emptyModel = async () => ({ isStatusUpdate: false, reviewRequired: false, updates: [], transitUpdates: [], pauseUpdates: [] })
+    const preview = await previewPersonalMailTracking({ db, context, mail: firstMail, orderNumber: number, now: 1000, infer: emptyModel })
+    assert.equal(preview.proposals.actualArrivalLoadingAt, '2026-11-05T13:10:00.000Z')
+    const persisted = (await db.doc(`mailboxTrackingPreviews/${preview.previewId}`).get()).data()
+    assert.equal(JSON.stringify(persisted).includes('Is the vehicle'), false)
+    await applyPersonalMailTracking({ db, context, previewId: preview.previewId, changes: persisted.proposals, now: 2000 })
+    const tracking = db.doc(`transportOrderTrackings/${orderId}`)
+    const stored = (await tracking.get()).data()
+    assert.equal(stored.stageId, 'loading')
+    assert.equal(stored.fieldSources.actualArrivalLoadingAt.derivation.stationBasis, 'reply_context')
+    assert.equal(stored.fieldSources.actualArrivalLoadingAt.derivation.questionKind, 'loading_arrival')
+    const distanceMail = { ...firstMail, id: `${uid}-distance`, receivedDateTime: '2026-11-05T14:00:00.000Z', body: { contentType: 'text', content: `80${quoted('How many kilometers are left until the unloading point?')}` } }
+    const distance = await previewPersonalMailTracking({ db, context, mail: distanceMail, orderNumber: number, now: 3000, infer: emptyModel })
+    assert.equal(distance.transitProposals[0].kilometersToDestination, 80)
+    await applyPersonalMailTracking({ db, context, previewId: distance.previewId, changes: {}, transitEntries: [{ ...distance.transitProposals[0], proposalIndex: 0 }], now: 4000 })
+    const events = (await tracking.collection('events').get()).docs.map(doc => doc.data())
+    const position = events.find(event => event.eventType === 'transit_position_reported')
+    assert.equal(position.source, 'ai_mail')
+    assert.equal(position.derivation.questionKind, 'unloading_distance')
+    assert.equal(position.newValue.transitEntry.kilometersToDestination, 80)
+    assert.equal(JSON.stringify(events).includes('How many kilometers'), false)
+  } finally { await db.terminate(); await deleteApp(app) }
+})
+
+
+test('emulator: a unitless distance reply remains pending in automatic ingestion with no copied question in AI output', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+  const projectId = process.env.GCLOUD_PROJECT || 'demo-tracking-reply-context'
+  assert.ok(projectId.startsWith('demo-'))
+  const app = initializeApp({ projectId }, `reply-distance-${randomUUID()}`), db = getFirestore(app)
+  const orderId = `distance-${randomUUID()}`, number = '899991236'
+  const order = db.doc(`transportOrders/${orderId}`), message = order.collection('receivedMails').doc('remaining'), tracking = db.doc(`transportOrderTrackings/${orderId}`)
+  const { Timestamp } = await import('firebase-admin/firestore')
+  const question = 'How many kilometers are left until the unloading point?'
+  try {
+    await order.set({ externalNumber: number, imported: { loading: { city: 'Hamburg' }, unloading: { city: 'Berlin' } } })
+    await message.set({ source: 'powerAutomate', mailbox: 'status@brennpunkt-logistik.de', transportOrderId: orderId, receivedAt: Timestamp.fromDate(new Date('2026-11-05T14:00:00Z')), bodyText: `80\n\nFrom: Team <team@example.invalid>\nSent: Thursday, 5 November 2026 13:00\nTo: Driver <driver@example.invalid>\nSubject: TA ${number}\n\n${question}`, ai: { status: 'pending' } })
+    const result = await processStatusMailAi({ db, orderId, mailId: 'remaining', infer: async () => ({ isStatusUpdate: false, reviewRequired: false, updates: [], transitUpdates: [], pauseUpdates: [] }) })
+    assert.equal(result, 'needs_review')
+    const stored = (await message.get()).data().ai
+    assert.equal(stored.transitUpdates[0].kilometersToDestination, 80)
+    assert.equal(stored.transitUpdates[0].requiresConfirmation, true)
+    assert.equal(stored.transitUpdates[0].applied, false)
+    assert.equal(stored.transitUpdates[0].derivation.questionKind, 'unloading_distance')
+    assert.equal(JSON.stringify(stored).includes(question), false)
+    assert.equal((await tracking.get()).exists, false)
+    assert.equal((await tracking.collection('events').get()).empty, true)
+  } finally { await db.terminate(); await deleteApp(app) }
+})

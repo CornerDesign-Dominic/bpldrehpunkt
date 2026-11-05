@@ -8,7 +8,7 @@ export default function ShipmentTrackingDerivation({ derivation, original = fals
   const labels = trackingDerivationLabels(derivation, language)
   if (!labels.length) return null
   const prefix = original ? language === 'en' ? 'Original AI suggestion: ' : 'Ursprünglicher KI-Vorschlag: ' : previous ? language === 'en' ? 'Previous value: ' : 'Vorheriger Wert: ' : ''
-  return <p><small>{prefix}{field && <><StaticText source={fieldLabels[field] || field} /> · </>}{labels.join(' · ')}</small></p>
+  return <p><small>{prefix}{field && <>{field === 'transitEntry' ? language === 'en' ? 'Position report' : 'Standortmeldung' : <StaticText source={fieldLabels[field] || field} />} · </>}{labels.join(' · ')}</small></p>
 }
 
 export function ShipmentTrackingEventDerivation({ event, fields = null }) {

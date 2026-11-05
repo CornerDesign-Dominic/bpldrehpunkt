@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { relativeArrivalTime, arrivalDerivation, arrivalChronologyFits } from './statusMailArrivalInference.js'
+import { relativeArrivalTime, arrivalDerivation, arrivalChronologyFits, storedArrivalDerivation } from './statusMailArrivalInference.js'
 
 const mail = { bodyText: 'Gerade an der Entladestelle angekommen.', receivedAt: new Date('2026-11-05T13:12:49Z') }
 const update = { field: 'actualArrivalUnloadingAt', evidence: mail.bodyText, timeBasis: 'mail_just_arrived', stationBasis: 'explicit', contextFields: [] }
@@ -79,4 +79,13 @@ test('polite arrival announcements are facts while actual requests remain reject
     const current = { ...mail, bodyText }
     assert.equal(arrivalDerivation({ ...update, timeBasis: 'mail_already_arrived', evidence: bodyText }, current), null, bodyText)
   }
+})
+
+
+test('reply-context provenance survives sanitization without storing the question text', () => {
+  const original = { timeBasis: 'mail_already_arrived', stationBasis: 'reply_context', basedOnFields: [], mailReceivedAt: '2026-11-05T13:12:37Z', timingApproximate: true, questionKind: 'loading_arrival', ruleVersion: 2, questionText: 'Private original request' }
+  const stored = storedArrivalDerivation(original)
+  assert.equal(stored.ruleVersion, 2)
+  assert.equal(stored.questionKind, 'loading_arrival')
+  assert.equal(stored.questionText, undefined)
 })
