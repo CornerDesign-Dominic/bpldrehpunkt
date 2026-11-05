@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import process from 'node:process'
 import test from 'node:test'
 import { initializeApp, deleteApp } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
+import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { normalizeContractMutation, persistContractMutation } from './contracts.js'
 
 test('contract transactions preserve revisions, idempotency, history and document recovery', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async (t) => {
@@ -66,21 +66,44 @@ test('contract transactions preserve revisions, idempotency, history and documen
       const reserve = input('document.reserve', { title: 'PDF', description: '', fileName: 'contract.pdf', fileSize: 100, contentType: 'application/pdf' }, { recordId: 'pdf' })
       const reserved = await mutate(reserve)
       assert.equal(reserved.status, 'pending')
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'pending', fileSize: 100 })
+      const revisionBeforeRepair = (await parentRef.get()).get('revision')
+      await parentRef.update({ 'documentStorageAccess.pdf': FieldValue.delete(), 'documentStorageAccess.other': { status: 'pending', fileSize: 42 } })
+      assert.deepEqual(await mutate(reserve), reserved)
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'pending', fileSize: 100 })
+      assert.equal((await parentRef.get()).get('revision'), revisionBeforeRepair)
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.other'), { status: 'pending', fileSize: 42 })
       const finalize = input('document.finalize', {}, { recordId: 'pdf', expectedRevision: 1 })
       await assert.rejects(mutate(finalize), (error) => error.code === 'failed-precondition' && error.details.reason === 'upload-missing')
       assert.equal((await parentRef.collection('documents').doc('pdf').get()).get('status'), 'pending')
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'pending', fileSize: 100 })
+      // Live pre-fix uploads can already have a processing finalize receipt,
+      // a pending child and no parent manifest. The same retained client retry
+      // must repair its upload permit when the server confirms no blob exists.
+      assert.equal((await parentRef.collection('mutations').doc(finalize.mutationId).get()).get('status'), 'processing')
+      await parentRef.update({ 'documentStorageAccess.pdf': FieldValue.delete() })
+      await assert.rejects(mutate(finalize), (error) => error.details.reason === 'upload-missing')
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'pending', fileSize: 100 })
       blobs.set(reserved.storagePath, { size: '100', contentType: 'text/plain', generation: '1', metadata: { contractId: parentRef.id, documentId: 'pdf' } })
       await assert.rejects(mutate(finalize), (error) => error.details.reason === 'upload-mismatch')
       blobs.get(reserved.storagePath).contentType = 'application/pdf'
       const ready = await mutate(finalize)
       assert.equal(ready.status, 'ready'); assert.equal(ready.revision, 2)
       assert.deepEqual(await mutate(finalize), ready)
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'ready', fileSize: 100 })
+      await parentRef.update({ 'documentStorageAccess.pdf': FieldValue.delete() })
+      // Replaying an old reserve repairs actual ready state, not old pending.
+      assert.deepEqual(await mutate(reserve), reserved)
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'ready', fileSize: 100 })
+      await parentRef.update({ 'documentStorageAccess.pdf': FieldValue.delete() })
       const update = await mutate(input('document.update', { title: 'Neue Bezeichnung' }, { recordId: 'pdf', expectedRevision: 2 }))
       assert.equal(update.revision, 3)
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'ready', fileSize: 100 })
       const deletion = input('document.delete', {}, { recordId: 'pdf', expectedRevision: 3 })
       storageFailure = new Error('Storage unavailable')
       await assert.rejects(mutate(deletion), /Storage unavailable/)
       assert.equal((await parentRef.collection('documents').doc('pdf').get()).get('status'), 'deleting')
+      assert.deepEqual((await parentRef.get()).get('documentStorageAccess.pdf'), { status: 'deleting', fileSize: 100 })
       assert.equal((await parentRef.collection('documents').doc('pdf').get()).get('operationActorId'), actor.uid)
       await db.doc('users/contract-second-editor').set({ active: true, role: 'user', permissions: { contracts: 'edit' } })
       await assert.rejects(mutate(deletion, { uid: 'contract-second-editor' }), { code: 'already-exists' })
@@ -90,6 +113,10 @@ test('contract transactions preserve revisions, idempotency, history and documen
       assert.equal(deleted.status, 'deleted'); assert.deepEqual(await mutate(deletion), deleted)
       assert.equal(blobs.has(reserved.storagePath), false)
       assert.equal((await parentRef.collection('documents').doc('pdf').get()).exists, false)
+      assert.equal((await parentRef.get()).get('documentStorageAccess.pdf'), undefined)
+      // A reserve replay after deletion must not recreate an upload permit.
+      await mutate(reserve)
+      assert.equal((await parentRef.get()).get('documentStorageAccess.pdf'), undefined)
       assert.equal((await parentRef.collection('history').get()).size, (await parentRef.get()).get('revision'))
     })
     await t.test('pending PDFs can be discarded without a blob and finalizing locks block competing mutations', async () => {
@@ -97,6 +124,7 @@ test('contract transactions preserve revisions, idempotency, history and documen
       await mutate(input('document.reserve', values, { recordId: 'pending' }))
       const removal = input('document.delete', {}, { recordId: 'pending', expectedRevision: 1 })
       assert.equal((await mutate(removal)).status, 'deleted')
+      assert.equal((await parentRef.get()).get('documentStorageAccess.pending'), undefined)
       assert.deepEqual(await mutate(removal), await mutate(removal))
       await mutate(input('document.reserve', values, { recordId: 'finalizing' }))
       await parentRef.collection('documents').doc('finalizing').update({ status: 'finalizing', operationMutationId: 'other-mutation' })

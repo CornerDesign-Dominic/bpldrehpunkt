@@ -18,8 +18,10 @@ service firebase.storage {
     function canEditInsolvencyDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.insolvencies == 'edit'); }
     function contractRead() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.contracts in ['view', 'edit']); }
     function contractEdit() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.contracts == 'edit'); }
-    function contractExists(contractId) { return firestore.exists(/databases/(default)/documents/contracts/$(contractId)); }
-    function contractDocument(contractId, fileName) { return firestore.get(/databases/(default)/documents/contracts/$(contractId)/documents/$(fileName.replace('\\.pdf$', ''))).data; }
+    // Exactly two distinct Firestore documents across this path: user profile
+    // and existing contract parent. Its minimal server-maintained manifest
+    // avoids a forbidden third child-document lookup in deployed Storage Rules.
+    function contractStorageAccess(contractId, fileName) { return firestore.get(/databases/(default)/documents/contracts/$(contractId)).data.documentStorageAccess[fileName.replace('\\.pdf$', '')]; }
     function insolvencyExists(partnerId) { return firestore.exists(/databases/(default)/documents/insolvencies/$(partnerId)); }
     function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
@@ -47,18 +49,19 @@ service firebase.storage {
     }
 
     match /contracts/{contractId}/documents/{fileName} {
-      allow read: if contractRead() && contractExists(contractId)
-        && contractDocument(contractId, fileName).status == 'ready'
-        && contractDocument(contractId, fileName).storagePath == 'contracts/' + contractId + '/documents/' + fileName;
-      allow create: if resource == null && contractEdit() && contractExists(contractId)
+      allow read: if contractRead() && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$')
+        && contractStorageAccess(contractId, fileName).status == 'ready'
+        && resource.contentType == 'application/pdf'
+        && resource.size == contractStorageAccess(contractId, fileName).fileSize;
+      allow create: if resource == null && contractEdit()
         && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$') && isPdfUpload(fileName) && request.resource.size > 0
-        && contractDocument(contractId, fileName).status == 'pending'
-        && contractDocument(contractId, fileName).fileSize == request.resource.size
+        && contractStorageAccess(contractId, fileName).status == 'pending'
+        && contractStorageAccess(contractId, fileName).fileSize == request.resource.size
         && request.resource.metadata.contractId == contractId
         && request.resource.metadata.documentId + '.pdf' == fileName;
       allow update: if false;
-      allow delete: if contractEdit() && contractExists(contractId)
-        && contractDocument(contractId, fileName).status == 'pending';
+      allow delete: if contractEdit() && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$')
+        && contractStorageAccess(contractId, fileName).status == 'pending';
     }
 
     match /damage-cases/{caseId}/documents/{fileName} {

@@ -84,6 +84,21 @@ const fingerprint = (input, uid) => createHash('sha256').update(JSON.stringify({
 const actorName = (profile, uid) => text([profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || profile.email || uid, 320)
 const storagePath = (input) => `contracts/${input.contractId}/documents/${input.recordId}.pdf`
 
+// Storage Rules may inspect only two distinct Firestore documents: the current
+// user and this parent. Keep the minimal authorization slot atomic with every
+// child transition; clients cannot write this map or the child metadata.
+function syncDocumentStorageAccess(transaction, parentRef, parent, recordId, document) {
+  const validDocument = document
+    && ['pending', 'finalizing', 'ready', 'deleting'].includes(document.status)
+    && Number.isSafeInteger(document.fileSize) && document.fileSize > 0 && document.fileSize <= MAX_PDF_SIZE
+    && document.contentType === 'application/pdf'
+    && document.storagePath === `contracts/${parentRef.id}/documents/${recordId}.pdf`
+  const slot = validDocument ? { status: document.status, fileSize: document.fileSize } : null
+  const previous = parent.documentStorageAccess?.[recordId]
+  if (slot ? previous?.status === slot.status && previous?.fileSize === slot.fileSize && Object.keys(previous).length === 2 : previous === undefined) return
+  transaction.update(parentRef, { [`documentStorageAccess.${recordId}`]: slot || FieldValue.delete() })
+}
+
 function verifyReceipt(receipt, digest) {
   if (receipt.exists && receipt.data().fingerprint !== digest) throw new HttpsError('already-exists', 'Diese Anfrage-ID wurde bereits für eine andere Änderung verwendet.')
   return receipt.exists ? receipt.data() : null
@@ -115,9 +130,14 @@ export async function persistContractMutation(db, input, actor, bucket) {
     requireContractEdit(profile)
     if (!parentSnapshot.exists) throw new HttpsError('not-found', 'Der Vertrag existiert nicht mehr.')
     const receipt = verifyReceipt(receiptSnapshot, digest)
-    if (receipt?.status === 'complete') return receipt.result
     const parent = parentSnapshot.data()
     const previous = childSnapshot?.exists ? childSnapshot.data() : null
+    if (receipt?.status === 'complete') {
+      // Older successful reservations predate the manifest. Repair from the
+      // actual current child, never from a replay's old client values/status.
+      if (input.action.startsWith('document.')) syncDocumentStorageAccess(transaction, parentRef, parent, input.recordId, previous)
+      return receipt.result
+    }
     const current = childRef ? previous : parent
     if ((current?.revision ?? 0) !== input.expectedRevision) conflict()
     if (input.action.endsWith('.delete') && !previous) throw new HttpsError('not-found', 'Der Eintrag existiert nicht mehr.')
@@ -132,6 +152,7 @@ export async function persistContractMutation(db, input, actor, bucket) {
       if (!previous) Object.assign(record, { createdAt: now, createdBy: actor.uid, createdByName: actorName(profile, actor.uid) })
       if (input.action === 'document.reserve') Object.assign(record, { storagePath: storagePath(input), status: 'pending' })
       transaction.set(childRef, record, { merge: Boolean(previous) })
+      if (input.action.startsWith('document.')) syncDocumentStorageAccess(transaction, parentRef, parent, input.recordId, { ...previous, ...record })
     }
     const target = input.action === 'note.add' ? 'Notiz' : input.values.title || previous?.title || input.values.partnerName || parent.partnerName
     return audit(transaction, parentRef, parent, input, actor, profile, target, revision, input.action === 'document.reserve' ? { storagePath: storagePath(input), status: 'pending' } : {}, receiptRef, digest)
@@ -153,13 +174,17 @@ async function persistDocumentTransition(db, input, actor, bucket) {
     requireContractEdit(profileSnapshot.exists ? profileSnapshot.data() : null)
     if (!parent.exists) throw new HttpsError('not-found', 'Der Vertrag existiert nicht mehr.')
     const receipt = verifyReceipt(receiptSnapshot, digest)
-    if (receipt?.status === 'complete') return { replay: receipt.result }
+    if (receipt?.status === 'complete') {
+      syncDocumentStorageAccess(transaction, parentRef, parent.data(), input.recordId, child.exists ? child.data() : null)
+      return { replay: receipt.result }
+    }
     if (!child.exists) throw new HttpsError('not-found', 'Das Dokument existiert nicht mehr.')
     const previous = child.data()
     if (previous.revision !== input.expectedRevision) conflict()
     const ownLock = previous.status === status && previous.operationMutationId === input.mutationId && previous.operationActorId === actor.uid
     if (!ownLock && !(deleting ? ['pending', 'ready'].includes(previous.status) : previous.status === 'pending')) throw new HttpsError('failed-precondition', 'Das Dokument wird bereits verarbeitet. Bitte den offenen Vorgang erneut versuchen.')
     transaction.update(childRef, { status, operationMutationId: input.mutationId, operationActorId: actor.uid })
+    syncDocumentStorageAccess(transaction, parentRef, parent.data(), input.recordId, { ...previous, status })
     transaction.set(receiptRef, { fingerprint: digest, status: 'processing', createdBy: actor.uid, startedAt: FieldValue.serverTimestamp() })
     return { previous }
   })
@@ -178,8 +203,11 @@ async function persistDocumentTransition(db, input, actor, bucket) {
     }
   } catch (error) {
     if (!deleting) await db.runTransaction(async (transaction) => {
-      const child = await transaction.get(childRef)
-      if (child.exists && child.data().status === status && child.data().operationMutationId === input.mutationId) transaction.update(childRef, { status: 'pending', operationMutationId: FieldValue.delete(), operationActorId: FieldValue.delete() })
+      const [child, parent] = await Promise.all([transaction.get(childRef), transaction.get(parentRef)])
+      if (parent.exists && child.exists && child.data().status === status && child.data().operationMutationId === input.mutationId) {
+        transaction.update(childRef, { status: 'pending', operationMutationId: FieldValue.delete(), operationActorId: FieldValue.delete() })
+        syncDocumentStorageAccess(transaction, parentRef, parent.data(), input.recordId, { ...child.data(), status: 'pending' })
+      }
     }).catch(() => undefined) // Best effort unlock never replaces the upload error.
     throw error
   }
@@ -188,13 +216,17 @@ async function persistDocumentTransition(db, input, actor, bucket) {
     const profile = profileSnapshot.exists ? profileSnapshot.data() : null
     requireContractEdit(profile)
     const receipt = verifyReceipt(receiptSnapshot, digest)
-    if (receipt?.status === 'complete') return receipt.result
+    if (receipt?.status === 'complete') {
+      if (parent.exists) syncDocumentStorageAccess(transaction, parentRef, parent.data(), input.recordId, child.exists ? child.data() : null)
+      return receipt.result
+    }
     if (!parent.exists || !child.exists) throw new HttpsError('not-found', 'Vertrag oder Dokument existiert nicht mehr.')
     const previous = child.data()
     if (previous.revision !== input.expectedRevision || previous.status !== status || previous.operationMutationId !== input.mutationId) conflict()
     const revision = previous.revision + 1
     if (deleting) transaction.delete(childRef)
     else transaction.update(childRef, { status: 'ready', revision, storageGeneration: String(metadata.generation), operationMutationId: FieldValue.delete(), operationActorId: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp(), updatedBy: actor.uid, updatedByName: actorName(profile, actor.uid) })
+    syncDocumentStorageAccess(transaction, parentRef, parent.data(), input.recordId, deleting ? null : { ...previous, status: 'ready' })
     return audit(transaction, parentRef, parent.data(), input, actor, profile, previous.title, revision, { status: deleting ? 'deleted' : 'ready' }, receiptRef, digest)
   })
 }

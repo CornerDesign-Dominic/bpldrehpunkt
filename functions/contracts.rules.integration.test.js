@@ -67,7 +67,7 @@ test('contracts enforce module access, creation validation and immutable files',
         { partnerName: ' Muster GmbH' }, { partnerName: 'Muster GmbH ' },
         { partnerName: 'A'.repeat(241) }, { partnerName: 42 }, { partnerName: null },
         { createdBy: 'contracts-superadmin' }, { createdAt: Timestamp.fromMillis(1) },
-        { extra: true },
+        { extra: true }, { documentStorageAccess: { forged: { status: 'ready', fileSize: 6 } } },
       ]
       for (const [index, override] of invalid.entries()) {
         await assert.rejects(setDoc(doc(db, 'contracts', `contracts-invalid-${index}`), { ...values('editor'), ...override }), { code: 'permission-denied' })

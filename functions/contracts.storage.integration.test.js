@@ -38,7 +38,12 @@ test('contract PDF Storage enforces reservations, immutability, visibility and c
   const bytes = new Uint8Array([37, 80, 68, 70, 45, 49])
   const path = (documentId) => `contracts/${contractId}/documents/${documentId}.pdf`
   const metadata = (documentId) => ({ contentType: 'application/pdf', customMetadata: { contractId, documentId } })
-  const seed = async (documentId, status = 'pending', extra = {}) => parent.collection('documents').doc(documentId).set({ title: 'Vertrag', status, fileSize: bytes.length, storagePath: path(documentId), revision: 1, ...extra })
+  const seed = async (documentId, status = 'pending', extra = {}) => {
+    const batch = db.batch()
+    batch.set(parent.collection('documents').doc(documentId), { title: 'Vertrag', status, fileSize: bytes.length, storagePath: path(documentId), revision: 1, ...extra })
+    batch.update(parent, { [`documentStorageAccess.${documentId}`]: { status, fileSize: bytes.length } })
+    await batch.commit()
+  }
   const denied = async (operation) => assert.rejects(operation(), (error) => error.code === 'storage/unauthorized')
   try {
     await Promise.all(Object.entries(profiles).map(([name, profile]) => db.doc(`users/contracts-storage-${name}`).set(profile)))
@@ -101,6 +106,29 @@ test('contract PDF Storage enforces reservations, immutability, visibility and c
         await bucket.file(path(`locked-${status}`)).save(Buffer.from(bytes), { contentType: 'application/pdf' })
         await denied(() => deleteObject(ref(clients.editor, path(`locked-${status}`))))
       }
+    })
+    await t.test('only the root manifest authorizes storage and current profile revocation takes effect', async () => {
+      const documentId = 'root-authority'
+      const target = ref(clients.editor, path(documentId))
+      await seed(documentId)
+      await parent.update({ [`documentStorageAccess.${documentId}`]: { status: 'finalizing', fileSize: bytes.length } })
+      await denied(() => uploadBytes(target, bytes, metadata(documentId)))
+      await parent.update({ [`documentStorageAccess.${documentId}`]: { status: 'pending', fileSize: bytes.length } })
+      await uploadBytes(target, bytes, metadata(documentId))
+      // A forged/old ready child cannot bypass a pending root slot.
+      await parent.collection('documents').doc(documentId).update({ status: 'ready' })
+      await denied(() => getMetadata(target))
+      await parent.update({ [`documentStorageAccess.${documentId}`]: { status: 'ready', fileSize: bytes.length } })
+      await getMetadata(target)
+      await db.doc('users/contracts-storage-editor').update({ 'permissions.contracts': 'none' })
+      await denied(() => getMetadata(target))
+      await db.doc('users/contracts-storage-editor').update({ 'permissions.contracts': 'edit' })
+      await getMetadata(target)
+      await parent.update({ [`documentStorageAccess.${documentId}`]: { status: 'ready', fileSize: bytes.length + 1 } })
+      await denied(() => getMetadata(target))
+      await parent.update({ [`documentStorageAccess.${documentId}`]: { status: 'deleting', fileSize: bytes.length } })
+      await denied(() => getMetadata(target))
+      await denied(() => deleteObject(target))
     })
   } finally {
     await Promise.all(apps.map((app) => deleteApp(app)))
