@@ -474,3 +474,13 @@ Refreshes erhalten die ursprünglich freigegebenen Scopes. Deshalb alle Mailbox-
 Entrypoints, die Zugangsdaten erneuern können, gemeinsam bereitstellen,
 einschließlich Hintergrundaktionen und Empfehlungssubscription-Wartung.
 Keine Kontrollabfrage, Nachholsuche oder neue Rules/Indizes/Secrets.
+
+## Kompakte Aktionsspalte (Dev 04.11.2026)
+
+Breitere Aktionsspalte, flachere Buttons. Status, Auftragserfassung und AGB stehen
+in einer Dreiergruppe; darunter getrennt die Rechnungsprüfung und ein deaktivierter
+Platzhalter Mahnung prüfen. Auftragserfassung und Mahnungsplatzhalter tragen
+-BETA-. Weitere Aktionen bleiben unter einer Trennlinie. Ungelesene Karten haben
+kräftigere blaue Flächen, stärkeren Rand und Punkt; gelesene Karten sind im Dark
+Mode dunkler. Ausgewählte Karten bleiben unabhängig davon sichtbar markiert.
+Rechte, Fachaktionen und Backend bleiben unverändert.
