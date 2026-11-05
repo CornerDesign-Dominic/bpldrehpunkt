@@ -8,7 +8,7 @@ export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
-  contracts: ['load', 'save'],
+  contracts: ['load', 'save', 'delete', 'upload', 'download'],
   'case-links': ['load', 'save'],
   'partner-links': ['load', 'resolve', 'resolve-list', 'revalidate', 'reload-after-save', 'save'],
   'legal-disputes': ['load-counterparty', 'load-counterparty-options'],
@@ -44,7 +44,7 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
-  contracts: { load: 'Verträge konnten nicht geladen werden.', save: 'Vertrag konnte nicht angelegt werden.' },
+  contracts: { load: 'Vertragsdaten konnten nicht geladen werden.', save: 'Vertragsänderung konnte nicht gespeichert werden.', delete: 'Vertragseintrag konnte nicht gelöscht werden.', upload: 'Vertragsdokument konnte nicht hochgeladen werden.', download: 'Vertragsdokument konnte nicht geladen werden.' },
   'legal-disputes': { 'load-counterparty': 'Verknüpfte Gegenseite konnte nicht geladen werden.', 'load-counterparty-options': 'Partnerauswahl konnte nicht geladen werden.' },
   'partner-links': { load: 'Verknüpfte Vorgänge des Geschäftspartners konnten nicht vollständig geladen werden.', resolve: 'Die Partner-Weiterleitung konnte nicht aufgelöst werden.', 'resolve-list': 'Einige Partner-Weiterleitungen der Liste konnten nicht aufgelöst werden.', revalidate: 'Die aktuelle Partnerzuordnung konnte nicht erneut geprüft werden.', 'reload-after-save': 'Gespeicherte Stammdaten konnten nicht erneut geladen werden.', save: 'Die Stammdaten konnten nicht gespeichert werden.' },
   'case-links': { load: 'Fallverknüpfungen konnten nicht geladen werden.', save: 'Fallverknüpfung konnte nicht gespeichert werden.' },
@@ -66,7 +66,7 @@ export function canReportLinkDiagnostic(profile, module, orderId = '') {
   if (module === 'case-links') return ['damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view) && (!orderId || view('transportOrders'))
   if (module === 'transport-orders') return view('transportOrders')
   if (module === 'pallets') return view('pallets')
-  if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
+  if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'contracts'].some(view)
   if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'contracts'].includes(module)) return true
   return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[module])
 }

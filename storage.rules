@@ -16,6 +16,10 @@ service firebase.storage {
     function canEditInkassoDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.inkasso == 'edit'); }
     function canReadInsolvencyDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.insolvencies in ['view', 'edit']); }
     function canEditInsolvencyDocuments() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.insolvencies == 'edit'); }
+    function contractRead() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.contracts in ['view', 'edit']); }
+    function contractEdit() { return hasProfile() && profileIsActive() && (profile().role == 'superadmin' || profile().permissions.contracts == 'edit'); }
+    function contractExists(contractId) { return firestore.exists(/databases/(default)/documents/contracts/$(contractId)); }
+    function contractDocument(contractId, fileName) { return firestore.get(/databases/(default)/documents/contracts/$(contractId)/documents/$(fileName.replace('\\.pdf$', ''))).data; }
     function insolvencyExists(partnerId) { return firestore.exists(/databases/(default)/documents/insolvencies/$(partnerId)); }
     function isPdfUpload(fileName) {
       return request.resource.contentType == 'application/pdf'
@@ -40,6 +44,21 @@ service firebase.storage {
       allow read: if canReadDocuments();
       allow create, update: if canEditDocuments() && isPdfUpload(fileName);
       allow delete: if canEditDocuments();
+    }
+
+    match /contracts/{contractId}/documents/{fileName} {
+      allow read: if contractRead() && contractExists(contractId)
+        && contractDocument(contractId, fileName).status == 'ready'
+        && contractDocument(contractId, fileName).storagePath == 'contracts/' + contractId + '/documents/' + fileName;
+      allow create: if resource == null && contractEdit() && contractExists(contractId)
+        && fileName.matches('^[A-Za-z0-9_-]+\\.pdf$') && isPdfUpload(fileName) && request.resource.size > 0
+        && contractDocument(contractId, fileName).status == 'pending'
+        && contractDocument(contractId, fileName).fileSize == request.resource.size
+        && request.resource.metadata.contractId == contractId
+        && request.resource.metadata.documentId + '.pdf' == fileName;
+      allow update: if false;
+      allow delete: if contractEdit() && contractExists(contractId)
+        && contractDocument(contractId, fileName).status == 'pending';
     }
 
     match /damage-cases/{caseId}/documents/{fileName} {
