@@ -1,3 +1,4 @@
+import { managedActionScope } from './mailboxSharedActions.js'
 import { Buffer } from 'node:buffer'
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -49,4 +50,21 @@ test('optional assignment accepts only real debtor references and own mailbox hi
   records.set('agbCheckerHistory/history', { createdByUserId: 'another', channel: 'personal_mailbox' })
   await assert.rejects(assignMailboxAgbCustomer({ db, context, data }), { code: 'permission-denied' })
   await assert.rejects(assignMailboxAgbCustomer({ db, context: { ...context, profile: { ...context.profile, permissions: { agbChecker: 'view' } } }, data }), { code: 'permission-denied' })
+})
+
+
+test('shared AGB assignment requires same canonical mailbox and exact persisted result binding', async () => {
+  const connection = { kind: 'personal', email: 'rechnung@brennpunkt-logistik.de', canonicalMailboxId: 'canonical', tenantId: 'tenant' }
+  const scope = managedActionScope(connection), slotPath = `mailboxActionScopes/${scope}/actions/${'a'.repeat(64)}`
+  const { db, records } = database([
+    ['agbCheckerHistory/history', { createdByUserId: 'original-owner', channel: 'personal_mailbox', actionSlotPath: slotPath, actionJobId: 'job' }],
+    [slotPath, { sharedScopeId: scope, kind: 'terms', jobId: 'job', state: 'completed', result: { historyId: 'history' } }],
+    ['businessPartners/customer', { companyName: 'Customer', debtorNumber: '1234', roles: { customer: true } }],
+  ])
+  const peer = { ...context, uid: 'peer', connection }, data = { historyId: 'history', partnerId: 'customer', debtorNumber: '1234' }
+  await assert.rejects(assignMailboxAgbCustomer({ db, context: { ...peer, connection: { ...connection, canonicalMailboxId: 'other' } }, data }), { code: 'permission-denied' })
+  const assigned = await assignMailboxAgbCustomer({ db, context: peer, data })
+  assert.equal(assigned.customerAssignment.assignedBy, 'peer')
+  records.set(slotPath, { ...records.get(slotPath), result: { historyId: 'different' } })
+  await assert.rejects(assignMailboxAgbCustomer({ db, context: peer, data }), { code: 'permission-denied' })
 })

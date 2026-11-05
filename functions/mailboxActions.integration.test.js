@@ -63,3 +63,30 @@ test('emulator: a queued tracking result survives reload and apply versus discar
     }
   } finally { await f.close() }
 })
+
+
+test('emulator: automatic and manual shared starts across two users share one worker and result', { skip: !enabled }, async () => {
+  const f = await fixture()
+  const second = createHash('sha256').update(`peer-${f.suffix}`).digest('hex'), scopeId = createHash('sha256').update(`scope-${f.suffix}`).digest('hex')
+  try {
+    const canonicalMailboxId = `canonical-${f.suffix}`
+    for (const [id, ownerId] of [[f.connectionId, f.uid], [second, `peer-${f.uid}`]]) await f.db.doc(`mailboxConnections/${id}`).set({ ownerId, kind: 'personal', email: 'rechnung@brennpunkt-logistik.de', status: 'connected', graphUserId: canonicalMailboxId, tenantId: 'tenant', canonicalMailboxId })
+    await f.db.doc(`mailboxRecommendationScopes/${scopeId}`).set({ enabled: true, mode: 'automatic', generation: f.suffix, kind: 'shared', tenantId: 'tenant', canonicalMailboxId })
+    let calls = 0
+    const handlers = createMailboxActionHandlers({ db: f.db, project: 'db-bpl-drehpunkt-dev', requireProfile: async () => profile, handlers: { reviewMailboxInvoices: async () => { calls++; return { reportId: 'synthetic-shared-report' } } } })
+    const automatic = { scopeId, generation: f.suffix, connections: [{ id: f.connectionId, ownerId: f.uid }], messageId: f.request().data.messageId, kinds: ['invoice', 'order'] }
+    const peerRequest = f.request({ connectionId: second, kind: 'invoice' }); peerRequest.auth.uid = `peer-${f.uid}`
+    const [auto, manual] = await Promise.all([handlers.startAutomaticMailboxActions(automatic), handlers.startMailboxAction(peerRequest)])
+    assert.equal(auto.actions.length, 1)
+    assert.equal(auto.actions[0].jobId, manual.action.jobId)
+    await Promise.all([handlers.processMailboxActionRun(manual.action.jobId), handlers.processMailboxActionRun(manual.action.jobId)])
+    assert.equal(calls, 1)
+    const peer = (await handlers.getMailboxAction(peerRequest)).action
+    assert.equal(peer.state, 'completed'); assert.equal(peer.result.reportId, 'synthetic-shared-report'); assert.equal(peer.connectionId, second)
+    const original = (await handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action
+    assert.equal(original.jobId, peer.jobId)
+  } finally {
+    await Promise.all([f.db.doc(`mailboxConnections/${f.connectionId}`).delete(), f.db.doc(`mailboxConnections/${second}`).delete(), f.db.doc(`mailboxRecommendationScopes/${scopeId}`).delete()])
+    await f.close()
+  }
+})

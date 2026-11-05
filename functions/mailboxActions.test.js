@@ -16,7 +16,7 @@ function fixture(options = {}) {
   const db = database(); const clock = { value: 1000 }; let permission = structuredClone(profile), calls = 0
   db.records.set(`mailboxConnections/${connectionId}`, { ownerId: 'owner', status: 'connected', tenantId: 'tenant', graphUserId: 'graph' })
   const defaults = Object.fromEntries(['previewMailboxOrder', 'previewMailboxTracking', 'analyzeMailboxAgb', 'reviewMailboxInvoices'].map(name => [name, async () => { calls++; return { label: name } }]))
-  const handlers = createMailboxActionHandlers({ db, project: options.project || 'db-bpl-drehpunkt-dev', now: () => clock.value, requireProfile: async request => { if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.'); return permission }, handlers: { ...defaults, ...options.handlers } })
+  const handlers = createMailboxActionHandlers({ db, project: options.project || 'db-bpl-drehpunkt-dev', now: () => clock.value, resolveMailboxIdentity: options.resolveMailboxIdentity, requireProfile: async request => { if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Anmeldung erforderlich.'); return permission }, handlers: { ...defaults, ...options.handlers } })
   const request = (data = {}, uid = 'owner') => ({ auth: { uid }, data: { connectionId, messageId: 'message', kind: 'order', ...data } })
   return { db, clock, handlers, request, calls: () => calls, revoke() { permission = { ...profile, active: false } } }
 }
@@ -174,4 +174,61 @@ test('a just-claimed worker is not failed by stale metadata read before its clai
     return fn(tx)
   })
   assert.equal((await f.handlers.getMailboxAction(f.request())).action.state, 'running')
+})
+
+
+test('automatic shared jobs deduplicate manual starts across users and never run unsupported actions', async () => {
+  const f = fixture(), secondId = 'b'.repeat(64), scopeId = 'c'.repeat(64)
+  for (const [id, ownerId] of [[connectionId, 'owner'], [secondId, 'second']]) f.db.records.set(`mailboxConnections/${id}`, { ownerId, kind: 'personal', status: 'connected', graphUserId: 'graph', tenantId: 'tenant', email: 'rechnung@brennpunkt-logistik.de', canonicalMailboxId: 'mailbox' })
+  f.db.records.set(`mailboxRecommendationScopes/${scopeId}`, { enabled: true, mode: 'automatic', generation: 'generation', kind: 'shared', tenantId: 'tenant', canonicalMailboxId: 'mailbox' })
+  const input = { scopeId, generation: 'generation', connections: [{ id: connectionId, ownerId: 'owner' }], messageId: 'message', kinds: ['invoice', 'terms', 'tracking', 'order', 'collection'] }
+  const [automatic, manual] = await Promise.all([f.handlers.startAutomaticMailboxActions(input), f.handlers.startMailboxAction(f.request({ connectionId: secondId, kind: 'invoice' }, 'second'))])
+  assert.equal(automatic.actions.length, 3)
+  assert.equal(automatic.actions.find(action => action.kind === 'invoice').jobId, manual.action.jobId)
+  assert.equal([...f.db.records.keys()].filter(path => path.startsWith('mailboxActionRuns/')).length, 3)
+  const peer = await f.handlers.getMailboxAction(f.request({ connectionId: secondId, kind: 'tracking' }, 'second'))
+  assert.equal(peer.action.connectionId, secondId)
+  assert.equal(peer.action.state, 'running')
+  await f.handlers.startAutomaticMailboxActions(input)
+  assert.equal([...f.db.records.keys()].filter(path => path.startsWith('mailboxActionRuns/')).length, 3)
+  const unrelatedId = 'd'.repeat(64)
+  f.db.records.set(`mailboxConnections/${unrelatedId}`, { ...f.db.records.get(`mailboxConnections/${secondId}`), canonicalMailboxId: 'different' })
+  assert.equal((await f.handlers.getMailboxAction(f.request({ connectionId: unrelatedId, kind: 'tracking' }, 'second'))).action, null)
+})
+
+test('automatic mode is checked before queueing and again before processing, without invented user rights', async () => {
+  const f = fixture(), scopeId = 'c'.repeat(64)
+  f.db.records.set(`mailboxRecommendationScopes/${scopeId}`, { enabled: true, mode: 'automatic', generation: 'generation', kind: 'personal', ownerId: 'owner', connectionId })
+  const input = { scopeId, generation: 'generation', connections: [{ id: connectionId, ownerId: 'owner' }], messageId: 'message', kinds: ['invoice'] }
+  const first = await f.handlers.startAutomaticMailboxActions({ ...input, generation: 'old' })
+  assert.equal(first.actions.length, 0)
+  const queued = await f.handlers.startAutomaticMailboxActions(input)
+  assert.equal(queued.actions[0].state, 'running')
+  f.db.records.set(`mailboxRecommendationScopes/${scopeId}`, { ...f.db.records.get(`mailboxRecommendationScopes/${scopeId}`), mode: 'off', enabled: false })
+  await f.handlers.processMailboxActionRun(queued.actions[0].jobId)
+  assert.equal(f.calls(), 0)
+  assert.equal((await f.handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action.state, 'failed')
+  f.db.records.set(`mailboxRecommendationScopes/${scopeId}`, { enabled: true, mode: 'automatic', generation: 'generation', kind: 'personal', ownerId: 'owner', connectionId })
+  f.revoke()
+  assert.equal((await f.handlers.startAutomaticMailboxActions({ ...input, messageId: 'other' })).actions.length, 0)
+})
+
+test('managed mailbox reconnect resolves canonical identity before choosing a shared action slot', async () => {
+  let resolutions = 0
+  const f = fixture({ resolveMailboxIdentity: async id => { assert.equal(id, connectionId); resolutions++; return 'canonical-inbox' } })
+  f.db.records.set(`mailboxConnections/${connectionId}`, { ownerId: 'owner', status: 'connected', kind: 'personal', graphUserId: 'graph', tenantId: 'tenant', email: 'rechnung@brennpunkt-logistik.de' })
+  const started = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  assert.equal(resolutions, 1)
+  assert.ok(started.action.sharedScopeId)
+  assert.ok(f.db.records.has(`mailboxActionScopes/${started.action.sharedScopeId}/actions/${hash('message|invoice')}`))
+})
+
+test('retrying a legacy failed shared action creates central work visible to peers', async () => {
+  const f = fixture(), peerId = 'b'.repeat(64)
+  for (const [id, ownerId] of [[connectionId, 'owner'], [peerId, 'peer']]) f.db.records.set(`mailboxConnections/${id}`, { ownerId, kind: 'personal', status: 'connected', graphUserId: 'graph', tenantId: 'tenant', email: 'rechnung@brennpunkt-logistik.de', canonicalMailboxId: 'mailbox' })
+  f.db.records.set(`mailboxActionScopes/${hash(`owner|${connectionId}`)}/actions/${hash('message|invoice')}`, { messageId: 'message', kind: 'invoice', state: 'failed', jobId: 'old' })
+  const created = await f.handlers.startMailboxAction(f.request({ kind: 'invoice' }))
+  const peer = await f.handlers.getMailboxAction(f.request({ connectionId: peerId, kind: 'invoice' }, 'peer'))
+  assert.equal(peer.action.jobId, created.action.jobId)
+  assert.ok(created.action.sharedScopeId)
 })

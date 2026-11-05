@@ -49,8 +49,10 @@ export function useMailboxActionList(connectionId, messageIds) {
     if (!uid || !connectionId) return
     const stop = store.watch({ connectionId, messageIds: JSON.parse(signature) })
     const onFocus = () => { void store.refresh(connectionId) }
+    const onActionSignal = event => { if (event.detail?.connectionId === connectionId) void store.refresh(connectionId) }
     window.addEventListener('focus', onFocus)
-    return () => { stop(); window.removeEventListener('focus', onFocus) }
+    window.addEventListener('drehpunkt:mailbox-actions-changed', onActionSignal)
+    return () => { stop(); window.removeEventListener('focus', onFocus); window.removeEventListener('drehpunkt:mailbox-actions-changed', onActionSignal) }
   }, [store, uid, connectionId, signature])
   return snapshot
 }

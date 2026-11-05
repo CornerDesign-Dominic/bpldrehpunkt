@@ -484,3 +484,51 @@ Platzhalter Mahnung prüfen. Auftragserfassung und Mahnungsplatzhalter tragen
 kräftigere blaue Flächen, stärkeren Rand und Punkt; gelesene Karten sind im Dark
 Mode dunkler. Ausgewählte Karten bleiben unabhängig davon sichtbar markiert.
 Rechte, Fachaktionen und Backend bleiben unverändert.
+
+## KI-Betriebsarten und automatische Vorbereitung (Dev 05.11.2026)
+
+Pro Postfach gilt genau eine Betriebsart: `off` (keine automatische KI),
+`recommend` (Handlungsempfehlungen) oder `automatic` (auswerten und vorbereiten).
+Bestehende `enabled: true`-Einstellungen ohne Modus bleiben Empfehlungen;
+keine automatische Hochstufung. Persönliche Einstellungen gehören dem Nutzer,
+gemeinsam genutzte/Funktionspostfächer werden zentral durch Admins verwaltet.
+Manuelle Aktionen bleiben in allen Betriebsarten verfügbar.
+
+Automatik nutzt dieselbe Webhook-Erkennung und startet ausschließlich
+`invoice`, `terms`, `tracking` über die bestehenden dauerhaften Aktionsjobs.
+Auftragserfassung, Mahnungsprüfung und weitere Aktionen bleiben manuell.
+Keine automatische Mail, Zahlungsfreigabe, Auftragserstellung oder Übernahme
+von Tracking-Daten. Rechnungs-/AGB-Prüfungen speichern ihre Prüfergebnisse wie
+bei manueller Auslösung; Statusvorschläge benötigen Nutzerbestätigung.
+Kein selbstständiges Öffnen eines Modals und keine zusätzliche Empfehlung
+neben dem gestarteten Automatikjob. Bestehende Lade-/Ergebnisanzeigen gelten.
+
+Die bisherigen Auswertungsgrenzen gelten auch automatisch: Rechnungen bis zu
+20 PDF-/Bildanlagen, je 5 MiB und zusammen 20 MiB, maximal 100 Seiten und
+160.000 Zeichen; AGB bis zu 20 PDFs mit entsprechenden Größen-/Seitenlimits.
+OCR läuft über denselben bestehenden Extraktionspfad. Tracking nutzt weiterhin
+nur die Mail und keine Anhänge. Es gibt keinen neuen Postfachscan, kein Backfill
+und keine Kontrollabfrage; nur neue Eingänge ab Aktivierung mit der bestehenden
+Fünf-Minuten-Frischegrenze. Subscription-Wartung bleibt bestehen.
+
+Gemeinsame Rechnungs-, AGB- und Statusaktionen erhalten eine kanonische,
+mandantengebundene Aktionsablage. Automatische/manuelle parallele Starts teilen
+sich denselben Slot; andere Nutzer sehen dasselbe Ergebnis über ihre eigene
+aktive Postfachverbindung und nach Prüfung ihrer Modulrechte. Bestehende private
+Aktionsablagen bleiben lesbar. Shared-Statusübernahme und optionale AGB-Zuordnung
+prüfen zusätzlich die gespeicherte Bindung an Job, Ergebnis und Postfach;
+der tatsächlich bestätigende Nutzer bleibt in der Historie erhalten.
+
+Automatische Jobs verwenden ausschließlich echte aktive Verbindungsinhaber mit
+den erforderlichen Rechten, keine synthetische Adminidentität. Modus/Generation
+werden beim Anlegen und vor der Verarbeitung geprüft. Deaktivieren verhindert
+weitere/noch nicht begonnene Auswertungen; bereits laufende Auswertungen können
+abschließen, Ergebnisse bleiben erhalten. Fehler gehen in die zentrale Diagnose.
+Keine neuen Microsoft-Rechte, Secrets, Rules oder Indizes erforderlich.
+
+Prüfstand dieser Änderung: 52 gezielte Unit-/Aktionsspeicherprüfungen,
+25 Emulatorprüfungen einschließlich Rechteprüfung und parallelem manuellem/
+automatischem Shared-Start sowie 4 React-UI-Tests erfolgreich. Projekt-Lint,
+Build und Shared-Abgleich erfolgreich (bestehende Bundlegrößenwarnung).
+Die UI-Prüfungen verwendeten synthetische Antworten; der Emulator verwendet
+synthetische Mail-/KI-Ergebnisse. Keine echten Testmails versendet.
