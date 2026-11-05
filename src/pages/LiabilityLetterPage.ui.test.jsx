@@ -58,6 +58,12 @@ function call(name) {
 async function resolve(pending, value) { await act(async () => pending.resolve(value)) }
 async function reject(pending, error) { await act(async () => pending.reject(error)) }
 function assertSingletons(withStops = true) {
+  const cards = [...document.querySelectorAll('.liability-page > .template-form-section')]
+  assert.equal(cards.length, 3, 'Expected three separate workflow cards')
+  assert.match(cards[0].textContent, /Auftragsdaten abholen/)
+  assert.ok(cards[1].contains(input('Sachverhalt')))
+  assert.ok(cards[2].contains(input('Belegdatum')))
+  assert.equal(input('Auftragsnummer').parentElement.parentElement, input('Belegdatum').parentElement.parentElement)
   assert.equal(document.querySelectorAll('#liability-order-heading').length, 1, 'Search section duplicated')
   assert.equal(document.querySelectorAll('#liability-form-heading').length, 1, 'Letter form duplicated')
   if (withStops) assert.equal(document.querySelectorAll('#liability-stops-heading').length, 1, 'Stop selection duplicated')
@@ -92,6 +98,7 @@ for (const first of ['import', 'wording']) {
       assert.ok(overlay, 'Import must show an overlay over order fields')
       assert.match(overlay.textContent, /importiert|Import|geladen|abgerufen/)
       assert.equal(input('Belegdatum').matches(':disabled'), false)
+      assert.equal(input('Auftragsnummer').matches(':disabled'), true)
       assert.equal(input('Sachverhalt').matches(':disabled'), false)
       await enter(input('Belegdatum'), '2026-11-03')
       await enter(input('Sachverhalt'), 'Die Ware wurde beim Transport beschädigt.')
