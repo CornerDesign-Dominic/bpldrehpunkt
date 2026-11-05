@@ -6,7 +6,9 @@ import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
 
 const MAX_PDF_SIZE = 20 * 1024 * 1024
-const actions = ['details', 'position.save', 'position.delete', 'deadline.save', 'deadline.delete', 'note.add', 'document.reserve', 'document.finalize', 'document.update', 'document.delete']
+const rootActions = ['details', 'payment', 'remark', 'allocation']
+const paymentCycles = ['monthly', 'quarterly', 'half-yearly', 'yearly', 'once']
+const actions = [...rootActions, 'position.save', 'position.delete', 'deadline.save', 'deadline.delete', 'note.add', 'document.reserve', 'document.finalize', 'document.update', 'document.delete']
 const collections = { position: 'positions', deadline: 'deadlines', note: 'notes', document: 'documents' }
 const invalid = (message = 'Ungültige Vertragsdaten.') => { throw new HttpsError('invalid-argument', message) }
 const id = (value) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value)
@@ -38,8 +40,8 @@ export function normalizeContractMutation(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some((key) => !['contractId', 'mutationId', 'action', 'recordId', 'expectedRevision', 'values'].includes(key))) invalid()
   const { contractId, mutationId, action } = data
   if (!id(contractId) || !id(mutationId) || !actions.includes(action)) invalid()
-  const recordId = action === 'details' ? contractId : data.recordId ?? mutationId
-  if (!id(recordId) || (action === 'details' && data.recordId != null && data.recordId !== contractId)) invalid()
+  const recordId = rootActions.includes(action) ? contractId : data.recordId ?? mutationId
+  if (!id(recordId) || (rootActions.includes(action) && data.recordId != null && data.recordId !== contractId)) invalid()
   const expectedRevision = data.expectedRevision ?? 0
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) invalid()
   const values = data.values ?? {}
@@ -47,6 +49,28 @@ export function normalizeContractMutation(data) {
   if (action === 'details') {
     exactValues(values, ['partnerName', 'contractNumber', 'customerNumber', 'description'])
     clean = { partnerName: text(values.partnerName, 240, true), contractNumber: text(values.contractNumber, 120), customerNumber: text(values.customerNumber, 120), description: text(values.description, 4000, false, true) }
+  } else if (action === 'payment') {
+    exactValues(values, ['paymentCycle', 'paymentAnchorDate'])
+    if (typeof values.paymentCycle !== 'string' || typeof values.paymentAnchorDate !== 'string') invalid()
+    const paymentCycle = text(values.paymentCycle, 20)
+    const paymentAnchorDate = text(values.paymentAnchorDate, 10)
+    clean = paymentCycle === '' && paymentAnchorDate === ''
+      ? { paymentCycle: '', paymentAnchorDate: '' }
+      : { paymentCycle: enumeration(paymentCycle, paymentCycles), paymentAnchorDate: calendarDate(paymentAnchorDate) }
+  } else if (action === 'remark') {
+    exactValues(values, ['remark'])
+    if (typeof values.remark !== 'string') invalid()
+    clean = { remark: text(values.remark, 4000, false, true) }
+  } else if (action === 'allocation') {
+    exactValues(values, ['allocations'])
+    if (!Array.isArray(values.allocations) || values.allocations.length > 50) invalid('Bitte höchstens 50 Kostenpositionen auswählen.')
+    const allocations = values.allocations.map((entry) => {
+      exactValues(entry, ['categoryId', 'basisPoints'])
+      if (!id(entry.categoryId) || !Number.isInteger(entry.basisPoints) || entry.basisPoints <= 0 || entry.basisPoints > 10000) invalid('Bitte gültige Kostenpositionen und Prozentanteile angeben.')
+      return { categoryId: entry.categoryId, basisPoints: entry.basisPoints }
+    }).sort((a, b) => a.categoryId.localeCompare(b.categoryId))
+    if (new Set(allocations.map((entry) => entry.categoryId)).size !== allocations.length || (allocations.length && allocations.reduce((sum, entry) => sum + entry.basisPoints, 0) !== 10000)) invalid('Die Kostenverteilung muss insgesamt 100 % ergeben; jede Kostenposition darf nur einmal vorkommen.')
+    clean = { allocations }
   } else if (action === 'position.save') {
     exactValues(values, ['title', 'grossAmountCents', 'billingCycle', 'anchorDate', 'note'])
     if (!Number.isSafeInteger(values.grossAmountCents) || values.grossAmountCents < 0 || values.grossAmountCents > 1e11) invalid('Bitte einen gültigen Bruttobetrag angeben.')
@@ -120,7 +144,7 @@ export async function persistContractMutation(db, input, actor, bucket) {
   if (['document.finalize', 'document.delete'].includes(input.action)) return persistDocumentTransition(db, input, actor, bucket)
   const parentRef = db.doc(`contracts/${input.contractId}`)
   const receiptRef = parentRef.collection('mutations').doc(input.mutationId)
-  const childRef = input.action === 'details' ? null : parentRef.collection(collections[input.action.split('.')[0]]).doc(input.recordId)
+  const childRef = rootActions.includes(input.action) ? null : parentRef.collection(collections[input.action.split('.')[0]]).doc(input.recordId)
   const digest = fingerprint(input, actor.uid)
   return db.runTransaction(async (transaction) => {
     const [parentSnapshot, profileSnapshot, receiptSnapshot, childSnapshot] = await Promise.all([
@@ -143,9 +167,17 @@ export async function persistContractMutation(db, input, actor, bucket) {
     if (input.action.endsWith('.delete') && !previous) throw new HttpsError('not-found', 'Der Eintrag existiert nicht mehr.')
     if (['note.add', 'document.reserve'].includes(input.action) && previous) throw new HttpsError('already-exists', 'Der Eintrag existiert bereits.')
     if (input.action === 'document.update' && (!previous || previous.status !== 'ready')) throw new HttpsError('failed-precondition', 'Nur vollständig hochgeladene Dokumente können bearbeitet werden.')
+    if (input.action === 'allocation') {
+      const categories = await Promise.all(input.values.allocations.map((entry) => transaction.get(db.doc(`contractCostCategories/${entry.categoryId}`))))
+      for (const [index, snapshot] of categories.entries()) {
+        const allocation = input.values.allocations[index]
+        const unchanged = Array.isArray(parent.allocations) && parent.allocations.some((entry) => entry.categoryId === allocation.categoryId && entry.basisPoints === allocation.basisPoints)
+        if (!snapshot.exists || (snapshot.data().active !== true && !unchanged)) throw new HttpsError('failed-precondition', 'Bitte aktive Kostenpositionen auswählen. Bestehende deaktivierte Zuordnungen dürfen nur unverändert erhalten bleiben.')
+      }
+    }
     const revision = input.expectedRevision + 1
     const now = FieldValue.serverTimestamp()
-    if (input.action === 'details') transaction.update(parentRef, { ...input.values })
+    if (rootActions.includes(input.action)) transaction.update(parentRef, { ...input.values })
     else if (input.action.endsWith('.delete')) transaction.delete(childRef)
     else {
       const record = { ...input.values, revision, updatedAt: now, updatedBy: actor.uid, updatedByName: actorName(profile, actor.uid) }
@@ -154,7 +186,7 @@ export async function persistContractMutation(db, input, actor, bucket) {
       transaction.set(childRef, record, { merge: Boolean(previous) })
       if (input.action.startsWith('document.')) syncDocumentStorageAccess(transaction, parentRef, parent, input.recordId, { ...previous, ...record })
     }
-    const target = input.action === 'note.add' ? 'Notiz' : input.values.title || previous?.title || input.values.partnerName || parent.partnerName
+    const target = { 'note.add': 'Notiz', payment: 'Zahlungsrhythmus', remark: 'Bemerkung', allocation: 'Kostenverteilung' }[input.action] || input.values.title || previous?.title || input.values.partnerName || parent.partnerName
     return audit(transaction, parentRef, parent, input, actor, profile, target, revision, input.action === 'document.reserve' ? { storagePath: storagePath(input), status: 'pending' } : {}, receiptRef, digest)
   })
 }

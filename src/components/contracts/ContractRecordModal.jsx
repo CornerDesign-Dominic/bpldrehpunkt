@@ -4,6 +4,7 @@ import { CONTRACT_CYCLES, CONTRACT_DEADLINE_TYPES, contractMutationError, parseC
 import ConfirmDialog from '../ui/ConfirmDialog.jsx'
 
 function initialValues(kind, entry) {
+  if (kind === 'payment') return { paymentCycle: entry.paymentCycle || '', paymentAnchorDate: entry.paymentAnchorDate || '' }
   if (kind === 'details') return { partnerName: entry.partnerName || '', contractNumber: entry.contractNumber || '', customerNumber: entry.customerNumber || '', description: entry.description || '' }
   if (kind === 'position') return { title: entry?.title || '', price: entry ? (entry.grossAmountCents / 100).toFixed(2) : '', billingCycle: entry?.billingCycle || 'monthly', anchorDate: entry?.anchorDate || '', note: entry?.note || '' }
   return { title: entry?.title || '', type: entry?.type || 'deadline', date: entry?.date || '', time: entry?.time || '', note: entry?.note || '', completed: entry?.completed === true }
@@ -22,7 +23,7 @@ export default function ContractRecordModal({ kind, entry, onClose, onSave }) {
   const busyRef = useRef(false)
   const attempts = useRef(new Map())
   const dirty = JSON.stringify(initial) !== JSON.stringify(values)
-  const title = kind === 'details' ? text('Vertragsdaten bearbeiten', 'Edit contract details') : kind === 'position' ? (entry ? text('Position bearbeiten', 'Edit position') : text('Position hinzufügen', 'Add position')) : entry ? text('Termin / Frist bearbeiten', 'Edit appointment / deadline') : text('Termin / Frist hinzufügen', 'Add appointment / deadline')
+  const title = kind === 'payment' ? text('Zahlungsrhythmus bearbeiten', 'Edit payment schedule') : kind === 'details' ? text('Vertragsdaten bearbeiten', 'Edit contract details') : kind === 'position' ? (entry ? text('Position bearbeiten', 'Edit position') : text('Position hinzufügen', 'Add position')) : entry ? text('Termin / Frist bearbeiten', 'Edit appointment / deadline') : text('Termin / Frist hinzufügen', 'Add appointment / deadline')
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -73,7 +74,11 @@ export default function ContractRecordModal({ kind, entry, onClose, onSave }) {
     <form className="damage-form" onSubmit={submit}>
       <h2 id="contract-editor-title">{title}</h2>
       <div className="contract-editor__fields">
-        {kind === 'details' ? <>
+        {kind === 'payment' ? <>
+          {choices('paymentCycle', 'Zahlungsrhythmus', 'Payment cycle', { '': ['Nicht hinterlegt', 'Not specified'], ...CONTRACT_CYCLES })}
+          {field('paymentAnchorDate', 'Zahldatum / erstes Bezugsdatum', 'Payment date / first anchor date', { type: 'date', required: Boolean(values.paymentCycle) })}
+          <p className="contract-editor__wide contract-muted">{text('Der Zahlungstag richtet sich nach diesem Datum. Zum Entfernen Rhythmus und Datum leeren.', 'The payment day follows this date. Clear both fields to remove the schedule.')}</p>
+        </> : kind === 'details' ? <>
           {field('partnerName', 'Vertragspartner', 'Contract partner', { required: true, focus: true, wide: true })}
           {field('contractNumber', 'Vertragsnummer', 'Contract number', { maxLength: 120 })}
           {field('customerNumber', 'Kundennummer beim Vertragspartner', 'Customer number with the contract partner', { maxLength: 120 })}
@@ -90,7 +95,7 @@ export default function ContractRecordModal({ kind, entry, onClose, onSave }) {
           {field('time', 'Uhrzeit', 'Time', { type: 'time' })}
           <label className="contract-checkbox"><input type="checkbox" disabled={saving} checked={values.completed} onChange={(event) => update('completed', event.target.checked)} />{text('Erledigt', 'Completed')}</label>
         </>}
-        {kind !== 'details' && <label className="form-field contract-editor__wide"><span>{text('Hinweis', 'Note')}</span><textarea rows={3} maxLength={kind === 'position' ? 2000 : 4000} disabled={saving} value={values.note} onChange={(event) => update('note', event.target.value)} /></label>}
+        {['position', 'deadline'].includes(kind) && <label className="form-field contract-editor__wide"><span>{text('Hinweis', 'Note')}</span><textarea rows={3} maxLength={kind === 'position' ? 2000 : 4000} disabled={saving} value={values.note} onChange={(event) => update('note', event.target.value)} /></label>}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
       <div className="form-actions"><button type="button" className="button button--secondary" disabled={saving} onClick={close}>{text('Abbrechen', 'Cancel')}</button><button className="button" type="submit" disabled={saving}>{saving ? text('Wird gespeichert …', 'Saving …') : text('Speichern', 'Save')}</button></div>

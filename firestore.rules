@@ -1696,6 +1696,16 @@ service cloud.firestore {
         && (superadmin() || resource.data.ownerUserId == request.auth.uid);
       allow delete: if edit('todos') && (superadmin() || resource.data.ownerUserId == request.auth.uid);
     }
+    match /contractCostCategories/{id} {
+      allow read: if view('contracts');
+      allow write: if false;
+      match /history/{entryId} {
+        allow read: if view('contracts');
+        allow write: if false;
+      }
+      match /mutations/{mutationId} { allow read, write: if false; }
+    }
+    match /contractCostCategoryNames/{nameKey} { allow read, write: if false; }
     match /contracts/{id} {
       allow read: if view('contracts');
       allow create: if edit('contracts')

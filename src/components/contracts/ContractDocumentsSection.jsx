@@ -212,7 +212,6 @@ export default function ContractDocumentsSection({ contractId, canEdit, onChange
         </li>
       })}</ul>
     </section>}
-    <button className="button button--secondary" type="button" disabled={loading || deleting || Boolean(editor) || Boolean(recovering)} onClick={reload}>{text('Dokumente neu laden', 'Reload documents')}</button>
     {editor && canEdit && <DocumentEditor key={`${contractId}:${editor === 'new' ? 'new' : editor.id}`} contractId={contractId} item={editor === 'new' ? null : editor} onClose={() => { setEditor(null); void reload() }} onSaved={changed} />}
     {details && <DocumentDetailsModal documentItem={details} onClose={() => setDetails(null)} />}
     <ConfirmDialog open={Boolean(deletion) && canEdit} title={text('Dokument dauerhaft löschen?', 'Permanently delete document?')} message={actionError ? documentError(actionError, text) : text('Die PDF und ihre Dokumentangaben werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.', 'The PDF and its metadata will be permanently deleted. This cannot be undone.')} confirmLabel={text(actionError ? 'Erneut versuchen' : 'Endgültig löschen', actionError ? 'Retry' : 'Delete permanently')} submittingLabel={text('Wird gelöscht …', 'Deleting …')} variant="danger" isSubmitting={deleting} onCancel={() => { setDeletion(null); setActionError(null); void reload() }} onConfirm={remove} />

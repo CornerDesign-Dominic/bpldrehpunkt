@@ -3,6 +3,9 @@
 Stand: 05.11.2026. Vertragsliste und erweiterte Vertragsakte sind auf Dev
 veröffentlicht und im echten Browserablauf geprüft. Der konkrete Nachweis steht
 im [Dev-Abschlussbeleg](releases/contracts-file-dev-2026-11-05.md).
+Die nachfolgend beschriebenen Ergänzungen zu Zahlung, Bemerkung und
+Kostenzuordnung sind zunächst lokal implementiert; der verlinkte Dev-Beleg
+bezieht sich auf den davor veröffentlichten Stand.
 Führende Zugriffsregeln stehen in
 [FIRESTORE_ACCESS.md](../../FIRESTORE_ACCESS.md).
 
@@ -46,11 +49,49 @@ umbenannt/beschrieben und bestätigt gelöscht werden. Notizen sind unveränderl
 und ergänzen den serverseitigen Änderungsverlauf. Die Oberfläche zeigt jeweils
 die letzten 50 Notizen und Historieneinträge an und kennzeichnet diese Grenze.
 
+## Zahlung, Bemerkung und Kostenzuordnung
+
+Die Bemerkung ist ein bearbeitbares Freitextfeld oben in der Akte und ergänzt
+Beschreibung sowie unveränderliche Notizen. Der Schriftzug „Vertragsakte“ im
+Aktenkopf entfällt; der Vertragspartner bleibt die Überschrift. Dokumente laden
+nach Änderungen automatisch neu; ein regulärer Aktualisieren-Button entfällt.
+Bei einem Ladefehler bleibt die Möglichkeit zum erneuten Laden erhalten.
+
+Ein eigener Zahlungsrhythmus am gesamten Vertrag enthält `paymentCycle` und
+`paymentAnchorDate`. Beide Angaben werden zusammen hinterlegt oder zusammen
+geleert. Unterstützte Rhythmen und Monatsendregel entsprechen den Positionen.
+Dies dokumentiert den erwarteten Zahlungstag, ohne Buchungen oder zusätzliche
+Kalenderereignisse zu erzeugen. Die Rhythmen einzelner Positionen bleiben erhalten.
+
+Der Fachreiter **Einstellungen** gehört nur zum Vertragsmanagement. Dort werden
+Kostenpositionen wie Disposition oder Buchhaltung angelegt, umbenannt und
+aktiviert/deaktiviert. Es erfolgt keine Verknüpfung mit Personalabteilungen,
+Transportaufträgen oder Fallakten. Lesen erfordert `contracts:view`, Änderungen
+`contracts:edit` (bzw. Superadmin). Namen sind im Katalog eindeutig; Deaktivieren
+bewahrt stabile Referenzen und ermöglicht späteres Reaktivieren.
+
+Die Karte **Kostenzuordnung** verteilt den Gesamtbetrag der Vertragsakte nach
+Prozenten, zum Beispiel 70 % Disposition und 30 % Buchhaltung. Es gibt keine
+Zuordnung einzelner Vertragszeilen. Eine Zuordnung ist optional; sofern vorhanden,
+muss sie genau 100 % ergeben. Positive Anteile mit bis zu zwei Nachkommastellen
+werden als ganzzahlige Basispunkte gespeichert (100 % = 10000). Jede Kostenposition
+kommt höchstens einmal vor. Neue oder veränderte Anteile dürfen nur aktive
+Kostenpositionen verwenden; bestehende inaktive Anteile können unverändert
+beibehalten werden. Unbekannte Referenzen werden sichtbar angezeigt und müssen
+vor dem Speichern aufgelöst werden. Kosten verschiedener Rhythmen werden weiterhin
+getrennt dargestellt; es wird keine fachlich unbelegte Gesamtsumme gebildet.
+Die Zuordnung ist eine Grundlage für spätere Kostenauswertungen und führt selbst
+keine Buchung aus.
+
 ## Speicherung und Konflikte
 
 - `contracts/{id}`: initiale Identität und Erstellungsdaten; danach zusätzlich
-  `contractNumber`, `customerNumber`, `description`, `revision`,
+  `contractNumber`, `customerNumber`, `description`, `remark`, `paymentCycle`,
+  `paymentAnchorDate`, `allocations: [{categoryId, basisPoints}]`, `revision`,
   `updatedAt`, `updatedBy`, `updatedByName`.
+- `contractCostCategories/{id}`: modulspezifischer Kostenpositionskatalog mit
+  `name`, `active`, Revision und Auditfeldern; nur serverseitig beschreibbar.
+  Private Namens- und Wiederholungsbelege sind für Clients gesperrt.
 - `positions/{id}`: `title`, `grossAmountCents`, `billingCycle`, `anchorDate`,
   `note` und serverseitige Revisions-/Auditfelder.
 - `deadlines/{id}`: `title`, `type`, `date`, `time`, `note`, `completed` und Audit.
@@ -111,3 +152,18 @@ Die Vertragsfristen sind keine Quelle der automatischen Erinnerungsabläufe.
 Zusätzliche Indizes, Secrets und Datenmigrationen sind nicht erforderlich.
 Bestehende Dreifeld-Verträge
 werden mit Revision 0 weitergeführt; die Original-Erstellungsdaten bleiben.
+
+## Prüfung der lokalen Ergänzungen vom 05.11.2026
+
+Lint, Build und Functions-Shared-Abgleich erfolgreich. 25 Backend-/Rules-Tests
+bestanden (einschließlich echter Firestore-Emulatorläufe mit Rollen, verweigerten
+Zugriffen, Konkurrenz, Wiederholung, Parentrevisionen und inaktiven Referenzen).
+Weitere 11 Frontend-Helfer-/Übersetzungstests bestanden. Im lokalen Browser mit
+synthetischen Daten geprüft: Katalog anlegen, Bemerkung speichern, Zahlungsdatum
+am 31. mit nächstem Monatsende, 70/30 speichern/neuladen, 90 % abweisen,
+Leseansicht ohne Mutation sowie Deutsch/Englisch und Light/Dark. Keine
+Browser-Konsolenfehler. Dies ist keine Abnahme der Ergänzungen auf Dev.
+
+Für deren spätere Dev-Veröffentlichung werden Frontend, `mutateContract`,
+`saveContractCostCategory` und Firestore Rules gemeinsam benötigt. Storage Rules
+und Indizes wurden für diese Ergänzung nicht verändert.

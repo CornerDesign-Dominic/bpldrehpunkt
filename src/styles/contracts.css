@@ -56,3 +56,10 @@
   .contract-editor__fields { grid-template-columns: 1fr; }
   .contract-file .todo-updates__form { align-items: stretch; flex-direction: column; }
 }
+
+.contract-remark textarea { width: 100%; resize: vertical; }
+.contract-remark textarea, .contract-allocation-card :is(input, select) { padding: 8px 9px; border: 1px solid var(--input-border); border-radius: 5px; color: var(--text-primary); background: var(--input-background); font: inherit; font-size: 13px; }
+.contract-remark textarea:focus, .contract-allocation-card :is(input, select):focus { outline: none; border-color: var(--button-background); box-shadow: 0 0 0 3px var(--focus-ring); }
+.contract-allocation-card select { min-width: 180px; width: 100%; }
+.contract-allocation-card input { width: 110px; }
+.contract-allocation-card .form-actions { margin-top: 12px; }
