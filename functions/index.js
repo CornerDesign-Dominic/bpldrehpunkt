@@ -25,6 +25,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
+import { mutateContractHandler } from './contracts.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeLearningHandler } from './knowledgeLearning.js'
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
@@ -1226,6 +1227,7 @@ export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', e
 export const getShipmentTrackingDryRun = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingDryRunHandler)
 export const listDiagnosticsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listDiagnosticsPageHandler)
 export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, reportClientDiagnosticHandler)
+export const mutateContract = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mutateContractHandler)
 export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
 export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
 export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)

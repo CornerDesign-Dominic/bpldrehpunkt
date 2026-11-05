@@ -79,15 +79,25 @@ test('contracts enforce module access, creation validation and immutable files',
       }
       await setDoc(doc(db, 'contracts', 'contracts-long-name'), { ...values('editor'), partnerName: 'A'.repeat(240) })
     })
-    await t.test('updates, deletion and undeclared subcollections are denied to every role', async () => {
+    await t.test('updates, deletion and child writes are denied to every role', async () => {
       for (const db of Object.values(clients)) {
         const ref = doc(db, 'contracts', 'contracts-seeded')
         for (const operation of [
           () => updateDoc(ref, { partnerName: 'Geändert' }),
           () => deleteDoc(ref),
           () => setDoc(doc(ref, 'documents', 'forged'), { title: 'Forged' }),
-          () => getDocs(collection(ref, 'documents')),
         ]) await assert.rejects(operation(), { code: 'permission-denied' })
+      }
+    })
+    await t.test('declared child collections are readable only with module rights and an existing parent', async () => {
+      for (const [name, db] of Object.entries(clients)) {
+        for (const child of ['positions', 'deadlines', 'notes', 'history', 'documents']) {
+          const operation = () => getDocs(collection(db, 'contracts', 'contracts-seeded', child))
+          if (['viewer', 'editor', 'superadmin'].includes(name)) await operation()
+          else await assert.rejects(operation(), { code: 'permission-denied' })
+          await assert.rejects(getDocs(collection(db, 'contracts', 'contracts-missing-parent', child)), { code: 'permission-denied' })
+        }
+        await assert.rejects(getDocs(collection(db, 'contracts', 'contracts-seeded', 'mutations')), { code: 'permission-denied' })
       }
     })
   } finally {

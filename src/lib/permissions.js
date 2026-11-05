@@ -61,7 +61,7 @@ export function hasPermission(profile, module, minimum = 'view') {
 
 export const canView = (profile, module) => hasPermission(profile, module, 'view')
 export const canEdit = (profile, module) => hasPermission(profile, module, 'edit')
-export const SYSTEM_CALENDAR_MODULES = ['damages', 'insolvencies', 'legalDisputes', 'inkasso']
+export const SYSTEM_CALENDAR_MODULES = ['damages', 'insolvencies', 'legalDisputes', 'inkasso', 'contracts']
 export const canViewSystemCalendars = (profile) => SYSTEM_CALENDAR_MODULES.some((module) => canView(profile, module))
 export const canManageUsers = (profile) => ['admin', 'superadmin'].includes(normalizeRole(profile?.role))
 export const canManagePermissions = (profile) => normalizeRole(profile?.role) === 'superadmin'
