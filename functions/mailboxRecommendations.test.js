@@ -1,6 +1,18 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyRecommendation, classifyRecommendationDecision, validateMailTriage, recommendationKinds, recommendationScope, createRecommendationHandlers, freshRecommendation } from './mailboxRecommendations.js'
+import { classifyRecommendation, classifyRecommendationDecision, validateMailTriage, recommendationKinds, recommendationScope, createRecommendationHandlers, freshRecommendation, mailboxAiMode, requestedMailboxAiMode } from './mailboxRecommendations.js'
+
+test('AI modes are exclusive, preserve legacy opt-in, and reject contradictory requests', () => {
+  assert.equal(mailboxAiMode({ enabled: true }), 'recommend')
+  assert.equal(mailboxAiMode({ enabled: false, mode: 'automatic' }), 'off')
+  for (const mode of ['off', 'recommend', 'automatic']) {
+    assert.equal(requestedMailboxAiMode({ mode }), mode)
+    assert.equal(mailboxAiMode({ enabled: mode !== 'off', mode }), mode)
+  }
+  assert.equal(requestedMailboxAiMode({ enabled: true }), 'recommend')
+  assert.equal(requestedMailboxAiMode({ enabled: false }), 'off')
+  for (const data of [{}, { mode: 'send' }, { mode: 'automatic', enabled: false }, { mode: 'off', enabled: true }]) assert.throws(() => requestedMailboxAiMode(data), { code: 'invalid-argument' })
+})
 
 test('shared identity ignores the delegate; personal consent remains owner scoped', () => {
   const shared = { tenantId: 'tenant', email: 'Team@Example.org', kind: 'shared', canonicalMailboxId: 'shared-folder', ownerId: 'one' }

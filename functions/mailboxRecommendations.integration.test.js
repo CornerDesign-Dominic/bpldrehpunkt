@@ -65,6 +65,62 @@ test('emulator: production subscription targets production callback without scan
   } finally { await f.close() }
 })
 
+test('emulator: automatic mode dispatches once centrally without recommendations and mode changes invalidate old work', { skip: !enabled }, async () => {
+  const dispatches = []
+  const kinds = ['invoice', 'terms', 'tracking']
+  const decision = {
+    version: 1, model: 'synthetic', promptVersion: 'mail-triage-v1', status: 'actionable',
+    answers: [{ key: 'topic', value: 'Transportstatus', sourceId: 'body', quote: 'Ankunft 18 Uhr' }],
+    actions: kinds.map(kind => ({ kind, confidence: 'high', reason: 'Synthetische Einordnung für Dispatchprüfung', sourceId: 'body', quote: 'Ankunft 18 Uhr' })),
+    coverage: { mail: true, forwarded: false, attachments: 'not_present', documentNames: [], unreadable: [] },
+  }
+  const f = await fixture({ classifyDecision: async () => ({ kinds, inspectAttachments: false, decision }), startAutomaticActions: async input => { dispatches.push(input) } })
+  try {
+    await f.activate()
+    const previous = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}`).get()).data()
+    const setting = await f.handlers.setSettings(f.request({ mode: 'automatic' }))
+    assert.equal(setting.mode, 'automatic'); assert.equal(setting.enabled, true)
+    const current = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}`).get()).data()
+    assert.notEqual(current.generation, previous.generation)
+    await f.deliver()
+    const [run] = await f.runs()
+    await Promise.all([f.handlers.process(run), f.handlers.process(run)])
+    assert.equal(dispatches.length, 1)
+    assert.deepEqual(dispatches[0].kinds, ['invoice', 'terms', 'tracking'])
+    assert.equal(dispatches[0].connections.length, 2)
+    assert.equal(dispatches[0].scopeId, f.scopeId)
+    f.actor(profile)
+    const result = await f.handlers.list(f.request({ messageIds: ['immutable'] }))
+    assert.deepEqual(result.recommendations, {})
+    assert.equal(result.decisionStates.immutable, 'completed')
+    assert.match(result.decisions.immutable.id, /^[a-f0-9]{64}$/)
+    assert.deepEqual(result.decisions.immutable.answers, decision.answers)
+    assert.deepEqual(result.decisions.immutable.actions, decision.actions)
+    assert.deepEqual(result.decisions.immutable.coverage, decision.coverage)
+    assert.equal(result.decisions.immutable.subject, 'Status')
+    const stored = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}/messages/${hash('immutable')}`).get()).data()
+    assert.deepEqual(stored.kinds, [])
+    assert.equal(stored.decision.id, result.decisions.immutable.id)
+    f.actor({ active: true, role: 'admin' })
+    await f.handlers.setSettings(f.request({ mode: 'off' }))
+    await f.handlers.process({ ...run, messageId: 'late' })
+    assert.equal(dispatches.length, 1)
+    f.actor(profile)
+    assert.equal((await f.handlers.getSettings(f.request())).mode, 'off')
+  } finally { await f.close() }
+})
+
+test('emulator: personal AI mode is owner controlled while shared automatic mode remains admin only', { skip: !enabled }, async () => {
+  const f = await fixture()
+  try {
+    const personal = await f.handlers.setSettings(f.request({ connectionId: f.parent, mode: 'automatic' }))
+    assert.equal(personal.mode, 'automatic'); assert.equal(personal.managed, false)
+    await assert.rejects(f.handlers.setSettings(f.request({ mode: 'automatic' })), { code: 'permission-denied' })
+    await assert.rejects(f.handlers.setSettings(f.request({ connectionId: f.parent, mode: 'off' }, f.other)), { code: 'permission-denied' })
+    assert.equal((await f.handlers.setSettings(f.request({ connectionId: f.parent, mode: 'off' }))).mode, 'off')
+  } finally { await f.close() }
+})
+
 test('emulator: all five functional mailboxes are visible before connection and only admins can manage them', { skip: !enabled }, async () => {
   const f = await fixture()
   try {

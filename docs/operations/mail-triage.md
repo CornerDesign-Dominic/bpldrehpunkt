@@ -1,7 +1,7 @@
 # Maileinordnung und Qualitätsrückmeldungen
 
-Stand: 05.11.2026. Erster Bau ausschließlich lokal, nicht auf Dev oder Produktion
-veröffentlicht. Ergänzt bestehende Postfachaktionen, ersetzt keine Fachauswertung.
+Stand: 05.11.2026. Dev-Veröffentlichung ausdrücklich beauftragt; Nachweis und
+Abnahmegrenzen stehen im [Releasebeleg](releases/mail-triage-dev-2026-11-05.md). Main und Produktion bleiben unverändert. Ergänzt bestehende Postfachaktionen, ersetzt keine Fachauswertung.
 
 ## Eingang und Entscheidung
 
@@ -98,21 +98,21 @@ Wiederholungsmarker bleiben bestehen; eine bereinigte Rückmeldung wird durch ei
 identischen Retry nicht neu erzeugt. Es gibt keine automatische Löschfrist und
 keine automatische Promptänderung oder Modellschulung durch eine Ablehnung.
 
-## Diagnose und spätere Bereitstellung
+## Diagnose und Bereitstellung
 
 Technische Fehler nutzen die bestehende zentrale Diagnose ohne Mail-/Kommentarinhalt:
 mailboxes/recommendation-classification, triage-feedback, triage-quality;
 mailTriageQuality/load, save, delete. Fachliche Validierung und Revisionskonflikte
 werden nicht pauschal als technische Störung protokolliert.
 
-Bei einer später freigegebenen Dev-Veröffentlichung gemeinsam berücksichtigen:
+Bei der Dev-Veröffentlichung gemeinsam berücksichtigen:
 Frontend, Firestore-Rules, processMailboxRecommendationRun, listMailboxRecommendations,
 submitMailboxTriageFeedback, listMailboxTriageFeedback, updateMailboxTriageFeedback,
 deleteMailboxTriageFeedback, reportClientDiagnostic und die Benutzerverwaltung
 (listManagedUsers, createManagedUser, updateManagedUser), damit die neuen Rechte
 vollständig gelesen und vergeben werden. Keine neuen Secrets oder Microsoftrechte.
 Die bereits lokal vorbereiteten Rechnungsänderungen benötigen bei gemeinsamer
-Freigabe zusätzlich ihre dokumentierten Functions; sie sind hier nicht veröffentlicht.
+Freigabe zusätzlich ihre dokumentierten Functions; siehe Releasebeleg.
 
 ## Lokaler Prüfstand
 
@@ -132,4 +132,8 @@ Vorschau ohne Start, Verwerfen mit Grund, Qualitätsauswertung, gespeicherte Not
 Leserrechte, gezielte Bereinigung, weiter neutrale verworfene Aktion, manuellen Start
 exakt einmal und bestehende Ergebnisbearbeitung einschließlich Abschluss/Wiederöffnung.
 DE/EN und Light/Dark geprüft. Echte Ende-zu-Ende-Abnahme mit veröffentlichtem Backend
-und neuen eingehenden Mails bleibt bis zur späteren Dev-Freigabe offen.
+und neuen eingehenden Mails bleibt als Nutzerabnahme offen.
+
+Im Modus automatic bleiben die gespeicherten Fragen/Fundstellen als Kontext verfügbar;
+es erscheinen keine zusätzlichen Empfehlungsschaltflächen neben automatisch
+vorbereiteten Rechnungs-, AGB- und Statusaktionen. Diese Ergebnisse öffnen direkt.

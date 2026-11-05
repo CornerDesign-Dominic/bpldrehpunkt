@@ -3,6 +3,7 @@ import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
+  contracts: 'Vertragsmanagement',
   'transport-orders': 'Transportaufträge',
   reminders: 'Erinnerungen',
   pallets: 'Paletten',

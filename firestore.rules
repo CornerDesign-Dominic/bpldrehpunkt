@@ -1696,6 +1696,21 @@ service cloud.firestore {
         && (superadmin() || resource.data.ownerUserId == request.auth.uid);
       allow delete: if edit('todos') && (superadmin() || resource.data.ownerUserId == request.auth.uid);
     }
+    match /contracts/{id} {
+      allow read: if view('contracts');
+      allow create: if edit('contracts')
+        && request.resource.data.keys().hasAll(['partnerName', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['partnerName', 'createdBy', 'createdAt'])
+        && request.resource.data.partnerName is string
+        && request.resource.data.partnerName.size() > 0
+        && request.resource.data.partnerName.size() <= 240
+        && request.resource.data.partnerName == request.resource.data.partnerName.trim()
+        && request.resource.data.partnerName.matches('.*\\S.*')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      // The initial contract file is immutable until its editing workflow exists.
+      allow update, delete: if false;
+    }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'
         && ((data.status == 'pending' && !data.keys().hasAny(['originalRequestId', 'changeRequest', 'cancellationRequest', 'requestKind']))

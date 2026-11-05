@@ -1,3 +1,4 @@
+import { sharedActionResult } from './mailboxSharedActions.js'
 import { createHash, randomBytes } from 'node:crypto'
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
@@ -147,7 +148,8 @@ export async function applyPersonalMailTracking({ db, context, previewId, change
   return db.runTransaction(async tx => {
     const previewRef = db.doc(`mailboxTrackingPreviews/${previewId}`)
     const preview = (await tx.get(previewRef)).data()
-    if (!preview || preview.ownerId !== context.uid || preview.connectionId !== context.connectionId) fail('permission-denied', 'Kein Zugriff auf diese Auswertung.')
+    const sharedAction = await sharedActionResult({ db, context, value: preview, kind: 'tracking', resultId: previewId, transaction: tx })
+    if (!preview || !sharedAction && (preview.ownerId !== context.uid || preview.connectionId !== context.connectionId)) fail('permission-denied', 'Kein Zugriff auf diese Auswertung.')
     const action = preview.actionSlotPath ? (await tx.get(db.doc(preview.actionSlotPath))).data() : null
     if (preview.actionJobId && (!action || action.jobId !== preview.actionJobId || !['review', 'completed'].includes(action.state))) fail('aborted', 'Diese Auswertung wurde verworfen oder ersetzt. Bitte die aktuelle Auswertung öffnen.')
     const receiptRef = db.doc(`personalMailTrackingApplications/${preview.messageKey}`)
@@ -185,7 +187,7 @@ export async function applyPersonalMailTracking({ db, context, previewId, change
       tx.create(trackingRef, { ...base, ...next })
       tx.create(trackingRef.collection('events').doc(`personal-start-${preview.messageKey}`), { eventType: 'tracking_started', changedFields: ['lifecycleStatus'], oldValue: {}, newValue: { lifecycleStatus: 'active' }, eventTime: receivedAt, recordedAt, recordedBy: context.uid, recordedByName: actor(context.profile), source: 'manual', ...provenance })
     }
-    tx.create(receiptRef, { ownerId: context.uid, orderId: preview.orderId, orderNumber: preview.orderNumber, confirmedAt: recordedAt, appliedChanges: effective, appliedTransitEntries: entries })
+    tx.create(receiptRef, { ownerId: context.uid, ...(sharedAction ? { sharedScopeId: sharedAction.sharedScopeId } : {}), orderId: preview.orderId, orderNumber: preview.orderNumber, confirmedAt: recordedAt, appliedChanges: effective, appliedTransitEntries: entries })
     tx.update(previewRef, { appliedAt: now })
     return { ok: true, orderId: preview.orderId, orderNumber: preview.orderNumber }
   })

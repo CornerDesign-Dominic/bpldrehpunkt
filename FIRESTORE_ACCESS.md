@@ -29,6 +29,20 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Vertragsmanagement verwendet das eigene Modulrecht `contracts`. Aktive Profile
+mit `view` dürfen `contracts/{id}` lesen; `edit` erlaubt zusätzlich das Anlegen.
+Die bestehende Rechteverwaltung bietet das Modul an; der Superadmin-Override
+bleibt erhalten. Ein Adminstatus allein gewährt keinen Fachzugriff.
+Der erste Datenvertrag besteht ausschließlich aus `partnerName` (getrimmter,
+freier Pflichtname mit 1–240 Zeichen), `createdBy` (authentifizierter Benutzer)
+und `createdAt` (Serverzeit). Updates, Löschungen und Untercollections bleiben
+bis zum Ausbau der Vertragsakte gesperrt. Das Anlegen verwendet eine stabile
+Dokument-ID und Transaktion für Wiederholungen desselben Anlegeversuchs.
+Technische Lade-/Anlegefehler verwenden das Diagnosemodul `contracts`, ohne
+den Vertragspartnernamen zu protokollieren. Frontend, Benutzerverwaltungs- und
+Diagnose-Functions sowie Firestore Rules gehören gemeinsam zum Releaseumfang.
+Neue Indizes oder Storage-Rechte werden dafür nicht benötigt.
+
 Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
 unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für
 Browser). `listDycosMasterDataImports` prüft App Check, aktives Profil und
@@ -258,7 +272,7 @@ Empfehlungen selbst sowie `mailboxRecommendationSubscriptions` und
 Der Vorlagenzugriff erlaubt über eigene, serverseitig reduzierte Callables die TA-Suche und den bewussten DyCoS-Abruf mit Speicherung, ohne allgemeine Import-/Auftragsrechte zu verleihen. Die Rules bleiben unverändert; `liabilityWordingQuotas` ist nur serverseitig erreichbar. Vertrag und Abnahme: [Haftbarhaltung](docs/operations/liability-letters.md).
 
 
-## Maileinordnung – lokal vorbereitet 05.11.2026
+## Maileinordnung – Dev-Paket 05.11.2026
 
 Der eigene Qualitätsreiter nutzt mailTriageQuality (view/edit); Bereinigung verlangt
 zusätzlich mailTriageCleanup=edit. Beide starten ohne Freigabe. Alle Lese-/Schreib- und
@@ -267,4 +281,4 @@ in Firestore gesperrt, auch für Superadmins; die neuen Callables prüfen aktive
 Profile, separate Qualitätsrechte bzw. den ursprünglichen Postfach-/Aktionszugriff.
 Die Freigabe des Qualitätsreiters öffnet keine Originalpostfächer. Quellenbelege sind
 auf gespeicherte Auszüge begrenzt. Vertrag: [Maileinordnung](docs/operations/mail-triage.md).
-Noch kein Deploy der hier beschriebenen Erweiterung.
+Bereitstellung ausschließlich in Dev, siehe [Releasebeleg](docs/operations/releases/mail-triage-dev-2026-11-05.md).

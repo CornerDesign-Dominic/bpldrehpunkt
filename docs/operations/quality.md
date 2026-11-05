@@ -1,8 +1,8 @@
 # Qualität: K.V.P., Wissen und Maileinordnung
 
-Der lokal vorbereitete Fachreiter **Maileinordnung** mit getrennten Lese-,
+Der Fachreiter **Maileinordnung** mit getrennten Lese-,
 Bearbeitungs- und Bereinigungsrechten ist unter [Maileinordnung](mail-triage.md)
-beschrieben; noch nicht veröffentlicht. Die bestehenden Qualitätsbereiche bleiben
+beschrieben; Dev-Veröffentlichung siehe dortigen Releasebeleg. Die bestehenden Qualitätsbereiche bleiben
 erhalten.
 
 Der aktuelle Prozessumbau von Handbuch, Grundregeln und Wissenslücken einschließlich

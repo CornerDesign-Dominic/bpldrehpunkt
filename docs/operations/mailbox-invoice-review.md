@@ -378,7 +378,7 @@ Die bestehende zusätzliche OCR bleibt aktiv; keine weiteren Modellaufrufe pro L
 Veröffentlichung ausschließlich auf Dev; Main/Produktion bleiben unverändert.
 
 
-## Gebuchte Rechnung als Hinweis – lokal vorbereitet, unveröffentlicht
+## Gebuchte Rechnung als Hinweis – Dev-Paket 05.11.2026
 
 Ein bestätigter bereits vorhandener DyCoS-Rechnungsbeleg bleibt als roter wichtiger
 Hinweis unter dem Balken und in der Hauptzeile Ext. Belegnummer sichtbar. Er sagt
@@ -392,11 +392,11 @@ Dublettenverdacht bleiben gelb und zählen wie bisher.
 Die Oberfläche erkennt bestätigte Dubletten auch in älteren gespeicherten Berichten
 an billingStatus, dycos_invoice_headers und duplicate=true und nimmt diese aus der
 Skala, ohne unveränderliche Altberichte umzuschreiben. Ein alter gespeicherter
-Gesamtstatus wird erst durch eine erneute Prüfung neu berechnet. Nur lokal
-vorbereitet; keine Dev- oder Produktionsveröffentlichung dieses Nachtrags.
+Gesamtstatus wird erst durch eine erneute Prüfung neu berechnet. Dev-Veröffentlichung und Abnahmegrenzen im
+[Releasebeleg](releases/mail-triage-dev-2026-11-05.md); Main bleibt unverändert.
 
 
-## Manueller Prüfabschluss – lokal vorbereitet, unveröffentlicht
+## Manueller Prüfabschluss – Dev-Paket 05.11.2026
 
 Eine erfolgreich ausgeführte KI-Rechnungsprüfung ist zunächst in Bearbeitung:
 Mail-Icon und rechter Aktionsbutton gelb. Das Ergebnis öffnet sich in diesem Zustand
@@ -413,10 +413,10 @@ Abschlussregeln. Alle Übergänge verlangen weiterhin Postfachzugriff und Bearbe
 für Transportaufträge; veraltete Job-IDs werden abgewiesen. Der Abschluss ist keine
 Buchung oder Zahlungsfreigabe und ändert weder Rechnungsbericht noch Transportauftrag.
 Die Buchungswarnung aus dem vorherigen lokalen Nachtrag bleibt unabhängig davon erhalten.
-Keine Veröffentlichung dieses lokalen Änderungspakets auf Dev oder Produktion.
+Gemeinsam mit dem Dev-Paket Maileinordnung veröffentlicht; siehe Releasebeleg.
 
 
 Lokal geprüft: 19 Backend- und 9 Store-/Darstellungstests sowie vollständiges Lint
 und Build erfolgreich. Lokaler Browser-Funktionstest mit Testdaten bestätigt
 Öffnen des gelben Ergebnisses, Abschluss, Wiederöffnung und erhaltenes Ergebnis.
-Echte Backend-Browserprüfung erfolgt erst nach einer späteren Dev-Freigabe.
+Eine echte neue Rechnung bleibt Gegenstand der Nutzerabnahme auf Dev.

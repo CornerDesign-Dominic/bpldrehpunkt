@@ -1,3 +1,4 @@
+import { recordDiagnostic } from './diagnostics.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { getFirestore } from 'firebase-admin/firestore'
@@ -5,6 +6,8 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { runtimeProjectId } from './externalEffects.js'
 import { assertMailboxEnvironment } from './mailboxEnvironment.js'
+import { managedActionScope } from './mailboxSharedActions.js'
+import { isManagedRecommendationMailbox } from './mailboxRecommendationPolicy.js'
 import { mailboxRecordKinds } from './shared/mailboxRecordFields.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
@@ -35,22 +38,41 @@ export function createMailboxActionHandlers(deps = {}) {
     if (!/^[a-f0-9]{64}$/.test(connectionId || '')) fail('invalid-argument', 'Ungültige Postfachreferenz.')
     const connection = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
     if (!connection || connection.ownerId !== request.auth?.uid || connection.status !== 'connected') fail('permission-denied', 'Kein Zugriff auf dieses persönliche Postfach.')
+    if (connection.kind === 'shared') {
+      const parent = (await db().doc(`mailboxConnections/${connection.parentConnectionId}`).get()).data()
+      if (parent?.ownerId !== request.auth.uid || parent.status !== 'connected' || parent.kind === 'shared') fail('permission-denied', 'Microsoft-Verbindung fehlt.')
+    }
+    if (isManagedRecommendationMailbox(connection) && !connection.canonicalMailboxId) {
+      const resolveIdentity = deps.resolveMailboxIdentity || (await import('./mailboxes.js')).resolveRecommendationMailboxIdentityHandler
+      connection.canonicalMailboxId = await resolveIdentity(connectionId)
+      if (!managedActionScope(connection)) fail('failed-precondition', 'Die gemeinsame Postfachidentität konnte nicht bestätigt werden. Bitte die Verbindung prüfen.')
+    }
     return { uid: request.auth.uid, connectionId, connection, profile }
   }
   const actionIdentity = data => {
     if (!kinds.has(data?.kind) || !validText(data?.messageId, 2048)) fail('invalid-argument', 'Ungültige Postfachaktion.')
     return { messageId: data.messageId, kind: data.kind }
   }
-  const collection = actor => db().collection(`mailboxActionScopes/${hash(`${actor.uid}|${actor.connectionId}`)}/actions`)
-  const refFor = (actor, data) => collection(actor).doc(hash(`${data.messageId}|${data.kind}`))
-  const output = (ref, value, includeResult = true) => {
+  const collection = (actor, shared = false) => db().collection(`mailboxActionScopes/${shared ? managedActionScope(actor.connection) : hash(`${actor.uid}|${actor.connectionId}`)}/actions`)
+  const usesShared = (actor, kind) => ['tracking', 'terms', 'invoice'].includes(kind) && Boolean(managedActionScope(actor.connection))
+  const refFor = async (actor, data, starting = false) => {
+    const legacy = collection(actor).doc(hash(`${data.messageId}|${data.kind}`))
+    if (!usesShared(actor, data.kind)) return legacy
+    const central = collection(actor, true).doc(hash(`${data.messageId}|${data.kind}`))
+    // Preserve results produced before central slots were introduced. New work always shares one slot.
+    const previous = await legacy.get()
+    if ((await central.get()).exists) return central
+    if (starting && (!previous.exists || ['failed', 'discarded'].includes(previous.data().state) || data.restart === true || data.force === true)) return central
+    return previous.exists ? legacy : central
+  }
+  const output = (ref, value, includeResult = true, actor = null) => {
     if (!value) return null
     const { input: _input, ownerId: _owner, ...action } = value
     void _input; void _owner
     // Old invoice runs auto-completed after extraction, before manual review existed.
     if (action.kind === 'invoice' && action.state === 'completed' && action.completion?.invoiceReviewed !== true) action.state = 'review'
     if (!includeResult) delete action.result
-    return { ...action, id: ref.id, updatedAtMillis: action.updatedAt }
+    return { ...action, ...(actor ? { connectionId: actor.connectionId } : {}), id: ref.id, updatedAtMillis: action.updatedAt }
   }
   const expectedMessageKey = (actor, messageId) => hash(`${actor.connection.tenantId || ''}|${actor.connection.graphUserId}|${messageId}`)
   const completion = async (actor, action, transaction = null) => {
@@ -64,21 +86,22 @@ export function createMailboxActionHandlers(deps = {}) {
     const prefix = action.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
     const read = ref => transaction ? transaction.get(ref) : ref.get()
     const preview = (await read(db().doc(`${prefix}/${previewId}`))).data()
-    if (!preview || preview.ownerId !== actor.uid || preview.connectionId !== actor.connectionId || preview.messageKey !== expectedMessageKey(actor, action.messageId)) return null
+    const shared = preview && action.sharedScopeId && action.sharedScopeId === managedActionScope(actor.connection) && preview.actionJobId === action.jobId
+    if (!preview || (!shared && (preview.ownerId !== actor.uid || preview.connectionId !== actor.connectionId || preview.messageKey !== expectedMessageKey(actor, action.messageId)))) return null
     if (action.kind === 'order') {
       const receipt = (await read(db().doc(`mailboxOrderExports/${previewId}`))).data()
       if (receipt?.ownerId === actor.uid && receipt.connectionId === actor.connectionId && receipt.previewId === previewId && receipt.messageKey === preview.messageKey) return { exportId: receipt.exportId, operationId: receipt.operationId }
       return preview.exportedAt && preview.exportId ? { exportId: preview.exportId } : null
     }
     const receipt = (await read(db().doc(`personalMailTrackingApplications/${preview.messageKey}`))).data()
-    return receipt?.ownerId === actor.uid && receipt.orderId === preview.orderId ? { orderId: receipt.orderId, orderNumber: receipt.orderNumber, appliedChanges: receipt.appliedChanges || null, appliedTransitEntries: receipt.appliedTransitEntries || null } : null
+    return (receipt?.ownerId === actor.uid || shared && receipt?.sharedScopeId === action.sharedScopeId) && receipt.orderId === preview.orderId ? { orderId: receipt.orderId, orderNumber: receipt.orderNumber, appliedChanges: receipt.appliedChanges || null, appliedTransitEntries: receipt.appliedTransitEntries || null } : null
   }
   const retirePreview = async (actor, action, tx) => {
     if (!action?.result?.previewId || !['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(action.kind)) return
     const prefix = mailboxRecordKinds[action.kind] ? 'mailboxRecordPreviews' : action.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
     const ref = db().doc(`${prefix}/${action.result.previewId}`)
     const preview = (await tx.get(ref)).data()
-    if (preview?.ownerId === actor.uid && preview.connectionId === actor.connectionId && preview.actionJobId === action.jobId) tx.update(ref, { expiresAt: now() })
+    if (preview?.actionJobId === action.jobId && (preview.ownerId === actor.uid && preview.connectionId === actor.connectionId || action.sharedScopeId === managedActionScope(actor.connection))) tx.update(ref, { expiresAt: now() })
   }
   const reconcile = async (actor, ref, initial) => {
     let value = initial
@@ -101,14 +124,14 @@ export function createMailboxActionHandlers(deps = {}) {
   const hydrate = async (actor, value) => {
     if (value?.kind === 'terms' && value.result?.historyId) {
       const history = (await db().doc(`agbCheckerHistory/${value.result.historyId}`).get()).data()
-      if (history?.createdByUserId === actor.uid && history.channel === 'personal_mailbox' && history.customerAssignment) return { ...value, result: { ...value.result, customerAssignment: history.customerAssignment } }
+      if ((history?.createdByUserId === actor.uid || history?.sharedActionScopeId && history.sharedActionScopeId === managedActionScope(actor.connection)) && history.channel === 'personal_mailbox' && history.customerAssignment) return { ...value, result: { ...value.result, customerAssignment: history.customerAssignment } }
     }
     return value
   }
-  const startMailboxAction = async request => {
+  const startMailboxAction = async (request, automatic = null) => {
     const identity = actionIdentity(request.data)
     const actor = await context(request, identity.kind)
-    const ref = refFor(actor, identity)
+    const ref = await refFor(actor, { ...request.data, ...identity }, true)
     await reconcile(actor, ref, (await ref.get()).data())
     const input = { connectionId: actor.connectionId, messageId: identity.messageId }
     if (mailboxRecordKinds[identity.kind]) input.kind = identity.kind
@@ -125,6 +148,11 @@ export function createMailboxActionHandlers(deps = {}) {
     input.operationId = jobId
     const action = await db().runTransaction(async tx => {
       const current = (await tx.get(ref)).data()
+      if (automatic) {
+        const scope = (await tx.get(db().doc(`mailboxRecommendationScopes/${automatic.scopeId}`))).data()
+        if (!scope?.enabled || scope.mode !== 'automatic' || scope.generation !== automatic.generation) return current || null
+        if (current) return current
+      }
       const confirmed = current?.state === 'review' ? await completion(actor, current, tx) : null
       if (confirmed) {
         const completed = { ...current, state: 'completed', completion: confirmed, updatedAt: now() }
@@ -133,47 +161,50 @@ export function createMailboxActionHandlers(deps = {}) {
       }
       if (current?.state === 'running' || current?.state === 'completed' && ['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(identity.kind) || current && ['review', 'completed'].includes(current.state) && request.data.restart !== true && request.data.force !== true) return current
       await retirePreview(actor, current, tx)
-      const value = { ...identity, ownerId: actor.uid, connectionId: actor.connectionId, graphUserId: actor.connection.graphUserId || '', jobId, state: 'running', result: null, error: null, startedAt: now(), updatedAt: now() }
+      const value = { ...identity, ...(usesShared(actor, identity.kind) ? { sharedScopeId: managedActionScope(actor.connection) } : {}), ...(automatic ? { automatic: true, recommendationScopeId: automatic.scopeId } : {}), ownerId: actor.uid, connectionId: actor.connectionId, graphUserId: actor.connection.graphUserId || '', jobId, state: 'running', result: null, error: null, startedAt: now(), updatedAt: now() }
       tx.set(ref, value)
-      tx.create(db().doc(`mailboxActionRuns/${jobId}`), { ownerId: actor.uid, connectionId: actor.connectionId, messageId: identity.messageId, kind: identity.kind, slotPath: ref.path, jobId, input, createdAt: now(), expiresAt: now() + 86400000, claimedAt: null })
+      tx.create(db().doc(`mailboxActionRuns/${jobId}`), { ownerId: actor.uid, connectionId: actor.connectionId, messageId: identity.messageId, kind: identity.kind, slotPath: ref.path, jobId, ...(automatic ? { automatic: true, recommendationScopeId: automatic.scopeId, recommendationGeneration: automatic.generation } : {}), input, createdAt: now(), expiresAt: now() + 86400000, claimedAt: null })
       return value
     })
-    return { action: output(ref, action) }
+    return { action: output(ref, action, true, actor) }
   }
   const getMailboxAction = async request => {
     const identity = actionIdentity(request.data)
     const actor = await context(request, identity.kind, false)
-    const ref = refFor(actor, identity)
+    const ref = await refFor(actor, identity)
     const value = await reconcile(actor, ref, (await ref.get()).data())
     if (request.data.jobId && value?.jobId !== request.data.jobId) fail('aborted', 'Die Auswertung wurde inzwischen ersetzt. Bitte erneut laden.')
-    return { action: output(ref, await hydrate(actor, value)) }
+    return { action: output(ref, await hydrate(actor, value), true, actor) }
   }
   const listMailboxActions = async request => {
     const actor = await context(request, null, false)
     const ids = request.data.messageIds
     if (ids !== undefined && (!Array.isArray(ids) || ids.length > 100 || ids.some(id => !validText(id, 2048)))) fail('invalid-argument', 'Ungültige Nachrichtenliste.')
     const groups = ids ? Array.from({ length: Math.ceil(ids.length / 30) }, (_, index) => [...new Set(ids.slice(index * 30, index * 30 + 30))]) : [null]
-    const snapshots = await Promise.all(groups.map(group => (group ? collection(actor).where('messageId', 'in', group) : collection(actor)).limit(500).get()))
+    const collections = [collection(actor), ...(managedActionScope(actor.connection) ? [collection(actor, true)] : [])]
+    const snapshots = await Promise.all(collections.flatMap(source => groups.map(group => (group ? source.where('messageId', 'in', group) : source).limit(500).get())))
     const actions = []
     for (const snapshot of snapshots) for (const item of snapshot.docs) {
       const value = item.data()
       try { assertMailboxActionAccess(actor.profile, value.kind, false) } catch { continue }
-      actions.push(output(item.ref, await reconcile(actor, item.ref, value), false))
+      actions.push(output(item.ref, await reconcile(actor, item.ref, value), false, actor))
     }
-    return { actions }
+    return { actions: [...new Map(actions.map(action => [`${action.messageId}|${action.kind}`, action])).values()] }
   }
   const updateMailboxAction = async request => {
     const identity = actionIdentity(request.data)
     const actor = await context(request, identity.kind)
     if (!['discard', 'complete', 'reopen'].includes(request.data.action)) fail('invalid-argument', 'Ungültige Statusänderung.')
-    const ref = refFor(actor, identity)
+    const ref = await refFor(actor, identity)
     let current = (await ref.get()).data()
     if (!current || current.jobId !== request.data.jobId) fail('aborted', 'Die Auswertung wurde inzwischen ersetzt. Bitte erneut laden.')
     if (identity.kind === 'invoice' && ['complete', 'reopen'].includes(request.data.action)) {
       current = await db().runTransaction(async tx => {
         const value = (await tx.get(ref)).data()
         if (!value || value.jobId !== request.data.jobId) fail('aborted', 'Die Auswertung wurde inzwischen ersetzt. Bitte erneut laden.')
-        if (value.ownerId !== actor.uid || value.connectionId !== actor.connectionId || value.kind !== identity.kind || value.messageId !== identity.messageId || value.graphUserId !== (actor.connection.graphUserId || '')) fail('permission-denied', 'Die Auswertung gehört nicht zu dieser Postfachnachricht.')
+        const shared = value.sharedScopeId && value.sharedScopeId === managedActionScope(actor.connection)
+        const owned = value.ownerId === actor.uid && value.connectionId === actor.connectionId && value.graphUserId === (actor.connection.graphUserId || '')
+        if ((!shared && !owned) || value.kind !== identity.kind || value.messageId !== identity.messageId) fail('permission-denied', 'Die Auswertung gehört nicht zu dieser Postfachnachricht.')
         if (!['review', 'completed'].includes(value.state) || !value.result) fail('failed-precondition', 'Nur eine erfolgreich ausgewertete Rechnung kann bestätigt oder wieder geöffnet werden.')
         const reviewed = value.state === 'completed' && value.completion?.invoiceReviewed === true
         if (request.data.action === 'complete' && reviewed) return value
@@ -203,7 +234,7 @@ export function createMailboxActionHandlers(deps = {}) {
       tx.update(ref, patch)
       return { ...value, ...patch }
     })
-    return { action: output(ref, current) }
+    return { action: output(ref, current, true, actor) }
   }
   const processMailboxActionRun = async jobId => {
     environment()
@@ -228,10 +259,17 @@ export function createMailboxActionHandlers(deps = {}) {
       const current = (await ref.get()).data()
       if (!current || current.jobId !== jobId || current.state !== 'running') return
       if (current.graphUserId !== (actor.connection.graphUserId || '')) fail('permission-denied', 'Die Postfachverbindung wurde inzwischen geändert.')
+      if (run.automatic) {
+        const scope = (await db().doc(`mailboxRecommendationScopes/${run.recommendationScopeId}`).get()).data()
+        if (!scope?.enabled || scope.mode !== 'automatic' || scope.generation !== run.recommendationGeneration) fail('cancelled', 'Die automatische Auswertung wurde deaktiviert.')
+      }
       const handlers = deps.handlers || (await import('./mailboxes.js')).createMailboxHandlers()
       const method = mailboxRecordKinds[run.kind] ? 'previewMailboxRecord' : { order: 'previewMailboxOrder', tracking: 'previewMailboxTracking', terms: 'analyzeMailboxAgb', invoice: 'reviewMailboxInvoices' }[run.kind]
       const result = serializable(await handlers[method](request))
       await context(request, run.kind)
+      if (current.sharedScopeId && run.kind === 'terms' && result.historyId) {
+        await db().doc(`agbCheckerHistory/${result.historyId}`).update({ sharedActionScopeId: current.sharedScopeId, actionSlotPath: ref.path, actionJobId: jobId })
+      }
       if (Buffer.byteLength(JSON.stringify(result), 'utf8') > 850000) fail('failed-precondition', 'Das Prüfergebnis ist zu umfangreich. Bitte weniger Anlagen auswählen.')
       if (result.previewId && ['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(run.kind)) {
         const prefix = mailboxRecordKinds[run.kind] ? 'mailboxRecordPreviews' : run.kind === 'order' ? 'mailboxOrderPreviews' : 'mailboxTrackingPreviews'
@@ -244,19 +282,54 @@ export function createMailboxActionHandlers(deps = {}) {
         result.expiresAt = persistentExpiry
       }
       patch = { result, state: run.kind === 'invoice' ? 'review' : run.kind === 'terms' || result.alreadyApplied ? 'completed' : 'review', error: null, updatedAt: now() }
-    } catch (error) { patch = { state: 'failed', result: null, error: publicError(error), updatedAt: now() } }
+    } catch (error) {
+      patch = { state: 'failed', result: null, error: publicError(error), updatedAt: now() }
+      if (error.code !== 'cancelled') {
+        try { await (deps.diagnostic || (event => recordDiagnostic(event, db())))({ module: 'mailboxes', stage: 'action-process', code: error instanceof HttpsError ? error.code : 'unavailable', actorId: run.ownerId, message: 'Postfachaktion konnte nicht abgeschlossen werden.', technicalCode: `mailbox_action_${run.kind}_failed` }) } catch { /* Preserve the action's original error. */ }
+      }
+    }
     await db().runTransaction(async tx => {
       const current = (await tx.get(ref)).data()
       if (current?.jobId === jobId && current.state === 'running') tx.update(ref, patch)
       tx.update(runRef, { finishedAt: now(), state: patch.state })
     })
   }
-  return { startMailboxAction, getMailboxAction, listMailboxActions, updateMailboxAction, processMailboxActionRun }
+  const startAutomaticMailboxActions = async ({ scopeId, generation, connections, messageId, kinds: requestedKinds }) => {
+    environment()
+    if (!/^[a-f0-9]{64}$/.test(scopeId || '') || !validText(messageId, 2048) || typeof generation !== 'string') fail('invalid-argument', 'Ungültiger Automatiklauf.')
+    const started = [], blockedKinds = []
+    for (const kind of [...new Set(requestedKinds || [])].filter(value => ['tracking', 'terms', 'invoice'].includes(value))) {
+      let handled = false
+      for (const candidate of connections || []) {
+        const request = { auth: { uid: candidate.ownerId }, data: { connectionId: candidate.id, messageId, kind } }
+        try {
+          const actor = await context(request, kind)
+          const scope = (await db().doc(`mailboxRecommendationScopes/${scopeId}`).get()).data()
+          if (!scope?.enabled || scope.mode !== 'automatic' || scope.generation !== generation) return { actions: started, blockedKinds }
+          const eligible = scope.kind === 'shared' ? actor.connection.canonicalMailboxId === scope.canonicalMailboxId && actor.connection.tenantId === scope.tenantId && Boolean(managedActionScope(actor.connection)) : scope.connectionId === actor.connectionId && scope.ownerId === actor.uid
+          if (!eligible) continue
+          const result = await startMailboxAction(request, { scopeId, generation })
+          if (result.action) started.push(result.action)
+          handled = true
+          break
+        } catch (error) { if (!['permission-denied', 'unauthenticated', 'not-found', 'failed-precondition'].includes(error.code)) throw error }
+      }
+      if (!handled) {
+        blockedKinds.push(kind)
+        try { await (deps.diagnostic || (event => recordDiagnostic(event, db())))({ module: 'mailboxes', stage: 'action-process', code: 'permission-denied', actorId: '', message: 'Automatische Postfachaktion hat keine aktive Verbindung mit passenden Modulrechten.', technicalCode: `mailbox_automatic_${kind}_access_required` }) } catch { /* Do not expose mailbox content or obscure the dispatch result. */ }
+      }
+    }
+    return { actions: started, blockedKinds }
+  }
+  return { startAutomaticMailboxActions, startMailboxAction, getMailboxAction, listMailboxActions, updateMailboxAction, processMailboxActionRun }
 }
 
 const handlers = createMailboxActionHandlers()
-export const startMailboxActionHandler = handlers.startMailboxAction
+// onCall also supplies a streaming response argument; never treat it as automatic context.
+export const startMailboxActionHandler = request => handlers.startMailboxAction(request)
 export const getMailboxActionHandler = handlers.getMailboxAction
 export const listMailboxActionsHandler = handlers.listMailboxActions
 export const updateMailboxActionHandler = handlers.updateMailboxAction
 export const processMailboxActionRunHandler = handlers.processMailboxActionRun
+
+export const startAutomaticMailboxActionsHandler = handlers.startAutomaticMailboxActions

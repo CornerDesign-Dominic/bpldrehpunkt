@@ -18,6 +18,7 @@ export function useMailboxRecommendations(connectionId, messageIds, reload) {
       if (revision === previous) return
       previous = revision
       setSignal({ connectionId, revision })
+      window.dispatchEvent(new CustomEvent('drehpunkt:mailbox-actions-changed', { detail: { connectionId } }))
     }, () => { /* No polling fallback: missing hints are explicitly acceptable. */ })
   }, [connectionId])
   useEffect(() => {

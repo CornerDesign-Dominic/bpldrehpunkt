@@ -24,6 +24,7 @@ const pageTitles = [
   { path: '/news', title: 'News' },
   { path: '/dokumente-werkzeuge', title: 'Dokumente & Werkzeuge' },
   { path: '/dokumente', title: 'Dokumente' },
+  { path: '/vertragsmanagement', title: 'Vertragsmanagement' },
   { path: '/vorlagen', title: 'Vorlagen' },
   { path: '/todos', title: 'To-dos' },
   { path: '/notizen', title: 'Notizen' },

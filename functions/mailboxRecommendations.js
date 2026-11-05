@@ -13,6 +13,8 @@ import { FUNCTIONAL_MAILBOXES, isFunctionalMailbox, isManagedRecommendationMailb
 import { recordDiagnostic } from './diagnostics.js'
 import { extractRecommendationDocument, recommendationDocumentType } from './mailboxRecommendationDocuments.js'
 import { MAIL_TRIAGE_VERSION, MAIL_TRIAGE_ACTIONS, MAIL_TRIAGE_QUESTIONS } from './shared/mailboxTriage.js'
+import { startAutomaticMailboxActionsHandler } from './mailboxActions.js'
+import { managedActionScope } from './mailboxSharedActions.js'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const kinds = MAIL_TRIAGE_ACTIONS
@@ -20,6 +22,15 @@ const fail = (code, message) => { throw new HttpsError(code, message) }
 const validId = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value)
 const admin = profile => profile?.active === true && ['admin', 'superadmin'].includes(profile.role)
 const legacyFunctionalScope = scope => scope?.kind === 'personal' && isFunctionalMailbox(scope.email)
+export const mailboxAiMode = value => value?.enabled === true ? value.mode === 'automatic' ? 'automatic' : 'recommend' : 'off'
+export function requestedMailboxAiMode(data) {
+  if (data?.mode !== undefined) {
+    if (!['off', 'recommend', 'automatic'].includes(data.mode) || data.enabled !== undefined && data.enabled !== (data.mode !== 'off')) fail('invalid-argument', 'Ungültige KI-Betriebsart.')
+    return data.mode
+  }
+  if (typeof data?.enabled !== 'boolean') fail('invalid-argument', 'KI-Betriebsart fehlt.')
+  return data.enabled ? 'recommend' : 'off'
+}
 export function recommendationScope(connection) {
   const managed = isManagedRecommendationMailbox(connection)
   if (!connection?.tenantId || !connection.email || (managed ? !connection.canonicalMailboxId : !connection.graphUserId)) fail('failed-precondition', 'Postfachidentität fehlt. Bitte die Verbindung erneuern.')
@@ -150,7 +161,7 @@ export function createRecommendationHandlers(deps = {}) {
     await resolveConnection(request.data.connectionId, connection)
     return { profile, connection, scopeId: recommendationScope(connection) }
   }
-  const publicSetting = (connection, value = {}) => ({ enabled: value.enabled === true, managed: isManagedRecommendationMailbox(connection), functional: isFunctionalMailbox(connection.email), state: value.state || 'idle', delivery: 'webhook', lastCheckedAt: value.lastCheckedAt || null, lastEventAt: value.lastEventAt || null })
+  const publicSetting = (connection, value = {}) => ({ enabled: value.enabled === true, mode: mailboxAiMode(value), managed: isManagedRecommendationMailbox(connection), functional: isFunctionalMailbox(connection.email), state: value.state || 'idle', delivery: 'webhook', lastCheckedAt: value.lastCheckedAt || null, lastEventAt: value.lastEventAt || null })
   const connectionsFor = async scope => {
     if (scope.kind !== 'shared') {
       const doc = await db().doc(`mailboxConnections/${scope.connectionId}`).get()
@@ -242,15 +253,16 @@ export function createRecommendationHandlers(deps = {}) {
     return publicSetting(connection, (await scopes().doc(scopeId).get()).data())
   }
   const setSettings = async request => {
+    const mode = requestedMailboxAiMode(request.data), enabled = mode !== 'off'
     if (request.data?.managedScopeId !== undefined) {
       const profile = await check(request)
       if (!admin(profile)) fail('permission-denied', 'Gemeinsame Postfächer werden ausschließlich durch Admins verwaltet.')
-      if (!validId(request.data.managedScopeId) || request.data.enabled !== false) fail('invalid-argument', 'Ohne Postfachverbindung kann nur deaktiviert werden.')
+      if (!validId(request.data.managedScopeId) || enabled) fail('invalid-argument', 'Ohne Postfachverbindung kann nur deaktiviert werden.')
       const ref = scopes().doc(request.data.managedScopeId)
       const previous = await db().runTransaction(async tx => {
         const saved = (await tx.get(ref)).data()
         if (saved?.kind !== 'shared') fail('permission-denied', 'Keine zentrale Postfacheinstellung.')
-        tx.update(ref, { enabled: false, generation: randomUUID(), state: 'idle', subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, updatedAt: now(), updatedBy: request.auth.uid })
+        tx.update(ref, { enabled: false, mode: 'off', generation: randomUUID(), state: 'idle', subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, updatedAt: now(), updatedBy: request.auth.uid })
         return saved
       })
       if (previous.subscriptionId) await retire(previous, previous.subscriptionId)
@@ -259,18 +271,17 @@ export function createRecommendationHandlers(deps = {}) {
     }
     const { profile, connection, scopeId } = await connectionFor(request, true)
     if (isManagedRecommendationMailbox(connection) && !admin(profile)) fail('permission-denied', 'Gemeinsame Postfächer werden ausschließlich durch Admins verwaltet.')
-    if (typeof request.data.enabled !== 'boolean') fail('invalid-argument', 'Aktivierung fehlt.')
     const ref = scopes().doc(scopeId)
     let retired = null
     await db().runTransaction(async tx => {
       const previous = (await tx.get(ref)).data()
-      if (previous?.enabled === request.data.enabled && previous.delivery === 'webhook') return
+      if (previous && mailboxAiMode(previous) === mode && previous.delivery === 'webhook') return
       retired = previous
       const managed = isManagedRecommendationMailbox(connection)
-      tx.set(ref, { kind: managed ? 'shared' : 'personal', email: connection.email.toLowerCase(), tenantId: connection.tenantId, canonicalMailboxId: connection.canonicalMailboxId || null, ownerId: managed ? null : connection.ownerId, connectionId: request.data.connectionId, enabled: request.data.enabled, delivery: 'webhook', since: now(), generation: randomUUID(), subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, state: request.data.enabled ? 'connecting' : 'idle', updatedAt: now(), updatedBy: request.auth.uid }, { merge: true })
+      tx.set(ref, { kind: managed ? 'shared' : 'personal', email: connection.email.toLowerCase(), tenantId: connection.tenantId, canonicalMailboxId: connection.canonicalMailboxId || null, ownerId: managed ? null : connection.ownerId, connectionId: request.data.connectionId, enabled, mode, delivery: 'webhook', since: now(), generation: randomUUID(), subscriptionId: null, subscriptionExpiresAt: 0, setupLease: '', setupUntil: 0, state: enabled ? 'connecting' : 'idle', updatedAt: now(), updatedBy: request.auth.uid }, { merge: true })
     })
     if (retired?.subscriptionId) await retire(retired, retired.subscriptionId)
-    if (request.data.enabled) {
+    if (enabled) {
       try { await provision(scopeId) }
       catch { /* Public settings expose an actionable state; no raw Graph data. */ }
     }
@@ -293,7 +304,7 @@ export function createRecommendationHandlers(deps = {}) {
     }
     for (const doc of connections) {
       const connection = doc.data()
-      if (connection.status !== 'connected') continue
+      if (connection.status !== 'connected' || typeof connection.email !== 'string' || !connection.email) continue
       try {
         await resolveConnection(doc.id, connection)
         const scopeId = recommendationScope(connection), previous = unique.get(scopeId)
@@ -326,7 +337,7 @@ export function createRecommendationHandlers(deps = {}) {
     if (!scope?.enabled || !ids.length) return { enabled: scope?.enabled === true, recommendations: {}, decisions: {}, decisionStates: {} }
     const [docs, dismissals] = await Promise.all([db().getAll(...ids.map(id => scopes().doc(scopeId).collection('messages').doc(hash(id)))), db().getAll(...ids.map(id => db().doc(`mailboxTriageFeedbackStates/${hash(`${request.auth.uid}|${request.data.connectionId}|${id}`)}`)))])
     const current = doc => doc?.generation === scope.generation && doc.state === 'completed'
-    return { enabled: true, recommendations: Object.fromEntries(ids.map((id, index) => {
+    return { enabled: true, recommendations: mailboxAiMode(scope) === 'automatic' ? {} : Object.fromEntries(ids.map((id, index) => {
       const message = docs[index].data(), rejected = dismissals[index].data()?.dismissedKinds || []
       return [id, current(message) ? (message.kinds || []).filter(kind => !rejected.includes(kind)) : []]
     })), decisions: Object.fromEntries(ids.flatMap((id, index) => { const message = docs[index].data(); return current(message) && message.decision ? [[id, message.decision]] : [] })), decisionStates: Object.fromEntries(ids.map((id, index) => { const message = docs[index].data(); return [id, message?.generation === scope.generation && ['running', 'error', 'skipped', 'completed'].includes(message.state) ? message.state : null] })) }
@@ -455,11 +466,20 @@ export function createRecommendationHandlers(deps = {}) {
         for (const connection of await connectionsFor(scope)) {
           const action = (await db().doc(`mailboxActionScopes/${hash(`${connection.ownerId}|${connection.id}`)}/actions/${hash(`${run.messageId}|${kind}`)}`).get()).data()
           handled ||= ['running', 'review', 'completed', 'discarded'].includes(action?.state)
+          const managed = managedActionScope(connection)
+          if (managed && !handled) {
+            const sharedAction = (await db().doc(`mailboxActionScopes/${managed}/actions/${hash(`${run.messageId}|${kind}`)}`).get()).data()
+            handled ||= ['running', 'review', 'completed', 'discarded'].includes(sharedAction?.state)
+          }
         }
         if (!handled) available.push(kind)
       }
       if (!freshRecommendation(received, now(), scope.since)) { await finish('skipped', []); return }
-      if (await finish('completed', available, decision)) await signal(scope)
+      if (mailboxAiMode(scope) === 'automatic') {
+        if (!(await currentEnough())) { await finish('skipped', []); return }
+        const dispatched = await (deps.startAutomaticActions || startAutomaticMailboxActionsHandler)({ scopeId: run.scopeId, generation: scope.generation, connections: await connectionsFor(scope), messageId: run.messageId, kinds: available })
+        if (await finish(dispatched?.blockedKinds?.length ? 'error' : 'completed', [], decision)) await signal(scope)
+      } else if (await finish('completed', available, decision)) await signal(scope)
     } catch {
       try { await (deps.diagnostic || (event => recordDiagnostic(event, db())))({ module: 'mailboxes', stage: 'recommendation-classification', code: 'mail_triage_failed', actorId: scope.ownerId || scope.updatedBy, message: 'Die strukturierte Maileinordnung konnte nicht abgeschlossen werden.' }) } catch { /* Preserve the original failed state even if diagnostics is unavailable. */ }
       if (await finish('error', [])) await signal(scope)

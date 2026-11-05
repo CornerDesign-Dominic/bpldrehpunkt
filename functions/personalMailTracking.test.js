@@ -1,3 +1,4 @@
+import { managedActionScope } from './mailboxSharedActions.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { Timestamp } from 'firebase-admin/firestore'
@@ -168,4 +169,24 @@ test('job-bound tracking preview cannot apply after discard or replacement', asy
     await assert.rejects(f.apply(preview), { code: 'aborted' })
     assert.equal(f.db.records.has('transportOrderTrackings/order-1'), false)
   }
+})
+
+
+test('shared result can be confirmed by a second mailbox user with their own audit identity', async () => {
+  const f = fixture()
+  const preview = await previewPersonalMailTracking(f.args)
+  const source = f.db.records.get(`mailboxTrackingPreviews/${preview.previewId}`)
+  const connection = { kind: 'personal', email: 'rechnung@brennpunkt-logistik.de', canonicalMailboxId: 'canonical', tenantId: 'tenant' }
+  const scope = managedActionScope(connection), slotPath = `mailboxActionScopes/${scope}/actions/${'a'.repeat(64)}`
+  f.db.records.set(`mailboxTrackingPreviews/${preview.previewId}`, { ...source, actionSlotPath: slotPath, actionJobId: 'job' })
+  f.db.records.set(slotPath, { kind: 'tracking', sharedScopeId: scope, jobId: 'job', state: 'review', result: { previewId: preview.previewId } })
+  f.db.records.set('mailboxConnections/peer', { ownerId: 'peer', status: 'connected' })
+  const peer = { ...f.context, uid: 'peer', connectionId: 'peer', connection, ref: f.db.doc('mailboxConnections/peer') }
+  await assert.rejects(applyPersonalMailTracking({ db: f.db, context: { ...peer, connection: { ...connection, tenantId: 'different' } }, previewId: preview.previewId, changes: preview.proposals }), { code: 'permission-denied' })
+  const applied = await applyPersonalMailTracking({ db: f.db, context: peer, previewId: preview.previewId, changes: preview.proposals, now: 2000 })
+  assert.equal(applied.ok, true)
+  const tracking = f.db.records.get('transportOrderTrackings/order-1')
+  assert.equal(tracking.updatedBy, 'peer')
+  const receipt = f.db.records.get(`personalMailTrackingApplications/${source.messageKey}`)
+  assert.equal(receipt.ownerId, 'peer'); assert.equal(receipt.sharedScopeId, scope)
 })
