@@ -1,3 +1,4 @@
+import { ShipmentTrackingEventDerivation } from './ShipmentTrackingDerivation.jsx'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { orderRecordHistoryRows, orderRecordHistoryTime, trackingRecordHistoryRows } from '../../lib/orderRecordHistoryRows.js'
@@ -69,14 +70,14 @@ export default function OrderRecordHistoryTables({ order, history = {}, refreshe
     <section aria-labelledby="order-tracking-history-heading">
       <h3 id="order-tracking-history-heading">{w('Sendungsverfolgungshistorie', 'Shipment tracking history')}</h3>
       <div className="order-workspace__scroll"><table className="data-table order-record-history-table" aria-labelledby="order-tracking-history-heading" aria-busy={Boolean(tracking.loading)}>
-        <thead><tr>{[w('Ereigniszeit', 'Event time'), w('Erfasst am', 'Recorded at'), w('Benutzer', 'User'), w('Aktion', 'Action'), w('Ereignis', 'Event'), w('Quelle', 'Source')].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>
+        <thead><tr>{[w('Ereigniszeit', 'Event time'), w('Mail eingegangen', 'Mail received'), w('Erfasst am', 'Recorded at'), w('Benutzer', 'User'), w('Aktion', 'Action'), w('Ereignis', 'Event'), w('Quelle', 'Source')].map(label => <th scope="col" key={label}>{label}</th>)}</tr></thead>
         <tbody>
-          <HistoryStateRows columns={6} error={tracking.error} loading={tracking.loading} empty={!trackingRows.length} errorLabel={w('Die Sendungsverfolgungshistorie konnte nicht geladen werden.', 'The shipment tracking history could not be loaded.')} emptyLabel={w('Noch keine Ereignisse vorhanden.', 'No events yet.')} w={w} />
+          <HistoryStateRows columns={7} error={tracking.error} loading={tracking.loading} empty={!trackingRows.length} errorLabel={w('Die Sendungsverfolgungshistorie konnte nicht geladen werden.', 'The shipment tracking history could not be loaded.')} emptyLabel={w('Noch keine Ereignisse vorhanden.', 'No events yet.')} w={w} />
           {trackingRows.map(({ id, entry, timestamp, recordedAt }) => <tr key={id}>
-            <td><time>{date(timestamp)}</time></td><td><time>{date(recordedAt)}</time></td>
+            <td><time>{date(timestamp)}</time></td><td><time>{date(entry.mailReceivedAt || entry.derivation?.mailReceivedAt || entry.originalAiDerivation?.mailReceivedAt)}</time></td><td><time>{date(recordedAt)}</time></td>
             <td>{entry.recordedByName || entry.recordedBy || entry.actorName || w('Nicht protokolliert', 'Not recorded')}</td>
             <td><StaticText source={shipmentTrackingEventChangeType(entry)} /></td>
-            <td><StaticText source={shipmentTrackingEventDescription(entry)} />{entry.note && <p>{entry.note}</p>}</td>
+            <td><StaticText source={shipmentTrackingEventDescription(entry)} /><ShipmentTrackingEventDerivation event={entry} />{entry.note && <p>{entry.note}</p>}</td>
             <td><StaticText source={shipmentTrackingSourceLabel(entry)} /></td>
           </tr>)}
         </tbody>

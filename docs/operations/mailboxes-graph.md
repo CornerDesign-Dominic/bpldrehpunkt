@@ -540,3 +540,11 @@ in einer vollständigen Zeile. Der Abschnitt zur kompakten Dreiergruppe beschrei
 den vorherigen Stand. Maileinordnung mit Vorschau/Rückmeldung und Qualitätsreiter
 sowie manueller Rechnungsabschluss sind im
 [Releasebeleg](releases/mail-triage-dev-2026-11-05.md) zusammengefasst.
+
+
+## Lokaler Nachtrag: Statuszeit aus Mail und Verlauf (05.11.2026)
+
+Die vereinbarten relativen Ankunftszeiten, überprüfbare Stationsherleitung,
+Vorschlagskennzeichnung und Herkunft in der Historie sind im
+[Statusvertrag](status-mail-ingest.md#lokales-sammelpaket-hergeleitete-ankunftsangaben-05112026)
+festgehalten. Nur lokal gesammelt; keine Veröffentlichung auf Dev oder Main.

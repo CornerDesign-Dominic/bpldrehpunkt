@@ -1,3 +1,4 @@
+import { trackingArrivalOutcomeLabel } from '../../lib/shipmentTrackingDerivation.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { translateStatic } from '../../i18n/autoTranslate.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
@@ -66,7 +67,7 @@ function ForecastButton({ forecast, onOpenForecast }) {
   const Icon = ['arrival', 'completed'].includes(forecast?.kind) ? FaHouse : FaTruckFast
   const state = forecast?.state || 'none'
   const label = forecast?.kind === 'completed' ? forecast.message || 'Transport beendet · Ankunftszeit fehlt' : forecast?.kind === 'arrival'
-    ? (forecast.state === 'green' ? 'Transport pünktlich angekommen' : 'Transport verspätet angekommen')
+    ? trackingArrivalOutcomeLabel(forecast, language)
     : forecast?.kind === 'forecast'
       ? `Transportprognose: ${{ green: 'im Plan', yellow: 'beobachten', red: 'kritisch', grey: 'abgelaufen' }[state] || 'nicht verfügbar'}`
       : 'Transportprognose öffnen'

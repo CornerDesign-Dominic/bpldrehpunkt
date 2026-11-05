@@ -187,3 +187,70 @@ Bereinigung oder ein Aufbewahrungszeitraum ist durch dieses Runbook nicht
 implementiert. Inhalte nicht zusätzlich in Diagnoseprotokolle kopieren.
 Jede erneute KI-Auswertung verursacht einen weiteren Anbieteraufruf; bei Fehlern
 zuerst Status und Diagnose prüfen, nicht unkontrolliert mehrfach starten.
+
+
+## Lokales Sammelpaket: hergeleitete Ankunftsangaben (05.11.2026)
+
+Dieser Nachtrag ist lokal umgesetzt, nicht auf Dev/Main veröffentlicht. Er gilt
+für die gemeinsame Statusinterpretation und ergänzt den persönlichen Postfachdialog.
+Die bisherige automatische Übernahme ausdrücklich belegter Angaben bleibt erhalten;
+hergeleitete Vorschläge werden niemals dadurch automatisch zu bestätigten Ist-Werten.
+
+| Aktuelle Aussage ohne genauere Uhrzeit | Vorgeschlagener Zeitpunkt | Bedeutung |
+| --- | --- | --- |
+| Gerade/soeben angekommen | Empfangszeit auf volle fünf Minuten abrunden | Ankunft erfolgt, Zeit angenähert |
+| Bereits angekommen / angekommen | Empfangszeit auf volle fünf Minuten abrunden | Ankunft erfolgt; tatsächliche Uhrzeit unbekannt, Ersatzwert |
+| Kommt gleich | Empfangszeit auf volle fünf Minuten aufrunden, dann 15 Minuten addieren | Ausschließlich voraussichtliche Ankunft |
+
+Sekunden und Millisekunden gehören zur Rundung: 14:10:00 bleibt beim Aufrunden
+14:10; 14:10:01 wird 14:15. Eine ausdrücklich genannte passende Uhrzeit hat Vorrang.
+Die Rechnung erfolgt serverseitig auf absoluten Zeitpunkten und funktioniert auch
+über Mitternacht und Zeitzonenwechsel hinweg; Anzeige bleibt Europe/Berlin.
+
+Die Station darf anhand des bisherigen Transportverlaufs vorgeschlagen werden.
+Vorhandene, zeitlich vor der Mail liegende Angaben müssen die Herleitung stützen;
+keine erfundene pauschale Schwelle für „schon länger“. Widersprüchliche/future Werte,
+Fragen, Verneinungen und alte zitierte Statusaussagen sind keine neue Ankunftsmeldung.
+Ein zuvor lediglich hergeleiteter/angenäherter Wert wird nicht erneut als sicherer
+Beweis für eine weitere Herleitung verwendet. Ein fehlender eindeutiger Bezug
+bleibt prüfbedürftig, statt blind Ladestelle anzunehmen.
+
+Im Modellvertrag timeBasis/stationBasis/contextFields; nach serverseitiger
+Validierung requiresConfirmation und derivation mit timeBasis, stationBasis,
+basedOnFields, mailReceivedAt, timingApproximate und ruleVersion=1. Relative Zeiten
+werden nach der festen Regel berechnet, nicht aus frei erzeugten Modellzeiten
+übernommen. Kontext allein macht aus einem Plantermin keine Ist-Ankunft.
+
+Persönlicher Postfachdialog: proposals bleibt kompatibel als Feld/Wert-Abbildung;
+proposalDetails enthält nur die begrenzten Herkunftsmerkmale hergeleiteter Werte,
+keine Mailkopie/Originalzitate. Erst die vorhandene bestätigte Übernahme schreibt
+Status und Historie. Vorgeschlagene Zeit/Station sind im Dialog gekennzeichnet.
+Unverändert übernommene Vorschläge behalten ihre derivation auch nach Bestätigung;
+eine echte manuelle Zeitkorrektur wird als manual mit originalAiDerivation im
+Änderungsbeleg dokumentiert und beansprucht keine fortbestehende Zeitungenauigkeit.
+
+Die Historie unterscheidet Ereigniszeit, Mail-Eingangszeit und Übernahmezeit,
+enthält alten/neuen Wert, Quelle, Bearbeiter sowie die Herleitung. Normale spätere
+Trackingkorrekturen erhalten entfernte Ursprungsmerkmale unter oldDerivations;
+persönliche feldweise Korrekturen unter oldDerivation. Kleine Metadaten bleiben
+am Vorgang; keine zusätzlichen Postfachrechte, Secrets oder Indizes nötig.
+
+Bereits bekannte Ankunft bleibt für den Fortschritt erhalten. Näherungszeiten
+liefern keine präzisen Pünktlichkeits-/Wartezeitbeweise und keine unbemerkte
+Kette genauer Folgeprognosen. Prüfstand des lokalen Pakets: 275 gezielte Unit-/Regressionsprüfungen erfolgreich,
+keine übersprungen. Zwei reale Firestore-Emulatorläufe mit Demo-Projekten:
+vier Aktions-/Übernahmeprüfungen sowie neun Status-KI-/Herkunftsprüfungen erfolgreich
+(ein Herkunftsbasisfall in beiden Läufen). Sie bestätigen Vorschau ohne Tracking-
+Schreibzugriff, bestätigte idempotente Übernahme, spätere Korrektur mit erhaltener
+Herkunft, keine automatische Übernahme hergeleiteter Werte sowie parallele Jobs.
+Lint, Build, Diffprüfung und Shared-Abgleich (46 Module) erfolgreich; die bestehende
+Bundlegrößenwarnung bleibt.
+
+Lokaler Browser mit synthetischen Daten und echten Dialog-/Historienkomponenten:
+Vorschlag sichtbar, Tastaturkorrektur entfernt die aktive Herleitungskennzeichnung,
+unveränderte und manuelle Übernahme gehen an denselben vorhandenen API-Aufruf;
+Stationshistorie zeigt Ereignis-/Mail-/Übernahmezeit getrennt. DE/EN und Light/Dark
+geprüft, keine Browser-Konsolenfehler. Nur die Servicegrenze war simuliert; kein
+Nachweis einer echten neuen Mail oder einer realen Modellantwort dieses Pakets.
+Keine echten Mails versendet, keine Live-Datensätze geändert, kein Push/Deployment.
+Abnahme mit echten neuen Mails erfolgt erst nach späterer ausdrücklicher Dev-Freigabe.

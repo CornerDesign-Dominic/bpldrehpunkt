@@ -190,3 +190,59 @@ test('shared result can be confirmed by a second mailbox user with their own aud
   const receipt = f.db.records.get(`personalMailTrackingApplications/${source.messageKey}`)
   assert.equal(receipt.ownerId, 'peer'); assert.equal(receipt.sharedScopeId, scope)
 })
+
+
+function arrivalFixture() {
+  const f = fixture()
+  const bodyText = 'TA 123456789: Wir sind bereits an der Entladestelle angekommen.'
+  const receivedDateTime = '2026-10-29T10:02:31.000Z'
+  const update = { field: 'actualArrivalUnloadingAt', value: receivedDateTime, evidence: 'Wir sind bereits an der Entladestelle angekommen.', confidence: 'medium', timeBasis: 'mail_already_arrived', stationBasis: 'explicit', contextFields: [] }
+  f.args = { ...f.args, mail: { ...mail, receivedDateTime, body: { contentType: 'text', content: bodyText } }, infer: async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [update], transitUpdates: [], pauseUpdates: [] }) }
+  return f
+}
+
+test('derived arrival stays a reviewable preview and preserves mail time and derivation after confirmation', async () => {
+  const f = arrivalFixture()
+  const preview = await previewPersonalMailTracking(f.args)
+  assert.equal(preview.proposals.actualArrivalUnloadingAt, '2026-10-29T10:00:00.000Z')
+  assert.equal(preview.reviewRequired, true)
+  assert.equal(preview.proposalDetails.actualArrivalUnloadingAt.requiresConfirmation, true)
+  assert.equal(preview.proposalDetails.actualArrivalUnloadingAt.derivation.timingApproximate, true)
+  assert.equal(f.db.records.has('transportOrderTrackings/order-1'), false)
+  assert.ok(!JSON.stringify([...f.db.records]).includes('Wir sind bereits'))
+  await f.apply(preview)
+  const tracking = f.db.records.get('transportOrderTrackings/order-1')
+  const source = tracking.fieldSources.actualArrivalUnloadingAt
+  assert.deepEqual(source.derivation, preview.proposalDetails.actualArrivalUnloadingAt.derivation)
+  const event = [...f.db.records.values()].find(value => value.changedFields?.includes('actualArrivalUnloadingAt'))
+  assert.equal(event.oldValue.actualArrivalUnloadingAt, null)
+  assert.equal(event.newValue.actualArrivalUnloadingAt.toDate().toISOString(), '2026-10-29T10:00:00.000Z')
+  assert.equal(event.mailReceivedAt.toDate().toISOString(), '2026-10-29T10:02:31.000Z')
+  assert.ok(event.recordedAt)
+  assert.equal(event.confirmedBy, 'owner')
+  assert.deepEqual(event.derivation, source.derivation)
+})
+
+test('manual correction retains original suggested derivation for audit without marking new value approximate', async () => {
+  const f = arrivalFixture()
+  const preview = await previewPersonalMailTracking(f.args)
+  await f.apply(preview, { actualArrivalUnloadingAt: '2026-10-29T09:55:00.000Z' }, [])
+  const source = f.db.records.get('transportOrderTrackings/order-1').fieldSources.actualArrivalUnloadingAt
+  assert.equal(source.source, 'manual')
+  assert.equal(source.derivation, undefined)
+  assert.equal(source.originalAiDerivation.timeBasis, 'mail_already_arrived')
+  const event = [...f.db.records.values()].find(value => value.changedFields?.includes('actualArrivalUnloadingAt'))
+  assert.equal(event.derivation, undefined)
+  assert.equal(event.originalAiDerivation.timeBasis, 'mail_already_arrived')
+})
+
+test('preview and correction history preserve earlier arrival approximation without keeping it on a corrected value', async () => {
+  const f = fixture({ tracking: { lifecycleStatus: 'active', stageId: 'loading', actualArrivalLoadingAt: Timestamp.fromDate(new Date('2026-10-29T07:00:00Z')), fieldSources: { actualArrivalLoadingAt: { source: 'ai_mail', receivedAt: Timestamp.fromDate(new Date('2026-10-29T07:02:00Z')), derivation: { timeBasis: 'mail_already_arrived', stationBasis: 'explicit', basedOnFields: [], mailReceivedAt: '2026-10-29T07:02:00.000Z', timingApproximate: true, ruleVersion: 1 } } } } })
+  const preview = await previewPersonalMailTracking(f.args)
+  assert.equal(preview.tracking.fieldSources.actualArrivalLoadingAt.derivation.timingApproximate, true)
+  await f.apply(preview, { actualArrivalLoadingAt: '2026-10-29T06:50:00Z' }, [])
+  const event = [...f.db.records.values()].find(value => value.changedFields?.includes('actualArrivalLoadingAt'))
+  assert.equal(event.oldDerivation.timingApproximate, true)
+  assert.equal(event.derivation, undefined)
+  assert.equal(f.db.records.get('transportOrderTrackings/order-1').fieldSources.actualArrivalLoadingAt.derivation, undefined)
+})

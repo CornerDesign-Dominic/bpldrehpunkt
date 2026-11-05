@@ -249,3 +249,71 @@ test('ambiguous tracking information is marked for manual review', async () => {
   assert.equal(documents.get('transportOrders/order-1/receivedMails/mail-4').ai.reviewRequired, true)
   assert.equal(documents.has('transportOrderTrackings/order-1'), false)
 })
+
+
+test('relative arrival is computed on the server and requires explicit user confirmation', () => {
+  const current = { ...mail, bodyText: 'Gerade an der Entladestelle angekommen.', receivedAt: Timestamp.fromDate(new Date('2026-11-05T13:12:49Z')) }
+  const result = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalUnloadingAt', value: 'model value is ignored', evidence: current.bodyText, confidence: 'medium', timeBasis: 'mail_just_arrived', stationBasis: 'explicit', contextFields: [] }] }, current)
+  assert.equal(result[0].value, '2026-11-05T13:10:00.000Z')
+  assert.equal(result[0].requiresConfirmation, true)
+  assert.equal(result[0].derivation.timingApproximate, true)
+  assert.deepEqual(planStatusMailAiChanges({}, result, current.receivedAt), { changes: {}, applied: [] })
+})
+
+test('an explicitly timed arrival keeps its exact time while inferred station remains reviewable', () => {
+  const current = { ...mail, bodyText: 'Angekommen heute um 11:35 Uhr.' }
+  const tracking = { actualDepartureLoadingAt: Timestamp.fromDate(new Date('2026-10-01T07:00:00Z')) }
+  const result = validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalUnloadingAt', value: '2026-10-01T11:35:00+02:00', evidence: current.bodyText, confidence: 'medium', timeBasis: 'explicit', stationBasis: 'tracking_context', contextFields: ['actualDepartureLoadingAt'] }] }, current, { tracking })
+  assert.equal(result[0].value, '2026-10-01T09:35:00.000Z')
+  assert.equal(result[0].derivation.timingApproximate, false)
+  assert.equal(result[0].requiresConfirmation, true)
+})
+
+test('automatic status ingest stores a derived proposal without changing tracking or its history', async () => {
+  const current = { ...mail, bodyText: 'Ist bereits an der Entladestelle angekommen.' }
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: {} }],
+    ['transportOrders/order-1/receivedMails/derived-arrival', current],
+  ])
+  const ref = path => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }) })
+  const db = { doc: ref, runTransaction: async callback => callback({
+    get: async reference => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+    create: (reference, data) => documents.set(reference.path, data),
+    update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+  }) }
+  const infer = async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [{ field: 'actualArrivalUnloadingAt', value: '', evidence: current.bodyText, confidence: 'medium', timeBasis: 'mail_already_arrived', stationBasis: 'explicit', contextFields: [] }], transitUpdates: [], pauseUpdates: [] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'derived-arrival', infer }), 'needs_review')
+  const result = documents.get('transportOrders/order-1/receivedMails/derived-arrival').ai
+  assert.equal(result.reviewRequired, true)
+  assert.equal(result.updates[0].requiresConfirmation, true)
+  assert.equal(result.updates[0].applied, false)
+  assert.equal(documents.has('transportOrderTrackings/order-1'), false)
+})
+
+
+test('an exact clock in an old quoted reply cannot become a new status fact', () => {
+  const current = { ...mail, bodyText: 'Danke für die Information.\nFrom: Dispatch\nAnkunft Entladestelle heute 11:35 Uhr.' }
+  assert.deepEqual(validateStatusMailAiResult({ isStatusUpdate: true, updates: [{ field: 'actualArrivalUnloadingAt', value: '2026-10-01T11:35:00+02:00', evidence: 'Ankunft Entladestelle heute 11:35 Uhr', confidence: 'high' }] }, current), [])
+})
+
+
+test('a later exact arrival preserves the previous surrogate derivation in history and clears it on the current value', async () => {
+  const oldDerivation = { timeBasis: 'mail_already_arrived', stationBasis: 'explicit', basedOnFields: [], mailReceivedAt: '2026-10-01T09:02:00.000Z', timingApproximate: true, ruleVersion: 1 }
+  const documents = new Map([
+    ['transportOrders/order-1', { imported: {} }],
+    ['transportOrders/order-1/receivedMails/precise-arrival', { ...mail, bodyText: 'Ankunft Entladestelle heute 11:35 Uhr.' }],
+    ['transportOrderTrackings/order-1', { lifecycleStatus: 'active', stageId: 'unloading', actualArrivalUnloadingAt: Timestamp.fromDate(new Date('2026-10-01T09:00:00Z')), fieldSources: { actualArrivalUnloadingAt: { source: 'ai_mail', receivedAt: Timestamp.fromDate(new Date('2026-10-01T09:02:00Z')), confirmedBy: 'reviewer', derivation: oldDerivation } } }],
+  ])
+  const ref = path => ({ path, collection(name) { return { doc(id) { return ref(`${path}/${name}/${id}`) } } }, get: async () => ({ exists: documents.has(path), data: () => documents.get(path) }) })
+  const db = { doc: ref, runTransaction: async callback => callback({
+    get: async reference => ({ exists: documents.has(reference.path), data: () => documents.get(reference.path) }),
+    create: (reference, data) => documents.set(reference.path, data),
+    update: (reference, data) => documents.set(reference.path, { ...documents.get(reference.path), ...data }),
+  }) }
+  const infer = async () => ({ isStatusUpdate: true, reviewRequired: false, reviewReason: '', updates: [{ field: 'actualArrivalUnloadingAt', value: '2026-10-01T11:35:00+02:00', evidence: 'Ankunft Entladestelle heute 11:35 Uhr', confidence: 'high' }], transitUpdates: [], pauseUpdates: [] })
+  assert.equal(await processStatusMailAi({ db, orderId: 'order-1', mailId: 'precise-arrival', infer }), 'applied')
+  const event = documents.get('transportOrderTrackings/order-1/events/ai-precise-arrival')
+  assert.deepEqual(event.oldDerivations.actualArrivalUnloadingAt, oldDerivation)
+  assert.equal(event.mailReceivedAt, receivedAt)
+  assert.equal(documents.get('transportOrderTrackings/order-1').fieldSources.actualArrivalUnloadingAt.derivation, undefined)
+})

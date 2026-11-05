@@ -49,13 +49,13 @@ export function validatedOrderNumbers(result, source) {
 }
 
 function trackingForClient(tracking) {
-  return Object.fromEntries([...fields, 'lifecycleStatus', 'stageId'].map(field => [field, iso(tracking?.[field])]))
+  return { ...Object.fromEntries([...fields, 'lifecycleStatus', 'stageId'].map(field => [field, iso(tracking?.[field])])), fieldSources: Object.fromEntries(fields.filter(field => tracking?.fieldSources?.[field]?.derivation).map(field => [field, { source: tracking.fieldSources[field].source, receivedAt: iso(tracking.fieldSources[field].receivedAt), derivation: tracking.fieldSources[field].derivation }])) }
 }
 
-export function validatePersonalStatusResult(result, mail) {
+export function validatePersonalStatusResult(result, mail, context = {}) {
   if (!Array.isArray(result?.updates) || result.updates.length > 16) throw new Error('invalid_model_response')
   const driverFields = ['driverName', 'driverPhone', 'driverCount']
-  const updates = validateStatusMailAiResult({ ...result, updates: result.updates.filter(item => !driverFields.includes(item?.field)) }, mail)
+  const updates = validateStatusMailAiResult({ ...result, updates: result.updates.filter(item => !driverFields.includes(item?.field)) }, mail, context)
   if (!result.isStatusUpdate) return updates
   const source = mail.bodyText.replace(/\s+/g, ' ').toLowerCase()
   for (const item of result.updates.filter(item => driverFields.includes(item?.field))) {
@@ -110,20 +110,22 @@ export async function previewPersonalMailTracking({ db, context, mail, orderNumb
   const inferredMail = { subject, bodyText, receivedAt: Timestamp.fromDate(received), sender: mail.from?.emailAddress?.address || '' }
   const result = await infer({ mail: inferredMail, order: orderData, tracking, route: routeSnapshot.data() || null, history: [], sentRequests: [], automaticRequests: [], events: [], actorId: context.uid, quotedContext: mail.body.content.slice(bodyText.length), personal: true })
   const validationMail = { ...inferredMail, subject: '' }
-  const updates = validatePersonalStatusResult(result, validationMail)
+  const updates = validatePersonalStatusResult(result, validationMail, { tracking, order: orderData })
   const routeDistance = routeSnapshot.data()?.roundedDistanceKm
   const transit = validateStatusMailTransitUpdates(result, validationMail, routeDistance)
   const distance = transit.length ? transit : explicitRemainingDistance(validationMail, routeDistance)
   const pauses = validateStatusMailPauseUpdates(result, validationMail)
   const proposals = Object.fromEntries(updates.map(item => [item.field, item.value]))
+  // Keep bounded classification metadata, not copies of the message or its quotes.
+  const proposalDetails = Object.fromEntries(updates.filter(item => item.requiresConfirmation && item.derivation).map(item => [item.field, { confidence: item.confidence, requiresConfirmation: true, derivation: item.derivation }]))
   const transitProposals = [...distance.map(item => ({ kind: 'position', at: received.toISOString(), kilometersToDestination: item.kilometersToDestination, location: item.location })), ...pauses.map(item => ({ kind: 'pause', at: item.at.toDate().toISOString(), durationMinutes: item.durationMinutes }))]
   const base = tracking || createShipmentTrackingDocument(order.id, context.uid, actor(context.profile), { carrierRecipientEmail: orderData.imported?.dispatch?.sentTo, importedLicensePlate: orderData.imported?.shipment?.licensePlate })
   const protectedValue = field => base[field] !== null && base[field] !== undefined && base[field] !== '' && (base.fieldSources?.[field]?.source !== 'ai_mail' || iso(base.fieldSources?.[field]?.receivedAt) >= received.toISOString())
   const plateFields = ['licensePlate', 'tractorLicensePlate', 'trailerLicensePlate']
   const conflicts = Object.keys(proposals).filter(field => !same(base[field], proposals[field]) && (protectedValue(field) || plateFields.includes(field) && plateFields.some(protectedValue)))
   const previewId = randomBytes(24).toString('hex')
-  await db.doc(`mailboxTrackingPreviews/${previewId}`).create({ ownerId: context.uid, connectionId: context.connectionId, messageKey, orderId: order.id, orderNumber: order.number, trackingVersion: version(tracking), orderVersion: version(orderData), proposals, transitProposals, receivedAt: received.toISOString(), expiresAt: now + 3600000 })
-  return { previewId, order: { ...order, loading: orderData.imported?.loading?.city || '', unloading: orderData.imported?.unloading?.city || '' }, tracking: trackingForClient(base), proposals, transitProposals, conflicts, reviewRequired: result.reviewRequired === true, receivedAt: received.toISOString(), expiresAt: now + 3600000 }
+  await db.doc(`mailboxTrackingPreviews/${previewId}`).create({ ownerId: context.uid, connectionId: context.connectionId, messageKey, orderId: order.id, orderNumber: order.number, trackingVersion: version(tracking), orderVersion: version(orderData), proposals, proposalDetails, transitProposals, receivedAt: received.toISOString(), expiresAt: now + 3600000 })
+  return { previewId, order: { ...order, loading: orderData.imported?.loading?.city || '', unloading: orderData.imported?.unloading?.city || '' }, tracking: trackingForClient(base), proposals, proposalDetails, transitProposals, conflicts, reviewRequired: result.reviewRequired === true || Object.keys(proposalDetails).length > 0, receivedAt: received.toISOString(), expiresAt: now + 3600000 }
 }
 
 function normalizeEntries(entries) {
@@ -169,8 +171,11 @@ export async function applyPersonalMailTracking({ db, context, previewId, change
     const fieldSources = { ...(base.fieldSources || {}) }
     for (const [field, value] of Object.entries(effective)) {
       const ai = Object.hasOwn(preview.proposals, field) && same(value, preview.proposals[field])
-      fieldSources[field] = { source: ai ? 'ai_mail' : 'manual', receivedAt, ...provenance, ...(Object.hasOwn(preview.proposals, field) ? { originalAiValue: preview.proposals[field] } : {}) }
-      tx.create(trackingRef.collection('events').doc(`personal-${preview.messageKey}-${field}`), { eventType: 'tracking_updated', changedFields: [field], oldValue: { [field]: base[field] ?? null }, newValue: { [field]: value }, eventTime: field.endsWith('At') && !field.startsWith('estimated') && value ? value : receivedAt, recordedAt, recordedBy: context.uid, recordedByName: actor(context.profile), source: ai ? 'ai_mail' : 'manual', ...provenance, ...(Object.hasOwn(preview.proposals, field) ? { originalAiValue: preview.proposals[field] } : {}) })
+      const proposedDerivation = preview.proposalDetails?.[field]?.derivation
+      const derivationMetadata = proposedDerivation ? ai ? { derivation: proposedDerivation } : { originalAiDerivation: proposedDerivation } : {}
+      const previousDerivation = base.fieldSources?.[field]?.derivation
+      fieldSources[field] = { source: ai ? 'ai_mail' : 'manual', receivedAt, ...provenance, ...derivationMetadata, ...(Object.hasOwn(preview.proposals, field) ? { originalAiValue: preview.proposals[field] } : {}) }
+      tx.create(trackingRef.collection('events').doc(`personal-${preview.messageKey}-${field}`), { eventType: 'tracking_updated', changedFields: [field], oldValue: { [field]: base[field] ?? null }, newValue: { [field]: value }, eventTime: field.endsWith('At') && !field.startsWith('estimated') && value ? value : receivedAt, recordedAt, recordedBy: context.uid, recordedByName: actor(context.profile), source: ai ? 'ai_mail' : 'manual', ...provenance, ...derivationMetadata, ...(previousDerivation ? { oldDerivation: previousDerivation } : {}), ...(Object.hasOwn(preview.proposals, field) ? { originalAiValue: preview.proposals[field] } : {}) })
     }
     entries.forEach(({ proposalIndex, ...entry }, index) => {
       const ai = preview.transitProposals.some(proposal => comparable(proposal) === comparable(entry))

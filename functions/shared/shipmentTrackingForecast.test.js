@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { shipmentTrackingAttention } from './shipmentTrackingAttention.js'
 import { buildShipmentTrackingForecast, vehicleForecastProfile } from './shipmentTrackingForecast.js'
+import { shipmentTrackingProgress } from './shipmentTrackingProgress.js'
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
 const imported = {
@@ -195,4 +196,58 @@ test('aftercare and past dates alone never count as final closure', () => {
   const result = shipmentTrackingAttention({ tracking: { lifecycleStatus: 'active', lifecyclePhase: 'aftercare', automationPaused: true }, imported, now: new Date('2026-10-20T18:00:00Z') })
   assert.ok(result.items.some((item) => item.severity === 'critical'))
   assert.ok(result.items.some((item) => item.id === 'automation-paused'))
+})
+
+
+const approximateSource = { derivation: { timeBasis: 'mail_already_arrived', stationBasis: 'explicit', timingApproximate: true } }
+
+test('approximate unloading confirms progress without judging punctuality from a surrogate time', () => {
+  for (const actualArrivalUnloadingAt of ['2026-10-07T17:00:00Z', '2026-10-07T19:00:00Z']) {
+    const tracking = { actualArrivalUnloadingAt, fieldSources: { actualArrivalUnloadingAt: approximateSource } }
+    const forecast = buildShipmentTrackingForecast({ tracking, imported })
+    assert.equal(forecast.kind, 'arrival')
+    assert.equal(forecast.state, 'unknown')
+    assert.equal(forecast.arrivalTimeApproximate, true)
+    assert.match(forecast.message, /genaue Ankunftszeit unbekannt/)
+    assert.equal(shipmentTrackingProgress(tracking).reachedUnloading, true)
+    const attention = shipmentTrackingAttention({ tracking, imported })
+    assert.equal(attention.items.find(item => item.id === 'arrival-time-approximate').severity, 'info')
+    assert.equal(attention.items.some(item => item.id === 'unloading-arrival'), false)
+  }
+})
+
+test('closed tracking retains unknown punctuality when actual arrival was only a mail-time surrogate', () => {
+  const tracking = { lifecycleStatus: 'completed', actualArrivalUnloadingAt: '2026-10-07T19:00:00Z', fieldSources: { actualArrivalUnloadingAt: approximateSource } }
+  const result = buildShipmentTrackingForecast({ tracking, imported })
+  assert.equal(result.kind, 'completed')
+  assert.equal(result.state, 'neutral')
+  assert.equal(result.arrivalState, 'unknown')
+  assert.equal(result.arrivalTimeApproximate, true)
+  const attention = shipmentTrackingAttention({ tracking, imported })
+  assert.deepEqual(attention.items, [])
+  assert.deepEqual(attention.history.approximateFields, ['actualArrivalUnloadingAt'])
+})
+
+test('mail-time loading arrival starts no precise stopwatch or onward ETA until a precise independent fact exists', () => {
+  const tracking = { actualArrivalLoadingAt: '2026-10-06T08:00:00Z', fieldSources: { actualArrivalLoadingAt: approximateSource } }
+  const now = new Date('2026-10-06T15:00:00Z')
+  const args = { tracking, imported, route: { roundedDistanceKm: 650 }, now }
+  const forecast = buildShipmentTrackingForecast(args)
+  assert.equal(forecast.state, 'unknown')
+  assert.equal(forecast.arrivals, undefined)
+  assert.equal(forecast.onTimeSharePercent, undefined)
+  const attention = shipmentTrackingAttention(args)
+  assert.equal(attention.items.find(item => item.id === 'loading-wait').severity, 'info')
+  assert.equal(attention.items.some(item => item.icon === 'stopwatch'), false)
+  assert.equal(shipmentTrackingProgress(tracking).reachedLoading, true)
+  const loadingStarted = shipmentTrackingAttention({ ...args, tracking: { ...tracking, loadingStartedAt: '2026-10-06T08:15:00Z' } })
+  assert.equal(loadingStarted.items.find(item => item.id === 'loading-wait').icon, 'stopwatch')
+  const departed = buildShipmentTrackingForecast({ ...args, tracking: { ...tracking, actualDepartureLoadingAt: '2026-10-06T10:00:00Z' } })
+  assert.equal(departed.kind, 'forecast')
+  assert.equal(departed.source, 'actual_departure_loading')
+})
+
+test('station-context inference with explicitly reported time retains existing time-based assessment', () => {
+  const tracking = { actualArrivalUnloadingAt: '2026-10-07T17:00:00Z', fieldSources: { actualArrivalUnloadingAt: { derivation: { timeBasis: 'explicit', stationBasis: 'tracking_context', timingApproximate: false } } } }
+  assert.equal(buildShipmentTrackingForecast({ tracking, imported }).state, 'green')
 })
