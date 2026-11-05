@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, runTransaction, serverTimestamp, startAfter } from 'firebase/firestore'
-import { db } from './firebase.js'
+import { httpsCallable } from 'firebase/functions'
+import { db, functions, waitForAppCheckToken } from './firebase.js'
 import { reportTechnicalFailure } from './diagnostics.js'
 
 const contracts = () => collection(db, 'contracts')
@@ -21,6 +22,29 @@ export async function getContract(id) {
     return result.exists() ? { ...result.data(), id: result.id } : null
   } catch (error) {
     void reportTechnicalFailure({ module: 'contracts', stage: 'load', recordId: id, error })
+    throw error
+  }
+}
+
+export async function listContractRecords(id, kind) {
+  if (!['positions', 'deadlines', 'notes', 'history'].includes(kind)) throw new Error('Invalid contract record type')
+  try {
+    const source = collection(db, 'contracts', id, kind)
+    const result = await getDocs(['notes', 'history'].includes(kind) ? query(source, orderBy('createdAt', 'desc'), limit(50)) : source)
+    return result.docs.map((item) => ({ ...item.data(), id: item.id }))
+  } catch (error) {
+    void reportTechnicalFailure({ module: 'contracts', stage: 'load', recordId: id, error })
+    throw error
+  }
+}
+
+export async function mutateContract(contractId, operation) {
+  try {
+    await waitForAppCheckToken()
+    const result = await httpsCallable(functions, 'mutateContract')({ contractId, ...operation, mutationId: operation.mutationId || crypto.randomUUID() })
+    return result.data
+  } catch (error) {
+    void reportTechnicalFailure({ module: 'contracts', stage: operation.action.endsWith('.delete') ? 'delete' : 'save', recordId: contractId, error })
     throw error
   }
 }

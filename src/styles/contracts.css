@@ -16,3 +16,42 @@
 .contract-create-dialog { width: min(480px, calc(100vw - 40px)); max-height: calc(100vh - 40px); padding: 24px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--content-background); }
 .contract-create-dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .contract-create-dialog h2 { margin: 0; }
+.contract-editor-dialog { width: min(680px, calc(100vw - 40px)); }
+.contract-editor__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.contract-editor__wide { grid-column: 1 / -1; }
+.contract-editor__fields textarea { width: 100%; resize: vertical; }
+.contract-file__grid { margin-top: 0; }
+.contract-file .todo-detail-main, .contract-file .todo-detail-sidebar { min-width: 0; }
+.contract-file .todo-detail-section-heading { flex-wrap: wrap; gap: 12px; }
+.contract-file .todo-detail-sidebar dd { overflow-wrap: anywhere; }
+.contract-file .detail-header { margin-bottom: 0; }
+.contract-file .contracts-table-frame { margin-top: 16px; }
+.contract-file .data-table td { vertical-align: top; }
+.contract-file .table-subline { max-width: 360px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.contract-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.contract-row-actions .button { min-height: 28px; padding: 4px 8px; }
+.contract-cost-summary { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 20px 0 0; }
+.contract-cost-summary dt { color: var(--text-secondary); font-size: 12px; }
+.contract-cost-summary dd { margin: 6px 0 0; color: var(--text-primary); font-size: 18px; font-weight: 700; }
+.contract-description { white-space: pre-wrap; overflow-wrap: anywhere; }
+.contract-checkbox { display: flex; align-items: center; gap: 8px; }
+.contract-note-input { flex: 1; min-width: 0; }
+.contract-file .todo-updates:not(.todo-history) .todo-updates__heading h3 { font-size: 14px; }
+.contract-file .todo-updates:not(.todo-history) .todo-updates__heading h3::after,
+.contract-file .todo-updates:not(.todo-history) .todo-updates__form > .button::after { content: none; }
+.contract-file .todo-updates:not(.todo-history) .todo-updates__form > .button { font-size: 12px; }
+.contract-file .todo-updates > .todo-updates__empty { display: block; }
+.contract-save-message { margin: 0; color: var(--text-secondary); }
+.contract-muted { color: var(--text-muted); font-size: 12px; }
+.contract-deadline-status { white-space: nowrap; }
+.contract-deadline-status--overdue { color: var(--danger, #c65a58); font-weight: 700; }
+.contract-deadline--selected { outline: 2px solid var(--focus-ring); outline-offset: -2px; background: var(--surface-active); }
+.contract-file dialog.document-modal { max-width: calc(100vw - 40px); max-height: calc(100vh - 40px); padding: 0; color: var(--text-primary); }
+.contract-file dialog.document-modal::backdrop { background: rgb(0 0 0 / 45%); }
+.contract-file .document-form { display: grid; gap: 14px; }
+.contract-document-recovery { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--content-background); }
+.contract-document-recovery li { margin: 12px 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .contract-editor__fields { grid-template-columns: 1fr; }
+  .contract-file .todo-updates__form { align-items: stretch; flex-direction: column; }
+}
