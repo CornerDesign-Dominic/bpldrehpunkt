@@ -72,6 +72,15 @@ Die Prüfung bindet Größe, PDF-Inhaltstyp, Vertrags-/Dokument-ID und Generatio
 Löschen sperrt den Datensatz zunächst als `deleting`, löscht die konkrete
 Storage-Generation und bestätigt danach Metadatenänderung/History atomar.
 
+Storage-Zugriffe lesen ausschließlich das aktuelle Benutzerprofil und die
+Vertragswurzel. Deren serververwaltetes `documentStorageAccess` enthält je PDF
+nur Status und Dateigröße; Slot und Dokumentmetadaten werden in denselben
+Transaktionen fortgeschrieben. So bleiben der bestehende Vertrag und aktuelle
+Modulrechte prüfbar, ohne das [Firebase-Limit](https://firebase.google.com/docs/rules/rules-behavior)
+von zwei unterschiedlichen Firestore-Dokumenten je Storage-Anfrage zu überschreiten. Ein fehlender Slot
+gewährt keinen Zugriff; eigene ältere Reservierungen reparieren ihn bei der
+Wiederaufnahme aus dem autoritativen Dokumentdatensatz.
+
 Unklare Antworten wiederholen dieselbe Aktion. Ein bloßer Verbindungsfehler
 löscht keine möglicherweise bereits erfolgreich gespeicherte Datei.
 Offene `pending`-, `finalizing`- und `deleting`-Vorgänge bleiben nach einem
