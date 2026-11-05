@@ -51,12 +51,33 @@ Storage-Regeln, Secrets oder Migrationen. Der Rules-Upload hat unveränderte
 Dev-Indizes mit abgeglichen. Vorhandene Rules-Compilerwarnungen bei
 anderen Fachabläufen sind keine neuen Vertragsmanagementfehler.
 
-Frontend über einen gebündelten Push nach `dev` und den bestehenden Vercel-Weg
-auf `https://dev.drehpunktlogistik.de`. Nach dessen erfolgreichem Build sind
-Menü, Liste, Anlegen mit erkennbarem Testnamen, Vertragsakte, Neuladen und
-Rückkehr in der bereits angemeldeten Dev-Sitzung zu prüfen. Einen tatsächlichen
-Deployment- oder Abnahmenachweis liefert erst das abschließende Prüfprotokoll;
-dieser Abschnitt allein behauptet keinen erfolgreichen Abschluss.
+Frontend-Releasecommit: `0d1f4510a53cbede736bec807fc569d1e23aa044`, auf `dev`
+gepusht. Vercel meldet für den Commit `success`:
+[Deployment](https://vercel.com/cornerdesign-dominics-projects/bpldrehpunkt/6jEqayYqC67XG3ZfD6aRBSaq7dq1).
+Der Live-Alias `https://dev.drehpunktlogistik.de` liefert den neuen Bereich.
+
+Die vier genannten Functions meldeten jeweils eine erfolgreiche Aktualisierung
+in `europe-west3`; Firestore Rules wurden erfolgreich veröffentlicht. Beim ersten
+Functions-Versuch fehlten lokale nicht geheime Parameter; nach Übernahme der
+bereits vorhandenen projektspezifischen Dev-Konfiguration gelang der Deploy.
+Es wurden keine Secretwerte ausgelesen oder neu angelegt.
+
+Echte Browserabnahme in der bereits angemeldeten Dev-Sitzung erfolgreich:
+
+- Neuer Menüpunkt, leere Übersicht und Fachreiter zur Vertragsliste sichtbar.
+- Liste zunächst leer; Leerzeichen als Pflichtname verhindern die Übermittlung.
+- Testvertrag `DEV-Browserprüfung Vertragsmanagement 05.11.2026` wurde über
+  das reale Modal gespeichert und automatisch als Vertragsakte geöffnet.
+- Nach vollständigem Neuladen blieben Partnername und Serverzeit erhalten.
+  Rückkehr zur Liste und erneuter Aufruf über den Menüpunkt funktionierten.
+- Keine Konsolenfehler im geprüften Dev-Browserablauf.
+- Ausschließlich der selbst erzeugte Testdatensatz
+  `contracts/l1946kKoj7qU6yRBUbbh` wurde anschließend gezielt über die
+  administrative Dev-CLI entfernt. Das Neuladen bestätigte die wieder leere Liste.
+
+Die unterschiedlichen verweigerten Rollen wurden im Emulator geprüft; die
+echte Dev-Browserabnahme verwendet die vorhandene Sitzung. Es wurden dafür
+keine Benutzerprofile, Rechtezuweisungen oder Anmeldetokens erzeugt/geändert.
 
 Main und Produktion sind nicht Teil der Freigabe. Rückkehr beim Frontend auf
 die genannte Basis ist möglich; ein Frontendrollback setzt weder neue
