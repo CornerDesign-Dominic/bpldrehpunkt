@@ -28,8 +28,9 @@
 .contract-file .contracts-table-frame { margin-top: 16px; }
 .contract-file .data-table td { vertical-align: top; }
 .contract-file .table-subline { max-width: 360px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.contract-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.contract-row-actions .button { min-height: 28px; padding: 4px 8px; }
+.contract-row-actions { display: inline-flex; flex-wrap: nowrap; gap: 4px; }
+.contract-row-actions .button { display: inline-flex; align-items: center; justify-content: center; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; }
+.contract-file .contract-actions-column { width: 1%; white-space: nowrap; }
 .contract-cost-summary { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 20px 0 0; }
 .contract-cost-summary dt { color: var(--text-secondary); font-size: 12px; }
 .contract-cost-summary dd { margin: 6px 0 0; color: var(--text-primary); font-size: 18px; font-weight: 700; }
