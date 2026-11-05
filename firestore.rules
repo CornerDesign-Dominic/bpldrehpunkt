@@ -1742,6 +1742,9 @@ service cloud.firestore {
       allow get: if view('mailboxes') && connectedMailbox();
       allow list, write: if false;
     }
+    // Triage feedback contains bounded mail evidence; access only via checked callables.
+    match /mailboxTriageFeedback/{id} { allow read, write: if false; }
+    match /mailboxTriageFeedbackStates/{id} { allow read, write: if false; }
     match /mailboxActionRuns/{id} { allow read, write: if false; }
     match /mailboxActionScopes/{scope}/{document=**} { allow read, write: if false; }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }

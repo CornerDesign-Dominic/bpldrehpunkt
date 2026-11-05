@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { useAuth } from '../auth/useAuth.js'
 import { mailboxCall } from '../lib/mailboxes.js'
 import { createMailboxActionStore, mailboxActionKey } from '../lib/mailboxActionStore.js'
+import { MailboxTriageContext } from './MailboxTriageContext.js'
 import { mailboxActionDisplayState } from '../lib/mailboxActionPresentation.js'
 
 let owner = '', currentStore = createMailboxActionStore(mailboxCall)
@@ -18,6 +19,7 @@ function ownerStore(uid) {
 
 export function useMailboxAction(identity, kind, recommended = false) {
   const { user } = useAuth()
+  const triage = useContext(MailboxTriageContext)
   const uid = user?.uid || ''
   const store = ownerStore(uid)
   const { connectionId, messageId } = identity
@@ -27,7 +29,11 @@ export function useMailboxAction(identity, kind, recommended = false) {
     if (!uid || !connectionId || !messageId) return
     return store.watch({ ...stableIdentity, kind })
   }, [store, uid, connectionId, messageId, stableIdentity, kind])
-  const start = useCallback(data => store.start(stableIdentity, kind, data), [store, stableIdentity, kind])
+  const start = useCallback(data => {
+    const execute = () => store.start(stableIdentity, kind, data)
+    const current = store.getAction(stableIdentity, kind)
+    return triage && !['running', 'review', 'completed'].includes(current.state) ? triage.requestStart(kind, execute) : execute()
+  }, [store, stableIdentity, kind, triage])
   const discard = useCallback(() => store.discard(stableIdentity, kind), [store, stableIdentity, kind])
   const complete = useCallback(proof => store.complete(stableIdentity, kind, proof), [store, stableIdentity, kind])
   const reopen = useCallback(() => store.reopen(stableIdentity, kind), [store, stableIdentity, kind])

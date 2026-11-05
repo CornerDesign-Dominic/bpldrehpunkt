@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyRecommendation, classifyRecommendationDecision, recommendationKinds, recommendationScope, createRecommendationHandlers, freshRecommendation } from './mailboxRecommendations.js'
+import { classifyRecommendation, classifyRecommendationDecision, validateMailTriage, recommendationKinds, recommendationScope, createRecommendationHandlers, freshRecommendation } from './mailboxRecommendations.js'
 
 test('shared identity ignores the delegate; personal consent remains owner scoped', () => {
   const shared = { tenantId: 'tenant', email: 'Team@Example.org', kind: 'shared', canonicalMailboxId: 'shared-folder', ownerId: 'one' }
@@ -103,4 +103,53 @@ test('five minutes is a freshness boundary, never a scan interval', () => {
   assert.equal(freshRecommendation(now - 300001, now, now - 600000), false)
   assert.equal(freshRecommendation(now - 1000, now, now), false)
   assert.equal(freshRecommendation(now + 61000, now, now - 600000), false)
+})
+
+
+const structured = patch => ({ status: 'actionable', answers: [], actions: [{ kind: 'court', confidence: 'high', reason: 'Gerichtliches Schreiben mit Frist', sourceId: 'body', quote: 'Bitte reichen Sie die Unterlagen bis 12.11.2026 ein.' }], inspectAttachments: false, ...patch })
+const triageSources = { subject: 'Schreiben im Rechtsstreit', body: 'Bitte reichen Sie die Unterlagen bis 12.11.2026 ein.', forwarded: 'Alter Termin 01.01.2025' }
+const triageCoverage = { mail: true, forwarded: true, attachments: 'not_present', documentNames: [], unreadable: [] }
+
+test('structured triage keeps original source evidence and distinct questions without asserting a case assignment', () => {
+  const parsed = structured({ answers: [{ key: 'deadline', value: '12.11.2026', sourceId: 'body', quote: triageSources.body }, { key: 'topic', value: 'Rechtsstreit', sourceId: 'subject', quote: triageSources.subject }] })
+  const result = validateMailTriage(parsed, triageSources, triageCoverage)
+  assert.equal(result.version, 1); assert.equal(result.status, 'actionable')
+  assert.deepEqual(result.answers.map(answer=>answer.key), ['deadline', 'topic'])
+  assert.equal(result.actions[0].quote, triageSources.body)
+  assert.equal(result.actions[0].kind, 'court')
+  assert.equal(Object.hasOwn(result, 'caseId'), false)
+})
+
+test('fabricated quotes, translated identifiers and uninspected document sources do not become grounded facts or high recommendations', () => {
+  const result = validateMailTriage(structured({ answers: [{ key: 'deadline', value: '2026-11-12', sourceId: 'body', quote: triageSources.body }, { key: 'references', value: 'G-555', sourceId: 'document-2', quote: 'G-555' }], actions: [{ kind: 'calendar', confidence: 'high', reason: 'Termin erkannt', sourceId: 'document-2', quote: 'Termin am 12.11.2026' }] }), triageSources, triageCoverage)
+  assert.equal(result.status, 'unclear'); assert.deepEqual(result.answers, []); assert.deepEqual(result.actions, [])
+})
+
+test('information, uncertain and incomplete triage states remain distinct', () => {
+  assert.equal(validateMailTriage(structured({ status: 'information', actions: [] }), triageSources, triageCoverage).status, 'information')
+  assert.equal(validateMailTriage(structured({ actions: [{ ...structured().actions[0], confidence: 'medium' }] }), triageSources, triageCoverage).status, 'unclear')
+  assert.equal(validateMailTriage(structured(), triageSources, { ...triageCoverage, mailTruncated: true }).status, 'incomplete')
+  assert.equal(validateMailTriage(structured({ status: 'incomplete' }), triageSources, triageCoverage).status, 'incomplete')
+})
+
+test('structured classification supports foreign original quotes and requests bounded attachment context even with a confident domain', async () => {
+  let request
+  const result = await classifyRecommendationDecision({ mail: { subject: 'Pismo', body: { contentType: 'text', content: 'Prosimy o dokumenty do 12.11.2026. Szczegóły w załączniku.' }, hasAttachments: true }, apiKey: 'synthetic', userId: 'user', execute: async ({ operation }) => operation(), http: async (_url, options) => {
+    request=JSON.parse(options.body)
+    return {ok:true,json:async()=>({status:'completed',output_text:JSON.stringify(structured({inspectAttachments:true,answers:[{key:'requiredAction',value:'Unterlagen einreichen',sourceId:'body',quote:'Prosimy o dokumenty do 12.11.2026.'}],actions:[{kind:'court',confidence:'high',reason:'Unterlagen werden angefordert',sourceId:'body',quote:'Prosimy o dokumenty do 12.11.2026.'}]}))})}
+  } })
+  assert.deepEqual(result.kinds,['court']); assert.equal(result.inspectAttachments,true)
+  assert.equal(result.decision.answers[0].quote,'Prosimy o dokumenty do 12.11.2026.')
+  assert.equal(result.decision.coverage.attachments,'not_read')
+  assert.match(request.instructions,/keine Datenbanksuche/)
+  assert.match(request.instructions,/Absage/)
+  assert.equal(request.tools,undefined)
+})
+
+test('attachment snippets are visibly partial and only their exact evidence can justify an action', async () => {
+  const result=await classifyRecommendationDecision({mail:{subject:'Unterlagen',hasAttachments:true},documents:[{name:'schreiben.pdf',text:'Frist 12.11.2026',inspectedPages:[1,2]}],apiKey:'synthetic',userId:'user',execute:async({operation})=>operation(),http:async()=>({ok:true,json:async()=>({status:'completed',output_text:JSON.stringify(structured({actions:[{kind:'calendar',confidence:'high',reason:'Frist im Schreiben',sourceId:'document-1',quote:'Frist 12.11.2026'}],answers:[{key:'deadline',value:'12.11.2026',sourceId:'document-1',quote:'Frist 12.11.2026'}]}))})})})
+  assert.equal(result.decision.coverage.attachments,'partial')
+  assert.deepEqual(result.decision.coverage.documentNames,['schreiben.pdf'])
+  assert.equal(result.inspectAttachments,false)
+  assert.deepEqual(result.kinds,['calendar'])
 })
