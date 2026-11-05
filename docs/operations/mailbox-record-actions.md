@@ -2,6 +2,13 @@
 
 Stand: 01.11.2026. Nur Dev, Firebase `db-bpl-drehpunkt-dev`.
 
+## Maileinordnung (Dev-Paket 05.11.2026)
+
+Vor dem ersten Start steht die [kompakte Einordnungsvorschau](mail-triage.md)
+mit Bestätigen oder Verwerfen und Grund. Erst Bestätigen startet die folgenden
+bestehenden Fachabläufe. Bereits vorhandene Ergebnisse öffnen weiterhin direkt.
+Veröffentlichung siehe [Releasebeleg](releases/mail-triage-dev-2026-11-05.md).
+
 ## Bedienung
 
 Die Aktionen To-do, Schaden, Inkasso, Gericht und Kalender analysieren die

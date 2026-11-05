@@ -69,6 +69,8 @@ export function createMailboxActionHandlers(deps = {}) {
     if (!value) return null
     const { input: _input, ownerId: _owner, ...action } = value
     void _input; void _owner
+    // Old invoice runs auto-completed after extraction, before manual review existed.
+    if (action.kind === 'invoice' && action.state === 'completed' && action.completion?.invoiceReviewed !== true) action.state = 'review'
     if (!includeResult) delete action.result
     return { ...action, ...(actor ? { connectionId: actor.connectionId } : {}), id: ref.id, updatedAtMillis: action.updatedAt }
   }
@@ -192,11 +194,29 @@ export function createMailboxActionHandlers(deps = {}) {
   const updateMailboxAction = async request => {
     const identity = actionIdentity(request.data)
     const actor = await context(request, identity.kind)
-    if (!['discard', 'complete'].includes(request.data.action)) fail('invalid-argument', 'Ungültige Statusänderung.')
+    if (!['discard', 'complete', 'reopen'].includes(request.data.action)) fail('invalid-argument', 'Ungültige Statusänderung.')
     const ref = await refFor(actor, identity)
     let current = (await ref.get()).data()
     if (!current || current.jobId !== request.data.jobId) fail('aborted', 'Die Auswertung wurde inzwischen ersetzt. Bitte erneut laden.')
-    if (request.data.action === 'complete') {
+    if (identity.kind === 'invoice' && ['complete', 'reopen'].includes(request.data.action)) {
+      current = await db().runTransaction(async tx => {
+        const value = (await tx.get(ref)).data()
+        if (!value || value.jobId !== request.data.jobId) fail('aborted', 'Die Auswertung wurde inzwischen ersetzt. Bitte erneut laden.')
+        const shared = value.sharedScopeId && value.sharedScopeId === managedActionScope(actor.connection)
+        const owned = value.ownerId === actor.uid && value.connectionId === actor.connectionId && value.graphUserId === (actor.connection.graphUserId || '')
+        if ((!shared && !owned) || value.kind !== identity.kind || value.messageId !== identity.messageId) fail('permission-denied', 'Die Auswertung gehört nicht zu dieser Postfachnachricht.')
+        if (!['review', 'completed'].includes(value.state) || !value.result) fail('failed-precondition', 'Nur eine erfolgreich ausgewertete Rechnung kann bestätigt oder wieder geöffnet werden.')
+        const reviewed = value.state === 'completed' && value.completion?.invoiceReviewed === true
+        if (request.data.action === 'complete' && reviewed) return value
+        if (request.data.action === 'reopen' && value.state === 'review' && !value.completion) return value
+        const patch = request.data.action === 'complete'
+          ? { state: 'completed', completion: { invoiceReviewed: true, actorId: actor.uid, reviewedAt: now() }, updatedAt: now() }
+          : { state: 'review', completion: null, updatedAt: now() }
+        tx.update(ref, patch)
+        return { ...value, ...patch }
+      })
+    } else if (request.data.action === 'reopen') fail('failed-precondition', 'Nur Rechnungsprüfungen können wieder geöffnet werden.')
+    else if (request.data.action === 'complete') {
       if (!['order', 'tracking', ...Object.keys(mailboxRecordKinds)].includes(identity.kind)) fail('failed-precondition', 'Diese Prüfung ist bereits abgeschlossen.')
       const proofId = request.data.previewId || request.data.proof?.previewId
       if (proofId && proofId !== current.result?.previewId) fail('permission-denied', 'Die Bestätigung gehört nicht zu dieser Auswertung.')
@@ -261,7 +281,7 @@ export function createMailboxActionHandlers(deps = {}) {
         })
         result.expiresAt = persistentExpiry
       }
-      patch = { result, state: ['terms', 'invoice'].includes(run.kind) || result.alreadyApplied ? 'completed' : 'review', error: null, updatedAt: now() }
+      patch = { result, state: run.kind === 'invoice' ? 'review' : run.kind === 'terms' || result.alreadyApplied ? 'completed' : 'review', error: null, updatedAt: now() }
     } catch (error) {
       patch = { state: 'failed', result: null, error: publicError(error), updatedAt: now() }
       if (error.code !== 'cancelled') {

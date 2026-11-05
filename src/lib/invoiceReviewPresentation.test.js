@@ -292,3 +292,27 @@ test('invoice currency compares once to EUR without a transport number, also for
     }
   }
 })
+
+
+test('confirmed booked invoices stay in the main rows and red alerts without a correctness vote, also for saved reports', () => {
+  for (const extra of [{}, { affectsCorrectness: false }]) {
+    const billing = { key: 'billingStatus', comparisonOrigin: 'dycos_invoice_headers', duplicate: true, color: 'red', actual: 'RE1', expected: 'RE1', ...extra }
+    const invoice = { headerChecks: [{ key: 'issuer', color: 'green' }, billing], alerts: [{ kind: 'duplicate', color: 'red', externalNumber: 'RE1' }] }
+    const original = JSON.stringify(invoice)
+    const display = invoiceDisplayChecks(invoice)
+    assert.equal(display.primary.find(check => check.key === 'billingStatus').color, 'red')
+    assert.equal(display.secondary.some(check => check.key === 'billingStatus'), false)
+    assert.deepEqual(invoiceReviewDistribution(display.primary).percentages, { green: 100, yellow: 0, red: 0 })
+    assert.equal(invoiceReviewDistribution(display.primary).total, 1)
+    assert.equal(invoiceReviewAlerts(invoice)[0].color, 'red')
+    assert.equal(JSON.stringify(invoice), original, 'saved report remains immutable')
+    assert.deepEqual(invoiceReviewDistribution([...display.primary, { key: 'netTotal', color: 'red' }]).counts, { green: 1, yellow: 0, red: 1 })
+  }
+})
+
+test('unresolved and suspected external-number checks still contribute yellow to the scale', () => {
+  for (const duplicate of [false, undefined]) {
+    const checks = [{ key: 'issuer', color: 'green' }, { key: 'billingStatus', comparisonOrigin: 'dycos_invoice_headers', duplicate, color: 'yellow' }]
+    assert.deepEqual(invoiceReviewDistribution(checks).counts, { green: 1, yellow: 1, red: 0 })
+  }
+})

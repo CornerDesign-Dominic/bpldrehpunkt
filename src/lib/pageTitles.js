@@ -3,6 +3,7 @@ const pageTitles = [
   { path: '/qualitaet/handbuch', title: 'Handbuch' },
   { path: '/qualitaet/grundregeln', title: 'Grundregeln' },
   { path: '/qualitaet/wissensluecken', title: 'Wissenslücken' },
+  { path: '/qualitaet/maileinordnung', title: 'Maileinordnung' },
   { path: '/qualitaet', title: 'Qualität' },
   { path: '/dashboard', title: 'Dashboard' },
   { path: '/postfaecher', title: 'Postfächer' },

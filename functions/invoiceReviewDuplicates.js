@@ -95,6 +95,6 @@ export function evaluateInvoiceDuplicates(invoice, references = [], { allAssigne
     actual: invoiceGross, expected: match.grossCents, currency: invoiceCurrency || null, expectedCurrency: match.currency }))
   const check = coloredCheck('billingStatus', 'Ext. Belegnummer', cleanText(invoiceNumber).slice(0, 240) || null, first?.externalNumber || [...relatedNumbers].join('; ') || null, color,
     red ? 'Bereits vorhanden' : matches.length ? 'Mögliche Dublette' : relatedNumbers.size ? 'Abweichende externe Belegnummer im Auftragsbezug' : complete ? 'Kein Treffer im Auftragsbezug' : 'Abgleich unvollständig',
-    { comparisonOrigin: 'dycos_invoice_headers', duplicate: red, complete, matchCount: matches.length })
+    { comparisonOrigin: 'dycos_invoice_headers', duplicate: red, complete, matchCount: matches.length, ...(red ? { affectsCorrectness: false } : {}) })
   return { check, alerts, matches }
 }

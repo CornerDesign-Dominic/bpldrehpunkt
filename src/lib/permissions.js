@@ -6,6 +6,8 @@ export const MODULES = {
   kvp: { label: 'K.V.P.' },
   handbook: { label: 'Handbuch' },
   knowledgeGaps: { label: 'Wissenslücken' },
+  mailTriageQuality: { label: 'Maileinordnung' },
+  mailTriageCleanup: { label: 'Maileinordnung: Daten bereinigen' },
   dashboard: { label: 'Dashboard' },
   mailboxes: { label: 'Postfächer' },
   vacation: { label: 'Urlaub' },

@@ -4,7 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CLIENT_STAGES = Object.freeze({
@@ -19,7 +19,8 @@ const CLIENT_STAGES = Object.freeze({
   kvp: ['load', 'save', 'history'],
   handbook: ['load', 'save', 'history'],
   knowledgeGaps: ['load', 'save'],
-  mailboxes: ['message-state', 'connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export', 'agb-analyse', 'agb-customer', 'invoice-review', 'invoice-history'],
+  mailTriageQuality: ['load', 'save', 'delete'],
+  mailboxes: ['triage-feedback', 'triage-quality', 'message-state', 'connect', 'load', 'attachment', 'draft', 'send', 'disconnect', 'rename', 'tracking-preview', 'tracking-apply', 'order-preview', 'order-export', 'agb-analyse', 'agb-customer', 'invoice-review', 'invoice-history'],
   'shipment-tracking': ['load', 'save', 'preview'],
   'shipment-tracking-manual-mail': ['send'],
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create', 'order-search', 'order-fetch', 'wording'],
@@ -54,8 +55,9 @@ const MAILBOX_MESSAGES = {
   calendar: { load: 'Kalenderdaten konnten nicht geladen werden.', save: 'Kalendertermin konnte nicht gespeichert werden.', delete: 'Kalendertermin konnte nicht gelöscht werden.' },
   kvp: { load: 'K.V.P.-Daten konnten nicht geladen werden.', save: 'K.V.P.-Eintrag konnte nicht gespeichert werden.', history: 'K.V.P.-Änderungsverlauf konnte nicht geladen werden.' },
   handbook: { load: 'Handbucheinträge konnten nicht geladen werden.', save: 'Handbucheintrag konnte nicht gespeichert werden.', history: 'Handbuch-Änderungsverlauf konnte nicht geladen werden.' },
+  mailTriageQuality: { load: 'Maileinordnungen konnten nicht geladen werden.', save: 'Die Qualitätsrückmeldung konnte nicht gespeichert werden.', delete: 'Die ausgewählten Rückmeldungen konnten nicht gelöscht werden.' },
   knowledgeGaps: { load: 'Wissenslücken konnten nicht geladen werden.', save: 'Wissenslücke konnte nicht gespeichert werden.' },
-  mailboxes: { 'invoice-review': 'Rechnung aus persönlicher Mail konnte nicht geprüft werden.', 'invoice-history': 'Gespeicherte Rechnungsprüfung konnte nicht geladen werden.', 'agb-analyse': 'AGB aus persönlicher Mail konnten nicht geprüft werden.', 'agb-customer': 'Kundenzuordnung der AGB-Prüfung konnte nicht gespeichert werden.', 'tracking-preview': 'Persönliche Mail konnte nicht für den Sendungsstatus ausgewertet werden.', 'tracking-apply': 'Sendungsstatus aus persönlicher Mail konnte nicht übernommen werden.', connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
+  mailboxes: { 'triage-feedback': 'Die Rückmeldung zur Maileinordnung konnte nicht gespeichert werden.', 'triage-quality': 'Die Qualitätsauswertung konnte nicht geladen werden.', 'invoice-review': 'Rechnung aus persönlicher Mail konnte nicht geprüft werden.', 'invoice-history': 'Gespeicherte Rechnungsprüfung konnte nicht geladen werden.', 'agb-analyse': 'AGB aus persönlicher Mail konnten nicht geprüft werden.', 'agb-customer': 'Kundenzuordnung der AGB-Prüfung konnte nicht gespeichert werden.', 'tracking-preview': 'Persönliche Mail konnte nicht für den Sendungsstatus ausgewertet werden.', 'tracking-apply': 'Sendungsstatus aus persönlicher Mail konnte nicht übernommen werden.', connect: 'Microsoft-Postfach konnte nicht verbunden werden.', load: 'Postfachdaten konnten nicht geladen werden.', attachment: 'Mailanhang konnte nicht geladen werden.', draft: 'Antwortentwurf konnte nicht gespeichert werden.', send: 'Antwort konnte nicht zuverlässig übermittelt werden.', disconnect: 'Postfachverbindung konnte nicht getrennt werden.', rename: 'Postfachname konnte nicht gespeichert werden.' },
 }
 
 export function canReportLinkDiagnostic(profile, module, orderId = '') {
@@ -67,7 +69,7 @@ export function canReportLinkDiagnostic(profile, module, orderId = '') {
   if (module === 'transport-orders') return view('transportOrders')
   if (module === 'pallets') return view('pallets')
   if (module === 'calendar') return ['calendar', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'contracts'].some(view)
-  if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'contracts'].includes(module)) return true
+  if (!['mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'contracts'].includes(module)) return true
   return profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[module])
 }
 
@@ -109,10 +111,10 @@ export function normalizeClientDiagnostic(data) {
   const recordId = safeText(data?.recordId, 240)
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
-  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'contracts'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
+  if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'contracts'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
-  if (['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
-  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  if (['kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
+  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {

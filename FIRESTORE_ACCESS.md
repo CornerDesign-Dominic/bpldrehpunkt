@@ -280,3 +280,15 @@ Empfehlungen selbst sowie `mailboxRecommendationSubscriptions` und
 ## Haftbarhaltung aus Auftragsdaten
 
 Der Vorlagenzugriff erlaubt über eigene, serverseitig reduzierte Callables die TA-Suche und den bewussten DyCoS-Abruf mit Speicherung, ohne allgemeine Import-/Auftragsrechte zu verleihen. Die Rules bleiben unverändert; `liabilityWordingQuotas` ist nur serverseitig erreichbar. Vertrag und Abnahme: [Haftbarhaltung](docs/operations/liability-letters.md).
+
+
+## Maileinordnung – Dev-Paket 05.11.2026
+
+Der eigene Qualitätsreiter nutzt mailTriageQuality (view/edit); Bereinigung verlangt
+zusätzlich mailTriageCleanup=edit. Beide starten ohne Freigabe. Alle Lese-/Schreib- und
+Löschzugriffe auf mailboxTriageFeedback und mailboxTriageFeedbackStates sind direkt
+in Firestore gesperrt, auch für Superadmins; die neuen Callables prüfen aktive
+Profile, separate Qualitätsrechte bzw. den ursprünglichen Postfach-/Aktionszugriff.
+Die Freigabe des Qualitätsreiters öffnet keine Originalpostfächer. Quellenbelege sind
+auf gespeicherte Auszüge begrenzt. Vertrag: [Maileinordnung](docs/operations/mail-triage.md).
+Bereitstellung ausschließlich in Dev, siehe [Releasebeleg](docs/operations/releases/mail-triage-dev-2026-11-05.md).

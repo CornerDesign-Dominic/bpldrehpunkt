@@ -134,6 +134,7 @@ export function createMailboxActionStore(call, { setTimer = setTimeout, clearTim
     start: (identity, kind, data) => mutate(identity, kind, 'start', data),
     discard: (identity, kind) => mutate(identity, kind, 'discard'),
     complete: (identity, kind, proof) => mutate(identity, kind, 'complete', proof),
+    reopen: (identity, kind) => mutate(identity, kind, 'reopen'),
     dispose() {
       disposed = true
       polling.forEach(clearTimer)

@@ -18,7 +18,7 @@ export default function MailActionIndicators({ identity, actions, recommendation
   if (!visible.length) return null
   return <span className="mailbox-action-indicators">{visible.map(({ kind, action }) => {
     const Icon = icons[kind]
-    const status = action.state === 'failed' ? language === 'en' ? 'Failed' : 'Fehlgeschlagen' : action.state === 'recommended' ? language === 'en' ? 'AI recommendation' : 'KI-Empfehlung' : action.state === 'running' ? language === 'en' ? 'Running' : 'Wird ausgewertet' : action.state === 'review' ? language === 'en' ? 'Review required' : 'Zur Übernahme bereit' : language === 'en' ? 'Completed' : 'Abgeschlossen'
+    const status = action.state === 'failed' ? language === 'en' ? 'Failed' : 'Fehlgeschlagen' : action.state === 'recommended' ? language === 'en' ? 'AI recommendation' : 'KI-Empfehlung' : action.state === 'running' ? language === 'en' ? 'Running' : 'Wird ausgewertet' : action.state === 'review' ? kind === 'invoice' ? language === 'en' ? 'In progress' : 'In Bearbeitung' : language === 'en' ? 'Review required' : 'Zur Übernahme bereit' : language === 'en' ? 'Completed' : 'Abgeschlossen'
     const label = `${names[kind][language === 'en' ? 1 : 0]} · ${status}`
     return <span key={kind} className={`mailbox-action-indicator mailbox-action-indicator--${action.state}`} role="img" aria-label={label} title={label}>{action.state === 'running' ? <span className="mailbox-action-spinner" aria-hidden="true" /> : <Icon aria-hidden="true" />}</span>
   })}</span>

@@ -1,0 +1,30 @@
+.mail-triage-quality-page { min-width: 0; }
+.mail-triage-quality-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 18px; }
+.mail-triage-quality-filters .form-field { display: grid; gap: 5px; flex: 1 1 150px; min-width: 130px; }
+.mail-triage-quality-list-tools, .mail-triage-quality-pagination, .mail-triage-quality-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.mail-triage-quality-list-tools > span { margin-right: auto; color: var(--text-secondary); }
+.mail-triage-quality-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.mail-triage-quality-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mail-triage-quality-table th, .mail-triage-quality-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+.mail-triage-quality-table th { color: var(--text-secondary); background: var(--surface-secondary); }
+.mail-triage-quality-table td { overflow-wrap: anywhere; }
+.mail-triage-quality-table td:first-child, .mail-triage-quality-table th:first-child { white-space: nowrap; }
+.mail-triage-quality-pagination { justify-content: flex-end; }
+.mail-triage-quality-meta { font-size: 13px; color: var(--text-secondary); }
+.mail-triage-quality-meta strong { color: var(--text-primary); }
+.mail-triage-quality-answers { margin: 12px 0 22px; }
+.mail-triage-quality-answers > div { display: grid; grid-template-columns: minmax(130px, 30%) minmax(0, 1fr); gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.mail-triage-quality-answers dt { font-weight: 650; color: var(--text-secondary); }
+.mail-triage-quality-answers dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-triage-quality-answers details, .mail-triage-quality-proposals details { margin-top: 8px; padding: 9px; font-size: 12px; }
+.mail-triage-quality-answers blockquote, .mail-triage-quality-proposals blockquote { margin: 8px 0 0; padding-left: 10px; border-left: 2px solid var(--border-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mail-triage-quality-proposals { display: grid; gap: 10px; list-style: none; padding: 0; }
+.mail-triage-quality-proposals li { padding: 12px; border: 1px solid var(--border); border-radius: 7px; }
+.mail-triage-quality-proposals small { display: block; color: var(--text-secondary); margin-top: 4px; }
+.mail-triage-quality-proposals p { margin: 7px 0; white-space: pre-wrap; }
+.mail-triage-quality-muted { color: var(--text-secondary); }
+.mail-triage-quality-warning { color: var(--status-warning-text); background: var(--status-warning-background); padding: 10px; border-radius: 6px; }
+.mail-triage-quality-detail-actions > .button--danger { margin-right: auto; }
+@media (max-width: 600px) { .mail-triage-quality-answers > div { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+
+.mail-triage-quality-subject { font-weight: 650; overflow-wrap: anywhere; }

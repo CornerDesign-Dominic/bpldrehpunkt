@@ -32,6 +32,7 @@ import MailboxConnectionsProvider from './mailboxes/MailboxConnectionsProvider.j
 const QualityPage = lazy(() => import('./pages/QualityPage.jsx'))
 const KnowledgeCatalogPage = lazy(() => import('./pages/KnowledgeCatalogPage.jsx'))
 const KnowledgeDetailPage = lazy(() => import('./pages/KnowledgeDetailPage.jsx'))
+const MailTriageQualityPage = lazy(() => import('./pages/MailTriageQualityPage.jsx'))
 const KnowledgeGapsPage = lazy(() => import('./pages/KnowledgeGapsPage.jsx'))
 const QualityProblemDetailPage = lazy(() => import('./pages/QualityProblemDetailPage.jsx'))
 const QualityMeetingDetailPage = lazy(() => import('./pages/QualityMeetingDetailPage.jsx'))
@@ -115,6 +116,7 @@ export default function App() {
         <Route path="/qualitaet/handbuch/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="rules" kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage kind="rule" /></PermissionRoute>} />
+        <Route path="/qualitaet/maileinordnung" element={<PermissionRoute module="mailTriageQuality"><MailTriageQualityPage /></PermissionRoute>} />
         <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
         </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />

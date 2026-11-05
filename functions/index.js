@@ -1,3 +1,4 @@
+import { submitMailboxTriageFeedbackHandler, listMailboxTriageFeedbackHandler, updateMailboxTriageFeedbackHandler, deleteMailboxTriageFeedbackHandler } from './mailboxTriageFeedback.js'
 import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, maintainMailboxRecommendationSubscriptionsHandler, mailboxRecommendationWebhookHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
@@ -179,6 +180,10 @@ export const getMailboxRecommendationSettings = onCall(mailboxOptions, getMailbo
 export const setMailboxRecommendationSettings = onCall(mailboxOptions, setMailboxRecommendationSettingsHandler)
 export const listManagedMailboxRecommendations = onCall(mailboxOptions, listManagedMailboxRecommendationsHandler)
 export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
+export const submitMailboxTriageFeedback = onCall(mailboxOptions, submitMailboxTriageFeedbackHandler)
+export const listMailboxTriageFeedback = onCall(mailboxOptions, listMailboxTriageFeedbackHandler)
+export const updateMailboxTriageFeedback = onCall(mailboxOptions, updateMailboxTriageFeedbackHandler)
+export const deleteMailboxTriageFeedback = onCall(mailboxOptions, deleteMailboxTriageFeedbackHandler)
 export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
 export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
 export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
@@ -223,7 +228,7 @@ export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', sc
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'contracts', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'contracts', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'mailTriageCleanup']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
