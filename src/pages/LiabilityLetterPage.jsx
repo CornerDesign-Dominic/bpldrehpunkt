@@ -171,7 +171,7 @@ export default function LiabilityLetterPage() {
     <div className="liability-page">
       <div className="liability-page__header"><div><h2><StaticText source={"Haftbarhaltung"} /></h2></div></div>
       <LiabilityOrderPicker key={`picker-${documentVersion}`} onActivityChange={setOrderActivity} onSelect={chooseOrder} onImported={applyOrder} />
-      <LiabilityLetterForm key={`form-${documentVersion}`} hideStops={Array.isArray(documentData.selectedStops)} enableWording documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={orderBusy ? undefined : requestNewDocument} orderActivity={orderActivity} orderContent={<>
+      <LiabilityLetterForm key={`form-${documentVersion}`} title={w('Transportdaten für das Dokument', 'Transport details for the document')} hideStops={Array.isArray(documentData.selectedStops)} enableWording documentData={documentData} onChange={updateDocumentData} aiReviewFields={fieldsNeedingReview} onNew={orderBusy ? undefined : requestNewDocument} orderActivity={orderActivity} orderContent={<>
         {hasMissingOrderData && <p className="liability-data-warning" role="status">{w('Die Auftragsdaten sind unvollständig. Bitte fehlende Anschriften oder Termine ergänzen und die übernommenen Angaben prüfen.', 'The order data is incomplete. Please add missing addresses or dates and review the imported details.')}</p>}
         {selectedOrder && <LiabilityStopSelection key={`stops-${documentVersion}-${orderRevision}`} order={selectedOrder} selectedStops={documentData.selectedStops || []} onChange={value => updateDocumentData('selectedStops', value)} />}
       </>} />

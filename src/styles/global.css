@@ -2425,7 +2425,7 @@ dialog.transport-order-import-dialog .data-table :is(td, th) { white-space: norm
 .liability-stop-option small { color: var(--text-secondary); }
 
 .liability-order-fields { position: relative; }
-.liability-order-fields__fieldset { min-width: 0; margin: 0; padding: 14px 0 0; border: 0; border-top: 1px solid var(--border); display: grid; gap: 14px; }
+.liability-order-fields__fieldset { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 14px; }
 .liability-order-fields__fieldset > legend { padding: 0 10px 0 0; color: var(--text-primary); font-weight: 600; }
 .liability-order-fields--loading .liability-order-fields__fieldset { opacity: .35; filter: grayscale(1); }
 .liability-order-fields__overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 22px; text-align: center; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: color-mix(in srgb, var(--section-background) 82%, transparent); }
