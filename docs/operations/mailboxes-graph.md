@@ -547,4 +547,5 @@ sowie manueller Rechnungsabschluss sind im
 Die vereinbarten relativen Ankunftszeiten, überprüfbare Stationsherleitung,
 Vorschlagskennzeichnung und Herkunft in der Historie sind im
 [Statusvertrag](status-mail-ingest.md#lokales-sammelpaket-hergeleitete-ankunftsangaben-05112026)
-festgehalten. Nur lokal gesammelt; keine Veröffentlichung auf Dev oder Main.
+festgehalten. Dev-Veröffentlichung und Abnahmegrenzen im
+[Releasebeleg](releases/status-replies-dev-2026-11-05.md); Main bleibt unverändert.

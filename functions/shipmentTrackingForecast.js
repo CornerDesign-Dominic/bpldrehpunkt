@@ -1,3 +1,4 @@
+import { hasApproximateTrackingTime } from './shared/shipmentTrackingProgress.js'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
@@ -81,30 +82,43 @@ export async function refreshShipmentTrackingForecastHandler(request) {
   if (forecast.kind === 'none') throw new HttpsError('failed-precondition', forecast.message)
   if (['arrival', 'completed'].includes(forecast.kind)) {
     const current = { ...serializable(forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: request.auth.uid }
-    await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+    await result.trackingRef.update({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() })
     return { forecast: publicForecast(forecast) }
   }
   const record = { ...serializable(forecast), trigger: request.data?.trigger === 'automatic' ? 'automatic' : 'manual', createdAt: FieldValue.serverTimestamp(), createdBy: request.auth.uid }
   const current = { ...serializable(forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: request.auth.uid }
   await result.trackingRef.collection('forecastHistory').add(record)
-  await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  await result.trackingRef.update({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() })
   return { forecast: publicForecast(forecast) }
 }
 
 /** Server-side event adapter. The caller provides no mail data and this never
  * sends mail; it only persists a new, traceable calculation. */
+export function shipmentTrackingForecastRefreshKind(before = {}, after = {}) {
+  const value = (tracking, field) => tracking?.[field]?.toMillis?.() ?? tracking?.[field] ?? null
+  const changed = field => value(before, field) !== value(after, field)
+  const precisionChanged = field => hasApproximateTrackingTime(before, field) !== hasApproximateTrackingTime(after, field)
+  if (['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'actualDepartureLoadingAt'].some(changed) || precisionChanged('actualArrivalLoadingAt')) return 'forecast'
+  if (['actualArrivalUnloadingAt', 'unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some(changed) || precisionChanged('actualArrivalUnloadingAt')) return 'arrival'
+  return null
+}
+
 export async function refreshAutomaticShipmentTrackingForecast(orderId) {
   const result = await calculate(orderId)
-  if (!result.trackingRef || result.forecast.kind === 'none') return null
+  if (!result.trackingRef) return null
   const forecast = result.forecast
+  if (forecast.kind === 'none') {
+    if (forecast.arrivalTimeApproximate) await result.trackingRef.update({ currentForecast: { ...serializable(forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: 'system' }, updatedAt: FieldValue.serverTimestamp() })
+    return null
+  }
   const record = { ...serializable(forecast), trigger: 'automatic', createdAt: FieldValue.serverTimestamp(), createdBy: 'system' }
   const current = { ...serializable(forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: 'system' }
   if (['arrival', 'completed'].includes(forecast.kind)) {
-    await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+    await result.trackingRef.update({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() })
     return forecast
   }
   await result.trackingRef.collection('forecastHistory').add(record)
-  await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  await result.trackingRef.update({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() })
   return forecast
 }
 
@@ -116,7 +130,7 @@ export async function finalizeShipmentTrackingForecastArrival(orderId) {
   // A correction may remove the terminal fact; restore the current projection
   // without inventing another forecast-history calculation.
   const current = result.forecast.kind === 'none' ? null : { ...serializable(result.forecast), refreshedAt: FieldValue.serverTimestamp(), refreshedBy: 'system' }
-  await result.trackingRef.set({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+  await result.trackingRef.update({ currentForecast: current, updatedAt: FieldValue.serverTimestamp() })
   return result.forecast
 }
 

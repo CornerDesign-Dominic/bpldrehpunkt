@@ -52,7 +52,7 @@ import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHand
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
-import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, shipmentTrackingMailAttentionChanged, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
+import { shipmentTrackingForecastRefreshKind, finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, shipmentTrackingMailAttentionChanged, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
 import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
 import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, listCustomerImportQueueHandler, releaseCustomerImportRowHandler } from './customerImports.js'
 import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
@@ -151,16 +151,9 @@ export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ regio
   if (!event.data?.after.exists) return
   const before = event.data.before.exists ? event.data.before.data() : {}
   const after = event.data.after.data()
-  const forecastFields = ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'actualDepartureLoadingAt']
-  const changed = forecastFields.some((field) => {
-    const oldValue = before?.[field]?.toMillis?.() ?? before?.[field] ?? null
-    const newValue = after?.[field]?.toMillis?.() ?? after?.[field] ?? null
-    return oldValue !== newValue
-  })
-  const oldUnload = before?.actualArrivalUnloadingAt?.toMillis?.() ?? before?.actualArrivalUnloadingAt ?? null
-  const newUnload = after?.actualArrivalUnloadingAt?.toMillis?.() ?? after?.actualArrivalUnloadingAt ?? null
-  if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
-  else if (oldUnload !== newUnload || ['unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some((field) => (before[field]?.toMillis?.() ?? before[field] ?? null) !== (after[field]?.toMillis?.() ?? after[field] ?? null))) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
+  const refreshKind = shipmentTrackingForecastRefreshKind(before, after)
+  if (refreshKind === 'forecast') await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
+  else if (refreshKind === 'arrival') await finalizeShipmentTrackingForecastArrival(event.params.orderId)
 })
 export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3, retry: true }, async (event) => {
   if (!event.data) return

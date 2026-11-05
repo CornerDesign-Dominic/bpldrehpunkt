@@ -1,4 +1,4 @@
-import { closedShipmentTrackingForecast, shipmentTrackingProgress } from './shared/shipmentTrackingProgress.js'
+import { closedShipmentTrackingForecast, hasApproximateTrackingTime, shipmentTrackingProgress } from './shared/shipmentTrackingProgress.js'
 import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -43,9 +43,11 @@ export function forecastForList(value, settings, now = new Date(), tracking = nu
   if (closed) return closed
   const actualUnloading = asMillis(tracking?.actualArrivalUnloadingAt)
   if (Number.isFinite(actualUnloading)) {
+    if (hasApproximateTrackingTime(tracking, 'actualArrivalUnloadingAt')) return { kind: 'arrival', state: 'unknown', arrivalTimeApproximate: true, actualArrivalUnloadingAt: new Date(actualUnloading).toISOString(), message: 'Ankunft erfolgt · genaue Zeit unbekannt' }
     const slotEnd = asMillis(imported?.unloading?.window?.until) ?? asMillis(imported?.unloading?.window?.from)
     return { kind: 'arrival', state: !Number.isFinite(slotEnd) || actualUnloading <= slotEnd ? 'green' : 'yellow' }
   }
+  if (!tracking?.actualDepartureLoadingAt && tracking?.actualArrivalLoadingAt && hasApproximateTrackingTime(tracking, 'actualArrivalLoadingAt')) return { kind: 'none', state: 'unknown', arrivalTimeApproximate: true, message: 'Ladeankunft bestätigt · genaue Ankunftszeit unbekannt; keine zeitgenaue Prognosegrundlage.' }
   const progress = shipmentTrackingProgress(tracking || {})
   if (progress.reachedUnloading) return { kind: 'completed', state: 'unknown', message: progress.unloaded ? 'Transport beendet · Ankunftszeit fehlt' : 'Entladung läuft · Ankunftszeit fehlt' }
   if (!value || typeof value !== 'object' || value.kind !== 'forecast') return value || null

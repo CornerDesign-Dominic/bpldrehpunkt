@@ -1,3 +1,4 @@
+import { refreshAutomaticShipmentTrackingForecast, shipmentTrackingForecastRefreshKind } from './shipmentTrackingForecast.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import process from 'node:process'
@@ -133,5 +134,34 @@ test('emulator: a unitless distance reply remains pending in automatic ingestion
     assert.equal(JSON.stringify(stored).includes(question), false)
     assert.equal((await tracking.get()).exists, false)
     assert.equal((await tracking.collection('events').get()).empty, true)
+  } finally { await db.terminate(); await deleteApp(app) }
+})
+
+
+test('emulator: approximate loading clears a stored numeric forecast and same-clock exact correction removes approximation', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async () => {
+  const projectId = process.env.GCLOUD_PROJECT || 'demo-tracking-precision-release'
+  assert.ok(projectId.startsWith('demo-'))
+  const app = initializeApp({ projectId }), db = getFirestore(app)
+  const orderId = `precision-${randomUUID()}`, trackingRef = db.doc(`transportOrderTrackings/${orderId}`)
+  try {
+    await db.doc(`transportOrders/${orderId}`).set({ imported: { loading: { window: { from: '2026-11-05T12:00:00Z', until: '2026-11-05T14:00:00Z' } }, unloading: { window: { from: '2026-11-05T16:00:00Z', until: '2026-11-05T17:00:00Z' } } } })
+    await db.doc(`transportOrderRoutes/${orderId}`).set({ roundedDistanceKm: 100 })
+    await trackingRef.set({ lifecycleStatus: 'active', stageId: 'loading', actualArrivalLoadingAt: '2026-11-05T13:10:00Z', fieldSources: { actualArrivalLoadingAt: { derivation: { timingApproximate: true } } }, currentForecast: { kind: 'forecast', state: 'green', onTimeSharePercent: 100, oldNumericField: 42 } })
+    await refreshAutomaticShipmentTrackingForecast(orderId)
+    const before = (await trackingRef.get()).data()
+    assert.equal(before.currentForecast.kind, 'none')
+    assert.equal(before.currentForecast.state, 'unknown')
+    assert.equal(before.currentForecast.onTimeSharePercent, undefined)
+    assert.equal(before.currentForecast.oldNumericField, undefined)
+    assert.equal(before.currentForecast.arrivalTimeApproximate, true)
+    await trackingRef.update({ fieldSources: {} })
+    const exact = (await trackingRef.get()).data()
+    assert.equal(shipmentTrackingForecastRefreshKind(before, exact), 'forecast')
+    await refreshAutomaticShipmentTrackingForecast(orderId)
+    const after = (await trackingRef.get()).data()
+    assert.equal(after.currentForecast.kind, 'forecast')
+    assert.equal(after.currentForecast.arrivalTimeApproximate, undefined)
+    assert.equal(after.currentForecast.oldNumericField, undefined)
+    assert.equal(shipmentTrackingForecastRefreshKind(exact, after), null)
   } finally { await db.terminate(); await deleteApp(app) }
 })

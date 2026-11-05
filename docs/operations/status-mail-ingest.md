@@ -1,5 +1,10 @@
 # Status-Postfach: Eingang und KI-Auswertung
 
+Dev-Freigabe 05.11.2026: Das gesammelte Zeitregel-/Antwortpaket wird gemeinsam
+veröffentlicht. Aktueller Nachweis und Abnahmegrenzen im
+[Releasebeleg](releases/status-replies-dev-2026-11-05.md). Die unten dokumentierten
+lokalen Prüfstände gingen dieser Freigabe voraus; Main/Produktion bleiben unverändert.
+
 Stand: 28.10.2026. Datenvertrag und Verarbeitung entsprechen dem geprüften
 Code. Die folgende Flow-Einrichtung und die damaligen manuellen Prüfungen
 beziehen sich auf Dev. Die Functions sind auch im Produktionsinventar vorhanden;
@@ -191,7 +196,7 @@ zuerst Status und Diagnose prüfen, nicht unkontrolliert mehrfach starten.
 
 ## Lokales Sammelpaket: hergeleitete Ankunftsangaben (05.11.2026)
 
-Dieser Nachtrag ist lokal umgesetzt, nicht auf Dev/Main veröffentlicht. Er gilt
+Dieser Nachtrag gehört zum Dev-Paket vom 05.11.2026; siehe Releasebeleg. Er gilt
 für die gemeinsame Statusinterpretation und ergänzt den persönlichen Postfachdialog.
 Die bisherige automatische Übernahme ausdrücklich belegter Angaben bleibt erhalten;
 hergeleitete Vorschläge werden niemals dadurch automatisch zu bestätigten Ist-Werten.
@@ -258,7 +263,7 @@ Abnahme mit echten neuen Mails erfolgt erst nach späterer ausdrücklicher Dev-F
 
 ## Lokales Sammelpaket: konkrete Antwort vor Verlaufsschätzung (05.11.2026)
 
-Ebenfalls nur lokal, ohne Veröffentlichung. Die unmittelbar beantwortete Frage
+Ebenfalls Teil des Dev-Pakets vom 05.11.2026. Die unmittelbar beantwortete Frage
 wird aus dem vorhandenen zitierten Schriftverkehr gelesen. Es gibt keine neue
 Kopie oder Versionierung des Fragetexts, keine zusätzlichen Graphabrufe und
 keinen neuen KI-Aufruf. Geänderte Vorlagen-/Versandtexte werden nicht anhand der

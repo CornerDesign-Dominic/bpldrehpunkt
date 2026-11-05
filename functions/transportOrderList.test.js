@@ -58,3 +58,16 @@ test('closed list rows always get a neutral house while retaining the arrival re
   assert.equal(result.state, 'neutral')
   assert.equal(result.arrivalState, 'yellow')
 })
+
+
+test('list preserves known arrival but does not judge punctuality or reuse numerical forecasts from surrogate time', () => {
+  const fieldSources = { actualArrivalUnloadingAt: { derivation: { timingApproximate: true } }, actualArrivalLoadingAt: { derivation: { timingApproximate: true } } }
+  const arrived = forecastForList({ kind: 'forecast', state: 'red' }, {}, new Date(), { actualArrivalUnloadingAt: '2026-11-05T13:10:00Z', fieldSources }, { unloading: { window: { until: '2026-11-05T12:00:00Z' } } })
+  assert.equal(arrived.kind, 'arrival')
+  assert.equal(arrived.state, 'unknown')
+  assert.equal(arrived.arrivalTimeApproximate, true)
+  const loading = forecastForList({ kind: 'forecast', state: 'green', onTimeSharePercent: 99 }, {}, new Date(), { actualArrivalLoadingAt: '2026-11-05T13:10:00Z', fieldSources })
+  assert.equal(loading.kind, 'none')
+  assert.equal(loading.state, 'unknown')
+  assert.equal(loading.onTimeSharePercent, undefined)
+})
