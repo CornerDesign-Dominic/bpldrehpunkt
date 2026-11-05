@@ -65,3 +65,31 @@ kein Rules-Deploy in diesem Release. Frontend über dev/Vercel nach Backendberei
 
 Main-Referenz vor Veröffentlichung: a4b274d09399bdfdbdb298e3b09b5842fcf01c71.
 Aktive Revisionen, Quellpaket und Frontendstatus werden nach Bereitstellung geprüft.
+
+
+## Aktive Backendbereitstellung
+
+Am 05.11.2026 erfolgreich ausschließlich auf db-bpl-drehpunkt-dev bereitgestellt.
+Anschließende Cloud-Abfrage: alle zwölf Exporte ACTIVE und identische
+Quellpaket-Prüfsumme 7VtW6SMyedxc+EbuYX7Sfg==. Codebasis f460b6d.
+
+| Export | Aktive Revision |
+| --- | --- |
+| processMailboxActionRun | processmailboxactionrun-00020-boy |
+| previewMailboxTracking | previewmailboxtracking-00005-duy |
+| applyMailboxTracking | applymailboxtracking-00007-kug |
+| processStatusMailAiOnCreate | processstatusmailaioncreate-00015-yuh |
+| retryStatusMailAi | retrystatusmailai-00014-tar |
+| updateManualShipmentTracking | updatemanualshipmenttracking-00018-kev |
+| getShipmentTrackingForecast | getshipmenttrackingforecast-00008-pih |
+| getShipmentTrackingAttention | getshipmenttrackingattention-00007-qas |
+| refreshShipmentTrackingForecast | refreshshipmenttrackingforecast-00007-veg |
+| refreshShipmentTrackingForecastOnUpdate | refreshshipmenttrackingforecastonupdate-00007-zaf |
+| refreshShipmentTrackingAttentionOnMail | refreshshipmenttrackingattentiononmail-00005-dax |
+| listTransportOrdersPage | listtransportorderspage-00022-fex |
+
+Der Frontendstand wird über dev/Vercel bereitgestellt; dessen erfolgreicher Build
+und die angemeldete Kontrolle von Postfach/Sendungsverfolgung sind zusätzliche
+Abschlusskriterien. Neue echte Antwortmails bleiben Gegenstand der Nutzerabnahme.
+Keine echten Testmails versendet, keine vorhandenen Statuszeiten zu Testzwecken
+geändert. Keine nachträgliche automatische Auswertung alter Mails gestartet.
