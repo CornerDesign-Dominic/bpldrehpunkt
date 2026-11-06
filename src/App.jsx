@@ -51,6 +51,7 @@ const NewsPage = lazy(() => import('./pages/NewsPage.jsx'))
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage.jsx'))
 const ContractManagementPage = lazy(() => import('./pages/ContractManagementPage.jsx'))
 const ContractDetailPage = lazy(() => import('./pages/ContractDetailPage.jsx'))
+const ContractSettingsPage = lazy(() => import('./pages/ContractSettingsPage.jsx'))
 const MailboxesPage = lazy(() => import('./pages/MailboxesPage.jsx'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
 const TeamPage = lazy(() => import('./pages/TeamPage.jsx'))
@@ -155,6 +156,7 @@ export default function App() {
         <Route path="/vertragsmanagement" element={null} />
         <Route path="/vertragsmanagement/vertraege" element={<ContractManagementPage />} />
         <Route path="/vertragsmanagement/vertraege/:id" element={<ContractDetailPage />} />
+        <Route path="/vertragsmanagement/einstellungen" element={<ContractSettingsPage />} />
         </Route>
         <Route element={<PermissionRoute anyModules={documentsToolsModules}><DocumentsToolsLayout /></PermissionRoute>}>
         <Route path="/dokumente-werkzeuge" element={null} />

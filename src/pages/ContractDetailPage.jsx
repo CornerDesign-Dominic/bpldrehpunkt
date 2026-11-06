@@ -8,11 +8,15 @@ import { calendarPath, deadlineIdFromHash } from '../lib/recordNavigation.js'
 import BackLink from '../components/ui/BackLink.jsx'
 import ConfirmDialog from '../components/ui/ConfirmDialog.jsx'
 import ContractRecordModal from '../components/contracts/ContractRecordModal.jsx'
+import ContractAllocationCard from '../components/contracts/ContractAllocationCard.jsx'
+import ContractRemarkCard from '../components/contracts/ContractRemarkCard.jsx'
+import { listContractCostCategories } from '../lib/contractCostCategories.js'
 import ContractDocumentsSection from '../components/contracts/ContractDocumentsSection.jsx'
 import { EditIcon, TrashIcon } from '../components/icons.jsx'
 import '../styles/contracts.css'
 
 const historyLabels = {
+  payment: ['Zahlungsrhythmus geändert', 'Payment schedule changed'], remark: ['Bemerkung geändert', 'Remark changed'], allocation: ['Kostenzuordnung geändert', 'Cost allocation changed'],
   details: ['Vertragsdaten geändert', 'Contract details changed'],
   'position.save': ['Position gespeichert', 'Position saved'], 'position.delete': ['Position gelöscht', 'Position deleted'],
   'deadline.save': ['Termin / Frist gespeichert', 'Appointment / deadline saved'], 'deadline.delete': ['Termin / Frist gelöscht', 'Appointment / deadline deleted'],
@@ -23,8 +27,8 @@ const historyLabels = {
 async function loadFile(id) {
   const contract = await getContract(id)
   if (!contract) return { contract: null, positions: [], deadlines: [], notes: [], history: [] }
-  const [positions, deadlines, notes, history] = await Promise.all(['positions', 'deadlines', 'notes', 'history'].map((kind) => listContractRecords(id, kind)))
-  return { contract, positions, deadlines, notes, history }
+  const [positions, deadlines, notes, history, categories] = await Promise.all([...['positions', 'deadlines', 'notes', 'history'].map((kind) => listContractRecords(id, kind)), listContractCostCategories()])
+  return { contract, positions, deadlines, notes, history, categories }
 }
 
 export default function ContractDetailPage() {
@@ -75,8 +79,14 @@ export default function ContractDetailPage() {
   }
   async function saveRecord(values, options) {
     setError(''); setMessage('')
-    await mutateContract(id, { ...options, action: editor.kind === 'details' ? 'details' : `${editor.kind}.save`, values })
+    await mutateContract(id, { ...options, action: ['details', 'payment'].includes(editor.kind) ? editor.kind : `${editor.kind}.save`, values })
     setEditor(null)
+    setMessage(text('Änderung gespeichert.', 'Change saved.'))
+    await refresh(true)
+  }
+  async function saveRoot(action, values, options) {
+    setError(''); setMessage('')
+    await mutateContract(id, { ...options, action, values })
     setMessage(text('Änderung gespeichert.', 'Change saved.'))
     await refresh(true)
   }
@@ -120,7 +130,8 @@ export default function ContractDetailPage() {
   const totals = contractCostTotals(positions)
   return <div className="contracts-page contract-file">
     <BackLink to="/vertragsmanagement/vertraege" />
-    <header className="detail-header"><div><p>{text('Vertragsakte', 'Contract file')}{contract.contractNumber ? ` · ${contract.contractNumber}` : ''}</p><h2>{contract.partnerName}</h2></div></header>
+    <header className="detail-header"><div><h2>{contract.partnerName}</h2></div></header>
+    <ContractRemarkCard key={id} contract={contract} editable={editable} onSave={(values, options) => saveRoot('remark', values, options)} />
     {message && <p className="contract-save-message" role="status">{message}</p>}
     {error && <div className="form-error" role="alert"><p>{errorText}</p><button className="button button--secondary" onClick={() => refresh()}>{text('Akte neu laden', 'Reload file')}</button></div>}
     <div className="todo-detail-layout contract-file__grid"><main className="todo-detail-main">
@@ -140,6 +151,7 @@ export default function ContractDetailPage() {
           {!deadlines.length && <tr><td className="table-state" colSpan={editable ? 4 : 3}>{text('Noch keine Termine oder Fristen hinterlegt.', 'No appointments or deadlines yet.')}</td></tr>}
         </tbody></table></div>
       </section>
+      <ContractAllocationCard contract={contract} categories={data.categories || []} editable={editable} onSave={(values, options) => saveRoot('allocation', values, options)} />
       <ContractDocumentsSection key={id} contractId={id} canEdit={editable} onChanged={() => refresh(true)} />
       <section className="todo-updates" aria-labelledby="contract-notes-title"><div className="todo-updates__heading"><h3 id="contract-notes-title">{text('Notizen', 'Notes')}</h3></div>
         {editable && <form className="todo-updates__form" onSubmit={addNote}><label className="form-field contract-note-input"><span className="sr-only">{text('Neue Notiz', 'New note')}</span><textarea rows={3} maxLength={4000} value={note} disabled={noteSaving} onChange={(event) => setNote(event.target.value)} /></label><button className="button" type="submit" disabled={noteSaving || !note.trim()}>{noteSaving ? text('Wird gespeichert …', 'Saving …') : text('Notiz hinzufügen', 'Add note')}</button></form>}
@@ -152,6 +164,7 @@ export default function ContractDetailPage() {
       </section>
     </main><aside className="todo-detail-sidebar">
       <section><div className="todo-detail-section-heading"><h3>{text('Vertragsdaten', 'Contract details')}</h3>{editable && <button className="button button--secondary" onClick={() => setEditor({ kind: 'details', entry: contract })}>{text('Bearbeiten', 'Edit')}</button>}</div><dl><div><dt>{text('Vertragspartner', 'Contract partner')}</dt><dd>{contract.partnerName}</dd></div><div><dt>{text('Vertragsnummer', 'Contract number')}</dt><dd>{contract.contractNumber || '—'}</dd></div><div><dt>{text('Kundennummer', 'Customer number')}</dt><dd>{contract.customerNumber || '—'}</dd></div></dl>{contract.description && <p className="contract-description">{contract.description}</p>}</section>
+      <section><div className="todo-detail-section-heading"><h3>{text('Zahlung', 'Payment')}</h3>{editable && <button className="button button--secondary" onClick={() => setEditor({ kind: 'payment', entry: contract })} aria-label={text('Zahlungsrhythmus bearbeiten', 'Edit payment schedule')} title={text('Bearbeiten', 'Edit')}><EditIcon size={16} /></button>}</div>{contract.paymentCycle ? <dl><div><dt>{text('Zahlungsrhythmus', 'Payment cycle')}</dt><dd>{contractLabel(CONTRACT_CYCLES, contract.paymentCycle, language)}</dd></div><div><dt>{text('Zahldatum / Bezugsdatum', 'Payment / anchor date')}</dt><dd>{formatContractDate(contract.paymentAnchorDate, language)}</dd></div><div><dt>{text('Nächstes Zahldatum', 'Next payment date')}</dt><dd>{formatContractDate(nextContractCharge(contract.paymentAnchorDate, contract.paymentCycle), language)}</dd></div></dl> : <p>{text('Noch kein Zahlungsrhythmus hinterlegt.', 'No payment schedule yet.')}</p>}</section>
       <section><h3>{text('Nächster Termin / Frist', 'Next appointment / deadline')}</h3>{nextDeadline ? <><strong>{nextDeadline.title}</strong><p>{formatContractDate(nextDeadline.date, language)}{nextDeadline.time ? ` · ${nextDeadline.time}` : ''}</p></> : <p>{text('Keine offenen Termine oder Fristen.', 'No open appointments or deadlines.')}</p>}</section>
       <section><h3>{text('Systeminformationen', 'System information')}</h3><dl><div><dt>{text('Angelegt am', 'Created on')}</dt><dd>{formatContractTimestamp(contract.createdAt, language)}</dd></div>{contract.updatedAt && <><div><dt>{text('Zuletzt geändert am', 'Last changed on')}</dt><dd>{formatContractTimestamp(contract.updatedAt, language)}</dd></div><div><dt>{text('Zuletzt geändert von', 'Last changed by')}</dt><dd>{contract.updatedByName || '—'}</dd></div></>}</dl></section>
     </aside></div>
