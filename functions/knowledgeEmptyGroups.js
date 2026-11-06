@@ -17,10 +17,10 @@ export function normalizeEmptyKnowledgeGroup(data) {
 export async function persistEmptyKnowledgeGroup(db, input, actor) {
   const groupRef = db.doc(`knowledgeGaps/${input.id}`)
   return db.runTransaction(async tx => {
-    const [snapshot, user, cases] = await Promise.all([
-      tx.get(groupRef), tx.get(db.doc(`users/${actor.uid}`)),
-      tx.get(db.collection('knowledgeGapEvidence').where('gapId', '==', input.id)),
-    ])
+    // Begin the transaction before subsequent reads can contend with a new case.
+    const snapshot = await tx.get(groupRef)
+    const user = await tx.get(db.doc(`users/${actor.uid}`))
+    const cases = await tx.get(db.collection('knowledgeGapEvidence').where('gapId', '==', input.id))
     const profile = user.data()
     requireKnowledgeAccess(profile, true, 'knowledgeGaps')
     if (input.action === 'createArticle') requireKnowledgeAccess(profile, true)

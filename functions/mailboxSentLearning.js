@@ -48,9 +48,11 @@ export async function captureSentMailboxLearning({ db, scopeId, generation, conn
   const receiptRef = db.doc(`knowledgeGapOccurrences/${evidenceId}`)
   return db.runTransaction(async tx => {
     const sourceRefs = (selection.sources || []).map(source => db.doc(`${source.kind === 'article' ? 'knowledgeArticles' : 'knowledgeRules'}/${source.id}`))
-    const [scopeSnapshot, owner, liveConnection, currentEvidence, currentGroup, ...sources] = await Promise.all([
-      tx.get(scopeRef), tx.get(db.doc(`users/${connection.ownerId}`)), tx.get(db.doc(`mailboxConnections/${connection.id}`)), tx.get(evidenceRef), tx.get(groupRef), ...sourceRefs.map(ref => tx.get(ref)),
-    ])
+    // Start one transactional read batch. Concurrent first tx.get() calls can
+    // race the transaction's initial lock acquisition when copies arrive together.
+    const [scopeSnapshot, owner, liveConnection, currentEvidence, currentGroup, ...sources] = await tx.getAll(
+      scopeRef, db.doc(`users/${connection.ownerId}`), db.doc(`mailboxConnections/${connection.id}`), evidenceRef, groupRef, ...sourceRefs,
+    )
     const scope = scopeSnapshot.data(), live = liveConnection.data()
     if (currentEvidence.exists) return { captured: false, evidenceId }
     if (!scope?.enabled || scope.generation !== generation || sentAt < scope.since) return { skipped: true }
