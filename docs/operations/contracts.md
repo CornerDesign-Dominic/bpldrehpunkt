@@ -3,9 +3,10 @@
 Stand: 05.11.2026. Vertragsliste und erweiterte Vertragsakte sind auf Dev
 veröffentlicht und im echten Browserablauf geprüft. Der konkrete Nachweis steht
 im [Dev-Abschlussbeleg](releases/contracts-file-dev-2026-11-05.md).
-Die nachfolgend beschriebenen Ergänzungen zu Zahlung, Bemerkung und
-Kostenzuordnung sind zunächst lokal implementiert; der verlinkte Dev-Beleg
-bezieht sich auf den davor veröffentlichten Stand.
+Die Ergänzungen zu Zahlung, Bemerkung und Kostenzuordnung wurden am 06.11.2026
+mit dem vollständigen Release zusammengeführt. Der alte Dev-Beleg beschreibt
+den davor veröffentlichten Stand; die neue Abnahme und Bereitstellung stehen
+im [Releasebeleg vom 06.11.](releases/production-2026-11-06-status.md).
 Führende Zugriffsregeln stehen in
 [FIRESTORE_ACCESS.md](../../FIRESTORE_ACCESS.md).
 

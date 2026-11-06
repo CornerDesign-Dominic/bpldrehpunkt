@@ -75,6 +75,29 @@ Rules und Indizes haben eigene Deployziele: `firestore:rules`,
 auslösen, stellt aber keine Firebase-Function bereit. Ein erfolgreicher Build
 belegt keine vollständige Veröffentlichung.
 
+### Kompakte Firestore-Regeln bei Cloud-Compilerfehlern
+
+Am 06.11.2026 meldete der Cloud-Dienst für die lesbare Regeldatei und auch für
+die unveränderte Main-Fassung HTTP 503; eine kompakte, fachlich identische
+Fassung wurde erfolgreich kompiliert und veröffentlicht. Die Ursache im
+Cloud-Dienst ist nicht abschließend geklärt. Keine Berechtigung vereinfachen,
+um diesen Fehler zu umgehen. Bei diesem Fehler kann der geprüfte Generator
+verwendet werden:
+
+```powershell
+node --test scripts/compact-firestore-rules.test.mjs
+node scripts/compact-firestore-rules.mjs
+firebase deploy --config tmp/firestore-release/firebase.json --only firestore:rules --project db-bpl-drehpunkt-dev
+```
+
+Führende Quelle bleibt `firestore.rules`. Der Generator entfernt ausschließlich
+Kommentare und entbehrliche Leerzeichen; Zeichenketten, Tokenabstände und
+Pfadsubstitutionen bleiben erhalten. Die erzeugte temporäre Konfiguration
+enthält nur Firestore-Regeln, keine Functions, Indizes oder Storage-Regeln.
+Für einen freigegebenen Produktionsrelease das Projekt ausdrücklich auf
+`db-bpl-drehpunkt` setzen. Nach Bereitstellung die aktive Quelle gegen die
+führende Datei nach derselben Kompaktierung vergleichen.
+
 ## Abschluss und Rückkehr
 
 Nach dem Release den betroffenen Benutzerablauf, Fehlerzustände und benötigte

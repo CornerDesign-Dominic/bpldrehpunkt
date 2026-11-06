@@ -155,6 +155,17 @@ die Konfiguration bestätigt, die tatsächliche Graph-Wirksamkeit der vier neuen
 Freigaben jedoch noch offen. Keine Rechteerweiterung als Umgehung vornehmen.
 Quelle: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac#limitations
 
+Am 06.11.2026 wurde im ausdrücklich freigegebenen Gesamt-Produktionsrelease
+auch `Drehpunkt-Mail-Production-Functional-Read` an den zuvor exakt geprüften
+Funktionspostfach-Scope gebunden. Fünf positive Exchange-Prüfungen und das
+persönliche bb@ als negativer Fall bestätigt; kein unbeschränkter Entra-Grant.
+Die anschließenden Graph-Abfragen der vier UserMailbox-Adressen lieferten
+zunächst weiterhin HTTP 403. Microsoft nennt Cacheverzögerungen; diese Ursache
+ist für die konkreten Antworten nicht abschließend nachgewiesen. Die tatsächliche
+Graph-/Webhook-Wirksamkeit darf daher noch nicht als vollständig bestätigt
+ausgegeben werden. Aktueller Nachweis und offene Grenzen im
+[Releasebeleg](releases/production-2026-11-06-status.md).
+
 Ein kurzlebiges created-only Abonnement für rechnung@ gegen den aktualisierten
 Dev-Webhook wurde erfolgreich erstellt (HTTP 201, einschließlich Validierung)
 und unmittelbar gelöscht (HTTP 204). Keine Postfachinhalte ausgelesen, keine

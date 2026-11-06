@@ -26,6 +26,12 @@ wurden die sechs Dev-Secrets eingerichtet und die benötigten Dev-Functions
 am 29.10.2026 gezielt bereitgestellt. Identität, Zertifikatslaufzeit und Prüfstand stehen in
 [DyCoS-Schnittstellenplanung, Abschnitt 17](../planning/dycos-csv-import-uebergangsloesung.md#17-technische-dev-identität-und-authentifizierte-abrufprüfung).
 
+Am 06.11.2026 wurde der bestehende Produktions-TA-Flow um den begrenzten Abruf
+referenzierter Stationsanschriften erweitert. Produktionsadresse, Identität und
+SQL-Verbindung bleiben erhalten; keine Dev-Flow-URL übernommen. Ein lesender
+Produktionsabruf bestätigt `stationAddresses`. Umfang und Nachweise stehen im
+[Releasebeleg](releases/production-2026-11-06-status.md).
+
 In Vercel werden diese Variablennamen getrennt für Production und Preview im
 jeweils passenden Zielbereich hinterlegt. Die zugehörigen Werte bleiben in
 Vercel und werden weder in Git noch in dieser Dokumentation gespeichert. Für
