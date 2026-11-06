@@ -1,4 +1,4 @@
-import { closedShipmentTrackingForecast, shipmentTrackingProgress } from './shipmentTrackingProgress.js'
+import { closedShipmentTrackingForecast, shipmentTrackingProgress, hasApproximateTrackingTime } from './shipmentTrackingProgress.js'
 import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, normalizeShipmentTrackingForecastSettings } from './shipmentTrackingForecastSettings.js'
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
@@ -123,6 +123,7 @@ export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, ro
   const earliestUnloading = shipmentTrackingDate(imported?.unloading?.window?.from) || shipmentTrackingDate(imported?.unloading?.window?.until)
   const latestUnloading = shipmentTrackingDate(imported?.unloading?.window?.until) || earliestUnloading
   if (actualUnloading) {
+    if (hasApproximateTrackingTime(tracking, 'actualArrivalUnloadingAt')) return { kind: 'arrival', state: 'unknown', arrivalTimeApproximate: true, actualArrivalUnloadingAt: serializableDate(actualUnloading), loadingSlotStartAt: serializableDate(earliestLoading), loadingSlotEndAt: serializableDate(latestLoading), slotStartAt: serializableDate(earliestUnloading), deadlineAt: serializableDate(latestUnloading), message: 'Ankunft bestätigt · genaue Ankunftszeit unbekannt.' }
     return { kind: 'arrival', state: actualUnloading <= latestUnloading ? 'green' : 'yellow', actualArrivalUnloadingAt: serializableDate(actualUnloading), loadingSlotStartAt: serializableDate(earliestLoading), loadingSlotEndAt: serializableDate(latestLoading), slotStartAt: serializableDate(earliestUnloading), deadlineAt: serializableDate(latestUnloading), message: actualUnloading <= latestUnloading ? 'Tatsächliche Ankunft innerhalb des Entladefensters.' : 'Tatsächliche Ankunft nach dem Ende des Entladefensters.' }
   }
   const progress = shipmentTrackingProgress(tracking)
@@ -131,6 +132,7 @@ export function buildShipmentTrackingForecast({ tracking = {}, imported = {}, ro
   const actualDeparture = shipmentTrackingDate(tracking.actualDepartureLoadingAt)
   const actualArrivalLoading = shipmentTrackingDate(tracking.actualArrivalLoadingAt)
   const estimatedArrivalLoading = shipmentTrackingDate(tracking.estimatedArrivalLoadingAt)
+  if (!actualDeparture && actualArrivalLoading && hasApproximateTrackingTime(tracking, 'actualArrivalLoadingAt')) return { kind: 'none', state: 'unknown', source: 'actual_arrival_loading', arrivalTimeApproximate: true, message: 'Ladeankunft bestätigt · genaue Ankunftszeit unbekannt; keine zeitgenaue Prognosegrundlage.' }
   const source = actualDeparture ? 'actual_departure_loading' : actualArrivalLoading ? 'actual_arrival_loading' : estimatedArrivalLoading ? 'estimated_arrival_loading' : null
   if (!source) return { kind: 'none', state: 'none', message: 'Keine Prognosegrundlage vorhanden.' }
   const plannedDistanceKm = routeDistance(route)

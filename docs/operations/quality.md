@@ -1,4 +1,9 @@
-# Qualität: K.V.P. und Handbuch
+# Qualität: K.V.P., Wissen und Maileinordnung
+
+Der Fachreiter **Maileinordnung** mit getrennten Lese-,
+Bearbeitungs- und Bereinigungsrechten ist unter [Maileinordnung](mail-triage.md)
+beschrieben; Dev-Veröffentlichung siehe dortigen Releasebeleg. Die bestehenden Qualitätsbereiche bleiben
+erhalten.
 
 Der aktuelle Prozessumbau von Handbuch, Grundregeln und Wissenslücken einschließlich
 Postfach-KI ist in [Wissensmanagement](knowledge.md) beschrieben. Die folgenden

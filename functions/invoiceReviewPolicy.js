@@ -14,7 +14,10 @@ export const sameInvoiceCompany = (a, b) => {
 const field = (invoice, key) => invoice?.[key]?.value || ''
 const statusFor = color => ({ green: 'match', red: 'mismatch', yellow: 'unknown', gray: 'not_supplied', blue: 'info' })[color]
 export const coloredCheck = (key, label, actual, expected, color, message = '', extra = {}) => ({ key, label, actual: actual ?? null, expected: expected ?? null, color, status: statusFor(color), ...(message ? { message } : {}), ...extra })
-export function summarizeChecks(checks) { return checks.some(check => check.color === 'red' || !check.color && check.status === 'mismatch') ? 'mismatch' : checks.some(check => check.color === 'yellow' || !check.color && check.status === 'unknown') ? 'unknown' : 'match' }
+export function summarizeChecks(checks) {
+  const correctnessChecks = checks.filter(check => check.affectsCorrectness !== false)
+  return correctnessChecks.some(check => check.color === 'red' || !check.color && check.status === 'mismatch') ? 'mismatch' : correctnessChecks.some(check => check.color === 'yellow' || !check.color && check.status === 'unknown') ? 'unknown' : 'match'
+}
 export function compareCheck(key, label, actual, expected, { optional = false, secondary = false, equal = (a, b) => identity(a) === identity(b), format } = {}) {
   const color = !supplied(actual) || !supplied(expected) ? optional ? 'gray' : 'yellow' : equal(actual, expected) ? 'green' : 'red'
   return coloredCheck(key, label, actual, expected, color, '', { ...(format ? { format } : {}), ...(secondary ? { secondary: true } : {}) })

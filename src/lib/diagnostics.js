@@ -3,6 +3,7 @@ import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
+  contracts: 'Vertragsmanagement',
   'transport-orders': 'Transportaufträge',
   reminders: 'Erinnerungen',
   pallets: 'Paletten',
@@ -11,6 +12,7 @@ export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
   kvp: 'K.V.P.',
   handbook: 'Handbuch',
   knowledgeGaps: 'Wissenslücken',
+  mailTriageQuality: 'Maileinordnung',
   'dycos-import': 'DyCoS-Auftragsabruf',
   'dycos-master-data': 'DyCoS-Stammdatenabruf',
   mailboxes: 'Postfächer',

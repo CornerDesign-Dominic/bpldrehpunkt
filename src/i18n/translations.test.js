@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { defaultLanguage, localeForLanguage, normalizeLanguage, translate, translations } from './translations.js'
@@ -33,4 +34,22 @@ test('static interface translations retain the German default and reviewed terms
   assert.equal(translateStatic('en', 'Müller GmbH'), 'Müller GmbH')
   const value = { name: 'Müller GmbH' }
   assert.equal(translateStatic('en', value), value)
+})
+
+
+test('every static sidebar destination resolves to translated text before rendering', () => {
+  const sidebar = readFileSync(new URL('../components/layout/Sidebar.jsx', import.meta.url), 'utf8')
+  const items = sidebar.split('const navigationItems = [')[1].split('const navigationGroups')[0]
+  const labels = sidebar.split('const navigationLabelKeys = {')[1].split('function itemIsActive')[0]
+  const mappings = new Map([...labels.matchAll(/'([^']+)': '(nav\.[^']+)'/g)].map(match => [match[1], match[2]]))
+  const paths = [...items.matchAll(/to: '([^']+)'/g)].map(match => match[1])
+  assert.ok(paths.includes('/qualitaet/maileinordnung'))
+  for (const path of paths) {
+    const key = mappings.get(path)
+    assert.ok(key, `Missing sidebar translation mapping: ${path}`)
+    for (const language of ['de', 'en']) {
+      assert.equal(typeof translations[language][key], 'string', `${language}:${path}`)
+      assert.ok(translate(language, key).trim())
+    }
+  }
 })

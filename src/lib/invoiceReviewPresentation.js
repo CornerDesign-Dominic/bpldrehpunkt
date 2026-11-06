@@ -153,7 +153,10 @@ export function invoiceReviewDistribution(checks = []) {
   const counts = { green: 0, yellow: 0, red: 0 }
   for (const check of checks) {
     const color = invoiceCheckColor(check)
-    if (!invoiceCheckIsSecondary(check) && Object.hasOwn(counts, color)) counts[color]++
+    // Already-booked is an operational warning, not a correctness failure.
+    // Recognize old immutable reports which predate the explicit marker too.
+    const confirmedDuplicate = check.key === 'billingStatus' && check.comparisonOrigin === 'dycos_invoice_headers' && check.duplicate === true
+    if (check.affectsCorrectness !== false && !confirmedDuplicate && !invoiceCheckIsSecondary(check) && Object.hasOwn(counts, color)) counts[color]++
   }
   const total = counts.green + counts.yellow + counts.red
   const colors = Object.keys(counts)

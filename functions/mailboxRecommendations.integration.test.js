@@ -67,7 +67,14 @@ test('emulator: production subscription targets production callback without scan
 
 test('emulator: automatic mode dispatches once centrally without recommendations and mode changes invalidate old work', { skip: !enabled }, async () => {
   const dispatches = []
-  const f = await fixture({ classify: async () => ['invoice', 'terms', 'tracking'], startAutomaticActions: async input => { dispatches.push(input) } })
+  const kinds = ['invoice', 'terms', 'tracking']
+  const decision = {
+    version: 1, model: 'synthetic', promptVersion: 'mail-triage-v1', status: 'actionable',
+    answers: [{ key: 'topic', value: 'Transportstatus', sourceId: 'body', quote: 'Ankunft 18 Uhr' }],
+    actions: kinds.map(kind => ({ kind, confidence: 'high', reason: 'Synthetische Einordnung für Dispatchprüfung', sourceId: 'body', quote: 'Ankunft 18 Uhr' })),
+    coverage: { mail: true, forwarded: false, attachments: 'not_present', documentNames: [], unreadable: [] },
+  }
+  const f = await fixture({ classifyDecision: async () => ({ kinds, inspectAttachments: false, decision }), startAutomaticActions: async input => { dispatches.push(input) } })
   try {
     await f.activate()
     const previous = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}`).get()).data()
@@ -83,7 +90,17 @@ test('emulator: automatic mode dispatches once centrally without recommendations
     assert.equal(dispatches[0].connections.length, 2)
     assert.equal(dispatches[0].scopeId, f.scopeId)
     f.actor(profile)
-    assert.deepEqual((await f.handlers.list(f.request({ messageIds: ['immutable'] }))).recommendations, {})
+    const result = await f.handlers.list(f.request({ messageIds: ['immutable'] }))
+    assert.deepEqual(result.recommendations, {})
+    assert.equal(result.decisionStates.immutable, 'completed')
+    assert.match(result.decisions.immutable.id, /^[a-f0-9]{64}$/)
+    assert.deepEqual(result.decisions.immutable.answers, decision.answers)
+    assert.deepEqual(result.decisions.immutable.actions, decision.actions)
+    assert.deepEqual(result.decisions.immutable.coverage, decision.coverage)
+    assert.equal(result.decisions.immutable.subject, 'Status')
+    const stored = (await f.db.doc(`mailboxRecommendationScopes/${f.scopeId}/messages/${hash('immutable')}`).get()).data()
+    assert.deepEqual(stored.kinds, [])
+    assert.equal(stored.decision.id, result.decisions.immutable.id)
     f.actor({ active: true, role: 'admin' })
     await f.handlers.setSettings(f.request({ mode: 'off' }))
     await f.handlers.process({ ...run, messageId: 'late' })
@@ -328,8 +345,8 @@ test('emulator: uncertain mail inspects at most two suitable attachments once an
   } finally { await f.close() }
 })
 
-test('emulator: decisive mail, absent attachments or explicit no-fallback never download documents', { skip: !enabled }, async () => {
-  for (const [hasAttachments, decision] of [[true, { kinds: ['tracking'], inspectAttachments: true }], [true, { kinds: [], inspectAttachments: false }], [false, { kinds: [], inspectAttachments: true }]]) {
+test('emulator: explicitly declined attachment inspection or absent attachments never download documents', { skip: !enabled }, async () => {
+  for (const [hasAttachments, decision] of [[true, { kinds: ['tracking'], inspectAttachments: false }], [true, { kinds: [], inspectAttachments: false }], [false, { kinds: [], inspectAttachments: true }]]) {
     const f = await fixture({ hasAttachments, classifyDecision: async () => decision })
     try {
       await f.activate(); await f.deliver(); await f.handlers.process((await f.runs())[0])
@@ -382,4 +399,50 @@ test('emulator: personal activation stays owned; missing shared application perm
   const g = await fixture({ graph: async () => { const error = new Error('denied'); error.code = 'permission-denied'; throw error } })
   try { await g.activate(); g.actor(profile); assert.equal((await g.handlers.getSettings(g.request())).state, 'permission_required') }
   finally { await g.close() }
+})
+
+
+test('emulator: structured decision persists once, stays available and owner-specific dismissals do not affect another delegate', { skip: !enabled }, async () => {
+ const decision={version:1,status:'actionable',answers:[{key:'topic',value:'Transportstatus',sourceId:'body',quote:'Ankunft 18 Uhr'}],actions:[{kind:'tracking',confidence:'high',reason:'Ankunft mitgeteilt',sourceId:'body',quote:'Ankunft 18 Uhr'}],coverage:{mail:true,forwarded:false,attachments:'not_present',documentNames:[],unreadable:[]}}
+ const f=await fixture({classifyDecision:async()=>({kinds:['tracking'],inspectAttachments:false,decision})})
+ const stateRef=f.db.doc(`mailboxTriageFeedbackStates/${hash(`${f.uid}|${f.c1}|immutable`)}`)
+ try{
+  await f.activate();await f.deliver();const run=(await f.runs())[0];await f.handlers.process(run);f.actor(profile)
+  const first=await f.handlers.list(f.request({messageIds:['immutable']}))
+  assert.match(first.decisions.immutable.id,/^[a-f0-9]{64}$/)
+  assert.equal(first.decisions.immutable.subject,'Status')
+  assert.equal(first.decisionStates.immutable,'completed')
+  assert.deepEqual(first.recommendations.immutable,['tracking'])
+  await stateRef.set({ownerId:f.uid,connectionId:f.c1,dismissedKinds:['tracking']})
+  const dismissed=await f.handlers.list(f.request({messageIds:['immutable']}))
+  assert.deepEqual(dismissed.recommendations.immutable,[])
+  assert.deepEqual(dismissed.decisions.immutable,first.decisions.immutable)
+  assert.deepEqual((await f.handlers.list(f.request({connectionId:f.c2,messageIds:['immutable']},f.other))).recommendations.immutable,['tracking'])
+  await f.handlers.process(run)
+  assert.equal((await f.handlers.list(f.request({messageIds:['immutable']}))).decisions.immutable.id,first.decisions.immutable.id)
+ }finally{await stateRef.delete();await f.close()}
+})
+
+test('emulator: an enrichment failure preserves initial confident action with explicit incomplete coverage', { skip: !enabled }, async () => {
+ let classifications=0
+ const decision={version:1,status:'actionable',answers:[],actions:[{kind:'court',confidence:'high',reason:'Schreiben',sourceId:'body',quote:'Ankunft 18 Uhr'}],coverage:{mail:true,forwarded:false,attachments:'not_read',documentNames:[],unreadable:[]}}
+ const f=await fixture({hasAttachments:true,attachmentList:{value:[{'@odata.type':'#microsoft.graph.fileAttachment',id:'file',name:'brief.pdf',contentType:'application/pdf',size:500}]},classifyDecision:async()=>{classifications++;if(classifications===2)throw Error('synthetic provider failure');return{kinds:['court'],inspectAttachments:true,decision}},extractRecommendationDocument:async()=>({text:'Zusatztext',uncertain:false})})
+ try{
+  await f.activate();await f.deliver();await f.handlers.process((await f.runs())[0]);f.actor(profile)
+  const result=await f.handlers.list(f.request({messageIds:['immutable']}))
+  assert.equal(classifications,2);assert.deepEqual(result.recommendations.immutable,['court'])
+  assert.equal(result.decisions.immutable.status,'incomplete')
+  assert.deepEqual(result.decisions.immutable.coverage.documentNames,['19269.pdf'])
+ }finally{await f.close()}
+})
+
+
+test('emulator: classification error is distinct from a completed information decision and unknown old generation', { skip: !enabled }, async () => {
+ const f=await fixture({classifyDecision:async()=>{throw Error('synthetic classification failure')},diagnostic:async()=>{}})
+ try{
+  await f.activate();await f.deliver();await f.handlers.process((await f.runs())[0]);f.actor(profile)
+  const failed=await f.handlers.list(f.request({messageIds:['immutable','unseen']}))
+  assert.equal(failed.decisionStates.immutable,'error');assert.equal(failed.decisionStates.unseen,null)
+  assert.deepEqual(failed.recommendations.immutable,[]);assert.deepEqual(failed.decisions,{})
+ }finally{await f.close()}
 })

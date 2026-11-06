@@ -1,4 +1,4 @@
-import { shipmentTrackingProgress } from './shipmentTrackingProgress.js'
+import { shipmentTrackingProgress, hasApproximateTrackingTime } from './shipmentTrackingProgress.js'
 import { DEFAULT_SHIPMENT_TRACKING_FORECAST_SETTINGS, normalizeShipmentTrackingForecastSettings } from './shipmentTrackingForecastSettings.js'
 import { DEFAULT_SHIPMENT_TRACKING_OPERATING_HOURS, subtractWorkingMinutes } from './shipmentTrackingOperatingHours.js'
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
@@ -38,6 +38,7 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
   // the operational truck prompts for loading arrival, departure or transit
   // are still actionable. Historical gaps are returned separately.
   if (transportFinished) {
+    if (actualUnloading && hasApproximateTrackingTime(tracking, 'actualArrivalUnloadingAt')) items.push(issue('arrival-time-approximate', 'info', 'Ankunftszeit ungenau', 'Ankunft bestätigt; die genaue Ankunftszeit ist nicht bekannt.'))
     items.sort((left, right) => rank[left.severity] - rank[right.severity] || left.label.localeCompare(right.label, 'de-DE'))
     return { items, visible: items.slice(0, 3), moreCount: Math.max(0, items.length - 3), history }
   }
@@ -52,13 +53,17 @@ export function shipmentTrackingAttention({ tracking = null, imported = {}, rece
     else if (workingHoursReached(now, loadingFrom, timing.estimatedArrivalYellowWorkingHours, operatingHours)) truck = issue('loading-arrival', 'warning', 'Ladeankunft bestätigen', 'Die gemeldete Ankunft muss bestätigt werden.')
     else truck = issue('loading-arrival', 'success', 'Ladeankunft angekündigt', 'Eine voraussichtliche Ankunft liegt vor.')
   } else if (!progress.loaded) {
-    const anchor = loadingStarted || actualArrivalLoading
-    const elapsedHours = (now.getTime() - anchor.getTime()) / 3600000
-    const phase = loadingStarted ? 'Beladung' : 'Beladestart'
-    const yellowAfter = loadingStarted ? timing.loadingEndYellowElapsedHours : timing.loadingStartYellowElapsedHours
-    const redAfter = loadingStarted ? timing.loadingEndRedElapsedHours : timing.loadingStartRedElapsedHours
-    truck = elapsedHours >= redAfter ? issue('loading-wait', 'critical', `${phase} überfällig`, 'Die Stopuhr zeigt eine überschrittene Frist.') : elapsedHours >= yellowAfter ? issue('loading-wait', 'warning', `${phase} beobachten`, 'Die Stopuhr läuft bereits länger als vorgesehen.') : issue('loading-wait', 'success', loadingStarted ? 'Beladung läuft' : 'LKW an Ladestelle', 'Stopuhr überwacht die Beladung.')
-    truck.icon = 'stopwatch'
+    if (!loadingStarted && hasApproximateTrackingTime(tracking, 'actualArrivalLoadingAt')) {
+      truck = issue('loading-wait', 'info', 'LKW an Ladestelle', 'Ankunft bestätigt; genaue Zeit unbekannt. Keine zeitgenaue Wartefrist berechnet.')
+    } else {
+      const anchor = loadingStarted || actualArrivalLoading
+      const elapsedHours = (now.getTime() - anchor.getTime()) / 3600000
+      const phase = loadingStarted ? 'Beladung' : 'Beladestart'
+      const yellowAfter = loadingStarted ? timing.loadingEndYellowElapsedHours : timing.loadingStartYellowElapsedHours
+      const redAfter = loadingStarted ? timing.loadingEndRedElapsedHours : timing.loadingStartRedElapsedHours
+      truck = elapsedHours >= redAfter ? issue('loading-wait', 'critical', `${phase} überfällig`, 'Die Stopuhr zeigt eine überschrittene Frist.') : elapsedHours >= yellowAfter ? issue('loading-wait', 'warning', `${phase} beobachten`, 'Die Stopuhr läuft bereits länger als vorgesehen.') : issue('loading-wait', 'success', loadingStarted ? 'Beladung läuft' : 'LKW an Ladestelle', 'Stopuhr überwacht die Beladung.')
+      truck.icon = 'stopwatch'
+    }
   } else if (!progress.departed) {
     if (!estimatedDeparture) {
       const elapsedHours = (now.getTime() - loadingCompleted.getTime()) / 3600000

@@ -9,7 +9,7 @@ export const CALENDAR_PERMISSIONS_COLLECTION = 'calendarPermissions'
 export const CALENDAR_LEVELS = ['none', 'view', 'edit']
 export const DEFAULT_CALENDAR_COLOR = '#55758d'
 export const PERSONAL_CALENDAR_COLOR = '#c99a3d'
-export const SYSTEM_CALENDAR_IDS = ['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso']
+export const SYSTEM_CALENDAR_IDS = ['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso', 'system-contracts']
 
 export function personalCalendarId(userId) {
   return `personal-${userId}`

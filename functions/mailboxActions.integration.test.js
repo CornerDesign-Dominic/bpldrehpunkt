@@ -65,7 +65,7 @@ test('emulator: a queued tracking result survives reload and apply versus discar
 })
 
 
-test('emulator: automatic and manual shared starts across two users share one worker and result', { skip: !enabled }, async () => {
+test('emulator: shared invoice results await manual completion and peers can complete and reopen the same result', { skip: !enabled }, async () => {
   const f = await fixture()
   const second = createHash('sha256').update(`peer-${f.suffix}`).digest('hex'), scopeId = createHash('sha256').update(`scope-${f.suffix}`).digest('hex')
   try {
@@ -82,9 +82,27 @@ test('emulator: automatic and manual shared starts across two users share one wo
     await Promise.all([handlers.processMailboxActionRun(manual.action.jobId), handlers.processMailboxActionRun(manual.action.jobId)])
     assert.equal(calls, 1)
     const peer = (await handlers.getMailboxAction(peerRequest)).action
-    assert.equal(peer.state, 'completed'); assert.equal(peer.result.reportId, 'synthetic-shared-report'); assert.equal(peer.connectionId, second)
+    assert.equal(peer.state, 'review'); assert.equal(peer.result.reportId, 'synthetic-shared-report'); assert.equal(peer.connectionId, second)
     const original = (await handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action
     assert.equal(original.jobId, peer.jobId)
+    assert.equal(original.state, 'review')
+    const completeRequest = { ...peerRequest, data: { ...peerRequest.data, action: 'complete', jobId: peer.jobId } }
+    const confirmations = await Promise.all([handlers.updateMailboxAction(completeRequest), handlers.updateMailboxAction(completeRequest)])
+    assert.ok(confirmations.every(result => result.action.state === 'completed'))
+    assert.deepEqual(confirmations[0].action.completion, confirmations[1].action.completion, 'Repeated confirmation must keep the first server receipt')
+    const completed = (await handlers.getMailboxAction(f.request({ kind: 'invoice' }))).action
+    assert.equal(completed.state, 'completed')
+    assert.equal(completed.completion.invoiceReviewed, true)
+    assert.equal(completed.completion.actorId, peerRequest.auth.uid)
+    assert.deepEqual(completed.result, peer.result)
+    const reopened = (await handlers.updateMailboxAction(f.request({ kind: 'invoice', action: 'reopen', jobId: completed.jobId }))).action
+    assert.equal(reopened.state, 'review')
+    assert.equal(reopened.completion, null)
+    const peerReloaded = (await handlers.getMailboxAction(peerRequest)).action
+    assert.equal(peerReloaded.state, 'review')
+    assert.equal(peerReloaded.jobId, peer.jobId)
+    assert.deepEqual(peerReloaded.result, peer.result)
+    assert.equal(calls, 1, 'Status changes do not rerun invoice analysis')
   } finally {
     await Promise.all([f.db.doc(`mailboxConnections/${f.connectionId}`).delete(), f.db.doc(`mailboxConnections/${second}`).delete(), f.db.doc(`mailboxRecommendationScopes/${scopeId}`).delete()])
     await f.close()

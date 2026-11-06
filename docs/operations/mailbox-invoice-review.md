@@ -122,6 +122,9 @@ Eine nur erkannte Rechnungsnummer ist kein grüner Datenbankvergleich.
 
 Der Balken zeigt die Verteilung gleich gewichteter Hauptprüfpunkte in
 Grün/Gelb/Rot, insgesamt gerundet 100 Prozent, einschließlich Anzahl je Farbe.
+Der lokal vorbereitete Nachtrag nimmt bestätigte bereits gebuchte Rechnungen aus
+dieser Korrektheitsskala; deren roter Hinweis und Hauptzeile bleiben sichtbar
+(siehe Gebuchte Rechnung als Hinweis).
 Er ist keine Wahrscheinlichkeit und keine Freigabeentscheidung. Wiederholte
 Kopf-/Transportvergleiche werden nicht mehrfach gezählt. Bei mehreren TAs bleiben
 Positionsabweichungen sichtbar, auch wenn sie sich in der Gesamtsumme aufheben.
@@ -373,3 +376,47 @@ Polnisch Numer zlecenia od klienta gilt als ausdrücklicher Kundenauftragsbezug;
 Numer zlecenia allein wird nicht zur eigenen TA erklärt.
 Die bestehende zusätzliche OCR bleibt aktiv; keine weiteren Modellaufrufe pro Lauf.
 Veröffentlichung ausschließlich auf Dev; Main/Produktion bleiben unverändert.
+
+
+## Gebuchte Rechnung als Hinweis – Dev-Paket 05.11.2026
+
+Ein bestätigter bereits vorhandener DyCoS-Rechnungsbeleg bleibt als roter wichtiger
+Hinweis unter dem Balken und in der Hauptzeile Ext. Belegnummer sichtbar. Er sagt
+nichts gegen die inhaltliche Korrektheit der vorliegenden Rechnung aus und trägt
+deshalb weder eine rote Stimme noch einen anderen Anteil zur Prozentskala bei.
+Neue bestätigte Treffer tragen affectsCorrectness=false; auch der gespeicherte
+Gesamtstatus wird daraus nicht mehr als mismatch abgeleitet. Echte Betrags-,
+Adress- oder andere Abweichungen bleiben davon unberührt. Ungeklärte Abgleiche und
+Dublettenverdacht bleiben gelb und zählen wie bisher.
+
+Die Oberfläche erkennt bestätigte Dubletten auch in älteren gespeicherten Berichten
+an billingStatus, dycos_invoice_headers und duplicate=true und nimmt diese aus der
+Skala, ohne unveränderliche Altberichte umzuschreiben. Ein alter gespeicherter
+Gesamtstatus wird erst durch eine erneute Prüfung neu berechnet. Dev-Veröffentlichung und Abnahmegrenzen im
+[Releasebeleg](releases/mail-triage-dev-2026-11-05.md); Main bleibt unverändert.
+
+
+## Manueller Prüfabschluss – Dev-Paket 05.11.2026
+
+Eine erfolgreich ausgeführte KI-Rechnungsprüfung ist zunächst in Bearbeitung:
+Mail-Icon und rechter Aktionsbutton gelb. Das Ergebnis öffnet sich in diesem Zustand
+weiterhin über den Aktionsbutton. Im Fuß des Rechnungsmodals bestätigt Prüfung fertig
+den manuellen Abschluss; beide Anzeigen werden grün. Der Fußbutton wechselt zu
+Wieder in Bearbeitung setzen und stellt denselben Bericht ohne neue KI-Auswertung
+auf gelb zurück. Die Zustände bleiben serverseitig am Nachrichten-/Aktionsjob erhalten.
+Statusfehler werden im offenen Modal angezeigt; fehlgeschlagene Speicherung färbt
+nicht fälschlich grün. Eine neue Auswertung startet einen neuen Job ohne Abschluss.
+
+Ältere automatisch abgeschlossene Rechnungsjobs ohne ausdrückliche Bestätigung
+werden als gelb/in Bearbeitung behandelt. Andere Mailaktionen behalten ihre bisherigen
+Abschlussregeln. Alle Übergänge verlangen weiterhin Postfachzugriff und Bearbeitungsrecht
+für Transportaufträge; veraltete Job-IDs werden abgewiesen. Der Abschluss ist keine
+Buchung oder Zahlungsfreigabe und ändert weder Rechnungsbericht noch Transportauftrag.
+Die Buchungswarnung aus dem vorherigen lokalen Nachtrag bleibt unabhängig davon erhalten.
+Gemeinsam mit dem Dev-Paket Maileinordnung veröffentlicht; siehe Releasebeleg.
+
+
+Lokal geprüft: 19 Backend- und 9 Store-/Darstellungstests sowie vollständiges Lint
+und Build erfolgreich. Lokaler Browser-Funktionstest mit Testdaten bestätigt
+Öffnen des gelben Ergebnisses, Abschluss, Wiederöffnung und erhaltenes Ergebnis.
+Eine echte neue Rechnung bleibt Gegenstand der Nutzerabnahme auf Dev.

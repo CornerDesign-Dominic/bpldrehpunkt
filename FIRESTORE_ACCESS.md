@@ -29,6 +29,30 @@ Rolle und Berechtigungen liegen im Benutzerprofil, dürfen aber niemals direkt �
 
 ## Zwei Zugriffsebenen
 
+Vertragsmanagement verwendet das eigene Modulrecht `contracts`. Aktive Profile
+mit `view` dürfen die Akte einschließlich Positionen, Fristen, Notizen, Historie
+und Dokumentmetadaten lesen; `edit` erlaubt das Anlegen und Änderungen über die
+App-Check-geschützte Callable `mutateContract`. Der bestehende Superadmin-Override
+bleibt erhalten. Ein Adminstatus allein gewährt keinen Fachzugriff.
+Die direkte Erstanlage unter `contracts/{id}` bleibt auf `partnerName`,
+`createdBy` und `createdAt` beschränkt. Direkte Updates, Löschungen und sämtliche
+Schreibzugriffe auf Untercollections sind gesperrt. Die Callable prüft aktives
+Profil und Fachrecht erneut in der Transaktion, validiert Werte und Revisionen
+und schreibt eine unveränderliche Historie samt Wiederholungsbeleg.
+`contracts/{id}/mutations` bleibt vollständig für Clients gesperrt.
+PDFs unter `contracts/{id}/documents/{documentId}.pdf` erfordern einen bestehenden
+Vertrag und reservierte Metadaten. Die serververwalteten Freigabedaten
+`documentStorageAccess` in der Vertragswurzel halten Storage-Prüfungen auf
+Benutzerprofil und Vertragsdokument begrenzt (zwei Firestore-Zugriffe).
+Unveränderliche Uploads sind auf PDF bis
+20 MiB beschränkt; lesbar werden sie erst nach serverseitiger Bestätigung.
+Der virtuelle Systemkalender `system-contracts` prüft `contracts:view` und
+liefert ausschließlich offene Aktenfristen mit reduziertem Elternbezug.
+Technische Fehler verwenden das Diagnosemodul `contracts` ohne freie
+Vertragsinhalte. Datenvertrag, Wiederaufnahme und notwendige Releasebestandteile:
+[Vertragsakte](docs/operations/contracts.md). Der Ausbau ist auf Dev veröffentlicht;
+der dort verlinkte Abschlussbeleg dokumentiert die echte Abnahme.
+
 Der persönliche DyCoS-Stammdatenimportverlauf liegt ausschließlich serververwaltet
 unter `dycosMasterDataImportHistories/{uid}/entries/{requestId}` (Default-deny für
 Browser). `listDycosMasterDataImports` prüft App Check, aktives Profil und
@@ -256,3 +280,15 @@ Empfehlungen selbst sowie `mailboxRecommendationSubscriptions` und
 ## Haftbarhaltung aus Auftragsdaten
 
 Der Vorlagenzugriff erlaubt über eigene, serverseitig reduzierte Callables die TA-Suche und den bewussten DyCoS-Abruf mit Speicherung, ohne allgemeine Import-/Auftragsrechte zu verleihen. Die Rules bleiben unverändert; `liabilityWordingQuotas` ist nur serverseitig erreichbar. Vertrag und Abnahme: [Haftbarhaltung](docs/operations/liability-letters.md).
+
+
+## Maileinordnung – Dev-Paket 05.11.2026
+
+Der eigene Qualitätsreiter nutzt mailTriageQuality (view/edit); Bereinigung verlangt
+zusätzlich mailTriageCleanup=edit. Beide starten ohne Freigabe. Alle Lese-/Schreib- und
+Löschzugriffe auf mailboxTriageFeedback und mailboxTriageFeedbackStates sind direkt
+in Firestore gesperrt, auch für Superadmins; die neuen Callables prüfen aktive
+Profile, separate Qualitätsrechte bzw. den ursprünglichen Postfach-/Aktionszugriff.
+Die Freigabe des Qualitätsreiters öffnet keine Originalpostfächer. Quellenbelege sind
+auf gespeicherte Auszüge begrenzt. Vertrag: [Maileinordnung](docs/operations/mail-triage.md).
+Bereitstellung ausschließlich in Dev, siehe [Releasebeleg](docs/operations/releases/mail-triage-dev-2026-11-05.md).

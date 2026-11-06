@@ -413,3 +413,32 @@ test('explicit fixed appointment flags take precedence without discarding the ti
   assert.equal(model.stations.find(station => station.id === 'loading').plan, 'ab Do., 12:00')
   assert.equal(model.stations.find(station => station.id === 'unloading').plan, 'FIX\nDo., 14:00–16:00')
 })
+
+
+test('stored approximate arrival values remain visibly approximate after confirmation while explicit times stay exact', () => {
+  const field = 'actualArrivalUnloadingAt'
+  const tracking = { lifecycleStatus: 'active', stageId: 'unloading', [field]: '2026-11-05T13:10:00Z', fieldSources: { [field]: { source: 'ai_mail', derivation: { timeBasis: 'mail_already_arrived', timingApproximate: true } } } }
+  const station = shipmentTrackingStations({ tracking }).find(row => row.id === 'unloading')
+  assert.match(station.actualRows[0].value, /^≈ /)
+  assert.match(shipmentTrackingStationSummary(station, tracking).rows[0].value, /^≈ /)
+  const exact = shipmentTrackingStations({ tracking: { ...tracking, fieldSources: {} } }).find(row => row.id === 'unloading')
+  assert.doesNotMatch(exact.actualRows[0].value, /≈/)
+})
+
+test('time corrections show both previous and replacement values without losing a cleared value', () => {
+  const field = 'actualArrivalLoadingAt'
+  const event = { eventType: 'tracking_updated', changedFields: [field], oldValue: { [field]: new Date('2026-11-05T14:10:00') }, newValue: { [field]: new Date('2026-11-05T14:25:00') } }
+  assert.match(shipmentTrackingEventDescription(event), /14:10 → 14:25/)
+  assert.match(shipmentTrackingEventDescription({ ...event, newValue: { [field]: null } }), /14:10 → geleert/)
+})
+
+
+test('approximate arrival preserves arrived progress without punctuality or exact lateness judgments', () => {
+  const tracking = { lifecycleStatus: 'active', stageId: 'unloading', actualArrivalLoadingAt: '2026-09-25T12:00:00Z', actualArrivalUnloadingAt: '2026-09-25T18:00:00Z', fieldSources: { actualArrivalLoadingAt: { derivation: { timingApproximate: true } }, actualArrivalUnloadingAt: { derivation: { timingApproximate: true } } } }
+  const assessments = shipmentTrackingStationAssessments({ tracking, imported })
+  assert.equal(assessments.loading.arrival, undefined)
+  const stations = shipmentTrackingStations({ tracking, imported })
+  for (const id of ['loading', 'unloading']) assert.equal(stations.find(row => row.id === id).status.key, 'not-assessable')
+  assert.equal(stations.find(row => row.id === 'unloading').workflowLabel, 'Ankunft erfolgt')
+  assert.match(stations.find(row => row.id === 'unloading').actualRows[0].value, /^≈ /)
+})

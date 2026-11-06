@@ -21,3 +21,15 @@ test('discarding leaves a neutral action even when an old recommendation is stil
   assert.equal(mailboxActionDisplayState(discarded, false), 'idle')
   assert.equal(discarded.state, 'discarded')
 })
+
+
+test('invoice results stay yellow until explicitly finished, including legacy automatically completed results', () => {
+  for (const completion of [undefined, null, {}, { invoiceReviewed: false }]) {
+    const old = { kind: 'invoice', state: 'completed', completion }
+    assert.equal(mailboxActionDisplayState(old), 'review')
+    assert.equal(old.state, 'completed')
+  }
+  assert.equal(mailboxActionDisplayState({ kind: 'invoice', state: 'review' }), 'review')
+  assert.equal(mailboxActionDisplayState({ kind: 'invoice', state: 'completed', completion: { invoiceReviewed: true } }), 'completed')
+  assert.equal(mailboxActionDisplayState({ kind: 'terms', state: 'completed' }), 'completed')
+})

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { evaluateInvoiceDuplicates } from './invoiceReviewDuplicates.js'
+import { summarizeChecks } from './invoiceReviewPolicy.js'
 
 const value = value => ({ value, quote: value })
 const invoice = (patch = {}) => ({ number: value('RE-4408/2026'), grossTotal: value('273,70'), currency: value('EUR'), issuer: value('Carrier GmbH'), issuerVatId: value('DE123456789'), ...patch })
@@ -197,4 +198,18 @@ test('other active external numbers for this carrier and order require review wi
   const cancelled = evaluateInvoiceDuplicates(invoice(), [reference([header({ externalNumber: 'OTHER-123', cancelled: true })])])
   assert.equal(cancelled.check.color, 'green')
   assert.equal(cancelled.check.expected, null)
+})
+
+
+test('confirmed booked invoice remains a red warning but does not make correctness a mismatch', () => {
+  const confirmed = evaluateInvoiceDuplicates(invoice(), [reference([header()])])
+  assert.equal(confirmed.check.color, 'red')
+  assert.equal(confirmed.check.affectsCorrectness, false)
+  assert.equal(confirmed.alerts[0].color, 'red')
+  assert.equal(summarizeChecks([{ key: 'netTotal', color: 'green' }, confirmed.check]), 'match')
+  assert.equal(summarizeChecks([{ key: 'netTotal', color: 'red' }, confirmed.check]), 'mismatch')
+  assert.equal(summarizeChecks([{ key: 'paymentTerms', color: 'yellow' }, confirmed.check]), 'unknown')
+  const suspected = evaluateInvoiceDuplicates(invoice(), [reference([header({ externalNumber: 'RE4409/2026' })])])
+  assert.notEqual(suspected.check.affectsCorrectness, false)
+  assert.equal(summarizeChecks([{ key: 'netTotal', color: 'green' }, suspected.check]), 'unknown')
 })

@@ -276,13 +276,9 @@
 .mailbox-passive-flag.mailbox-flag--flagged { color: var(--status-warning-text); }
 .mailbox-passive-flag.mailbox-flag--complete { color: var(--status-success-text); }
 
-/* Compact, independent workflow choices above the invoice action. */
-.mailbox-action-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px; }
-.mailbox-action-cell { min-width: 0; display: flex; flex-direction: column; }
-.mailbox-action-row .mailbox-action { flex: 1; min-height: 72px; grid-template-columns: minmax(0, 1fr); align-content: center; justify-items: center; gap: 5px; margin: 0; padding: 7px 5px; text-align: center; font-size: 11px; }
-.mailbox-action-row .mailbox-action__label { overflow-wrap: anywhere; }
-.mailbox-action-row .mailbox-action__arrow { display: none; }
-.mailbox-action-row .mailbox-action__hint { font-size: 10px; }
+/* Workflow choices use the same full-width rows as the other actions. */
+.mailbox-action-row { display: block; }
+.mailbox-action-cell { min-width: 0; }
 
 /* Follow-up marking stays prominent for read, unread and selected cards. */
 .mailboxes-page .mailbox-message-item.is-flagged,

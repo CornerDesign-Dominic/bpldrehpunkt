@@ -532,3 +532,20 @@ automatischem Shared-Start sowie 4 React-UI-Tests erfolgreich. Projekt-Lint,
 Build und Shared-Abgleich erfolgreich (bestehende Bundlegrößenwarnung).
 Die UI-Prüfungen verwendeten synthetische Antworten; der Emulator verwendet
 synthetische Mail-/KI-Ergebnisse. Keine echten Testmails versendet.
+
+## Gesammeltes Dev-Paket 05.11.2026
+
+Status, Auftragserfassung und AGB stehen wieder wie die übrigen Aktionen jeweils
+in einer vollständigen Zeile. Der Abschnitt zur kompakten Dreiergruppe beschreibt
+den vorherigen Stand. Maileinordnung mit Vorschau/Rückmeldung und Qualitätsreiter
+sowie manueller Rechnungsabschluss sind im
+[Releasebeleg](releases/mail-triage-dev-2026-11-05.md) zusammengefasst.
+
+
+## Lokaler Nachtrag: Statuszeit aus Mail und Verlauf (05.11.2026)
+
+Die vereinbarten relativen Ankunftszeiten, überprüfbare Stationsherleitung,
+Vorschlagskennzeichnung und Herkunft in der Historie sind im
+[Statusvertrag](status-mail-ingest.md#lokales-sammelpaket-hergeleitete-ankunftsangaben-05112026)
+festgehalten. Dev-Veröffentlichung und Abnahmegrenzen im
+[Releasebeleg](releases/status-replies-dev-2026-11-05.md); Main bleibt unverändert.

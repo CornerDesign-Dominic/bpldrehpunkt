@@ -1,3 +1,4 @@
+import MailboxTriageProvider from '../components/mailboxes/MailboxTriageProvider.jsx'
 import { useMailboxRecommendations } from '../mailboxes/useMailboxRecommendations.js'
 import MailboxKnowledgeNote from '../components/mailboxes/MailboxKnowledgeNote.jsx'
 import MailActionButton from '../components/mailboxes/MailActionButton.jsx'
@@ -331,7 +332,7 @@ function MailWorkspace({ connection, messageId, sent = false, onShowIncoming, ed
     readAttempted.current = true
     if (message.isRead === false) void mutateState({ isRead: true })
   }, [editable, sent, message, error, mutateState])
-  const { recommendations } = useMailboxRecommendations(sent ? '' : connection.id, sent ? [] : [messageId], reload)
+  const { recommendations, decisions, decisionStates, loadError: triageLoadError } = useMailboxRecommendations(sent ? '' : connection.id, sent ? [] : [messageId], reload)
   const recommended = recommendations[messageId] || []
   useEffect(() => {
     let active = true
@@ -356,14 +357,14 @@ function MailWorkspace({ connection, messageId, sent = false, onShowIncoming, ed
       <MailboxAttachmentList attachments={inlineImages} identity={identity} inline outlookUrl={safeOutlookLink(message.webLink)} />
       {safeOutlookLink(message.webLink) && <a href={safeOutlookLink(message.webLink)} target="_blank" rel="noopener noreferrer">{w('Original in Outlook öffnen', 'Open original in Outlook')}</a>}</>}
     </article>
-    {(editable || canCompose) && <aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2>{canCompose && <MailComposeAction connection={connection} dirtyRef={composeDirtyRef} />}{editable && message && !error && <><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{(canEdit(profile, 'transportOrders') || canView(profile, 'agbChecker')) && <div className="mailbox-action-row">
+    {(editable || canCompose) && <MailboxTriageProvider key={`${identity.connectionId}:${identity.messageId}`} identity={identity} decision={decisions[messageId]} decisionState={triageLoadError ? 'unavailable' : decisionStates[messageId]} recommended={recommended}><aside className="mailbox-actions" aria-label={w('Aktionen', 'Actions')}><h2>{w('Aktionen', 'Actions')}</h2>{canCompose && <MailComposeAction connection={connection} dirtyRef={composeDirtyRef} />}{editable && message && !error && <><ReplyComposer identity={identity} message={message} ownEmail={connection.email} dirtyRef={dirtyRef} /><hr className="mailbox-actions-divider" />{(canEdit(profile, 'transportOrders') || canView(profile, 'agbChecker')) && <div className="mailbox-action-row">
         {canEdit(profile, 'transportOrders') && <div className="mailbox-action-cell"><MailTrackingAction recommended={recommended.includes('tracking')} identity={identity} mailContent={<MessageContent message={message} />} /></div>}
         {canEdit(profile, 'transportOrders') && canView(profile, 'masterData') && <div className="mailbox-action-cell"><MailOrderAction recommended={recommended.includes('order')} identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} dirtyRef={orderDirtyRef} /></div>}
         {canView(profile, 'agbChecker') && <div className="mailbox-action-cell"><MailAgbAction recommended={recommended.includes('terms')} identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} /></div>}
       </div>}
       <hr className="mailbox-actions-divider" />
       {canEdit(profile, 'transportOrders') && <><MailInvoiceAction recommended={recommended.includes('invoice')} identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} /><MailActionButton kind="invoice" hint="-BETA-" disabled>{w('Mahnung prüfen', 'Review payment reminder')}</MailActionButton><hr className="mailbox-actions-divider" /></>}
-      {Object.entries(mailboxRecordKinds).filter(([kind, config]) => kind === 'calendar' ? canView(profile, config.module) : canEdit(profile, config.module)).map(([kind]) => <MailRecordAction key={kind} kind={kind} recommended={recommended.includes(kind)} identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />)}</>}</aside>}
+      {Object.entries(mailboxRecordKinds).filter(([kind, config]) => kind === 'calendar' ? canView(profile, config.module) : canEdit(profile, config.module)).map(([kind]) => <MailRecordAction key={kind} kind={kind} recommended={recommended.includes(kind)} identity={identity} mailContent={<MessageContent message={message} />} attachments={message.attachments || []} />)}</>}</aside></MailboxTriageProvider>}
   </div>
 }
 
