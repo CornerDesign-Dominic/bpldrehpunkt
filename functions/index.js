@@ -1,5 +1,7 @@
 import { submitMailboxTriageFeedbackHandler, listMailboxTriageFeedbackHandler, updateMailboxTriageFeedbackHandler, deleteMailboxTriageFeedbackHandler } from './mailboxTriageFeedback.js'
 import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, maintainMailboxRecommendationSubscriptionsHandler, mailboxRecommendationWebhookHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
+import { getMailboxLearningSettingsHandler, setMailboxLearningSettingsHandler, mailboxLearningWebhookHandler, maintainMailboxLearningSubscriptionsHandler, processMailboxLearningRunHandler } from './mailboxLearning.js'
+import { manageEmptyKnowledgeGroupHandler } from './knowledgeEmptyGroups.js'
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
 import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
@@ -180,6 +182,13 @@ export const deleteMailboxTriageFeedback = onCall(mailboxOptions, deleteMailboxT
 export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
 export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
 export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+
+export const getMailboxLearningSettings = onCall(mailboxOptions, getMailboxLearningSettingsHandler)
+export const manageEmptyKnowledgeGroup = onCall({ region: 'europe-west3', enforceAppCheck: true }, manageEmptyKnowledgeGroupHandler)
+export const setMailboxLearningSettings = onCall(mailboxOptions, setMailboxLearningSettingsHandler)
+export const mailboxLearningWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxLearningWebhookHandler)
+export const maintainMailboxLearningSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxLearningSubscriptionsHandler)
+export const processMailboxLearningRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxLearningRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 180, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxLearningRunHandler)
 
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useLanguage } from '../i18n/useLanguage.js'
 import { usePermissions } from '../auth/usePermissions.js'
 import { watchKnowledge, watchKnowledgeCases, watchKnowledgeLearningRuns, updateKnowledgeGap } from '../lib/knowledge.js'
@@ -7,11 +7,13 @@ import { knowledgeUrl } from '../lib/knowledgePresentation.js'
 import { knowledgeCaseGroups, knowledgeGroupRun } from '../lib/knowledgeCases.js'
 import { useKnowledgeLearningWork } from '../lib/useKnowledgeLearningWork.js'
 import KnowledgeGapEditor from '../components/quality/KnowledgeGapEditor.jsx'
+import EmptyKnowledgeGroupEditor from '../components/quality/EmptyKnowledgeGroupEditor.jsx'
 import KnowledgeCaseReview, { KnowledgeBrain } from '../components/quality/KnowledgeCaseReview.jsx'
 import '../styles/quality.css'
 import '../styles/knowledge.css'
 
 export default function KnowledgeGapsPage() {
+  const navigate = useNavigate()
   const { language } = useLanguage()
   const en = language === 'en'
   const text = (de, english) => en ? english : de
@@ -26,6 +28,7 @@ export default function KnowledgeGapsPage() {
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
   const [editor, setEditor] = useState(null)
+  const [emptyEditor, setEmptyEditor] = useState(null)
   const [reviewId, setReviewId] = useState(null)
   const [pendingId, setPendingId] = useState(null)
   const [error, setError] = useState('')
@@ -77,9 +80,10 @@ export default function KnowledgeGapsPage() {
     {state.articleError && <p className="form-error" role="alert">{text('Artikel konnten nicht geladen werden. Fallkopien bleiben verfügbar.', 'Articles could not be loaded. Case copies remain available.')}</p>}
     {state.loading ? <p role="status">{text('Wird geladen …', 'Loading …')}</p> : state.error ? <div className="form-error" role="alert"><p>{text('Wissensfälle konnten nicht geladen werden.', 'Knowledge cases could not be loaded.')}</p><button className="button button--secondary" onClick={reload}>{text('Erneut versuchen', 'Retry')}</button></div> : !records.length ? <p className="quality-empty">{text('Keine passenden Einträge.', 'No matching entries.')}</p> : sections.map((section) => <section className="knowledge-case-section" key={section}><h2>{section}</h2><ul className="knowledge-gaps">{records.filter((item) => sectionOf(item) === section).map((item) => { const run = groupRun(item.id); return <li key={item.id}>
       <button className="knowledge-case-card" onClick={() => setReviewId(item.id)}>{run?.status === 'running' ? <span className="knowledge-learning-spinner" role="status" aria-label={text('Lernen läuft', 'Learning in progress')} /> : <KnowledgeBrain pending={item.pendingCount > 0} empty={item.caseCount === 0} language={language} />}<span className="knowledge-gap-count">{item.caseCount}×</span><span className="knowledge-gap-content"><strong>{item.category === 'unassigned' || item.id === 'unassigned' ? text('Nicht zugeordnet', 'Unassigned') : item.title}</strong>{item.missing && <span className="knowledge-case-description">{item.missing}</span>}<small>{[run?.status === 'running' ? text('Lernen läuft', 'Learning in progress') : run?.status === 'ready' ? text('Ergebnis bereit', 'Result ready') : run?.status === 'failed' ? text('Lernen fehlgeschlagen', 'Learning failed') : '', item.topic, item.hidden && text('Ausgeblendet', 'Hidden'), `${item.pendingCount} ${text('ausstehend', 'pending')} · ${item.caseCount - item.pendingCount} ${text('ausgewertet', 'analyzed')}`].filter(Boolean).join(' · ')}</small></span><span aria-hidden="true">›</span></button>
-      <div className="knowledge-gap-actions">{item.articleId && handbookReadable && <Link className="button button--secondary" to={knowledgeUrl('article', item.articleId)}>{text('Artikel', 'Article')}</Link>}{editable && <><button className="button button--secondary" disabled={Boolean(pendingId)} onClick={() => void toggleVisibility(item)}>{pendingId === item.id ? text('Wird gespeichert …', 'Saving …') : item.hidden ? text('Einblenden', 'Show') : text('Ausblenden', 'Hide')}</button>{handbookReadable && !state.articleError && item.category !== 'article' && item.caseCount > 0 && <button className="button button--secondary" disabled={Boolean(pendingId)} onClick={() => setEditor(item)}>{text('Verschieben', 'Move')}</button>}</>}</div>
+      <div className="knowledge-gap-actions">{item.articleId && handbookReadable && <Link className="button button--secondary" to={knowledgeUrl('article', item.articleId)}>{text('Artikel', 'Article')}</Link>}{editable && <><button className="button button--secondary" disabled={Boolean(pendingId)} onClick={() => void toggleVisibility(item)}>{pendingId === item.id ? text('Wird gespeichert …', 'Saving …') : item.hidden ? text('Einblenden', 'Show') : text('Ausblenden', 'Hide')}</button>{handbookReadable && !state.articleError && item.category !== 'article' && item.caseCount > 0 && <button className="button button--secondary" disabled={Boolean(pendingId)} onClick={() => setEditor(item)}>{text('Verschieben', 'Move')}</button>}{item.category !== 'article' && item.id !== 'unassigned' && !item.virtual && item.caseCount === 0 && <>{handbookEditable && <button className="button button--secondary" disabled={Boolean(pendingId)} onClick={() => setEmptyEditor({ record: item, action: 'createArticle' })}>{text('Artikel erstellen', 'Create article')}</button>}<button className="button button--secondary" disabled={Boolean(pendingId)} onClick={() => setEmptyEditor({ record: item, action: 'remove' })}>{text('Entfernen', 'Remove')}</button></>}</>}</div>
     </li> })}</ul></section>)}
     {editor && <KnowledgeGapEditor key={editor.id} record={editor} articles={state.articles} canLinkArticles={handbookReadable && !state.articleError} language={language} onClose={(options) => { setEditor(null); if (options?.reload) reload() }} onSaved={() => setEditor(null)} />}
+    {emptyEditor && <EmptyKnowledgeGroupEditor record={emptyEditor.record} action={emptyEditor.action} language={language} onClose={() => { setEmptyEditor(null); reload() }} onSaved={result => { setEmptyEditor(null); if (result.articleId) navigate(knowledgeUrl('article', result.articleId)); else reload() }} />}
     {reviewed && <KnowledgeCaseReview key={reviewed.id} record={reviewed} cases={reviewed.cases} groups={groups} articles={state.articles} handbookReadable={handbookReadable && !state.articleError} canManage={editable} canLearn={editable && handbookEditable && !state.articleError && !state.runError} language={language} onClose={() => setReviewId(null)} run={groupRun(reviewed.id)} onLearn={startLearning} />}
   </div>
 }

@@ -446,3 +446,14 @@ test('emulator: classification error is distinct from a completed information de
   assert.deepEqual(failed.recommendations.immutable,[]);assert.deepEqual(failed.decisions,{})
  }finally{await f.close()}
 })
+
+test('emulator: disconnected learning-only shared mailboxes remain in the admin list without enabling automatic AI', { skip: !enabled }, async () => {
+  const f = await fixture(), id = hash('learning-only-' + randomUUID()), email = `learning-${randomUUID()}@example.invalid`
+  try {
+    await f.db.doc(`mailboxLearningScopes/${id}`).set({ kind: 'shared', email, enabled: true })
+    f.actor({ active: true, role: 'admin' })
+    const row = (await f.handlers.listManaged(f.request())).mailboxes.find(item => item.email === email)
+    assert.equal(row.scopeId, id); assert.equal(row.connectionId, null); assert.equal(row.available, false)
+    assert.equal(row.mode, 'off'); assert.equal(row.enabled, false)
+  } finally { await f.db.doc(`mailboxLearningScopes/${id}`).delete(); await f.close() }
+})

@@ -1,17 +1,16 @@
-import { cleanKnowledgeMailCopy } from './knowledgeTextClean.js'
 import { listMailboxReplies } from './mailboxReplies.js'
 import { applyMailboxRecord, previewMailboxRecord, searchRecordTargets } from './mailboxRecords.js'
 import { assertRecordAccess } from './mailboxRecordData.js'
 import { recordAttachmentType, validateRecordAttachments } from './mailboxRecordAi.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
-import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge, knowledgeCaseUpdate } from './knowledgeReply.js'
+import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, replySuggestionHash, publicReplyKnowledge } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices, validateInvoiceAttachments, validateInvoiceAttachmentBytes } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { getApp } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { getFirestore } from 'firebase-admin/firestore'
 import { defineSecret, defineString } from 'firebase-functions/params'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
@@ -295,12 +294,8 @@ export function createMailboxHandlers(deps = {}) {
       }
       const previousDraft = (await tx.get(persistedDraft)).data()
       if ((previousDraft?.draft?.revision || 0) !== revision || previousDraft?.operationId) fail('aborted', 'Diese Nachricht wurde bereits bearbeitet oder eine Antwort wurde versendet. Bitte zuerst neu laden und den Versandstatus prüfen.')
-      const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
-      const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
       draft.revision = revision
-      const captureEvidence = evidence?.exists && evidence.data()?.removed !== true
-      if (captureEvidence) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), knowledgeCaseUpdate(evidence.data(), { sentReply: cleanKnowledgeMailCopy(draft.body), sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() }))
-      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(captureEvidence ? { knowledgeEvidenceId: evidenceId } : {}) })
+      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now() })
       tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
       return null
     })
@@ -310,17 +305,7 @@ export function createMailboxHandlers(deps = {}) {
       // is checked against every recipient that is actually submitted.
       await graph(token, compose ? `${mailboxPath(context)}/sendMail` : `${mailboxPath(context)}/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { ...(compose ? { subject: draft.subject } : {}), ...(context.connection.kind === 'shared' ? { from: { emailAddress: { address: context.connection.email } } } : {}), body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
       await operation.update({ status: 'accepted', finishedAt: now() })
-      // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
-      try {
-        const receipt = (await operation.get()).data()
-        if (receipt?.knowledgeEvidenceId) await db().runTransaction(async tx => {
-          const evidenceRef = db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`)
-          const evidence = await tx.get(evidenceRef)
-          if (evidence.exists && evidence.data()?.removed !== true) tx.set(evidenceRef, knowledgeCaseUpdate(evidence.data(), { sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
-        })
-      } catch {
-        await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
-      }
+      // Learning is captured only from actual SentItems by the independent opt-in webhook.
       // Preserve the send receipt, but remove sent text and AI drafting metadata.
       try {
         await db().runTransaction(async tx => {
@@ -554,7 +539,7 @@ export function createMailboxHandlers(deps = {}) {
       return folder.id
     },
     // Internal webhook adapter. There is intentionally no inbox-list operation.
-    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId, attachmentId }) {
+    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId, attachmentId, referenceId, conversationId }) {
       assertMailboxEnvironment(config().project)
       const connection = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
       if (connection?.status !== 'connected') fail('failed-precondition', 'Postfach ist nicht verbunden.')
@@ -575,6 +560,25 @@ export function createMailboxHandlers(deps = {}) {
         base = '/me'
       }
       if (operation === 'create') return graph(token, '/subscriptions', { method: 'POST', body: JSON.stringify({ ...data, resource: `${base}/mailFolders('inbox')/messages` }) })
+      if (operation === 'learning-create') return graph(token, '/subscriptions', { method: 'POST', body: JSON.stringify({ ...data, resource: `${base}/mailFolders('sentitems')/messages` }) })
+      if (operation === 'learning-sent') {
+        const [message, folder] = await Promise.all([
+          graph(token, `${base}/messages/${segment(messageId)}?$select=id,internetMessageId,internetMessageHeaders,subject,body,from,toRecipients,conversationId,conversationIndex,sentDateTime,receivedDateTime,isDraft,parentFolderId`),
+          graph(token, `${base}/mailFolders/sentitems?$select=id`),
+        ])
+        return { message, sentFolderId: folder.id }
+      }
+      if (operation === 'learning-parents') {
+        const byReference = typeof referenceId === 'string' && /^<[^<>\s]{1,996}>$/u.test(referenceId)
+        const byConversation = typeof conversationId === 'string' && conversationId.length > 0 && conversationId.length <= 1024 && ![...conversationId].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+        if (!byReference && !byConversation) fail('invalid-argument', 'Ungültige Antwortreferenz.')
+        const filter = `${byReference ? 'internetMessageId' : 'conversationId'} eq '${(byReference ? referenceId : conversationId).replaceAll("'", "''")}'`
+        const query = new URLSearchParams({ '$filter': filter, '$select': 'id,internetMessageId,internetMessageHeaders,subject,body,from,toRecipients,conversationId,conversationIndex,sentDateTime,receivedDateTime,isDraft,parentFolderId', '$top': byReference ? '10' : '50' })
+        const result = await graph(token, `${base}/messages?${query}`)
+        // Never page through a mailbox to guess a missing parent.
+        if (result['@odata.nextLink'] || !Array.isArray(result.value) || result.value.length > (byReference ? 10 : 50)) fail('failed-precondition', 'Die Antwortzuordnung ist zu umfangreich oder unvollständig.')
+        return result
+      }
       if (operation === 'message') return graph(token, `${base}/messages/${segment(messageId)}?$select=id,subject,body,receivedDateTime,hasAttachments`)
       if (operation === 'attachment-list') return graph(token, `${base}/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=20`)
       if (operation === 'attachment') {
@@ -701,12 +705,7 @@ export function createMailboxHandlers(deps = {}) {
             if (!hasReplyKnowledgeAccess(profileSnapshot.data())) fail('permission-denied', 'Die Wissensberechtigung wurde inzwischen geändert.')
             if (sources.some((snapshot, index) => snapshot.data()?.status !== 'valid' || snapshot.data()?.revision !== selection.sources[index].revision)) fail('aborted', 'Das verwendete Wissen wurde inzwischen geändert. Bitte einen neuen Vorschlag erstellen.')
           }
-          const previousEvidenceId = /^[a-f0-9]{64}$/.test(draftSnapshot.data()?.knowledgeEvidenceId || '') ? draftSnapshot.data().knowledgeEvidenceId : ''
-          const previousEvidence = previousEvidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`)) : null
-          const gap = selection ? await (deps.recordReplyKnowledgeGap || recordReplyKnowledgeGap)({ db: db(), profile: profileSnapshot.data(), context, mail: { ...mail, id: mail.id || messageId }, selection, catalog, suggestion, transaction: tx }) : null
-          const evidenceId = gap?.evidenceId || previousEvidenceId
-          if (!gap?.evidenceId && previousEvidence?.exists && previousEvidence.data()?.removed !== true) tx.set(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`), knowledgeCaseUpdate(previousEvidence.data(), { latestSuggestion: cleanKnowledgeMailCopy(suggestion), suggestionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
-          tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge }, ...(evidenceId ? { knowledgeEvidenceId: evidenceId } : {}) }, { merge: true })
+          tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge } }, { merge: true })
         })
         return { suggestion, knowledge: publicReplyKnowledge(knowledge) }
       } finally {

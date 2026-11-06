@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { mailboxCall } from '../../lib/mailboxes.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
+import MailboxLearningControl from './MailboxLearningControl.jsx'
 import '../../styles/mailbox-ai-settings.css'
 
 const settingMode = setting => ['off', 'recommend', 'automatic'].includes(setting?.mode) ? setting.mode : setting?.enabled ? 'recommend' : 'off'
@@ -59,6 +60,7 @@ export function MailboxRecommendationControl({ connection, editable }) {
     {settings?.enabled && ['error', 'permission_required', 'missed'].includes(settings.state) && <span role="status">{w('Webhook-Verbindung oder Microsoft-Freigabe prüfen. Verpasste Mails werden nicht nachgeholt.', 'Check the webhook connection or Microsoft permission. Missed mail is not recovered.')}</span>}
     {settings?.enabled && ['error', 'permission_required', 'missed', 'connecting'].includes(settings.state) && !settings.managed && editable && <button className="button button--secondary" type="button" disabled={busy} onClick={() => changeMode(mode)}>{w('Webhook-Verbindung prüfen', 'Check webhook connection')}</button>}
     {error && <span role="alert">{error} <button className="button button--secondary" type="button" onClick={() => setReload(value => value + 1)}>{w('Erneut laden', 'Reload')}</button></span>}
+    <MailboxLearningControl connectionId={connection.id} editable={editable} />
   </div>
 }
 
@@ -107,6 +109,7 @@ export default function ManagedMailboxRecommendationsPanel() {
         <div className="managed-mailbox-recommendations__identity"><strong>{item.email}</strong>{item.functional && <small>{w('Gemeinsam genutztes Funktionspostfach', 'Shared functional mailbox')}</small>}</div>
         <div className="managed-mailbox-recommendations__status"><span role="status">{busy === item.email ? w('Einstellung wird gespeichert …', 'Saving setting …') : status(item, available)}</span>{available && item.enabled && ['error', 'permission_required', 'missed', 'connecting'].includes(item.state) && <button className="button button--secondary" type="button" disabled={Boolean(busy)} onClick={() => changeMode(item, settingMode(item))}>{w('Webhook-Verbindung prüfen', 'Check webhook connection')}</button>}</div>
         <MailboxAiModes value={settingMode(item)} disabled={(!available && !canDisable) || Boolean(busy)} unavailable={!available} onChange={mode => changeMode(item, mode)} w={w} />
+        <MailboxLearningControl connectionId={available ? item.connectionId : null} managedScopeId={item.scopeId} editable admin />
       </div>
     })}</div>
     {!loading && mailboxes.some(item => item.available === false || !item.connectionId) && <p>{w('Noch nicht verbundene Postfächer zuerst unter ', 'First add unconnected mailboxes under ')}<Link className="managed-mailbox-recommendations__profile-link" to="/profil?tab=mailboxes">{w('Mein Profil → Postfächer', 'My profile → Mailboxes')}</Link>{w(' hinzufügen. Danach kann die automatische KI hier aktiviert werden.', '. Then enable automatic AI here.')}</p>}

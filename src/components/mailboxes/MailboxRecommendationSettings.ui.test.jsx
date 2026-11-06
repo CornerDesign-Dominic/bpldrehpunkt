@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter } from 'react-router-dom'
 import { LanguageContext } from '../../i18n/languageContext.js'
 import ManagedMailboxRecommendationsPanel, { MailboxRecommendationControl } from './MailboxRecommendationSettings.jsx'
+import MailboxLearningControl from './MailboxLearningControl.jsx'
 
 async function mount(component, handler, language = 'de') {
   globalThis.__mailboxModesCall = handler
@@ -15,6 +16,62 @@ async function mount(component, handler, language = 'de') {
   return { container, close: async () => { await act(async () => root.unmount()); container.remove() } }
 }
 const radios = container => [...container.querySelectorAll('input[type=radio]')]
+
+test('learning opt-in remains independent from AI mode and defaults off', async () => {
+  const calls = []
+  let learning = { enabled: false, managed: false, state: 'idle' }
+  const mounted = await mount(<MailboxRecommendationControl connection={{ id: 'personal' }} editable />, async (name, data) => {
+    calls.push({ name, data })
+    if (name === 'getMailboxLearningSettings') return learning
+    if (name === 'setMailboxLearningSettings') return (learning = { ...learning, enabled: data.enabled, state: data.enabled ? 'active' : 'idle' })
+    return { enabled: false, managed: false, mode: name === 'setMailboxRecommendationSettings' ? data.mode : 'off' }
+  })
+  const checkbox = mounted.container.querySelector('input[type=checkbox]')
+  assert.equal(checkbox.checked, false)
+  await act(async () => checkbox.click())
+  assert.deepEqual(calls.find(call => call.name === 'setMailboxLearningSettings').data, { connectionId: 'personal', enabled: true })
+  assert.deepEqual(radios(mounted.container).map(input => input.checked), [true, false, false])
+  await act(async () => radios(mounted.container)[2].click())
+  assert.equal(mounted.container.querySelector('input[type=checkbox]').checked, true)
+  assert.equal(calls.filter(call => call.name === 'setMailboxLearningSettings').length, 1)
+  assert.match(mounted.container.textContent, /Keine Entwürfe oder Anhänge/)
+  await mounted.close()
+})
+
+test('shared learning setting is read-only in profile; disconnected admin can switch it off', async () => {
+  const calls = []
+  let enabled = true
+  const handler = async (name, data) => {
+    calls.push({ name, data })
+    if (name === 'setMailboxLearningSettings') enabled = data.enabled
+    return { enabled, managed: true, scopeId: 'shared-scope', state: 'active' }
+  }
+  const profile = await mount(<MailboxLearningControl connectionId="shared" editable />, handler)
+  assert.equal(profile.container.querySelectorAll('input[type=checkbox]').length, 0)
+  assert.match(profile.container.textContent, /zentral aktiviert/)
+  await profile.close()
+  const central = await mount(<MailboxLearningControl managedScopeId="shared-scope" editable admin />, handler)
+  assert.equal(central.container.querySelector('input').checked, true)
+  await act(async () => central.container.querySelector('input').click())
+  assert.deepEqual(calls.find(call => call.name === 'setMailboxLearningSettings').data, { managedScopeId: 'shared-scope', enabled: false })
+  assert.equal(central.container.querySelector('input').checked, false)
+  assert.equal(central.container.querySelector('input').disabled, true)
+  await central.close()
+})
+
+test('failed learning update preserves opt-in and does not call AI-mode settings', async () => {
+  const calls = []
+  const mounted = await mount(<MailboxLearningControl connectionId="personal" editable />, async (name, data) => {
+    calls.push({ name, data })
+    if (name === 'setMailboxLearningSettings') throw new Error('network')
+    return { enabled: false, managed: false, state: 'idle' }
+  }, 'en')
+  await act(async () => mounted.container.querySelector('input').click())
+  assert.equal(mounted.container.querySelector('input').checked, false)
+  assert.match(mounted.container.textContent, /Could not save learning setting/)
+  assert.ok(calls.every(call => /MailboxLearningSettings$/.test(call.name)))
+  await mounted.close()
+})
 
 test('personal modes are mutually exclusive and send mode; legacy enabled stays recommendations', async () => {
   const calls = []

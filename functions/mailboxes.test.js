@@ -47,6 +47,30 @@ const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpu
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
 const newMail = { ...draft, subject: 'Neue unabhängige Mail', revision: 0, operationId: 'new-mail-0123456789' }
 
+test('learning Graph adapter subscribes only to SentItems and exact parent queries stay bounded', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => { calls.push({ url, options }); return response(url.includes('/messages?') ? { value: [] } : url.includes('/mailFolders/sentitems?') ? { id: 'sent-folder' } : { id: 'sent-mail', parentFolderId: 'sent-folder' }) } })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'learning-create', data: { changeType: 'created', notificationUrl: 'https://example.invalid/webhook' } })
+  assert.equal(JSON.parse(calls[0].options.body).resource, "/me/mailFolders('sentitems')/messages")
+  const sent = await f.handlers.recommendationGraph({ connectionId, operation: 'learning-sent', messageId: 'immutable/one' })
+  assert.equal(sent.sentFolderId, 'sent-folder')
+  assert.ok(calls.some(call => call.url.includes('/messages/immutable%2Fone?')))
+  await f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents', referenceId: "<message'one@example.invalid>" })
+  const targeted = new URL(calls.at(-1).url)
+  assert.equal(targeted.searchParams.get('$filter'), "internetMessageId eq '<message''one@example.invalid>'")
+  assert.equal(targeted.searchParams.get('$top'), '10')
+  await f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents', conversationId: 'conversation-id' })
+  assert.equal(new URL(calls.at(-1).url).searchParams.get('$top'), '50')
+  await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents' }), { code: 'invalid-argument' })
+})
+
+test('learning Graph parent lookup rejects incomplete pagination rather than scanning more mail', async () => {
+  let count = 0
+  const f = fixture({ fetch: async () => { count++; return response({ value: [], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=50' }) } })
+  await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents', conversationId: 'conversation' }), { code: 'failed-precondition' })
+  assert.equal(count, 1)
+})
+
 test('production permits external To/Cc/Bcc without weakening ownership or creating Dev side effects', async () => {
   const calls = []
   const productionConfig = { ...config, project: 'db-bpl-drehpunkt', clientId: '11111111-2222-4333-8444-555555555555', redirect: 'https://europe-west3-db-bpl-drehpunkt.cloudfunctions.net/mailboxOAuthCallback', origin: 'https://drehpunktlogistik.de' }
@@ -484,18 +508,16 @@ test('new replies allow fresh suggestions while retaining the local learning-cas
 test('late cleanup of an accepted send cannot erase the next reply draft', async () => {
   let release, entered
   const ready = new Promise(resolve => { entered = resolve })
-  const f = fixture({ diagnostic: async event => {
-    if (event.code === 'knowledge_evidence_ack_failed') { entered(); await new Promise(resolve => { release = resolve }) }
-  } })
-  const key = `mailboxDrafts/${hash(`owner|${connectionId}|${reply.messageId}`)}`
-  const evidenceId = 'e'.repeat(64)
-  f.db.records.set(key, { knowledgeEvidenceId: evidenceId })
-  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, {})
-  const originalTransaction = f.db.runTransaction
-  f.db.runTransaction = callback => originalTransaction(tx => callback({ ...tx, set: (ref, value, options) => {
-    if (ref.path === `knowledgeGapEvidence/${evidenceId}` && value.sendStatus === 'accepted') throw new Error('acknowledgement unavailable')
-    return tx.set(ref, value, options)
-  } }))
+  const f = fixture()
+  const originalDoc = f.db.doc
+  f.db.doc = path => {
+    const ref = originalDoc(path)
+    if (path.startsWith('mailboxSendOperations/')) return { ...ref, update: async patch => {
+      await ref.update(patch)
+      if (patch.status === 'accepted') { entered(); await new Promise(resolve => { release = resolve }) }
+    } }
+    return ref
+  }
   const sending = f.handlers.sendMailboxReply(request(reply))
   await ready
   await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: 'Nächste Antwort', revision: 0 } }))
@@ -933,34 +955,21 @@ test('a disconnected parent blocks shared access without any Graph call, and add
   assert.equal(changed.db.records.has(`mailboxConnections/${sharedId}`),false)
 })
 
-test('gap tracking stays invisible in suggestion/draft APIs and preserves evidence linkage through manual edits', async () => {
+test('suggestions and drafts never create learning cases; capture requires the separate SentItems opt-in', async () => {
   const evidenceProfile = { ...profile, permissions: { mailboxes: 'edit', handbook: 'view' } }
   const selection = { sources: [], coverage: 'none', limited: false, gap: { existingGapId: '', intentKey: 'invoice_mismatch', missingAspect: 'response' } }
   const f = fixture({ requireProfile: async () => evidenceProfile, fetch: async (_url, options) => options.method === 'POST' ? response(null, 202) : response({ id: 'evidence-mail', body: { contentType: 'text', content: 'PRIVATE incoming original mail' } }), loadReplyKnowledge: async () => ({ articles: [], rules: [], gaps: [], limited: false }), selectReplyKnowledge: async () => selection, generateReplySuggestion: async () => 'KI Antwortentwurf' })
   f.db.records.set('users/owner', evidenceProfile)
   const generated = await f.handlers.suggestMailboxReply(request({ messageId: 'evidence-mail' }))
   assert.deepEqual(generated, { suggestion: 'KI Antwortentwurf', knowledge: { sources: [] } })
-  const rootPath = [...f.db.records.keys()].find(key => key.startsWith('mailboxDrafts/'))
-  const evidenceId = f.db.records.get(rootPath).knowledgeEvidenceId
-  assert.match(evidenceId, /^[a-f0-9]{64}$/)
-  const ref = `knowledgeGapEvidence/${evidenceId}`
-  assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
   await f.handlers.saveMailboxDraft(request({ messageId: 'evidence-mail', draft: { ...draft, revision: 0, suggestion: '' } }))
-  assert.equal(f.db.records.get(rootPath).knowledgeEvidenceId, evidenceId)
   const loaded = await f.handlers.getMailboxDraft(request({ messageId: 'evidence-mail' }))
-  assert.equal(JSON.stringify(loaded).includes(evidenceId), false)
   assert.equal(JSON.stringify(loaded).includes('gap'), false)
-  const exact = 'Menschlich bearbeitete Antwort mit exaktem Wortlaut.\nZweite Zeile.'
-  const sent = await f.handlers.sendMailboxReply(request({ ...reply, messageId: 'evidence-mail', body: exact, revision: 1 }))
-  assert.equal(sent.status, 'accepted')
-  assert.equal(f.db.records.get(ref).sentReply, exact)
-  assert.equal(f.db.records.get(ref).sendStatus, 'accepted')
-  assert.ok(f.db.records.get(ref).sentAt)
-  assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
-  assert.equal(f.db.records.get(ref).incomingText, 'PRIVATE incoming original mail')
+  assert.equal((await f.handlers.sendMailboxReply(request({ ...reply, messageId: 'evidence-mail', revision: 1 }))).status, 'accepted')
+  assert.equal([...f.db.records.keys()].some(key => key.startsWith('knowledgeGap')), false)
 })
 
-test('uncertain sends retain exact attempted answer separately from AI suggestion without claiming acceptance', async () => {
+test('uncertain sends do not add attempted answers to the learning collection', async () => {
   const evidenceId = 'e'.repeat(64)
   const f = fixture({ fetch: async () => { throw new Error('Network loss') } })
   const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
@@ -969,9 +978,9 @@ test('uncertain sends retain exact attempted answer separately from AI suggestio
   const sent = await f.handlers.sendMailboxReply(request(reply))
   assert.equal(sent.status, 'unknown')
   const evidence = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
-  assert.equal(evidence.sentReply, reply.body)
-  assert.equal(evidence.sendStatus, 'unknown')
-  assert.equal(evidence.sentAt, null)
+  assert.equal(evidence.sentReply, undefined)
+  assert.equal(evidence.sendStatus, 'draft')
+  assert.equal(evidence.sentAt, undefined)
   assert.equal(evidence.latestSuggestion, 'Vorschlag')
 })
 
@@ -1007,26 +1016,18 @@ test('reply lookup is owner-scoped and all batch subrequests use the shared mail
   await assert.rejects(f.handlers.listMailboxReplies({auth:{uid:'other'},data:{connectionId:sharedId,messageIds:['source']}}),{code:'permission-denied'})
 })
 
-test('learning copies are cleaned while exact outgoing text is preserved; send acknowledgement cannot restore removed copies', async () => {
+test('sending preserves exact text and does not capture or update legacy draft learning evidence', async () => {
   const evidenceId = 'd'.repeat(64)
   let submitted
-  const f = fixture({ fetch: async (_url, options) => {
-    submitted = JSON.parse(options.body).message.body.content
-    const current = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
-    assert.equal(current.sentReply, 'Hallo Frau Müller,\nwir prüfen den Auftrag.')
-    f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', removed: true, caseRevision: current.caseRevision + 1, learnedRevision: 0 })
-    return response(null, 202)
-  } })
+  const f = fixture({ fetch: async (_url, options) => { submitted = JSON.parse(options.body).message.body.content; return response(null, 202) } })
   const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
   f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
-  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'AI-Entwurf', sendStatus: 'draft', caseRevision: 1, learnedRevision: 1 })
+  const previous = { gapId: 'gap', latestSuggestion: 'AI-Entwurf', sendStatus: 'draft', caseRevision: 1, learnedRevision: 1 }
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, previous)
   const body = 'Hallo Frau Müller,\nwir prüfen den Auftrag.\n\nMit freundlichen Grüßen\nMax Beispiel'
   assert.equal((await f.handlers.sendMailboxReply(request({ ...reply, body }))).status, 'accepted')
   assert.equal(submitted, body)
-  const removed = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
-  assert.equal(removed.removed, true)
-  assert.equal(removed.sentReply, undefined)
-  assert.equal(removed.latestSuggestion, undefined)
+  assert.deepEqual(f.db.records.get(`knowledgeGapEvidence/${evidenceId}`), previous)
 })
 
 test('webhook adapter reads exactly one owned immutable message and creates a created-only inbox subscription', async () => {

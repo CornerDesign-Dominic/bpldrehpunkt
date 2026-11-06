@@ -149,9 +149,10 @@ Das ist keine Volltext-/Vektorsuchplattform für unbegrenzt große Bestände.
 
 ## Wissenslücken als Arbeitsvorrat
 
-Wissenslücken werden kurz unter `knowledgeGaps` gesammelt. Die Häufigkeit zählt
-unterschiedliche Quellmails; Wiederholen oder Neuformulieren für dieselbe Mail
-erhöht sie nicht erneut. Private, gehashte Ereignisbelege verhindern Doppelzählung
+Wissenslücken werden kurz unter `knowledgeGaps` gesammelt. Seit dem Dev-Ausbau
+vom 06.11.2026 zählt die neue Sammlung einzelne tatsächlich versendete Antworten
+aus explizit freigegebenen Postfächern; wiederholte Benachrichtigungen zählen
+nicht erneut. Frühere Vorschlagsfälle bleiben als historische Fälle erhalten. Private, gehashte Ereignisbelege verhindern Doppelzählung
 auch bei Wiederholung und parallelen Aufrufen. Browser dürfen diese Belege nicht
 lesen oder schreiben. Globale Lücken enthalten keine Mailtexte, Empfänger,
 Absender, Auftragsnummern oder privaten Postfachlinks.
@@ -161,16 +162,13 @@ Die Handbuchsuche liest keine Kuratorenmeldungen ein. Im Entwurf verbleiben nur
 die verwendeten Wissensquellen und der allgemeine Hinweis auf menschliche Prüfung.
 
 Antwortbelege werden getrennt unter `knowledgeGapEvidence` gespeichert und nur
-mit `knowledgeGaps`-Leserecht zugänglich gemacht. Pro gezählter Quellmail werden
-der letzte KI-Vorschlag sowie die tatsächliche manuelle Antwort getrennt erfasst.
-Der Vorschlag ist ausdrücklich kein Nachweis einer gelösten Situation. Vor dem
-Versandversuch wird der genaue Antworttext gesichert, zunächst mit unklarem
-Versandstatus; erst eine angenommene Graph-Versandanforderung markiert den Beleg
-als angenommen. Das ist kein Zustellnachweis. Belegfehler nach angenommenem
-Versand dürfen keinen erneuten Versand auslösen. Für die manuelle Auswertung
-werden zusätzlich bereinigte Eingangstexte als geschützte lokale Kopien erfasst.
-Diese Texte können weiterhin fachliche/personenbezogene Angaben enthalten und
-liegen deshalb hinter dem separaten Recht.
+mit `knowledgeGaps`-Leserecht zugänglich gemacht. Neue Fälle enthalten eine
+bereinigte Eingangskopie und die tatsächliche Antwort aus Microsoft SentItems;
+KI-Entwürfe werden nicht mehr als neue Lernfälle gesammelt. Ein SentItems-Eintrag
+ist kein Nachweis, dass der Inhalt richtig oder fachlich erfolgreich war.
+Historische Vorschlags-/Versandbelege bleiben erhalten. Die Bereinigung bleibt
+unverändert und ist keine garantierte Anonymisierung; insbesondere Namen im
+Fließtext können erhalten bleiben.
 Situation und fehlende Wissensaspekte werden aus einer festen serverseitigen
 Taxonomie gebildet; das Modell darf keine frei formulierten Maildetails in die
 globale Liste schreiben. Es gibt 33 Situations- und sechs Bedarfs-Kategorien.
@@ -181,11 +179,12 @@ Die Kategorien können nach echten Nutzungserfahrungen gezielt erweitert werden.
 
 ## Manuelles Lernen aus Praxisfällen (01.11.2026)
 
-Beim bestehenden „Vorschlag machen“ werden Fälle gesammelt, auch wenn bereits
-ein Artikel als Grundlage verwendet wurde. Das ist keine automatische Auswertung
-aller eingehenden Postfachmails und kein automatisches Lernen. Zugeordnete
-Artikel erhalten eine eigene Fallgruppe; nicht zuordenbare Fälle landen unter
-„Nicht zugeordnet“. Die Originalnachrichten und Konten bleiben unverändert.
+Neue Fälle werden seit 06.11.2026 ausschließlich über den unabhängigen Haken
+„Postfach zum Lernen verwenden“ gesammelt, sobald eine tatsächliche Antwort in
+SentItems erscheint. „Vorschlag machen“ erzeugt keine neuen Fallkopien mehr.
+Die Zuordnung erfolgt automatisch zu gültigen Artikeln, taxonomischen
+Vorschlagsgruppen oder „Nicht zugeordnet“. Das eigentliche Lernen bleibt
+manuell. Originalnachrichten und Konten bleiben unverändert.
 
 Klickbare Gruppen öffnen ein großes dreispaltiges Modal: Eingang und zugehörige
 Antwort stehen paarweise gegenüber, rechts stehen Erkenntnisse und Artikel-
@@ -290,3 +289,42 @@ Der angemeldete Dev-Durchlauf mit echter Mail und Modell bleibt offen.
 Zusätzlich bereitzustellen: `updateKnowledgeGap`, `suggestMailboxReply`,
 `getMailboxDraft`, `saveMailboxDraft`, `sendMailboxReply`, die drei Benutzer-
 verwaltungs-Callables und beide Diagnose-Callables sowie Firestore-Rules.
+
+
+## Unabhängige Postfach-Lernfreigabe (Dev 06.11.2026)
+
+Persönliche Postfächer: Nutzer mit Postfach-Bearbeitungsrecht entscheiden selbst.
+Gemeinsame/Funktionspostfächer: nur aktive Admins/Superadmins, eine gemeinsame
+Einstellung und Sammlung pro Mandant und kanonischem Postfach. Standard aus;
+unabhängig von off/recommend/automatic. Die interne Zuordnung liest ausschließlich
+den begrenzten gültigen Wissenskatalog; sie verleiht dem Nutzer keinen neuen
+Handbuch- oder Wissenslücken-Lesezugriff und gibt ihm keine Quelltexte zurück.
+
+`mailboxLearningScopes`, `mailboxLearningSubscriptions`, `mailboxLearningRuns`
+und `mailboxLearningScopes/{scope}/replies` bleiben serverseitig. Neue Antworten
+werden durch eigene created-Webhooks auf SentItems gemeldet. Die stündliche
+Wartung erneuert ausschließlich Abonnements. Keine Kontrollabfrage, kein
+Nachholen und kein Bestandsimport. Nur Antworten ab Aktivierung und innerhalb
+von fünf Minuten nach Versand werden berücksichtigt. Mehrfachantworten werden
+getrennt gesammelt, dieselbe versendete Antwort zentral nur einmal. Ausschalten
+invalidiert offene Generationen; vor Speicherung wird die Freigabe erneut geprüft.
+
+Parent-Zuordnung verwendet RFC-Referenzen oder den Outlook-Konversationsindex,
+niemals den Betreff allein. Nachschlagen erfolgt auf eine konkrete Referenz oder
+höchstens 50 Elemente einer konkreten Unterhaltung; keine Postfachsuche ohne
+Filter. Entwürfe, Weiterleitungen, Autoantworten, Zustell-/Lesebestätigungen und
+reine Empfangsbestätigungen werden übersprungen. Der tatsächliche From-Absender
+muss zum freigegebenen Postfach passen; unbekannte Alias-Adressen werden bewusst
+nicht geraten. So umgehen persönliche Send-as-Kopien keine zentrale Freigabe.
+Anhänge werden nicht gelesen. Textumfang je Fall höchstens 120.000 Zeichen;
+Lernläufe behalten ihr bisheriges Limit von 20 Fällen/120.000 Zeichen.
+
+Leere Artikelvorschlagsgruppen können mit Wissenslücken-Bearbeitungsrecht
+entfernt werden. Mit zusätzlichem Handbuch-Bearbeitungsrecht können sie in einen
+manuell benannten Artikelentwurf umgewandelt werden. Revision und fehlende aktive
+Fälle werden atomar geprüft; Artikelgruppen und „Nicht zugeordnet“ sind geschützt.
+
+Microsoft verwendet die vorhandenen persönlichen delegierten Leserechte bzw.
+den bereits begrenzten Anwendungs-Lesezugriff der gemeinsamen Postfächer. Keine
+neuen Graph-/Exchange-Rechte, Secrets, Firestore-Rules oder Indizes erforderlich.
+Die neuen Callables und Webhooks sind separat nur für Dev bereitzustellen.

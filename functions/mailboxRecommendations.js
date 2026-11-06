@@ -328,7 +328,18 @@ export function createRecommendationHandlers(deps = {}) {
     })
     const configuredScopes = new Set(configured.map(item => item.scopeId).filter(Boolean))
     const extra = rows.filter(item => !configuredScopes.has(item.scopeId) && !item.addresses.some(isFunctionalMailbox) && !isFunctionalMailbox(stored.get(item.scopeId)?.email))
-    return { mailboxes: [...configured, ...extra].map(item => { const result = { ...item }; delete result.addresses; return result }) }
+    const mailboxes = [...configured, ...extra].map(item => { const result = { ...item }; delete result.addresses; return result })
+    // A learning-only shared mailbox must remain administrable even after all
+    // delegate connections disappear. Do not confuse learning consent with AI mode.
+    const learning = await db().collection('mailboxLearningScopes').where('kind', '==', 'shared').get()
+    for (const doc of learning.docs) {
+      const value = doc.data()
+      if (typeof value.email !== 'string' || !value.email) continue
+      const item = mailboxes.find(row => row.scopeId === doc.id || row.email.toLowerCase() === value.email.toLowerCase())
+      if (item) item.scopeId ||= doc.id
+      else mailboxes.push({ scopeId: doc.id, connectionId: null, email: value.email, available: false, ...publicSetting({ kind: 'shared', email: value.email }, { state: 'not_connected' }) })
+    }
+    return { mailboxes }
   }
   const list = async request => {
     const { scopeId } = await connectionFor(request), ids = request.data.messageIds
