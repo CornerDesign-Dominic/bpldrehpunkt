@@ -283,3 +283,7 @@
 .mailbox-action-row .mailbox-action__label { overflow-wrap: anywhere; }
 .mailbox-action-row .mailbox-action__arrow { display: none; }
 .mailbox-action-row .mailbox-action__hint { font-size: 10px; }
+
+/* Follow-up marking stays prominent for read, unread and selected cards. */
+.mailboxes-page .mailbox-message-item.is-flagged,
+:root[data-theme="dark"] .mailboxes-page .mailbox-message-card > .mailbox-message-item.is-flagged { border-left: 6px solid var(--status-warning-text); }

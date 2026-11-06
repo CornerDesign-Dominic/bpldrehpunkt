@@ -139,7 +139,7 @@ export default function MailRecordAction({ kind, identity, mailContent, attachme
   const otherFiles = attachments.filter(file => !isPdf(file) && (!file.isInline || !/(?:signatur|signature|logo|banner|facebook|linkedin|instagram|twitter|icon)/i.test(file.name || '')))
   const editing = view === 'create' || view === 'existing' && target && !manual
   return <>
-    <MailActionButton kind={kind} state={completed ? 'completed' : action.displayState} expanded={open} disabled={action.busy || saving} onClick={() => void click()}>{buttonText}</MailActionButton>
+    <MailActionButton kind={kind} hint="-BETA-" state={completed ? 'completed' : action.displayState} expanded={open} disabled={action.busy || saving} onClick={() => void click()}>{buttonText}</MailActionButton>
     {!open && (error || action.error) && <p className="mailbox-action-error" role="alert">{error || action.error?.message}</p>}
     <MailWorkDialog open={open} id={`mail-record-${kind}`} title={`${config.label} aus Mail`} left={<MailDocumentSources identity={identity} attachments={attachments.filter(isPdf)} w={w} mailContent={<>{mailContent}<MailboxAttachmentList identity={identity} attachments={otherFiles} /></>} />} onClose={() => setOpen(false)} busy={saving} rightLoading={action.loadingResult} loadingLabel="Ergebnis wird geladen …">
       {error && <p className="mail-record-error" role="alert">{error}</p>}

@@ -8,6 +8,7 @@ const colorLabels = {
   green: ['Übereinstimmend', 'Matching'], yellow: ['Ungeklärt', 'Unresolved'], red: ['Abweichend', 'Different'],
   blue: ['Ergänzend', 'Additional'], gray: ['Ergänzend', 'Additional'],
 }
+const primaryRowOrder = { ta: 0, billingStatus: 1, factoring: 2 }
 
 export function InvoiceReviewStatus({ status, color, label }) {
   const { language } = useLanguage()
@@ -93,7 +94,7 @@ function InvoiceAlerts({ invoice }) {
     if (!items.length) return null
     return <div className={`invoice-review-alert invoice-review-alert--${color}`} key={color} role={color === 'red' ? 'alert' : 'status'} aria-atomic="true"><ul>{items.map((alert, index) => {
       const amountName = { net: en ? 'Net amount' : 'Netto', netTotal: en ? 'Net amount' : 'Netto', vat: en ? 'VAT' : 'MwSt.', vatTotal: en ? 'VAT' : 'MwSt.', gross: en ? 'Total amount' : 'Gesamtbetrag', grossTotal: en ? 'Total amount' : 'Gesamtbetrag' }[alert.key] || (en ? 'Amount' : 'Betrag')
-      const title = alert.kind === 'factoring' ? en ? 'Factoring / assignment notice' : 'Factoring / Abtretungshinweis' : alert.kind === 'duplicate' ? en ? 'Invoice already present in DyCoS' : 'Rechnung bereits in DyCoS vorhanden' : alert.kind === 'possible_duplicate' ? en ? 'Possible duplicate in DyCoS' : 'Mögliche Dublette in DyCoS' : `${amountName} ${en ? 'differs' : 'abweichend'}`
+      const title = alert.kind === 'factoring' ? en ? 'Factoring / assignment notice' : 'Factoring / Abtretungshinweis' : alert.kind === 'duplicate' ? en ? 'Invoice already present in DyCoS' : 'Rechnung bereits in DyCoS vorhanden' : alert.kind === 'possible_duplicate' ? en ? 'Possible duplicate – please review' : 'Achtung: mögliche Dublette – bitte prüfen' : `${amountName} ${en ? 'differs' : 'abweichend'}`
       const check = { ...alert, format: 'money' }
       return <li key={index}><strong>{title}</strong>{alert.kind === 'factoring' && <span className="invoice-review-alert-values">{alert.message}</span>}{alert.kind === 'amount' && <span className="invoice-review-alert-values">{en ? 'Invoice' : 'Rechnung'}: {formatInvoiceCheckValue(check, alert.actual, { language, currency: invoice.currency, side: 'actual' })} · {en ? 'Reference' : 'Vergleich'}: {formatInvoiceCheckValue(check, alert.expected, { language, currency: invoice.currency, side: 'expected' })}</span>}{(alert.ta || alert.externalNumber) && <small>{[alert.ta && `TA ${alert.ta}`, alert.externalNumber && `${en ? 'Document' : 'Beleg'} ${alert.externalNumber}`].filter(Boolean).join(' · ')}</small>}</li>
     })}</ul></div>
@@ -126,12 +127,13 @@ export default function InvoiceReviewResults({ report }) {
       {invoices.length > 1 && <Distribution checks={allChecks} />}
       {invoices.map((invoice, index) => {
         const { primary, secondary } = invoiceDisplayChecks(invoice)
+        const displayPrimary = [...primary].sort((a, b) => (primaryRowOrder[a.key?.split('-')[0]] ?? 3) - (primaryRowOrder[b.key?.split('-')[0]] ?? 3))
         const amountDetails = invoiceAmountDetails(invoice)
         const secondaryMismatches = secondary.filter(check => invoiceCheckColor(check) === 'red').length
         return <section className="invoice-review-invoice" key={`${report.id || report.createdAt}:${index}`}>
           <Distribution checks={primary} />
           <InvoiceAlerts invoice={invoice} />
-          <Checks checks={primary.map(check => ({ ...check, amountChecks: amountDetails.filter(detail => ({ positionSum: 'netTotal', databaseNetTotal: 'netTotal', netTotal: 'netTotal', foreignVat: 'vatTotal', databaseVatTotal: 'vatTotal', vatTotal: 'vatTotal', taxSum: 'grossTotal', databaseGrossTotal: 'grossTotal', grossTotal: 'grossTotal' })[detail.key] === check.key) }))} currency={invoice.currency} />
+          <Checks checks={displayPrimary.map(check => ({ ...check, amountChecks: amountDetails.filter(detail => ({ positionSum: 'netTotal', databaseNetTotal: 'netTotal', netTotal: 'netTotal', foreignVat: 'vatTotal', databaseVatTotal: 'vatTotal', vatTotal: 'vatTotal', taxSum: 'grossTotal', databaseGrossTotal: 'grossTotal', grossTotal: 'grossTotal' })[detail.key] === check.key) }))} currency={invoice.currency} />
           {(secondary.length > 0 || invoice.transports?.length > 0) && <Disclosure title={<>{w('Weitere Abgleichungen', 'Additional comparisons')}{secondaryMismatches > 0 && <span className="invoice-review-secondary-alert invoice-review-status--red"><i className="invoice-review-dot" aria-hidden="true" />{secondaryMismatches} {w('abweichend', 'different')}</span>}</>}>
             {secondary.length > 0 && <Checks checks={secondary} currency={invoice.currency} />}
             {(invoice.transports || []).map((transport, i) => <TransportDetails key={i} transport={transport} currency={invoice.currency} w={w} />)}

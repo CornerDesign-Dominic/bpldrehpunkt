@@ -292,3 +292,12 @@ test('invoice currency compares once to EUR without a transport number, also for
     }
   }
 })
+
+test('existing external document numbers always produce a yellow review alert even when differently prefixed', () => {
+  const invoice = { alerts: [], headerChecks: [{ key: 'billingStatus', color: 'yellow', actual: '150/10/2026', expected: 'VAT 150/10/2026', comparisonOrigin: 'dycos_invoice_headers' }] }
+  assert.deepEqual(invoiceReviewAlerts(invoice).map(({ kind, color, externalNumber }) => ({ kind, color, externalNumber })), [{ kind: 'possible_duplicate', color: 'yellow', externalNumber: 'VAT 150/10/2026' }])
+  const confirmed = { kind: 'duplicate', color: 'red', externalNumber: 'VAT 150/10/2026' }
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, alerts: [confirmed] }).map(alert => alert.kind), ['duplicate'])
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, headerChecks: [{ ...invoice.headerChecks[0], expected: null }] }), [])
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, headerChecks: [{ ...invoice.headerChecks[0], comparisonOrigin: 'cost_position' }] }), [])
+})

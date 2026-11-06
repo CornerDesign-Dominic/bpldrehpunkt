@@ -166,13 +166,17 @@ export function invoiceReviewDistribution(checks = []) {
   return { counts, percentages, total }
 }
 
-// New reports own their alerts. Historical reports may only surface verified
-// monetary mismatches; a cost-position link alone is never duplicate evidence.
+// Keep declared results, but always surface an authoritative external document
+// reference for review. A cost-position link alone is not duplicate evidence.
 export function invoiceReviewAlerts(invoice = {}) {
   const declared = Array.isArray(invoice.alerts)
-  const raw = declared ? invoice.alerts : invoiceDisplayChecks(invoice).primary
+  const raw = declared ? [...invoice.alerts] : invoiceDisplayChecks(invoice).primary
     .filter(check => ['netTotal', 'vatTotal', 'grossTotal', 'net', 'vat', 'gross'].includes(check.key) && invoiceCheckColor(check) === 'red')
     .map(check => ({ ...check, kind: 'amount', color: 'red', ta: check.transportTa || (invoice.transports?.length === 1 ? invoice.transports[0].ta : undefined), currency: invoice.currency }))
+  const externalReference = invoiceDisplayChecks(invoice).primary.find(check => check.key === 'billingStatus' && check.comparisonOrigin === 'dycos_invoice_headers' && typeof check.expected === 'string' && check.expected.trim())
+  if (externalReference && !raw.some(alert => ['duplicate', 'possible_duplicate'].includes(alert?.kind))) {
+    raw.push({ kind: 'possible_duplicate', color: 'yellow', checkKey: 'billingStatus', externalNumber: externalReference.expected.trim() })
+  }
   const alerts = [], seen = new Set()
   for (const alert of raw) {
     if (!['duplicate', 'possible_duplicate', 'amount', 'factoring'].includes(alert?.kind)) continue
