@@ -23,6 +23,7 @@ const navigationItems = [
   { label: 'K.V.P.', to: '/qualitaet/kvp', icon: TodoIcon, module: 'kvp', group: 'quality' },
   { label: 'Handbuch', to: '/qualitaet/handbuch', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
   { label: 'Grundregeln', to: '/qualitaet/grundregeln', icon: DocumentsIcon, module: 'handbook', group: 'quality' },
+  { label: 'Maileinordnung', to: '/qualitaet/maileinordnung', icon: MailIcon, module: 'mailTriageQuality', group: 'quality' },
   { label: 'Wissenslücken', to: '/qualitaet/wissensluecken', icon: DocumentsIcon, module: 'knowledgeGaps', group: 'quality' },
   { label: 'Dashboard', to: '/dashboard', icon: DashboardIcon, module: 'dashboard', group: 'general' },
   { label: 'To-dos', to: '/todos', icon: TodoIcon, module: 'todos', group: 'general' },
@@ -45,6 +46,7 @@ const navigationItems = [
   { label: 'Gericht / Streit', to: '/legal-disputes', icon: LegalDisputesIcon, module: 'legalDisputes', group: 'cases' },
   { label: 'Insolvenzen', to: '/insolvenzen', icon: InsolvenciesIcon, module: 'insolvencies', group: 'cases' },
   { label: 'Dokumente', to: '/dokumente', icon: DocumentsIcon, module: 'documents', group: 'documents' },
+  { label: 'Vertragsmanagement', to: '/vertragsmanagement', icon: DocumentsIcon, module: 'contracts', group: 'contracts' },
   { label: 'Vorlagen', to: '/vorlagen', icon: TemplatesIcon, module: 'templates', group: 'documents' },
   { label: 'AGB-Prüfer', to: '/agb-pruefer', icon: DocumentSearchIcon, module: 'agbChecker', group: 'documents' },
   { label: 'Adminbereich', to: '/admin', icon: ShieldIcon, administration: true, group: 'administration' },
@@ -64,6 +66,7 @@ const navigationGroups = [
   { key: 'operations', label: 'Disposition', icon: TruckTrailerIcon },
   { key: 'partnerSales', label: 'Partner & Vertrieb', icon: UserPlusIcon },
   { key: 'cases', label: 'Fallmanagement', icon: ShieldOutlineIcon },
+  { key: 'contracts', label: 'Vertragsmanagement', icon: DocumentsIcon },
   { key: 'documents', label: 'Dokumente & Werkzeuge', icon: DocumentsIcon },
   { key: 'quality', label: 'Qualität', icon: ShieldOutlineIcon },
   { key: 'more', label: 'Weiteres', icon: NewsIcon },
@@ -71,6 +74,7 @@ const navigationGroups = [
 ]
 
 const directNavigationGroups = {
+  contracts: { to: '/vertragsmanagement', modules: ['contracts'], matches: pathname => pathname === '/vertragsmanagement' || pathname.startsWith('/vertragsmanagement/') },
   people: { to: TEAM_VACATION_PATH, canAccess: canAccessTeamVacation, matches: isTeamVacationPath },
   cases: { to: CASE_MANAGEMENT_PATH, modules: caseManagementModules, matches: isCaseManagementPath },
   quality: { to: QUALITY_PATH, modules: qualityModules, matches: isQualityPath },
@@ -80,6 +84,7 @@ const directNavigationGroups = {
 
 const navigationLabelKeys = {
   '/qualitaet/kvp': 'nav.kvp', '/qualitaet/handbuch': 'nav.handbook',
+  '/qualitaet/maileinordnung': 'nav.mailTriage',
   '/qualitaet/grundregeln': 'nav.groundRules', '/qualitaet/wissensluecken': 'nav.knowledgeGaps',
   '/postfaecher': 'nav.mailboxes',
   '/dashboard': 'nav.dashboard', '/todos': 'nav.todos', '/notizen': 'nav.notes', '/kalender': 'nav.calendar',
@@ -88,6 +93,7 @@ const navigationLabelKeys = {
   '/paletten': 'nav.pallets', '/kunden-unternehmer': 'nav.partners', '/crm': 'nav.crm', '/schaeden': 'nav.damages',
   '/inkasso': 'nav.collections', '/legal-disputes': 'nav.disputes', '/insolvenzen': 'nav.insolvencies',
   '/dokumente': 'nav.documents', '/vorlagen': 'nav.templates', '/agb-pruefer': 'nav.termsChecker',
+  '/vertragsmanagement': 'nav.contracts',
   '/admin': 'nav.admin', '/admin/sendungsverfolgung': 'nav.shipmentTrackingSettings', '/admin/systemmails': 'nav.systemMails',
   '/admin/ki-prompts': 'nav.ai', '/admin/stammdaten': 'nav.masterData', '/admin/diagnose': 'nav.diagnostics',
   '/admin/importverlauf': 'nav.importHistory',

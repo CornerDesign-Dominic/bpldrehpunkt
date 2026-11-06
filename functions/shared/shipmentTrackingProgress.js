@@ -1,5 +1,9 @@
 import { shipmentTrackingDate } from './shipmentTrackingTime.js'
 
+export function hasApproximateTrackingTime(tracking, field) {
+  return tracking?.fieldSources?.[field]?.derivation?.timingApproximate === true
+}
+
 // Later confirmed facts establish progress, never missing timestamps.
 export function shipmentTrackingProgress(tracking = {}) {
   const present = (field) => Boolean(shipmentTrackingDate(tracking[field]))
@@ -23,10 +27,12 @@ export function shipmentTrackingProgress(tracking = {}) {
   const missing = fields.filter(([field, passed]) => passed && !present(field))
   const hasPlate = ['licensePlate', 'tractorLicensePlate', 'trailerLicensePlate'].some((field) => typeof tracking[field] === 'string' && tracking[field].trim())
   if (reachedUnloading && !hasPlate) missing.unshift(['licensePlate', true, 'Kennzeichen'])
-  const history = missing.length ? {
+  const approximate = fields.filter(([field, passed]) => passed && present(field) && hasApproximateTrackingTime(tracking, field))
+  const history = missing.length || approximate.length ? {
     id: 'history-incomplete', severity: 'neutral', label: 'Historie unvollständig',
-    detail: `Frühere Angaben fehlen: ${missing.map(([, , label]) => label).join(', ')}`,
+    detail: [missing.length && `Frühere Angaben fehlen: ${missing.map(([, , label]) => label).join(', ')}`, approximate.length && `Genaue Zeiten unbekannt: ${approximate.map(([, , label]) => label).join(', ')}`].filter(Boolean).join(' · '),
     missingFields: missing.map(([field]) => field),
+    ...(approximate.length ? { approximateFields: approximate.map(([field]) => field) } : {}),
   } : null
   return { closed, unloaded, unloading, reachedUnloading, departed, loaded, loading, reachedLoading, history }
 }
@@ -39,6 +45,7 @@ export function closedShipmentTrackingForecast(tracking = {}, imported = {}) {
   return {
     kind: 'completed', state: 'neutral', message: 'Transport abgeschlossen',
     actualArrivalUnloadingAt: arrival ? arrival.toISOString() : null,
-    arrivalState: arrival && deadline ? arrival <= deadline ? 'green' : 'yellow' : 'unknown',
+    ...(arrival && hasApproximateTrackingTime(tracking, 'actualArrivalUnloadingAt') ? { arrivalTimeApproximate: true } : {}),
+    arrivalState: arrival && deadline && !hasApproximateTrackingTime(tracking, 'actualArrivalUnloadingAt') ? arrival <= deadline ? 'green' : 'yellow' : 'unknown',
   }
 }

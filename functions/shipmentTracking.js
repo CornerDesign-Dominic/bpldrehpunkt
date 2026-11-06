@@ -407,7 +407,8 @@ export async function updateManualShipmentTrackingHandler(request) {
       ? { estimatedArrivalLoadingRecordedAt: changes.estimatedArrivalLoadingAt ? FieldValue.serverTimestamp() : null }
       : {}
     transaction.update(trackingRef, { ...changes, ...etaRecording, ...position, fieldSources, trackingMode: 'manual', updatedAt: FieldValue.serverTimestamp(), updatedBy: request.auth.uid, updatedByName: actor })
-    transaction.create(eventRef, eventPayload({ eventType: 'tracking_updated', changedFields: Object.keys(changes), oldValue, newValue: changes, eventTime: eventTimeFor(changes), actorId: request.auth.uid, actor, source, note }))
+    const oldDerivations = Object.fromEntries(Object.keys(changes).filter(field => current.fieldSources?.[field]?.derivation).map(field => [field, current.fieldSources[field].derivation]))
+    transaction.create(eventRef, { ...eventPayload({ eventType: 'tracking_updated', changedFields: Object.keys(changes), oldValue, newValue: changes, eventTime: eventTimeFor(changes), actorId: request.auth.uid, actor, source, note }), ...(Object.keys(oldDerivations).length ? { oldDerivations } : {}) })
     })
   } catch (error) {
     if (!(error instanceof HttpsError)) await recordDiagnostic({

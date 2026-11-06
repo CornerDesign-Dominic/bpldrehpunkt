@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { invoiceCheckColor, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails } from './invoiceReviewPresentation.js'
+import { invoiceCheckColor, invoiceCheckResultLabel, invoiceCheckCounts, invoicePrimarySections, invoiceTransportChecks, formatInvoiceCheckValue, invoiceDisplayChecks, invoiceReviewDistribution, invoiceAmountDetails, invoiceReviewAlerts } from './invoiceReviewPresentation.js'
 
 test('explicit information/noncritical colors override legacy mismatch status', () => {
   assert.equal(invoiceCheckColor({ status: 'mismatch', color: 'blue' }), 'blue')
@@ -155,4 +155,172 @@ test('new consolidated amount rows retain backend results while detail checks ne
   const display = invoiceDisplayChecks(invoice)
   assert.equal(invoiceAmountDetails(invoice), details)
   assert.deepEqual(invoiceReviewDistribution(display.primary).counts, { green: 1, yellow: 1, red: 1 })
+})
+
+test('explicit duplicate suspicion and confirmed amount alerts retain their distinct severity', () => {
+  const invoice = { currency: 'EUR', alerts: [
+    { kind: 'possible_duplicate', color: 'yellow', externalNumber: 'RE4408', ta: '261000561' },
+    { kind: 'amount', color: 'red', checkKey: 'netTotal', actual: 25000, expected: 23000, currency: 'EUR' },
+  ] }
+  const alerts = invoiceReviewAlerts(invoice)
+  assert.deepEqual(alerts.map(alert => [alert.kind, alert.color]), [['possible_duplicate', 'yellow'], ['amount', 'red']])
+  assert.equal(alerts[1].key, 'netTotal')
+  assert.equal(alerts[0].externalNumber, 'RE4408')
+  assert.match(formatInvoiceCheckValue({ ...alerts[1], format: 'money' }, alerts[1].actual), /250,00.*€/)
+})
+
+test('legacy alert fallback never interprets a cost-position link as a duplicate', () => {
+  const invoice = { currency: 'EUR', headerChecks: [{ key: 'billingStatus', color: 'yellow', actual: '1 Belegbezüge vorhanden' }], notices: [{ message: 'Kostenposition ist mit einem DyCoS-Beleg verknüpft.' }] }
+  assert.deepEqual(invoiceReviewAlerts(invoice), [])
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, headerChecks: [{ key: 'billingStatus', color: 'red' }] }), [])
+})
+
+test('legacy alerts use monetary primary results without double-counting a single transport net', () => {
+  const invoice = { currency: 'EUR', totals: { checks: [{ key: 'netTotal', color: 'red', actual: 25000, expected: 23000 }] }, transports: [{ ta: '261000561', checks: [{ key: 'net', color: 'red', actual: 25000, expected: 23000 }] }] }
+  const alerts = invoiceReviewAlerts(invoice)
+  assert.equal(alerts.length, 1)
+  assert.equal(alerts[0].kind, 'amount')
+  assert.equal(alerts[0].actual, 25000)
+  assert.equal(alerts[0].expected, 23000)
+  assert.equal(alerts[0].ta, '261000561')
+  assert.equal(invoice.totals.checks[0].color, 'red')
+})
+
+test('legacy collective invoices retain TA-specific amount mismatch alerts and ignore unresolved amounts', () => {
+  const alerts = invoiceReviewAlerts({ currency: 'EUR', transports: [
+    { ta: '261000561', checks: [{ key: 'net', color: 'red', actual: 10000, expected: 11000 }] },
+    { ta: '261000562', checks: [{ key: 'net', color: 'red', actual: 10000, expected: 11000 }] },
+    { ta: '261000563', checks: [{ key: 'net', color: 'yellow', actual: 10000, expected: null }] },
+  ] })
+  assert.deepEqual(alerts.map(alert => alert.ta), ['261000561', '261000562'])
+})
+
+test('declared alerts are authoritative and duplicate lines are collapsed without relying on prose', () => {
+  const mismatch = { totals: { checks: [{ key: 'netTotal', color: 'red', actual: 2, expected: 1 }] } }
+  assert.deepEqual(invoiceReviewAlerts({ ...mismatch, alerts: [] }), [])
+  const alert = { kind: 'duplicate', color: 'red', externalNumber: 'RE4408', message: 'An arbitrary provider explanation' }
+  assert.equal(invoiceReviewAlerts({ alerts: [alert, { ...alert, message: 'Different explanation for same invoice' }] }).length, 1)
+})
+
+test('malformed monetary alerts are not shown as confirmed numerical differences and zero is retained', () => {
+  const alerts = invoiceReviewAlerts({ alerts: [
+    { kind: 'amount', color: 'red', actual: null, expected: 23000 },
+    { kind: 'amount', color: 'yellow', actual: 23000, expected: 22000 },
+    { kind: 'duplicate', color: 'yellow' },
+    { kind: 'amount', color: 'red', actual: 0, expected: 4370, currency: 'EUR', checkKey: 'vatTotal' },
+  ] })
+  assert.equal(alerts.length, 1)
+  assert.equal(alerts[0].actual, 0)
+  assert.equal(alerts[0].key, 'vatTotal')
+})
+
+test('payment dates from historical reports stay in one payment row while payment methods are omitted', () => {
+  const payment = { key: 'paymentTerms', actual: '30 Tage ab Rechnungsdatum', expected: '30 Tage', color: 'green' }
+  const due = { key: 'dueDate', actual: '2026-11-30', expected: '2026-11-30', secondary: true, color: 'gray' }
+  const invoice = { paymentChecks: [payment, due, { key: 'paymentMethod', actual: 'Überweisung', color: 'gray' }], transports: [{ checks: [{ key: 'paymentDays', actual: 30, expected: 30, color: 'green' }] }] }
+  const display = invoiceDisplayChecks(invoice)
+  assert.deepEqual(display.primary.map(check => check.key), ['paymentTerms'])
+  assert.equal(display.secondary.length, 0)
+  assert.equal(invoiceReviewDistribution(display.primary).total, 1)
+  assert.equal(display.primary[0].actual, payment.actual)
+  assert.deepEqual(display.primary[0].paymentEvidence.map(item => item.key), ['dueDate', 'paymentTerms'])
+  assert.equal(display.primary[0].paymentEvidence[0].actual, due.actual)
+  assert.equal(invoice.paymentChecks[0], payment); assert.equal(invoice.paymentChecks[1], due)
+  assert.equal(payment.paymentEvidence, undefined, 'immutable historical report is not rewritten')
+})
+
+test('legacy payment methods never become a payment goal or a separate visible result', () => {
+  assert.deepEqual(invoiceDisplayChecks({ paymentChecks: [{ key: 'paymentMethod', actual: 'Überweisung', color: 'green' }] }), { primary: [], secondary: [] })
+  for (const actual of ['Überweisung', 'Bank transfer', 'per Banküberweisung']) {
+    const display = invoiceDisplayChecks({ paymentChecks: [{ key: 'paymentTerms', actual, expected: '30 Tage', color: 'yellow', sourceText: actual }, { key: 'dueDate', actual: '2026-11-30', color: 'gray' }, { key: 'paymentMethod', actual, color: 'gray' }] })
+    assert.equal(display.primary.length, 1); assert.equal(display.secondary.length, 0)
+    assert.equal(display.primary[0].actual, null); assert.equal(display.primary[0].sourceText, null)
+    assert.equal(display.primary[0].color, 'yellow')
+    assert.deepEqual(display.primary[0].paymentEvidence.map(item => item.key), ['dueDate'])
+    assert.equal(JSON.stringify(display).includes(actual), false)
+  }
+  const valid = invoiceDisplayChecks({ paymentChecks: [{ key: 'paymentTerms', actual: '45 Tage ab Rechnungsdatum per Überweisung', expected: '45 days by bank transfer', color: 'green' }] }).primary[0]
+  assert.equal(valid.actual, '45 Tage ab Rechnungsdatum'); assert.equal(valid.expected, '45 days')
+})
+
+test('new payment arithmetic remains on its single payment row, including mismatching explicit days', () => {
+  for (const color of ['green', 'red']) {
+    const payment = { key: 'paymentTerms', actual: '30 Tage · 30.11.2026 − 31.10.2026 = 30 Tage', expected: '30 Tage', color, message: color === 'red' ? 'Explizite 14 Tage widersprechen der Datumsdifferenz von 30 Tagen.' : 'Datumsdifferenz bestätigt die Frist.' }
+    const display = invoiceDisplayChecks({ paymentChecks: [payment] })
+    assert.equal(display.primary.length, 1); assert.equal(display.secondary.length, 0)
+    assert.equal(display.primary[0].actual, payment.actual); assert.equal(display.primary[0].message, payment.message)
+    assert.equal(display.primary[0].color, color)
+  }
+})
+
+test('a legacy due date without a checked payment term never becomes an invented successful comparison', () => {
+  const display = invoiceDisplayChecks({ paymentChecks: [{ key: 'dueDate', actual: '2026-11-30', secondary: true, color: 'gray' }] })
+  assert.equal(display.primary.length, 0)
+  assert.deepEqual(display.secondary.map(check => [check.key, check.actual, check.color]), [['paymentTerms', '2026-11-30', 'gray']])
+})
+
+test('factoring is one primary check with explicit found or no-indication labels, absent from old reports', () => {
+  for (const [found, color, label] of [[true, 'yellow', 'Hinweis gefunden'], [false, 'green', 'Kein Hinweis gefunden']]) {
+    const factoring = { key: 'factoring', actual: found ? 'Factor GmbH' : 'Kein Hinweis gefunden', found, color }
+    const display = invoiceDisplayChecks({ headerChecks: [factoring], transports: [{ checks: [factoring] }] })
+    assert.equal(display.primary.length, 1); assert.equal(display.secondary.length, 0)
+    assert.equal(invoiceCheckResultLabel(display.primary[0]), label)
+    assert.equal(invoiceReviewDistribution(display.primary).counts[color], 1)
+    assert.equal(invoiceCheckResultLabel(factoring, 'en'), found ? 'Notice found' : 'No indication found')
+  }
+  assert.equal(invoiceCheckResultLabel({ key: 'factoring', color: 'green' }), undefined)
+  assert.equal(invoiceDisplayChecks({}).primary.some(check => check.key === 'factoring'), false)
+})
+
+test('concrete factoring alerts remain yellow beside duplicate alerts and malformed findings are omitted', () => {
+  const factoring = { kind: 'factoring', color: 'yellow', company: 'Factor GmbH', message: 'Forderung an Factor GmbH abgetreten. Zahlungsempfänger prüfen.' }
+  const alerts = invoiceReviewAlerts({ alerts: [factoring, { ...factoring }, { kind: 'duplicate', color: 'red', externalNumber: 'RE4408' }, { kind: 'factoring', color: 'yellow', message: '' }, { ...factoring, color: 'red' }] })
+  assert.deepEqual(alerts.map(alert => [alert.kind, alert.color]), [['factoring', 'yellow'], ['duplicate', 'red']])
+  assert.equal(alerts[0].message, factoring.message); assert.equal(alerts[0].company, factoring.company)
+})
+
+
+test('invoice currency compares once to EUR without a transport number, also for collective invoices', () => {
+  for (const [currency, color] of [['EUR', 'green'], ['', 'yellow'], ['USD', 'red']]) {
+    for (const count of [0, 1, 2]) {
+      const result = invoiceDisplayChecks({ currency, transports: Array.from({ length: count }, (_, i) => ({ ta: String(i), checks: [{ key: 'currency', actual: 'EUR', expected: 'USD', color: 'red' }] })) })
+      const rows = result.primary.filter(check => check.key === 'currency')
+      assert.equal(rows.length, 1)
+      assert.equal(rows[0].color, color)
+      assert.equal(rows[0].expected, 'EUR')
+      assert.equal(rows[0].transportTa, undefined)
+    }
+  }
+})
+
+test('existing external document numbers always produce a yellow review alert even when differently prefixed', () => {
+  const invoice = { alerts: [], headerChecks: [{ key: 'billingStatus', color: 'yellow', actual: '150/10/2026', expected: 'VAT 150/10/2026', comparisonOrigin: 'dycos_invoice_headers' }] }
+  assert.deepEqual(invoiceReviewAlerts(invoice).map(({ kind, color, externalNumber }) => ({ kind, color, externalNumber })), [{ kind: 'possible_duplicate', color: 'yellow', externalNumber: 'VAT 150/10/2026' }])
+  const confirmed = { kind: 'duplicate', color: 'red', externalNumber: 'VAT 150/10/2026' }
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, alerts: [confirmed] }).map(alert => alert.kind), ['duplicate'])
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, headerChecks: [{ ...invoice.headerChecks[0], expected: null }] }), [])
+  assert.deepEqual(invoiceReviewAlerts({ ...invoice, headerChecks: [{ ...invoice.headerChecks[0], comparisonOrigin: 'cost_position' }] }), [])
+})
+
+test('confirmed booked invoices stay in the main rows and red alerts without a correctness vote, also for saved reports', () => {
+  for (const extra of [{}, { affectsCorrectness: false }]) {
+    const billing = { key: 'billingStatus', comparisonOrigin: 'dycos_invoice_headers', duplicate: true, color: 'red', actual: 'RE1', expected: 'RE1', ...extra }
+    const invoice = { headerChecks: [{ key: 'issuer', color: 'green' }, billing], alerts: [{ kind: 'duplicate', color: 'red', externalNumber: 'RE1' }] }
+    const original = JSON.stringify(invoice)
+    const display = invoiceDisplayChecks(invoice)
+    assert.equal(display.primary.find(check => check.key === 'billingStatus').color, 'red')
+    assert.equal(display.secondary.some(check => check.key === 'billingStatus'), false)
+    assert.deepEqual(invoiceReviewDistribution(display.primary).percentages, { green: 100, yellow: 0, red: 0 })
+    assert.equal(invoiceReviewDistribution(display.primary).total, 1)
+    assert.equal(invoiceReviewAlerts(invoice)[0].color, 'red')
+    assert.equal(JSON.stringify(invoice), original, 'saved report remains immutable')
+    assert.deepEqual(invoiceReviewDistribution([...display.primary, { key: 'netTotal', color: 'red' }]).counts, { green: 1, yellow: 0, red: 1 })
+  }
+})
+
+test('unresolved and suspected external-number checks still contribute yellow to the scale', () => {
+  for (const duplicate of [false, undefined]) {
+    const checks = [{ key: 'issuer', color: 'green' }, { key: 'billingStatus', comparisonOrigin: 'dycos_invoice_headers', duplicate, color: 'yellow' }]
+    assert.deepEqual(invoiceReviewDistribution(checks).counts, { green: 1, yellow: 1, red: 0 })
+  }
 })

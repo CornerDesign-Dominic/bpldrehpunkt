@@ -1,5 +1,9 @@
 // Reviewed terminology for frequently used controls and logistics workflows.
 export const autoOverrides = {
+  'Tatsächliche Ankunft Entladestelle': 'Actual arrival at unloading site',
+  'Voraussichtliche Ankunft Ladestelle': 'Estimated arrival at loading site',
+  'Voraussichtliche Ankunft Entladestelle': 'Estimated arrival at unloading site',
+  'Erfasst von': 'Recorded by',
   'Geladene Auswahl verwerfen': 'Discard loaded selection',
   'Die gespeicherte Suche konnte nicht verworfen werden. Bitte den Browserspeicher prüfen.': 'The saved search could not be discarded. Please check browser storage.',
   'Nummern & Zusammenführungen': 'Numbers & merges',

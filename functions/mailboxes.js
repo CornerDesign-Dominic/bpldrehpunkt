@@ -1,21 +1,21 @@
-import { cleanKnowledgeMailCopy } from './knowledgeTextClean.js'
 import { listMailboxReplies } from './mailboxReplies.js'
 import { applyMailboxRecord, previewMailboxRecord, searchRecordTargets } from './mailboxRecords.js'
 import { assertRecordAccess } from './mailboxRecordData.js'
 import { recordAttachmentType, validateRecordAttachments } from './mailboxRecordAi.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
-import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, recordReplyKnowledgeGap, replySuggestionHash, publicReplyKnowledge, knowledgeCaseUpdate } from './knowledgeReply.js'
+import { hasReplyKnowledgeAccess, loadReplyKnowledge, selectReplyKnowledge, replySuggestionHash, publicReplyKnowledge } from './knowledgeReply.js'
 import { generateReplySuggestion, validateReplySuggestionInput, validateReplySuggestion } from './mailboxReplySuggestions.js'
 import { searchMailboxOrderCustomers, assignMailboxOrderCustomer } from './mailboxCustomerSearch.js'
 import { assertInvoiceReviewAccess, reviewMailboxInvoices, validateInvoiceAttachments, validateInvoiceAttachmentBytes } from './invoiceReview.js'
 import { createHash, createHmac, randomBytes, createCipheriv, createDecipheriv } from 'node:crypto'
 import { Buffer } from 'node:buffer'
 import { getApp } from 'firebase-admin/app'
-import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { getFirestore } from 'firebase-admin/firestore'
 import { defineSecret, defineString } from 'firebase-functions/params'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile } from './access.js'
 import { recordDiagnostic } from './diagnostics.js'
+import { isManagedRecommendationMailbox } from './mailboxRecommendationPolicy.js'
 import { runtimeProjectId } from './externalEffects.js'
 import { assertMailboxEnvironment, assertMailboxOAuthConfiguration, resolveMailboxClientId } from './mailboxEnvironment.js'
 export { assertMailboxEnvironment } from './mailboxEnvironment.js'
@@ -30,7 +30,8 @@ export const mailboxFrontendOrigin = defineString('MAILBOX_FRONTEND_ORIGIN', { d
 // EUR was explicitly confirmed by the user as the DyCoS company currency.
 export const mailboxOrderCompanyCurrency = defineString('MAILBOX_ORDER_COMPANY_CURRENCY', { default: 'EUR' })
 const TENANT = 'b829bbdc-c0b7-4128-a341-6715a67b451b'
-const SCOPES = 'https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Read.Shared https://graph.microsoft.com/Mail.Send.Shared offline_access'
+const READ_SCOPES = 'https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Mail.Read.Shared https://graph.microsoft.com/Mail.Send.Shared offline_access'
+const SCOPES = `${READ_SCOPES} https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.ReadWrite.Shared`
 const GRAPH = 'https://graph.microsoft.com/v1.0'
 const MAX_ATTACHMENT = 5 * 1024 * 1024
 const digest = value => createHash('sha256').update(value).digest('hex')
@@ -186,14 +187,19 @@ export function createMailboxHandlers(deps = {}) {
     if (!response.ok) fail('failed-precondition', 'Microsoft-Verbindung abgelaufen oder nicht freigegeben. Bitte erneut verbinden.')
     const result = await response.json()
     if (!result.access_token || (fields.grant_type === 'authorization_code' && !result.refresh_token)) fail('failed-precondition', 'Microsoft hat keine vollständige Verbindung bereitgestellt.')
-    const scopes = new Set((result.scope || '').toLowerCase().split(' ').map(s => s.replace('https://graph.microsoft.com/', '')))
-    if (!['mail.read', 'mail.send', 'user.read'].every(s => scopes.has(s))) fail('failed-precondition', 'Die erforderlichen Microsoft-Berechtigungen fehlen.')
+    const scopes = new Set((result.scope || '').toLowerCase().split(/\s+/).filter(Boolean).map(s => s.replace('https://graph.microsoft.com/', '')))
+    if (!(scopes.has('mail.read') || scopes.has('mail.readwrite')) || !['mail.send', 'user.read'].every(s => scopes.has(s))) fail('failed-precondition', 'Die erforderlichen Microsoft-Berechtigungen fehlen.')
     return { accessToken: result.access_token, refreshToken: result.refresh_token || fields.refresh_token, scopes: [...scopes], expiresAt: now() + Math.min(Number(result.expires_in) || 3600, 86400) * 1000 }
   }
-  const accessToken = async context => {
-    if (context.credential) return accessToken(context.credential)
+  const accessToken = async (context, write = false) => {
+    if (context.credential) return accessToken(context.credential, write && context.connection.kind === 'shared' ? 'shared' : write)
+    const requireWriteScope = tokens => {
+      if (!write) return
+      const required = write === 'shared' ? 'mail.readwrite.shared' : 'mail.readwrite'
+      if (!(tokens.scopes || []).some(scope => String(scope).toLowerCase().replace('https://graph.microsoft.com/', '') === required)) fail('failed-precondition', 'Bitte die Microsoft-Verbindung unter Mein Profil → Postfächer erneuern, um Gelesen-Status und Fähnchen mit Outlook abzugleichen.', { technicalCode: 'mailbox_write_scope_required' })
+    }
     const saved = await store().read(context.connection.secretVersion)
-    if (saved.expiresAt > now() + 60000) return saved.accessToken
+    if (saved.expiresAt > now() + 60000) { requireWriteScope(saved); return saved.accessToken }
     const lock = randomBytes(16).toString('hex')
     await db().runTransaction(async tx => {
       const current = (await tx.get(context.ref)).data()
@@ -203,7 +209,7 @@ export function createMailboxHandlers(deps = {}) {
       tx.update(context.ref, { refreshLock: lock, refreshUntil: now() + 60000 })
     })
     try {
-      const tokens = await tokenRequest({ grant_type: 'refresh_token', refresh_token: saved.refreshToken })
+      const tokens = await tokenRequest({ grant_type: 'refresh_token', refresh_token: saved.refreshToken, scope: saved.scopes?.length ? saved.scopes.map(scope => ['offline_access', 'openid', 'profile', 'email'].includes(scope.toLowerCase()) ? scope : `https://graph.microsoft.com/${String(scope).replace('https://graph.microsoft.com/', '')}`).join(' ') : READ_SCOPES })
       const version = await store().write(context.connection.secretName, tokens)
       const retirement = db().doc(`mailboxSecretRetirements/${digest(context.connection.secretVersion)}`)
       try {
@@ -226,6 +232,7 @@ export function createMailboxHandlers(deps = {}) {
         await diagnose({ stage: 'connect', code: 'retired_version_cleanup_pending', message: 'Alte Postfachzugangsdaten werden durch die geplante Bereinigung entfernt.', actorId: context.uid })
       }
       context.connection.secretVersion = version
+      requireWriteScope(tokens)
       return tokens.accessToken
     } finally {
       await db().runTransaction(async tx => {
@@ -287,12 +294,8 @@ export function createMailboxHandlers(deps = {}) {
       }
       const previousDraft = (await tx.get(persistedDraft)).data()
       if ((previousDraft?.draft?.revision || 0) !== revision || previousDraft?.operationId) fail('aborted', 'Diese Nachricht wurde bereits bearbeitet oder eine Antwort wurde versendet. Bitte zuerst neu laden und den Versandstatus prüfen.')
-      const evidenceId = /^[a-f0-9]{64}$/.test(previousDraft?.knowledgeEvidenceId || '') ? previousDraft.knowledgeEvidenceId : ''
-      const evidence = evidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${evidenceId}`)) : null
       draft.revision = revision
-      const captureEvidence = evidence?.exists && evidence.data()?.removed !== true
-      if (captureEvidence) tx.set(db().doc(`knowledgeGapEvidence/${evidenceId}`), knowledgeCaseUpdate(evidence.data(), { sentReply: cleanKnowledgeMailCopy(draft.body), sentAt: null, sendStatus: 'unknown', updatedAt: FieldValue.serverTimestamp() }))
-      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now(), ...(captureEvidence ? { knowledgeEvidenceId: evidenceId } : {}) })
+      tx.create(operation, { ownerId: context.uid, connectionId: context.connectionId, fingerprint, status: 'pending', createdAt: now() })
       tx.set(persistedDraft, { ownerId: context.uid, connectionId: context.connectionId, messageId, draft, operationId, updatedAt: now() }, { merge: true })
       return null
     })
@@ -302,17 +305,7 @@ export function createMailboxHandlers(deps = {}) {
       // is checked against every recipient that is actually submitted.
       await graph(token, compose ? `${mailboxPath(context)}/sendMail` : `${mailboxPath(context)}/messages/${segment(messageId)}/reply`, { method: 'POST', body: JSON.stringify({ message: { ...(compose ? { subject: draft.subject } : {}), ...(context.connection.kind === 'shared' ? { from: { emailAddress: { address: context.connection.email } } } : {}), body: { contentType: 'Text', content: draft.body }, toRecipients: draft.toRecipients, ccRecipients: draft.ccRecipients, bccRecipients: draft.bccRecipients } }) })
       await operation.update({ status: 'accepted', finishedAt: now() })
-      // An evidence update must never turn an accepted Graph send into an unknown/retriable outcome.
-      try {
-        const receipt = (await operation.get()).data()
-        if (receipt?.knowledgeEvidenceId) await db().runTransaction(async tx => {
-          const evidenceRef = db().doc(`knowledgeGapEvidence/${receipt.knowledgeEvidenceId}`)
-          const evidence = await tx.get(evidenceRef)
-          if (evidence.exists && evidence.data()?.removed !== true) tx.set(evidenceRef, knowledgeCaseUpdate(evidence.data(), { sendStatus: 'accepted', sentAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
-        })
-      } catch {
-        await diagnose({ stage: 'send', code: 'knowledge_evidence_ack_failed', message: 'Antwort wurde zum Versand angenommen; Nachweisstatus konnte nicht aktualisiert werden.', actorId: context.uid, recordId: operationId }).catch(() => {})
-      }
+      // Learning is captured only from actual SentItems by the independent opt-in webhook.
       // Preserve the send receipt, but remove sent text and AI drafting metadata.
       try {
         await db().runTransaction(async tx => {
@@ -440,7 +433,7 @@ export function createMailboxHandlers(deps = {}) {
         const file = await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}/attachments/${segment(metadata.id)}`)
         files.push(validateInvoiceAttachmentBytes(file, metadata))
       }
-      return reviewMailboxInvoices({ db: db(), context, files, mail, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
+      return reviewMailboxInvoices({ db: db(), context, files, mail, operationId: request.data?.operationId, now: now(), infer: deps.inferInvoices, extract: deps.extractInvoicePdf, fetchOrder: deps.fetchInvoiceOrder, onBillingError: async error => diagnose({ actorId: context.uid, stage: 'invoice-review', code: 'invoice_billing_lookup_failed', technicalCode: error?.code || 'source_unavailable', message: 'DyCoS-Belegabgleich nicht vollständig möglich.', cause: 'Belegabruf oder Validierung fehlgeschlagen.', causeStatus: 'confirmed', severity: 'warning', source: 'server' }), revalidate: async () => { assertInvoiceReviewAccess(await owned(request, true)) } })
     }),
     listTransportInvoiceChecks: guarded('invoice-history', async request => {
       assertMailboxEnvironment(deps.config?.project || runtimeProjectId())
@@ -546,12 +539,12 @@ export function createMailboxHandlers(deps = {}) {
       return folder.id
     },
     // Internal webhook adapter. There is intentionally no inbox-list operation.
-    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId }) {
+    async recommendationGraph({ connectionId, operation, subscriptionId, data, messageId, attachmentId, referenceId, conversationId }) {
       assertMailboxEnvironment(config().project)
       const connection = (await db().doc(`mailboxConnections/${connectionId}`).get()).data()
       if (connection?.status !== 'connected') fail('failed-precondition', 'Postfach ist nicht verbunden.')
       let token, base
-      if (connection.kind === 'shared') {
+      if (isManagedRecommendationMailbox(connection)) {
         base = `/users/${segment(address(connection.email))}`
         if (!recommendationAppToken || recommendationAppToken.expiresAt <= now() + 60000) {
           const response = await http(`https://login.microsoftonline.com/${TENANT}/oauth2/v2.0/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: clientId(), client_secret: config().secret, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }), signal: AbortSignal.timeout(20000) })
@@ -567,27 +560,59 @@ export function createMailboxHandlers(deps = {}) {
         base = '/me'
       }
       if (operation === 'create') return graph(token, '/subscriptions', { method: 'POST', body: JSON.stringify({ ...data, resource: `${base}/mailFolders('inbox')/messages` }) })
-      if (operation === 'message') return graph(token, `${base}/messages/${segment(messageId)}?$select=id,subject,body,receivedDateTime`)
+      if (operation === 'learning-create') return graph(token, '/subscriptions', { method: 'POST', body: JSON.stringify({ ...data, resource: `${base}/mailFolders('sentitems')/messages` }) })
+      if (operation === 'learning-sent') {
+        const [message, folder] = await Promise.all([
+          graph(token, `${base}/messages/${segment(messageId)}?$select=id,internetMessageId,internetMessageHeaders,subject,body,from,toRecipients,conversationId,conversationIndex,sentDateTime,receivedDateTime,isDraft,parentFolderId`),
+          graph(token, `${base}/mailFolders/sentitems?$select=id`),
+        ])
+        return { message, sentFolderId: folder.id }
+      }
+      if (operation === 'learning-parents') {
+        const byReference = typeof referenceId === 'string' && /^<[^<>\s]{1,996}>$/u.test(referenceId)
+        const byConversation = typeof conversationId === 'string' && conversationId.length > 0 && conversationId.length <= 1024 && ![...conversationId].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+        if (!byReference && !byConversation) fail('invalid-argument', 'Ungültige Antwortreferenz.')
+        const filter = `${byReference ? 'internetMessageId' : 'conversationId'} eq '${(byReference ? referenceId : conversationId).replaceAll("'", "''")}'`
+        const query = new URLSearchParams({ '$filter': filter, '$select': 'id,internetMessageId,internetMessageHeaders,subject,body,from,toRecipients,conversationId,conversationIndex,sentDateTime,receivedDateTime,isDraft,parentFolderId', '$top': byReference ? '10' : '50' })
+        const result = await graph(token, `${base}/messages?${query}`)
+        // Never page through a mailbox to guess a missing parent.
+        if (result['@odata.nextLink'] || !Array.isArray(result.value) || result.value.length > (byReference ? 10 : 50)) fail('failed-precondition', 'Die Antwortzuordnung ist zu umfangreich oder unvollständig.')
+        return result
+      }
+      if (operation === 'message') return graph(token, `${base}/messages/${segment(messageId)}?$select=id,subject,body,receivedDateTime,hasAttachments`)
+      if (operation === 'attachment-list') return graph(token, `${base}/messages/${segment(messageId)}/attachments?$select=id,name,contentType,size,isInline&$top=20`)
+      if (operation === 'attachment') {
+        const file = await graph(token, `${base}/messages/${segment(messageId)}/attachments/${segment(attachmentId)}`)
+        if (file?.['@odata.type'] !== '#microsoft.graph.fileAttachment' || file.isInline || typeof file.contentBytes !== 'string' || file.contentBytes.length > Math.ceil(MAX_ATTACHMENT / 3) * 4 || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.contentBytes)) fail('failed-precondition', 'Anhang für Empfehlung nicht lesbar.')
+        const bytes = Buffer.from(file.contentBytes, 'base64')
+        if (!bytes.length || bytes.length > MAX_ATTACHMENT || bytes.toString('base64') !== file.contentBytes) fail('failed-precondition', 'Anhang für Empfehlung nicht lesbar.')
+        return { name: clean(file.name, 255), contentType: file.contentType, contentBytes: file.contentBytes }
+      }
       if (!['renew', 'delete'].includes(operation)) fail('invalid-argument', 'Ungültiger Webhook-Vorgang.')
       return graph(token, `/subscriptions/${segment(subscriptionId)}`, operation === 'delete' ? { method: 'DELETE' } : { method: 'PATCH', body: JSON.stringify(data) })
     },
     listMailboxMessages: guarded('list-messages', async request => {
       const context = await owned(request)
+      const folder = request.data.folder === undefined ? 'inbox' : request.data.folder
+      if (!['inbox', 'sentitems'].includes(folder)) fail('invalid-argument', 'Ungültiger Postfachordner.')
       const rawSearch = request.data.search ?? ''
       if (typeof rawSearch !== 'string' || rawSearch.length > 200 || [...rawSearch].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)) fail('invalid-argument', 'Der Suchbegriff darf höchstens 200 Zeichen und keine Steuerzeichen enthalten.')
       const search = rawSearch.trim()
       const searchHash = digest(search)
-      const query = new URLSearchParams({ '$top': '30', '$select': 'id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview' })
+      const query = new URLSearchParams({ '$top': '30', '$select': 'id,subject,from,sender,toRecipients,receivedDateTime,sentDateTime,isRead,flag,hasAttachments,bodyPreview' })
       if (search) query.set('$search', JSON.stringify(search))
-      else query.set('$orderby', 'receivedDateTime desc')
-      let path = `${mailboxPath(context)}/mailFolders/inbox/messages?${query}`
+      else query.set('$orderby', folder === 'sentitems' ? 'sentDateTime desc' : 'receivedDateTime desc')
+      let path = `${mailboxPath(context)}/mailFolders/${folder}/messages?${query}`
       if (request.data.pageToken) {
         const token = clean(request.data.pageToken, 16000)
-        const [encoded, signature] = token.split('.')
+        const parts = token.split('.')
+        if (parts.length !== 2) fail('invalid-argument', 'Ungültige Folgeseite.')
+        const [encoded, signature] = parts
         const expected = createHmac('sha256', config().secret).update(`${context.uid}|${context.connectionId}|${encoded}`).digest('base64url')
         if (!encoded || signature !== expected) fail('invalid-argument', 'Ungültige Folgeseite.')
         const cursor = JSON.parse(Buffer.from(encoded, 'base64url').toString())
         if (!Number.isFinite(cursor.expiresAt) || cursor.expiresAt < now() || typeof cursor.path !== 'string') fail('invalid-argument', 'Folgeseite ist abgelaufen.')
+        if ((cursor.folder || 'inbox') !== folder) fail('invalid-argument', 'Die Folgeseite gehört zu einem anderen Postfachordner.')
         if ((cursor.searchHash || digest('')) !== searchHash) fail('invalid-argument', 'Die Folgeseite gehört zu einer anderen Suche.')
         path = mailboxMessagePagePath(`${GRAPH}${cursor.path}`, context.connection)
       }
@@ -595,7 +620,7 @@ export function createMailboxHandlers(deps = {}) {
       let nextPageToken = null
       if (result['@odata.nextLink']) {
         const nextPath = mailboxMessagePagePath(result['@odata.nextLink'], context.connection)
-        const encoded = Buffer.from(JSON.stringify({ path: nextPath, searchHash, expiresAt: now() + 30 * 60000 })).toString('base64url')
+        const encoded = Buffer.from(JSON.stringify({ path: nextPath, folder, searchHash, expiresAt: now() + 30 * 60000 })).toString('base64url')
         nextPageToken = `${encoded}.${createHmac('sha256', config().secret).update(`${context.uid}|${context.connectionId}|${encoded}`).digest('base64url')}`
       }
       return { messages: result.value || [], nextPageToken }
@@ -609,12 +634,24 @@ export function createMailboxHandlers(deps = {}) {
       const context = await owned(request)
       const token = await accessToken(context)
       const path = `${mailboxPath(context)}/messages/${segment(request.data.messageId)}`
-      const message = await graph(token, `${path}?$select=id,subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,isRead,hasAttachments,body,webLink`)
+      const message = await graph(token, `${path}?$select=id,subject,from,sender,toRecipients,ccRecipients,bccRecipients,replyTo,receivedDateTime,sentDateTime,isRead,flag,hasAttachments,body,webLink`)
       if (message.body?.contentType?.toLowerCase() !== 'text') fail('unavailable', 'Microsoft hat keine sichere Textansicht geliefert.')
       const attachments = await graph(token, `${path}/attachments?$select=id,name,contentType,size,isInline&$top=100`)
       message.attachments = (attachments.value || []).map(a => ({ id: a.id, name: a.name, contentType: a.contentType, size: a.size, isInline: a.isInline, supported: a['@odata.type'] === '#microsoft.graph.fileAttachment' && a.size <= MAX_ATTACHMENT }))
       message.attachmentsTruncated = Boolean(attachments['@odata.nextLink'])
       return { message }
+    }),
+    updateMailboxMessageState: guarded('message-state', async request => {
+      const data = request.data
+      if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(key => !['connectionId', 'messageId', 'isRead', 'flagStatus'].includes(key))) fail('invalid-argument', 'Ungültige Statusänderung.')
+      const hasRead = Object.hasOwn(data, 'isRead'), hasFlag = Object.hasOwn(data, 'flagStatus')
+      if (hasRead === hasFlag || hasRead && typeof data.isRead !== 'boolean' || hasFlag && !['notFlagged', 'flagged', 'complete'].includes(data.flagStatus)) fail('invalid-argument', 'Nur Gelesen-Status oder Fähnchen kann geändert werden.')
+      const context = await owned(request, true)
+      const messageId = id(data.messageId)
+      const token = await accessToken(context, true)
+      const body = hasRead ? { isRead: data.isRead } : { flag: { flagStatus: data.flagStatus } }
+      const message = await graph(token, `${mailboxPath(context)}/messages/${segment(messageId)}?$select=id,isRead,flag`, { method: 'PATCH', body: JSON.stringify(body) })
+      return { message: { id: messageId, ...body, ...message } }
     }),
     getMailboxAttachment: guarded('attachment', async request => {
       const context = await owned(request)
@@ -668,12 +705,7 @@ export function createMailboxHandlers(deps = {}) {
             if (!hasReplyKnowledgeAccess(profileSnapshot.data())) fail('permission-denied', 'Die Wissensberechtigung wurde inzwischen geändert.')
             if (sources.some((snapshot, index) => snapshot.data()?.status !== 'valid' || snapshot.data()?.revision !== selection.sources[index].revision)) fail('aborted', 'Das verwendete Wissen wurde inzwischen geändert. Bitte einen neuen Vorschlag erstellen.')
           }
-          const previousEvidenceId = /^[a-f0-9]{64}$/.test(draftSnapshot.data()?.knowledgeEvidenceId || '') ? draftSnapshot.data().knowledgeEvidenceId : ''
-          const previousEvidence = previousEvidenceId ? await tx.get(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`)) : null
-          const gap = selection ? await (deps.recordReplyKnowledgeGap || recordReplyKnowledgeGap)({ db: db(), profile: profileSnapshot.data(), context, mail: { ...mail, id: mail.id || messageId }, selection, catalog, suggestion, transaction: tx }) : null
-          const evidenceId = gap?.evidenceId || previousEvidenceId
-          if (!gap?.evidenceId && previousEvidence?.exists && previousEvidence.data()?.removed !== true) tx.set(db().doc(`knowledgeGapEvidence/${previousEvidenceId}`), knowledgeCaseUpdate(previousEvidence.data(), { latestSuggestion: cleanKnowledgeMailCopy(suggestion), suggestionAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }))
-          tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge }, ...(evidenceId ? { knowledgeEvidenceId: evidenceId } : {}) }, { merge: true })
+          tx.set(ref, { ownerId: context.uid, connectionId: context.connectionId, messageId, lastSuggestion: { hash: replySuggestionHash(suggestion), knowledge } }, { merge: true })
         })
         return { suggestion, knowledge: publicReplyKnowledge(knowledge) }
       } finally {
@@ -781,7 +813,7 @@ export function createMailboxHandlers(deps = {}) {
       const secretVersion = await store().write(secretName, tokens, true)
       const ticket = randomBytes(32).toString('base64url')
       try {
-        await db().doc(`mailboxOAuthPending/${digest(ticket)}`).create({ ownerId: saved.ownerId, connectionId, proofChallenge: saved.proofChallenge, sharedAccess: ['mail.read.shared', 'mail.send.shared'].every(scope => tokens.scopes.includes(scope)), graphUserId: me.id, email, displayName: clean(me.displayName, 200), secretName, secretVersion, expiresAt: now() + 10 * 60000, used: false })
+        await db().doc(`mailboxOAuthPending/${digest(ticket)}`).create({ ownerId: saved.ownerId, connectionId, proofChallenge: saved.proofChallenge, sharedAccess: (tokens.scopes.includes('mail.read.shared') || tokens.scopes.includes('mail.readwrite.shared')) && tokens.scopes.includes('mail.send.shared'), graphUserId: me.id, email, displayName: clean(me.displayName, 200), secretName, secretVersion, expiresAt: now() + 10 * 60000, used: false })
       } catch (error) {
         await store().remove(secretName)
         throw error
@@ -842,6 +874,7 @@ export const listMailboxMessagesHandler = handlers.listMailboxMessages
 export const recommendationGraphHandler = handlers.recommendationGraph
 export const resolveRecommendationMailboxIdentityHandler = handlers.resolveRecommendationMailboxIdentity
 export const listMailboxRepliesHandler = handlers.listMailboxReplies
+export const updateMailboxMessageStateHandler = handlers.updateMailboxMessageState
 export const getMailboxMessageHandler = handlers.getMailboxMessage
 export const getMailboxAttachmentHandler = handlers.getMailboxAttachment
 export const suggestMailboxReplyHandler = handlers.suggestMailboxReply

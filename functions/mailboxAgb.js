@@ -1,3 +1,4 @@
+import { sharedActionResult } from './mailboxSharedActions.js'
 import { extractPdfWithOcr } from './pdfOcr.js'
 import { statusMailAiApiKey } from './statusMailAi.js'
 import { Buffer } from 'node:buffer'
@@ -52,7 +53,8 @@ export async function assignMailboxAgbCustomer({ db, context, data }) {
     const partnerRef = db.doc(`businessPartners/${data.partnerId}`)
     const history = (await tx.get(entry)).data()
     const partner = (await tx.get(partnerRef)).data()
-    if (!history || history.createdByUserId !== context.uid || history.channel !== 'personal_mailbox') fail('permission-denied', 'Diese Prüfung kann nicht zugeordnet werden.')
+    const shared = await sharedActionResult({ db, context, value: history, kind: 'terms', resultId: data.historyId, transaction: tx })
+    if (!history || history.createdByUserId !== context.uid && !shared || history.channel !== 'personal_mailbox') fail('permission-denied', 'Diese Prüfung kann nicht zugeordnet werden.')
     const references = [partner?.debtorNumber, ...(partner?.dycosReferences?.debtorNumbers || [])].map(number => String(number ?? '').trim()).filter(Boolean)
     if (!partner || !businessPartnerRoles(partner).customer || partner.mergedIntoPartnerId || partner.status === 'merged' || !references.includes(data.debtorNumber)) fail('failed-precondition', 'Die Debitorennummer gehört nicht zu diesem Kunden.')
     const customerAssignment = { partnerId: data.partnerId, debtorNumber: data.debtorNumber, name: partner.companyName || '', assignedBy: context.uid }

@@ -6,6 +6,8 @@ export const MODULES = {
   kvp: { label: 'K.V.P.' },
   handbook: { label: 'Handbuch' },
   knowledgeGaps: { label: 'Wissenslücken' },
+  mailTriageQuality: { label: 'Maileinordnung' },
+  mailTriageCleanup: { label: 'Maileinordnung: Daten bereinigen' },
   dashboard: { label: 'Dashboard' },
   mailboxes: { label: 'Postfächer' },
   vacation: { label: 'Urlaub' },
@@ -23,6 +25,7 @@ export const MODULES = {
   pallets: { label: 'Palettenmanagement' },
   news: { label: 'News' },
   documents: { label: 'Dokumente' },
+  contracts: { label: 'Vertragsmanagement' },
   templates: { label: 'Vorlagen' },
   todos: { label: 'To-dos' },
   damages: { label: 'Schäden' },
@@ -58,7 +61,7 @@ export function hasPermission(profile, module, minimum = 'view') {
 
 export const canView = (profile, module) => hasPermission(profile, module, 'view')
 export const canEdit = (profile, module) => hasPermission(profile, module, 'edit')
-export const SYSTEM_CALENDAR_MODULES = ['damages', 'insolvencies', 'legalDisputes', 'inkasso']
+export const SYSTEM_CALENDAR_MODULES = ['damages', 'insolvencies', 'legalDisputes', 'inkasso', 'contracts']
 export const canViewSystemCalendars = (profile) => SYSTEM_CALENDAR_MODULES.some((module) => canView(profile, module))
 export const canManageUsers = (profile) => ['admin', 'superadmin'].includes(normalizeRole(profile?.role))
 export const canManagePermissions = (profile) => normalizeRole(profile?.role) === 'superadmin'

@@ -1,3 +1,6 @@
+import ShipmentTrackingDerivation from './ShipmentTrackingDerivation.jsx'
+import { trackingReviewProposals, trackingReviewTransitProposals } from '../../lib/shipmentTrackingDerivation.js'
+import { fieldLabels, formatShipmentTrackingTimestamp } from '../../lib/shipmentTrackingPresentation.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -33,6 +36,8 @@ export default function TransportOrderReceivedMails({ open = false, onClose, tra
   const [savedNotice, setSavedNotice] = useState(false)
   const [, refreshLeaseClock] = useState(0)
   const selected = mails.find((mail) => mail.id === selectedId) || mails[0]
+  const pendingUpdates = trackingReviewProposals(selected?.ai?.updates)
+  const pendingTransitUpdates = trackingReviewTransitProposals(selected?.ai?.transitUpdates)
   const busy = trackingSaving || Boolean(retryingId || resolvingId)
   const selectedLeaseExpiresAt = statusMailAiLeaseExpiresAt(selected)
   const expiredPending = selected?.ai?.status === 'pending' && canRetryStatusMailAi(selected)
@@ -97,6 +102,7 @@ export default function TransportOrderReceivedMails({ open = false, onClose, tra
     <header className="order-mails-dialog__message-heading"><h3>{selected.subject || <StaticText source="Ohne Betreff" />}</h3><p>{selected.sender} · {receivedLabel(selected.receivedAt, language)}</p></header>
     {aiLabels[selected.ai?.status] && <p><StaticText source={expiredPending ? 'Die vorherige KI-Auswertung wurde unterbrochen. Du kannst sie erneut starten.' : aiLabels[selected.ai.status]} /></p>}
     {selected.ai?.reviewRequired && <p className="shipment-tracking-recipients__warning">{selected.ai.reviewReason || <StaticText source="Statusangabe bitte manuell prüfen." />}</p>}
+    {(pendingUpdates.length > 0 || pendingTransitUpdates.length > 0) && <section className="shipment-tracking-recipients__warning" aria-label={language === 'en' ? 'Inferred suggestions' : 'Abgeleitete Vorschläge'}><strong>{language === 'en' ? 'Inferred suggestions · not applied automatically' : 'Abgeleitete Vorschläge · nicht automatisch übernommen'}</strong>{pendingUpdates.map(update => <div key={update.field}><p><StaticText source={fieldLabels[update.field] || update.field} />: <strong>{formatShipmentTrackingTimestamp(update.value)}</strong></p><ShipmentTrackingDerivation derivation={update.derivation} /></div>)}{pendingTransitUpdates.map((update, index) => <div key={`distance-${index}`}><p>{language === 'en' ? 'Remaining distance to unloading' : 'Restkilometer bis Entladestelle'}: <strong>{new Intl.NumberFormat(language === 'en' ? 'en-GB' : 'de-DE', { maximumFractionDigits: 1 }).format(update.kilometersToDestination)} km</strong></p><ShipmentTrackingDerivation derivation={update.derivation} /></div>)}</section>}
     <pre className="transport-order-received-mail-modal__body">{selected.bodyText || <StaticText source="Kein Textinhalt vorhanden." />}</pre>
     {retryError && <p className="form-error" role="alert"><StaticText source={retryError} /></p>}
     <div className="shipment-tracking-editor__actions">{canEdit && selected.ai?.reviewRequired && <button className="button" type="button" disabled={busy} onClick={() => void resolveReview(selected.id)}><StaticText source={resolvingId === selected.id ? 'Wird abgeschlossen …' : 'Manuelle Prüfung abschließen'} /></button>}{canEdit && canRetryStatusMailAi(selected) && <button className="button button--secondary" type="button" disabled={busy} onClick={() => void retryAi(selected.id)}><StaticText source={retryingId === selected.id ? 'KI wertet aus …' : 'KI erneut auswerten'} /></button>}</div>

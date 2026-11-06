@@ -2,6 +2,7 @@ import { httpsCallable } from 'firebase/functions'
 import { functions, waitForAppCheckToken } from './firebase.js'
 import { canView } from './permissions.js'
 import { insolvencyCasePath } from './businessPartnerLinks.js'
+import { contractCalendarEntries } from './contractCalendarPresentation.js'
 
 // System calendars are virtual: their entries stay in the source case files.
 // That keeps the calendar current without creating a second, editable event.
@@ -10,6 +11,7 @@ export const SYSTEM_CALENDARS = [
   { id: 'system-insolvencies', name: 'Insolvenzen', module: 'insolvencies', color: '#806b96' },
   { id: 'system-legal-disputes', name: 'Gericht / Streit', module: 'legalDisputes', color: '#5d7e99' },
   { id: 'system-inkasso', name: 'Inkasso', module: 'inkasso', color: '#778b5c' },
+  { id: 'system-contracts', name: 'Vertragsmanagement', nameEn: 'Contract management', module: 'contracts', color: '#89704f' },
 ]
 
 const validDate = (value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -43,7 +45,7 @@ function deadlineDescription(description, deadline) {
 export function listSystemCalendars(profile) {
   return SYSTEM_CALENDARS
     .filter((calendar) => canView(profile, calendar.module))
-    .map((calendar) => ({ ...calendar, kind: 'system', accessLevel: 'view', systemCalendar: true }))
+    .map((calendar) => ({ ...calendar, name: profile?.language === 'en' && calendar.nameEn ? calendar.nameEn : calendar.name, kind: 'system', accessLevel: 'view', systemCalendar: true }))
 }
 
 async function damageEvents(calendar, sources) {
@@ -169,6 +171,7 @@ export async function systemCalendarEventsFromSources(calendars, sources) {
     selected.has('system-insolvencies') ? insolvencyEvents(selected.get('system-insolvencies'), sources) : [],
     selected.has('system-legal-disputes') ? legalDisputeEvents(selected.get('system-legal-disputes'), sources) : [],
     selected.has('system-inkasso') ? inkassoEvents(selected.get('system-inkasso'), sources) : [],
+    selected.has('system-contracts') ? contractCalendarEntries(sources).map(event => systemEvent(selected.get('system-contracts'), event.id, event.title, event.date, event.targetPath, event.description, { time: event.time })) : [],
   ])
   return eventLists.flat()
 }

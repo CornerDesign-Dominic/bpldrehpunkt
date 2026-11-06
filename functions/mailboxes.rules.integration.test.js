@@ -14,6 +14,7 @@ test('personal mailbox collections remain server-only even for their owner and a
   const clients = []
   const collections = ['mailboxConnections', 'mailboxDrafts', 'mailboxOAuthStates', 'mailboxOAuthPending', 'mailboxSendOperations', 'mailboxSecretRetirements', 'mailboxDiagnosticQuotas', 'mailboxTrackingPreviews', 'mailboxTrackingQuotas', 'personalMailTrackingApplications', 'invoiceCheckReports', 'transportOrders/invoice-test/invoiceChecks']
   collections.push('mailboxActionRuns', 'mailboxActionScopes/private-scope/actions', 'mailboxRecommendationScopes', 'mailboxRecommendationScopes/private-scope/messages', 'mailboxRecommendationRuns', 'mailboxRecommendationSubscriptions')
+  collections.push('mailboxLearningScopes', 'mailboxLearningScopes/private-scope/replies', 'mailboxLearningSubscriptions', 'mailboxLearningRuns')
   const profiles = [
     { uid: 'mail-owner', active: true, role: 'user', permissions: { mailboxes: 'edit' } },
     { uid: 'mail-other', active: true, role: 'user', permissions: { mailboxes: 'view' } },

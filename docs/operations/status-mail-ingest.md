@@ -1,5 +1,10 @@
 # Status-Postfach: Eingang und KI-Auswertung
 
+Dev-Freigabe 05.11.2026: Das gesammelte Zeitregel-/Antwortpaket wird gemeinsam
+veröffentlicht. Aktueller Nachweis und Abnahmegrenzen im
+[Releasebeleg](releases/status-replies-dev-2026-11-05.md). Die unten dokumentierten
+lokalen Prüfstände gingen dieser Freigabe voraus; Main/Produktion bleiben unverändert.
+
 Stand: 28.10.2026. Datenvertrag und Verarbeitung entsprechen dem geprüften
 Code. Die folgende Flow-Einrichtung und die damaligen manuellen Prüfungen
 beziehen sich auf Dev. Die Functions sind auch im Produktionsinventar vorhanden;
@@ -187,3 +192,130 @@ Bereinigung oder ein Aufbewahrungszeitraum ist durch dieses Runbook nicht
 implementiert. Inhalte nicht zusätzlich in Diagnoseprotokolle kopieren.
 Jede erneute KI-Auswertung verursacht einen weiteren Anbieteraufruf; bei Fehlern
 zuerst Status und Diagnose prüfen, nicht unkontrolliert mehrfach starten.
+
+
+## Lokales Sammelpaket: hergeleitete Ankunftsangaben (05.11.2026)
+
+Dieser Nachtrag gehört zum Dev-Paket vom 05.11.2026; siehe Releasebeleg. Er gilt
+für die gemeinsame Statusinterpretation und ergänzt den persönlichen Postfachdialog.
+Die bisherige automatische Übernahme ausdrücklich belegter Angaben bleibt erhalten;
+hergeleitete Vorschläge werden niemals dadurch automatisch zu bestätigten Ist-Werten.
+
+| Aktuelle Aussage ohne genauere Uhrzeit | Vorgeschlagener Zeitpunkt | Bedeutung |
+| --- | --- | --- |
+| Gerade/soeben angekommen | Empfangszeit auf volle fünf Minuten abrunden | Ankunft erfolgt, Zeit angenähert |
+| Bereits angekommen / angekommen | Empfangszeit auf volle fünf Minuten abrunden | Ankunft erfolgt; tatsächliche Uhrzeit unbekannt, Ersatzwert |
+| Kommt gleich | Empfangszeit auf volle fünf Minuten aufrunden, dann 15 Minuten addieren | Ausschließlich voraussichtliche Ankunft |
+
+Sekunden und Millisekunden gehören zur Rundung: 14:10:00 bleibt beim Aufrunden
+14:10; 14:10:01 wird 14:15. Eine ausdrücklich genannte passende Uhrzeit hat Vorrang.
+Die Rechnung erfolgt serverseitig auf absoluten Zeitpunkten und funktioniert auch
+über Mitternacht und Zeitzonenwechsel hinweg; Anzeige bleibt Europe/Berlin.
+
+Die Station darf anhand des bisherigen Transportverlaufs vorgeschlagen werden.
+Vorhandene, zeitlich vor der Mail liegende Angaben müssen die Herleitung stützen;
+keine erfundene pauschale Schwelle für „schon länger“. Widersprüchliche/future Werte,
+Fragen, Verneinungen und alte zitierte Statusaussagen sind keine neue Ankunftsmeldung.
+Ein zuvor lediglich hergeleiteter/angenäherter Wert wird nicht erneut als sicherer
+Beweis für eine weitere Herleitung verwendet. Ein fehlender eindeutiger Bezug
+bleibt prüfbedürftig, statt blind Ladestelle anzunehmen.
+
+Im Modellvertrag timeBasis/stationBasis/contextFields; nach serverseitiger
+Validierung requiresConfirmation und derivation mit timeBasis, stationBasis,
+basedOnFields, mailReceivedAt, timingApproximate und ruleVersion=1. Relative Zeiten
+werden nach der festen Regel berechnet, nicht aus frei erzeugten Modellzeiten
+übernommen. Kontext allein macht aus einem Plantermin keine Ist-Ankunft.
+
+Persönlicher Postfachdialog: proposals bleibt kompatibel als Feld/Wert-Abbildung;
+proposalDetails enthält nur die begrenzten Herkunftsmerkmale hergeleiteter Werte,
+keine Mailkopie/Originalzitate. Erst die vorhandene bestätigte Übernahme schreibt
+Status und Historie. Vorgeschlagene Zeit/Station sind im Dialog gekennzeichnet.
+Unverändert übernommene Vorschläge behalten ihre derivation auch nach Bestätigung;
+eine echte manuelle Zeitkorrektur wird als manual mit originalAiDerivation im
+Änderungsbeleg dokumentiert und beansprucht keine fortbestehende Zeitungenauigkeit.
+
+Die Historie unterscheidet Ereigniszeit, Mail-Eingangszeit und Übernahmezeit,
+enthält alten/neuen Wert, Quelle, Bearbeiter sowie die Herleitung. Normale spätere
+Trackingkorrekturen erhalten entfernte Ursprungsmerkmale unter oldDerivations;
+persönliche feldweise Korrekturen unter oldDerivation. Kleine Metadaten bleiben
+am Vorgang; keine zusätzlichen Postfachrechte, Secrets oder Indizes nötig.
+
+Bereits bekannte Ankunft bleibt für den Fortschritt erhalten. Näherungszeiten
+liefern keine präzisen Pünktlichkeits-/Wartezeitbeweise und keine unbemerkte
+Kette genauer Folgeprognosen. Prüfstand des lokalen Pakets: 275 gezielte Unit-/Regressionsprüfungen erfolgreich,
+keine übersprungen. Zwei reale Firestore-Emulatorläufe mit Demo-Projekten:
+vier Aktions-/Übernahmeprüfungen sowie neun Status-KI-/Herkunftsprüfungen erfolgreich
+(ein Herkunftsbasisfall in beiden Läufen). Sie bestätigen Vorschau ohne Tracking-
+Schreibzugriff, bestätigte idempotente Übernahme, spätere Korrektur mit erhaltener
+Herkunft, keine automatische Übernahme hergeleiteter Werte sowie parallele Jobs.
+Lint, Build, Diffprüfung und Shared-Abgleich (46 Module) erfolgreich; die bestehende
+Bundlegrößenwarnung bleibt.
+
+Lokaler Browser mit synthetischen Daten und echten Dialog-/Historienkomponenten:
+Vorschlag sichtbar, Tastaturkorrektur entfernt die aktive Herleitungskennzeichnung,
+unveränderte und manuelle Übernahme gehen an denselben vorhandenen API-Aufruf;
+Stationshistorie zeigt Ereignis-/Mail-/Übernahmezeit getrennt. DE/EN und Light/Dark
+geprüft, keine Browser-Konsolenfehler. Nur die Servicegrenze war simuliert; kein
+Nachweis einer echten neuen Mail oder einer realen Modellantwort dieses Pakets.
+Keine echten Mails versendet, keine Live-Datensätze geändert, kein Push/Deployment.
+Abnahme mit echten neuen Mails erfolgt erst nach späterer ausdrücklicher Dev-Freigabe.
+
+
+## Lokales Sammelpaket: konkrete Antwort vor Verlaufsschätzung (05.11.2026)
+
+Ebenfalls Teil des Dev-Pakets vom 05.11.2026. Die unmittelbar beantwortete Frage
+wird aus dem vorhandenen zitierten Schriftverkehr gelesen. Es gibt keine neue
+Kopie oder Versionierung des Fragetexts, keine zusätzlichen Graphabrufe und
+keinen neuen KI-Aufruf. Geänderte Vorlagen-/Versandtexte werden nicht anhand der
+Vorlagen-ID rückwirkend rekonstruiert. Maßgeblich ist der mitgelieferte Inhalt.
+
+Die Auswertung nutzt ausschließlich die nächste zitierte Nachricht; ein älterer
+passender Fragetext darf eine dazwischenliegende Antwort nicht überspringen.
+Übliche Outlook-/On-wrote-/Quoteformate sind unterstützt. Bilinguale Wiederholungen
+zählen als dieselbe Frage. Explizit widersprechende TA-Bezüge sperren den Kontext.
+Fehlt die Frage tatsächlich im Text, bleibt der bisherige vorsichtige Ablauf.
+
+Reihenfolge: konkrete aktuelle Aussage, eindeutiger Antwortbezug, erst danach
+plausible Verlaufsschätzung. Eine eindeutig beantwortete Ladeankunftsfrage wird
+nicht wegen einer späteren Transportphase zur Entladeankunft. „Ja“ auf eine
+Mehrfachfrage (z.B. Plan eingehalten und ETA vorhanden) bestätigt nicht alle Punkte.
+„Fertig/beladen“ bestätigt insbesondere keine Abfahrt. Bei Zeitangaben aus dem
+Betreff einer alten Anfrage entsteht kein neuer Ist-Zeitbeleg.
+
+„Ja“ auf eine einzelne Ankunftsfrage und „LKW ist da“ mit eindeutigem Bezug bleiben
+als Ankunft verwertbar, auch wenn das Modell zunächst keinen Status meldet. Der
+eng begrenzte belegprüfende Ersatzpfad schlägt dann die Mailzeit auf fünf Minuten
+abgerundet vor; Näherungskennzeichnung und Nutzerbestätigung bleiben erforderlich.
+Eine echte Uhrzeit/Dauer in der aktuellen Antwort wird niemals durch die Mailzeit
+ersetzt. Nach bestätigter Übernahme zählt die Ankunft für den Fortschritt und
+macht eine erneute Ankunftsabfrage überflüssig; nächste offene Schritte bleiben offen.
+
+Die bloße Antwort „80“ auf eine eindeutige Restkilometerfrage kann als 80 km
+vorgeschlagen werden. Ohne die passende Frage wird keine Einheit erfunden.
+Der Betreff „ETA Entladestelle“ allein beweist keine Kilometerfrage. Bestehende
+Strecken-/Wertgrenzen bleiben erhalten. Hergeleitete Entfernungen werden auch im
+automatischen Status-Postfach nicht ungeprüft übernommen.
+
+Neue Herkunft stationBasis=reply_context, questionKind als begrenzter Fachcode und
+ruleVersion=2. Es werden keine Originalfragen in dieser Herkunft gespeichert.
+Bestehende proposals/Transitvorschläge und der bestätigte Übernahmepfad bleiben
+kompatibel. Transitvorschläge enthalten optional derivation/requiresConfirmation;
+Vergleich und Speicherung verwenden die fachlichen Positionswerte ohne diese
+Zusatzmerkmale. Manuelle Änderungen behalten die ursprüngliche Herleitung nur
+als ursprünglichen Vorschlag im Änderungsbeleg.
+
+Prüfstand dieses Nachtrags: 314 gezielte Unit-/Regressionsprüfungen erfolgreich,
+keine übersprungen. Realer Firestore-Emulatorlauf mit explizitem Demo-Projekt:
+14 Prüfungen erfolgreich, darunter Hintergrundjobs, wiederhergestellte Vorschau,
+Antwortbezug ohne Fragetextkopie, bestätigte Ankunft mit erhaltenem Fortschritt,
+Kilometervorschlag mit Herkunft und unveränderte automatische Schreibsperre für
+hergeleitete Werte. Negative/Futur-Antworten, Mehrfachfragen, aktuelle Aussagen
+gegenüber altem Betreff, fremde Aufträge und höfliche Kurzantworten sind gesondert
+abgedeckt. Vollständiges Lint, Build und Shared-Abgleich (46 Module) erfolgreich;
+bestehende Bundlegrößenwarnung unverändert.
+
+Keine realen Mails, Live-Schreibzugriffe oder Modellaufrufe zur Prüfung dieses
+Nachtrags. Eine erneute Browser-/Fachprüfung mit echten neuen Antwortmails bleibt
+für die spätere ausdrücklich freigegebene Dev-Veröffentlichung offen. Die vorherige
+lokale Dialogprüfung des Zeitregelpakets ersetzt diese Fachabnahme nicht.
+Kein Push, kein Deployment; keine neuen Rechte, Rules, Indizes oder Secrets.

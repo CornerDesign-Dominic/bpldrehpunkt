@@ -1,0 +1,22 @@
+.mailbox-ai-modes { display: grid; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.mailbox-ai-modes legend { margin-bottom: 7px; padding: 0; color: var(--text-primary); font-size: 12px; font-weight: 650; }
+.mailbox-ai-modes label { display: flex; align-items: flex-start; gap: 8px; padding: 9px 10px; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; }
+.mailbox-ai-modes label.is-selected { border-color: var(--button-background); background: var(--surface-active); }
+.mailbox-ai-modes input { flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--button-background); }
+.mailbox-ai-modes label > span { display: grid; gap: 3px; min-width: 0; font-size: 12px; }
+.mailbox-ai-modes strong { color: var(--text-primary); font-size: 12px; font-weight: 600; }
+.mailbox-ai-modes small { color: var(--text-secondary); font-size: 11px; line-height: 1.45; }
+.mailbox-ai-modes label:has(input:disabled) { cursor: default; opacity: .65; }
+.profile-mailbox-recommendations .mailbox-ai-modes label { align-items: flex-start; }
+.managed-mailbox-recommendations .mailbox-ai-modes { flex-basis: 100%; width: 100%; }
+.managed-mailbox-recommendations .mailbox-ai-modes label { align-items: flex-start; }
+.managed-mailbox-recommendations .mailbox-ai-modes label > span { font-size: 12px; }
+.managed-mailbox-recommendations__identity small { padding-left: 0; }
+.mailbox-learning-control { display: grid; gap: 6px; padding-top: 12px; margin-top: 6px; border-top: 1px solid var(--border); min-width: 0; }
+.mailbox-learning-control > label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.mailbox-learning-control input { margin: 0; accent-color: var(--button-background); }
+.mailbox-learning-control strong { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+.mailbox-learning-control > span, .mailbox-learning-control > small { font-size: 11px; color: var(--text-secondary); line-height: 1.45; }
+.mailbox-learning-control > .form-error { color: var(--status-danger-text); }
+.mailbox-learning-control > button, .mailbox-learning-control .button { justify-self: start; }
+.managed-mailbox-recommendations .mailbox-learning-control { flex-basis: 100%; width: 100%; }

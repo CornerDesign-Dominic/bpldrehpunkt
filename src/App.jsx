@@ -8,6 +8,7 @@ import ProtectedRoute from './auth/ProtectedRoute.jsx'
 import PermissionRoute from './auth/PermissionRoute.jsx'
 import PublicOnlyRoute from './auth/PublicOnlyRoute.jsx'
 import AppShell from './components/layout/AppShell.jsx'
+import ContractManagementLayout from './components/layout/ContractManagementLayout.jsx'
 import CaseManagementLayout from './components/layout/CaseManagementLayout.jsx'
 import { caseManagementModules } from './lib/caseManagementNavigation.js'
 import QualityLayout from './components/layout/QualityLayout.jsx'
@@ -31,6 +32,7 @@ import MailboxConnectionsProvider from './mailboxes/MailboxConnectionsProvider.j
 const QualityPage = lazy(() => import('./pages/QualityPage.jsx'))
 const KnowledgeCatalogPage = lazy(() => import('./pages/KnowledgeCatalogPage.jsx'))
 const KnowledgeDetailPage = lazy(() => import('./pages/KnowledgeDetailPage.jsx'))
+const MailTriageQualityPage = lazy(() => import('./pages/MailTriageQualityPage.jsx'))
 const KnowledgeGapsPage = lazy(() => import('./pages/KnowledgeGapsPage.jsx'))
 const QualityProblemDetailPage = lazy(() => import('./pages/QualityProblemDetailPage.jsx'))
 const QualityMeetingDetailPage = lazy(() => import('./pages/QualityMeetingDetailPage.jsx'))
@@ -47,6 +49,9 @@ const DamagesPage = lazy(() => import('./pages/DamagesPage.jsx'))
 const DamageDetailPage = lazy(() => import('./pages/DamageDetailPage.jsx'))
 const NewsPage = lazy(() => import('./pages/NewsPage.jsx'))
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage.jsx'))
+const ContractManagementPage = lazy(() => import('./pages/ContractManagementPage.jsx'))
+const ContractDetailPage = lazy(() => import('./pages/ContractDetailPage.jsx'))
+const ContractSettingsPage = lazy(() => import('./pages/ContractSettingsPage.jsx'))
 const MailboxesPage = lazy(() => import('./pages/MailboxesPage.jsx'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'))
 const TeamPage = lazy(() => import('./pages/TeamPage.jsx'))
@@ -112,6 +117,7 @@ export default function App() {
         <Route path="/qualitaet/handbuch/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln" element={<PermissionRoute module="handbook"><KnowledgeCatalogPage key="rules" kind="rule" /></PermissionRoute>} />
         <Route path="/qualitaet/grundregeln/:entryId" element={<PermissionRoute module="handbook"><KnowledgeDetailPage kind="rule" /></PermissionRoute>} />
+        <Route path="/qualitaet/maileinordnung" element={<PermissionRoute module="mailTriageQuality"><MailTriageQualityPage /></PermissionRoute>} />
         <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
         </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
@@ -146,6 +152,12 @@ export default function App() {
         <Route path="/paletten" element={<PermissionRoute module="pallets"><PalletsPage /></PermissionRoute>} />
         <Route path="/paletten/:partnerId" element={<PermissionRoute module="pallets"><PalletAccountDetailPage /></PermissionRoute>} />
         <Route path="/news" element={<PermissionRoute module="news"><NewsPage /></PermissionRoute>} />
+        <Route element={<PermissionRoute module="contracts"><ContractManagementLayout /></PermissionRoute>}>
+        <Route path="/vertragsmanagement" element={null} />
+        <Route path="/vertragsmanagement/vertraege" element={<ContractManagementPage />} />
+        <Route path="/vertragsmanagement/vertraege/:id" element={<ContractDetailPage />} />
+        <Route path="/vertragsmanagement/einstellungen" element={<ContractSettingsPage />} />
+        </Route>
         <Route element={<PermissionRoute anyModules={documentsToolsModules}><DocumentsToolsLayout /></PermissionRoute>}>
         <Route path="/dokumente-werkzeuge" element={null} />
         <Route path="/feiertagskalender" element={<PermissionRoute module="feiertagskalender"><HolidayCalendarPage /></PermissionRoute>} />

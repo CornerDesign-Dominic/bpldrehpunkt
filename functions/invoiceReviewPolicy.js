@@ -14,7 +14,10 @@ export const sameInvoiceCompany = (a, b) => {
 const field = (invoice, key) => invoice?.[key]?.value || ''
 const statusFor = color => ({ green: 'match', red: 'mismatch', yellow: 'unknown', gray: 'not_supplied', blue: 'info' })[color]
 export const coloredCheck = (key, label, actual, expected, color, message = '', extra = {}) => ({ key, label, actual: actual ?? null, expected: expected ?? null, color, status: statusFor(color), ...(message ? { message } : {}), ...extra })
-export function summarizeChecks(checks) { return checks.some(check => check.color === 'red' || !check.color && check.status === 'mismatch') ? 'mismatch' : checks.some(check => check.color === 'yellow' || !check.color && check.status === 'unknown') ? 'unknown' : 'match' }
+export function summarizeChecks(checks) {
+  const correctnessChecks = checks.filter(check => check.affectsCorrectness !== false)
+  return correctnessChecks.some(check => check.color === 'red' || !check.color && check.status === 'mismatch') ? 'mismatch' : correctnessChecks.some(check => check.color === 'yellow' || !check.color && check.status === 'unknown') ? 'unknown' : 'match'
+}
 export function compareCheck(key, label, actual, expected, { optional = false, secondary = false, equal = (a, b) => identity(a) === identity(b), format } = {}) {
   const color = !supplied(actual) || !supplied(expected) ? optional ? 'gray' : 'yellow' : equal(actual, expected) ? 'green' : 'red'
   return coloredCheck(key, label, actual, expected, color, '', { ...(format ? { format } : {}), ...(secondary ? { secondary: true } : {}) })
@@ -73,7 +76,7 @@ export function compareInvoiceTransport({ rows, invoice, imported, company = {},
   if (!supplied(currency) || !supplied(expectedCurrency)) Object.assign(netCheck, { color: 'yellow', status: 'unknown', message: 'Währung auf mindestens einer Seite fehlt.' })
   if (rows.some(row => row.netOcrUncertain)) Object.assign(netCheck, { color: 'yellow', status: 'unknown', message: 'Textebene und OCR liefern unterschiedliche Betragswerte. Bitte Original prüfen.' })
   const checks = [coloredCheck('ta', 'TA-Zuordnung', rows[0]?.ta?.value || '', rows[0]?.ta?.value || '', uncertainTa ? 'yellow' : 'green', uncertainTa ? 'Unsichere Rechnungsreferenz; Datenbanktreffer als Vorschlag.' : ''), netCheck,
-    compareCheck('currency', 'Währung', currency || null, expectedCurrency || null),
+    compareCheck('currency', 'Währung', currency || null, 'EUR'),
     compareInvoiceIssuer(invoice, carrierName || imported?.carrier?.originalName, carrierVatId, 'Rechnungsaussteller / Unternehmer', carrierCountry),
     compareCheck('recipient', 'Rechnungsempfänger', field(invoice, 'recipient'), company.legalName)]
   checks.push(compareInvoiceVatId('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), carrierVatId, carrierCountry), compareCheck('recipientVatId', 'USt-ID Rechnungsempfänger', field(invoice, 'recipientVatId'), company.vatId))
@@ -168,14 +171,17 @@ export function recipientAddressCheck(invoice, company = {}) {
   const actual = field(invoice, 'recipientAddress'), expected = `${street}, ${postalCode} ${city}`
   if (!actual) return coloredCheck('recipientAddress', 'Unsere Rechnungsanschrift', null, expected, 'yellow', 'Empfängeranschrift nicht erkannt.')
   const foreignAddress = /\b(?:Polen|Polska|Poland|Niederlande|Netherlands|Frankreich|France|Österreich|Austria|Tschechien|Czechia|Rumänien|Romania|Belgien|Belgium|Schweiz|Switzerland)\b/i.test(actual)
-  const postalCodes = actual.match(/\b\d{5}\b/g) || []
+  // Country names may accompany the address in any language. A German postal
+  // prefix can also be attached directly to the postcode (e.g. DE42369).
+  const postalText = actual.replace(/(?<![\p{L}\p{N}])(?:DEU|DE|D)[\s-]*(?=\d{5}(?!\d))/giu, ' ')
+  const postalCodes = postalText.match(/\b\d{5}\b/g) || []
   const streetName = street.replace(/\s+\d+\s*[a-z]?(?:\s*[-/]\s*\d+\s*[a-z]?)?$/iu, '')
   const houseNumber = street.slice(streetName.length).trim()
   const actualHouse = text(actual).match(/(?:str(?:aße|asse)?\.?|straße|strasse|weg|platz|allee)\s*(\d+(?:\s*[a-z]\b)?)(?=\s|,|$)/iu)?.[1]
   const placeMatches = approximatelyContains(actual, city)
   const streetMatches = approximatelyContains(actual, streetName)
   const old = approximatelyContains(actual, 'HeinzFangmannstrasse')
-  const statedCity = postalCodes.length > 0 && /\b\d{5}\s+[\p{L}]/u.test(actual)
+  const statedCity = postalCodes.length > 0 && /\b\d{5}\s+[\p{L}]/u.test(postalText)
   const statedStreet = /[\p{L}-]+(?:str\.?|straße|strasse|weg|platz|allee)\s*\d*/iu.test(actual)
   const contradiction = foreignAddress || postalCodes.length > 0 && !postalCodes.includes(postalCode) || statedCity && !placeMatches || statedStreet && !streetMatches || houseNumber && actualHouse && identity(actualHouse) !== identity(houseNumber)
   const complete = postalCodes.includes(postalCode) && streetMatches && placeMatches && (!houseNumber || actualHouse && identity(actualHouse) === identity(houseNumber))
@@ -190,7 +196,7 @@ export function invoiceHeaderChecks(invoice, company, references) {
   const billingEvidenceCount = references.reduce((count, reference) => count + (reference.billingEvidence?.length || 0), 0)
   const billingAvailable = references.length > 0 && references.every(reference => reference.billingDataAvailable === true)
   const billing = coloredCheck('billingStatus', 'Bereits abgerechnet / Dublettenabgleich', billingEvidenceCount ? `${billingEvidenceCount} Belegbezüge vorhanden` : null, 'Eindeutiger Abrechnungsstatus', billingAvailable && !billingEvidenceCount ? 'green' : 'yellow', billingEvidenceCount ? 'Belegbezug vorhanden. Dublette, Zahlungsanfrage oder neue Rechnung prüfen.' : billingAvailable ? '' : 'Gebuchte Rechnungen und externe Rechnungsreferenzen sind über die aktuelle Schnittstelle nicht vollständig verfügbar.')
-  return [coloredCheck('number', 'Rechnungsnummer', field(invoice, 'number') || null, null, field(invoice, 'number') ? 'gray' : 'yellow'), coloredCheck('date', 'Rechnungsdatum', field(invoice, 'date') || null, null, 'gray', '', { secondary: true }), compareInvoiceIssuer(invoice, issuers.length === 1 ? issuers[0] : null, vatIds.length === 1 ? vatIds[0] : null, 'Rechnungsaussteller', carrierCountry), compareInvoiceVatId('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), vatIds.length === 1 ? vatIds[0] : null, carrierCountry), compareCheck('recipient', 'Rechnungsempfänger', field(invoice, 'recipient'), company.legalName), compareCheck('recipientVatId', 'Unsere USt-ID', field(invoice, 'recipientVatId'), company.vatId), recipientAddressCheck(invoice, company), billing]
+  return [compareCheck('currency', 'Währung', field(invoice, 'currency') || null, 'EUR'), coloredCheck('number', 'Rechnungsnummer', field(invoice, 'number') || null, null, field(invoice, 'number') ? 'gray' : 'yellow'), coloredCheck('date', 'Rechnungsdatum', field(invoice, 'date') || null, null, 'gray', '', { secondary: true }), compareInvoiceIssuer(invoice, issuers.length === 1 ? issuers[0] : null, vatIds.length === 1 ? vatIds[0] : null, 'Rechnungsaussteller', carrierCountry), compareInvoiceVatId('issuerVatId', 'USt-ID Unternehmer', field(invoice, 'issuerVatId'), vatIds.length === 1 ? vatIds[0] : null, carrierCountry), compareCheck('recipient', 'Rechnungsempfänger', field(invoice, 'recipient'), company.legalName), compareCheck('recipientVatId', 'Unsere USt-ID', field(invoice, 'recipientVatId'), company.vatId), recipientAddressCheck(invoice, company), billing]
 }
 function paymentBasis(value) {
   const input = identity(value)
@@ -203,26 +209,54 @@ function paymentBasis(value) {
 export function invoicePaymentChecks(invoice, references) {
   const actualText = field(invoice, 'paymentTerms'), rawDays = field(invoice, 'paymentDays')
   const days = /^\d{1,3}$/.test(rawDays) ? Number(rawDays) : null
-  const dueDate = field(invoice, 'dueDate'), invoiceDate = field(invoice, 'date')
+  const date = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value ? value : null
+  const dueDate = date(field(invoice, 'dueDate')), invoiceDate = date(field(invoice, 'date'))
   const basis = paymentBasis(field(invoice, 'paymentBasis') || actualText)
   const terms = references.map(reference => reference.payment).filter(Boolean)
-  const expectedDays = terms.length && terms.every(term => Number.isFinite(term.days) && term.days === terms[0].days) ? terms[0].days : null
+  const complete = references.length > 0 && terms.length === references.length
+  const expectedDays = complete && terms.every(term => Number.isInteger(term.days) && term.days >= 0 && term.days === terms[0].days) ? terms[0].days : null
   const expectedBasis = terms.length && terms.every(term => term.basis && term.basis === terms[0].basis) ? terms[0].basis : null
-  const expectedDue = terms.length && terms.every(term => term.dueDate && term.dueDate === terms[0].dueDate) ? terms[0].dueDate : null
-  const derivedDays = dueDate && invoiceDate ? Math.round((Date.parse(dueDate) - Date.parse(invoiceDate)) / 86400000) : null
-  const comparableDays = days ?? (Number.isFinite(derivedDays) && derivedDays >= 0 && expectedBasis === 'invoice_date' ? derivedDays : null)
-  const comparableBasis = basis || (days === null && dueDate && invoiceDate ? 'invoice_date' : null)
+  const expectedDue = complete && terms.every(term => date(term.dueDate) && term.dueDate === terms[0].dueDate) ? terms[0].dueDate : null
+  const dateDifference = dueDate && invoiceDate ? (Date.parse(dueDate) - Date.parse(invoiceDate)) / 86400000 : null
+  const derivedDays = Number.isInteger(dateDifference) && dateDifference >= 0 ? dateDifference : null
   const dayEvidence = `${actualText} ${invoice.paymentDays?.quote || ''}`
-  const dayType = /werktag|working\s*day/i.test(dayEvidence) ? 'working' : /banktag|bank\s*day/i.test(dayEvidence) ? 'bank' : /\btage?\b|\bdays?\b/i.test(dayEvidence) ? 'calendar' : days === null && dueDate ? 'calendar' : null
-  const expectedDayType = terms.length && terms.every(term => term.dayType === terms[0].dayType) ? terms[0].dayType : null
-  let color = 'yellow', message = !actualText && days === null && !dueDate ? 'Zahlungsbedingung in der Rechnung fehlt.' : !terms.length ? 'Vereinbarte Zahlungsbedingung fehlt.' : 'Zahlungsbedingungen nicht eindeutig vergleichbar.'
-  if (dueDate && expectedDue) { color = dueDate === expectedDue ? 'green' : 'red'; message = '' }
-  else if (comparableDays !== null && expectedDays !== null && comparableBasis && expectedBasis) {
+  let dayType = /werktag|working\s*day|dni\s+robocz|jours?\s+ouvr/iu.test(dayEvidence) ? 'working' : /banktag|bank\s*day|dni\s+bankow/iu.test(dayEvidence) ? 'bank' : /\b(?:tag(?:e|en)?|days?|dni|jours?)\b/iu.test(dayEvidence) ? 'calendar' : null
+  // Only the two expressly supplied invoice dates corroborate an invoice-date
+  // deadline. Receipt, delivery and complete-document terms remain distinct.
+  const datesCorroborate = derivedDays !== null && (days === null || days === derivedDays) && (!basis || basis === 'invoice_date') && (!dayType || dayType === 'calendar')
+  if (datesCorroborate) dayType ||= 'calendar'
+  const comparableDays = days ?? (datesCorroborate ? derivedDays : null)
+  const comparableBasis = basis || (datesCorroborate ? 'invoice_date' : null)
+  const expectedDayType = complete && terms.every(term => term.dayType === terms[0].dayType) ? terms[0].dayType : null
+  const contradictoryDates = dateDifference !== null && dateDifference < 0 || days !== null && derivedDays !== null && days !== derivedDays && (!basis || basis === 'invoice_date') && (!dayType || dayType === 'calendar')
+  let color = 'yellow', message = days === null && !dueDate ? 'Zahlungsziel in der Rechnung fehlt.' : !complete ? 'Vereinbarte Zahlungsbedingung fehlt.' : 'Zahlungsbedingungen nicht eindeutig vergleichbar.'
+  const mismatch = []
+  if (dueDate && expectedDue && dueDate !== expectedDue) mismatch.push('Das Fälligkeitsdatum weicht von der Vereinbarung ab.')
+  if (basis && expectedBasis && basis !== expectedBasis) mismatch.push('Der Fristbeginn weicht von der Vereinbarung ab.')
+  if (days !== null && dayType && expectedDayType && dayType !== expectedDayType) mismatch.push('Kalender-, Werk- oder Banktage unterscheiden sich.')
+  if (days !== null && expectedDays !== null && dayType && dayType === expectedDayType && days !== expectedDays) mismatch.push('Die angegebene Tagesfrist weicht von der Vereinbarung ab.')
+  if (mismatch.length) { color = 'red'; message = mismatch.join(' ') }
+  else if (contradictoryDates) message = 'Angegebene Tagesfrist und Abstand zwischen Rechnungs- und Fälligkeitsdatum widersprechen sich.'
+  else if (dueDate && expectedDue) { color = 'green'; message = '' }
+  else if (comparableDays !== null && expectedDays !== null) {
     if (!dayType || !expectedDayType) message = 'Kalender-, Werk- oder Banktage sind nicht eindeutig angegeben.'
     else if (days === null && expectedDayType !== 'calendar') message = 'Fälligkeitsdatum kann ohne Arbeits-/Banktagskalender nicht mit der Tagesfrist verglichen werden.'
-    else { color = comparableDays === expectedDays && comparableBasis === expectedBasis && dayType === expectedDayType ? 'green' : 'red'; message = comparableBasis !== expectedBasis ? 'Der Fristbeginn weicht von der Vereinbarung ab.' : dayType !== expectedDayType ? 'Kalender-, Werk- oder Banktage unterscheiden sich.' : '' }
+    else if (new Set(terms.map(term => term.basis).filter(Boolean)).size > 1 || days === null && (expectedBasis ? comparableBasis !== expectedBasis : comparableBasis && comparableBasis !== 'invoice_date')) message = 'Der Fristbeginn ist nicht auf beiden Seiten eindeutig vergleichbar.'
+    else { color = comparableDays === expectedDays ? 'green' : 'red'; message = '' }
   }
-  return [coloredCheck('paymentTerms', 'Zahlungsziel', actualText || (days !== null ? `${days} Tage` : dueDate || null), terms.map(term => term.text || (Number.isFinite(term.days) ? `${term.days} Tage` : '')).filter(Boolean).join('; ') || null, color, message), coloredCheck('dueDate', 'Fälligkeitsdatum', dueDate || null, expectedDue, 'gray', '', { secondary: true })]
+  const dayLabel = type => type === 'working' ? 'Werktage' : type === 'bank' ? 'Banktage' : 'Tage'
+  const basisLabel = { invoice_date: 'ab Rechnungsdatum', receipt_date: 'ab Rechnungseingang', documents_received: 'ab vollständigen Belegen', delivery_date: 'ab Lieferung' }
+  const actual = [days !== null ? `${days} ${dayLabel(dayType)}` : null, derivedDays !== null ? `aus Datumsangaben: ${derivedDays} Tage` : dueDate ? `fällig: ${dueDate}` : null].filter(Boolean).join(' · ') || null
+  const expected = expectedDays !== null ? `${expectedDays} ${dayLabel(expectedDayType)}${expectedBasis ? ` ${basisLabel[expectedBasis] || expectedBasis}` : ''}` : expectedDue ? `fällig: ${expectedDue}` : null
+  const sourceText = [days !== null ? `Angegebene Frist: ${days} ${dayLabel(dayType)}${basis ? ` ${basisLabel[basis]}` : ''}.` : null, dueDate && invoiceDate ? `Rechnungsdatum ${invoiceDate}; Fälligkeitsdatum ${dueDate}; Differenz ${dateDifference} Tage.` : dueDate ? `Fälligkeitsdatum ${dueDate}; Rechnungsdatum fehlt oder ist ungültig.` : null].filter(Boolean).join(' ')
+  return [coloredCheck('paymentTerms', 'Zahlungsziel', actual, expected, color, message, { sourceText, paymentDays: days, derivedDays, invoiceDate, dueDate })]
+}
+export function invoiceFactoringChecks(invoice) {
+  const clause = typeof invoice?.factoring?.quote === 'string' ? invoice.factoring.quote.trim() : ''
+  const indication = text(field(invoice, 'factoring'))
+  const found = Boolean(indication && !/^(?:nein|no|false|keine?(?: factoring| forderungsabtretung)?)$/iu.test(indication) && clause)
+  const company = found ? text(field(invoice, 'factoringCompany')) : ''
+  return [coloredCheck('factoring', 'Factoring / Forderungsabtretung', found ? company ? `Forderungsabtretung an ${company}` : 'Hinweis auf Forderungsabtretung gefunden' : 'Kein Hinweis gefunden', null, found ? 'yellow' : 'green', found ? 'Forderungsabtretung beachten; Zahlungsempfänger prüfen.' : '', { found, ...(company ? { company } : {}), sourceText: found ? clause : '' })]
 }
 export function invoiceNotices({ headerChecks, paymentChecks, transports, references }) {
   const notices = []

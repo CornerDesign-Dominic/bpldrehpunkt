@@ -1,6 +1,6 @@
 # Rechnungsprüfung aus persönlichen Postfächern
 
-Stand: 03.11.2026. Führender Daten- und Prüfvertrag für die Mailaktion und
+Stand: 04.11.2026. Führender Daten- und Prüfvertrag für die Mailaktion und
 für gespeicherte Ergebnisse im Transportauftrag. Veröffentlichungsstand siehe
 [Releasebeleg](releases/invoice-review-2026-11-03.md).
 
@@ -82,6 +82,35 @@ vergleichen Frist, Fristbeginn und Tagesart; ein gedrucktes Fälligkeitsdatum er
 keine ausdrücklich vereinbarte Eingangsbasis. Belegverknüpfungen allein beweisen
 weder Dubletten noch Zahlung oder Buchung.
 
+### Zahlungsziel und Factoring
+
+Das Zahlungsziel bleibt genau eine Prüfzeile. Ausdrücklich gedruckte Fristen
+(z. B. „45 Tage“, „45 dni“) werden getrennt von der Fälligkeit erkannt.
+Fälligkeitsdatum minus echtes Rechnungs-/Belegdatum liefert eine unabhängige
+Kalendertagsdifferenz, die ebenfalls in dieser Zeile steht; vollständige Daten
+und Quellen bleiben unter deren Details. Liefer-/Leistungsdatum, KSeF-Datum und
+tatsächlicher Zahlungstag ersetzen das Rechnungsdatum nicht. Widersprechen sich
+gedruckte Tage und die passende Datumsdifferenz, bleibt der Widerspruch sichtbar.
+Eine sicher belegte Abweichung von der Vereinbarung ist rot. Aus Rechnungsdatum
+und Fälligkeit wird keine Frist ab Rechnungs-/Belegeingang abgeleitet. Stimmen die
+ausdrücklich genannten Tage und die Tagesart überein, wird die Tagesfrist grün,
+auch bei fehlendem Fristbeginn auf einer Seite. Fehlende Wiederholungen auf
+weiteren Rechnungsseiten erzeugen keine Warnung. Ausdrücklich widersprüchliche
+Fristbeginne bleiben rot. Diese Anpassung ist im Dev-Paket vom 04.11.2026 enthalten.
+Zahlungsart wie „Überweisung“ ist kein Zahlungsziel und erhält keine eigene
+Anzeige oder Vergleichszeile, auch nicht in historischen Berichtsdarstellungen.
+
+Factoring/Forderungsabtretung erhält genau einen zusätzlichen Hauptprüfpunkt.
+Ein konkreter belegter Hinweis auf Verkauf/Abtretung dieser Rechnungsforderung
+führt zu Gelb und einem kurzen gelben Hinweis oben im Bericht, gegebenenfalls
+mit dem Factoringunternehmen. Firmenname, allgemeine Erwähnung, Ablehnung oder
+ausdrücklich verneinte Abtretung reichen nicht. Der Beleg muss aus den geprüften
+Rechnungsseiten stammen; eine Bankverbindung allein begründet keinen Fund.
+Ohne Fund lautet der Punkt auf ausdrücklichen Nutzerwunsch grün „Kein Hinweis
+gefunden“. Das bezeichnet das Suchergebnis, keine Garantie, dass keine Abtretung
+existiert. Alte Berichte ohne diese Prüfung bekommen keinen nachträglich
+erfundenen grünen Befund.
+
 ## Darstellung und Prozentbalken
 
 Die Hauptansicht zeigt kompakte Zeilen mit Rechnungswert, Vergleichswert und
@@ -93,6 +122,9 @@ Eine nur erkannte Rechnungsnummer ist kein grüner Datenbankvergleich.
 
 Der Balken zeigt die Verteilung gleich gewichteter Hauptprüfpunkte in
 Grün/Gelb/Rot, insgesamt gerundet 100 Prozent, einschließlich Anzahl je Farbe.
+Der lokal vorbereitete Nachtrag nimmt bestätigte bereits gebuchte Rechnungen aus
+dieser Korrektheitsskala; deren roter Hinweis und Hauptzeile bleiben sichtbar
+(siehe Gebuchte Rechnung als Hinweis).
 Er ist keine Wahrscheinlichkeit und keine Freigabeentscheidung. Wiederholte
 Kopf-/Transportvergleiche werden nicht mehrfach gezählt. Bei mehreren TAs bleiben
 Positionsabweichungen sichtbar, auch wenn sie sich in der Gesamtsumme aufheben.
@@ -106,7 +138,7 @@ Englisch sowie Light/Dark verwenden denselben Ablauf.
 
 ## Speicherung und Zugriff
 
-Neue unveränderliche Berichte haben version:4. Alte Berichte bleiben lesbar und
+Neue unveränderliche Berichte haben version:6. Alte Berichte bleiben lesbar und
 werden durch die neue Oberfläche dargestellt, nicht rückwirkend neu erkannt oder
 fachlich umgeschrieben. Für neue Erkennung ist „Mit aktuellen Auftragsdaten erneut
 prüfen“ erforderlich. Berichte enthalten Vergleichswerte, kurze Belege,
@@ -165,3 +197,226 @@ Stimmigkeit innerhalb der Rechnung prüfbar, ist dies ausdrücklich als
 ausgegeben. Das Fälligkeitsdatum ist kein Beweis für einen vereinbarten Fristbeginn.
 Englische Datumsbelege mit ausgeschriebenen/abgekürzten Monatsnamen werden anhand
 wörtlicher Rechnungsbelege unterstützt.
+
+## Dubletten und hervorgehobene Hinweise (Dev, 04.11.2026)
+
+Führende Bezeichnung ist „Rechnung bereits in DyCoS vorhanden“, ohne Aussage über
+Bezahlung oder einen separat bestätigten Buchungsstatus. Für den Vergleich gelten
+zusammen: unabhängig bestätigte Unternehmeridentität, derselbe kanonische UTN,
+externe Belegnummer am Faktura-Kopf, Bruttogesamtbetrag und Originalwährung.
+Stornierte Belege werden ausgeschlossen. Ein bloßer Kostenpositions-/Belegbezug
+begründet keine Dublette.
+
+Belegköpfe werden ausschließlich aus dem nachweislichen Auftragsbezug der
+Faktura-Zeilen bzw. auftragsbezogenen Kosten-/Preispositionen gelesen. Ein grüner
+Nichttreffer bezieht sich auf diese Aufträge, nicht auf eine globale Suche über
+alle DyCoS-Belege. Für bestätigte TAs wird einmal je Prüflauf ein aktueller
+Belegstand gelesen, auch wenn der lokale Auftrag bereits vollständig ist.
+Fehlgeschlagene oder unvollständige Abrufe bleiben gelb; referenzierte, aber nicht
+mitgelieferte Köpfe verhindern ein falsches grünes Ergebnis. Technische
+Abruf-/Validierungsfehler werden inhaltsfrei über die bestehende begrenzte
+Postfachdiagnose gemeldet. Ein Diagnosefehler verändert den Fachbericht nicht.
+
+Private Projektion außerhalb des Transportdatenmodells:
+KopfID als stabile Belegidentität, AdressID als UTN-Quellidentität,
+ExterneBelegnummer als externe Rechnungsnummer, Gesamt als gesamter Bruttobetrag,
+WaehrungBezFW als zugehörige Originalwährung, Storniert als Stornokennzeichen.
+Belegklassifikation verwendet die vorhandenen bestätigten Regeln für externe
+UTN-Rechnungen; Kundenbelege/Korrekturen sind keine Kandidaten, ungeklärte
+Klassifikation bleibt offen. Nettowert + Mwst muss einem vorhandenen Gesamt
+entsprechen. Fehlende Originalwährung wird nicht aus EUR-Umrechnungsfeldern
+ersetzt. Keine Bankdaten, Rohzeilen oder internen Serverpfade in Berichten.
+
+Nummern werden nach Unicode-Normalisierung, Großschreibung und Entfernung von
+Leer-/Trennzeichen exakt verglichen. Eine ähnliche Nummer mit gleichem UTN,
+Betrag und Währung begründet nur gelben Verdacht: maximal eine Änderung ab vier
+Zeichen, maximal zwei ab zehn Zeichen, benachbarte Vertauschung eingeschlossen.
+Explizit unterschiedliche Ziffern werden niemals zu einem roten Exakttreffer
+normalisiert. Eine exakt passende Nummer mit bekanntem anderem Betrag kann
+ebenfalls gelben Verdacht begründen. Fehlender Betrag/Währung oder umstrittene
+OCR-Bruttowerte erzeugen keinen hervorgehobenen Dublettenverdacht. Überlange
+Nummern werden nicht auf einen vermeintlich gleichen Präfix gekürzt.
+
+Der gleiche Kopf wird bei Sammelrechnungen nicht mehrfach addiert. Verglichen wird
+der gesamte Rechnungsbruttobetrag gegen den gesamten Kopf-Bruttobetrag. Identische
+Kopfkopien werden dedupliziert; widersprüchliche gleich aktuelle Kopien bleiben
+offen. Ein frischer Stornostand hat Vorrang vor alten Snapshotkopien.
+
+Unter dem Prozentbalken jeder Rechnung erscheinen kompakte Hinweise: rot bei
+bestätigtem Vorhandensein und bei gesicherten Betragsabweichungen, gelb bei hoher
+Dublettenwahrscheinlichkeit. Betragsabweichungen zeigen Rechnungs-/Vergleichswert,
+Währung und gegebenenfalls die TA. Ein Nettofehler derselben Einzel-TA wird nicht
+nochmals als zusätzlicher Alarm dupliziert. Beide Farben können gemeinsam
+erscheinen. Die Ansicht gilt auch für Berichte im Transportauftrag; Altberichte
+können gesicherte Betragsabweichungen anzeigen, aber aus schwachen alten
+Belegverknüpfungen keinen neuen Dublettentreffer ableiten. Neue Dublettenprüfung
+erfordert eine erneute Auswertung.
+
+Dieser Stand ist ausschließlich für Dev freigegeben. Veröffentlichungsnachweis:
+[Dev-Release vom 04.11.2026](releases/invoice-duplicates-dev-2026-11-04.md).
+
+## Unlesbare Zusatzanlagen (Dev 04.11.2026)
+
+Berichtsversion 7: Lesbare Anlagen werden auch bei einem PDF-/Bild-Lesefehler
+weiter geprüft. Nicht lesbare oder textlose Anlagen stehen unter
+`unreadableDocuments` mit Dateiname und `extraction_failed`; `incomplete` ist
+dann wahr. Ein gelber Hinweis oberhalb aller Rechnungsergebnisse nennt diese
+Dateien und mögliche weitere Rechnungen. Die bekannten Einzelprüfungen bleiben
+erhalten, der Gesamtstatus wird bei sonst vollständiger Übereinstimmung jedoch
+`unknown`. Erkannte Abweichungen bleiben `mismatch`. Transportverknüpfungen und
+Unvollständigkeit werden gemeinsam im unveränderlichen Bericht gespeichert.
+Ohne eine lesbare Anlage wird vor der KI-Auswertung verständlich abgebrochen.
+Ein inhaltsfreier Diagnoseeintrag pro Anfrage erfasst den Lesefehler. Die
+Texterkennung plus zusätzliche OCR bleiben für lesbare Rechnungen unverändert.
+Alte Berichte ändern sich nicht; für neue Auswertung erneut prüfen.
+
+Zusätzlich akzeptiert die Belegvalidierung englische Tausender-/Dezimalformate
+wie `1,300.00 EUR`, ohne benachbarte Tabellenbeträge zusammenzuziehen. Geprüft
+mit FV028/05/2026: 1.300 EUR, 45 Tage ab Dokumenteneingang und TA-Kandidat
+260500383. 90 gezielte Tests sowie der Firestore-Integrationstest mit
+unlesbarem Zusatz-POD, unveränderlichem Bericht und Transportverknüpfung
+erfolgreich. Vier UI-Renderprüfungen für DE/EN und vollständige/unvollständige
+Berichte erfolgreich. Keine Änderung an Rules, Indizes oder Secrets.
+
+## Kompakte Ansicht und Dokumentquellen (Dev, gesammelt 04.11.2026)
+
+Der Ergebnisheader zeigt die eindeutigen Rechnungs-Dateinamen. Die zusätzliche
+Rechnungsnummer-/Ausstellerzeile oberhalb des Balkens entfällt im Dev-Paket vom 04.11.2026; die Werte bleiben in den Prüfergebnissen erhalten. Seiten- und Erkennungsinfos sowie die
+Dokumentübersicht stehen gemeinsam unter Weitere Details; ergänzende Angaben
+und Transportvergleiche unter Weitere Abgleichungen. Der Gewichtungshinweis
+entfällt. Unlesbare Anlagen erscheinen kurz mit Dateinamen im gelben Hinweis.
+Die Empfängeranschrift akzeptiert direkt vorangestellte deutsche Länderpräfixe
+wie DE42369; echte PLZ-/Hausnummerabweichungen bleiben unverändert bewertet.
+PDF-/Bildvorschauen erkennen den Dateityp anhand der Signatur auch bei dem
+Exchange-Typ application/octet-stream. Dies gilt für die gemeinsame Quellenansicht
+und die Auftragserfassung. Die Quellenauswahl hat ausreichend Höhe für den Text.
+Keine Änderung an Rules, Indizes, Secrets oder Microsoft-Berechtigungen.
+
+## Gesammeltes Dev-Paket vom 04.11.2026
+
+Bei technisch fehlgeschlagener Rechnungsprüfung (Aktionszustand failed) bleibt das
+Rechnungsprüfungs-Icon in der Mailübersicht sichtbar und rot, einschließlich
+übersetztem Hinweis/zugänglichem Namen „Fehlgeschlagen“. Der Aktionsbutton rechts
+erscheint wieder neutral mit „Rechnung erneut prüfen“. Der gespeicherte Fehlerstatus
+bleibt erhalten, damit Mailliste, Neuladen und erneuter Start konsistent bleiben.
+Eine erfolgreich abgeschlossene Auswertung mit fachlichen Rechnungsabweichungen
+bleibt eine abgeschlossene Auswertung; die Abweichungen stehen im Prüfbericht.
+
+Für Dev freigegeben am 04.11.2026. Frontend und beide Rechnungs-Serverfunktionen
+werden gemeinsam veröffentlicht; Main und Produktion sind nicht freigegeben.
+Nachweis: [Gesammeltes Dev-Paket](releases/invoice-results-batch-dev-2026-11-04.md).
+
+
+### Zahlungsziel – Dev-Paket 04.11.2026
+
+Gleiche ausdrücklich erkannte Tagesfristen werden grün bewertet, auch wenn der
+Fristbeginn auf der Rechnung oder in der Vergleichsvereinbarung fehlt. Ein Beleg
+auf einer zugehörigen Rechnungsseite genügt; Wiederholung auf jeder Seite ist
+nicht erforderlich. Ausdrücklich widersprüchliche Fristbeginne oder Tagesarten
+bleiben rot; widersprüchliche Datumsangaben, fehlende Vergleichswerte und uneinheitliche
+Vereinbarungen bleiben ungeklärt. Die Ableitung allein aus Rechnungs-/Fälligkeitsdatum
+ersetzt weiterhin keinen bekannten Fristbeginn ab Rechnungs-/Belegeingang.
+Keine zusätzliche Ergebniszeile; weiterhin genau ein Zahlungsziel-Prüfpunkt.
+
+
+### Drei Betragszeilen – Dev-Paket 04.11.2026
+
+Die Ergebnisansicht zeigt Netto, USt. und Brutto. Der eigene Bereich
+Betragsdetails entfällt. Positionssumme, Steuerregel, Netto-plus-Steuer-Rechnung
+und zusätzliche Datenbankvergleiche stehen jeweils unter Details der zugehörigen
+Betragszeile. Berechnungen, Ergebnisfarben und Gewichtung bleiben erhalten.
+Dies gilt für neue und gespeicherte Berichte in Mail und Transportauftrag.
+
+
+### Externe Belegnummer – Dev-Paket 04.11.2026
+
+Die Hauptzeile heißt Ext. Belegnummer und zeigt Rechnungsnummer gegen externe
+DyCoS-Belegnummer, ohne Details-Schalter. Bestätigte Treffer erscheinen rot als
+Bereits gebucht; vollständig geprüfte zugeordnete Aufträge ohne relevanten Beleg
+grün als Noch nicht gebucht. Diese Aussage bleibt auf den Auftragsbezug begrenzt.
+Andere aktive externe Nummern desselben bestätigten Unternehmers im Auftragsbezug
+werden gelb Prüfen mit den gefundenen Nummern angezeigt, ohne allein dadurch eine
+Dublettenwarnung zu erzeugen. Die bisherigen strengen Treffer-/Verdachtsregeln
+für Unternehmer, Betrag und Währung sowie der Stornoausschluss bleiben bestehen.
+Unvollständige Abfragen ergeben weiterhin keinen grünen Abwesenheitsnachweis.
+
+
+### Kompaktes Zahlungsziel – Dev-Paket 04.11.2026
+
+Die Zahlungsziel-Zeile zeigt nur Rechnungswert, Vergleichswert und Ergebnisfarbe.
+Datumsdifferenz, Erklärtexte, Quellen und Details-Schalter entfallen in dieser Zeile,
+auch bei gespeicherten Berichten. Eine ausschließlich aus Datumsangaben ermittelte
+Frist erscheint als Tageswert. Die gespeicherten Belege und Berechnungen bleiben
+für die Bewertung erhalten: grün übereinstimmend, gelb fehlend/ungeklärt, rot abweichend.
+
+
+### Rechnungswährung – Dev-Paket 04.11.2026
+
+Währung wird pro Rechnungsbeleg einmal gegen EUR geprüft, unabhängig von Anzahl
+und Währungen zugeordneter Transportaufträge. EUR ist grün, fehlende Erkennung gelb,
+eine andere erkannte Währung rot. Die Ergebniszeile trägt keinen TA-Hinweis.
+Dies gilt auch für gespeicherte Berichte. Betragsvergleiche rechnen weiterhin
+keine unterschiedlichen Währungen um und benötigen ihre passende Vergleichswährung.
+
+
+## Fremdsprachige Rechnungen (Dev-Anpassung 04.11.2026)
+
+Der manuelle Start ist der ausdrückliche Auftrag zur Rechnungsauswertung in jeder
+Sprache. Die KI erhält Originalbegriffe (u.a. Faktura/Invoice/Facture/Factura/
+Fattura/Fatura) als gleichwertige Rechnungsbezeichnungen. Allgemeiner Rechnungsbeleg
+und Feldzitate bleiben in der Originalsprache, ohne Übersetzung oder Zusammenfügen.
+Bei einem nicht wörtlich passenden allgemeinen Modellbeleg darf eine tatsächlich
+vorhandene Rechnungsüberschrift auf den ausgewählten Rechnungsseiten die Erkennung
+bestätigen. Quellen-/Seitenbindung und die Einzelvalidierung sämtlicher Werte bleiben
+bestehen: unbelegte Werte werden leer und führen zu ungeklärten Einzelprüfungen.
+Ein Rechnungswort aus einer anderen Anlage oder ausgeschlossenen Seite genügt nicht.
+Ungültige Transportlisten haben einen eigenen technischen Fehlercode und eine
+passende Meldung, getrennt von einer nicht belegbaren Rechnungserkennung.
+Polnisch Numer zlecenia od klienta gilt als ausdrücklicher Kundenauftragsbezug;
+Numer zlecenia allein wird nicht zur eigenen TA erklärt.
+Die bestehende zusätzliche OCR bleibt aktiv; keine weiteren Modellaufrufe pro Lauf.
+Veröffentlichung ausschließlich auf Dev; Main/Produktion bleiben unverändert.
+
+
+## Gebuchte Rechnung als Hinweis – Dev-Paket 05.11.2026
+
+Ein bestätigter bereits vorhandener DyCoS-Rechnungsbeleg bleibt als roter wichtiger
+Hinweis unter dem Balken und in der Hauptzeile Ext. Belegnummer sichtbar. Er sagt
+nichts gegen die inhaltliche Korrektheit der vorliegenden Rechnung aus und trägt
+deshalb weder eine rote Stimme noch einen anderen Anteil zur Prozentskala bei.
+Neue bestätigte Treffer tragen affectsCorrectness=false; auch der gespeicherte
+Gesamtstatus wird daraus nicht mehr als mismatch abgeleitet. Echte Betrags-,
+Adress- oder andere Abweichungen bleiben davon unberührt. Ungeklärte Abgleiche und
+Dublettenverdacht bleiben gelb und zählen wie bisher.
+
+Die Oberfläche erkennt bestätigte Dubletten auch in älteren gespeicherten Berichten
+an billingStatus, dycos_invoice_headers und duplicate=true und nimmt diese aus der
+Skala, ohne unveränderliche Altberichte umzuschreiben. Ein alter gespeicherter
+Gesamtstatus wird erst durch eine erneute Prüfung neu berechnet. Dev-Veröffentlichung und Abnahmegrenzen im
+[Releasebeleg](releases/mail-triage-dev-2026-11-05.md); Main bleibt unverändert.
+
+
+## Manueller Prüfabschluss – Dev-Paket 05.11.2026
+
+Eine erfolgreich ausgeführte KI-Rechnungsprüfung ist zunächst in Bearbeitung:
+Mail-Icon und rechter Aktionsbutton gelb. Das Ergebnis öffnet sich in diesem Zustand
+weiterhin über den Aktionsbutton. Im Fuß des Rechnungsmodals bestätigt Prüfung fertig
+den manuellen Abschluss; beide Anzeigen werden grün. Der Fußbutton wechselt zu
+Wieder in Bearbeitung setzen und stellt denselben Bericht ohne neue KI-Auswertung
+auf gelb zurück. Die Zustände bleiben serverseitig am Nachrichten-/Aktionsjob erhalten.
+Statusfehler werden im offenen Modal angezeigt; fehlgeschlagene Speicherung färbt
+nicht fälschlich grün. Eine neue Auswertung startet einen neuen Job ohne Abschluss.
+
+Ältere automatisch abgeschlossene Rechnungsjobs ohne ausdrückliche Bestätigung
+werden als gelb/in Bearbeitung behandelt. Andere Mailaktionen behalten ihre bisherigen
+Abschlussregeln. Alle Übergänge verlangen weiterhin Postfachzugriff und Bearbeitungsrecht
+für Transportaufträge; veraltete Job-IDs werden abgewiesen. Der Abschluss ist keine
+Buchung oder Zahlungsfreigabe und ändert weder Rechnungsbericht noch Transportauftrag.
+Die Buchungswarnung aus dem vorherigen lokalen Nachtrag bleibt unabhängig davon erhalten.
+Gemeinsam mit dem Dev-Paket Maileinordnung veröffentlicht; siehe Releasebeleg.
+
+
+Lokal geprüft: 19 Backend- und 9 Store-/Darstellungstests sowie vollständiges Lint
+und Build erfolgreich. Lokaler Browser-Funktionstest mit Testdaten bestätigt
+Öffnen des gelben Ergebnisses, Abschluss, Wiederöffnung und erhaltenes Ergebnis.
+Eine echte neue Rechnung bleibt Gegenstand der Nutzerabnahme auf Dev.

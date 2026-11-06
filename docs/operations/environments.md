@@ -26,6 +26,12 @@ wurden die sechs Dev-Secrets eingerichtet und die benötigten Dev-Functions
 am 29.10.2026 gezielt bereitgestellt. Identität, Zertifikatslaufzeit und Prüfstand stehen in
 [DyCoS-Schnittstellenplanung, Abschnitt 17](../planning/dycos-csv-import-uebergangsloesung.md#17-technische-dev-identität-und-authentifizierte-abrufprüfung).
 
+Am 06.11.2026 wurde der bestehende Produktions-TA-Flow um den begrenzten Abruf
+referenzierter Stationsanschriften erweitert. Produktionsadresse, Identität und
+SQL-Verbindung bleiben erhalten; keine Dev-Flow-URL übernommen. Ein lesender
+Produktionsabruf bestätigt `stationAddresses`. Umfang und Nachweise stehen im
+[Releasebeleg](releases/production-2026-11-06-status.md).
+
 In Vercel werden diese Variablennamen getrennt für Production und Preview im
 jeweils passenden Zielbereich hinterlegt. Die zugehörigen Werte bleiben in
 Vercel und werden weder in Git noch in dieser Dokumentation gespeichert. Für
@@ -111,3 +117,12 @@ existiert keine `.firebaserc`; Firebase-Befehle daher mit explizitem `--project`
 ausführen. Der Ordnername ändert weder Git-Repository noch Firebase-Ziel.
 Ein Push nach `main` veröffentlicht nicht automatisch Functions, Rules oder
 Indizes; deren Bereitstellung folgt `releases.md`.
+
+## Haftbarhaltung: bewusster Formulierungsvorschlag
+
+`suggestLiabilityWording` ist für aktive Vorlagennutzer als gezielte Ausnahme in Dev und Produktion technisch zulässig; zunächst nur Dev-Veröffentlichung. Die bestehende PDF-Auswertung bleibt außerhalb Produktion gesperrt. Daten-/Rechtevertrag: [Haftbarhaltung](liability-letters.md).
+
+
+### Dev-TA-Abruf mit Stationsadressen (04.11.2026)
+
+Die separierte Dev-Kopie **Drehpunkt – DyCoS TA Dev mit Stationsadressen**, Flow-ID `bf08a1eb-5fd8-f111-84e9-6045bd93bcb8`, ergänzt gezielt referenzierte Stationsanschriften. Der bestehende TA-Flow wurde nicht verändert. Nur Dev-Secret `DYCOS_FLOW_URL`, Version 2, verweist auf die Kopie; URL und Schlüssel werden nicht dokumentiert. `fetchDycosTransportOrder`, `fetchLiabilityTransportOrder` und `refreshTransportOrderWorkspace` werden dafür in `db-bpl-drehpunkt-dev` aktualisiert. Die Rechnungsprüfungs-Functions bleiben auf ihrer bisherigen Secret-Version, da sie diese Stationsanschriften nicht verwenden. Main und Produktionskonfiguration bleiben unverändert. [Releasebeleg](releases/liability-station-addresses-dev-2026-11-04.md).

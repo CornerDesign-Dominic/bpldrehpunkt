@@ -108,7 +108,7 @@ export function knowledgeCaseUpdate(previous, changes) {
   return next
 }
 
-function captureGroup(selection, catalog) {
+export function captureGroup(selection, catalog) {
   const source = selection?.sources?.find(item => item.kind === 'article')
   if (source) {
     const article = catalog.articles.find(item => item.id === source.id)

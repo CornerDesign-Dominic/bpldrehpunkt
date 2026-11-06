@@ -3,7 +3,7 @@ const routes = Object.freeze({
   inkasso: '/inkasso', todo: '/todos', transportOrder: '/transportauftraege',
   partner: '/kunden-unternehmer/stammdaten',
 })
-const returnRoots = ['/sendungsverfolgung', '/kalender', '/fallmanagement', '/qualitaet', '/schaeden', '/insolvenzen', '/legal-disputes', '/inkasso', '/todos', '/transportauftraege', '/kunden-unternehmer', '/crm', '/paletten']
+const returnRoots = ['/vertragsmanagement', '/sendungsverfolgung', '/kalender', '/fallmanagement', '/qualitaet', '/schaeden', '/insolvenzen', '/legal-disputes', '/inkasso', '/todos', '/transportauftraege', '/kunden-unternehmer', '/crm', '/paletten']
 
 export function recordDetailPath(type, id) {
   return routes[type] && typeof id === 'string' && id.length > 0

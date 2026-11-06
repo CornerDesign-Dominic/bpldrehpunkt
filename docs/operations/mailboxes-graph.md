@@ -443,3 +443,109 @@ Shared-Abgleich erfolgreich. Es wurden keine echten Mails versendet.
 - [Microsoft: Zuweisung und Zustimmung](https://learn.microsoft.com/en-us/entra/identity/enterprise-apps/what-is-access-management)
 - [Microsoft: Auf eine Mail antworten](https://learn.microsoft.com/en-us/graph/api/message-reply?view=graph-rest-1.0)
 - [Google: Secret Manager](https://docs.cloud.google.com/secret-manager/docs/creating-and-accessing-secrets)
+
+## Ordner, Gelesen-Status und Nachverfolgung (Dev 04.11.2026)
+
+Posteingang/Gesendet verwenden dieselbe Nachrichtenansicht. Ordnerauswahl steht
+in `folder=inbox|sentitems`; Listen-Cursor sind an Besitzer, Verbindung, Ordner
+und Suche gebunden. Gesendete Cards zeigen Empfänger und Versandzeit. Auswahl,
+Suche und Scrollposition bleiben beim Ordnerwechsel je Postfach erhalten.
+Antwortzeilen im Eingang bleiben erhalten. Gesendet zeigt die gemeinsamen
+Exchange-SentItems, sofern dort Kopien gespeichert sind.
+
+Nach erfolgreich angezeigter Eingangsmail wird der Gelesen-Status explizit gesetzt.
+KI-Verarbeitung und reines API-Lesen ändern ihn nicht. Manuelles Ungelesen bleibt
+für die aktuelle Öffnung erhalten. Fähnchen wechseln zwischen nicht markiert,
+markiert und erledigt. Microsoft führt den Status; Aktualisieren liest Änderungen
+aus Outlook. Bei gemeinsamen Postfächern gilt derselbe Status für alle.
+
+`updateMailboxMessageState` erlaubt ausschließlich `isRead` oder `flagStatus`.
+Eigentümerschaft der Verbindung, aktive Mailbox-Edit-Berechtigung und passende
+delegierte Scopes werden geprüft. View-only bleibt schreibgeschützt. Kein
+Mailtext-/Empfänger-/Löschendpunkt und keine automatische Mailaktion werden ergänzt.
+Client- und Serverdiagnose nutzen den inhaltsfreien Schritt `message-state`.
+
+Nur der Entra-App Drehpunkt Mail – Dev werden Mail.ReadWrite und
+Mail.ReadWrite.Shared delegiert hinzugefügt, mit separat bestätigter
+Administratorzustimmung. Die Produktions-App und der rein lesende Exchange-
+Anwendungszugriff bleiben unverändert. Bestehende Verbindungen zunächst erneuern;
+fehlende Scopes ergeben einen verständlichen Hinweis auf Mein Profil → Postfächer.
+Refreshes erhalten die ursprünglich freigegebenen Scopes. Deshalb alle Mailbox-
+Entrypoints, die Zugangsdaten erneuern können, gemeinsam bereitstellen,
+einschließlich Hintergrundaktionen und Empfehlungssubscription-Wartung.
+Keine Kontrollabfrage, Nachholsuche oder neue Rules/Indizes/Secrets.
+
+## Kompakte Aktionsspalte (Dev 04.11.2026)
+
+Breitere Aktionsspalte, flachere Buttons. Status, Auftragserfassung und AGB stehen
+in einer Dreiergruppe; darunter getrennt die Rechnungsprüfung und ein deaktivierter
+Platzhalter Mahnung prüfen. Auftragserfassung und Mahnungsplatzhalter tragen
+-BETA-. Weitere Aktionen bleiben unter einer Trennlinie. Ungelesene Karten haben
+kräftigere blaue Flächen, stärkeren Rand und Punkt; gelesene Karten sind im Dark
+Mode dunkler. Ausgewählte Karten bleiben unabhängig davon sichtbar markiert.
+Rechte, Fachaktionen und Backend bleiben unverändert.
+
+## KI-Betriebsarten und automatische Vorbereitung (Dev 05.11.2026)
+
+Pro Postfach gilt genau eine Betriebsart: `off` (keine automatische KI),
+`recommend` (Handlungsempfehlungen) oder `automatic` (auswerten und vorbereiten).
+Bestehende `enabled: true`-Einstellungen ohne Modus bleiben Empfehlungen;
+keine automatische Hochstufung. Persönliche Einstellungen gehören dem Nutzer,
+gemeinsam genutzte/Funktionspostfächer werden zentral durch Admins verwaltet.
+Manuelle Aktionen bleiben in allen Betriebsarten verfügbar.
+
+Automatik nutzt dieselbe Webhook-Erkennung und startet ausschließlich
+`invoice`, `terms`, `tracking` über die bestehenden dauerhaften Aktionsjobs.
+Auftragserfassung, Mahnungsprüfung und weitere Aktionen bleiben manuell.
+Keine automatische Mail, Zahlungsfreigabe, Auftragserstellung oder Übernahme
+von Tracking-Daten. Rechnungs-/AGB-Prüfungen speichern ihre Prüfergebnisse wie
+bei manueller Auslösung; Statusvorschläge benötigen Nutzerbestätigung.
+Kein selbstständiges Öffnen eines Modals und keine zusätzliche Empfehlung
+neben dem gestarteten Automatikjob. Bestehende Lade-/Ergebnisanzeigen gelten.
+
+Die bisherigen Auswertungsgrenzen gelten auch automatisch: Rechnungen bis zu
+20 PDF-/Bildanlagen, je 5 MiB und zusammen 20 MiB, maximal 100 Seiten und
+160.000 Zeichen; AGB bis zu 20 PDFs mit entsprechenden Größen-/Seitenlimits.
+OCR läuft über denselben bestehenden Extraktionspfad. Tracking nutzt weiterhin
+nur die Mail und keine Anhänge. Es gibt keinen neuen Postfachscan, kein Backfill
+und keine Kontrollabfrage; nur neue Eingänge ab Aktivierung mit der bestehenden
+Fünf-Minuten-Frischegrenze. Subscription-Wartung bleibt bestehen.
+
+Gemeinsame Rechnungs-, AGB- und Statusaktionen erhalten eine kanonische,
+mandantengebundene Aktionsablage. Automatische/manuelle parallele Starts teilen
+sich denselben Slot; andere Nutzer sehen dasselbe Ergebnis über ihre eigene
+aktive Postfachverbindung und nach Prüfung ihrer Modulrechte. Bestehende private
+Aktionsablagen bleiben lesbar. Shared-Statusübernahme und optionale AGB-Zuordnung
+prüfen zusätzlich die gespeicherte Bindung an Job, Ergebnis und Postfach;
+der tatsächlich bestätigende Nutzer bleibt in der Historie erhalten.
+
+Automatische Jobs verwenden ausschließlich echte aktive Verbindungsinhaber mit
+den erforderlichen Rechten, keine synthetische Adminidentität. Modus/Generation
+werden beim Anlegen und vor der Verarbeitung geprüft. Deaktivieren verhindert
+weitere/noch nicht begonnene Auswertungen; bereits laufende Auswertungen können
+abschließen, Ergebnisse bleiben erhalten. Fehler gehen in die zentrale Diagnose.
+Keine neuen Microsoft-Rechte, Secrets, Rules oder Indizes erforderlich.
+
+Prüfstand dieser Änderung: 52 gezielte Unit-/Aktionsspeicherprüfungen,
+25 Emulatorprüfungen einschließlich Rechteprüfung und parallelem manuellem/
+automatischem Shared-Start sowie 4 React-UI-Tests erfolgreich. Projekt-Lint,
+Build und Shared-Abgleich erfolgreich (bestehende Bundlegrößenwarnung).
+Die UI-Prüfungen verwendeten synthetische Antworten; der Emulator verwendet
+synthetische Mail-/KI-Ergebnisse. Keine echten Testmails versendet.
+
+## Gesammeltes Dev-Paket 05.11.2026
+
+Status, Auftragserfassung und AGB stehen wieder wie die übrigen Aktionen jeweils
+in einer vollständigen Zeile. Der Abschnitt zur kompakten Dreiergruppe beschreibt
+den vorherigen Stand. Maileinordnung mit Vorschau/Rückmeldung und Qualitätsreiter
+sowie manueller Rechnungsabschluss sind im
+[Releasebeleg](releases/mail-triage-dev-2026-11-05.md) zusammengefasst.
+
+
+## Lokaler Nachtrag: Statuszeit aus Mail und Verlauf (05.11.2026)
+
+Die vereinbarten relativen Ankunftszeiten, überprüfbare Stationsherleitung,
+Vorschlagskennzeichnung und Herkunft in der Historie sind im
+[Statusvertrag](status-mail-ingest.md#lokales-sammelpaket-hergeleitete-ankunftsangaben-05112026)
+festgehalten. Dev-Veröffentlichung und Abnahmegrenzen im
+[Releasebeleg](releases/status-replies-dev-2026-11-05.md); Main bleibt unverändert.

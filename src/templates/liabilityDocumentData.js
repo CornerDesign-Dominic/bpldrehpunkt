@@ -27,6 +27,7 @@ export function createLiabilityDocumentData() {
     unloadingCity: '',
     unloadingCountry: '',
     unloadingDate: '',
+    selectedStops: null,
     date: currentDate(),
     incidentText: '',
     attachments: {

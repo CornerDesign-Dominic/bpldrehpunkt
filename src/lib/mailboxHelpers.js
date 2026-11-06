@@ -49,6 +49,19 @@ export function attachmentBlob(data) {
   return new Blob([Uint8Array.from(binary, (char) => char.charCodeAt(0))], { type: data.contentType || 'application/octet-stream' })
 }
 
+// Exchange often labels real PDF/image attachments as application/octet-stream.
+// Use the file signature for inline viewing, never a filename alone.
+export function documentAttachmentBlob(data) {
+  const binary = atob(data.contentBase64)
+  const type = binary.slice(0, 1024).includes('%PDF-') ? 'application/pdf'
+    : binary.startsWith('\x89PNG\r\n\x1a\n') ? 'image/png'
+      : binary.startsWith('\xff\xd8\xff') ? 'image/jpeg'
+        : /^GIF8[79]a/.test(binary) ? 'image/gif'
+          : binary.startsWith('RIFF') && binary.slice(8, 12) === 'WEBP' ? 'image/webp' : null
+  if (!type) throw new Error('unsupported-document')
+  return new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type })
+}
+
 export function safeOutlookLink(value) {
   try {
     const url = new URL(value)

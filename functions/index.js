@@ -1,4 +1,7 @@
+import { submitMailboxTriageFeedbackHandler, listMailboxTriageFeedbackHandler, updateMailboxTriageFeedbackHandler, deleteMailboxTriageFeedbackHandler } from './mailboxTriageFeedback.js'
 import { getMailboxRecommendationSettingsHandler, setMailboxRecommendationSettingsHandler, listManagedMailboxRecommendationsHandler, listMailboxRecommendationsHandler, maintainMailboxRecommendationSubscriptionsHandler, mailboxRecommendationWebhookHandler, processMailboxRecommendationRunHandler } from './mailboxRecommendations.js'
+import { getMailboxLearningSettingsHandler, setMailboxLearningSettingsHandler, mailboxLearningWebhookHandler, maintainMailboxLearningSubscriptionsHandler, processMailboxLearningRunHandler } from './mailboxLearning.js'
+import { manageEmptyKnowledgeGroupHandler } from './knowledgeEmptyGroups.js'
 import { advanceShipmentTrackingWork } from './shipmentTrackingAutomation.js'
 import { advanceDeadlineReminderWork } from './caseDeadlineReminders.js'
 import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminderParent, refreshReminderSource } from './reminders.js'
@@ -24,11 +27,14 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
 import { saveQualityRecordHandler } from './quality.js'
+import { mutateContractHandler } from './contracts.js'
+import { saveContractCostCategoryHandler } from './contractCostCategories.js'
 import { saveKnowledgeRecordHandler, updateKnowledgeGapHandler } from './knowledge.js'
 import { manageKnowledgeCaseHandler, learnKnowledgeCasesHandler, applyKnowledgeLearningHandler } from './knowledgeLearning.js'
 import { listDiagnosticsPageHandler, recordDiagnostic, reportClientDiagnosticHandler } from './diagnostics.js'
-import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
+import { beginMailboxConnectionHandler, finishMailboxConnectionHandler, listMailboxConnectionsHandler, addSharedMailboxHandler, updateMailboxNameHandler, listMailboxMessagesHandler, listMailboxRepliesHandler, getMailboxMessageHandler, updateMailboxMessageStateHandler, getMailboxAttachmentHandler, suggestMailboxReplyHandler, getMailboxDraftHandler, saveMailboxDraftHandler, sendMailboxReplyHandler, sendMailboxMessageHandler, searchMailboxRecordTargetsHandler, applyMailboxRecordHandler, disconnectMailboxHandler, mailboxOAuthCallbackHandler, cleanupMailboxConnectionsHandler, mailboxClientSecret } from './mailboxes.js'
 import { listTransportOrderImportRunsHandler, manageTransportOrderImportHandler } from './transportOrderImports.js'
+import { findLiabilityTransportOrdersHandler, fetchLiabilityTransportOrderHandler } from './liabilityWorkflow.js'
 import { fetchDycosTransportOrderHandler } from './dycosTransportOrders.js'
 import { listTransportOrderRecordsPageHandler, refreshTransportOrderWorkspaceHandler } from './transportOrderWorkspace.js'
 import { dycosFlowConfigurationSecrets } from './dycosFlowClient.js'
@@ -49,7 +55,7 @@ import { getOwnTransportOrderRatingsHandler, listCrmTransportRatingSummariesHand
 import { previewShipmentTrackingOperatingHoursHandler, updateShipmentTrackingOperatingHoursHandler } from './shipmentTrackingOperatingHours.js'
 import { updateShipmentTrackingArrivalConfirmationHandler } from './shipmentTrackingArrivalConfirmation.js'
 import { updateShipmentTrackingRuleCatalogHandler } from './shipmentTrackingRuleCatalog.js'
-import { finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, shipmentTrackingMailAttentionChanged, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
+import { shipmentTrackingForecastRefreshKind, finalizeShipmentTrackingForecastArrival, getShipmentTrackingAttentionHandler, getShipmentTrackingForecastHandler, refreshAutomaticShipmentTrackingForecast, refreshShipmentTrackingAttentionSummary, shipmentTrackingMailAttentionChanged, refreshShipmentTrackingForecastHandler, updateShipmentTrackingForecastSettingsHandler } from './shipmentTrackingForecast.js'
 import { updateAutomaticMailDeliveryHandler } from './automaticMailDelivery.js'
 import { approveCustomerImportRowHandler, claimCustomerImportRowHandler, listCustomerImportQueueHandler, releaseCustomerImportRowHandler } from './customerImports.js'
 import { approveCarrierImportRowHandler, claimCarrierImportRowHandler, listCarrierImportQueueHandler, releaseCarrierImportRowHandler } from './carrierImports.js'
@@ -148,16 +154,9 @@ export const refreshShipmentTrackingForecastOnUpdate = onDocumentWritten({ regio
   if (!event.data?.after.exists) return
   const before = event.data.before.exists ? event.data.before.data() : {}
   const after = event.data.after.data()
-  const forecastFields = ['estimatedArrivalLoadingAt', 'actualArrivalLoadingAt', 'actualDepartureLoadingAt']
-  const changed = forecastFields.some((field) => {
-    const oldValue = before?.[field]?.toMillis?.() ?? before?.[field] ?? null
-    const newValue = after?.[field]?.toMillis?.() ?? after?.[field] ?? null
-    return oldValue !== newValue
-  })
-  const oldUnload = before?.actualArrivalUnloadingAt?.toMillis?.() ?? before?.actualArrivalUnloadingAt ?? null
-  const newUnload = after?.actualArrivalUnloadingAt?.toMillis?.() ?? after?.actualArrivalUnloadingAt ?? null
-  if (changed) await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
-  else if (oldUnload !== newUnload || ['unloadingStartedAt', 'unloadingCompletedAt', 'lifecycleStatus'].some((field) => (before[field]?.toMillis?.() ?? before[field] ?? null) !== (after[field]?.toMillis?.() ?? after[field] ?? null))) await finalizeShipmentTrackingForecastArrival(event.params.orderId)
+  const refreshKind = shipmentTrackingForecastRefreshKind(before, after)
+  if (refreshKind === 'forecast') await refreshAutomaticShipmentTrackingForecast(event.params.orderId)
+  else if (refreshKind === 'arrival') await finalizeShipmentTrackingForecastArrival(event.params.orderId)
 })
 export const refreshShipmentTrackingAttentionOnMail = onDocumentWritten({ region: 'europe-west3', document: 'transportOrders/{orderId}/receivedMails/{mailId}', maxInstances: 3, retry: true }, async (event) => {
   if (!event.data) return
@@ -172,14 +171,25 @@ export const getOwnSignature = onCall({ region: 'europe-west3', enforceAppCheck:
 export const saveCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, saveCompanyStampHandler)
 export const deleteCompanyStamp = onCall({ region: 'europe-west3', enforceAppCheck: true }, deleteCompanyStampHandler)
 const mailboxOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
-const mailboxActionOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, timeoutSeconds: 120, maxInstances: 3 }
+const mailboxActionOptions = { region: 'europe-west3', invoker: 'public', enforceAppCheck: true, secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 3 }
 export const getMailboxRecommendationSettings = onCall(mailboxOptions, getMailboxRecommendationSettingsHandler)
 export const setMailboxRecommendationSettings = onCall(mailboxOptions, setMailboxRecommendationSettingsHandler)
 export const listManagedMailboxRecommendations = onCall(mailboxOptions, listManagedMailboxRecommendationsHandler)
 export const listMailboxRecommendations = onCall(mailboxOptions, listMailboxRecommendationsHandler)
+export const submitMailboxTriageFeedback = onCall(mailboxOptions, submitMailboxTriageFeedbackHandler)
+export const listMailboxTriageFeedback = onCall(mailboxOptions, listMailboxTriageFeedbackHandler)
+export const updateMailboxTriageFeedback = onCall(mailboxOptions, updateMailboxTriageFeedbackHandler)
+export const deleteMailboxTriageFeedback = onCall(mailboxOptions, deleteMailboxTriageFeedbackHandler)
 export const maintainMailboxRecommendationSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxRecommendationSubscriptionsHandler)
 export const mailboxRecommendationWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxRecommendationWebhookHandler)
-export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+export const processMailboxRecommendationRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxRecommendationRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 120, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxRecommendationRunHandler)
+
+export const getMailboxLearningSettings = onCall(mailboxOptions, getMailboxLearningSettingsHandler)
+export const manageEmptyKnowledgeGroup = onCall({ region: 'europe-west3', enforceAppCheck: true }, manageEmptyKnowledgeGroupHandler)
+export const setMailboxLearningSettings = onCall(mailboxOptions, setMailboxLearningSettingsHandler)
+export const mailboxLearningWebhook = onRequest({ region: 'europe-west3', invoker: 'public', timeoutSeconds: 60, maxInstances: 3 }, mailboxLearningWebhookHandler)
+export const maintainMailboxLearningSubscriptions = onSchedule({ region: 'europe-west3', schedule: 'every 60 minutes', secrets: [mailboxClientSecret], timeoutSeconds: 120, maxInstances: 1 }, maintainMailboxLearningSubscriptionsHandler)
+export const processMailboxLearningRun = onDocumentCreated({ region: 'europe-west3', document: 'mailboxLearningRuns/{runId}', secrets: [mailboxClientSecret, statusMailAiApiKey], timeoutSeconds: 180, memory: '512MiB', maxInstances: 3, concurrency: 1, retry: false }, processMailboxLearningRunHandler)
 
 export const startMailboxAction = onCall(mailboxActionOptions, startMailboxActionHandler)
 export const getMailboxAction = onCall(mailboxActionOptions, getMailboxActionHandler)
@@ -206,6 +216,7 @@ export const updateMailboxName = onCall(mailboxOptions, updateMailboxNameHandler
 export const listMailboxMessages = onCall(mailboxOptions, listMailboxMessagesHandler)
 export const listMailboxReplies = onCall(mailboxOptions, listMailboxRepliesHandler)
 export const getMailboxMessage = onCall(mailboxOptions, getMailboxMessageHandler)
+export const updateMailboxMessageState = onCall(mailboxOptions, updateMailboxMessageStateHandler)
 export const getMailboxAttachment = onCall(mailboxOptions, getMailboxAttachmentHandler)
 export const suggestMailboxReply = onCall({ ...mailboxOptions, timeoutSeconds: 180, secrets: [mailboxClientSecret, statusMailAiApiKey] }, suggestMailboxReplyHandler)
 export const getMailboxDraft = onCall(mailboxOptions, getMailboxDraftHandler)
@@ -220,7 +231,7 @@ export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', sc
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'contracts', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'mailTriageCleanup']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -1187,6 +1198,9 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
 export { runAutomatedNewsResearch, scheduledNewsResearch, setNewsReaction } from './news.js'
 export { submitBugReport, submitIdea } from './bugReports.js'
 export { analyzeLiabilityTransportOrder } from './liabilityLetters.js'
+export { suggestLiabilityWording } from './liabilityWorkflow.js'
+export const findLiabilityTransportOrders = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, findLiabilityTransportOrdersHandler)
+export const fetchLiabilityTransportOrder = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public', timeoutSeconds: 180, maxInstances: 3, concurrency: 4, secrets: dycosFlowConfigurationSecrets }, fetchLiabilityTransportOrderHandler)
 export { analyzeCustomerOrderTerms } from './agbChecker.js'
 export { refreshHolidayData, scheduledHolidayDataRefresh } from './holidays.js'
 export { refreshSchoolHolidayData } from './schoolHolidays.js'
@@ -1216,6 +1230,8 @@ export const sendManualShipmentTrackingMail = onCall({ region: 'europe-west3', e
 export const getShipmentTrackingDryRun = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, getShipmentTrackingDryRunHandler)
 export const listDiagnosticsPage = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, listDiagnosticsPageHandler)
 export const reportClientDiagnostic = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, reportClientDiagnosticHandler)
+export const mutateContract = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, mutateContractHandler)
+export const saveContractCostCategory = onCall({ region: 'europe-west3', enforceAppCheck: true, invoker: 'public' }, saveContractCostCategoryHandler)
 export const listTransportOrdersPage = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrdersPageHandler)
 export const listTransportOrderRelations = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTransportOrderRelationsHandler)
 export const calculateTransportOrderRoute = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 60, secrets: [tomTomRoutingApiKey] }, calculateTransportOrderRouteHandler)

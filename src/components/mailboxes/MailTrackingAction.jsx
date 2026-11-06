@@ -1,4 +1,6 @@
 import MailActionButton from './MailActionButton.jsx'
+import ShipmentTrackingDerivation from '../transport-orders/ShipmentTrackingDerivation.jsx'
+import { trackingUnchangedTransitDerivation } from '../../lib/shipmentTrackingDerivation.js'
 import { useMailboxAction } from '../../mailboxes/useMailboxAction.js'
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -40,11 +42,11 @@ function AssignmentDialog({ open, busy, candidates, error, onAssign, onClose, w 
   </dialog>
 }
 
-export default function MailTrackingAction({ identity, mailContent }) {
+export default function MailTrackingAction({ identity, mailContent, recommended = false }) {
   const formId = useId()
   const { language } = useLanguage()
   const w = (de, en) => language === 'en' ? en : de
-  const action = useMailboxAction(identity, 'tracking')
+  const action = useMailboxAction(identity, 'tracking', recommended)
   const [open, setOpen] = useState(false)
   const [preview, setPreview] = useState(null)
   const [values, setValues] = useState({})
@@ -130,8 +132,8 @@ export default function MailTrackingAction({ identity, mailContent }) {
     } catch (caught) { setError(errorText(caught, w)) }
     finally { setSaving(false) }
   }
-  return <><MailActionButton kind="tracking" state={action.state} expanded={open} disabled={busy || saving || action.busy} onClick={activate}>{action.state === 'running' || busy ? w('Status wird ausgelesen …', 'Reading status …') : action.state === 'review' ? w('Statusangaben prüfen', 'Review status information') : action.state === 'completed' ? w('Status übernommen', 'Status applied') : action.state === 'failed' ? w('Statusauswertung prüfen', 'Review status analysis') : w('Sendungsstatus aktualisieren', 'Update shipment status')}</MailActionButton>
-    <MailWorkDialog open={open} title={w('Sendungsstatus aktualisieren', 'Update shipment status')} subtitle={preview?.order ? `TA ${preview.order.number} · ${preview.order.loading} → ${preview.order.unloading}` : undefined} left={mailContent} onClose={close} busy={saving} rightLoading={busy || saving || action.busy} loadingLabel={saving ? w('Angaben werden übernommen …', 'Applying information …') : w('Auftrag wird gesucht – KI wertet die Mail aus …', 'Finding order – AI is analysing the message …')} footer={action.state !== 'completed' && <>
+  return <><MailActionButton kind="tracking" state={action.displayState} expanded={open} disabled={busy || saving || action.busy} onClick={activate}>{action.state === 'running' || busy ? w('Status wird ausgelesen …', 'Reading status …') : action.state === 'review' ? w('Status prüfen', 'Review status information') : action.state === 'completed' ? w('Status übernommen', 'Status applied') : action.state === 'failed' ? w('Status erneut prüfen', 'Review status analysis') : w('Status aktualisieren', 'Update shipment status')}</MailActionButton>
+    <MailWorkDialog open={open} title={w('Status aktualisieren', 'Update shipment status')} subtitle={preview?.order ? `TA ${preview.order.number} · ${preview.order.loading} → ${preview.order.unloading}` : undefined} left={mailContent} onClose={close} busy={saving} rightLoading={busy || saving || action.busy} loadingLabel={saving ? w('Angaben werden übernommen …', 'Applying information …') : w('Auftrag wird gesucht – KI wertet die Mail aus …', 'Finding order – AI is analysing the message …')} footer={action.state !== 'completed' && <>
       {action.state === 'review' && <button className="mail-work-footer__discard" type="button" disabled={busy || saving || action.busy} onClick={() => void discard()}>{w('Ergebnis verwerfen', 'Discard result')}</button>}
       <button className="mail-work-footer__secondary" type="button" disabled={busy || saving || action.busy} onClick={() => void analyse(preview?.order?.number)}>{w('Erneut auswerten', 'Analyse again')}</button>
       <button className="mail-work-footer__primary" type="submit" form={formId} disabled={busy || saving || action.busy || action.state !== 'review' || !preview?.previewId || !changed.length && !entries.length}>{saving ? w('Wird übernommen …', 'Applying …') : w('Angaben übernehmen', 'Apply information')}</button>
@@ -141,11 +143,12 @@ export default function MailTrackingAction({ identity, mailContent }) {
       {(error || action.error) && <p className="form-error" role="alert">{error || errorText(action.error, w)}</p>}
       {action.state === 'completed' && <p role="status">{w('Die Angaben dieser Mail wurden bereits übernommen.', 'The information from this message has already been applied.')}</p>}
       {action.state !== 'completed' && <p className="mailbox-hint">{w('KI-Vorschläge prüfen. Erst „Angaben übernehmen“ speichert und startet bei Bedarf die Sendungsverfolgung.', 'Review AI suggestions. Apply information saves changes and starts tracking if necessary.')}</p>}
-      {preview?.reviewRequired && <p className="mail-tracking-warning">{w('Die KI konnte nicht alle Angaben eindeutig interpretieren. Bitte besonders sorgfältig prüfen.', 'Some details are ambiguous. Please review carefully.')}</p>}
+      {preview?.reviewRequired && <p className="mail-tracking-warning">{w('Die Auswertung enthält hergeleitete oder unklare Angaben. Bitte Vorschläge prüfen.', 'The analysis includes inferred or unclear details. Please review the suggestions.')}</p>}
       <form id={formId} onSubmit={apply}><div className="mail-tracking-stations">
         {stages.map(stage => <section className="mail-tracking-station" key={stage.id}><button type="button" className="mail-tracking-station-toggle" disabled={busy || saving || action.busy || !preview?.previewId} aria-expanded={openStages.includes(stage.id)} onClick={() => setOpenStages(current => current.includes(stage.id) ? current.filter(id => id !== stage.id) : [...current, stage.id])}>{w(stage.de, stage.en)} <span aria-hidden="true">{openStages.includes(stage.id) ? '−' : '+'}</span></button>
-          {preview?.previewId && openStages.includes(stage.id) && <fieldset disabled={busy || saving || action.busy || action.state === 'completed'} className="mail-tracking-fields">{stage.id === 'in_transit' ? <ShipmentTrackingTransitFields entries={entries} initialNewEntries={originalEntries} onChange={setEntries} /> : <>
+          {preview?.previewId && openStages.includes(stage.id) && <fieldset disabled={busy || saving || action.busy || action.state === 'completed'} className="mail-tracking-fields">{stage.id === 'in_transit' ? <><ShipmentTrackingTransitFields entries={entries} initialNewEntries={originalEntries} onChange={setEntries} />{entries.map(entry => { const derivation = trackingUnchangedTransitDerivation(entry, originalEntries); return derivation ? <div className="mail-tracking-warning" key={`derived-${entry.id}`}><strong>{w('Restkilometer · Abgeleiteter Vorschlag', 'Remaining distance · Inferred suggestion')}</strong><ShipmentTrackingDerivation derivation={derivation} /></div> : null })}</> : <>
             <ShipmentTrackingStageFields stage={{ ...shipmentTrackingStageConfigurations[stage.id], id: stage.id }} values={values} onChange={(field, value) => setValues(current => ({ ...current, [field]: value }))} aiField={field => Object.hasOwn(preview.proposals, field) && values[field] === inputValue(field, preview.proposals[field])} />
+            {shipmentTrackingStageConfigurations[stage.id].fields.filter(field => preview.proposalDetails?.[field]?.derivation && values[field] === inputValue(field, preview.proposals[field])).map(field => <div className="mail-tracking-warning" key={`derived-${field}`}><strong><StaticText source={fieldLabels[field]} /> · {w('Abgeleiteter Vorschlag', 'Inferred suggestion')}</strong><ShipmentTrackingDerivation derivation={preview.proposalDetails[field].derivation} /></div>)}
             {stage.id === 'preparation' && ['tractorLicensePlate', 'trailerLicensePlate'].map(field => <label className="form-field" key={field}><span><StaticText source={fieldLabels[field]} /></span><input value={values[field] || ''} maxLength={80} onChange={event => setValues(current => ({ ...current, [field]: event.target.value }))} className={Object.hasOwn(preview.proposals, field) && values[field] === preview.proposals[field] ? 'shipment-tracking-editor__input--ai' : undefined} /></label>)}
             {preview.conflicts.filter(field => shipmentTrackingStageConfigurations[stage.id].fields.includes(field) || stage.id === 'preparation' && ['tractorLicensePlate', 'trailerLicensePlate'].includes(field)).map(field => <div className="mail-tracking-warning" key={field}><strong><StaticText source={fieldLabels[field]} /></strong><p>{values[field] === inputValue(field, preview.proposals[field]) ? w('KI-Vorschlag ausgewählt.', 'AI suggestion selected.') : w('Vorhandener Wert bleibt erhalten.', 'The existing value is preserved.')} {w('KI-Vorschlag:', 'AI suggestion:')} {inputValue(field, preview.proposals[field])}</p><button type="button" className="button button--secondary" onClick={() => setValues(current => ({ ...current, [field]: inputValue(field, preview.proposals[field]) }))}>{w('KI-Vorschlag verwenden', 'Use AI suggestion')}</button></div>)}
           </>}</fieldset>}

@@ -6,6 +6,7 @@
 .mailbox-action-indicator--running { color: #68b5ff; }
 .mailbox-action-indicator--review { color: #e7b831; }
 .mailbox-action-indicator--completed { color: #48b984; }
+.mailbox-action-indicator--failed { color: var(--status-danger-text); }
 [data-theme='light'] .mailbox-action-indicator--running { color: #176abc; }
 [data-theme='light'] .mailbox-action-indicator--review { color: #986600; }
 [data-theme='light'] .mailbox-action-indicator--completed { color: #167343; }

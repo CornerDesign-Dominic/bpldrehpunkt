@@ -17,7 +17,7 @@ service cloud.firestore {
     // remain in the protected source case files and can never be created or
     // administered as ordinary calendar documents.
     function systemCalendarId(calendarId) {
-      return calendarId in ['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso'];
+      return calendarId in ['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso', 'system-contracts'];
     }
     function calendarDocument(calendarId) { return get(/databases/$(database)/documents/calendars/$(calendarId)).data; }
     function calendarPermissionLevel(calendarId) {
@@ -1696,6 +1696,37 @@ service cloud.firestore {
         && (superadmin() || resource.data.ownerUserId == request.auth.uid);
       allow delete: if edit('todos') && (superadmin() || resource.data.ownerUserId == request.auth.uid);
     }
+    match /contractCostCategories/{id} {
+      allow read: if view('contracts');
+      allow write: if false;
+      match /history/{entryId} {
+        allow read: if view('contracts');
+        allow write: if false;
+      }
+      match /mutations/{mutationId} { allow read, write: if false; }
+    }
+    match /contractCostCategoryNames/{nameKey} { allow read, write: if false; }
+    match /contracts/{id} {
+      allow read: if view('contracts');
+      allow create: if edit('contracts')
+        && request.resource.data.keys().hasAll(['partnerName', 'createdBy', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['partnerName', 'createdBy', 'createdAt'])
+        && request.resource.data.partnerName is string
+        && request.resource.data.partnerName.size() > 0
+        && request.resource.data.partnerName.size() <= 240
+        && request.resource.data.partnerName == request.resource.data.partnerName.trim()
+        && request.resource.data.partnerName.matches('.*\\S.*')
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      // Root editing and all file contents are managed by mutateContract.
+      allow update, delete: if false;
+      match /{collection}/{recordId} {
+        allow read: if collection in ['positions', 'deadlines', 'notes', 'history', 'documents']
+          && view('contracts')
+          && exists(/databases/$(database)/documents/contracts/$(id));
+        allow write: if false;
+      }
+    }
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'
         && ((data.status == 'pending' && !data.keys().hasAny(['originalRequestId', 'changeRequest', 'cancellationRequest', 'requestKind']))
@@ -1742,6 +1773,9 @@ service cloud.firestore {
       allow get: if view('mailboxes') && connectedMailbox();
       allow list, write: if false;
     }
+    // Triage feedback contains bounded mail evidence; access only via checked callables.
+    match /mailboxTriageFeedback/{id} { allow read, write: if false; }
+    match /mailboxTriageFeedbackStates/{id} { allow read, write: if false; }
     match /mailboxActionRuns/{id} { allow read, write: if false; }
     match /mailboxActionScopes/{scope}/{document=**} { allow read, write: if false; }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }

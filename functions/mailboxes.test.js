@@ -47,6 +47,30 @@ const draft = { body: 'Testantwort', replyAll: false, toRecipients: ['bb@brennpu
 const reply = { ...draft, revision: 0, messageId: 'message-1', operationId: '0123456789abcdef' }
 const newMail = { ...draft, subject: 'Neue unabhängige Mail', revision: 0, operationId: 'new-mail-0123456789' }
 
+test('learning Graph adapter subscribes only to SentItems and exact parent queries stay bounded', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => { calls.push({ url, options }); return response(url.includes('/messages?') ? { value: [] } : url.includes('/mailFolders/sentitems?') ? { id: 'sent-folder' } : { id: 'sent-mail', parentFolderId: 'sent-folder' }) } })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'learning-create', data: { changeType: 'created', notificationUrl: 'https://example.invalid/webhook' } })
+  assert.equal(JSON.parse(calls[0].options.body).resource, "/me/mailFolders('sentitems')/messages")
+  const sent = await f.handlers.recommendationGraph({ connectionId, operation: 'learning-sent', messageId: 'immutable/one' })
+  assert.equal(sent.sentFolderId, 'sent-folder')
+  assert.ok(calls.some(call => call.url.includes('/messages/immutable%2Fone?')))
+  await f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents', referenceId: "<message'one@example.invalid>" })
+  const targeted = new URL(calls.at(-1).url)
+  assert.equal(targeted.searchParams.get('$filter'), "internetMessageId eq '<message''one@example.invalid>'")
+  assert.equal(targeted.searchParams.get('$top'), '10')
+  await f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents', conversationId: 'conversation-id' })
+  assert.equal(new URL(calls.at(-1).url).searchParams.get('$top'), '50')
+  await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents' }), { code: 'invalid-argument' })
+})
+
+test('learning Graph parent lookup rejects incomplete pagination rather than scanning more mail', async () => {
+  let count = 0
+  const f = fixture({ fetch: async () => { count++; return response({ value: [], '@odata.nextLink': 'https://graph.microsoft.com/v1.0/me/messages?$skip=50' }) } })
+  await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'learning-parents', conversationId: 'conversation' }), { code: 'failed-precondition' })
+  assert.equal(count, 1)
+})
+
 test('production permits external To/Cc/Bcc without weakening ownership or creating Dev side effects', async () => {
   const calls = []
   const productionConfig = { ...config, project: 'db-bpl-drehpunkt', clientId: '11111111-2222-4333-8444-555555555555', redirect: 'https://europe-west3-db-bpl-drehpunkt.cloudfunctions.net/mailboxOAuthCallback', origin: 'https://drehpunktlogistik.de' }
@@ -240,6 +264,119 @@ test('a canonical Graph nextLink does not discard the first inbox page and can b
   await assert.rejects(f.handlers.listMailboxMessages(request({ pageToken: `${first.nextPageToken}tampered` })), { code: 'invalid-argument' })
 })
 
+test('sent folder pages include recipients and sent date, with signed search and folder binding', async () => {
+  const calls=[]
+  const nextLink="https://graph.microsoft.com/v1.0/me/mailFolders('sentitems')/messages?$skiptoken=opaque"
+  const f=fixture({fetch:async(url,options)=>{calls.push({url,options});return response({value:[{id:'sent',flag:{flagStatus:'flagged'}}],'@odata.nextLink':nextLink})}})
+  const first=await f.handlers.listMailboxMessages(request({folder:'sentitems'}))
+  const url=new URL(calls[0].url)
+  assert.equal(url.pathname,'/v1.0/me/mailFolders/sentitems/messages')
+  assert.equal(url.searchParams.get('$orderby'),'sentDateTime desc')
+  for(const property of ['toRecipients','sentDateTime','isRead','flag']) assert.ok(url.searchParams.get('$select').split(',').includes(property))
+  await assert.rejects(f.handlers.listMailboxMessages(request({folder:'inbox',pageToken:first.nextPageToken})),{code:'invalid-argument'})
+  await assert.rejects(f.handlers.listMailboxMessages(request({folder:'sentitems',pageToken:first.nextPageToken+'.junk'})),{code:'invalid-argument'})
+  await f.handlers.listMailboxMessages(request({folder:'sentitems',pageToken:first.nextPageToken}))
+  assert.equal(calls.at(-1).url,nextLink)
+  await f.handlers.listMailboxMessages(request({folder:'sentitems',search:'customer'}))
+  assert.equal(new URL(calls.at(-1).url).searchParams.has('$orderby'),false)
+  for(const folder of ['drafts','../messages','/users/other',{},0,null]) await assert.rejects(f.handlers.listMailboxMessages(request({folder})),{code:'invalid-argument'})
+  assert.ok(calls.every(call=>!call.options.method))
+})
+
+const stateRequest=data=>({auth:{uid:'owner'},data:{connectionId,messageId:'message/with+opaque==',...data}})
+const writeSecrets=scopes=>({read:async()=>({accessToken:'write-token',refreshToken:'refresh',expiresAt:1000000,scopes})})
+test('message metadata mutation only patches the requested status on the owned mailbox',async()=>{
+  const calls=[]
+  const f=fixture({secrets:writeSecrets(['Mail.ReadWrite']),fetch:async(url,options)=>{calls.push({url,options});return response({id:'message/with+opaque==',isRead:true,flag:{flagStatus:'notFlagged'}})}})
+  const read=await f.handlers.updateMailboxMessageState(stateRequest({isRead:true}))
+  assert.equal(read.message.isRead,true)
+  assert.equal(calls[0].options.method,'PATCH')
+  assert.deepEqual(JSON.parse(calls[0].options.body),{isRead:true})
+  assert.equal(new URL(calls[0].url).pathname,'/v1.0/me/messages/message%2Fwith%2Bopaque%3D%3D')
+  for(const flagStatus of ['flagged','complete','notFlagged']) {
+    await f.handlers.updateMailboxMessageState(stateRequest({flagStatus}))
+    assert.deepEqual(JSON.parse(calls.at(-1).options.body),{flag:{flagStatus}})
+  }
+  await f.handlers.updateMailboxMessageState(stateRequest({isRead:false}))
+  assert.deepEqual(JSON.parse(calls.at(-1).options.body),{isRead:false})
+})
+
+test('status updates reject extra properties, invalid state, absent identity and foreign connection ownership before Graph',async()=>{
+  const f=fixture({secrets:writeSecrets(['Mail.ReadWrite'])})
+  for(const data of [{},{isRead:'true'},{isRead:null},{flagStatus:'done'},{isRead:true,flagStatus:'flagged'},{isRead:true,body:'overwritten'},{isRead:true,graphUserId:'foreign'},{flag:{flagStatus:'flagged'}}]) await assert.rejects(f.handlers.updateMailboxMessageState(stateRequest(data)),{code:'invalid-argument'})
+  await assert.rejects(f.handlers.updateMailboxMessageState({auth:{uid:'other'},data:{connectionId,messageId:'x',isRead:true}}),{code:'permission-denied'})
+  assert.equal(f.fetchCount(),0)
+})
+
+test('metadata updates require mailbox edit access, while reading never marks a message or flags it',async()=>{
+  const calls=[]
+  const f=fixture({requireProfile:async()=>({...profile,permissions:{mailboxes:'view'}}),fetch:async(url,options)=>{calls.push({url,options});return response(url.includes('attachments?')?{value:[]}:{id:'x',body:{contentType:'text',content:'mail'},isRead:false,flag:{flagStatus:'flagged'}})}})
+  for(const state of [{isRead:true},{flagStatus:'complete'}]) await assert.rejects(f.handlers.updateMailboxMessageState(stateRequest(state)),{code:'permission-denied'})
+  const result=await f.handlers.getMailboxMessage(request({messageId:'x'}))
+  assert.equal(result.message.isRead,false);assert.equal(result.message.flag.flagStatus,'flagged')
+  assert.ok(calls.every(call=>!call.options.method))
+  assert.ok(new URL(calls[0].url).searchParams.get('$select').split(',').includes('flag'))
+})
+
+test('existing read-only token remains usable for browsing but updates require renewed delegated write scope',async()=>{
+  const calls=[]
+  const f=fixture({secrets:writeSecrets(['User.Read','Mail.Read','Mail.Send']),fetch:async(url,options)=>{calls.push({url,options});return response({value:[]})}})
+  await f.handlers.listMailboxMessages(request({}))
+  await assert.rejects(f.handlers.updateMailboxMessageState(stateRequest({isRead:true})),error=>error.code==='failed-precondition'&&error.details.technicalCode==='mailbox_write_scope_required')
+  assert.equal(calls.length,1)
+  assert.equal(calls[0].options.method,undefined)
+})
+
+test('shared status updates use only parent delegated shared write scope and stored target, not personal write or app access',async()=>{
+  const calls=[]
+  const f=sharedFixture({secrets:writeSecrets(['Mail.ReadWrite.Shared']),fetch:async(url,options)=>{calls.push({url,options});return response({id:'shared',isRead:true})}})
+  await f.handlers.updateMailboxMessageState(stateRequest({connectionId:sharedId,isRead:true}))
+  assert.equal(new URL(calls[0].url).pathname,`/v1.0/users/${encodeURIComponent(sharedEmail)}/messages/message%2Fwith%2Bopaque%3D%3D`)
+  assert.equal(calls[0].options.headers.Authorization,'Bearer write-token')
+  const denied=sharedFixture({secrets:writeSecrets(['Mail.ReadWrite'])})
+  await assert.rejects(denied.handlers.updateMailboxMessageState(stateRequest({connectionId:sharedId,flagStatus:'flagged'})),{code:'failed-precondition'})
+  assert.equal(denied.fetchCount(),0)
+})
+
+test('refresh keeps existing scopes until interactive renewal and accepts broader Mail.ReadWrite as read',async()=>{
+  const scopes=[];let stored
+  const f=fixture({secrets:{read:async()=>({refreshToken:'old',expiresAt:0,scopes:['user.read','mail.read','mail.send']}),write:async(_name,value)=>{stored=value;return'test/new'},destroy:async()=>{}},fetch:async(url,options)=>{
+    if(url.includes('/token')){scopes.push(new URLSearchParams(options.body).get('scope'));return response({access_token:'new',refresh_token:'new-refresh',scope:'User.Read Mail.ReadWrite Mail.Send'})}
+    return response({value:[]})
+  }})
+  await f.handlers.listMailboxMessages(request({}))
+  assert.equal(scopes.length,1);assert.ok(!scopes[0].toLowerCase().includes('mail.readwrite'))
+  assert.ok(stored.scopes.includes('mail.readwrite'))
+  const authUrl=new URL((await f.handlers.beginMailboxConnection(request({}))).authorizationUrl)
+  assert.ok(authUrl.searchParams.get('scope').includes('/Mail.ReadWrite '))
+  assert.ok(authUrl.searchParams.get('scope').includes('/Mail.ReadWrite.Shared'))
+})
+
+test('renewed write grants survive attachment, sending and recommendation refreshes without marking mail read',async()=>{
+  let time=1000,serial=0
+  let saved={refreshToken:'old',expiresAt:0,scopes:['user.read','mail.readwrite','mail.send','mail.readwrite.shared','mail.send.shared']}
+  const requested=[],methods=[]
+  const f=fixture({now:()=>time,secrets:{read:async()=>saved,write:async(_name,tokens)=>{saved=tokens;return`test/version-${++serial}`},destroy:async()=>{}},fetch:async(url,options)=>{
+    methods.push({url,method:options.method})
+    if(url.includes('/token')){requested.push(new URLSearchParams(options.body).get('scope'));return response({access_token:'renewed',refresh_token:'new',scope:'User.Read Mail.ReadWrite Mail.Send Mail.ReadWrite.Shared Mail.Send.Shared',expires_in:3600})}
+    if(url.endsWith('/sendMail'))return response(null,202)
+    if(url.includes('/attachments/'))return response({'@odata.type':'#microsoft.graph.fileAttachment',name:'document.pdf',size:2,contentBytes:'e30='})
+    return response({id:'x',body:{contentType:'text',content:'mail'}})
+  }})
+  await f.handlers.getMailboxAttachment(request({messageId:'x',attachmentId:'attachment'}))
+  time+=4000000
+  await f.handlers.sendMailboxMessage(request(newMail))
+  time+=4000000
+  await f.handlers.recommendationGraph({connectionId,operation:'message',messageId:'x'})
+  assert.equal(requested.length,3)
+  for(const scope of requested){assert.ok(scope.toLowerCase().includes('/mail.readwrite '));assert.ok(scope.toLowerCase().includes('/mail.readwrite.shared'))}
+  assert.ok(saved.scopes.includes('mail.readwrite.shared'))
+  assert.ok(!methods.some(call=>call.method==='PATCH'))
+  await f.handlers.updateMailboxMessageState(stateRequest({isRead:true}))
+  assert.ok(methods.at(-1).url.includes('/me/messages/'))
+  assert.equal(methods.at(-1).method,'PATCH')
+})
+
 test('inbox search uses Graph, omits ordering, preserves opaque pages and binds them to the search', async () => {
   const requests = []
   const nextLink = 'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?%24skiptoken=opaque-search'
@@ -371,18 +508,16 @@ test('new replies allow fresh suggestions while retaining the local learning-cas
 test('late cleanup of an accepted send cannot erase the next reply draft', async () => {
   let release, entered
   const ready = new Promise(resolve => { entered = resolve })
-  const f = fixture({ diagnostic: async event => {
-    if (event.code === 'knowledge_evidence_ack_failed') { entered(); await new Promise(resolve => { release = resolve }) }
-  } })
-  const key = `mailboxDrafts/${hash(`owner|${connectionId}|${reply.messageId}`)}`
-  const evidenceId = 'e'.repeat(64)
-  f.db.records.set(key, { knowledgeEvidenceId: evidenceId })
-  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, {})
-  const originalTransaction = f.db.runTransaction
-  f.db.runTransaction = callback => originalTransaction(tx => callback({ ...tx, set: (ref, value, options) => {
-    if (ref.path === `knowledgeGapEvidence/${evidenceId}` && value.sendStatus === 'accepted') throw new Error('acknowledgement unavailable')
-    return tx.set(ref, value, options)
-  } }))
+  const f = fixture()
+  const originalDoc = f.db.doc
+  f.db.doc = path => {
+    const ref = originalDoc(path)
+    if (path.startsWith('mailboxSendOperations/')) return { ...ref, update: async patch => {
+      await ref.update(patch)
+      if (patch.status === 'accepted') { entered(); await new Promise(resolve => { release = resolve }) }
+    } }
+    return ref
+  }
   const sending = f.handlers.sendMailboxReply(request(reply))
   await ready
   await f.handlers.saveMailboxDraft(request({ messageId: reply.messageId, draft: { ...draft, body: 'Nächste Antwort', revision: 0 } }))
@@ -820,34 +955,21 @@ test('a disconnected parent blocks shared access without any Graph call, and add
   assert.equal(changed.db.records.has(`mailboxConnections/${sharedId}`),false)
 })
 
-test('gap tracking stays invisible in suggestion/draft APIs and preserves evidence linkage through manual edits', async () => {
+test('suggestions and drafts never create learning cases; capture requires the separate SentItems opt-in', async () => {
   const evidenceProfile = { ...profile, permissions: { mailboxes: 'edit', handbook: 'view' } }
   const selection = { sources: [], coverage: 'none', limited: false, gap: { existingGapId: '', intentKey: 'invoice_mismatch', missingAspect: 'response' } }
   const f = fixture({ requireProfile: async () => evidenceProfile, fetch: async (_url, options) => options.method === 'POST' ? response(null, 202) : response({ id: 'evidence-mail', body: { contentType: 'text', content: 'PRIVATE incoming original mail' } }), loadReplyKnowledge: async () => ({ articles: [], rules: [], gaps: [], limited: false }), selectReplyKnowledge: async () => selection, generateReplySuggestion: async () => 'KI Antwortentwurf' })
   f.db.records.set('users/owner', evidenceProfile)
   const generated = await f.handlers.suggestMailboxReply(request({ messageId: 'evidence-mail' }))
   assert.deepEqual(generated, { suggestion: 'KI Antwortentwurf', knowledge: { sources: [] } })
-  const rootPath = [...f.db.records.keys()].find(key => key.startsWith('mailboxDrafts/'))
-  const evidenceId = f.db.records.get(rootPath).knowledgeEvidenceId
-  assert.match(evidenceId, /^[a-f0-9]{64}$/)
-  const ref = `knowledgeGapEvidence/${evidenceId}`
-  assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
   await f.handlers.saveMailboxDraft(request({ messageId: 'evidence-mail', draft: { ...draft, revision: 0, suggestion: '' } }))
-  assert.equal(f.db.records.get(rootPath).knowledgeEvidenceId, evidenceId)
   const loaded = await f.handlers.getMailboxDraft(request({ messageId: 'evidence-mail' }))
-  assert.equal(JSON.stringify(loaded).includes(evidenceId), false)
   assert.equal(JSON.stringify(loaded).includes('gap'), false)
-  const exact = 'Menschlich bearbeitete Antwort mit exaktem Wortlaut.\nZweite Zeile.'
-  const sent = await f.handlers.sendMailboxReply(request({ ...reply, messageId: 'evidence-mail', body: exact, revision: 1 }))
-  assert.equal(sent.status, 'accepted')
-  assert.equal(f.db.records.get(ref).sentReply, exact)
-  assert.equal(f.db.records.get(ref).sendStatus, 'accepted')
-  assert.ok(f.db.records.get(ref).sentAt)
-  assert.equal(f.db.records.get(ref).latestSuggestion, 'KI Antwortentwurf')
-  assert.equal(f.db.records.get(ref).incomingText, 'PRIVATE incoming original mail')
+  assert.equal((await f.handlers.sendMailboxReply(request({ ...reply, messageId: 'evidence-mail', revision: 1 }))).status, 'accepted')
+  assert.equal([...f.db.records.keys()].some(key => key.startsWith('knowledgeGap')), false)
 })
 
-test('uncertain sends retain exact attempted answer separately from AI suggestion without claiming acceptance', async () => {
+test('uncertain sends do not add attempted answers to the learning collection', async () => {
   const evidenceId = 'e'.repeat(64)
   const f = fixture({ fetch: async () => { throw new Error('Network loss') } })
   const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
@@ -856,9 +978,9 @@ test('uncertain sends retain exact attempted answer separately from AI suggestio
   const sent = await f.handlers.sendMailboxReply(request(reply))
   assert.equal(sent.status, 'unknown')
   const evidence = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
-  assert.equal(evidence.sentReply, reply.body)
-  assert.equal(evidence.sendStatus, 'unknown')
-  assert.equal(evidence.sentAt, null)
+  assert.equal(evidence.sentReply, undefined)
+  assert.equal(evidence.sendStatus, 'draft')
+  assert.equal(evidence.sentAt, undefined)
   assert.equal(evidence.latestSuggestion, 'Vorschlag')
 })
 
@@ -894,26 +1016,18 @@ test('reply lookup is owner-scoped and all batch subrequests use the shared mail
   await assert.rejects(f.handlers.listMailboxReplies({auth:{uid:'other'},data:{connectionId:sharedId,messageIds:['source']}}),{code:'permission-denied'})
 })
 
-test('learning copies are cleaned while exact outgoing text is preserved; send acknowledgement cannot restore removed copies', async () => {
+test('sending preserves exact text and does not capture or update legacy draft learning evidence', async () => {
   const evidenceId = 'd'.repeat(64)
   let submitted
-  const f = fixture({ fetch: async (_url, options) => {
-    submitted = JSON.parse(options.body).message.body.content
-    const current = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
-    assert.equal(current.sentReply, 'Hallo Frau Müller,\nwir prüfen den Auftrag.')
-    f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', removed: true, caseRevision: current.caseRevision + 1, learnedRevision: 0 })
-    return response(null, 202)
-  } })
+  const f = fixture({ fetch: async (_url, options) => { submitted = JSON.parse(options.body).message.body.content; return response(null, 202) } })
   const root = `mailboxDrafts/${hash(`owner|${connectionId}|message-1`)}`
   f.db.records.set(root, { ownerId: 'owner', connectionId, draft: { ...draft, revision: 0 }, knowledgeEvidenceId: evidenceId })
-  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, { gapId: 'gap', latestSuggestion: 'AI-Entwurf', sendStatus: 'draft', caseRevision: 1, learnedRevision: 1 })
+  const previous = { gapId: 'gap', latestSuggestion: 'AI-Entwurf', sendStatus: 'draft', caseRevision: 1, learnedRevision: 1 }
+  f.db.records.set(`knowledgeGapEvidence/${evidenceId}`, previous)
   const body = 'Hallo Frau Müller,\nwir prüfen den Auftrag.\n\nMit freundlichen Grüßen\nMax Beispiel'
   assert.equal((await f.handlers.sendMailboxReply(request({ ...reply, body }))).status, 'accepted')
   assert.equal(submitted, body)
-  const removed = f.db.records.get(`knowledgeGapEvidence/${evidenceId}`)
-  assert.equal(removed.removed, true)
-  assert.equal(removed.sentReply, undefined)
-  assert.equal(removed.latestSuggestion, undefined)
+  assert.deepEqual(f.db.records.get(`knowledgeGapEvidence/${evidenceId}`), previous)
 })
 
 test('webhook adapter reads exactly one owned immutable message and creates a created-only inbox subscription', async () => {
@@ -929,8 +1043,47 @@ test('webhook adapter reads exactly one owned immutable message and creates a cr
   await assert.rejects(f.handlers.recommendationGraph({ connectionId, operation: 'list-inbox' }), { code: 'invalid-argument' })
 })
 
+test('recommendation attachment reads stay on the notified message and reject inline or oversized file bodies', async () => {
+  const calls = []
+  const f = fixture({ fetch: async (url, options) => {
+    calls.push({ url, options })
+    if (url.includes('/attachments?')) return response({ value: [] })
+    return response({ '@odata.type': '#microsoft.graph.fileAttachment', name: 'Test.pdf', contentType: 'application/pdf', contentBytes: Buffer.from('%PDF-1.4 test').toString('base64') })
+  } })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'attachment-list', messageId: 'message/one' })
+  const file = await f.handlers.recommendationGraph({ connectionId, operation: 'attachment', messageId: 'message/one', attachmentId: 'attachment/two' })
+  assert.match(calls[0].url, /messages\/message%2Fone\/attachments\?\$select=id,name,contentType,size,isInline&\$top=20$/)
+  assert.match(calls[1].url, /messages\/message%2Fone\/attachments\/attachment%2Ftwo$/)
+  assert.equal(file.name, 'Test.pdf')
+  assert.ok(calls.every(call => !call.url.includes('inbox/messages') && !call.url.includes('delta')))
+  for (const invalid of [{ '@odata.type': '#microsoft.graph.itemAttachment', contentBytes: 'YQ==' }, { '@odata.type': '#microsoft.graph.fileAttachment', isInline: true, contentBytes: 'YQ==' }, { '@odata.type': '#microsoft.graph.fileAttachment', contentBytes: 'not base64' }, { '@odata.type': '#microsoft.graph.fileAttachment', contentBytes: 'YQ=='.repeat(2 * 1024 * 1024) }]) {
+    const g = fixture({ fetch: async () => response(invalid) })
+    await assert.rejects(g.handlers.recommendationGraph({ connectionId, operation: 'attachment', messageId: 'message', attachmentId: 'file' }), { code: 'failed-precondition' })
+  }
+})
+
 test('shared mailbox identity is resolved from the actual inbox, never a client label or alias', async () => {
   const f = fixture({ fetch: async url => { assert.ok(url.endsWith('/me/mailFolders/inbox?$select=id')); return response({ id: 'same-physical-inbox' }) } })
   assert.equal(await f.handlers.resolveRecommendationMailboxIdentity(connectionId), 'same-physical-inbox')
   assert.equal(f.db.records.get(`mailboxConnections/${connectionId}`).canonicalMailboxId, 'same-physical-inbox')
+})
+
+test('functional mailbox direct sign-in uses scoped app authentication for automatic recommendations only', async () => {
+  const calls = [], email = 'buchhaltung@brennpunkt-logistik.de'
+  const f = fixture({ fetch: async (url, options) => {
+    calls.push({ url, options })
+    if (url.includes('/oauth2/v2.0/token')) {
+      assert.equal(options.body.get('grant_type'), 'client_credentials')
+      return response({ access_token: 'synthetic-scoped-app-token', expires_in: 3600 })
+    }
+    assert.equal(options.headers.Authorization, 'Bearer synthetic-scoped-app-token')
+    return response({ id: 'message' })
+  } })
+  Object.assign(f.db.records.get(`mailboxConnections/${connectionId}`), { kind: 'personal', email })
+  await f.handlers.recommendationGraph({ connectionId, operation: 'create', data: { changeType: 'created' } })
+  const request = JSON.parse(calls[1].options.body)
+  assert.equal(request.resource, `/users/${encodeURIComponent(email)}/mailFolders('inbox')/messages`)
+  await f.handlers.recommendationGraph({ connectionId, operation: 'message', messageId: 'message' })
+  assert.ok(calls[2].url.includes(`/users/${encodeURIComponent(email)}/messages/message?`))
+  assert.equal(calls.filter(call => call.url.includes('/token')).length, 1)
 })

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { compareInvoiceTransport, invoiceTotals, invoiceHeaderChecks, invoicePaymentChecks, recipientAddressCheck, invoiceNotices, sameInvoiceCompany, compareInvoiceIssuer, sameInvoiceVatId, compareInvoiceVatId } from './invoiceReviewPolicy.js'
+import { compareInvoiceTransport, invoiceTotals, invoiceHeaderChecks, invoicePaymentChecks, invoiceFactoringChecks, recipientAddressCheck, invoiceNotices, sameInvoiceCompany, compareInvoiceIssuer, sameInvoiceVatId, compareInvoiceVatId } from './invoiceReviewPolicy.js'
 const value = value => ({ value, quote: value })
 const bill = (patch = {}) => ({ number: value('RG-1'), date: value('2026-10-01'), issuer: value('Carrier GmbH'), issuerVatId: value('DE123456789'), issuerCountry: value('Deutschland'), recipient: value('Brennpunkt Logistik GmbH'), recipientVatId: value('DE987654321'), recipientAddress: value('Reinshagenstraße 1, 42369 Wuppertal'), currency: value('EUR'), netTotal: value('500,00'), vatTotal: value('95,00'), grossTotal: value('595,00'), transports: [{ ta: value('260000001'), net: value('500,00') }], ...patch })
 const imported = { carrier: { originalName: 'Carrier GmbH' }, financial: { currency: 'EUR', costPositions: [{ amountNet: 500 }] }, loading: { city: 'Berlin' }, unloading: { city: 'Hamburg' } }
@@ -51,6 +51,19 @@ test('current address tolerates two spelling errors, address contradictions are 
   assert.equal(recipientAddressCheck(bill({ recipientAddress: value('Reinshagenstraße 1, 42369 Wuppertal, Polen') })).color, 'red')
 })
 
+test('recipient country labels and attached German postal prefixes do not invalidate the correct address', () => {
+  for (const country of ['Deutschland', 'Germany', 'Niemcy', 'Allemagne', 'Alemania', 'Germania', 'Duitsland', 'Германия']) {
+    for (const prefix of ['', 'DE', 'DE-', 'D-', 'DEU ']) {
+      const actual = `Brennpunkt Logistik GmbH Reinshagenstr. 1 ${prefix}42369 Wuppertal, ${country}`
+      const check = recipientAddressCheck(bill({ recipientAddress: value(actual) }))
+      assert.equal(check.color, 'green', actual)
+      assert.equal(check.actual, actual)
+    }
+  }
+  assert.equal(recipientAddressCheck(bill({ recipientAddress: value('REINSHAGENSTR. 1 DE42287 WUPPERTAL DEUTSCHLAND') })).color, 'red')
+  assert.equal(recipientAddressCheck(bill({ recipientAddress: value('Reinshagenstr. 2 DE42369 Wuppertal Germany') })).color, 'red')
+})
+
 test('wanted VAT IDs missing are yellow, invoice date missing is gray, invoice number missing is yellow', () => {
   const checks = invoiceHeaderChecks(bill({ issuerVatId: value(''), recipientVatId: value(''), date: value(''), number: value('') }), company, [reference])
   for (const key of ['issuerVatId', 'recipientVatId', 'number']) assert.equal(checks.find(check => check.key === key).color, 'yellow')
@@ -66,8 +79,89 @@ test('payment compares identical bases, derives explicit due dates, and does not
   assert.equal(invoicePaymentChecks(invoice, [{ ...reference, payment: { ...reference.payment, basis: 'documents_received' } }])[0].color, 'yellow')
   assert.equal(invoicePaymentChecks(bill({ paymentDays: value('30') }), [{ ...reference, payment: { ...reference.payment, basis: null } }])[0].color, 'yellow')
   assert.equal(invoicePaymentChecks(invoice, [{ ...reference, payment: { ...reference.payment, dayType: 'working' } }])[0].color, 'yellow')
-  assert.equal(invoicePaymentChecks(bill({ paymentTerms: value('Rechnung zahlbar innerhalb 30 Tagen'), paymentDays: value('30') }), [reference])[0].color, 'yellow')
+  assert.equal(invoicePaymentChecks(bill({ paymentTerms: value('Rechnung zahlbar innerhalb 30 Tagen'), paymentDays: value('30') }), [reference])[0].color, 'green')
   assert.equal(invoicePaymentChecks(bill({ paymentTerms: value('30 Tage ab Rechnungsdatum'), paymentDays: value('30') }), [{ ...reference, payment: { ...reference.payment, dayType: null } }])[0].color, 'yellow')
+})
+
+test('one payment row prefers explicit days and independently displays the invoice-date arithmetic without a payment method', () => {
+  const invoice = bill({ date: value('2026-05-14'), dueDate: value('2026-06-28'), paymentTerms: value('Überweisung'), paymentDays: { value: '45', quote: '45 Tage' } })
+  const refs = [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: null, text: '45 Tage Netto; Überweisung' } }]
+  const checks = invoicePaymentChecks(invoice, refs)
+  assert.equal(checks.length, 1); assert.equal(checks[0].key, 'paymentTerms')
+  assert.equal(checks[0].color, 'green'); assert.equal(checks[0].paymentDays, 45); assert.equal(checks[0].derivedDays, 45)
+  assert.equal(checks[0].actual, '45 Tage · aus Datumsangaben: 45 Tage')
+  assert.equal(checks[0].expected, '45 Tage')
+  assert.match(checks[0].sourceText, /2026-05-14.*2026-06-28.*45 Tage/)
+  assert.ok(!JSON.stringify(checks).includes('Überweisung'))
+  assert.equal(invoicePaymentChecks(invoice, [reference])[0].color, 'red')
+})
+
+test('explicit days and contradictory due dates stay in the same row and cannot produce a false green', () => {
+  const invoice = bill({ date: value('2026-05-14'), dueDate: value('2026-06-27'), paymentDays: value('45'), paymentTerms: value('45 Tage ab Rechnungsdatum') })
+  const refs = [{ ...reference, payment: { days: 45, basis: 'invoice_date', dayType: 'calendar' } }]
+  const check = invoicePaymentChecks(invoice, refs)[0]
+  assert.equal(check.color, 'yellow'); assert.match(check.actual, /45 Tage.*44 Tage/); assert.match(check.message, /widersprechen/)
+  assert.equal(invoicePaymentChecks(invoice, [reference])[0].color, 'red')
+  assert.equal(invoicePaymentChecks({ ...invoice, dueDate: value('2026-05-13') }, refs)[0].color, 'yellow')
+})
+
+test('date corroboration never changes an explicit receipt basis or equates workdays with calendar days', () => {
+  const invoice = bill({ date: value('2026-05-14'), dueDate: value('2026-06-28'), paymentDays: value('45'), paymentTerms: value('45 Tage ab Rechnungseingang'), paymentBasis: value('Rechnungseingang') })
+  const unknown = [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: null } }]
+  assert.equal(invoicePaymentChecks(invoice, unknown)[0].color, 'green')
+  assert.equal(invoicePaymentChecks(invoice, [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: 'invoice_date' } }])[0].color, 'red')
+  assert.equal(invoicePaymentChecks(invoice, [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: 'receipt_date' } }])[0].color, 'green')
+  const working = { ...invoice, paymentTerms: value('45 Werktage ab Rechnungsdatum'), paymentBasis: value('Rechnungsdatum') }
+  assert.equal(invoicePaymentChecks(working, unknown)[0].color, 'red')
+  assert.equal(invoicePaymentChecks(working, [{ ...reference, payment: { days: 45, dayType: 'working', basis: 'invoice_date' } }])[0].color, 'green')
+  assert.equal(invoicePaymentChecks(bill({ dueDate: value('2026-10-31') }), [{ ...reference, payment: { ...reference.payment, dayType: 'working' } }])[0].color, 'yellow')
+})
+
+test('payment date arithmetic accepts only actual valid invoice and due dates, never delivery or KSeF dates', () => {
+  const refs = [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: null } }]
+  const derived = invoicePaymentChecks(bill({ date: value('2026-05-14'), dueDate: value('2026-06-28') }), refs)[0]
+  assert.equal(derived.color, 'green'); assert.equal(derived.paymentDays, null); assert.equal(derived.derivedDays, 45)
+  for (const date of ['', '2026-02-30', '2026-05-14T00:00:00Z']) {
+    const check = invoicePaymentChecks(bill({ date: value(date), deliveryDate: value('2026-05-14'), ksefDate: value('2026-05-14'), dueDate: value('2026-06-28') }), refs)[0]
+    assert.equal(check.color, 'yellow'); assert.equal(check.derivedDays, null)
+  }
+  assert.equal(invoicePaymentChecks(bill({ date: value('2026-05-14'), dueDate: value('2026-02-30') }), refs)[0].derivedDays, null)
+})
+
+test('invoice-date arithmetic cannot establish a receipt or document-based day count even when the database uses that basis', () => {
+  for (const [basisText, basis] of [['Rechnungseingang', 'receipt_date'], ['Eingang vollständiger Belege', 'documents_received']]) {
+    const invoice = bill({ dueDate: value('2026-10-31'), paymentBasis: value(basisText), paymentTerms: value(`Zahlbar ab ${basisText}`) })
+    const refs = [{ ...reference, payment: { days: 30, basis, dayType: 'calendar' } }]
+    const check = invoicePaymentChecks(invoice, refs)[0]
+    assert.equal(check.color, 'yellow'); assert.equal(check.paymentDays, null); assert.equal(check.derivedDays, 30)
+    assert.match(check.actual, /aus Datumsangaben: 30 Tage/)
+    const agreedDue = invoicePaymentChecks(invoice, [{ ...refs[0], payment: { ...refs[0].payment, dueDate: '2026-10-31' } }])[0]
+    assert.equal(agreedDue.color, 'green')
+  }
+})
+
+test('missing reference terms, mixed bases and missing day types prevent a complete positive payment comparison', () => {
+  const invoice = bill({ paymentDays: value('30'), paymentTerms: value('30 Tage') })
+  assert.equal(invoicePaymentChecks(invoice, [reference, { ...reference, payment: null }])[0].color, 'yellow')
+  assert.equal(invoicePaymentChecks(invoice, [reference, { ...reference, payment: { ...reference.payment, basis: 'receipt_date' } }])[0].color, 'yellow')
+  assert.equal(invoicePaymentChecks(invoice, [{ ...reference, payment: { ...reference.payment, dayType: null } }])[0].color, 'yellow')
+  const unknown = [{ ...reference, payment: { days: 30, dayType: 'calendar', basis: null } }]
+  assert.equal(invoicePaymentChecks(invoice, unknown)[0].color, 'green')
+  for (const phrase of ['45 dni', '45 jours']) assert.equal(invoicePaymentChecks(bill({ paymentDays: value('45'), paymentTerms: value(phrase) }), [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: null } }])[0].color, 'green')
+  assert.equal(invoicePaymentChecks(bill({ paymentDays: value('45'), paymentTerms: value('45 dni roboczych') }), [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: null } }])[0].color, 'red')
+})
+
+test('factoring is one primary evidenced check; company names and unevidenced flags alone never establish assignment', () => {
+  for (const invoice of [bill(), bill({ factoringCompany: value('Factor GmbH') }), bill({ factoring: { value: 'Ja', quote: '' }, factoringCompany: value('Factor GmbH') }), bill({ factoring: value('Nein') })]) {
+    const checks = invoiceFactoringChecks(invoice)
+    assert.equal(checks.length, 1); assert.equal(checks[0].key, 'factoring'); assert.equal(checks[0].color, 'green')
+    assert.equal(checks[0].actual, 'Kein Hinweis gefunden'); assert.equal(checks[0].found, false); assert.equal(checks[0].sourceText, '')
+  }
+  const clause = 'Die Forderung wurde an Factor GmbH abgetreten.'
+  const check = invoiceFactoringChecks(bill({ factoring: { value: 'Forderungsabtretung', quote: clause }, factoringCompany: value('Factor GmbH') }))[0]
+  assert.equal(check.color, 'yellow'); assert.equal(check.found, true); assert.equal(check.company, 'Factor GmbH')
+  assert.equal(check.sourceText, clause); assert.equal(check.secondary, undefined); assert.match(check.actual, /Factor GmbH/)
+  assert.match(invoiceFactoringChecks(bill({ factoring: value(clause) }))[0].actual, /Forderungsabtretung gefunden/)
 })
 
 test('important notices are concise, based on real billing evidence, and report both over- and undercharges', () => {
@@ -204,4 +298,19 @@ test('VAT country prefixes normalize only with independently verified carrier co
   assert.equal(transport.checks.find(check => check.key === 'issuer').color, 'green')
   assert.equal(transport.checks.find(check => check.key === 'issuerVatId').color, 'green')
   assert.equal(compareInvoiceIssuer(bill(), 'Carrier GmbH', 'DE123456789').matchedBy, 'name_and_vatId')
+})
+
+
+test('matching explicit 45-day terms are green without a repeated deadline basis, but real contradictions remain', () => {
+  const invoice = bill({ paymentDays: value('45'), paymentTerms: value('45 Tage') })
+  for (const basis of [null, 'invoice_date', 'receipt_date', 'documents_received']) {
+    const refs = [{ ...reference, payment: { days: 45, dayType: 'calendar', basis } }]
+    const check = invoicePaymentChecks(invoice, refs)[0]
+    assert.equal(check.color, 'green')
+    assert.ok(!check.message)
+    assert.equal(invoicePaymentChecks({ ...invoice, paymentDays: value('30'), paymentTerms: value('30 Tage') }, refs)[0].color, 'red')
+  }
+  const refs = [{ ...reference, payment: { days: 45, dayType: 'calendar', basis: 'receipt_date' } }]
+  assert.equal(invoicePaymentChecks({ ...invoice, paymentBasis: value('Rechnungsdatum') }, refs)[0].color, 'red')
+  assert.equal(invoicePaymentChecks({ ...invoice, paymentDays: value(''), paymentTerms: value('') }, refs)[0].color, 'yellow')
 })

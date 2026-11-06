@@ -32,7 +32,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -193,4 +193,12 @@ test('new link diagnostics retain module boundaries and require order access for
   assert.equal(canReportLinkDiagnostic({ role: 'admin', permissions: {} }, 'legal-disputes'), false)
   assert.equal(canReportLinkDiagnostic({ role: 'user', permissions: {} }, 'partner-links'), false)
   assert.equal(canReportLinkDiagnostic({ role: 'superadmin' }, 'case-links', 'order-1'), true)
+})
+
+test('liability client diagnostics accept only fixed messages and no order context', () => {
+  for (const stage of ['order-search', 'order-fetch', 'wording']) {
+    const event = normalizeClientDiagnostic({ module: 'document-templates', stage, code: 'unavailable', message: 'Sensitive incident text' })
+    assert.equal(event.message.includes('Sensitive'), false)
+    assert.throws(() => normalizeClientDiagnostic({ module: 'document-templates', stage, code: 'unavailable', orderId: 'private-order' }), { code: 'invalid-argument' })
+  }
 })
