@@ -1,0 +1,6 @@
+.time-model-dialog > header { margin-bottom: 16px; }
+.time-template-picker { display: grid; grid-template-columns: minmax(200px, 1fr) auto; align-items: end; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface-secondary); }
+.time-template-picker p { grid-column: 1 / -1; margin: 0; }
+.time-template-actions { display: flex !important; flex: 0 0 auto !important; gap: 8px; flex-wrap: wrap; }
+.time-model-form > footer { flex-wrap: wrap; }
+@media (max-width: 600px) { .time-template-picker { grid-template-columns: 1fr; } .time-template-picker p { grid-column: auto; } }

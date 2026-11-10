@@ -11,6 +11,7 @@ export const MODULES = {
   dashboard: { label: 'Dashboard' },
   mailboxes: { label: 'Postfächer' },
   vacation: { label: 'Urlaub' },
+  timeTracking: { label: 'Zeiterfassung' },
   feiertagskalender: { label: 'Feiertagskalender' },
   calendar: { label: 'Kalender' },
   team: { label: 'Team' },
@@ -66,6 +67,7 @@ export const canViewSystemCalendars = (profile) => SYSTEM_CALENDAR_MODULES.some(
 export const canManageUsers = (profile) => ['admin', 'superadmin'].includes(normalizeRole(profile?.role))
 export const canManagePermissions = (profile) => normalizeRole(profile?.role) === 'superadmin'
 export const canManageVacations = (profile) => normalizeRole(profile?.role) === 'superadmin' || profile?.vacationManager === true
+export const canManageTime = (profile) => profile?.active === true && (normalizeRole(profile?.role) === 'superadmin' || profile?.timeManager === true)
 
 export function getSafeProfileDefaults(profile) {
   // Birth dates are HR-only data. Older profiles may still contain the
@@ -78,11 +80,16 @@ export function getSafeProfileDefaults(profile) {
   const vacationManagerDepartments = vacationManager && !vacationManagerAllDepartments && Array.isArray(safeInput.vacationManagerDepartments)
     ? [...new Set(safeInput.vacationManagerDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
     : []
+  const timeManager = safeInput.timeManager === true
+  const timeManagerAllDepartments = timeManager && safeInput.timeManagerAllDepartments === true
+  const timeManagerDepartments = timeManager && !timeManagerAllDepartments && Array.isArray(safeInput.timeManagerDepartments)
+    ? [...new Set(safeInput.timeManagerDepartments.filter((department) => typeof department === 'string' && department.trim()).map((department) => department.trim()))]
+    : []
   const departmentId = typeof safeInput.departmentId === 'string' ? safeInput.departmentId.trim() : ''
   const departmentName = typeof safeInput.departmentName === 'string' && safeInput.departmentName.trim()
     ? safeInput.departmentName.trim()
     : (typeof safeInput.department === 'string' ? safeInput.department.trim() : '')
-  const safeProfile = { ...safeInput, departmentName, department: departmentName, role: normalizeRole(safeInput.role), permissions: normalizePermissions(safeInput.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments }
+  const safeProfile = { ...safeInput, departmentName, department: departmentName, role: normalizeRole(safeInput.role), permissions: normalizePermissions(safeInput.permissions), vacationManager, vacationManagerAllDepartments, vacationManagerDepartments, timeManager, timeManagerAllDepartments, timeManagerDepartments }
   if (departmentId) safeProfile.departmentId = departmentId
   else delete safeProfile.departmentId
   return safeProfile

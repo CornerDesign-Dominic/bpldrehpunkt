@@ -4,6 +4,7 @@ function overlapsYear(entry, year) {
 
 function isVacationTaken(entry) {
   return entry?.vacationType === 'normal'
+    && !entry?.originalRequestId && !entry?.changeRequest
     && entry?.requestKind !== 'cancellation'
     && entry?.cancellationRequest !== true
     && (entry?.status === 'approved' || (entry?.status === 'manual' && entry?.hrManualEntry === true))

@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "site": "db-bpl-drehpunkt-dev-web-time",
+    "public": "dist",
+    "ignore": ["firebase.json", "firebase.time-dev.json", "**/.*", "**/node_modules/**"],
+    "predeploy": ["node scripts/build-time-web-dev.mjs"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [
+      { "source": "**", "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }] }
+    ]
+  }
+}

@@ -1730,7 +1730,7 @@ service cloud.firestore {
     function ownVacationRequest(data) {
       return data.userId == request.auth.uid && data.type == 'vacation'
         && ((data.status == 'pending' && !data.keys().hasAny(['originalRequestId', 'changeRequest', 'cancellationRequest', 'requestKind']))
-          || (data.status == 'cancellation_requested' && data.originalRequestId is string
+          || (data.status in ['cancellation_requested', 'change_requested'] && data.originalRequestId is string
           && exists(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId))
           && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.userId == request.auth.uid
           && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.status == 'approved'));
@@ -1779,5 +1779,13 @@ service cloud.firestore {
     match /mailboxActionRuns/{id} { allow read, write: if false; }
     match /mailboxActionScopes/{scope}/{document=**} { allow read, write: if false; }
     match /vacationBlocks/{id} { allow read: if view('vacation'); allow write: if superadmin(); }
+    // Time calculations, work models and append-only audit records are exposed
+    // only through callables that enforce personal / department scopes.
+    match /timeWorkModels/{id} { allow read, write: if false; }
+    match /timeAccounts/{id} { allow read, write: if false; }
+    match /timeDays/{id} { allow read, write: if false; }
+    match /timeHistory/{id} { allow read, write: if false; }
+    match /timeWorkModelTemplates/{document=**} { allow read, write: if false; }
+    match /timeWorkModelTemplateNames/{id} { allow read, write: if false; }
   }
 }

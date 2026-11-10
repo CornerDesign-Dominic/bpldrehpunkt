@@ -26,6 +26,8 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { previewMailboxTrackingHandler, applyMailboxTrackingHandler, previewMailboxOrderHandler, exportMailboxOrderHandler } from './mailboxes.js'
 import { requireActiveProfile, requireRole } from './access.js'
+import { timeManagerFields } from './timeManagerAssignment.js'
+import { vacationHalfDayDate } from './vacationDayAllocation.js'
 import { saveQualityRecordHandler } from './quality.js'
 import { mutateContractHandler } from './contracts.js'
 import { saveContractCostCategoryHandler } from './contractCostCategories.js'
@@ -231,7 +233,7 @@ export const cleanupMailboxConnections = onSchedule({ region: 'europe-west3', sc
 const db = getFirestore()
 const roles = new Set(['user', 'admin', 'superadmin'])
 const levels = new Set(['none', 'view', 'edit'])
-const modules = ['dashboard', 'mailboxes', 'vacation', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'contracts', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'mailTriageCleanup']
+const modules = ['dashboard', 'mailboxes', 'vacation', 'timeTracking', 'feiertagskalender', 'calendar', 'team', 'masterData', 'partnerMerges', 'transportOrders', 'transportOrderSingleImport', 'transportOrderBulkImport', 'transportOrderRefresh', 'dataImports', 'crm', 'pallets', 'news', 'documents', 'contracts', 'templates', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso', 'personnel', 'agbChecker', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'mailTriageCleanup']
 const normalFields = ['firstName', 'lastName', 'phone', 'email', 'jobTitle', 'active', 'employmentStart', 'personnelNumber']
 const hrProfileFields = ['birthDate', 'streetAddress', 'postalCode', 'city', 'country', 'taxClass', 'childrenCount', 'employmentEnd', 'annualVacationEntitlement', 'vacationTrackingStartYear', 'vacationTrackingOpeningBalance']
 const sharedHrProfileFields = ['firstName', 'lastName', 'jobTitle', 'phone', 'personnelNumber', 'employmentStart']
@@ -240,6 +242,10 @@ function permissions(value) { return Object.fromEntries(modules.map((module) => 
 function profileFields(value) { return Object.fromEntries(normalFields.filter((key) => value[key] !== undefined).map((key) => [key, value[key]])) }
 function sharedProfileFields(value) { return Object.fromEntries(sharedHrProfileFields.filter((key) => value[key] !== undefined).map((key) => [key, value[key]])) }
 function passwordIsValid(value) { return typeof value === 'string' && value.length >= 6 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) }
+async function lookupTimeDepartment(id) {
+  const snapshot = await db.doc(`departments/${id}`).get()
+  return snapshot.exists ? snapshot.data() : null
+}
 const passwordRequirementMessage = 'Das Passwort muss mindestens 6 Zeichen sowie einen Großbuchstaben, einen Kleinbuchstaben und eine Zahl enthalten.'
 async function vacationManagerFields(value, fallback = {}) {
   const vacationManager = value?.vacationManager === undefined ? fallback?.vacationManager === true : value.vacationManager === true
@@ -392,6 +398,9 @@ function managedUserEntry(snapshot) {
     vacationManager: profile.vacationManager === true,
     vacationManagerAllDepartments: profile.vacationManagerAllDepartments === true,
     vacationManagerDepartments: Array.isArray(profile.vacationManagerDepartments) ? profile.vacationManagerDepartments : [],
+    timeManager: profile.timeManager === true,
+    timeManagerAllDepartments: profile.timeManagerAllDepartments === true,
+    timeManagerDepartments: Array.isArray(profile.timeManagerDepartments) ? profile.timeManagerDepartments : [],
   }
 }
 
@@ -581,10 +590,11 @@ export const createManagedUser = onCall({ region: 'europe-west3', enforceAppChec
   const role = actor.role === 'superadmin' && roles.has(data.role) ? data.role : 'user'
   const selectedDepartment = await departmentFields(data)
   const selectedVacationManagerFields = await vacationManagerFields(actor.role === 'superadmin' ? data : {})
+  const selectedTimeManagerFields = await timeManagerFields(actor.role === 'superadmin' ? data : {}, {}, lookupTimeDepartment)
   const user = await getAuth().createUser({ email: data.email, password: data.password, disabled: data.active === false })
   await getAuth().setCustomUserClaims(user.uid, { role })
   const batch = db.batch()
-  batch.set(db.doc(`users/${user.uid}`), { ...profileFields(data), ...selectedDepartment, email: data.email, active: data.active !== false, role, permissions: actor.role === 'superadmin' ? permissions(data.permissions) : permissions(), ...selectedVacationManagerFields, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  batch.set(db.doc(`users/${user.uid}`), { ...profileFields(data), ...selectedDepartment, email: data.email, active: data.active !== false, role, permissions: actor.role === 'superadmin' ? permissions(data.permissions) : permissions(), ...selectedVacationManagerFields, ...selectedTimeManagerFields, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   batch.set(db.doc(`employeeHrProfiles/${user.uid}`), { ...validatedHrFields(), createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   await batch.commit()
   return { uid: user.uid }
@@ -602,7 +612,7 @@ export const updateManagedUser = onCall({ region: 'europe-west3', enforceAppChec
   if (data.password && !passwordIsValid(data.password)) throw new HttpsError('invalid-argument', passwordRequirementMessage)
   const update = { ...profileFields(data), ...(await departmentFields(data, old)), updatedAt: FieldValue.serverTimestamp() }
   if (typeof data.email === 'string' && data.email.trim()) update.email = data.email.trim()
-  if (actor.role === 'superadmin') { update.role = role; update.permissions = permissions(data.permissions); Object.assign(update, await vacationManagerFields(data, old)) }
+  if (actor.role === 'superadmin') { update.role = role; update.permissions = permissions(data.permissions); Object.assign(update, await vacationManagerFields(data, old), await timeManagerFields(data, old, lookupTimeDepartment)) }
   await ref.update(update)
   await getAuth().updateUser(uid, { email: data.email ?? old.email, disabled: data.active === false, ...(data.password ? { password: data.password } : {}) })
   if (actor.role === 'superadmin') await getAuth().setCustomUserClaims(uid, { role })
@@ -1141,6 +1151,7 @@ export const replacePendingVacationRequest = onCall({ region: 'europe-west3', en
   const requestComment = typeof values.requestComment === 'string' ? values.requestComment.trim() : ''
   if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate < startDate || !Number.isFinite(days) || days < 0) throw new HttpsError('invalid-argument', 'Ungültige Urlaubsdaten.')
 
+  const halfDayDate = vacationHalfDayDate({ startDate, endDate, days, halfDayDate: values.halfDayDate })
   const previousRequestRef = db.collection('vacationRequests').doc(requestId)
   const replacementRequestRef = db.collection('vacationRequests').doc()
   await db.runTransaction(async (transaction) => {
@@ -1151,7 +1162,7 @@ export const replacePendingVacationRequest = onCall({ region: 'europe-west3', en
     if (previousData.status !== 'pending' || previousData.originalRequestId || previousData.requestKind === 'cancellation' || previousData.cancellationRequest) throw new HttpsError('failed-precondition', 'Nur ein ausstehender Urlaubsantrag kann überarbeitet werden.')
     transaction.update(previousRequestRef, { status: 'superseded', supersededBy: replacementRequestRef.id, supersededAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
     writeVacationHistory(transaction, { id: `replaced-${requestId}`, vacationId: requestId, userId: request.auth.uid, eventType: 'vacation_replaced', status: 'withdrawn', createdBy: request.auth.uid, requestId, previousValues: { startDate: previousData.startDate, endDate: previousData.endDate, days: previousData.days, vacationType: previousData.vacationType }, nextValues: { startDate, endDate, days, vacationType } })
-    transaction.set(replacementRequestRef, { id: replacementRequestRef.id, userId: request.auth.uid, startDate, endDate, days, vacationType, status: 'pending', mainStatus: 'pending', type: 'vacation', note: '', requestComment, replacesRequestId: requestId, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+    transaction.set(replacementRequestRef, { id: replacementRequestRef.id, userId: request.auth.uid, startDate, endDate, days, halfDayDate, vacationType, status: 'pending', mainStatus: 'pending', type: 'vacation', note: '', requestComment, replacesRequestId: requestId, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   })
   return { requestId: replacementRequestRef.id, status: 'pending' }
 })
@@ -1186,9 +1197,10 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
     }
     if (decision === 'approved' && kind === 'change') {
       if ((rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zu ändernde Urlaub ist nicht mehr genehmigt.')
-      transaction.update(rootRef, { startDate: requestData.startDate, endDate: requestData.endDate, days: requestData.days, vacationType: requestData.vacationType, status: 'approved', mainStatus: 'approved', updatedAt: FieldValue.serverTimestamp() })
+      transaction.update(rootRef, { startDate: requestData.startDate, endDate: requestData.endDate, days: requestData.days, halfDayDate: vacationHalfDayDate(requestData), vacationType: requestData.vacationType, timeAccountEffect: requestData.vacationType === 'overtime' ? 'overtime_debit' : 'none', status: 'approved', mainStatus: 'approved', updatedAt: FieldValue.serverTimestamp() })
     }
 
+    if (decision === 'approved' && kind !== 'cancellation') processed.timeAccountEffect = requestData.vacationType === 'overtime' ? 'overtime_debit' : 'none'
     transaction.update(requestRef, processed)
     writeVacationHistory(transaction, { id: `decision-${requestId}`, vacationId: rootId, userId: requestData.userId, eventType: historyEventType(requestData, decision), status: decision, createdBy: request.auth.uid, comment, requestId, ...(kind === 'change' && decision === 'approved' ? { previousValues: { startDate: rootVacation.data().startDate, endDate: rootVacation.data().endDate, days: rootVacation.data().days, vacationType: rootVacation.data().vacationType }, nextValues: { startDate: requestData.startDate, endDate: requestData.endDate, days: requestData.days, vacationType: requestData.vacationType } } : {}) })
   })
@@ -1291,3 +1303,6 @@ export {
   sendSystemTestMail,
   updateSystemMailTemplate,
 } from './systemMails.js'
+export { listTimeWorkspace, saveTimeWorkModel, saveTimeAccount, stampTime, correctTimeDay, getOwnMobileVacation } from './timeTracking.js'
+
+export { listTimeWorkModelTemplates, saveTimeWorkModelTemplate, archiveTimeWorkModelTemplate } from './timeWorkModelTemplates.js'

@@ -1,0 +1,27 @@
+.dashboard-time-card { display: flex; flex-direction: column; gap: 14px; }
+.dashboard-time-card > header, .time-phone-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dashboard-time-card h2, .time-phone-dialog h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-record-title); }
+.dashboard-time-card header p { margin: 5px 0 0; color: var(--text-muted); font-size: 12px; }
+.dashboard-time-status { flex-shrink: 0; padding: 5px 9px; border-radius: 99px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 12px; font-weight: 650; }
+.dashboard-time-status--working { color: var(--status-success-text); background: var(--status-success-background); }
+.dashboard-time-status--break { color: var(--status-warning-text); background: var(--status-warning-background); }
+.dashboard-time-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dashboard-time-actions .button { min-height: 42px; }
+.dashboard-time-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.dashboard-time-totals dt { color: var(--text-muted); font-size: 11px; }
+.dashboard-time-totals dd { margin: 5px 0 0; color: var(--text-primary); font-size: 21px; font-weight: 700; }
+.dashboard-time-totals small { font-size: 11px; font-weight: normal; }
+.dashboard-time-warning { margin: 0; color: var(--status-warning-text); font-size: 12px; line-height: 1.5; }
+.dashboard-time-feedback { margin: 0; color: var(--status-success-text); font-size: 12px; }
+.dashboard-time-muted { margin: 0; color: var(--text-muted); font-size: 12px; }
+.dashboard-time-card > footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.dashboard-time-refresh { margin-left: auto; padding: 6px 0; border: 0; color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 12px; text-decoration: underline; }
+.time-phone-dialog { width: min(100% - 32px, 470px); max-height: 90dvh; box-sizing: border-box; padding: 22px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); background: var(--content-background); }
+.time-phone-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.time-phone-dialog p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.time-phone-qr { display: grid; place-items: center; min-height: 256px; margin-bottom: 12px; }
+.time-phone-qr img { max-width: 100%; height: auto; border-radius: 8px; background: white; }
+.time-phone-dialog > .button { display: flex; justify-content: center; }
+.time-phone-instructions h3 { margin: 18px 0 0; font-size: 14px; }
+.time-phone-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+@media (max-width: 650px) { .dashboard-time-totals { grid-template-columns: 1fr 1fr; } .dashboard-time-card > header { flex-direction: column; } .dashboard-time-actions .button { flex: 1 1 100%; } }

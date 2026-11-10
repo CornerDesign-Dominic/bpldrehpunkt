@@ -1,6 +1,15 @@
 {
   "indexes": [
     {
+      "collectionGroup": "timeHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "kind", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "transportOrderImportRuns",
       "queryScope": "COLLECTION",
       "fields": [

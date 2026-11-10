@@ -25,7 +25,7 @@ import LegacyAccountReviewPanel from '../components/admin/LegacyAccountReviewPan
 import CompanyHolidaySettingsPanel from '../components/admin/CompanyHolidaySettingsPanel.jsx'
 import AutomaticMailDeliveryPanel from '../components/admin/AutomaticMailDeliveryPanel.jsx'
 
-const emptyUser = () => ({ firstName: '', lastName: '', email: '', departmentId: '', department: '', jobTitle: '', phone: '', personnelNumber: '', employmentStart: '', active: true, role: 'user', permissions: {}, vacationManager: false, vacationManagerAllDepartments: false, vacationManagerDepartments: [] })
+const emptyUser = () => ({ firstName: '', lastName: '', email: '', departmentId: '', department: '', jobTitle: '', phone: '', personnelNumber: '', employmentStart: '', active: true, role: 'user', permissions: {}, vacationManager: false, vacationManagerAllDepartments: false, vacationManagerDepartments: [], timeManager: false, timeManagerAllDepartments: false, timeManagerDepartments: [] })
 const syncDateFormatter = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' })
 
 function CountrySyncResults({ results }) {

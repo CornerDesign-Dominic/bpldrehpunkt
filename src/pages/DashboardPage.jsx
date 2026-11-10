@@ -1,5 +1,6 @@
 import { useLanguage } from '../i18n/useLanguage.js'
 import { localeForLanguage } from '../i18n/translations.js'
+import DashboardTimeCard from '../components/time/DashboardTimeCard.jsx'
 
 const dashboardUpdates = [
   {
@@ -69,7 +70,7 @@ export default function DashboardPage() {
           <p>{t('dashboard.enjoy')}</p>
         </div>
       </section>
-      <div className="dashboard-card" aria-hidden="true" />
+      <DashboardTimeCard />
       <section className="dashboard-card dashboard-card--updates" aria-labelledby="dashboard-updates-title">
         <h2 id="dashboard-updates-title">{t('dashboard.updates')}</h2>
         <div className="dashboard-updates-list">

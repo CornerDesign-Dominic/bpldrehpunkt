@@ -62,6 +62,9 @@ const DiagnosticsPage = lazy(() => import('./pages/DiagnosticsPage.jsx'))
 const CompanyMasterDataPage = lazy(() => import('./pages/CompanyMasterDataPage.jsx'))
 const VacationPage = lazy(() => import('./pages/VacationPage.jsx'))
 const VacationManagementPage = lazy(() => import('./pages/VacationManagementPage.jsx'))
+const TimeTrackingPage = lazy(() => import('./pages/TimeTrackingPage.jsx'))
+const TimeManagementPage = lazy(() => import('./pages/TimeManagementPage.jsx'))
+const TimeWorkModelsPage = lazy(() => import('./pages/TimeWorkModelsPage.jsx'))
 const CalendarPage = lazy(() => import('./pages/CalendarPage.jsx'))
 const HolidayCalendarPage = lazy(() => import('./pages/HolidayCalendarPage.jsx'))
 const SystemMailsPage = lazy(() => import('./pages/SystemMailsPage.jsx'))
@@ -121,6 +124,9 @@ export default function App() {
         <Route path="/qualitaet/wissensluecken" element={<PermissionRoute module="knowledgeGaps"><KnowledgeGapsPage /></PermissionRoute>} />
         </Route>
         <Route path="/dashboard" element={<PermissionRoute module="dashboard"><DashboardPage /></PermissionRoute>} />
+        <Route path="/zeiterfassung" element={<PermissionRoute module="timeTracking"><TimeTrackingPage /></PermissionRoute>} />
+        <Route path="/zeitmanagement" element={<PermissionRoute requireTimeManagement><TimeManagementPage /></PermissionRoute>} />
+        <Route path="/admin/arbeitszeitmodelle" element={<PermissionRoute requireSuperadmin><TimeWorkModelsPage /></PermissionRoute>} />
         <Route path="/postfaecher" element={<PermissionRoute module="mailboxes"><MailboxesPage /></PermissionRoute>} />
         <Route element={<TeamVacationLayout />}>
         <Route path="/team-urlaub" element={null} />

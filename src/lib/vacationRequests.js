@@ -163,6 +163,7 @@ function requestPayload(userId, values, extra = {}) {
     startDate,
     endDate,
     days: Number.isFinite(requestedDays) && requestedDays >= 0 ? requestedDays : businessDays(startDate, endDate),
+    halfDayDate: requestedDays % 1 === 0.5 ? (startDate === endDate ? startDate : (values.halfDayDate || '')) : '',
     vacationType,
     status: extra.status || 'pending',
     type: 'vacation',

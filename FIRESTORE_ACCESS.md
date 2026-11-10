@@ -1,5 +1,15 @@
 # Zugriffs- und Betriebsmodell für Firestore und Storage
 
+## Neue Zeiterfassung (Entwicklungsstand 10.11.2026)
+
+Der neue Umfang ist unter [Zeiterfassung](docs/operations/time-recorder.md)
+beschrieben. Zeit-Collections sind für direkte Clientzugriffe gesperrt; eigene
+Lese-/Schreibrechte und abteilungsbezogene Zeitmanager-Zuständigkeit werden in
+Callables geprüft. Arbeitszeitmodelle bleiben ausschließlich Superadmins
+zugänglich. Die PWA verwendet dieselbe Datenbank und dieselbe Anmeldung.
+Der [Dev-Deploybeleg](docs/operations/releases/time-recorder-dev-2026-11-10.md)
+bestätigt die gezielte Dev-Bereitstellung und deren tatsächliche Prüfgrenzen.
+
 Stand: 28.10.2026. Diese Dokumentation beschreibt das im Repository implementierte Zugriffsmodell. Sie bestätigt keinen identischen Live-Deploy. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions. Umgebungs- und Deploymentprüfungen stehen in `docs/operations/documentation-inventory.md`.
 
 ## Authentifizierung und aktive Profile

@@ -19,6 +19,11 @@
 /node_modules/
 /node_modules.install-incomplete/
 
+# Build variables are supplied by the target environment. In particular, a
+# local Vercel link may add an OIDC credential to an ignored dotenv file.
+**/.env
+**/.env.*
+
 # Local development, emulator, test and diagnostic artifacts.
 /tmp/
 /coverage/

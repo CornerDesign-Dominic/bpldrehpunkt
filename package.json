@@ -19,6 +19,7 @@
     "firebase": "^12.18.0",
     "jspdf": "^4.2.1",
     "pdfjs-dist": "^6.2.108",
+    "qrcode": "1.5.4",
     "react": "latest",
     "react-dom": "latest",
     "react-icons": "^5.7.0",

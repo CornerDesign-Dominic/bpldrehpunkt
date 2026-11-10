@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { signOutUser } from '../../auth/authService.js'
 import { useAuth } from '../../auth/useAuth.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
-import { canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../../lib/permissions.js'
+import { canManageTime, canManageUsers, canManageVacations, canView, canViewSystemCalendars } from '../../lib/permissions.js'
 import { CalendarIcon, ChevronDownIcon, ChevronIcon, CrmIcon, DamageIcon, DashboardIcon, DocumentSearchIcon, DocumentsIcon, DrehpunktLogoIcon, InkassoIcon, InsolvenciesIcon, LegalDisputesIcon, NewsIcon, PalletsIcon, SettingsIcon, ShieldIcon, ShieldOutlineIcon, SignOutIcon, StarIcon, TemplatesIcon, TodoIcon, TruckTrailerIcon, UserPlusIcon, UsersIcon, VacationIcon } from '../icons.jsx'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
 import { readSidebarExpandedGroups, readSidebarFavorites, readSidebarFavoritesExpanded, saveSidebarExpandedGroups, saveSidebarFavorites, saveSidebarFavoritesExpanded } from '../../lib/sidebarPreferences.js'
@@ -33,6 +33,9 @@ const navigationItems = [
   { label: 'News', to: '/news', icon: NewsIcon, module: 'news', group: 'more' },
   { label: 'Das Team', to: '/team', icon: UsersIcon, module: 'team', group: 'people' },
   { label: 'Mein Urlaub', to: '/urlaub', icon: VacationIcon, module: 'vacation', group: 'people' },
+  { label: 'Meine Arbeitszeit', to: '/zeiterfassung', icon: CalendarIcon, module: 'timeTracking', group: 'time' },
+  { label: 'Zeitmanagement', to: '/zeitmanagement', icon: UsersIcon, timeManagement: true, group: 'time' },
+  { label: 'Arbeitszeitmodelle', to: '/admin/arbeitszeitmodelle', icon: SettingsIcon, superadminOnly: true, group: 'time' },
   { label: 'Personal', to: '/personal', icon: UsersIcon, module: 'personnel', group: 'humanResources' },
   { label: 'Urlaubsmanagement', to: '/urlaubsmanagement', icon: VacationIcon, vacationManagement: true, group: 'people' },
   { label: 'Auftragsliste', to: '/transportauftraege', icon: TruckTrailerIcon, module: 'transportOrders', group: 'operations' },
@@ -62,6 +65,7 @@ const navigationGroups = [
   { key: 'general', label: 'Allgemein', icon: DashboardIcon },
   { key: 'mailboxes', label: 'Postfächer', icon: MailIcon },
   { key: 'people', label: 'Team & Urlaub', icon: UsersIcon },
+  { key: 'time', label: 'Zeit', icon: CalendarIcon },
   { key: 'humanResources', label: 'Personalwesen', icon: VacationIcon },
   { key: 'operations', label: 'Disposition', icon: TruckTrailerIcon },
   { key: 'partnerSales', label: 'Partner & Vertrieb', icon: UserPlusIcon },
@@ -83,6 +87,7 @@ const directNavigationGroups = {
 }
 
 const navigationLabelKeys = {
+  '/zeiterfassung': 'nav.timeTracking', '/zeitmanagement': 'nav.timeManagement', '/admin/arbeitszeitmodelle': 'nav.timeWorkModels',
   '/qualitaet/kvp': 'nav.kvp', '/qualitaet/handbuch': 'nav.handbook',
   '/qualitaet/maileinordnung': 'nav.mailTriage',
   '/qualitaet/grundregeln': 'nav.groundRules', '/qualitaet/wissensluecken': 'nav.knowledgeGaps',
@@ -129,7 +134,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   const directGroups = new Map(Object.entries(directNavigationGroups).filter(([, group]) => group.canAccess ? group.canAccess(profile) : group.modules.some(module => canView(profile, module))))
   const mailboxItems = mailboxAccess ? connections.filter(item => item.status === 'connected').map(item => ({ id: `mailbox:${item.id}`, mailboxId: item.id, label: mailboxLabel(item), email: item.email, to: mailboxUrl(item.id), icon: MailIcon, group: 'mailboxes' })) : []
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const visibleItems = [...navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module)), ...mailboxItems]
+  const visibleItems = [...navigationItems.map((item) => ({ ...item, id: item.to, label: t(navigationLabelKeys[item.to]) })).filter((item) => item.superadminOnly ? profile?.active === true && profile?.role === 'superadmin' : item.timeManagement ? canManageTime(profile) : item.administration ? canManageUsers(profile) : item.vacationManagement ? canManageVacations(profile) : item.module === 'calendar' ? canView(profile, 'calendar') || canViewSystemCalendars(profile) : !item.module || canView(profile, item.module)), ...mailboxItems]
   const visibleItemIds = visibleItems.map((item) => item.id)
   const groupIds = navigationGroups.map((group) => group.key)
   const activeGroupIds = [...new Set(visibleItems.filter((item) => itemIsActive(item, location.pathname, location.search)).map((item) => item.group))]

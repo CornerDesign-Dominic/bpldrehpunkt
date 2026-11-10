@@ -11,6 +11,10 @@ export function localeForLanguage(value) {
 
 export const translations = {
   de: {
+    'group.time': 'Zeit',
+    'nav.timeTracking': 'Meine Arbeitszeit',
+    'nav.timeManagement': 'Zeitmanagement',
+    'nav.timeWorkModels': 'Arbeitszeitmodelle',
     'group.quality': 'Qualität',
     'nav.kvp': 'K.V.P.',
     'nav.handbook': 'Handbuch',
@@ -338,6 +342,10 @@ export const translations = {
     'agb.historyMoreError': 'Weitere Prüfungen konnten nicht geladen werden.',
   },
   en: {
+    'group.time': 'Time',
+    'nav.timeTracking': 'My working time',
+    'nav.timeManagement': 'Time management',
+    'nav.timeWorkModels': 'Working time models',
     'group.quality': 'Quality',
     'nav.kvp': 'Continuous improvement',
     'nav.handbook': 'Handbook',

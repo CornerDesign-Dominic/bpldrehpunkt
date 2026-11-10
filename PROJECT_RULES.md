@@ -22,6 +22,16 @@ fachlich abgenommen wurde. Historische Releases stehen in
 
 ## Vorhandener Produktumfang
 
+### Neuer Entwicklungsumfang: Zeiterfassung
+
+Auf `codex/time-recorder` wird die Mitarbeiter-Zeiterfassung mit separater
+mobiler PWA, gemeinsamer Firebase-Datenbasis und getrennten Zeitmanagerrechten
+ergänzt. Arbeitszeitmodelle bleiben ausschließlich Superadmins zugänglich.
+Fachvertrag, Datenmodell und Grenzen: [Zeiterfassung](docs/operations/time-recorder.md).
+Auf den [lokalen Prüfstand](docs/operations/releases/time-recorder-local-2026-11-10.md)
+folgte die [gezielte Dev-Bereitstellung](docs/operations/releases/time-recorder-dev-2026-11-10.md).
+Eine Produktionsveröffentlichung ist damit nicht bestätigt.
+
 ### Übersicht und Zusammenarbeit
 
 - Dashboard
