@@ -1,22 +1,27 @@
 # Zeiterfassung und Mitarbeiter-PWA
 
-Stand: 10.11.2026. Implementierung auf `codex/time-recorder`, in Firebase Dev
-bereitgestellt; [Deploy- und Prüfbeleg](releases/time-recorder-dev-2026-11-10.md).
-Keine vollständige fachliche Abnahme. Mobile Anwendung im separaten
-Repository `CornerDesign-Dominic/BPLTimeRecorderMobile`.
+Stand: 10.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
+der Korrekturen aus der Rechte- und Zeitkontoabnahme. Die erste Dev-Bereitstellung
+und die Ergänzungen für Vorlagen, Dashboard und Handy-Einstieg haben eigene
+Prüfbelege. [Dev-Bereitstellung](releases/time-recorder-dev-2026-11-10.md) ·
+[Vorlagen, Dashboard und Handy-Einstieg](releases/time-recorder-access-dev-2026-11-10.md).
 
 ## Gemeinsame Grundlage
 
 Drehpunkt und die PWA verwenden dieselbe Firebase Authentication, dieselbe
 Firestore-Datenbank `(default)` und dieselben Cloud Functions. Entwicklung
-verwendet `db-bpl-drehpunkt-dev`, Produktion erst nach separater Abnahme
-`db-bpl-drehpunkt`. Das zweite Repository benötigt keine zweite Datenbank und
+verwendet `db-bpl-drehpunkt-dev`, Produktion `db-bpl-drehpunkt`.
+Die mobile Anwendung liegt im separaten Repository
+`CornerDesign-Dominic/BPLTimeRecorderMobile`. Das zweite Repository benötigt keine zweite Datenbank und
 keine zweite Benutzerverwaltung. Die Anmeldung muss pro Browser/Origin erfolgen;
 gleiche Zugangsdaten bedeuten keine automatisch geteilte Browsersitzung.
 
 Zeitdaten sind eigene Collections: `timeWorkModels`, `timeAccounts`, `timeDays`,
-`timeHistory` und die serverseitige Buchungs-Deduplizierung. Browserzugriffe
-werden verweigert; Callables prüfen aktives Profil und fachliche Berechtigung.
+`timeHistory`, `timeWorkModelTemplates` und `timeWorkModelTemplateNames`.
+Die Buchungs-Deduplizierung verwendet `timeHistory`. Browserzugriffe auf diese
+Collections werden selbst für Superadmins verweigert. Die Callables prüfen
+Firebase-Anmeldung, aktives Profil und fachliche Berechtigung; App Check ist
+für die Zeit-Callables aktiviert.
 Arbeitszeitberechnung ist in `shared/timeTracking.js` zentral definiert;
 `functions/shared` ist die durch das vorhandene Sync-Skript erzeugte Deploykopie.
 
@@ -28,13 +33,29 @@ Arbeitszeitberechnung ist in `shared/timeTracking.js` zentral definiert;
 - Nur Superadmins vergeben `timeManager`, `timeManagerAllDepartments` und
   `timeManagerDepartments` im Admincenter. Urlaubsmanager sind unabhängig davon.
   Adminrolle oder Personalrecht allein gewähren keine Zeitmanager-Zuständigkeit.
-- Zeitmanager bearbeiten ausschließlich Personen ihrer zugewiesenen Abteilungen;
-  das allgemeine Recht für eigene Zeiten ist davon getrennt.
+- Zeitmanager bearbeiten andere Personen ihrer zugewiesenen Abteilungen.
+  Eigene Zeiten laufen über **Meine Arbeitszeit** und brauchen weiterhin das
+  eigene Modulrecht; das Zeitmanagerrecht verlängert die persönliche
+  Korrekturfrist nicht. Superadmins können auch eigene ältere Tage korrigieren.
 - Arbeitszeitmodelle und deren Verwaltung sind ausschließlich Superadmins
   zugänglich. Mitarbeiter und Zeitmanager erhalten berechnete Tageswerte, keine
   vollständigen Modelle oder deren Änderungshistorie.
 - Personal-Auswertungen und die Krankheitserfassung sind ein späterer Umfang.
   Keine Krankmeldefunktion in der PWA.
+
+| Vorgang | Berechtigung |
+| --- | --- |
+| Eigene Zeitübersicht, Zeitkonto und Verlauf | Zeiterfassung ansehen oder bearbeiten |
+| Eigene Stempel, Korrekturen und Nachträge | Zeiterfassung bearbeiten; Frist und Korrekturgrund siehe unten |
+| Fremde Zeiten im Drehpunkt-Web prüfen oder korrigieren | Zugewiesener Zeitmanager oder Superadmin |
+| Arbeitszeitmodell, Vorlage und Anfangssaldo einrichten | Nur aktiver Superadmin |
+| Anfangsstand, Gesamtsaldo und Überstundenabbau im Personalbereich ansehen | Personal ansehen oder bearbeiten; keine Rohstempel oder Modelle |
+| Eigene Anträge und Urlaubsübersicht in der PWA | Urlaub ansehen oder bearbeiten |
+| Eigene Urlaubsanträge stellen, überarbeiten oder ausstehende Anträge zurückziehen | Urlaub bearbeiten; keine selbstständige Rücknahme bereits genehmigter Anträge |
+| Urlaubsanträge genehmigen oder ablehnen | Zuständiger Urlaubsmanager oder Superadmin, über Drehpunkt-Web |
+
+Ein aktives Superadmin-Profil hat die Modulrechte. Deaktivierte und nicht
+freigegebene Profile bleiben auch mit hinterlegter Rolle gesperrt.
 
 ## Arbeitszeitmodelle und Zeitkonto
 
@@ -58,8 +79,11 @@ durch Superadmins werden protokolliert.
 
 Das Konto besitzt Startdatum und Anfangssaldo in Minuten, normalerweise null.
 Übernommene Plus-/Minusstunden aus dem vorherigen System werden als Anfangssaldo
-eingetragen. Tagesabweichungen summieren sich über die Tage. Auf freien Tagen
-zählt tatsächlich geleistete Arbeit vollständig als Pluszeit.
+eingetragen. Der Gesamtsaldo summiert nur abrechenbare Tage ab dem Startdatum
+bis einschließlich heute. Fehlende Modellzeiträume und offene vergangene Tage
+machen ihn vorläufig. Auf freien Tagen mit einem gültigen Modell zählt
+geleistete Arbeit vollständig als Pluszeit nach den für den Tag hinterlegten
+Pausenregeln. Die Wochen-Sollzeit ergibt sich aus den Tagessollzeiten.
 
 Genehmigter Überstundenabbau (`vacationType: overtime`) wird getrennt vom
 Urlaubsanspruch als Zeitkonto-Abzug ausgewiesen. Grundlage sind die normalen
@@ -83,11 +107,18 @@ ist zu berücksichtigen; ausländische oder nicht zutreffende regionale Feiertag
 dürfen nicht pauschal Sollstunden entfernen. Genehmigter ganztägiger Urlaub und
 zutreffende Feiertage setzen die Sollzeit auf null. Halber Urlaub halbiert die
 Sollzeit, hebt aber arbeitsdauerabhängige Pausenregeln nicht auf.
+Explizit mit null Tagen genehmigte Anträge ändern weder Sollzeit noch Zeitkonto.
 
 Neue mehrtägige Anträge mit halbem Urlaubstag benötigen `halfDayDate`. Historische
 Anträge mit z.B. 2,5 Tagen ohne Tageszuordnung sind fachlich nicht eindeutig und
 müssen sichtbar zur Klärung markiert werden. Der bestehende Urlaubsbestand wird
 nicht automatisch umgeschrieben.
+
+Urlaubsanträge aus Browser und PWA dürfen nur die Felder für einen ausstehenden
+Antrag schreiben. Genehmigung, Bearbeiter und Kontowirkung setzt der Server.
+Änderungs- und Stornoantrag müssen auf denselben eigenen genehmigten Originalantrag
+verweisen. Ein genehmigter Abbau kann nur über den genehmigten Stornoweg aufgehoben
+werden.
 
 ## Stempelbuchungen und Pausen
 
@@ -110,7 +141,9 @@ abgezogen. Beispiel mit 6h/30min und 9h/45min ohne gebuchte Pause:
 
 Gebuchte Pausen werden angerechnet, nicht doppelt abgezogen. Rohbuchungen,
 gebuchte Pausen, rechnerischer Abzug und angerechnete Arbeitszeit bleiben getrennt.
-Bei Korrekturen wird neu berechnet.
+Bei Korrekturen wird neu berechnet. Auch eng gesetzte Stufen erzeugen keinen
+Sprung: Liegen die Grenzen bei 6:00 und 6:05, wächst der automatische Abzug
+ohne gebuchte Pause von 5 Minuten bei 6:05 auf 6 Minuten bei 6:06.
 
 Ein fehlender Feierabend erzeugt keine über Nacht laufende Arbeitszeit. Der Tag
 bleibt unvollständig. Ein neuer Arbeitstag kann trotzdem sofort begonnen werden;
@@ -154,10 +187,16 @@ Verwaltungsfunktionen, fremden Mitarbeiterdaten oder Push-Erinnerungen.
 
 Nur Stempelereignisse dürfen offline gespeichert werden. Eine dauerhafte lokale,
 nach UID getrennte Warteschlange speichert eindeutige Ereignis-IDs. Übertragung
-erfolgt bei wiederhergestellter Verbindung und erneutem Öffnen. Wiederholte
-Übertragung erzeugt keine Doppelbuchung. Fehler/Konflikte bleiben sichtbar und
-werden nicht als erfolgreich übertragen dargestellt. Noch ausstehende Ereignisse
-werden nicht unter einem anderen angemeldeten Benutzer gesendet.
+erfolgt bei wiederhergestellter Verbindung und erneutem Öffnen. Neue Offline-
+Stempel werden für heute und die vergangenen sieben Berliner Kalendertage
+angenommen. Danach bleibt der Beleg zur Klärung auf dem Gerät; bereits angenommene
+identische Buchungen können weiterhin als Duplikat bestätigt werden. Offline-Zeit
+ist die erfasste Gerätezeit; Gerätezeit und Serverempfang sind im Nachweis getrennt.
+Fehler und Konflikte bleiben sichtbar. Noch ausstehende Ereignisse werden nicht
+unter einem anderen angemeldeten Benutzer gesendet.
+Bei einem Verbindungsabbruch zwischen Serverbestätigung und Übersichtsabgleich
+bleibt ein bestätigter Stempel des laufenden Tages sichtbar. Er wird nicht erneut
+gesendet; ein ausreichend aktueller Serverstand ersetzt den lokalen Beleg.
 
 Stempel- und Korrekturanfragen enthalten außerdem `expectedUserId` als erwartete
 Akteursidentität. Der Server vergleicht diese mit der authentifizierten UID;
@@ -167,8 +206,13 @@ seines Tages. Nach ausdrücklicher Klärung kann ein lokaler Beleg archiviert
 werden, wobei der ursprüngliche Beleg auf dem Gerät erhalten bleibt.
 
 Urlaub und Zeitkorrekturen benötigen Internet. Der Service Worker speichert die
-Anwendungshülle, keine Firebase-Antworten oder fremden Personaldaten. Lokal
-gespeichert und serverseitig bestätigt werden klar unterschieden.
+Anwendungshülle, keine Firebase-Antworten oder fremden Personaldaten. Die App
+speichert eigene Zeitübersicht, Rechte und Warteschlange getrennt nach UID in
+IndexedDB. Sobald ein Rechteentzug online erkannt wurde, darf eine verspätete
+Antwort den lokalen Zugriff nicht wieder freigeben. Rechteänderungen auf dem
+Server kann ein vollständig offline befindliches Gerät erst nach dem
+Wiederverbinden erkennen. Lokal gespeichert und serverseitig bestätigt werden
+klar unterschieden.
 
 ## Daten- und Callable-Vertrag
 
@@ -253,17 +297,60 @@ Korrekturverläufe sind auf 500 Einträge begrenzt und benötigen den neuen
 Bei wachsendem Datenbestand sind serverseitige Monatsabschlüsse beziehungsweise
 Summenprojektionen zu prüfen, ohne die ursprünglichen Nachweise zu ersetzen.
 
-## Abnahme vor Veröffentlichung
+## Abnahme vom 10.11.2026
 
-- Berechnungsfälle: Pausenstufen/Grenzen, gebuchte Pausen, halber/ganzer Urlaub,
-  Feiertagsregion, freier Tag, Modellwechsel, Anfangssaldo, fehlender Feierabend.
-- Rechtefälle: eigene/fremde Daten, zuständige/fremde Abteilung, Zeit- versus
-  Urlaubsmanager, normaler Admin, deaktivierte Profile, Modelle nur Superadmin.
-- Buchungsfälle: wiederholte IDs, Web/Handy-Konflikte, veraltete Korrektur,
-  Offline-Warteschlange nach Neustart und Benutzerwechsel, 7-Tage-Grenze.
-- `npm run lint`, `npm run build`, `npm run check:functions-shared` und die
-  zugehörigen Node-/Emulatortests. Übersprungene Emulatorprüfungen explizit nennen.
-- PWA-Umgebungswerte, erlaubte Auth-Domain und App-Check-Registrierung für Dev
-  hinterlegen. Kein automatischer Fallback auf das Produktionsprojekt.
-- Echten Mitarbeiterablauf in Dev mit angemeldetem Testnutzer abnehmen. Keine
-  Testdaten, Migration oder Function-Veröffentlichung in Produktion durchführen.
+| Prüfung | Ergebnis und Abdeckung |
+| --- | --- |
+| Drehpunkt: gezielte Node-Tests | 59 bestanden. Zeitberechnung, Pause und Sommerzeit, Rechte, Dashboard, Vorlagen, Urlaubslogik und Schutz der Dev-Bereitstellung. |
+| Firestore-Emulator | 23 bestanden, keine übersprungen. Darunter 10 Rechte- und 6 Kontotests; die übrigen 7 prüfen bestehende Vertrags- und Firestore-Regeln. |
+| Rechte im Emulator | Eigene und fremde Zeiten; Lesen/Bearbeiten; andere Abteilungen; Zeit- und Urlaubsmanager unabhängig; Admin, Superadmin, Personal, gesperrte Profile; direkte Firestore-Zugriffe und manipulierte Urlaubsstatus bzw. Verknüpfungen werden verweigert. |
+| Konto im Emulator | Startsaldo in beiden Vorzeichen, Modellwechsel und Überschneidung, gebuchte und zusätzliche Pausen, freier Tag, Feiertagsregion, halber und ganzer Urlaub, Null-Tage-Anträge, Überstundenabbau mit Genehmigung, Änderung und Storno, fehlendes Modell und fehlender Feierabend. |
+| Buchungen im Emulator | Gleichzeitig gesendete gleiche IDs, abgelaufene Offlinebuchung, veraltete Revision, Korrekturgrund und unveränderliche Nachweise. |
+| Drehpunkt: statische Prüfung | `npm run lint`, `npm run build`, `npm run check:functions-shared` erfolgreich; 48 gemeinsame Module stimmen mit der Deploykopie überein. |
+| PWA: statische Prüfung und Node-Tests | `npm run lint`, `npm test` (19 bestanden) und `npm run build:dev` erfolgreich. Geprüft sind u. a. Rechteentzug, getrennte Konten, parallele Übertragung und Offline-Warteschlange. |
+| PWA in lokalem Chrome | Gebauter Service Worker installiert; App nach Offline-Neustart geladen; wartender und synthetisch bestätigter Stempel bleiben sichtbar. Urlaub und Korrekturen sind offline gesperrt. |
+
+Die Integrationstests verwenden ein lokales Demo-Projekt. Die Rules wurden
+über den Firestore-Client mit Testidentitäten angesprochen; die Callables
+wurden über ihre echten Handler gegen den Emulator ausgeführt. Der Lauf prüft
+keine echte Firebase-Anmeldung oder App-Check-Tokens über HTTP. Der lokale
+Chrome-Test verwendete synthetische Profildaten. Es wurden keine Cloud-Konten
+oder Buchungen angelegt.
+
+Wiederholbar mit installiertem Java 21 und Firebase CLI:
+
+```powershell
+firebase emulators:exec --only firestore --project demo-drehpunkt-time "node --test --test-concurrency=1 functions/timeTracking.rights.integration.test.js functions/timeTracking.account.integration.test.js functions/contracts.rules.integration.test.js functions/costEfficiency.rules.integration.test.js"
+```
+
+Die beiden Fachsuiten liegen in
+[timeTracking.rights.integration.test.js](../../functions/timeTracking.rights.integration.test.js)
+und [timeTracking.account.integration.test.js](../../functions/timeTracking.account.integration.test.js).
+
+## Release und Kollegentest
+
+1. Für einen Webrelease auf `main` zuerst den Verbundindex für
+   `timeHistory` (`userId ASC`, `kind ASC`, `createdAt DESC`) in
+   Firebase Produktion anlegen und seinen Aufbau abwarten. Die neun
+   Callables aus `timeTracking.js` und `timeWorkModelTemplates.js`, die
+   aktualisierten Regeln sowie
+   `listManagedUsers`, `createManagedUser`, `updateManagedUser`,
+   `processVacationRequest`, `replacePendingVacationRequest` und
+   `withdrawVacationRequest` gezielt bereitstellen und prüfen. Dann Web
+   gemäß [Release-Runbook](releases.md) übernehmen.
+2. Im Zielsystem pro Pilotkonto Zeiterfassung auf **Bearbeiten** setzen,
+   Arbeitszeitmodell und Startdatum prüfen und einen gewünschten Anfangssaldo
+   eintragen. Zeitmanager und Urlaubsmanager getrennt und mit passender
+   Abteilung einrichten. Dev-Zeitdaten werden nicht nach Produktion kopiert.
+3. Für einen mobilen Produktionstest braucht das separate PWA-Repository
+   einen veröffentlichten Produktions-Build, eine für Firebase Auth und
+   App Check eingerichtete Hosting-Domain und die passende
+   `VITE_TIME_PWA_URL` im Drehpunkt-Web-Build. Ein Merge im Web-Repository
+   veröffentlicht keine PWA. Für die beiden Umgebungen gibt es getrennte URLs.
+   [Mobile App Produktion](https://db-bpl-drehpunkt-time.web.app) ·
+   [Mobile App Dev](https://db-bpl-drehpunkt-dev-time.web.app).
+4. Beim Handytest in der installierten PWA offline stempeln, App schließen
+   und wieder öffnen, dann wieder verbinden. In Drehpunkt dieselbe Buchung
+   genau einmal sehen. Urlaub und Nachträge sind erst online wieder verfügbar.
+   Der physische Gerätetest und der Abgleich mit einem Pilotkonto ergänzen
+   den lokalen Chrome- und Emulatorlauf.
