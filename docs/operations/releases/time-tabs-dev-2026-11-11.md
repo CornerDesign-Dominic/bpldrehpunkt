@@ -103,3 +103,28 @@ Module und 26 gezielte Tests erfolgreich. Der ausgeführte React-/DOM-Test
 prüft zusätzlich die sechs Monatsspalten und deren Zahlenwerte, die drei
 Buchungskennzeichen, Erhalt unveränderter Speicherungen sowie den Verlauf
 über neun Tabellenspalten. Keine neue angemeldete Browserabnahme behauptet.
+
+## Kompakte Versionszeilen nach gemeinsamer Abstimmung
+
+Auf erneuten ausdrücklichen Auftrag wird die normale Dev-Webseite über den
+Branch `dev` angepasst. Die Zeitdarstellung wird separat vom zunächst nicht veröffentlichten lokalen
+Fall-/To-do-Commit bearbeitet. Zwischenzeitlich bereits auf Dev veröffentlichte
+Korrekturen werden bei der Übernahme erhalten; dieser Änderungscommit umfasst
+ausschließlich die Zeitdarstellung und ihre Dokumentation/Tests.
+
+- Acht gemeinsame Spalten für aktuellen Stand und aufklappbare Unterzeilen.
+  Aktueller Stand oben, frühere Stände darunter absteigend bis zur ersten
+  Erfassung. Keine Original-Kennzeichen, Statusabzeichen, Vorher-Spalte oder
+  großflächigen Verlaufskästen.
+- Schlichte Erfassungsart Gestempelt, Manueller Nachtrag oder Korrektur;
+  geänderte Uhrzeit/Aktion gezielt hervorgehoben. Gelöschte Stände bleiben erhalten.
+- Grund/Hinweis bei Bedarf je Stand; unveränderte Speicherungen getrennt von
+  den effektiven Versionen einsehbar. 30 Stände erzeugen exakt 29 frühere Zeilen.
+- Reine Web-Änderung; Firebase-Backend, Rules, mobile Anwendung und Produktion
+  bleiben von dieser Bereitstellung unberührt.
+
+Prüfung: vollständiges ESLint, Vite-Build, Abgleich der 48 gemeinsamen Module,
+27 gezielte Node-Tests sowie React-/DOM-Oberflächenprüfung einschließlich
+30-Versionen-Fall, acht Zellen pro Unterzeile, Reihenfolge, Ein-/Ausklappen,
+Urheberzuordnung, getrennten Speicherungen und Grund/Hinweis.
+Die angemeldete Live-Browserabnahme wird damit nicht vorweggenommen.

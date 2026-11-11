@@ -25,15 +25,34 @@ export function timeBookingRows(days = [], history = []) {
   return [...rows.values()].sort((a, b) => b.date.localeCompare(a.date) || a.event.at.localeCompare(b.event.at) || a.id.localeCompare(b.id))
 }
 
-export function bookingStatus(row) {
-  const changes = row.changes.filter(change => !change.unchanged)
-  const latest = changes.at(-1)
-  const first = changes[0]
-  const origin = first?.kind === 'stamp' || (!first && ['live', 'offline'].includes(row.event.source)) ? 'Originalbuchung' : first && !first.before ? 'Manueller Nachtrag' : 'Nicht eindeutig erfasst'
-  const edited = changes.some(change => change.before && change.after)
-  const status = row.deleted ? 'deleted' : edited ? 'edited' : origin === 'Manueller Nachtrag' ? 'manual' : origin === 'Originalbuchung' ? 'original' : row.event.source === 'correction' ? 'manual-unknown' : 'unknown'
-  const labels = { deleted: 'Gelöscht', edited: 'Geändert', manual: 'Manuell nachgetragen', original: 'Original', 'manual-unknown': 'Manuell erfasst', unknown: 'Nicht eindeutig erfasst' }
-  return { status, label: labels[status], origin, latest, saved: row.changes.at(-1), edits: changes.filter(change => change.before && change.after).length, unchangedSaves: row.changes.filter(change => change.unchanged).length }
+function creationMethod(event) {
+  return ['live', 'offline'].includes(event?.source) ? 'Gestempelt' : event?.source === 'correction' ? 'Manuell erfasst' : 'Nicht erfasst'
+}
+
+// A version is an effective state, not a save operation. Unchanged saves are
+// kept separately so thirty states always mean one current and 29 earlier rows.
+export function bookingVersions(row) {
+  const versions = []
+  const saves = []
+  for (const change of row.changes) {
+    if (change.unchanged) { saves.push(change); continue }
+    const previous = versions.at(-1)
+    if (change.before && (!previous || !same(previous.event, change.before))) {
+      versions.push({ id: `before-${change.id}`, event: change.before, method: creationMethod(change.before), client: change.before.client, createdAt: change.before.receivedAt || null, changed: {} })
+    }
+    versions.push({
+      ...change,
+      event: change.after || null,
+      displayEvent: change.after || change.before,
+      method: change.kind === 'stamp' ? 'Gestempelt' : !change.after ? 'Gelöscht' : !change.before ? 'Manueller Nachtrag' : 'Korrektur',
+      client: change.kind === 'stamp' ? change.after?.client : change.client,
+      changed: { at: Boolean(change.before && change.after && change.before.at !== change.after.at), type: Boolean(change.before && change.after && change.before.type !== change.after.type) },
+    })
+  }
+  const latest = versions.at(-1)
+  const matchesCurrent = latest && (row.deleted ? !latest.event : same(latest.event, row.event))
+  const current = matchesCurrent ? latest : { id: `current-${row.id}`, event: row.deleted ? null : row.event, displayEvent: row.event, method: row.deleted ? 'Gelöscht' : creationMethod(row.event), client: row.event.client, createdAt: row.event.receivedAt || null, changed: {} }
+  return { current, previous: (matchesCurrent ? versions.slice(0, -1) : versions).reverse(), saves: saves.reverse() }
 }
 
 export function bookingClient(value) {

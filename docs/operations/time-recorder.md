@@ -139,21 +139,29 @@ werden nicht als bestätigtes Plus/Minus angezeigt. Der heutige Stempelbereich u
 Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
 Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
 
-**Alle Buchungen** ist unabhängig von der Monatsauswahl. Eine Zeile entspricht
-einer stabilen Buchungs-ID; auch gelöschte Buchungen bleiben markiert erhalten.
-Datum, Uhrzeit, Aktion, Herkunft, Erfassungsart, letzter Vorher-Wert, Bearbeiter
-und Bearbeitungszeit stehen direkt in der Tabelle. Der aufklappbare Verlauf
-enthält alle gespeicherten Änderungen dieser Buchung samt Vorher/Nachher,
-Grund und Hinweis. Er öffnet sich unter der Buchung über die gesamte Tabellenbreite;
-die Spalten Datum, Uhrzeit und Buchung behalten ihre kompakte Breite.
-Farbige Textkennzeichen unterscheiden Original, manuellen Nachtrag, geändert
-und gelöscht. Bei Änderungen bleibt der ursprüngliche Erfassungsweg erkennbar;
-auch zwischenzeitlich zurückgenommene Änderungen bleiben als geändert markiert.
-Speicherungen ohne Änderung von Aktion oder Zeitpunkt sind als **Unverändert
-gespeichert** vollständig im Verlauf enthalten. Sie gelten nicht als tatsächliche
-Änderung und ersetzen in den Hauptspalten nicht den Urheber der Buchung.
-Historisch nicht eindeutig belegte Erfassungsarten werden nicht als Original
-ausgegeben. Der Verlauf zeigt Zeiten einschließlich Sekunden.
+**Alle Buchungen** ist unabhängig von der Monatsauswahl. Eine Hauptzeile entspricht
+einer stabilen Buchungs-ID und zeigt den aktuell gültigen Stand. Die acht
+Spalten sind Datum, Uhrzeit, Buchung, Erfassung, Über, Bearbeiter, Gespeichert am
+und Verlauf. Erfassung ist schlichter Text: Gestempelt, Manueller Nachtrag oder
+Korrektur. Gelöschte Buchungen bleiben mit ihrer letzten Uhrzeit/Aktion und
+Erfassung Gelöscht erhalten. Historisch nicht belegte Angaben bleiben ausdrücklich
+nicht erfasst. Die Bezeichnung Original, Statusabzeichen und die Vorher-Spalte
+entfallen.
+
+Der Verlauf klappt frühere effektive Stände direkt unter der Hauptzeile als
+kompakte Tabellenzeilen mit denselben acht Spalten auf, neuester zuerst bis zur
+ersten Erfassung. Die Unterzeilen sind leicht abgesetzt und eingerückt; nur
+geänderte Werte werden hervorgehoben. 30 Stände bedeuten eine aktuelle Zeile und
+29 frühere Zeilen. Jeder Stand behält seinen gespeicherten Bearbeiter, Zeitpunkt
+und Erfassungsweg. Grund und Freitext sind bei Bedarf am jeweiligen Stand über
+Grund einsehbar und blähen die geschlossene Zeile nicht auf.
+
+Speicherungen ohne Änderung von Aktion/Zeitpunkt zählen nicht als weitere
+Version. Sie bleiben als Unverändert gespeichert separat aufklappbar erhalten
+und ersetzen nicht den Urheber des gültigen Standes. Ohne frühere Stände oder
+zusätzliche Speicherungen bleibt die Verlaufsspalte leer. Für einen aus der
+Vorher-Evidenz rekonstruierten ersten Stand wird kein historischer Bearbeiter
+erfunden. Unbekannte Geräteherkunft bleibt ebenfalls ausdrücklich nicht erfasst.
 
 `listOwnTimeBookings({before?})` prüft aktives Profil und eigenes Zeit-Leserecht.
 Die Zielperson ist ausschließlich die authentifizierte UID. Die Abfrage lädt

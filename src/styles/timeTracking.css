@@ -33,39 +33,31 @@
 .time-tabs button { background: transparent; border-top: 0; border-left: 0; border-right: 0; cursor: pointer; font-family: inherit; }
 .time-tab-content { display: grid; gap: 16px; min-width: 0; }
 .time-bookings-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
-.time-bookings-table { table-layout: fixed; min-width: 1160px; }
-.time-bookings-date { width: 96px; }
-.time-bookings-time { width: 64px; }
-.time-bookings-action { width: 118px; }
-.time-bookings-client { width: 100px; }
-.time-bookings-state { width: auto; }
-.time-bookings-before { width: 150px; }
-.time-bookings-actor { width: 14%; }
-.time-bookings-timestamp { width: 166px; }
-.time-bookings-trail { width: 120px; }
-.time-bookings-table td { vertical-align: top; padding-block: 10px; }
+.time-bookings-table { table-layout: fixed; min-width: 1140px; }
+.time-bookings-date { width: 112px; }
+.time-bookings-time { width: 78px; }
+.time-bookings-action { width: 125px; }
+.time-bookings-method { width: 180px; }
+.time-bookings-client { width: 110px; }
+.time-bookings-actor { width: auto; }
+.time-bookings-timestamp { width: 175px; }
+.time-bookings-trail { width: 210px; }
+.time-bookings-table td { padding-block: 6px; vertical-align: middle; }
 .time-bookings-table td:nth-child(n+4) { white-space: normal; overflow-wrap: anywhere; }
-.time-booking-row > td:first-child { box-shadow: inset 3px 0 var(--border); }
-.time-booking-row--original > td:first-child { box-shadow: inset 3px 0 var(--status-success-text); }
-.time-booking-row--manual > td:first-child, .time-booking-row--manual-unknown > td:first-child { box-shadow: inset 3px 0 var(--button-background); }
-.time-booking-row--edited > td:first-child { box-shadow: inset 3px 0 var(--status-warning-text); }
-.time-booking-row--deleted > td:first-child { box-shadow: inset 3px 0 var(--status-danger-text); }
-.time-booking-badge { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; line-height: 1.4; color: var(--text-secondary); background: var(--surface-secondary); }
-.time-booking-badge--original { color: var(--status-success-text); background: var(--status-success-background); }
-.time-booking-badge--manual, .time-booking-badge--manual-unknown { color: var(--button-background); background: var(--surface-active); }
-.time-booking-badge--edited { color: var(--status-warning-text); background: var(--status-warning-background); }
-.time-booking-badge--deleted { color: var(--status-danger-text); background: var(--status-danger-background); }
+.time-booking-version-row, .time-booking-save-row { background: var(--surface-secondary); color: var(--text-secondary); }
+.time-booking-version-row > td:first-child, .time-booking-save-row > td:first-child { box-shadow: inset 3px 0 var(--border); }
+.time-booking-indent { color: var(--text-secondary); }
+.time-booking-value-changed { color: var(--text-primary); font-weight: 700; text-decoration: underline; text-decoration-color: var(--status-warning-text); text-underline-offset: 3px; }
 .time-booking-toggle { padding: 3px 0; border: 0; color: var(--text-primary); background: transparent; font: inherit; cursor: pointer; white-space: nowrap; }
-.time-booking-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
-.time-booking-deleted > td:nth-child(2) { text-decoration: line-through; color: var(--text-secondary); }
-.time-bookings-table .time-booking-detail-row > td { padding: 0; white-space: normal; }
-.time-booking-history { display: grid; gap: 12px; padding: 18px 22px; white-space: normal; background: var(--surface-secondary); }
-.time-booking-history h4 { margin: 0; font-size: 13px; }
-.time-booking-history article { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--content-background); overflow-wrap: anywhere; }
-.time-booking-history article > div:first-child { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.time-booking-history article > div:first-child > span { color: var(--text-secondary); }
-.time-booking-history--unchanged > div:first-child > strong { color: var(--text-secondary); }
-.time-booking-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.time-booking-toggle:focus-visible, .time-booking-reason > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.time-booking-deleted > td:nth-child(2), .time-booking-deleted > td:nth-child(3) { text-decoration: line-through; color: var(--text-secondary); }
+.time-booking-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.time-booking-reason { min-width: 0; font-size: 11px; }
+.time-booking-reason > summary { cursor: pointer; color: var(--text-secondary); }
+.time-booking-reason[open] { flex: 1 0 100%; }
+.time-booking-reason > div { display: grid; gap: 5px; padding-top: 6px; white-space: normal; overflow-wrap: anywhere; }
+.time-booking-saves-heading > td { background: var(--surface-secondary); font-size: 11px; }
+.time-booking-offline { font-size: 11px; color: var(--text-secondary); }
 .time-month-table th:not(:first-child), .time-month-table td:not(:first-child) { text-align: right; }
 .time-month-table td:last-child { font-weight: 700; }
 .time-table-scroll table { width: 100%; }
