@@ -1,4 +1,4 @@
-import { reportTechnicalFailure } from './diagnostics.js'
+import { caseOperation } from './caseDiagnostics.js'
 import { collection, deleteField, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
@@ -115,21 +115,21 @@ export function createEmptyInkassoMovement() {
   return { date: new Date().toISOString().slice(0, 10), type: 'collection_costs', direction: 'paid', amount: '' }
 }
 
-export async function listInkassoCases() {
+export const listInkassoCases = caseOperation('inkasso', 'load', async function listInkassoCases() {
   const snapshots = await getDocs(query(inkassoCasesRef, orderBy('createdAt', 'desc')))
   const inkassoCases = snapshots.docs.map(mapSnapshot)
   return Promise.all(inkassoCases.map(async (inkassoCase) => ({
     ...inkassoCase,
     nextDeadline: nextInkassoDeadline(await listInkassoCaseDeadlines(inkassoCase.id)),
   })))
-}
+})
 
-export async function getInkassoCase(caseId) {
+export const getInkassoCase = caseOperation('inkasso', 'load', async function getInkassoCase(caseId) {
   const snapshot = await getDoc(doc(db, INKASSO_CASES_COLLECTION, caseId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null
-}
+})
 
-export async function createInkassoCase(values, { transportOrderId = '', transportOrderIds = [] } = {}) {
+export const createInkassoCase = caseOperation('inkasso', 'save', async function createInkassoCase(values, { transportOrderId = '', transportOrderIds = [] } = {}) {
   const invoices = normalizeInkassoInvoices(values.invoices)
   const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
 
@@ -143,7 +143,7 @@ export async function createInkassoCase(values, { transportOrderId = '', transpo
     transportOrderIds: linkedTransportOrderIds,
   })
   return result.data.caseId
-}
+})
 
 export function normalizeInkassoInvoices(rows) {
   if (!Array.isArray(rows)) return []
@@ -159,9 +159,9 @@ export function normalizeInkassoInvoices(rows) {
   })
 }
 
-export async function listInkassoCaseInvoices(caseId) {
+export const listInkassoCaseInvoices = caseOperation('inkasso', 'load', async function listInkassoCaseInvoices(caseId) {
   return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'invoices'), orderBy('createdAt', 'asc')))).docs.map(mapSnapshot)
-}
+})
 
 function invoicePayload(values) {
   const [invoice] = normalizeInkassoInvoices([values])
@@ -176,7 +176,7 @@ function invoiceCaseAmounts(inkassoCase) {
   return { claimAmount, paidAmount }
 }
 
-export async function createInkassoCaseInvoice(inkassoCase, values, actor) {
+export const createInkassoCaseInvoice = caseOperation('inkasso', 'save', async function createInkassoCaseInvoice(inkassoCase, values, actor) {
   const invoice = invoicePayload(values)
   const { claimAmount, paidAmount } = invoiceCaseAmounts(inkassoCase)
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
@@ -185,9 +185,9 @@ export async function createInkassoCaseInvoice(inkassoCase, values, actor) {
   batch.update(caseRef, { claimAmount: claimAmount + invoice.grossAmount, paidAmount, ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'invoices')), { ...invoice, isPaid: false, paidAt: null, paidBy: null, paidByName: null, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName })
   await batch.commit()
-}
+})
 
-export async function updateInkassoCaseInvoice(inkassoCase, invoice, values, actor) {
+export const updateInkassoCaseInvoice = caseOperation('inkasso', 'save', async function updateInkassoCaseInvoice(inkassoCase, invoice, values, actor) {
   const next = invoicePayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== invoice[field])) return false
   const { claimAmount, paidAmount } = invoiceCaseAmounts(inkassoCase)
@@ -202,9 +202,9 @@ export async function updateInkassoCaseInvoice(inkassoCase, invoice, values, act
   batch.update(doc(caseRef, 'invoices', invoice.id), next)
   await batch.commit()
   return true
-}
+})
 
-export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, actor) {
+export const updateInkassoInvoicePayment = caseOperation('inkasso', 'save', async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, actor) {
   if (invoice.isPaid === isPaid) return false
   const grossAmount = Number(invoice.grossAmount)
   const { claimAmount, paidAmount } = invoiceCaseAmounts(inkassoCase)
@@ -226,7 +226,7 @@ export async function updateInkassoInvoicePayment(inkassoCase, invoice, isPaid, 
   })
   await batch.commit()
   return true
-}
+})
 
 function deadlinePayload(values) {
   const reminder = caseDeadlineReminder(values)
@@ -253,40 +253,40 @@ export function nextInkassoDeadline(deadlines) {
   return Array.isArray(deadlines) ? deadlines.find((deadline) => deadline?.date) || null : null
 }
 
-export async function listInkassoCaseDeadlines(caseId) {
+export const listInkassoCaseDeadlines = caseOperation('inkasso', 'load', async function listInkassoCaseDeadlines(caseId) {
   const snapshots = await getDocs(collection(db, INKASSO_CASES_COLLECTION, caseId, 'deadlines'))
   return snapshots.docs.map(mapSnapshot).sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
-}
+})
 
-export async function createInkassoCaseDeadline(inkassoCase, values, actor) {
+export const createInkassoCaseDeadline = caseOperation('inkasso', 'save', async function createInkassoCaseDeadline(inkassoCase, values, actor) {
   const deadline = deadlinePayload(values)
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
-export async function updateInkassoCaseDeadline(inkassoCase, deadline, values, actor) {
+export const updateInkassoCaseDeadline = caseOperation('inkasso', 'save', async function updateInkassoCaseDeadline(inkassoCase, deadline, values, actor) {
   const next = deadlinePayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))) return false
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
+  await batch.commit()
   return true
-}
+})
 
-export async function deleteInkassoCaseDeadline(inkassoCase, deadline, actor) {
+export const deleteInkassoCaseDeadline = caseOperation('inkasso', 'delete', async function deleteInkassoCaseDeadline(inkassoCase, deadline, actor) {
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'deadlines', deadline.id))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
-export async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {
+export const updateInkassoCaseFields = caseOperation('inkasso', 'save', async function updateInkassoCaseFields(inkassoCase, values, actor, responsibleUsersById) {
   const next = casePayload({ ...inkassoCase, ...values }, responsibleUsersById)
   const changedFields = Object.fromEntries(Object.entries(next).filter(([field, value]) => value !== (inkassoCase[field] ?? null)))
   if (!Object.keys(changedFields).length) return false
@@ -297,17 +297,17 @@ export async function updateInkassoCaseFields(inkassoCase, values, actor, respon
   batch.update(caseRef, { ...changedFields, completedAt, ...updateMetadata(actor) })
   await batch.commit()
   return true
-}
+})
 
-export async function listInkassoCaseUpdates(caseId) {
+export const listInkassoCaseUpdates = caseOperation('inkasso', 'load', async function listInkassoCaseUpdates(caseId) {
   return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
-}
+})
 
-export async function listInkassoCaseHistory(caseId) {
+export const listInkassoCaseHistory = caseOperation('inkasso', 'load', async function listInkassoCaseHistory(caseId) {
   return (await getDocs(query(collection(db, INKASSO_CASES_COLLECTION, caseId, 'history'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
-}
+})
 
-export async function addInkassoCaseUpdate(inkassoCase, text, actor) {
+export const addInkassoCaseUpdate = caseOperation('inkasso', 'save', async function addInkassoCaseUpdate(inkassoCase, text, actor) {
   const cleanText = trim(text)
   if (!cleanText) throw new Error('Bitte einen Update-Text eingeben.')
   if (cleanText.length > 1000) throw new Error('Das Update ist zu lang.')
@@ -316,7 +316,7 @@ export async function addInkassoCaseUpdate(inkassoCase, text, actor) {
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('note', cleanText, actor))
   await batch.commit()
-}
+})
 
 function movementPayload(values) {
   const date = optionalDate(values.date)
@@ -327,21 +327,21 @@ function movementPayload(values) {
   return { date, type, direction, amount }
 }
 
-export async function listInkassoCaseMovements(caseId) {
+export const listInkassoCaseMovements = caseOperation('inkasso', 'load', async function listInkassoCaseMovements(caseId) {
   const snapshots = await getDocs(collection(db, INKASSO_CASES_COLLECTION, caseId, 'movements'))
   return snapshots.docs.map(mapSnapshot).sort((left, right) => right.date.localeCompare(left.date) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
-}
+})
 
-export async function createInkassoCaseMovement(inkassoCase, values, actor) {
+export const createInkassoCaseMovement = caseOperation('inkasso', 'save', async function createInkassoCaseMovement(inkassoCase, values, actor) {
   const movement = movementPayload(values)
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'movements')), { ...movement, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   await batch.commit()
-}
+})
 
-export async function updateInkassoCaseMovement(inkassoCase, movement, values, actor) {
+export const updateInkassoCaseMovement = caseOperation('inkasso', 'save', async function updateInkassoCaseMovement(inkassoCase, movement, values, actor) {
   const next = movementPayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== (movement[field] ?? null))) return false
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
@@ -350,12 +350,12 @@ export async function updateInkassoCaseMovement(inkassoCase, movement, values, a
   batch.update(doc(caseRef, 'movements', movement.id), { ...next, description: deleteField(), ...updateMetadata(actor) })
   await batch.commit()
   return true
-}
+})
 
-export async function deleteInkassoCaseMovement(inkassoCase, movement, actor) {
+export const deleteInkassoCaseMovement = caseOperation('inkasso', 'delete', async function deleteInkassoCaseMovement(inkassoCase, movement, actor) {
   const caseRef = doc(db, INKASSO_CASES_COLLECTION, inkassoCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'movements', movement.id))
   await batch.commit()
-}
+})

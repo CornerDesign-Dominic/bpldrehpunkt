@@ -54,7 +54,6 @@ export default function TransportOrderLinkedCasesCard({ transportOrderId, canEdi
       return () => { current = false }
     }
     listCaseLinksForTransportOrder(transportOrderId, permittedTypes).then((entries) => { if (current) { setLinks(entries); setError('') } }).catch((caught) => {
-      console.error('TA-Fallverknüpfungen konnten nicht geladen werden.', { transportOrderId, caseTypes: permittedTypes, code: caught?.code || 'unknown', message: caught?.message || String(caught) })
       void reportTechnicalFailure({ module: 'case-links', stage: 'load', error: caught, orderId: transportOrderId })
       if (current) setError(loadErrorMessage(caught))
     }).finally(() => { if (current) setLoading(false) })

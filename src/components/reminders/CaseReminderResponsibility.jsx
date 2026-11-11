@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { listCaseReminderUsers, setReminderResponsibility } from '../../lib/reminders.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
+import { reportCaseFailure } from '../../lib/caseDiagnostics.js'
+
+const caseModules = { damageCases: 'damages', inkassoCases: 'inkasso', legalDisputes: 'legal-disputes', insolvencies: 'insolvencies' }
 
 export default function CaseReminderResponsibility({ parentPath, responsibleUserId, responsibleUserName, canEdit, onChanged }) {
   const { language } = useLanguage()
   const en = language === 'en'
+  const diagnosticModule = caseModules[parentPath?.split('/')[0]]
   const request = useRef(0)
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -20,7 +24,7 @@ export default function CaseReminderResponsibility({ parentPath, responsibleUser
     const sequence = ++request.current
     setLoading(true); setDirectoryError(false); setError('')
     try { const options = await listCaseReminderUsers(parentPath); if (request.current === sequence) setUsers(options) }
-    catch { if (request.current === sequence) { setDirectoryError(true); setError(en ? 'Eligible users could not be loaded. Please try again.' : 'Berechtigte Nutzer konnten nicht geladen werden. Bitte erneut versuchen.') } }
+    catch (failure) { if (diagnosticModule) reportCaseFailure(diagnosticModule, 'load', failure); if (request.current === sequence) { setDirectoryError(true); setError(en ? 'Eligible users could not be loaded. Please try again.' : 'Berechtigte Nutzer konnten nicht geladen werden. Bitte erneut versuchen.') } }
     finally { if (request.current === sequence) setLoading(false) }
   }
   function beginEditing() {
@@ -32,6 +36,7 @@ export default function CaseReminderResponsibility({ parentPath, responsibleUser
     let result
     try { result = await setReminderResponsibility(parentPath, selectedId || null, expectedId) }
     catch (failure) {
+      if (diagnosticModule) reportCaseFailure(diagnosticModule, 'responsibility', failure)
       setError(failure?.code === 'functions/aborted'
         ? (en ? 'Responsibility changed in the meantime. Your selection is retained. Cancel and check the current case before trying again.' : 'Die Zuständigkeit wurde zwischenzeitlich geändert. Deine Auswahl bleibt erhalten. Bitte abbrechen und den aktuellen Fall prüfen, bevor du erneut speicherst.')
         : (en ? 'Responsibility could not be saved. Your selection is retained.' : 'Die Zuständigkeit konnte nicht gespeichert werden. Deine Auswahl bleibt erhalten.'))
@@ -41,7 +46,7 @@ export default function CaseReminderResponsibility({ parentPath, responsibleUser
     // A confirmed save must never be presented as a failed mutation because a
     // following case/history reload failed.
     try { await onChanged?.(result) }
-    catch { setError(en ? 'Responsibility was saved, but the view could not be refreshed. Please reload.' : 'Die Zuständigkeit wurde gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte erneut laden.') }
+    catch (failure) { if (diagnosticModule) reportCaseFailure(diagnosticModule, 'load', failure); setError(en ? 'Responsibility was saved, but the view could not be refreshed. Please reload.' : 'Die Zuständigkeit wurde gespeichert, aber die Ansicht konnte nicht aktualisiert werden. Bitte erneut laden.') }
   }
   const currentMissing = selectedId && !users.some((entry) => entry.id === selectedId)
   return <section className="todo-detail-content case-reminder-responsibility">

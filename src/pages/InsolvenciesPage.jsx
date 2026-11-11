@@ -1,3 +1,4 @@
+import { reportCaseFailure } from '../lib/caseDiagnostics.js'
 import { listBusinessPartners } from '../lib/businessPartners.js'
 import { partnerReferenceName, presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
 import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
@@ -41,7 +42,7 @@ export default function InsolvenciesPage() {
 
   useEffect(() => {
     let current = true
-    Promise.all([listInsolvenciesWithLossNet(), canViewMasterData ? listBusinessPartners() : Promise.resolve([])]).then(([entries, directory]) => { if (current) { setInsolvencies(entries); setReferencePartners(directory) } }).catch(() => { if (current) setError('Die Insolvenzfälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') }).finally(() => { if (current) setLoading(false) })
+    Promise.all([listInsolvenciesWithLossNet(), canViewMasterData ? listBusinessPartners() : Promise.resolve([])]).then(([entries, directory]) => { if (current) { setInsolvencies(entries); setReferencePartners(directory) } }).catch((error) => { reportCaseFailure('insolvencies', 'load', error); if (current) setError('Die Insolvenzfälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [canViewMasterData])
 

@@ -1,3 +1,4 @@
+import { reportCaseFailure } from '../lib/caseDiagnostics.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
@@ -104,7 +105,7 @@ export default function LegalDisputeDetailPage() {
     let current = true
     Promise.all([getLegalDispute(legalDisputeId), listLegalDisputeUpdates(legalDisputeId), listLegalDisputeDocuments(legalDisputeId), listLegalDisputeDeadlines(legalDisputeId), listLegalDisputeFinancialEntries(legalDisputeId)])
       .then(([entry, entries, caseDocuments, caseDeadlines, caseFinancialEntries]) => { if (current) { setLegalDispute(entry); setUpdates(entries); setDocuments(caseDocuments); setDeadlines(caseDeadlines); setFinancialEntries(caseFinancialEntries); setTitle(entry?.caseNumber || ''); setDocumentsLoading(false); setDeadlinesLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setDocumentsLoading(false); setDeadlinesLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
+      .catch((loadError) => { reportCaseFailure('legal-disputes', 'load', loadError); if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Fall.' : 'Der Fall konnte nicht geladen werden.'); setDocumentsLoading(false); setDeadlinesLoading(false); setUpdatesLoading(false); setFinancialEntriesLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
   }, [legalDisputeId, setTitle])

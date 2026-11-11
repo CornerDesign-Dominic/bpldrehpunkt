@@ -1,6 +1,22 @@
 const EXPECTED_CODES = new Set(['invalid-argument', 'failed-precondition', 'not-found', 'already-exists', 'permission-denied', 'unauthenticated', 'cancelled'])
 const TECHNICAL_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal', 'unknown', 'resource-exhausted'])
 
+// Case operations must surface access failures too. The generic classifier intentionally
+// suppresses these for other workflows; do not broaden their reporting implicitly.
+export function caseDiagnosticCode(error) {
+  const raw = typeof error?.code === 'string' ? error.code : ''
+  const code = raw.replace(/^(functions|firestore|storage)\//, '')
+  if (['permission-denied', 'unauthenticated', 'unauthorized'].includes(code)) return 'access-failure'
+  if (['cancelled', 'canceled', 'aborted', 'invalid-argument', 'already-exists', 'not-found'].includes(code)) return null
+  if (code === 'retry-limit-exceeded') return 'deadline-exceeded'
+  if (code === 'quota-exceeded') return 'resource-exhausted'
+  if (code === 'object-not-found') return 'unavailable'
+  if (code === 'failed-precondition') return 'storage-failure'
+  if (TECHNICAL_CODES.has(code)) return code
+  // Plain validation errors have no Firebase code and must not become diagnostics.
+  return raw.startsWith('storage/') ? 'storage-failure' : null
+}
+
 const MISSING_DOCUMENT_ASSET_CODES = new Set(['signature/not-uploaded', 'storage/object-not-found'])
 const ACCESS_DOCUMENT_ASSET_CODES = new Set([
   'functions/permission-denied', 'functions/unauthenticated',

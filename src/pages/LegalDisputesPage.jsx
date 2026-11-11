@@ -1,3 +1,4 @@
+import { reportCaseFailure } from '../lib/caseDiagnostics.js'
 import { presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
 import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
 import { createReturnState, resolveReturnNavigation, validReturnPath } from '../lib/recordNavigation.js'
@@ -63,7 +64,7 @@ export default function LegalDisputesPage() {
     let current = true
     Promise.all([listLegalDisputes(), canViewMasterData ? listBusinessPartners() : Promise.resolve([])])
       .then(([entries, businessPartners]) => { if (current) { setCases(entries); setPartners(businessPartners) } })
-      .catch(() => { if (current) setError('Die Fälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
+      .catch((error) => { reportCaseFailure('legal-disputes', 'load', error); if (current) setError('Die Fälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [canViewMasterData, editable])

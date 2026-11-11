@@ -1,4 +1,4 @@
-import { reportTechnicalFailure } from './diagnostics.js'
+import { caseOperation } from './caseDiagnostics.js'
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from './firebase.js'
@@ -68,34 +68,34 @@ export function createEmptyInsolvency() {
   return { partnerId: '', insolvencyDate: '', knownDate: '', courtReference: '', courtVenue: '' }
 }
 
-export async function listInsolvencies() {
+export const listInsolvencies = caseOperation('insolvencies', 'load', async function listInsolvencies() {
   return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt && !entry.mergedIntoPartnerId)
-}
+})
 
 export function insolvencyLossNet(claims, quotaPayments) {
   const sumNet = (entries) => entries.reduce((total, entry) => total + (Number(entry.netAmount) || 0), 0)
   return sumNet(claims) - sumNet(quotaPayments)
 }
 
-export async function listInsolvenciesWithLossNet() {
+export const listInsolvenciesWithLossNet = caseOperation('insolvencies', 'load', async function listInsolvenciesWithLossNet() {
   const insolvencies = await listInsolvencies()
   return Promise.all(insolvencies.map(async (insolvency) => {
     const [claims, quotaPayments] = await Promise.all([listInsolvencyClaims(insolvency.id), listInsolvencyQuotaPayments(insolvency.id)])
     return { ...insolvency, lossNet: insolvencyLossNet(claims, quotaPayments) }
   }))
-}
+})
 
-export async function getInsolvency(partnerId) {
+export const getInsolvency = caseOperation('insolvencies', 'load', async function getInsolvency(partnerId) {
   const snapshot = await getDoc(doc(db, INSOLVENCIES_COLLECTION, partnerId))
   return snapshot.exists() && !snapshot.data().splitArchivedAt && !snapshot.data().mergedIntoPartnerId ? mapSnapshot(snapshot) : null
-}
+})
 
-export async function listInsolvencyPartners() {
+export const listInsolvencyPartners = caseOperation('insolvencies', 'load', async function listInsolvencyPartners() {
   const result = await httpsCallable(functions, 'listInsolvencyPartners')()
   return Array.isArray(result.data?.partners) ? result.data.partners : []
-}
+})
 
-export async function createInsolvency(values, partner, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
+export const createInsolvency = caseOperation('insolvencies', 'save', async function createInsolvency(values, partner, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
   if (!partner?.id || !trim(partner.companyName)) throw new Error('Bitte ein betroffenes Unternehmen auswählen.')
   const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map(trim).filter(Boolean))]
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, partner.id)
@@ -120,9 +120,9 @@ export async function createInsolvency(values, partner, actor, { transportOrderI
   linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(batch, { caseType: 'insolvency', caseId: partner.id, transportOrderId, actor }))
   await batch.commit()
   return partner.id
-}
+})
 
-export async function updateInsolvency(insolvency, values, actor) {
+export const updateInsolvency = caseOperation('insolvencies', 'save', async function updateInsolvency(insolvency, values, actor) {
   const next = {
     insolvencyDate: optionalDate(values.insolvencyDate),
     knownDate: optionalDate(values.knownDate),
@@ -133,15 +133,15 @@ export async function updateInsolvency(insolvency, values, actor) {
   if (!Object.entries(next).some(([field, value]) => value !== (insolvency[field] ?? null))) return false
   await writeBatch(db).update(doc(db, INSOLVENCIES_COLLECTION, insolvency.id), { ...next, ...updateMetadata(actor) }).commit()
   return true
-}
+})
 
-export async function updateInsolvencyDescription(insolvency, value, actor) {
+export const updateInsolvencyDescription = caseOperation('insolvencies', 'save', async function updateInsolvencyDescription(insolvency, value, actor) {
   const description = optionalText(value)
   if (description && description.length > 4000) throw new Error('Die Beschreibung darf maximal 4.000 Zeichen enthalten.')
   if (description === (insolvency.description ?? null)) return false
   await writeBatch(db).update(doc(db, INSOLVENCIES_COLLECTION, insolvency.id), { description, knownDate: insolvency.knownDate ?? null, ...updateMetadata(actor) }).commit()
   return true
-}
+})
 
 export function createEmptyInsolvencyClaim() {
   return { invoiceNumber: '', netAmount: '', vatAmount: '', filedInInsolvencyTable: false }
@@ -165,32 +165,32 @@ export function insolvencyDeadlinePresentation(deadline, now = new Date()) {
   return { kind: 'none', label: `in ${days} Tagen` }
 }
 
-export async function listInsolvencyClaims(partnerId) {
+export const listInsolvencyClaims = caseOperation('insolvencies', 'load', async function listInsolvencyClaims(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'claims'))).docs
     .map(mapSnapshot)
     .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => left.invoiceNumber.localeCompare(right.invoiceNumber, 'de') || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
-}
+})
 
-export async function listInsolvencyQuotaPayments(partnerId) {
+export const listInsolvencyQuotaPayments = caseOperation('insolvencies', 'load', async function listInsolvencyQuotaPayments(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'quotaPayments'))).docs
     .map(mapSnapshot)
     .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => right.paymentDate.localeCompare(left.paymentDate) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
-}
+})
 
-export async function listInsolvencyDeadlines(partnerId) {
+export const listInsolvencyDeadlines = caseOperation('insolvencies', 'load', async function listInsolvencyDeadlines(partnerId) {
   return (await getDocs(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'deadlines'))).docs
     .map(mapSnapshot)
     .filter((entry) => !entry.splitArchivedAt)
     .sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
-}
+})
 
-export async function listInsolvencyUpdates(partnerId) {
+export const listInsolvencyUpdates = caseOperation('insolvencies', 'load', async function listInsolvencyUpdates(partnerId) {
   return (await getDocs(query(collection(db, INSOLVENCIES_COLLECTION, partnerId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt)
-}
+})
 
-export async function createInsolvencyClaim(insolvency, values, actor) {
+export const createInsolvencyClaim = caseOperation('insolvencies', 'save', async function createInsolvencyClaim(insolvency, values, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const claim = claimPayload(values)
   const batch = writeBatch(db)
@@ -198,9 +198,9 @@ export async function createInsolvencyClaim(insolvency, values, actor) {
   batch.set(doc(collection(insolvencyRef, 'claims')), { ...claim, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Rechnung ${claim.invoiceNumber} hinzugefügt.`, actor))
   await batch.commit()
-}
+})
 
-export async function updateInsolvencyClaim(insolvency, claim, values, actor) {
+export const updateInsolvencyClaim = caseOperation('insolvencies', 'save', async function updateInsolvencyClaim(insolvency, claim, values, actor) {
   const next = claimPayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== claim[field])) return false
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
@@ -213,18 +213,18 @@ export async function updateInsolvencyClaim(insolvency, claim, values, actor) {
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(message, actor))
   await batch.commit()
   return true
-}
+})
 
-export async function deleteInsolvencyClaim(insolvency, claim, actor) {
+export const deleteInsolvencyClaim = caseOperation('insolvencies', 'delete', async function deleteInsolvencyClaim(insolvency, claim, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.delete(doc(insolvencyRef, 'claims', claim.id))
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Rechnung ${claim.invoiceNumber} gelöscht.`, actor))
   await batch.commit()
-}
+})
 
-export async function createInsolvencyQuotaPayment(insolvency, values, actor) {
+export const createInsolvencyQuotaPayment = caseOperation('insolvencies', 'save', async function createInsolvencyQuotaPayment(insolvency, values, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const payment = quotaPaymentPayload(values)
   const batch = writeBatch(db)
@@ -232,9 +232,9 @@ export async function createInsolvencyQuotaPayment(insolvency, values, actor) {
   batch.set(doc(collection(insolvencyRef, 'quotaPayments')), { ...payment, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(payment.paymentDate)} hinzugefügt.`, actor))
   await batch.commit()
-}
+})
 
-export async function updateInsolvencyQuotaPayment(insolvency, payment, values, actor) {
+export const updateInsolvencyQuotaPayment = caseOperation('insolvencies', 'save', async function updateInsolvencyQuotaPayment(insolvency, payment, values, actor) {
   const next = quotaPaymentPayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== payment[field])) return false
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
@@ -244,18 +244,18 @@ export async function updateInsolvencyQuotaPayment(insolvency, payment, values, 
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(next.paymentDate)} bearbeitet.`, actor))
   await batch.commit()
   return true
-}
+})
 
-export async function deleteInsolvencyQuotaPayment(insolvency, payment, actor) {
+export const deleteInsolvencyQuotaPayment = caseOperation('insolvencies', 'delete', async function deleteInsolvencyQuotaPayment(insolvency, payment, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.delete(doc(insolvencyRef, 'quotaPayments', payment.id))
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Quotenzahlung vom ${formatDate(payment.paymentDate)} gelöscht.`, actor))
   await batch.commit()
-}
+})
 
-export async function createInsolvencyDeadline(insolvency, values, actor) {
+export const createInsolvencyDeadline = caseOperation('insolvencies', 'save', async function createInsolvencyDeadline(insolvency, values, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const deadline = insolvencyDeadlinePayload(values)
   const actorName = getUserDisplayName(actor.profile, actor.user)
@@ -263,10 +263,10 @@ export async function createInsolvencyDeadline(insolvency, values, actor) {
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.set(doc(collection(insolvencyRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin für ${insolvencyDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
-export async function updateInsolvencyDeadline(insolvency, deadline, values, actor) {
+export const updateInsolvencyDeadline = caseOperation('insolvencies', 'save', async function updateInsolvencyDeadline(insolvency, deadline, values, actor) {
   const next = insolvencyDeadlinePayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))) return false
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
@@ -274,15 +274,15 @@ export async function updateInsolvencyDeadline(insolvency, deadline, values, act
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.update(doc(insolvencyRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(next.date)} geändert.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
+  await batch.commit()
   return true
-}
+})
 
-export async function deleteInsolvencyDeadline(insolvency, deadline, actor) {
+export const deleteInsolvencyDeadline = caseOperation('insolvencies', 'delete', async function deleteInsolvencyDeadline(insolvency, deadline, actor) {
   const insolvencyRef = doc(db, INSOLVENCIES_COLLECTION, insolvency.id)
   const batch = writeBatch(db)
   batch.update(insolvencyRef, insolvencyMetadata(insolvency, actor))
   batch.delete(doc(insolvencyRef, 'deadlines', deadline.id))
   batch.set(doc(collection(insolvencyRef, 'updates')), updatePayload(`Termin vom ${insolvencyDeadlineLabel(deadline.date)} gelöscht.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})

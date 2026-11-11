@@ -11,6 +11,7 @@ const stageLabels = {
   preparation: 'Vorbereitung', configuration: 'Konfiguration', geocoding_origin: 'Geocoding Start',
   geocoding_destination: 'Geocoding Ziel', routing: 'Routing', load: 'Laden', send: 'Versand',
   history: 'Verlauf', save: 'Speichern', preview: 'Vorschau', dashboard: 'Dashboard', 'transport-orders': 'Transportaufträge',
+  delete: 'Löschen', upload: 'Dokument hochladen', download: 'Dokument laden', cleanup: 'Dokument bereinigen', responsibility: 'Zuständigkeit übertragen',
   partners: 'Partner', crm: 'CRM', administration: 'Administration', other: 'Sonstige Seite',
   'personal-signature-load': 'Persönliche Unterschrift laden', 'company-stamp-load': 'Firmenstempel laden', 'pdf-create': 'PDF erstellen',
 }

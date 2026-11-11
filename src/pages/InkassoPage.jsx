@@ -1,3 +1,4 @@
+import { reportCaseFailure } from '../lib/caseDiagnostics.js'
 import { presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
 import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
 import { createReturnState, resolveReturnNavigation, validReturnPath } from '../lib/recordNavigation.js'
@@ -51,7 +52,7 @@ export default function InkassoPage() {
     let current = true
     Promise.all([listInkassoCases(), canView('masterData') ? listBusinessPartners() : Promise.resolve([])])
       .then(([entries, businessPartners]) => { if (current) { setCases(entries); setPartners(businessPartners) } })
-      .catch(() => { if (current) setError('Die Inkassofälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
+      .catch((error) => { reportCaseFailure('inkasso', 'load', error); if (current) setError('Die Inkassofälle konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [canView, editable])

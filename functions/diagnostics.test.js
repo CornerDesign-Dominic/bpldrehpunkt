@@ -32,7 +32,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts', 'damages', 'inkasso', 'insolvencies'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 
@@ -186,7 +186,7 @@ test('link failures retain bounded record context and never accept client-writte
 
 
 test('new link diagnostics retain module boundaries and require order access for an order context', () => {
-  const profile = { role: 'user', permissions: { legalDisputes: 'view', crm: 'view' } }
+  const profile = { active: true, role: 'user', permissions: { legalDisputes: 'view', crm: 'view' } }
   assert.equal(canReportLinkDiagnostic(profile, 'legal-disputes'), true)
   assert.equal(canReportLinkDiagnostic(profile, 'partner-links'), true)
   assert.equal(canReportLinkDiagnostic(profile, 'case-links', 'order-1'), false)
@@ -200,5 +200,32 @@ test('liability client diagnostics accept only fixed messages and no order conte
     const event = normalizeClientDiagnostic({ module: 'document-templates', stage, code: 'unavailable', message: 'Sensitive incident text' })
     assert.equal(event.message.includes('Sensitive'), false)
     assert.throws(() => normalizeClientDiagnostic({ module: 'document-templates', stage, code: 'unavailable', orderId: 'private-order' }), { code: 'invalid-argument' })
+  }
+})
+
+
+test('all case modules accept bounded access/storage diagnostics with fixed text and module access', () => {
+  const modules = { damages: 'damages', inkasso: 'inkasso', 'legal-disputes': 'legalDisputes', insolvencies: 'insolvencies' }
+  for (const [module, permission] of Object.entries(modules)) {
+    for (const stage of ['load', 'save', 'delete', 'upload', 'download', 'cleanup', 'responsibility']) {
+      for (const code of ['access-failure', 'storage-failure', 'unavailable']) {
+        const event = normalizeClientDiagnostic({ module, stage, code, message: 'secret case text', details: { filename: 'secret.pdf' }, actorId: 'forged-user' })
+        assert.equal(event.module, module)
+        assert.equal(event.stage, stage)
+        assert.equal(event.code, code)
+        assert.equal(event.recordId, undefined)
+        assert(!JSON.stringify(event).includes('secret'))
+        assert(!JSON.stringify(event).includes('forged'))
+      }
+      for (const privateContext of [{ recordId: 'private-case' }, { orderId: 'private-order' }]) {
+        assert.throws(() => normalizeClientDiagnostic({ module, stage, code: 'access-failure', ...privateContext }), { code: 'invalid-argument' })
+      }
+    }
+    assert.equal(canReportLinkDiagnostic({ active: true, permissions: { [permission]: 'view' } }, module), true)
+    assert.equal(canReportLinkDiagnostic({ active: true, permissions: { [permission]: 'edit' } }, module), true)
+    assert.equal(canReportLinkDiagnostic({ active: false, role: 'superadmin' }, module), false)
+    assert.equal(canReportLinkDiagnostic({ active: true, role: 'admin', permissions: {} }, module), false)
+    assert.equal(canReportLinkDiagnostic({ active: true, permissions: { pallets: 'edit' } }, module), false)
+    assert.throws(() => normalizeClientDiagnostic({ module, stage: 'arbitrary-case-text', code: 'access-failure' }), { code: 'invalid-argument' })
   }
 })

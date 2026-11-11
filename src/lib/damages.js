@@ -1,4 +1,4 @@
-import { reportTechnicalFailure } from './diagnostics.js'
+import { caseOperation } from './caseDiagnostics.js'
 import {
   collection,
   doc,
@@ -155,18 +155,18 @@ export function sortDamageCases(cases) {
   })
 }
 
-export async function listDamageCases() {
+export const listDamageCases = caseOperation('damages', 'load', async function listDamageCases() {
   const snapshots = await getDocs(query(damageCasesRef, orderBy('createdAt', 'desc')))
   const damageCases = snapshots.docs.map(mapSnapshot)
   return Promise.all(damageCases.map(async (damageCase) => ({ ...damageCase, nextDeadline: nextDamageDeadline(await listDamageCaseDeadlines(damageCase.id)) })))
-}
+})
 
-export async function getDamageCase(damageCaseId) {
+export const getDamageCase = caseOperation('damages', 'load', async function getDamageCase(damageCaseId) {
   const snapshot = await getDoc(doc(db, DAMAGE_CASES_COLLECTION, damageCaseId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null
-}
+})
 
-export async function createDamageCase(values, actor, responsibleUsersById, { transportOrderId = '', transportOrderIds = [] } = {}) {
+export const createDamageCase = caseOperation('damages', 'save', async function createDamageCase(values, actor, responsibleUsersById, { transportOrderId = '', transportOrderIds = [] } = {}) {
   const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
   const year = String(new Date().getFullYear())
   const counterRef = doc(db, 'damageCaseCounters', year)
@@ -195,17 +195,17 @@ export async function createDamageCase(values, actor, responsibleUsersById, { tr
     linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(transaction, { caseType: 'damage', caseId: caseRef.id, transportOrderId, actor }))
   })
   return caseRef.id
-}
+})
 
-export async function updateDamageCase(damageCase, values, actor, responsibleUsersById) {
+export const updateDamageCase = caseOperation('damages', 'save', async function updateDamageCase(damageCase, values, actor, responsibleUsersById) {
   await updateDamageCaseFields(damageCase, values, actor, responsibleUsersById)
-}
+})
 
 function damageUpdatePayload(type, text, actor) {
   return { type, text, createdByUserId: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), createdAt: serverTimestamp() }
 }
 
-export async function addDamageCaseSystemUpdate(damageCase, text, actor) {
+export const addDamageCaseSystemUpdate = caseOperation('damages', 'save', async function addDamageCaseSystemUpdate(damageCase, text, actor) {
   const cleanText = trim(text)
   if (!cleanText) throw new Error('Bitte einen Systemeintrag angeben.')
   if (cleanText.length > 1000) throw new Error('Der Systemeintrag ist zu lang.')
@@ -213,7 +213,7 @@ export async function addDamageCaseSystemUpdate(damageCase, text, actor) {
   const batch = writeBatch(db)
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', cleanText, actor))
   await batch.commit()
-}
+})
 
 function changeMessages(previous, next) {
   const messages = []
@@ -274,22 +274,22 @@ export function nextDamageDeadline(deadlines, now = new Date()) {
   return datedDeadlines.filter((deadline) => new Date(`${deadline.date}T12:00:00`) >= today).sort((left, right) => left.date.localeCompare(right.date))[0] || null
 }
 
-export async function listDamageCaseDeadlines(damageCaseId) {
+export const listDamageCaseDeadlines = caseOperation('damages', 'load', async function listDamageCaseDeadlines(damageCaseId) {
   const snapshots = await getDocs(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'deadlines'))
   return snapshots.docs.map(mapSnapshot).sort((left, right) => left.date.localeCompare(right.date) || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
-}
+})
 
-export async function createDamageCaseDeadline(damageCase, values, actor) {
+export const createDamageCaseDeadline = caseOperation('damages', 'save', async function createDamageCaseDeadline(damageCase, values, actor) {
   const deadline = damageDeadlinePayload(values)
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin für ${damageDeadlineLabel(deadline.date)} hinzugefügt.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
-export async function updateDamageCaseDeadline(damageCase, deadline, values, actor) {
+export const updateDamageCaseDeadline = caseOperation('damages', 'save', async function updateDamageCaseDeadline(damageCase, deadline, values, actor) {
   const next = damageDeadlinePayload(values)
   const changed = Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))
   if (!changed) return false
@@ -298,18 +298,18 @@ export async function updateDamageCaseDeadline(damageCase, deadline, values, act
   batch.update(caseRef, updateMetadata(actor))
   batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin vom ${damageDeadlineLabel(next.date)} geändert.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
+  await batch.commit()
   return true
-}
+})
 
-export async function deleteDamageCaseDeadline(damageCase, deadline, actor) {
+export const deleteDamageCaseDeadline = caseOperation('damages', 'delete', async function deleteDamageCaseDeadline(damageCase, deadline, actor) {
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'deadlines', deadline.id))
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Termin vom ${damageDeadlineLabel(deadline.date)} gelöscht.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
 export function createEmptyDamageMovement() {
   return { date: new Date().toISOString().slice(0, 10), transactionType: 'received', counterpartyType: 'customer', amount: '' }
@@ -330,12 +330,12 @@ function normalizeDamageMovement(movement) {
   }
 }
 
-export async function listDamageCaseMovements(damageCaseId) {
+export const listDamageCaseMovements = caseOperation('damages', 'load', async function listDamageCaseMovements(damageCaseId) {
   const snapshots = await getDocs(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'movements'))
   return snapshots.docs.map(mapSnapshot).map(normalizeDamageMovement).sort((left, right) => right.date.localeCompare(left.date) || (right.createdAt?.seconds || 0) - (left.createdAt?.seconds || 0))
-}
+})
 
-export async function createDamageCaseMovement(damageCase, values, actor) {
+export const createDamageCaseMovement = caseOperation('damages', 'save', async function createDamageCaseMovement(damageCase, values, actor) {
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
   const movement = damageMovementPayload(values)
   const batch = writeBatch(db)
@@ -343,9 +343,9 @@ export async function createDamageCaseMovement(damageCase, values, actor) {
   batch.set(doc(collection(caseRef, 'movements')), { ...movement, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Betragsbewegung hinzugefügt: ${damageMovementLabel(movement)}`, actor))
   await batch.commit()
-}
+})
 
-export async function updateDamageCaseMovement(damageCase, movement, values, actor) {
+export const updateDamageCaseMovement = caseOperation('damages', 'save', async function updateDamageCaseMovement(damageCase, movement, values, actor) {
   const next = damageMovementPayload(values)
   const changed = Object.entries(next).some(([field, value]) => value !== (movement[field] ?? null))
   if (!changed) return false
@@ -356,18 +356,18 @@ export async function updateDamageCaseMovement(damageCase, movement, values, act
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Betragsbewegung aktualisiert: ${damageMovementLabel(next)}`, actor))
   await batch.commit()
   return true
-}
+})
 
-export async function deleteDamageCaseMovement(damageCase, movement, actor) {
+export const deleteDamageCaseMovement = caseOperation('damages', 'delete', async function deleteDamageCaseMovement(damageCase, movement, actor) {
   const caseRef = doc(db, DAMAGE_CASES_COLLECTION, damageCase.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'movements', movement.id))
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', `Betragsbewegung gelöscht: ${damageMovementLabel(movement)}`, actor))
   await batch.commit()
-}
+})
 
-export async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById, systemMessages = null) {
+export const updateDamageCaseFields = caseOperation('damages', 'save', async function updateDamageCaseFields(damageCase, changes, actor, responsibleUsersById, systemMessages = null) {
   const values = { ...damageCase, ...changes }
   values.title = damageCaseTitle(damageCase.caseNumber, values.damageDate)
   const next = payload(values, responsibleUsersById)
@@ -380,13 +380,13 @@ export async function updateDamageCaseFields(damageCase, changes, actor, respons
   messages.filter(Boolean).forEach((text) => batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('system', text, actor)))
   await batch.commit()
   return true
-}
+})
 
-export async function listDamageCaseUpdates(damageCaseId) {
+export const listDamageCaseUpdates = caseOperation('damages', 'load', async function listDamageCaseUpdates(damageCaseId) {
   return (await getDocs(query(collection(db, DAMAGE_CASES_COLLECTION, damageCaseId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
-}
+})
 
-export async function addDamageCaseUpdate(damageCase, text, actor, responsibleUsersById) {
+export const addDamageCaseUpdate = caseOperation('damages', 'save', async function addDamageCaseUpdate(damageCase, text, actor, responsibleUsersById) {
   const cleanText = trim(text)
   if (!cleanText) throw new Error('Bitte einen Update-Text eingeben.')
   if (cleanText.length > 1000) throw new Error('Das Update ist zu lang.')
@@ -395,4 +395,4 @@ export async function addDamageCaseUpdate(damageCase, text, actor, responsibleUs
   batch.update(caseRef, { ...payload(damageCase, responsibleUsersById), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), damageUpdatePayload('note', cleanText, actor))
   await batch.commit()
-}
+})

@@ -34,8 +34,8 @@ test('invoice creation, editing, and payment changes keep the case totals atomic
   assert.match(invoicesRule, /affectedKeys\(\)\.hasOnly\(\['invoiceNumber', 'netAmount', 'vatAmount', 'grossAmount'\]\)/)
   assert.match(invoicesRule, /invoiceAmountsFollowEdit\(\)/)
   assert.match(invoicesRule, /invoiceAmountsFollowPaymentChange\(\)/)
-  assert.match(client, /export async function createInkassoCaseInvoice/)
-  assert.match(client, /export async function updateInkassoCaseInvoice/)
+  assert.match(client, /export const createInkassoCaseInvoice = caseOperation\('inkasso', 'save', async function createInkassoCaseInvoice/)
+  assert.match(client, /export const updateInkassoCaseInvoice = caseOperation\('inkasso', 'save', async function updateInkassoCaseInvoice/)
 })
 
 test('inkasso deadlines require an atomic parent update and retain creation metadata', () => {

@@ -34,10 +34,13 @@ const trim = (value) => (value ?? '').trim()
 const timestampValue = (value) => value?.toMillis?.() ?? 0
 const mapSnapshot = (snapshot) => ({ id: snapshot.id, ...snapshot.data() })
 
-function actorName(actor) { return getUserDisplayName(actor.profile, actor.user) }
+// Rules validate this display snapshot against the authoritative user profile.
+// Authentication email may differ during profile migrations; prefer the same
+// persisted fallback used by the rules rather than an arbitrary client label.
+function actorName(actor) { return getUserDisplayName(actor.profile, { email: actor.profile?.email }) }
 function updateCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'updates') }
 function deadlineCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'deadlines') }
-function systemUpdate(text, actor) { return { text, type: 'system', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() } }
+function systemUpdate(text, actor) { return { text: text.length > 1000 ? `${text.slice(0, 999)}…` : text, type: 'system', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() } }
 function uniqueIds(ids) { return [...new Set((ids || []).filter(Boolean))] }
 function optionalId(value) { return trim(value) || null }
 function optionalName(value) { return trim(value) || null }

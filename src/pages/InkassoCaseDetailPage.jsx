@@ -1,3 +1,4 @@
+import { reportCaseFailure } from '../lib/caseDiagnostics.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
@@ -78,7 +79,7 @@ export default function InkassoCaseDetailPage() {
   useEffect(() => {
     let current = true
     if (!canViewMasterData || !inkassoCase?.debtorPartnerId) return undefined
-    getEffectiveBusinessPartner(inkassoCase.debtorPartnerId).then((partner) => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: partner }) }).catch(() => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: null }) })
+    getEffectiveBusinessPartner(inkassoCase.debtorPartnerId).then((partner) => { if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: partner }) }).catch((error) => { reportCaseFailure('inkasso', 'load', error); if (current) setEffectivePartnerResult({ partnerId: inkassoCase.debtorPartnerId, data: null }) })
     return () => { current = false }
   }, [canViewMasterData, inkassoCase?.debtorPartnerId])
 
@@ -91,7 +92,7 @@ export default function InkassoCaseDetailPage() {
     let current = true
     Promise.all([getInkassoCase(caseId), listInkassoCaseUpdates(caseId), listInkassoCaseHistory(caseId), listInkassoCaseDocuments(caseId), listInkassoCaseInvoices(caseId), listInkassoCaseDeadlines(caseId), listInkassoCaseMovements(caseId)])
       .then(([entry, caseUpdates, caseHistory, caseDocuments, caseInvoices, caseDeadlines, caseMovements]) => { if (current) { setInkassoCase(entry); setUpdates(caseUpdates); setHistoryEntries(caseHistory); setDocuments(caseDocuments); setInvoices(caseInvoices); setDeadlines(caseDeadlines); setMovements(caseMovements); setTitle(entry?.caseNumber || ''); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setDeadlinesLoading(false); setMovementsLoading(false) } })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Inkassofall.' : 'Der Inkassofall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setDeadlinesLoading(false); setMovementsLoading(false) } })
+      .catch((loadError) => { reportCaseFailure('inkasso', 'load', loadError); if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Inkassofall.' : 'Der Inkassofall konnte nicht geladen werden.'); setUpdatesLoading(false); setDocumentsLoading(false); setInvoicesLoading(false); setDeadlinesLoading(false); setMovementsLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false; setTitle('') }
   }, [caseId, editable, setTitle])

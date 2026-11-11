@@ -4,14 +4,18 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts', 'damages', 'inkasso', 'insolvencies'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
+const CASE_MODULE_PERMISSIONS = Object.freeze({ damages: 'damages', inkasso: 'inkasso', 'legal-disputes': 'legalDisputes', insolvencies: 'insolvencies' })
+const CASE_MESSAGES = Object.freeze({ load: 'Falldaten konnten nicht geladen werden.', save: 'Falländerung konnte nicht gespeichert werden.', delete: 'Falleintrag konnte nicht gelöscht werden.', upload: 'Falldokument konnte nicht hochgeladen werden.', download: 'Falldokument konnte nicht geladen werden.', cleanup: 'Falldokument konnte nach fehlgeschlagenem Speichern nicht bereinigt werden.', responsibility: 'Fallzuständigkeit konnte nicht übertragen werden.' })
+const CASE_STAGES = ['load', 'save', 'delete', 'upload', 'download', 'cleanup', 'responsibility']
 const CLIENT_STAGES = Object.freeze({
+  damages: CASE_STAGES, inkasso: CASE_STAGES, insolvencies: CASE_STAGES,
   contracts: ['load', 'save', 'delete', 'upload', 'download'],
   'case-links': ['load', 'save'],
   'partner-links': ['load', 'resolve', 'resolve-list', 'revalidate', 'reload-after-save', 'save'],
-  'legal-disputes': ['load-counterparty', 'load-counterparty-options'],
+  'legal-disputes': [...CASE_STAGES, 'load-counterparty', 'load-counterparty-options'],
   reminders: ['status', 'responsibility', 'save', 'load'],
   'transport-orders': ['load', 'list', 'history', 'refresh'],
   pallets: ['load', 'save', 'rebuild'],
@@ -26,7 +30,7 @@ const CLIENT_STAGES = Object.freeze({
   'document-templates': ['personal-signature-load', 'company-stamp-load', 'pdf-create', 'order-search', 'order-fetch', 'wording'],
   website: ['dashboard', 'transport-orders', 'partners', 'crm', 'administration', 'other'],
 })
-const CLIENT_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal', 'unknown', 'resource-exhausted', 'runtime-error', 'unhandled-rejection', 'invalid-response', 'access-failure'])
+const CLIENT_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal', 'unknown', 'resource-exhausted', 'runtime-error', 'unhandled-rejection', 'invalid-response', 'access-failure', 'storage-failure'])
 const CLIENT_MESSAGES = {
   'message-state': 'Der Gelesen-Status oder das Fähnchen konnte nicht mit Microsoft abgeglichen werden.',
   'order-search': 'Die Auftragssuche für die Haftbarhaltung ist fehlgeschlagen.',
@@ -63,7 +67,7 @@ const MAILBOX_MESSAGES = {
 export function canReportLinkDiagnostic(profile, module, orderId = '') {
   const view = (key) => profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[key])
   if (module === 'reminders') return profile?.active === true && ['calendar', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
-  if (module === 'legal-disputes') return view('legalDisputes')
+  if (CASE_MODULE_PERMISSIONS[module]) return profile?.active === true && view(CASE_MODULE_PERMISSIONS[module])
   if (module === 'partner-links') return view('masterData') || view('crm')
   if (module === 'case-links') return ['damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view) && (!orderId || view('transportOrders'))
   if (module === 'transport-orders') return view('transportOrders')
@@ -109,12 +113,13 @@ export function normalizeClientDiagnostic(data) {
   const code = safeText(data?.code, 80)
   const orderId = safeText(data?.orderId, 240)
   const recordId = safeText(data?.recordId, 240)
+  if (CASE_MODULE_PERMISSIONS[module] && (data?.orderId || (data?.recordId && !['load-counterparty', 'load-counterparty-options'].includes(stage)))) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
   if (['website', 'document-templates', 'mailboxes', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'contracts'].includes(module) && orderId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (module === 'mailboxes' && data?.recordId) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (['kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && data?.recordId && (typeof data.recordId !== 'string' || data.recordId.length > 240 || !recordId || data.recordId.includes('/') || [...data.recordId].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127))) throw new HttpsError('invalid-argument', 'Ungültige Vorgangs-ID.')
-  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && recordId ? { recordId } : {}), message: MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
+  return { module, stage, code, orderId, ...(['kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'pallets', 'calendar', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts'].includes(module) && recordId ? { recordId } : {}), message: CASE_MODULE_PERMISSIONS[module] && CASE_STAGES.includes(stage) ? CASE_MESSAGES[stage] : MAILBOX_MESSAGES[module]?.[stage] || CLIENT_MESSAGES[stage] || CLIENT_MESSAGES.website }
 }
 
 export async function reportClientDiagnosticHandler(request) {

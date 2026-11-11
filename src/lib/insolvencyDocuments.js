@@ -1,3 +1,4 @@
+import { caseOperation, reportCaseFailure } from './caseDiagnostics.js'
 import { collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
 import { deleteObject, getBlob, ref, uploadBytes } from 'firebase/storage'
 import { DocumentOperationError, getPdfFileError, isPdfFile } from './documents.js'
@@ -11,16 +12,15 @@ function sanitizeFileName(name) { return name.replace(/[^a-zA-Z0-9._-]/g, '_').r
 function metadataPayload(values) { return { title: trim(values.title), description: trim(values.description) } }
 
 function documentFailure(stage, error) {
-  console.error(`Insolvenzen: Firebase-Fehler bei ${stage}.`, error)
   return new DocumentOperationError(stage, error)
 }
 
-export async function listInsolvencyDocuments(partnerId) {
+export const listInsolvencyDocuments = caseOperation('insolvencies', 'load', async function listInsolvencyDocuments(partnerId) {
   const snapshot = await getDocs(collection(db, 'insolvencies', partnerId, 'documents'))
   return snapshot.docs.map(mapSnapshot).filter((entry) => !entry.splitArchivedAt).sort((left, right) => timestampValue(right.updatedAt || right.createdAt) - timestampValue(left.updatedAt || left.createdAt))
-}
+})
 
-export async function createInsolvencyDocument(partnerId, values, file, uploader = {}) {
+export const createInsolvencyDocument = caseOperation('insolvencies', 'upload', async function createInsolvencyDocument(partnerId, values, file, uploader = {}) {
   if (!isPdfFile(file)) throw new Error('Nur PDF-Dateien sind zulässig.')
   const fileError = getPdfFileError(file)
   if (fileError) throw new Error(fileError)
@@ -32,22 +32,22 @@ export async function createInsolvencyDocument(partnerId, values, file, uploader
   try {
     await setDoc(documentRef, { id: documentRef.id, ...metadataPayload(values), pageCount: null, fileName: file.name, storagePath, contentType: 'application/pdf', fileSize: file.size, uploadedByUserId: uploader.id || null, uploadedByName: trim(uploader.name), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
   } catch (error) {
-    await deleteObject(ref(storage, storagePath)).catch((cleanupError) => console.error('Insolvenzen: hochgeladene PDF konnte nach fehlgeschlagenem Dokumenteintrag nicht entfernt werden.', cleanupError))
+    await deleteObject(ref(storage, storagePath)).catch((error) => { reportCaseFailure('insolvencies', 'cleanup', error) })
     throw documentFailure('createRecord', error)
   }
-}
+})
 
-export async function updateInsolvencyDocument(partnerId, documentItem, values) {
+export const updateInsolvencyDocument = caseOperation('insolvencies', 'save', async function updateInsolvencyDocument(partnerId, documentItem, values) {
   try { await updateDoc(doc(db, 'insolvencies', partnerId, 'documents', documentItem.id), { ...metadataPayload(values), updatedAt: serverTimestamp() }) } catch (error) { throw documentFailure('updateRecord', error) }
-}
+})
 
-export async function deleteInsolvencyDocument(partnerId, documentItem) {
+export const deleteInsolvencyDocument = caseOperation('insolvencies', 'delete', async function deleteInsolvencyDocument(partnerId, documentItem) {
   if (documentItem.storagePath) {
     try { await deleteObject(ref(storage, documentItem.storagePath)) } catch (error) { throw documentFailure('deleteFile', error) }
   }
   try { await deleteDoc(doc(db, 'insolvencies', partnerId, 'documents', documentItem.id)) } catch (error) { throw documentFailure('deleteRecord', error) }
-}
+})
 
-export async function getInsolvencyDocumentBlob(documentItem) {
+export const getInsolvencyDocumentBlob = caseOperation('insolvencies', 'download', async function getInsolvencyDocumentBlob(documentItem) {
   try { return await getBlob(ref(storage, documentItem.storagePath)) } catch (error) { throw documentFailure('readFile', error) }
-}
+})

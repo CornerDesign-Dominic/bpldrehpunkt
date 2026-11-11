@@ -1,3 +1,4 @@
+import { reportCaseFailure } from '../lib/caseDiagnostics.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import CaseReminderResponsibility from '../components/reminders/CaseReminderResponsibility.jsx'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
@@ -69,7 +70,7 @@ export default function InsolvencyDetailPage() {
   useEffect(() => {
     if (!canViewMasterData) return undefined
     let current = true
-    getEffectiveBusinessPartner(partnerId).then((partner) => { if (current) setEffectivePartner(partner) }).catch(() => { if (current) setEffectivePartner(null) })
+    getEffectiveBusinessPartner(partnerId).then((partner) => { if (current) setEffectivePartner(partner) }).catch((error) => { reportCaseFailure('insolvencies', 'load', error); if (current) setEffectivePartner(null) })
     return () => { current = false }
   }, [canViewMasterData, partnerId])
 
@@ -95,7 +96,7 @@ export default function InsolvencyDetailPage() {
         if (!entry) throw new Error('Der Insolvenzfall wurde nicht gefunden.')
         if (current) { setInsolvency(entry); setDocuments(entries); setClaims(insolvencyClaims); setQuotaPayments(insolvencyQuotaPayments); setDeadlines(insolvencyDeadlines); setHistory(insolvencyHistory); setDocumentsLoading(false); setFinancialLoading(false); setDeadlinesLoading(false); setHistoryLoading(false) }
       })
-      .catch((loadError) => { if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Insolvenzfall.' : loadError.message || 'Der Insolvenzfall konnte nicht geladen werden.'); setDocumentsLoading(false); setFinancialLoading(false); setDeadlinesLoading(false); setHistoryLoading(false) } })
+      .catch((loadError) => { reportCaseFailure('insolvencies', 'load', loadError); if (current) { setError(loadError.code === 'permission-denied' ? 'Kein Zugriff auf diesen Insolvenzfall.' : loadError.message || 'Der Insolvenzfall konnte nicht geladen werden.'); setDocumentsLoading(false); setFinancialLoading(false); setDeadlinesLoading(false); setHistoryLoading(false) } })
       .finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [partnerId])

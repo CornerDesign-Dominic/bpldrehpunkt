@@ -1,4 +1,4 @@
-import { reportTechnicalFailure } from './diagnostics.js'
+import { caseOperation } from './caseDiagnostics.js'
 import { collection, doc, getDoc, getDocs, orderBy, query, runTransaction, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from './firebase.js'
 import { getUserDisplayName } from './userProfiles.js'
@@ -88,7 +88,7 @@ export function createEmptyLegalDispute() {
   }
 }
 
-export async function createLegalDispute(values, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
+export const createLegalDispute = caseOperation('legal-disputes', 'save', async function createLegalDispute(values, actor, { transportOrderId = '', transportOrderIds = [] } = {}) {
   const transportReference = trim(values.transportReference)
   if (!transportReference) throw new Error('Bitte die Transportauftragsnummer eingeben.')
   const linkedTransportOrderIds = [...new Set([transportOrderId, ...(Array.isArray(transportOrderIds) ? transportOrderIds : [])].map((id) => String(id || '').trim()).filter(Boolean))]
@@ -168,21 +168,21 @@ export async function createLegalDispute(values, actor, { transportOrderId = '',
     linkedTransportOrderIds.forEach((transportOrderId) => setTransportOrderCaseLink(transaction, { caseType: 'legalDispute', caseId: caseRef.id, transportOrderId, actor }))
   })
   return caseRef.id
-}
+})
 
-export async function getLegalDispute(legalDisputeId) {
+export const getLegalDispute = caseOperation('legal-disputes', 'load', async function getLegalDispute(legalDisputeId) {
   const snapshot = await getDoc(doc(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null
-}
+})
 
-export async function listLegalDisputes() {
+export const listLegalDisputes = caseOperation('legal-disputes', 'load', async function listLegalDisputes() {
   const disputes = (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION), orderBy('updatedAt', 'desc')))).docs.map(mapSnapshot)
   return Promise.all(disputes.map(async (legalDispute) => ({ ...legalDispute, nextSchedule: nextLegalDisputeDeadline(await listLegalDisputeDeadlines(legalDispute.id)) })))
-}
+})
 
-export async function listLegalDisputeUpdates(legalDisputeId) {
+export const listLegalDisputeUpdates = caseOperation('legal-disputes', 'load', async function listLegalDisputeUpdates(legalDisputeId) {
   return (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'updates'), orderBy('createdAt', 'desc')))).docs.map(mapSnapshot)
-}
+})
 
 export function createEmptyLegalDisputeDeadline() {
   return { type: 'deadline', date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' }
@@ -207,22 +207,22 @@ export function nextLegalDisputeDeadline(deadlines, now = new Date()) {
   return datedDeadlines.filter((deadline) => new Date(`${deadline.date}T12:00:00`) >= today).sort(byDate)[0] || null
 }
 
-export async function listLegalDisputeDeadlines(legalDisputeId) {
+export const listLegalDisputeDeadlines = caseOperation('legal-disputes', 'load', async function listLegalDisputeDeadlines(legalDisputeId) {
   const snapshots = await getDocs(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'deadlines'))
   return snapshots.docs.map(mapSnapshot).sort((left, right) => left.date.localeCompare(right.date) || (left.time || '').localeCompare(right.time || '') || (left.createdAt?.seconds || 0) - (right.createdAt?.seconds || 0))
-}
+})
 
-export async function createLegalDisputeDeadline(legalDispute, values, actor) {
+export const createLegalDisputeDeadline = caseOperation('legal-disputes', 'save', async function createLegalDisputeDeadline(legalDispute, values, actor) {
   const deadline = legalDisputeDeadlinePayload(values)
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'deadlines')), { ...deadline, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} hinzugefügt.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
-export async function updateLegalDisputeDeadline(legalDispute, deadline, values, actor) {
+export const updateLegalDisputeDeadline = caseOperation('legal-disputes', 'save', async function updateLegalDisputeDeadline(legalDispute, deadline, values, actor) {
   const next = legalDisputeDeadlinePayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== (deadline[field] ?? null))) return false
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
@@ -230,28 +230,28 @@ export async function updateLegalDisputeDeadline(legalDispute, deadline, values,
   batch.update(caseRef, updateMetadata(actor))
   batch.update(doc(caseRef, 'deadlines', deadline.id), { ...next, ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(next)} aktualisiert.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
+  await batch.commit()
   return true
-}
+})
 
-export async function deleteLegalDisputeDeadline(legalDispute, deadline, actor) {
+export const deleteLegalDisputeDeadline = caseOperation('legal-disputes', 'delete', async function deleteLegalDisputeDeadline(legalDispute, deadline, actor) {
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'deadlines', deadline.id))
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `${legalDisputeDeadlineLabel(deadline)} gelöscht.`, actor))
-  try { await batch.commit() } catch (error) { if (!['aborted', 'permission-denied', 'unauthenticated', 'invalid-argument', 'not-found'].includes(error?.code)) void reportTechnicalFailure({ module: 'reminders', stage: 'save', error }); throw error }
-}
+  await batch.commit()
+})
 
 export function createEmptyLegalDisputeFinancialEntry() {
   return { date: new Date().toISOString().slice(0, 10), direction: 'paid', payeeType: '', netAmount: '', vatAmount: '' }
 }
 
-export async function listLegalDisputeFinancialEntries(legalDisputeId) {
+export const listLegalDisputeFinancialEntries = caseOperation('legal-disputes', 'load', async function listLegalDisputeFinancialEntries(legalDisputeId) {
   return (await getDocs(query(collection(db, LEGAL_DISPUTES_COLLECTION, legalDisputeId, 'financialEntries'), orderBy('date', 'desc')))).docs.map(mapSnapshot)
-}
+})
 
-export async function createLegalDisputeFinancialEntry(legalDispute, values, actor) {
+export const createLegalDisputeFinancialEntry = caseOperation('legal-disputes', 'save', async function createLegalDisputeFinancialEntry(legalDispute, values, actor) {
   const entry = financialEntryPayload(values)
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
@@ -259,9 +259,9 @@ export async function createLegalDisputeFinancialEntry(legalDispute, values, act
   batch.set(doc(collection(caseRef, 'financialEntries')), { ...entry, createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: getUserDisplayName(actor.profile, actor.user), ...updateMetadata(actor) })
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Zahlungsposition hinzugefügt: ${financialEntryLabel(entry)}`, actor))
   await batch.commit()
-}
+})
 
-export async function updateLegalDisputeFinancialEntry(legalDispute, entry, values, actor) {
+export const updateLegalDisputeFinancialEntry = caseOperation('legal-disputes', 'save', async function updateLegalDisputeFinancialEntry(legalDispute, entry, values, actor) {
   const next = financialEntryPayload(values)
   if (!Object.entries(next).some(([field, value]) => value !== entry[field])) return false
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
@@ -271,18 +271,18 @@ export async function updateLegalDisputeFinancialEntry(legalDispute, entry, valu
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Zahlungsposition aktualisiert: ${financialEntryLabel(next)}`, actor))
   await batch.commit()
   return true
-}
+})
 
-export async function deleteLegalDisputeFinancialEntry(legalDispute, entry, actor) {
+export const deleteLegalDisputeFinancialEntry = caseOperation('legal-disputes', 'delete', async function deleteLegalDisputeFinancialEntry(legalDispute, entry, actor) {
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   const batch = writeBatch(db)
   batch.update(caseRef, updateMetadata(actor))
   batch.delete(doc(caseRef, 'financialEntries', entry.id))
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', `Zahlungsposition gelöscht: ${financialEntryLabel(entry)}`, actor))
   await batch.commit()
-}
+})
 
-export async function addLegalDisputeUpdate(legalDispute, text, actor) {
+export const addLegalDisputeUpdate = caseOperation('legal-disputes', 'save', async function addLegalDisputeUpdate(legalDispute, text, actor) {
   const cleanText = trim(text)
   if (!cleanText) throw new Error('Bitte einen Update-Text eingeben.')
   if (cleanText.length > 1000) throw new Error('Das Update ist zu lang.')
@@ -291,16 +291,16 @@ export async function addLegalDisputeUpdate(legalDispute, text, actor) {
   batch.update(caseRef, updateMetadata(actor))
   batch.set(doc(collection(caseRef, 'updates')), updatePayload('note', cleanText, actor))
   await batch.commit()
-}
+})
 
-export async function addLegalDisputeSystemUpdate(legalDispute, text, actor) {
+export const addLegalDisputeSystemUpdate = caseOperation('legal-disputes', 'save', async function addLegalDisputeSystemUpdate(legalDispute, text, actor) {
   const cleanText = trim(text)
   if (!cleanText) throw new Error('Bitte einen Systemeintrag angeben.')
   const caseRef = doc(db, LEGAL_DISPUTES_COLLECTION, legalDispute.id)
   await writeBatch(db).set(doc(collection(caseRef, 'updates')), updatePayload('system', cleanText, actor)).commit()
-}
+})
 
-export async function updateLegalDisputeFields(legalDispute, changes, actor, systemText) {
+export const updateLegalDisputeFields = caseOperation('legal-disputes', 'save', async function updateLegalDisputeFields(legalDispute, changes, actor, systemText) {
   const nextStatus = changes.status || legalDispute.status
   const next = { ...changes, status: nextStatus, isClosed: nextStatus === 'completed' }
   if (Object.hasOwn(changes, 'transportReference') || Object.hasOwn(changes, 'counterparty')) {
@@ -316,4 +316,4 @@ export async function updateLegalDisputeFields(legalDispute, changes, actor, sys
   batch.update(caseRef, { ...next, ...updateMetadata(actor) })
   if (systemText) batch.set(doc(collection(caseRef, 'updates')), updatePayload('system', systemText, actor))
   await batch.commit()
-}
+})

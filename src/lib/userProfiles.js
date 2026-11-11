@@ -37,6 +37,7 @@ export async function listManagedUserProfiles() {
 // This is intentionally not a Firestore profile query. The callable returns
 // only the fields required by the team, vacation and to-do directories.
 export async function listVisibleUserDirectory() {
+  await waitForAppCheckToken()
   const result = await httpsCallable(functions, 'listVisibleUserDirectory')()
   return Array.isArray(result.data?.profiles) ? result.data.profiles : []
 }

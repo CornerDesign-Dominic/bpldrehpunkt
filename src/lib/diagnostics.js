@@ -1,9 +1,10 @@
 import { httpsCallable } from 'firebase/functions'
 import { auth, functions, waitForAppCheckToken } from './firebase.js'
-import { diagnosticCode } from './diagnosticClassification.js'
+import { caseDiagnosticCode, diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
   contracts: 'Vertragsmanagement',
+  damages: 'Schäden', inkasso: 'Inkasso', insolvencies: 'Insolvenzen',
   'transport-orders': 'Transportaufträge',
   reminders: 'Erinnerungen',
   pallets: 'Paletten',
@@ -31,7 +32,7 @@ const recentReports = new Map()
 
 export async function reportTechnicalFailure({ module, stage, error, orderId, recordId, code }) {
   if (!auth.currentUser) return false
-  const classified = code || diagnosticCode(error)
+  const classified = code || (['damages', 'inkasso', 'legal-disputes', 'insolvencies', 'case-links'].includes(module) ? caseDiagnosticCode(error) : diagnosticCode(error))
   if (!classified) return false
   const fingerprint = `${module}|${stage}|${classified}|${orderId || ''}|${recordId || ''}`
   const now = Date.now()
