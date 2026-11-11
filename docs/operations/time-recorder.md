@@ -129,7 +129,13 @@ werden.
 
 Unter dem heutigen Stempelbereich stehen die Fachreiter **Aktuelle Woche**
 (Standard, Montag bis Sonntag), **Monatsübersicht** (Tageswerte des ausgewählten
-Monats als Tabelle) und **Alle Buchungen**. Der heutige Stempelbereich und die
+Monats als Tabelle) und **Alle Buchungen**. Die Monatstabelle enthält ausschließlich
+Tag, Sollzeit, Istzeit, Pause gesamt, Arbeitszeit und Plus/Minus. Istzeit ist die
+erfasste Anwesenheit einschließlich gebuchter Pausen; Pause gesamt addiert gebuchte
+und automatisch abgezogene Pausen; Arbeitszeit entspricht der angerechneten
+Zeit nach Pausenabzug. Tagesbuchungen, Korrekturknöpfe und Einzelhinweise stehen
+weiterhin in der Wochenansicht. Nicht berechenbare oder unvollständige Salden
+werden nicht als bestätigtes Plus/Minus angezeigt. Der heutige Stempelbereich und die
 Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
 Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
 
@@ -138,8 +144,16 @@ einer stabilen Buchungs-ID; auch gelöschte Buchungen bleiben markiert erhalten.
 Datum, Uhrzeit, Aktion, Herkunft, Erfassungsart, letzter Vorher-Wert, Bearbeiter
 und Bearbeitungszeit stehen direkt in der Tabelle. Der aufklappbare Verlauf
 enthält alle gespeicherten Änderungen dieser Buchung samt Vorher/Nachher,
-Grund und Hinweis. Unveränderte Buchungen werden nicht dem Bearbeiter einer
-anderen Buchung desselben Tages zugerechnet.
+Grund und Hinweis. Er öffnet sich unter der Buchung über die gesamte Tabellenbreite;
+die Spalten Datum, Uhrzeit und Buchung behalten ihre kompakte Breite.
+Farbige Textkennzeichen unterscheiden Original, manuellen Nachtrag, geändert
+und gelöscht. Bei Änderungen bleibt der ursprüngliche Erfassungsweg erkennbar;
+auch zwischenzeitlich zurückgenommene Änderungen bleiben als geändert markiert.
+Speicherungen ohne Änderung von Aktion oder Zeitpunkt sind als **Unverändert
+gespeichert** vollständig im Verlauf enthalten. Sie gelten nicht als tatsächliche
+Änderung und ersetzen in den Hauptspalten nicht den Urheber der Buchung.
+Historisch nicht eindeutig belegte Erfassungsarten werden nicht als Original
+ausgegeben. Der Verlauf zeigt Zeiten einschließlich Sekunden.
 
 `listOwnTimeBookings({before?})` prüft aktives Profil und eigenes Zeit-Leserecht.
 Die Zielperson ist ausschließlich die authentifizierte UID. Die Abfrage lädt

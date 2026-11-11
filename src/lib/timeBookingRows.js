@@ -15,14 +15,25 @@ export function timeBookingRows(days = [], history = []) {
     for (const eventId of new Set([...before, ...after].map(event => event.id))) {
       const previous = before.find(event => event.id === eventId)
       const next = after.find(event => event.id === eventId)
-      if (previous && next && same(previous, next)) continue
+      const unchanged = Boolean(previous && next && same(previous, next))
       const key = `${entry.date}/${eventId}`
       if (!rows.has(key)) rows.set(key, { id: key, date: entry.date, event: next || previous, deleted: true, changes: [] })
       if (rows.get(key).deleted) rows.get(key).event = next || previous
-      rows.get(key).changes.push({ ...entry, before: previous, after: next, method: entry.kind === 'stamp' ? 'Schaltfläche' : !previous ? 'Nachtrag' : !next ? 'Gelöscht' : 'Bearbeitet' })
+      rows.get(key).changes.push({ ...entry, before: previous, after: next, unchanged, method: entry.kind === 'stamp' ? 'Originalbuchung' : unchanged ? 'Unverändert gespeichert' : !previous ? 'Manuell nachgetragen' : !next ? 'Gelöscht' : 'Geändert' })
     }
   }
   return [...rows.values()].sort((a, b) => b.date.localeCompare(a.date) || a.event.at.localeCompare(b.event.at) || a.id.localeCompare(b.id))
+}
+
+export function bookingStatus(row) {
+  const changes = row.changes.filter(change => !change.unchanged)
+  const latest = changes.at(-1)
+  const first = changes[0]
+  const origin = first?.kind === 'stamp' || (!first && ['live', 'offline'].includes(row.event.source)) ? 'Originalbuchung' : first && !first.before ? 'Manueller Nachtrag' : 'Nicht eindeutig erfasst'
+  const edited = changes.some(change => change.before && change.after)
+  const status = row.deleted ? 'deleted' : edited ? 'edited' : origin === 'Manueller Nachtrag' ? 'manual' : origin === 'Originalbuchung' ? 'original' : row.event.source === 'correction' ? 'manual-unknown' : 'unknown'
+  const labels = { deleted: 'Gelöscht', edited: 'Geändert', manual: 'Manuell nachgetragen', original: 'Original', 'manual-unknown': 'Manuell erfasst', unknown: 'Nicht eindeutig erfasst' }
+  return { status, label: labels[status], origin, latest, saved: row.changes.at(-1), edits: changes.filter(change => change.before && change.after).length, unchangedSaves: row.changes.filter(change => change.unchanged).length }
 }
 
 export function bookingClient(value) {

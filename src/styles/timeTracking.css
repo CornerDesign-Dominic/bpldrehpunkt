@@ -33,10 +33,41 @@
 .time-tabs button { background: transparent; border-top: 0; border-left: 0; border-right: 0; cursor: pointer; font-family: inherit; }
 .time-tab-content { display: grid; gap: 16px; min-width: 0; }
 .time-bookings-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
-.time-bookings-table td { vertical-align: top; }
+.time-bookings-table { table-layout: fixed; min-width: 1160px; }
+.time-bookings-date { width: 96px; }
+.time-bookings-time { width: 64px; }
+.time-bookings-action { width: 118px; }
+.time-bookings-client { width: 100px; }
+.time-bookings-state { width: auto; }
+.time-bookings-before { width: 150px; }
+.time-bookings-actor { width: 14%; }
+.time-bookings-timestamp { width: 166px; }
+.time-bookings-trail { width: 120px; }
+.time-bookings-table td { vertical-align: top; padding-block: 10px; }
+.time-bookings-table td:nth-child(n+4) { white-space: normal; overflow-wrap: anywhere; }
+.time-booking-row > td:first-child { box-shadow: inset 3px 0 var(--border); }
+.time-booking-row--original > td:first-child { box-shadow: inset 3px 0 var(--status-success-text); }
+.time-booking-row--manual > td:first-child, .time-booking-row--manual-unknown > td:first-child { box-shadow: inset 3px 0 var(--button-background); }
+.time-booking-row--edited > td:first-child { box-shadow: inset 3px 0 var(--status-warning-text); }
+.time-booking-row--deleted > td:first-child { box-shadow: inset 3px 0 var(--status-danger-text); }
+.time-booking-badge { display: inline-block; border: 1px solid currentColor; border-radius: 4px; padding: 3px 7px; font-size: 11px; font-weight: 700; line-height: 1.4; color: var(--text-secondary); background: var(--surface-secondary); }
+.time-booking-badge--original { color: var(--status-success-text); background: var(--status-success-background); }
+.time-booking-badge--manual, .time-booking-badge--manual-unknown { color: var(--button-background); background: var(--surface-active); }
+.time-booking-badge--edited { color: var(--status-warning-text); background: var(--status-warning-background); }
+.time-booking-badge--deleted { color: var(--status-danger-text); background: var(--status-danger-background); }
+.time-booking-toggle { padding: 3px 0; border: 0; color: var(--text-primary); background: transparent; font: inherit; cursor: pointer; white-space: nowrap; }
+.time-booking-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .time-booking-deleted > td:nth-child(2) { text-decoration: line-through; color: var(--text-secondary); }
-.time-booking-history { display: grid; gap: 12px; min-width: 260px; max-width: 380px; padding-top: 10px; white-space: normal; }
-.time-booking-history article { display: grid; gap: 5px; padding-bottom: 10px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.time-bookings-table .time-booking-detail-row > td { padding: 0; white-space: normal; }
+.time-booking-history { display: grid; gap: 12px; padding: 18px 22px; white-space: normal; background: var(--surface-secondary); }
+.time-booking-history h4 { margin: 0; font-size: 13px; }
+.time-booking-history article { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--content-background); overflow-wrap: anywhere; }
+.time-booking-history article > div:first-child { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.time-booking-history article > div:first-child > span { color: var(--text-secondary); }
+.time-booking-history--unchanged > div:first-child > strong { color: var(--text-secondary); }
+.time-booking-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.time-month-table th:not(:first-child), .time-month-table td:not(:first-child) { text-align: right; }
+.time-month-table td:last-child { font-weight: 700; }
 .time-table-scroll table { width: 100%; }
 .time-table-scroll td, .time-table-scroll th { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .time-event-cell span, .time-issue { display: block; font-size: 11px; line-height: 1.8; }

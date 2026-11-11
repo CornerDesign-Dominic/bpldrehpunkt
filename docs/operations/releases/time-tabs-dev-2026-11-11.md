@@ -81,3 +81,25 @@ angelegt. Die Produktionshauptbranche, das Firebase-Produktionsprojekt und das
 mobile Repository/Hosting sind keine Ziele dieser Frontend-Veröffentlichung.
 Die bereits bereitgestellten Zeit-Functions und der Index werden dafür nicht
 erneut veröffentlicht.
+
+## Darstellung nach Rückmeldung zur Dev-Ansicht
+
+- Monatstabelle auf Tag, Sollzeit, Istzeit (erfasste Anwesenheit), Pause gesamt
+  (gebucht plus automatischer Abzug), angerechnete Arbeitszeit und Plus/Minus
+  reduziert. Keine Stempelereignisse, Korrekturknöpfe oder Hinweis-Spalten.
+- Kompakte feste Breiten für Datum, Uhrzeit und Buchungsart im Einzeljournal.
+- Gut sichtbare Text-/Farbkennzeichen für Original, manuellen Nachtrag,
+  geändert und gelöscht; bei Änderungen bleibt der ursprüngliche Erfassungsweg
+  sichtbar. Unklare historische Angaben werden nicht als Original ausgegeben.
+- Speicherungen ohne geänderte Aktion oder Uhrzeit bleiben im vollständigen
+  Verlauf enthalten und heißen ausdrücklich „Unverändert gespeichert“.
+  Hauptspalten behalten dabei den tatsächlichen Buchungs-/Änderungsurheber.
+- Verlauf über die gesamte Tabellenbreite statt in einer schmalen Einzelzelle,
+  mit Vorher-/Nachher-Zeit einschließlich Sekunden und gespeichertem Grund.
+
+Reine Web-Anpassung auf `dev`; kein neuer Backend-, Rules-, Handy- oder
+Produktionsdeploy. Vollständiges ESLint, Web-Build, Abgleich der 48 gemeinsamen
+Module und 26 gezielte Tests erfolgreich. Der ausgeführte React-/DOM-Test
+prüft zusätzlich die sechs Monatsspalten und deren Zahlenwerte, die drei
+Buchungskennzeichen, Erhalt unveränderter Speicherungen sowie den Verlauf
+über neun Tabellenspalten. Keine neue angemeldete Browserabnahme behauptet.
