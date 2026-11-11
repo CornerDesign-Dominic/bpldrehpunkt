@@ -3,6 +3,7 @@ import { auth, functions, waitForAppCheckToken } from './firebase.js'
 import { caseDiagnosticCode, diagnosticCode } from './diagnosticClassification.js'
 
 export const DIAGNOSTIC_MODULE_LABELS = Object.freeze({
+  todos: 'To-dos',
   contracts: 'Vertragsmanagement',
   damages: 'Schäden', inkasso: 'Inkasso', insolvencies: 'Insolvenzen',
   'transport-orders': 'Transportaufträge',
@@ -32,7 +33,7 @@ const recentReports = new Map()
 
 export async function reportTechnicalFailure({ module, stage, error, orderId, recordId, code }) {
   if (!auth.currentUser) return false
-  const classified = code || (['damages', 'inkasso', 'legal-disputes', 'insolvencies', 'case-links'].includes(module) ? caseDiagnosticCode(error) : diagnosticCode(error))
+  const classified = code || (['todos', 'damages', 'inkasso', 'legal-disputes', 'insolvencies', 'case-links'].includes(module) ? caseDiagnosticCode(error) : diagnosticCode(error))
   if (!classified) return false
   const fingerprint = `${module}|${stage}|${classified}|${orderId || ''}|${recordId || ''}`
   const now = Date.now()

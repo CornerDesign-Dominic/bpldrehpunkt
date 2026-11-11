@@ -19,6 +19,7 @@ import { getUserDisplayName } from './userProfiles.js'
 import { todoReminderFields, validateReminderForm } from './reminderForm.js'
 import { invalidateReminderStatuses } from './reminders.js'
 import { berlinToday } from '../../shared/reminderTime.js'
+import { reportCaseFailure } from './caseDiagnostics.js'
 
 export const TODOS_COLLECTION = 'todos'
 export const TODO_STATUS = { open: 'Keine Bearbeitung', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
@@ -325,7 +326,7 @@ export async function createTodo(values, actor, usersById) {
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   })
   batch.set(doc(updateCollection(todoRef.id)), systemUpdate(`${actorName(actor)} hat die Aufgabe erstellt.`, actor))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { reportCaseFailure('todos', 'save', error); throw error }
   invalidateReminderStatuses()
   return todoRef.id
 }
@@ -443,7 +444,7 @@ export async function updateTodoByCreator(todo, values, usersById, resetAssignme
   batch.update(doc(db, TODOS_COLLECTION, todo.id), fields)
   const messages = changedFieldMessages(todo, fields, resetAssignment)
   ;(messages.length ? messages : ['hat die Aufgabe aktualisiert.']).forEach((message) => batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} ${message}`, actor)))
-  await batch.commit()
+  try { await batch.commit() } catch (error) { reportCaseFailure('todos', 'save', error); throw error }
   invalidateReminderStatuses()
 }
 

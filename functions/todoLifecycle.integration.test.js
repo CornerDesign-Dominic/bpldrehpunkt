@@ -32,6 +32,48 @@ test('actual todo creation and handoff respect rules for normal and boundary pro
     await admin.doc('users/todo-editor').set(profile)
     for (const user of users.values()) await admin.doc(`users/${user.id}`).set({ ...user, active: true, role: 'user', permissions: { todos: 'edit' } })
     const values = { ...service.createEmptyTodo(), title: 'Synthetic task' }
+    await t.test('people audience including self creates a linked task with a complete reminder', async () => {
+      users.set(actor.user.uid, { id: actor.user.uid, ...profile })
+      await admin.doc('businessPartners/reminder-customer').set({ companyName: 'Reminder customer', businessPartnerRoles: ['customer'] })
+      await admin.doc('businessPartners/reminder-carrier').set({ companyName: 'Reminder carrier', businessPartnerRoles: ['carrier'] })
+      await admin.doc('transportOrders/261000309').set({ externalNumber: '261000309', imported: { customer: { partnerId: 'reminder-customer', name: 'Reminder customer' }, carrier: { partnerId: 'reminder-carrier', originalName: 'Reminder carrier' } } })
+      const next = { ...values, audienceType: 'people', audienceIds: [actor.user.uid], dueDate: '2026-11-12', reminderDate: '2026-11-12', reminderTime: '12:00', reminderOccurrence: 'earlier', customerId: 'reminder-customer', customerName: 'Reminder customer', carrierId: 'reminder-carrier', carrierName: 'Reminder carrier', transportOrderLinks: [{ id: '261000309', number: '261000309' }] }
+      const id = await service.createTodo(next, actor, users)
+      const saved = await service.getTodoById(id)
+      assert.equal(saved.status, 'open')
+      assert.equal(saved.reminderTime, '12:00')
+      assert.deepEqual(saved.audienceIds, [actor.user.uid])
+      await admin.doc('businessPartners/reminder-customer').set({ companyName: 'Reminder customer', debtorNumber: '100', creditorNumber: '', dycosReferences: { debtorNumbers: ['100'], creditorNumbers: [], accounts: [{ entity: 'customer', number: '100', sourceId: 'customer-source' }] } })
+      await admin.doc('businessPartners/reminder-carrier').set({ companyName: 'Reminder carrier', creditorNumber: '200', debtorNumber: '', dycosReferences: { creditorNumbers: ['200'], debtorNumbers: [], accounts: [{ entity: 'carrier', number: '200', sourceId: 'carrier-source' }] } })
+      const legacy = await service.createTodo(next, actor, users).catch((error) => { error.message = `Current legacy numeric partners: ${error.message}`; throw error })
+      assert.equal((await service.getTodoById(legacy)).reminderTime, '12:00')
+      profile.permissions.transportOrders = 'view'
+      await admin.doc('users/todo-editor').set(profile)
+      for (const [index, roles] of [
+        [{ businessPartnerRoles: ['customer'] }, { businessPartnerRoles: ['carrier'] }],
+        [{ debtorNumber: '100' }, { creditorNumber: '200' }],
+        [{ partnerRoles: { kunde: true } }, { taImportStatus: { source: 'dycosTransportOrder', missingRequiredFields: ['creditorNumber'] } }],
+      ].entries()) {
+        await admin.doc('businessPartners/reminder-customer').set({ companyName: 'Renamed customer', ...roles[0] })
+        await admin.doc('businessPartners/reminder-carrier').set({ companyName: 'Renamed carrier', ...roles[1] })
+        const linked = await service.createTodo({ ...next, title: `Historical linked reminder ${index}` }, actor, users).catch((error) => { error.message = `Historical role variant ${index}: ${error.message}`; throw error })
+        assert.equal((await service.getTodoById(linked)).reminderTime, '12:00')
+      }
+    })
+    await t.test('creation still rejects each missing mandatory field in open and self-assigned tasks', async () => {
+      const required = ['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']
+      for (const audience of [{ audienceType: 'self' }, { audienceType: 'people', audienceIds: ['target-1'] }]) {
+        const id = await service.createTodo({ ...values, ...audience }, actor, users)
+        const stored = (await admin.doc(`todos/${id}`).get()).data()
+        for (const field of required) {
+          const payload = { ...stored, createdAt: firestore.serverTimestamp(), updatedAt: firestore.serverTimestamp(), assignedAt: stored.assignedAt ? firestore.serverTimestamp() : null }
+          delete payload[field]
+          const ref = firestore.doc(firestore.collection(db, 'todos'))
+          await assert.rejects(firestore.setDoc(ref, payload), { code: 'permission-denied' }, `${audience.audienceType}: missing ${field}`)
+          assert.equal((await admin.doc(ref.path).get()).exists, false)
+        }
+      }
+    })
     await t.test('self creation and transfer to a colleague', async () => {
       const id = await service.createTodo(values, actor, users)
       const todo = await service.getTodoById(id)
