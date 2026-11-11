@@ -1321,6 +1321,6 @@ export {
   sendSystemTestMail,
   updateSystemMailTemplate,
 } from './systemMails.js'
-export { listTimeWorkspace, saveTimeWorkModel, saveTimeAccount, stampTime, correctTimeDay, getOwnMobileVacation } from './timeTracking.js'
+export { listTimeWorkspace, listOwnTimeBookings, saveTimeWorkModel, saveTimeAccount, stampTime, correctTimeDay, getOwnMobileVacation } from './timeTracking.js'
 
 export { listTimeWorkModelTemplates, saveTimeWorkModelTemplate, archiveTimeWorkModelTemplate } from './timeWorkModelTemplates.js'

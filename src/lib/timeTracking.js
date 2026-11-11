@@ -7,8 +7,9 @@ async function call(name, data = {}) {
 }
 
 export const listTimeWorkspace = (data) => call('listTimeWorkspace', data)
-export const stampTime = (data) => call('stampTime', data)
-export const correctTimeDay = (data) => call('correctTimeDay', data)
+export const stampTime = (data) => call('stampTime', { ...data, client: 'web' })
+export const correctTimeDay = (data) => call('correctTimeDay', { ...data, client: 'web' })
+export const listOwnTimeBookings = (data) => call('listOwnTimeBookings', data)
 export const saveTimeWorkModel = (model) => call('saveTimeWorkModel', { model })
 export const saveTimeAccount = (data) => call('saveTimeAccount', data)
 export const listTimeWorkModelTemplates = () => call('listTimeWorkModelTemplates')

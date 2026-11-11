@@ -10,6 +10,13 @@ zugänglich. Die PWA verwendet dieselbe Datenbank und dieselbe Anmeldung.
 Der [Dev-Deploybeleg](docs/operations/releases/time-recorder-dev-2026-11-10.md)
 bestätigt die gezielte Dev-Bereitstellung und deren tatsächliche Prüfgrenzen.
 
+`listOwnTimeBookings` ergänzt den seitenweisen Einzelbuchungsverlauf. Es verlangt
+ein aktives Profil und eigenes Zeit-Leserecht und verwendet ausschließlich die
+authentifizierte UID als Zielperson, unabhängig von übergebenen Fremd-IDs.
+Ausgegeben werden eigene Buchungen und deren Historie, keine Arbeitszeitmodelle
+oder Personalprofile. Direkte Clientrechte bleiben unverändert gesperrt.
+[Dev-Prüfstand 11.11.2026](docs/operations/releases/time-tabs-dev-2026-11-11.md).
+
 Stand: 28.10.2026. Diese Dokumentation beschreibt das im Repository implementierte Zugriffsmodell. Sie bestätigt keinen identischen Live-Deploy. Maßgeblich sind `firestore.rules`, `storage.rules`, `src/auth/`, `src/lib/permissions.js` und die serverseitigen Functions. Umgebungs- und Deploymentprüfungen stehen in `docs/operations/documentation-inventory.md`.
 
 ## Authentifizierung und aktive Profile

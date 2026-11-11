@@ -117,6 +117,7 @@ export const stampTime = onCall(options, async (request) => {
   let date
   try { date = berlinTimeDate(at) } catch { bad('Ungültiger Zeitpunkt.') }
   const [event] = checked(() => normalizeTimeEvents([{ id: eventId, type, at, source: offline ? 'offline' : 'live' }], date, now))
+  event.client = requestTimeClient(request)
   if (!offline && Math.abs(Date.parse(event.at) - now.getTime()) > 5 * 60000) bad('Live-Buchung liegt zu weit vom aktuellen Zeitpunkt entfernt. Bitte nachtragen.')
   return persistTimeStamp(db, request.auth.uid, event, now)
 })
@@ -141,7 +142,7 @@ export function persistTimeStamp(db, userId, event, now = new Date()) {
     if (result.issues.some((issue) => issue === 'Buchungsfolge muss geklärt werden.' || issue === 'Ungültige oder zeitgleiche Buchung.')) throw new HttpsError('failed-precondition', 'Buchung widerspricht bestehenden Zeiten. Bitte mit den gespeicherten Zeiten abgleichen; Offlinebuchung bleibt auf dem Gerät.')
     const revision = (day.data()?.revision || 0) + 1
     transaction.set(dayRef, { userId, date, events, revision, updatedAt: FieldValue.serverTimestamp() }, { merge: true })
-    transaction.create(auditRef, { userId, date, kind: 'stamp', after: event, offline: event.source === 'offline', createdBy: userId, createdAt: FieldValue.serverTimestamp(), deviceAt: event.at })
+    transaction.create(auditRef, { userId, date, kind: 'stamp', after: event, offline: event.source === 'offline', createdBy: userId, createdByName: actorName(actor.data()), createdAt: FieldValue.serverTimestamp(), deviceAt: event.at })
     return { accepted: true, date, revision }
   })
 }
@@ -161,7 +162,7 @@ export const correctTimeDay = onCall(options, async (request) => {
   const events = checked(() => normalizeTimeEvents(input.events.map((event) => ({ ...event, id: event.id || randomUUID(), source: 'correction' })), input.date, now))
   const calculation = calculateTimeDay({ date: input.date, events, now })
   if (calculation.issues.some((issue) => ['Buchungsfolge muss geklärt werden.', 'Ungültige oder zeitgleiche Buchung.'].includes(issue))) bad('Bitte eine gültige Folge aus Kommen, Pause und Gehen angeben.')
-  return persistTimeCorrection(db, { ...input, events, userId }, request.auth.uid, now)
+  return persistTimeCorrection(db, { ...input, client: requestTimeClient(request), events, userId }, request.auth.uid, now)
 })
 export function persistTimeCorrection(db, input, actorId, now = new Date()) {
   const { userId, events } = input
@@ -176,13 +177,47 @@ export function persistTimeCorrection(db, input, actorId, now = new Date()) {
     if ((old.data()?.revision || 0) !== input.expectedRevision) throw new HttpsError('aborted', 'Die Buchungen wurden zwischenzeitlich geändert. Bitte neu laden.')
     const correctedEvents = events.map((event) => {
       const original = old.data()?.events?.find((before) => before.id === event.id && before.type === event.type && before.at === event.at)
-      return original || event
+      return original || { ...event, client: timeClient(input.client) }
     })
     const revision = input.expectedRevision + 1
     transaction.set(ref, { userId, date: input.date, events: correctedEvents, revision, updatedAt: FieldValue.serverTimestamp() })
-    transaction.create(db.doc(`timeHistory/${auditId}`), { userId, date: input.date, kind: old.data()?.events?.length ? 'correction' : 'addition', before: old.data()?.events || [], after: correctedEvents, reason: input.reason, note: input.note?.trim() || '', createdBy: actorId, createdAt: FieldValue.serverTimestamp() })
+    transaction.create(db.doc(`timeHistory/${auditId}`), { userId, date: input.date, kind: old.data()?.events?.length ? 'correction' : 'addition', before: old.data()?.events || [], after: correctedEvents, client: timeClient(input.client), reason: input.reason, note: input.note?.trim() || '', createdBy: actorId, createdByName: actorName(actor), createdAt: FieldValue.serverTimestamp() })
     return { date: input.date, revision }
   })
+}
+
+function timeClient(value) { return ['web', 'mobile'].includes(value) ? value : 'unknown' }
+export function requestTimeClient(request) {
+  const explicit = timeClient(request.data?.client)
+  if (explicit !== 'unknown') return explicit
+  // Existing PWA versions need no update to identify their known Dev origin.
+  const origin = request.rawRequest?.headers?.origin
+  return ['https://db-bpl-drehpunkt-dev-time.web.app', 'https://db-bpl-drehpunkt-dev-time.firebaseapp.com'].includes(origin) ? 'mobile' : 'unknown'
+}
+function actorName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') }
+
+// Separate, paginated own-data projection: no model or personnel data is exposed.
+export const listOwnTimeBookings = onCall(options, async request => {
+  requireOwnTimeAccess(await requireActiveProfile(request))
+  return readOwnTimeBookings(getFirestore(), request.auth.uid, request.data?.before)
+})
+export async function readOwnTimeBookings(db, userId, before) {
+  if (before !== undefined && !validTimeDate(before)) bad('Ungültiger Buchungszeitraum.')
+  let query = db.collection('timeDays').where('userId', '==', userId).orderBy('date', 'desc')
+  if (before) query = query.startAfter(before)
+  const snapshot = await query.limit(31).get()
+  const days = records(snapshot)
+  const page = days.slice(0, 30)
+  const dates = page.map(day => day.date)
+  const history = dates.length ? records(await db.collection('timeHistory').where('userId', '==', userId).where('date', 'in', dates).get()).filter(entry => ['stamp', 'correction', 'addition'].includes(entry.kind)) : []
+  const actorIds = [...new Set(history.filter(entry => !entry.createdByName && id(entry.createdBy)).map(entry => entry.createdBy))]
+  const actors = actorIds.length ? await db.getAll(...actorIds.map(uid => db.doc(`users/${uid}`))) : []
+  const names = new Map(actors.map(actor => [actor.id, actorName(actor.data())]))
+  return {
+    days: page.map(({ date, events }) => ({ date, events: events || [] })),
+    history: history.map(entry => ({ ...entry, createdByName: entry.createdByName || names.get(entry.createdBy) || '', createdAt: entry.createdAt?.toDate?.().toISOString() || null })),
+    nextBefore: days.length > 30 ? page.at(-1).date : null,
+  }
 }
 
 export function isTimeHoliday(date, model, holidays, companyRegion = { countryCode: 'DE', subdivisionCode: 'DE-NW' }) {

@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 export const DEV_PROJECT = 'db-bpl-drehpunkt-dev'
 export const FIREBASE_CLI_VERSION = '15.35.0'
 export const TIME_FUNCTIONS = Object.freeze([
-  'listTimeWorkspace', 'saveTimeWorkModel', 'saveTimeAccount', 'stampTime',
+  'listTimeWorkspace', 'listOwnTimeBookings', 'saveTimeWorkModel', 'saveTimeAccount', 'stampTime',
   'correctTimeDay', 'getOwnMobileVacation', 'listManagedUsers',
   'createManagedUser', 'updateManagedUser', 'replacePendingVacationRequest',
   'processVacationRequest',

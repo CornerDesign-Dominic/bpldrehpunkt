@@ -623,6 +623,14 @@
         {"order": "ASCENDING", "fieldPath": "startDate"},
         {"order": "ASCENDING", "fieldPath": "endDate"}
       ]
+    },
+    {
+      "collectionGroup": "timeDays",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {"fieldPath": "userId", "order": "ASCENDING"},
+        {"fieldPath": "date", "order": "DESCENDING"}
+      ]
     }
   ],
   "fieldOverrides": [

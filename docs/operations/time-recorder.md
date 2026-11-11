@@ -1,10 +1,13 @@
 # Zeiterfassung und Mitarbeiter-PWA
 
-Stand: 10.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
+Stand: 11.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
 der Korrekturen aus der Rechte- und Zeitkontoabnahme. Die erste Dev-Bereitstellung
 und die Ergänzungen für Vorlagen, Dashboard und Handy-Einstieg haben eigene
 Prüfbelege. [Dev-Bereitstellung](releases/time-recorder-dev-2026-11-10.md) ·
 [Vorlagen, Dashboard und Handy-Einstieg](releases/time-recorder-access-dev-2026-11-10.md).
+
+Die eigenen Web-Fachreiter wurden anschließend auf `dev` ergänzt;
+[Bereitstellung und Prüfungen vom 11.11.2026](releases/time-tabs-dev-2026-11-11.md).
 
 ## Gemeinsame Grundlage
 
@@ -121,6 +124,39 @@ verweisen. Ein genehmigter Abbau kann nur über den genehmigten Stornoweg aufgeh
 werden.
 
 ## Stempelbuchungen und Pausen
+
+### Eigene Arbeitszeit im Drehpunkt-Web
+
+Unter dem heutigen Stempelbereich stehen die Fachreiter **Aktuelle Woche**
+(Standard, Montag bis Sonntag), **Monatsübersicht** (Tageswerte des ausgewählten
+Monats als Tabelle) und **Alle Buchungen**. Der heutige Stempelbereich und die
+Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
+Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
+
+**Alle Buchungen** ist unabhängig von der Monatsauswahl. Eine Zeile entspricht
+einer stabilen Buchungs-ID; auch gelöschte Buchungen bleiben markiert erhalten.
+Datum, Uhrzeit, Aktion, Herkunft, Erfassungsart, letzter Vorher-Wert, Bearbeiter
+und Bearbeitungszeit stehen direkt in der Tabelle. Der aufklappbare Verlauf
+enthält alle gespeicherten Änderungen dieser Buchung samt Vorher/Nachher,
+Grund und Hinweis. Unveränderte Buchungen werden nicht dem Bearbeiter einer
+anderen Buchung desselben Tages zugerechnet.
+
+`listOwnTimeBookings({before?})` prüft aktives Profil und eigenes Zeit-Leserecht.
+Die Zielperson ist ausschließlich die authentifizierte UID. Die Abfrage lädt
+30 gespeicherte Tage je Seite einschließlich ihrer vollständigen Stempel- und
+Korrekturhistorie; `nextBefore` ermöglicht das Laden älterer Tage. Sie nutzt den
+Index `timeDays: userId ASC, date DESC` und gibt keine Modelle oder Personaldaten
+zurück. Die bisherige 500-Einträge-Grenze der Workspace-Korrekturübersicht
+begrenzt diesen Buchungsverlauf nicht.
+
+Neue Web-Anfragen übergeben `client: web`. Die bestehende mobile Dev-App wird
+an ihren beiden exakten Firebase-Hosting-Origins erkannt; ihr Quellcode bleibt
+unverändert. Bei neuen Nachträgen und Änderungen wird die Herkunft gespeichert;
+unveränderte Ereignisse behalten ihre ursprüngliche Herkunft. Neue
+Historieneinträge speichern zusätzlich den Bearbeiternamen. Historische
+Bearbeiternamen werden, soweit möglich, aus dem aktuellen Benutzerprofil
+aufgelöst. Ohne gespeicherte Geräteherkunft erscheint **Nicht erfasst**;
+historische Live-/Offline-Angaben werden nicht nachträglich als Web/Handy geraten.
 
 Ereignisse: `come`, `pause_start`, `pause_end`, `go`. Mehrere Arbeitsabschnitte pro
 Tag sind möglich. Arbeitsdauer ist die Summe der Arbeitsabschnitte, ohne gebuchte

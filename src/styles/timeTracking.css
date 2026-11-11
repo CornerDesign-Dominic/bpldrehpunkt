@@ -29,6 +29,14 @@
 .time-table-card { padding: 0; overflow: hidden; }
 .time-table-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; }
 .time-table-scroll { overflow-x: auto; }
+.time-tabs { margin-bottom: 0; }
+.time-tabs button { background: transparent; border-top: 0; border-left: 0; border-right: 0; cursor: pointer; font-family: inherit; }
+.time-tab-content { display: grid; gap: 16px; min-width: 0; }
+.time-bookings-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
+.time-bookings-table td { vertical-align: top; }
+.time-booking-deleted > td:nth-child(2) { text-decoration: line-through; color: var(--text-secondary); }
+.time-booking-history { display: grid; gap: 12px; min-width: 260px; max-width: 380px; padding-top: 10px; white-space: normal; }
+.time-booking-history article { display: grid; gap: 5px; padding-bottom: 10px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .time-table-scroll table { width: 100%; }
 .time-table-scroll td, .time-table-scroll th { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .time-event-cell span, .time-issue { display: block; font-size: 11px; line-height: 1.8; }
