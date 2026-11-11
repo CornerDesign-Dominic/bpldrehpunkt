@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { applyKnowledgeLearning, manageKnowledgeCase } from '../../lib/knowledge.js'
+import { applyKnowledgeLearning, discardKnowledgeLearning, manageKnowledgeCase } from '../../lib/knowledge.js'
 import { knowledgeCaseAnswer, knowledgeCasePending, knowledgeCaseSelection } from '../../lib/knowledgeCases.js'
 import { KNOWLEDGE_ARTICLE_SECTIONS, knowledgeLabels, knowledgeUrl } from '../../lib/knowledgePresentation.js'
 import { buildKnowledgeLearningDiff } from '../../lib/knowledgeLearningDiff.js'
@@ -75,6 +75,16 @@ export default function KnowledgeCaseReview({ record, cases, groups, articles, h
     } catch (error) { if (active.current) setError(failure(error)) }
     finally { if (active.current) setBusy('') }
   }
+  async function discard() {
+    if (!canLearn || busy || run?.status !== 'ready') return
+    setBusy('discard')
+    setError('')
+    try {
+      await discardKnowledgeLearning({ runId: run.runId || run.id, expectedRevision: run.revision })
+      if (active.current) setShowResult(false)
+    } catch (error) { if (active.current) setError(error.code === 'functions/aborted' ? text('Das Lernergebnis wurde inzwischen geändert.', 'The learning result changed in the meantime.') : text('Lernergebnis konnte nicht verworfen werden. Bitte erneut versuchen.', 'Could not discard the learning result. Please try again.')) }
+    finally { if (active.current) setBusy('') }
+  }
   async function manage(item) {
     if (!canManage || busy || !management) return
     const destination = management.target || ''
@@ -122,5 +132,5 @@ export default function KnowledgeCaseReview({ record, cases, groups, articles, h
         </section>}
       </aside>
     </div>
-  </KnowledgeDialog>{showResult && <KnowledgeLearningResult run={run} currentArticle={currentArticle} language={language} canApply={canLearn} busy={busy === 'apply'} error={error} onApply={() => void apply()} onClose={() => { if (busy !== 'apply') setShowResult(false) }} />}</>
+  </KnowledgeDialog>{showResult && run?.proposal && <KnowledgeLearningResult run={run} currentArticle={currentArticle} language={language} canApply={canLearn} busy={Boolean(busy)} error={error} onApply={() => void apply()} onDiscard={() => void discard()} onClose={() => { if (!busy) setShowResult(false) }} />}</>
 }

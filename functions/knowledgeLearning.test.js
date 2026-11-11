@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { HttpsError } from 'firebase-functions/v2/https'
-import { normalizeCaseManagement, persistCaseManagement, normalizeLearningInput, learnSelectedKnowledgeCases, applySelectedKnowledgeLearning, validateLearningProposal, generateLearningProposal } from './knowledgeLearning.js'
+import { normalizeCaseManagement, persistCaseManagement, normalizeLearningInput, learnSelectedKnowledgeCases, applySelectedKnowledgeLearning, discardSelectedKnowledgeLearning, validateLearningProposal, generateLearningProposal } from './knowledgeLearning.js'
 
 const actor = { uid: 'editor' }
 const profile = { active: true, role: 'user', firstName: 'Anna', permissions: { handbook: 'edit', knowledgeGaps: 'edit' } }
@@ -227,4 +227,42 @@ test('human metadata edits still write when the generated article text had no ch
   assert.equal(result.noChanges, false)
   assert.equal(result.revision, 4)
   assert.equal(db.records.get('knowledgeArticles/article').owner, 'New team')
+})
+
+
+test('discard preserves articles and learned mails, is idempotent and prevents apply or retry resurrection', async () => {
+  const db = fakeDb()
+  let calls = 0
+  const generate = async () => { calls++; return proposed }
+  await learnSelectedKnowledgeCases(db, input(), actor, { generate })
+  const before = db.records.get('knowledgeGapEvidence/case')
+  const result = await discardSelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor)
+  assert.deepEqual(result, { runId: 'run', status: 'discarded', revision: 2 })
+  assert.equal(db.records.get('knowledgeLearningRuns/run').discardedBy, actor.uid)
+  assert.equal(db.records.get('knowledgeArticles/article'), article)
+  assert.equal(db.records.get('knowledgeGapEvidence/case'), before)
+  assert.equal(db.records.get('knowledgeGapEvidence/case').learnedRevision, 1)
+  assert.deepEqual(await discardSelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), result)
+  await assert.rejects(applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), { code: 'aborted' })
+  assert.equal((await learnSelectedKnowledgeCases(db, input(), actor, { generate })).status, 'discarded')
+  assert.equal(calls, 1)
+  const fresh = await learnSelectedKnowledgeCases(db, input({ runId: 'fresh' }), actor, { generate })
+  assert.equal(fresh.status, 'ready')
+  assert.equal(calls, 2)
+})
+
+test('discard validates revision and current learning rights, never discards applied or running work', async () => {
+  const db = fakeDb({ 'knowledgeLearningRuns/run': { status: 'ready', revision: 1 } })
+  for (const invalid of [null, { runId: '../run', expectedRevision: 1 }, { runId: 'run', expectedRevision: 0 }, { runId: 'run', expectedRevision: 1, status: 'discarded' }]) await assert.rejects(discardSelectedKnowledgeLearning(db, invalid, actor), { code: 'invalid-argument' })
+  for (const permissions of [{ handbook: 'view', knowledgeGaps: 'edit' }, { handbook: 'edit', knowledgeGaps: 'view' }, {}]) {
+    db.records.set('users/editor', { ...profile, permissions })
+    await assert.rejects(discardSelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), { code: 'permission-denied' })
+  }
+  db.records.set('users/editor', profile)
+  await assert.rejects(discardSelectedKnowledgeLearning(db, { runId: 'absent', expectedRevision: 1 }, actor), { code: 'not-found' })
+  for (const status of ['applied', 'running', 'failed']) {
+    db.records.set('knowledgeLearningRuns/run', { status, revision: 1 })
+    await assert.rejects(discardSelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1 }, actor), { code: 'aborted' })
+    assert.equal(db.records.get('knowledgeLearningRuns/run').status, status)
+  }
 })

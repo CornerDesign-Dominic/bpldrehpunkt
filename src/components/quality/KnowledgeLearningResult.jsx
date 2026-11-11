@@ -1,14 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { buildKnowledgeLearningDiff, KNOWLEDGE_LEARNING_TEXT_FIELDS } from '../../lib/knowledgeLearningDiff.js'
 import { knowledgeLabels, knowledgeUrl } from '../../lib/knowledgePresentation.js'
 import KnowledgeDialog from './KnowledgeDialog.jsx'
 import '../../styles/knowledgeLearningResult.css'
 
-export default function KnowledgeLearningResult({ run, currentArticle, language, canApply, busy, error, onApply, onClose }) {
+export default function KnowledgeLearningResult({ run, currentArticle, language, canApply, busy, error, onApply, onDiscard, onClose }) {
   const en = language === 'en'
   const text = (de, english) => en ? english : de
   const comparison = useMemo(() => buildKnowledgeLearningDiff(run, currentArticle), [run, currentArticle])
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const appliedId = run?.appliedResult?.id || (run?.status === 'applied' ? run.targetArticleId : '')
   const label = (key) => key === 'ruleIds' ? text('Grundregeln', 'Ground rules') : knowledgeLabels[key]?.[en ? 1 : 0] || key
   function displayPart(field, value) { return field.key === 'status' && knowledgeLabels[value] ? label(value) : value }
@@ -24,6 +25,6 @@ export default function KnowledgeLearningResult({ run, currentArticle, language,
     </>}
     {run?.insights && Object.values(run.insights).some((value) => value?.trim()) && <details className="knowledge-result-notes"><summary>{text('Hinweise der KI', 'AI notes')}</summary>{[['conflicts', text('Widersprüche', 'Conflicts')], ['openQuestions', text('Offene Fragen', 'Open questions')], ['variants', text('Varianten', 'Variants')]].filter(([key]) => run.insights[key]?.trim()).map(([key, label]) => <section key={key}><h3>{label}</h3><p className="quality-protocol">{run.insights[key]}</p></section>)}</details>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    <footer className="quality-actions knowledge-result-actions">{run?.status === 'ready' && comparison.hasChanges && !comparison.missingBase && canApply && <button type="button" className="button button--ai" disabled={Boolean(busy)} onClick={onApply}>{busy ? text('Wird übernommen …', 'Applying …') : text('Ins Handbuch übernehmen', 'Apply to handbook')}</button>}{run?.status === 'applied' && <p className="knowledge-result-applied" role="status">{text('Übernommen', 'Applied')}{appliedId && <> · <Link to={knowledgeUrl('article', appliedId)}>{text('Artikel öffnen', 'Open article')}</Link></>}</p>}</footer>
+    <footer className="quality-actions knowledge-result-actions">{run?.status === 'ready' && canApply && onDiscard && (confirmDiscard ? <><span>{text('Lernergebnis verwerfen? Mails bleiben verfügbar.', 'Discard this result? Mails remain available.')}</span><button type="button" className="button button--secondary" disabled={Boolean(busy)} onClick={() => setConfirmDiscard(false)}>{text('Abbrechen', 'Cancel')}</button><button type="button" className="button button--danger" disabled={Boolean(busy)} onClick={onDiscard}>{busy ? text('Wird verworfen …', 'Discarding …') : text('Verwerfen', 'Discard')}</button></> : <button type="button" className="button button--secondary" disabled={Boolean(busy)} onClick={() => setConfirmDiscard(true)}>{text('Lernergebnis verwerfen', 'Discard learning result')}</button>)}{!confirmDiscard && run?.status === 'ready' && comparison.hasChanges && !comparison.missingBase && canApply && <button type="button" className="button button--ai" disabled={Boolean(busy)} onClick={onApply}>{busy ? text('Wird übernommen …', 'Applying …') : text('Ins Handbuch übernehmen', 'Apply to handbook')}</button>}{run?.status === 'applied' && <p className="knowledge-result-applied" role="status">{text('Übernommen', 'Applied')}{appliedId && <> · <Link to={knowledgeUrl('article', appliedId)}>{text('Artikel öffnen', 'Open article')}</Link></>}</p>}</footer>
   </KnowledgeDialog>
 }

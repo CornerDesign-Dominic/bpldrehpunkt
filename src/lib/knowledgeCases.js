@@ -28,5 +28,6 @@ export function knowledgeCaseSelection(cases, ids) {
 export function knowledgeGroupRun(runs, groupId, local) {
   const records = runs.filter((run) => run.gapId === groupId || run.appliedResult?.targetGapId === groupId)
   if (local && !records.some((run) => run.id === local.id)) records.push(local)
-  return records.sort((left, right) => (right.createdAt?.toMillis?.() || right.startedAt || 0) - (left.createdAt?.toMillis?.() || left.startedAt || 0))[0] || null
+  const latest = records.sort((left, right) => (right.createdAt?.toMillis?.() || right.startedAt || 0) - (left.createdAt?.toMillis?.() || left.startedAt || 0))[0]
+  return latest?.status === 'discarded' ? null : latest || null
 }

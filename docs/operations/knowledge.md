@@ -72,6 +72,29 @@ Dialogen geprüft. Kein angemeldeter Dev-Durchlauf mit echten Mails/Modell.
 Benötigte Backend-Updates: `learnKnowledgeCases`, `applyKnowledgeLearning`.
 Keine Änderung der Rules oder Indizes.
 
+## Lernergebnis verwerfen (11.11.2026)
+
+Im Ergebnisdialog kann ein noch nicht übernommener Vorschlag mit
+„Lernergebnis verwerfen“ und kurzer Bestätigung verworfen werden.
+`discardKnowledgeLearning` verlangt aktuelle Bearbeitungsrechte für
+Wissenslücken und Handbuch sowie die erwartete Ergebnisrevision. Der Lauf
+wird transaktional als `discarded` mit Zeitpunkt und Bearbeiter aufbewahrt.
+Artikel, Mailkopien, Zuordnung und grüner Auswertungsstand bleiben erhalten.
+Die Mails können ausdrücklich für einen neuen Lauf ausgewählt werden.
+
+Ein verworfenes neuestes Ergebnis blendet auch ältere Vorschläge derselben
+Sammlung aus; ein verspäteter lokaler Zustand belebt es nicht wieder.
+Wiederholtes Verwerfen ist idempotent. Übernahme und Verwerfen konkurrieren
+über denselben transaktionalen Status: übernommene oder laufende Ergebnisse
+können nicht verworfen, verworfene nicht mehr übernommen werden.
+
+Prüfung: 32 gezielte Unit-Tests, neun echte Firestore-Emulatorprüfungen,
+Lint, Build und Shared-Abgleich (48 Module) erfolgreich. Lokaler Browser mit
+Testdaten: Bestätigung/Abbrechen, verschwundene Vorschau nach Wiederöffnen
+und erneute Mailauswahl geprüft. Angemeldeter Dev-Durchlauf bleibt offen.
+Bereitzustellen: `discardKnowledgeLearning`, `learnKnowledgeCases` und Frontend.
+Keine Änderung an Rules oder Indizes.
+
 ## Fachlicher Ablauf
 
 Unter Qualität liegen Handbuch, Grundregeln und Wissenslücken. Das Handbuch ist

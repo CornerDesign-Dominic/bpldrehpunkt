@@ -43,3 +43,10 @@ test('background result survives reopening and follows applied article without s
   assert.equal(knowledgeGroupRun([first], 'group', { id: 'local', status: 'running', startedAt: 12 }).id, 'local')
   assert.equal(knowledgeGroupRun([first], 'other'), null)
 })
+
+test('discarded latest result suppresses older proposals and stale local state, while allowing a new run', () => {
+  const old = { id: 'old', gapId: 'group', status: 'ready', startedAt: 1 }
+  const discarded = { id: 'discarded', gapId: 'group', status: 'discarded', startedAt: 2 }
+  assert.equal(knowledgeGroupRun([old, discarded], 'group', { ...discarded, status: 'ready' }), null)
+  assert.equal(knowledgeGroupRun([old, discarded], 'group', { id: 'new', status: 'running', startedAt: 3 }).id, 'new')
+})

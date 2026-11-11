@@ -64,4 +64,5 @@ const knowledgeCaseCall = (name, values) => operation('save', async () => {
 export const manageKnowledgeCase = (values) => knowledgeCaseCall('manageKnowledgeCase', values)
 export const learnKnowledgeCases = (values) => knowledgeCaseCall('learnKnowledgeCases', values)
 export const applyKnowledgeLearning = (values) => knowledgeCaseCall('applyKnowledgeLearning', values)
+export const discardKnowledgeLearning = (values) => knowledgeCaseCall('discardKnowledgeLearning', values)
 export const manageEmptyKnowledgeGroup = (record, action, values) => knowledgeCaseCall('manageEmptyKnowledgeGroup', { id: record.id, expectedRevision: record.revision || 0, action, ...(values ? { values } : {}) })

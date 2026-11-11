@@ -132,7 +132,7 @@ export async function learnSelectedKnowledgeCases(db, input, actor, { generate =
     if (run.exists) {
       const record = run.data()
       if (record.createdBy !== actor.uid || record.fingerprint !== fingerprint) throw new HttpsError('already-exists', 'Diese Auswertungsreferenz ist bereits vergeben.')
-      if (record.status === 'ready' || record.status === 'applied') return { cached: publicRun(record) }
+      if (['ready', 'applied', 'discarded'].includes(record.status)) return { cached: publicRun(record) }
       throw new HttpsError(record.status === 'running' ? 'already-exists' : 'failed-precondition', record.status === 'running' ? 'Diese Auswahl wird bereits ausgewertet.' : 'Diese Auswertung ist fehlgeschlagen. Bitte eine neue Auswertung starten.', { runId: input.runId, runStatus: record.status, retryWithNewRunId: record.status === 'failed' })
     }
     const cases = selectedCases(snapshots, input)
@@ -176,6 +176,22 @@ export async function learnSelectedKnowledgeCases(db, input, actor, { generate =
     if (failedRecorded && error instanceof HttpsError) error.details = { runId: input.runId, runStatus: 'failed', retryWithNewRunId: true }
     throw error
   }
+}
+
+export async function discardSelectedKnowledgeLearning(db, input, actor) {
+  if (!input || Object.keys(input).some(key => !['runId', 'expectedRevision'].includes(key)) || !validId(input.runId) || input.expectedRevision !== 1) invalid('Ungültiger Vorschlagsstand.')
+  return db.runTransaction(async tx => {
+    const ref = db.doc(`knowledgeLearningRuns/${input.runId}`)
+    const [snapshot, user] = await Promise.all([tx.get(ref), tx.get(db.doc(`users/${actor.uid}`))])
+    learningRights(user.data())
+    if (!snapshot.exists) throw new HttpsError('not-found', 'Das Lernergebnis wurde nicht gefunden.')
+    const run = snapshot.data()
+    if (run.status === 'discarded') return { runId: input.runId, status: 'discarded', revision: run.revision }
+    if (run.status !== 'ready' || run.revision !== input.expectedRevision) conflict()
+    const revision = run.revision + 1
+    tx.set(ref, { ...run, status: 'discarded', revision, discardedAt: FieldValue.serverTimestamp(), discardedBy: actor.uid, updatedAt: FieldValue.serverTimestamp() })
+    return { runId: input.runId, status: 'discarded', revision }
+  })
 }
 
 export async function applySelectedKnowledgeLearning(db, input, actor) {
@@ -236,3 +252,4 @@ async function handle(request, operation, module = 'knowledgeGaps') {
 export const manageKnowledgeCaseHandler = request => handle(request, (db, data, actor) => persistCaseManagement(db, normalizeCaseManagement(data), actor))
 export const learnKnowledgeCasesHandler = request => handle(request, (db, data, actor) => learnSelectedKnowledgeCases(db, normalizeLearningInput(data), actor))
 export const applyKnowledgeLearningHandler = request => handle(request, applySelectedKnowledgeLearning)
+export const discardKnowledgeLearningHandler = request => handle(request, discardSelectedKnowledgeLearning)

@@ -6,7 +6,7 @@ import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore'
 import { initializeApp, deleteApp } from 'firebase/app'
 import { collection, connectFirestoreEmulator, doc, getDoc, getDocs, getFirestore, setDoc, updateDoc } from 'firebase/firestore'
 import { normalizeKnowledgeInput, normalizeKnowledgeGapUpdate, persistKnowledgeRecord, persistKnowledgeGapUpdate } from './knowledge.js'
-import { normalizeCaseManagement, persistCaseManagement, normalizeLearningInput, learnSelectedKnowledgeCases, applySelectedKnowledgeLearning } from './knowledgeLearning.js'
+import { normalizeCaseManagement, persistCaseManagement, normalizeLearningInput, learnSelectedKnowledgeCases, applySelectedKnowledgeLearning, discardSelectedKnowledgeLearning } from './knowledgeLearning.js'
 import { recordReplyKnowledgeGap } from './knowledgeReply.js'
 
 test('knowledge rules and transactional publication safeguards', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async (t) => {
@@ -175,6 +175,23 @@ test('knowledge rules and transactional publication safeguards', { skip: !proces
       const learned = await admin.doc('knowledgeGapEvidence/unchanged-case').get()
       assert.equal(learned.get('learnedRevision'), learned.get('caseRevision'))
       assert.equal((await admin.doc('knowledgeLearningRuns/unchanged-run').get()).get('appliedResult').noChanges, true)
+    })
+    await t.test('discard is protected, durable and cannot later be applied', async () => {
+      const ref = admin.doc('knowledgeLearningRuns/discard-run')
+      await ref.set({ runId: 'discard-run', status: 'ready', revision: 1, gapId: 'discard-group', proposal: { title: 'Proposed article' } })
+      const values = { runId: 'discard-run', expectedRevision: 1 }
+      await assert.rejects(discardSelectedKnowledgeLearning(admin, values, { uid: 'knowledge-gapEditor' }), { code: 'permission-denied' })
+      const result = await discardSelectedKnowledgeLearning(admin, values, { uid: 'knowledge-learner' })
+      assert.equal(result.status, 'discarded')
+      const saved = await ref.get()
+      assert.equal(saved.get('discardedBy'), 'knowledge-learner')
+      assert.ok(saved.get('discardedAt').toMillis() > 0)
+      assert.deepEqual(await discardSelectedKnowledgeLearning(admin, values, { uid: 'knowledge-learner' }), result)
+      await assert.rejects(applySelectedKnowledgeLearning(admin, values, { uid: 'knowledge-learner' }), { code: 'aborted' })
+      const concurrent = await Promise.allSettled([discardSelectedKnowledgeLearning(admin, values, { uid: 'knowledge-learner' }), applySelectedKnowledgeLearning(admin, values, { uid: 'knowledge-learner' })])
+      assert.equal(concurrent[0].status, 'fulfilled')
+      assert.equal(concurrent[1].status, 'rejected')
+      assert.equal((await ref.get()).get('status'), 'discarded')
     })
   } finally {
     await Promise.all(apps.map((app) => deleteApp(app)))
