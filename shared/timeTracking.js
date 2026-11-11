@@ -31,14 +31,12 @@ export function canCorrectOwnTime(date, now = new Date()) {
   return validTimeDate(date) && date >= addTimeDays(today, -7) && date <= today
 }
 export function progressiveTimeBreak(workedMinutes, bookedMinutes, rules = []) {
-  let previousRequired = 0
+  const tiers = [...rules].sort((a, b) => a.afterMinutes - b.afterMinutes)
   let deduction = 0
-  for (const rule of [...rules].sort((a, b) => a.afterMinutes - b.afterMinutes)) {
-    if (workedMinutes <= rule.afterMinutes) break
-    const missingPrevious = Math.max(0, previousRequired - bookedMinutes)
-    const missingIncrement = Math.max(0, rule.requiredMinutes - Math.max(previousRequired, bookedMinutes))
-    deduction = Math.max(deduction, missingPrevious + Math.min(missingIncrement, workedMinutes - rule.afterMinutes))
-    previousRequired = rule.requiredMinutes
+  for (const [index, rule] of tiers.entries()) {
+    const interval = Math.min(workedMinutes, tiers[index + 1]?.afterMinutes ?? workedMinutes) - rule.afterMinutes
+    if (interval <= 0) break
+    deduction += Math.min(interval, Math.max(0, rule.requiredMinutes - bookedMinutes - deduction))
   }
   return Math.min(workedMinutes, Math.max(0, deduction))
 }
@@ -103,6 +101,7 @@ export function effectiveTimeVacations(requests) {
   return requests.filter((request) => !request.originalRequestId && !request.vacationId && !request.changeRequest && request.requestKind !== 'cancellation' && !request.cancellationRequest
     && (!request.type || request.type === 'vacation') && ['approved', 'manual'].includes(request.status)
     && (request.status !== 'manual' || request.hrManualEntry === true)
+    && request.days !== 0
     && validTimeDate(request.startDate) && validTimeDate(request.endDate) && request.startDate <= request.endDate)
 }
 export function vacationTimeDay(date, requests) {

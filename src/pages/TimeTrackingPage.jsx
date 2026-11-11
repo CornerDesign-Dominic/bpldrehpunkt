@@ -102,7 +102,7 @@ export function TimeWorkspace({ managed = false }) {
   const load = useCallback(async () => {
     const id = ++requestId.current
     try {
-      const result = await listTimeWorkspace({ ...(targetUser ? { userId: targetUser } : {}), managed, from: queryFrom, to: queryTo })
+      const result = await listTimeWorkspace({ ...(targetUser ? { userId: targetUser } : {}), ownOnly: !managed, managed, from: queryFrom, to: queryTo })
       if (id === requestId.current) { setWorkspace(result); setError('') }
       return result
     } catch (failure) {

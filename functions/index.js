@@ -892,6 +892,16 @@ function vacationRequestStatus(data) {
   if (data?.status === 'change_requested' || data?.status === 'cancellation_requested') return 'pending'
   return ['pending', 'approved', 'rejected', 'withdrawn'].includes(data?.status) ? data.status : 'pending'
 }
+function requireVacationRequestEdit(profile) {
+  if (profile?.active !== true || (profile.role !== 'superadmin' && profile.permissions?.vacation !== 'edit')) {
+    throw new HttpsError('permission-denied', 'Keine Berechtigung zum Bearbeiten von Urlaubsanträgen.')
+  }
+}
+function pendingOwnVacationRequest(data, kind) {
+  if (kind === 'request') return data.status === 'pending' && (data.mainStatus ?? 'pending') === 'pending'
+  const pendingStatus = kind === 'cancellation' ? 'cancellation_requested' : 'change_requested'
+  return data.status === pendingStatus && vacationRequestStatus(data) === 'pending'
+}
 function historyEventType(data, status) {
   const kind = requestType(data)
   const label = kind === 'cancellation' ? 'cancellation' : kind === 'change' ? 'change' : 'vacation'
@@ -1114,22 +1124,24 @@ export const listManagedVacationRequests = onCall({ region: 'europe-west3', enfo
 })
 
 export const withdrawVacationRequest = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
-  await requireActiveProfile(request)
+  requireVacationRequestEdit(await requireActiveProfile(request))
   const requestId = request.data?.requestId
   if (typeof requestId !== 'string' || !requestId) throw new HttpsError('invalid-argument', 'Ungültiger Urlaubsantrag.')
 
   const requestRef = db.collection('vacationRequests').doc(requestId)
   await db.runTransaction(async (transaction) => {
-    const vacationRequest = await transaction.get(requestRef)
+    const [vacationRequest, actor] = await Promise.all([transaction.get(requestRef), transaction.get(db.doc(`users/${request.auth.uid}`))])
+    requireVacationRequestEdit(actor.data())
     const data = vacationRequest.data()
     if (!vacationRequest.exists || data?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Keine Berechtigung für diesen Urlaubsantrag.')
     if (data?.hrManualEntry === true) throw new HttpsError('failed-precondition', 'Ein manuell von HR erfasster Urlaub kann nicht geändert werden.')
-    if (!['pending', 'change_requested', 'cancellation_requested'].includes(data.status) && vacationRequestStatus(data) !== 'pending') throw new HttpsError('failed-precondition', 'Der Urlaubsantrag kann nicht zurückgezogen werden.')
     const kind = requestType(data)
-    const rootId = vacationRootId(data, requestId)
+    if (!pendingOwnVacationRequest(data, kind)) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag kann nicht zurückgezogen werden.')
+    const rootId = kind === 'request' ? requestId : data.originalRequestId
+    if (typeof rootId !== 'string' || (kind !== 'request' && data.vacationId && data.vacationId !== rootId)) throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist ungültig.')
     if (kind === 'cancellation') {
       const rootVacation = await transaction.get(db.collection('vacationRequests').doc(rootId))
-      if (!rootVacation.exists || (rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist nicht mehr genehmigt.')
+      if (!rootVacation.exists || rootVacation.data().userId !== request.auth.uid || requestType(rootVacation.data()) !== 'request' || rootVacation.data().status !== 'approved') throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist nicht mehr genehmigt.')
     }
     const update = kind === 'request'
       ? { status: 'withdrawn', mainStatus: 'withdrawn', withdrawnBy: request.auth.uid, withdrawnAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }
@@ -1141,7 +1153,7 @@ export const withdrawVacationRequest = onCall({ region: 'europe-west3', enforceA
 })
 
 export const replacePendingVacationRequest = onCall({ region: 'europe-west3', enforceAppCheck: true }, async (request) => {
-  await requireActiveProfile(request)
+  requireVacationRequestEdit(await requireActiveProfile(request))
   const { requestId, values } = request.data ?? {}
   if (typeof requestId !== 'string' || !requestId || !values || typeof values !== 'object') throw new HttpsError('invalid-argument', 'Ungültige Urlaubsanfrage.')
   const startDate = typeof values.startDate === 'string' ? values.startDate : ''
@@ -1155,11 +1167,12 @@ export const replacePendingVacationRequest = onCall({ region: 'europe-west3', en
   const previousRequestRef = db.collection('vacationRequests').doc(requestId)
   const replacementRequestRef = db.collection('vacationRequests').doc()
   await db.runTransaction(async (transaction) => {
-    const previousRequest = await transaction.get(previousRequestRef)
+    const [previousRequest, actor] = await Promise.all([transaction.get(previousRequestRef), transaction.get(db.doc(`users/${request.auth.uid}`))])
+    requireVacationRequestEdit(actor.data())
     const previousData = previousRequest.data()
     if (!previousRequest.exists || previousData?.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Keine Berechtigung für diesen Urlaubsantrag.')
     if (previousData?.hrManualEntry === true) throw new HttpsError('failed-precondition', 'Ein manuell von HR erfasster Urlaub kann nicht geändert werden.')
-    if (previousData.status !== 'pending' || previousData.originalRequestId || previousData.requestKind === 'cancellation' || previousData.cancellationRequest) throw new HttpsError('failed-precondition', 'Nur ein ausstehender Urlaubsantrag kann überarbeitet werden.')
+    if (requestType(previousData) !== 'request' || !pendingOwnVacationRequest(previousData, 'request')) throw new HttpsError('failed-precondition', 'Nur ein ausstehender Urlaubsantrag kann überarbeitet werden.')
     transaction.update(previousRequestRef, { status: 'superseded', supersededBy: replacementRequestRef.id, supersededAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
     writeVacationHistory(transaction, { id: `replaced-${requestId}`, vacationId: requestId, userId: request.auth.uid, eventType: 'vacation_replaced', status: 'withdrawn', createdBy: request.auth.uid, requestId, previousValues: { startDate: previousData.startDate, endDate: previousData.endDate, days: previousData.days, vacationType: previousData.vacationType }, nextValues: { startDate, endDate, days, vacationType } })
     transaction.set(replacementRequestRef, { id: replacementRequestRef.id, userId: request.auth.uid, startDate, endDate, days, halfDayDate, vacationType, status: 'pending', mainStatus: 'pending', type: 'vacation', note: '', requestComment, replacesRequestId: requestId, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
@@ -1173,30 +1186,35 @@ export const processVacationRequest = onCall({ region: 'europe-west3', enforceAp
   if (typeof requestId !== 'string' || !['approved', 'rejected'].includes(decision)) throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
   if (managerComment !== undefined && typeof managerComment !== 'string') throw new HttpsError('invalid-argument', 'Ungültige Bearbeitungsdaten.')
   const { requestRef, vacationRequest } = await managedVacationRequest(manager, requestId)
-  if (requestType(vacationRequest.data()) === 'request' ? vacationRequest.data().status !== 'pending' : vacationRequestStatus(vacationRequest.data()) !== 'pending') throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
+  if (!pendingOwnVacationRequest(vacationRequest.data(), requestType(vacationRequest.data()))) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag ist nicht ausstehend.')
   await db.runTransaction(async (transaction) => {
     const currentRequest = await transaction.get(requestRef)
     const requestData = currentRequest.data()
+    if (!currentRequest.exists) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag ist nicht mehr verfügbar.')
+    const [currentManager, employee] = await Promise.all([
+      transaction.get(db.doc(`users/${request.auth.uid}`)),
+      transaction.get(db.doc(`users/${requestData.userId}`)),
+    ])
+    if (currentManager.data()?.active !== true || !employee.exists || !canManageVacationDepartment(currentManager.data(), employee.data().departmentId || employee.data().department || '')) throw new HttpsError('permission-denied', 'Keine Zuständigkeit für diesen Urlaubsantrag.')
     const kind = requestType(requestData)
-    const pending = kind === 'request' ? requestData?.status === 'pending' : vacationRequestStatus(requestData) === 'pending'
-    if (!currentRequest.exists || !pending) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag wurde bereits bearbeitet.')
+    if (!pendingOwnVacationRequest(requestData, kind)) throw new HttpsError('failed-precondition', 'Der Urlaubsantrag ist nicht ausstehend.')
     const comment = (managerComment || '').trim()
     const processed = kind === 'request'
       ? { status: decision, mainStatus: decision, managerComment: comment, processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
       : { status: decision, requestStatus: decision, managerComment: comment, processedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(), ...(decision === 'approved' ? { approvedBy: request.auth.uid } : { rejectedBy: request.auth.uid }) }
-    const rootId = vacationRootId(requestData, requestId)
+    const rootId = kind === 'request' ? requestId : requestData.originalRequestId
 
-    if (kind !== 'request' && typeof rootId !== 'string') throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist ungültig.')
+    if (kind !== 'request' && (typeof rootId !== 'string' || (requestData.vacationId && requestData.vacationId !== rootId))) throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist ungültig.')
     const rootRef = kind === 'request' ? requestRef : db.collection('vacationRequests').doc(rootId)
     const rootVacation = kind === 'request' ? currentRequest : await transaction.get(rootRef)
-    if (!rootVacation.exists || rootVacation.data().userId !== requestData.userId) throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist nicht verfügbar.')
+    if (!rootVacation.exists || rootVacation.data().userId !== requestData.userId || requestType(rootVacation.data()) !== 'request') throw new HttpsError('failed-precondition', 'Der zugehörige Urlaub ist nicht verfügbar.')
 
     if (decision === 'approved' && kind === 'cancellation') {
-      if ((rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zu stornierende Urlaub ist nicht mehr genehmigt.')
+      if (rootVacation.data().status !== 'approved') throw new HttpsError('failed-precondition', 'Der zu stornierende Urlaub ist nicht mehr genehmigt.')
       transaction.update(rootRef, { status: 'cancelled', mainStatus: 'cancelled', cancelledBy: request.auth.uid, cancelledAt: FieldValue.serverTimestamp(), cancellationRequestId: requestId, updatedAt: FieldValue.serverTimestamp() })
     }
     if (decision === 'approved' && kind === 'change') {
-      if ((rootVacation.data().mainStatus || rootVacation.data().status) !== 'approved') throw new HttpsError('failed-precondition', 'Der zu ändernde Urlaub ist nicht mehr genehmigt.')
+      if (rootVacation.data().status !== 'approved') throw new HttpsError('failed-precondition', 'Der zu ändernde Urlaub ist nicht mehr genehmigt.')
       transaction.update(rootRef, { startDate: requestData.startDate, endDate: requestData.endDate, days: requestData.days, halfDayDate: vacationHalfDayDate(requestData), vacationType: requestData.vacationType, timeAccountEffect: requestData.vacationType === 'overtime' ? 'overtime_debit' : 'none', status: 'approved', mainStatus: 'approved', updatedAt: FieldValue.serverTimestamp() })
     }
 

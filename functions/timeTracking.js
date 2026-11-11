@@ -19,6 +19,15 @@ export function mayManageTime(profile, target) {
 function assertUserAccess(profile, target, ownId, targetId) {
   if (targetId !== ownId && !mayManageTime(profile, target)) throw new HttpsError('permission-denied', 'Keine Zuständigkeit für diese Person.')
 }
+function mayManageTimeInTeam(profile, target, ownId) {
+  return (target.id !== ownId || profile.role === 'superadmin') && mayManageTime(profile, target)
+}
+function requireCorrectionAccess(profile, target, actorId, userId, date, now) {
+  assertUserAccess(profile, target, actorId, userId)
+  if (userId !== actorId) return
+  requireOwnTimeAccess(profile, true)
+  if (profile.role !== 'superadmin' && !canCorrectOwnTime(date, now)) throw new HttpsError('permission-denied', 'Nur heute und die vergangenen sieben Kalendertage können selbst korrigiert werden.')
+}
 export function requireOwnTimeAccess(profile, edit = false) {
   if (profile?.active !== true || (profile.role !== 'superadmin' && !(edit ? ['edit'] : ['view', 'edit']).includes(profile.permissions?.timeTracking))) throw new HttpsError('permission-denied', 'Keine Berechtigung für die Zeiterfassung.')
 }
@@ -125,6 +134,7 @@ export function persistTimeStamp(db, userId, event, now = new Date()) {
       if (original.userId !== userId || original.after?.type !== event.type || original.after?.at !== event.at) throw new HttpsError('already-exists', 'Diese Buchungs-ID wurde bereits anders verwendet.')
       return { accepted: true, duplicate: true, date, revision: day.data()?.revision || 0 }
     }
+    if (event.source === 'offline' && !canCorrectOwnTime(date, now)) throw new HttpsError('failed-precondition', 'Diese Offlinebuchung ist älter als sieben Kalendertage. Bitte zur Klärung an das Zeitmanagement wenden.')
     const events = [...(day.data()?.events || []), { ...event, receivedAt: now.toISOString() }].sort((a, b) => a.at.localeCompare(b.at))
     if (events.length > 100) bad('Zu viele Buchungen an diesem Tag.')
     const result = calculateTimeDay({ date, events, now })
@@ -142,12 +152,9 @@ export const correctTimeDay = onCall(options, async (request) => {
   const input = request.data || {}
   const userId = input.userId || request.auth.uid
   const user = await targetUser(db, userId)
-  assertUserAccess(profile, user, request.auth.uid, userId)
-  const manager = mayManageTime(profile, user)
-  if (userId === request.auth.uid && !manager) requireOwnTimeAccess(profile, true)
   const now = new Date()
   if (!validTimeDate(input.date) || input.date > berlinTimeDate(now)) bad('Ungültiger Buchungstag.')
-  if (!manager && !canCorrectOwnTime(input.date, now)) throw new HttpsError('permission-denied', 'Nur heute und die vergangenen sieben Kalendertage können selbst korrigiert werden.')
+  requireCorrectionAccess(profile, user, request.auth.uid, userId, input.date, now)
   if (!TIME_CORRECTION_REASONS.includes(input.reason) || (input.note !== undefined && (typeof input.note !== 'string' || input.note.length > 1000))) bad('Bitte einen Korrekturgrund auswählen.')
   if (!integer(input.expectedRevision, 0, Number.MAX_SAFE_INTEGER)) bad('Bitte die aktuellen Buchungen neu laden, bevor Sie korrigieren.')
   if (!Array.isArray(input.events)) bad('Ungültige Buchungsliste.')
@@ -165,9 +172,7 @@ export function persistTimeCorrection(db, input, actorId, now = new Date()) {
     const actor = actorSnapshot.data()
     const target = userSnapshot.data()
     if (actor?.active !== true || !target) throw new HttpsError('permission-denied', 'Kein aktiver Zugriff.')
-    assertUserAccess(actor, target, actorId, userId)
-    if (userId === actorId && !mayManageTime(actor, target)) requireOwnTimeAccess(actor, true)
-    if (!mayManageTime(actor, target) && !canCorrectOwnTime(input.date, now)) throw new HttpsError('permission-denied', 'Die Korrekturfrist ist abgelaufen.')
+    requireCorrectionAccess(actor, target, actorId, userId, input.date, now)
     if ((old.data()?.revision || 0) !== input.expectedRevision) throw new HttpsError('aborted', 'Die Buchungen wurden zwischenzeitlich geändert. Bitte neu laden.')
     const correctedEvents = events.map((event) => {
       const original = old.data()?.events?.find((before) => before.id === event.id && before.type === event.type && before.at === event.at)
@@ -205,14 +210,14 @@ export const listTimeWorkspace = onCall(options, async (request) => {
   const db = getFirestore()
   const employeePromise = !ownOnly && !personnelOnly && (profile.role === 'superadmin' || profile.timeManager === true) ? db.collection('users').get() : null
   if (managed && !request.data?.userId) {
-    const scope = records(await employeePromise).filter((entry) => entry.active === true && mayManageTime(profile, entry))
+    const scope = records(await employeePromise).filter((entry) => entry.active === true && mayManageTimeInTeam(profile, entry, ownId))
     if (!scope.length) throw new HttpsError('failed-precondition', 'Keine Mitarbeiter in den zugewiesenen Abteilungen vorhanden.')
     userId = scope[0].id
   }
   const user = await targetUser(db, userId)
   if (!personnelOnly) assertUserAccess(profile, user, ownId, userId)
-  if (managed && !mayManageTime(profile, user)) throw new HttpsError('permission-denied', 'Keine Zuständigkeit für diese Person.')
-  if (!personnelOnly && userId === ownId && (ownOnly || !mayManageTime(profile, user))) requireOwnTimeAccess(profile)
+  if (managed && !mayManageTimeInTeam(profile, user, ownId)) throw new HttpsError('permission-denied', 'Keine Zuständigkeit für diese Person.')
+  if (!personnelOnly && userId === ownId) requireOwnTimeAccess(profile)
   const [daySnapshot, modelSnapshot, accountSnapshot, vacationSnapshot, legacyHolidays, historySnapshot, employeeSnapshot, holidaySettings] = await Promise.all([
     db.collection('timeDays').where('userId', '==', userId).get(),
     db.collection('timeWorkModels').where('userId', '==', userId).get(),
@@ -248,7 +253,7 @@ export const listTimeWorkspace = onCall(options, async (request) => {
   const balanceMinutes = account.openingBalanceMinutes + accountDays.filter((day) => !day.incomplete && !day.calculationIncomplete).reduce((sum, day) => sum + day.balanceMinutes, 0)
   const balanceProvisional = accountDays.some((day) => day.incomplete || day.calculationIncomplete)
   if (personnelOnly) return personnelTimeProjection({ user: person(user), account, balanceMinutes, balanceProvisional, days: results.filter((day) => day.date >= from && day.date <= to) })
-  const employees = employeeSnapshot ? records(employeeSnapshot).filter((entry) => entry.active === true && ((!managed && entry.id === ownId) || mayManageTime(profile, entry))).map(person) : [person(user)]
+  const employees = employeeSnapshot ? records(employeeSnapshot).filter((entry) => entry.active === true && ((!managed && entry.id === ownId) || mayManageTimeInTeam(profile, entry, ownId))).map(person) : [person(user)]
   const history = records(historySnapshot).filter((entry) => ['correction', 'addition'].includes(entry.kind)).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 500).map((entry) => ({ ...entry, createdAt: entry.createdAt?.toDate?.().toISOString() || null }))
   const unresolvedDays = results.filter((day) => day.date < today && day.incomplete).slice(-30)
   return { user: person(user), days: results.filter((day) => day.date >= from && day.date <= to), account, balanceMinutes, balanceProvisional, models: !ownOnly && profile.role === 'superadmin' ? models : [], employees, history, unresolvedDays }

@@ -1745,17 +1745,27 @@ service cloud.firestore {
         allow write: if false;
       }
     }
-    function ownVacationRequest(data) {
+    function ownVacationRequest(data, requestId) {
+      let base = ['id', 'userId', 'type', 'startDate', 'endDate', 'days', 'halfDayDate', 'vacationType', 'requestComment', 'note', 'status', 'createdAt', 'updatedAt'];
+      let followUp = base.concat(['requestStatus', 'vacationId', 'originalRequestId']);
       return data.userId == request.auth.uid && data.type == 'vacation'
-        && ((data.status == 'pending' && !data.keys().hasAny(['originalRequestId', 'changeRequest', 'cancellationRequest', 'requestKind']))
-          || (data.status in ['cancellation_requested', 'change_requested'] && data.originalRequestId is string
-          && exists(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId))
-          && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.userId == request.auth.uid
-          && get(/databases/$(database)/documents/vacationRequests/$(data.originalRequestId)).data.status == 'approved'));
+        && data.id == requestId && data.createdAt == request.time && data.updatedAt == request.time
+        && ((data.status == 'pending' && data.keys().hasOnly(base.concat(['mainStatus'])) && data.get('mainStatus', 'pending') == 'pending')
+          || (data.originalRequestId is string && data.vacationId == data.originalRequestId
+          && data.get('requestStatus', 'pending') == 'pending'
+          && ((data.status == 'change_requested' && data.keys().hasOnly(followUp.concat(['changeRequest'])) && data.changeRequest is map)
+            || (data.status == 'cancellation_requested' && data.keys().hasOnly(followUp.concat(['requestKind', 'cancellationRequest']))
+              && data.get('requestKind', 'cancellation') == 'cancellation' && data.cancellationRequest is map))
+          && ownApprovedVacation(data.originalRequestId)));
+    }
+    function ownApprovedVacation(id) {
+      let original = get(/databases/$(database)/documents/vacationRequests/$(id)).data;
+      return original.userId == request.auth.uid && original.status == 'approved'
+        && !original.keys().hasAny(['originalRequestId', 'vacationId', 'changeRequest', 'cancellationRequest', 'requestKind']);
     }
     match /vacationRequests/{id} {
       allow read: if view('vacation') && (resource.data.userId == request.auth.uid || resource.data.status == 'approved');
-      allow create: if edit('vacation') && ownVacationRequest(request.resource.data);
+      allow create: if edit('vacation') && ownVacationRequest(request.resource.data, id);
       // Approval, rejection and all other changes are handled by the callable
       // function, which validates the manager's department server-side.
       allow update, delete: if false;
