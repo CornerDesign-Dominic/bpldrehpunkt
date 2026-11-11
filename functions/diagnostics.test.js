@@ -1,4 +1,16 @@
 import test from 'node:test'
+
+test('todo diagnostics preserve access failures without retaining task or partner context', () => {
+  const event = normalizeClientDiagnostic({ module: 'todos', stage: 'save', code: 'access-failure', message: 'Private title', details: { customer: 'Private customer' } })
+  assert.equal(event.message, 'To-do konnte nicht gespeichert werden.')
+  assert.equal(event.recordId, undefined)
+  assert(!JSON.stringify(event).includes('Private'))
+  for (const context of [{ recordId: 'task' }, { orderId: 'order' }]) assert.throws(() => normalizeClientDiagnostic({ module: 'todos', stage: 'save', code: 'access-failure', ...context }), { code: 'invalid-argument' })
+  assert.equal(canReportLinkDiagnostic({ active: true, permissions: { todos: 'edit' } }, 'todos'), true)
+  assert.equal(canReportLinkDiagnostic({ active: true, permissions: { todos: 'view' } }, 'todos'), true)
+  assert.equal(canReportLinkDiagnostic({ active: false, role: 'superadmin' }, 'todos'), false)
+  assert.equal(canReportLinkDiagnostic({ active: true, role: 'admin', permissions: {} }, 'todos'), false)
+})
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { appendDiagnosticToBatch, buildDiagnosticEvent, buildDiagnosticQuery, canReportLinkDiagnostic, DIAGNOSTIC_MODULES, normalizeClientDiagnostic } from './diagnostics.js'
@@ -32,7 +44,7 @@ test('diagnostic entries contain bounded, useful fields and no arbitrary payload
     message: 'Ort konnte nicht bestimmt werden.', actorId: 'user-1', actorName: 'Test User',
     orderId: 'dev-order', originCountry: 'DE', destinationCountry: 'PT', createdAt: 'fixed-time',
   })
-  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts', 'damages', 'inkasso', 'insolvencies'])
+  assert.deepEqual(DIAGNOSTIC_MODULES, ['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts', 'damages', 'inkasso', 'insolvencies', 'todos'])
   assert.throws(() => buildDiagnosticEvent({ module: 'unknown' }), /Unknown diagnostic module/)
 })
 

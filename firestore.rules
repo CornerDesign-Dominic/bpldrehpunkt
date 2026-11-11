@@ -40,19 +40,22 @@ service cloud.firestore {
     }
     // Reminder wall-clock validation is deliberately independent of recipient
     // addresses. The central server resolves current authorized users and DST.
-    function validReminderCalendarDay(parts) {
-      let year = int(parts[0]);
-      let month = int(parts[1]);
-      let day = int(parts[2]);
-      let leap = year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
-      return year >= 1 && year <= 9999 && month >= 1 && month <= 12 && day >= 1
-        && day <= (month == 2 ? (leap ? 29 : 28) : (month in [4, 6, 9, 11] ? 30 : 31));
+    function validReminderLeapYear(value) {
+      let year = int(value.split('-')[0]);
+      return year >= 1 && (year % 400 == 0 || (year % 4 == 0 && year % 100 != 0));
     }
     function validReminderDate(value) {
-      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$') && validReminderCalendarDay(value.split('-'));
+      // Month-specific day ranges avoid expanding integer/calendar arithmetic
+      // on every atomic case/task write. Only February 29 needs a leap check.
+      return value is string && !value.matches('^0000-.*')
+        && (value.matches('^[0-9]{4}-((0[13578]|1[02])-(0[1-9]|[12][0-9]|3[01])|(0[469]|11)-(0[1-9]|[12][0-9]|30)|02-(0[1-9]|1[0-9]|2[0-8]))$')
+          || (value.matches('^[0-9]{4}-02-29$') && validReminderLeapYear(value)));
     }
     function validReminderTime(value) { return value is string && value.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$'); }
-    function validReminderOccurrence(data) { return data.get('reminderOccurrence', null) == null || data.get('reminderOccurrence', null) in ['earlier', 'later']; }
+    function validReminderOccurrence(data) {
+      let occurrence = data.get('reminderOccurrence', null);
+      return occurrence == null || occurrence in ['earlier', 'later'];
+    }
     function optionalReminderSchedule(data) {
       return (data.get('reminderDate', null) == null || validReminderDate(data.get('reminderDate', null)))
         && (data.get('reminderTime', null) == null || validReminderTime(data.get('reminderTime', null))) && validReminderOccurrence(data);
@@ -434,7 +437,7 @@ service cloud.firestore {
         || (data.caseType == 'insolvency' && view('insolvencies'));
     }
     function caseTransportLinkCaseEditable(data) {
-      return (data.caseType == 'damage' && edit('damages'))
+      return (data.caseType == 'damage' && damageEditor())
         || (data.caseType == 'inkasso' && edit('inkasso'))
         || (data.caseType == 'legalDispute' && edit('legalDisputes'))
         || (data.caseType == 'insolvency' && edit('insolvencies'));
@@ -732,6 +735,17 @@ service cloud.firestore {
       return (data.responsibleUserId == null && data.responsibleUserName == null)
         || (data.responsibleUserId is string && data.responsibleUserName is string);
     }
+    function damageRecipientMatches(userId, name) {
+      let profile = get(/databases/$(database)/documents/users/$(userId)).data;
+      return profile.active == true
+        && (profile.role == 'superadmin' || profile.get('permissions', {}).get('damages', 'none') in ['view', 'edit'])
+        && name == profileName(profile);
+    }
+    function validDamageReminderResponsible(data) {
+      return (data.responsibleUserId == null && data.responsibleUserName == null)
+        || (data.responsibleUserId is string && data.responsibleUserName is string
+          && damageRecipientMatches(data.responsibleUserId, data.responsibleUserName));
+    }
     function hasPartnerReferenceRole(partner, role) {
       return (role == 'customer' && partner.keys().hasAll(['debtorNumber']) && partner.debtorNumber is string && partner.debtorNumber.size() > 0)
         || (role == 'carrier' && partner.keys().hasAll(['creditorNumber']) && partner.creditorNumber is string && partner.creditorNumber.size() > 0)
@@ -748,27 +762,47 @@ service cloud.firestore {
         || (partner.keys().hasAll(['partnerRoles']) && ((partner.partnerRoles is list && partner.partnerRoles.hasAny([role, role == 'customer' ? 'kunde' : 'unternehmer'])) || (partner.partnerRoles is string && partner.partnerRoles in [role, role == 'customer' ? 'kunde' : 'unternehmer']) || roleMapContains(partner.partnerRoles, role)));
     }
     function hasProvisionalTransportCarrierRole(partner) {
-      return partner.keys().hasAll(['taImportStatus']) && partner.taImportStatus is map
-        && partner.taImportStatus.keys().hasAll(['source', 'missingRequiredFields'])
-        && partner.taImportStatus.source == 'dycosTransportOrder'
-        && partner.taImportStatus.missingRequiredFields is list
-        && partner.taImportStatus.missingRequiredFields.hasAny(['creditorNumber']);
+      let status = partner.get('taImportStatus', null);
+      return status is map && status.get('source', null) == 'dycosTransportOrder'
+        && status.get('missingRequiredFields', null) is list
+        && 'creditorNumber' in status.missingRequiredFields;
     }
     function hasBusinessPartnerRole(partner, role) {
       return hasPartnerReferenceRole(partner, role) || hasExplicitPartnerRole(partner, role)
         || (role == 'carrier' && hasProvisionalTransportCarrierRole(partner));
     }
+    function damagePartnerMatches(partnerId, name, role) {
+      let partner = get(/databases/$(database)/documents/businessPartners/$(partnerId)).data;
+      return name == partner.companyName
+        && ((role == 'carrier' && 'taImportStatus' in partner && hasProvisionalTransportCarrierRole(partner))
+          || legalDisputePartnerHasRole(partner, role));
+    }
     function validDamageClaimant(data) {
       return !data.keys().hasAny(['claimantPartnerId']) || data.claimantPartnerId == null
-        || (data.claimantPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId))
-          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data, 'customer')
-          && data.claimant == get(/databases/$(database)/documents/businessPartners/$(data.claimantPartnerId)).data.companyName);
+        || (data.claimantPartnerId is string && damagePartnerMatches(data.claimantPartnerId, data.claimant, 'customer'));
     }
     function validDamageContractor(data) {
       return !data.keys().hasAny(['contractorPartnerId']) || data.contractorPartnerId == null
-        || (data.contractorPartnerId is string && exists(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId))
-          && hasBusinessPartnerRole(get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data, 'carrier')
-          && data.contractor == get(/databases/$(database)/documents/businessPartners/$(data.contractorPartnerId)).data.companyName);
+        || (data.contractorPartnerId is string && damagePartnerMatches(data.contractorPartnerId, data.contractor, 'carrier'));
+    }
+    function validDamageAmount(value) { return value == null || (value is number && value >= 0); }
+    function validDamageDate(value) { return value == null || (value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')); }
+    function validDamageSelection(value, options) { return value == null || value in options; }
+    function damageInsuranceFieldsValid(data) {
+      // The create form leaves these later-edit sections empty. Prove their
+      // shared null defaults together, then validate every populated field.
+      return data.diff({'legalBasis': null, 'cargoWeightKg': null, 'liabilityLimit': null, 'insuranceRelevance': null, 'bplInsuranceCaseNumber': null, 'contractorInsurance': null, 'contractorInsuranceCaseNumber': null, 'customerInsurance': null, 'customerInsuranceNumber': null, 'contractorLiability': null, 'liabilityNote': null}).changedKeys().size() == 0
+        || (validDamageSelection(data.get('legalBasis', null), ['cmr', 'national', 'goodwill', 'other'])
+        && validDamageAmount(data.get('cargoWeightKg', null))
+        && validDamageAmount(data.get('liabilityLimit', null))
+        && validDamageSelection(data.get('insuranceRelevance', null), ['yes', 'no', 'pending'])
+        && validDamageText(data.get('bplInsuranceCaseNumber', null), 240)
+        && validDamageText(data.get('contractorInsurance', null), 240)
+        && validDamageText(data.get('contractorInsuranceCaseNumber', null), 240)
+        && validDamageText(data.get('customerInsurance', null), 240)
+        && validDamageText(data.get('customerInsuranceNumber', null), 240)
+        && validDamageSelection(data.get('contractorLiability', null), ['open', 'acknowledged', 'rejected', 'partially_acknowledged'])
+        && validDamageText(data.get('liabilityNote', null), 4000));
     }
     function validDamageCaseContent(data) {
       return data.caseNumber is string && data.caseNumber.matches('^S-[0-9]{4}-[0-9]{4}$')
@@ -778,38 +812,29 @@ service cloud.firestore {
         && data.damageDate is string && data.damageDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && data.title is string && data.title.size() > 0 && data.title.size() <= 500
         && validDamageText(data.description, 4000) && validDamageType(data)
-        && validDamageText(data.transportReference, 240) && (!data.keys().hasAny(['damageLocation']) || validDamageText(data.damageLocation, 240))
+        && validDamageText(data.transportReference, 240) && validDamageText(data.get('damageLocation', null), 240)
         && validDamageText(data.claimant, 240) && validDamageText(data.contractor, 240)
-        && validDamageResponsible(data) && (!data.keys().hasAny(['dueDate']) || data.dueDate == null || (data.dueDate is string && data.dueDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
+        && validDamageResponsible(data) && validDamageDate(data.get('dueDate', null))
         && (data.damageAmount == null || (data.damageAmount is number && data.damageAmount >= 0))
-        && (!data.keys().hasAny(['legalBasis']) || data.legalBasis == null || data.legalBasis in ['cmr', 'national', 'goodwill', 'other'])
-        && (!data.keys().hasAny(['cargoWeightKg']) || data.cargoWeightKg == null || (data.cargoWeightKg is number && data.cargoWeightKg >= 0))
-        && (!data.keys().hasAny(['liabilityLimit']) || data.liabilityLimit == null || (data.liabilityLimit is number && data.liabilityLimit >= 0))
-        && (!data.keys().hasAny(['insuranceRelevance']) || data.insuranceRelevance == null || data.insuranceRelevance in ['yes', 'no', 'pending'])
-        && (!data.keys().hasAny(['bplInsuranceCaseNumber']) || validDamageText(data.bplInsuranceCaseNumber, 240))
-        && (!data.keys().hasAny(['contractorInsurance']) || validDamageText(data.contractorInsurance, 240))
-        && (!data.keys().hasAny(['contractorInsuranceCaseNumber']) || validDamageText(data.contractorInsuranceCaseNumber, 240))
-        && (!data.keys().hasAny(['customerInsurance']) || validDamageText(data.customerInsurance, 240))
-        && (!data.keys().hasAny(['customerInsuranceNumber']) || validDamageText(data.customerInsuranceNumber, 240))
-        && (!data.keys().hasAny(['contractorLiability']) || data.contractorLiability == null || data.contractorLiability in ['open', 'acknowledged', 'rejected', 'partially_acknowledged'])
-        && (!data.keys().hasAny(['liabilityNote']) || validDamageText(data.liabilityNote, 4000)) && data.openBplRisk == null;
+        && damageInsuranceFieldsValid(data) && data.openBplRisk == null;
     }
     function damageCounterAfter(year) { return getAfter(/databases/$(database)/documents/damageCaseCounters/$(year)).data; }
     function isCreatedDamageCase() {
+      let actorName = profileName(ownProfile());
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
-        && validCaseReminderResponsible(request.resource.data, 'damages')
+        && validDamageReminderResponsible(request.resource.data)
         && validDamageClaimant(request.resource.data) && validDamageContractor(request.resource.data)
         && request.resource.data.damageAmount is number
         && request.resource.data.title == request.resource.data.caseNumber + ' – ' + request.resource.data.damageDate
         && !request.resource.data.keys().hasAny(['damageLocation', 'liabilityNote'])
         && request.resource.data.caseSequence == damageCounterAfter(request.resource.data.caseYear).nextNumber
-        && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == profileName(ownProfile())
-        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
+        && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdByName == actorName
+        && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == actorName
         && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
     }
     function isUpdatedDamageCase() {
       return damageCaseKeysAreValid(request.resource.data) && validDamageCaseContent(request.resource.data)
-        && (responsibilityUnchanged(resource.data, request.resource.data) || validCaseReminderResponsible(request.resource.data, 'damages'))
+        && (responsibilityUnchanged(resource.data, request.resource.data) || validDamageReminderResponsible(request.resource.data))
         && (unchangedPartnerBinding(request.resource.data, resource.data, ['claimant', 'claimantPartnerId']) || validDamageClaimant(request.resource.data))
         && (unchangedPartnerBinding(request.resource.data, resource.data, ['contractor', 'contractorPartnerId']) || validDamageContractor(request.resource.data))
         && request.resource.data.caseNumber == resource.data.caseNumber && request.resource.data.caseYear == resource.data.caseYear
@@ -820,18 +845,25 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'damageDate', 'title', 'description', 'damageType', 'transportReference', 'claimant', 'claimantPartnerId', 'contractor', 'contractorPartnerId', 'responsibleUserId', 'responsibleUserName', 'damageAmount', 'legalBasis', 'cargoWeightKg', 'liabilityLimit', 'insuranceRelevance', 'bplInsuranceCaseNumber', 'contractorInsurance', 'contractorInsuranceCaseNumber', 'customerInsurance', 'customerInsuranceNumber', 'contractorLiability', 'updatedAt', 'updatedBy', 'updatedByName']);
     }
+    // Atomic damage creation has four independently checked writes. Fetch the
+    // active editor profile once per check instead of expanding nested helpers.
+    function damageEditor() {
+      let profile = ownProfile();
+      return signedIn() && profile.active == true
+        && (profile.role == 'superadmin' || profile.permissions.damages == 'edit');
+    }
     match /damageCaseCounters/{year} {
-      allow get: if edit('damages');
+      allow get: if damageEditor();
       allow list, delete: if false;
-      allow create: if edit('damages') && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
+      allow create: if damageEditor() && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
         && request.resource.data.year == year && request.resource.data.nextNumber == 1 && request.resource.data.updatedAt == request.time;
-      allow update: if edit('damages') && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
+      allow update: if damageEditor() && year.matches('^[0-9]{4}$') && request.resource.data.keys().hasOnly(['year', 'nextNumber', 'updatedAt'])
         && request.resource.data.year == year && request.resource.data.nextNumber is int && request.resource.data.nextNumber == resource.data.nextNumber + 1 && request.resource.data.updatedAt == request.time;
     }
     match /damageCases/{id} {
       allow read: if view('damages');
-      allow create: if edit('damages') && isCreatedDamageCase();
-      allow update: if edit('damages') && isUpdatedDamageCase();
+      allow create: if damageEditor() && isCreatedDamageCase();
+      allow update: if damageEditor() && isUpdatedDamageCase();
       allow delete: if edit('damages');
 
       match /updates/{updateId} {
@@ -842,7 +874,7 @@ service cloud.firestore {
             && data.createdByUserId == request.auth.uid && data.createdByName == profileName(ownProfile()) && data.createdAt == request.time;
         }
         allow read: if view('damages');
-        allow create: if edit('damages') && validDamageCaseUpdate(request.resource.data)
+        allow create: if damageEditor() && validDamageCaseUpdate(request.resource.data)
           && getAfter(/databases/$(database)/documents/damageCases/$(id)).data.caseNumber is string;
         allow update, delete: if false;
       }
@@ -1307,9 +1339,9 @@ service cloud.firestore {
     }
     function legalDisputeRoleValue(value, role) {
       let alias = role == 'customer' ? 'kunde' : 'unternehmer';
-      return (value is list && value.hasAny([role, alias]))
-        || (value is string && value in [role, alias])
-        || (value is map && (value.get(role, false) == true || value.get(alias, false) == true));
+      return value is list ? value.hasAny([role, alias])
+        : value is string ? value in [role, alias]
+        : (value is map && (value.get(role, false) == true || value.get(alias, false) == true));
     }
     function legalDisputePartnerHasRole(partner, role) {
       let number = partner.get(role == 'customer' ? 'debtorNumber' : 'creditorNumber', '');
@@ -1407,36 +1439,36 @@ service cloud.firestore {
       let customer = imported.get('customer', {});
       let carrier = imported.get('carrier', {});
       return (!needs.customer || (customer.get('partnerId', null) == data.customerId
-          && (customer.get('name', null) == data.customerName || customer.get('partnerName', null) == data.customerName)))
+          && (customer.get('name', null) == data.customerName ? true : customer.get('partnerName', null) == data.customerName)))
         && (!needs.carrier || (carrier.get('partnerId', null) == data.carrierId
-          && (carrier.get('originalName', null) == data.carrierName || carrier.get('partnerName', null) == data.carrierName)));
+          && (carrier.get('originalName', null) == data.carrierName ? true : carrier.get('partnerName', null) == data.carrierName)));
     }
     function todoFirstOrderOriginNamesMatch(data, needs, profile) {
       let links = data.get('transportOrderLinks', []);
       let orderId = links is list && links.size() > 0 && links[0] is map ? links[0].get('id', null) : null;
       return todoOriginId(orderId) && todoOriginModuleVisible(profile, 'transportOrders')
+        // A missing optional TA must leave the independent case-origin proof usable.
+        && exists(/databases/$(database)/documents/transportOrders/$(orderId))
         && todoTransportOrderOriginNamesMatch(orderId, data, needs);
     }
-    function todoOriginNamesMatch(data, needs) {
-      let profile = ownProfile();
+    function todoOriginNamesMatch(data, needs, profile) {
       // A follow-up has one origin. All inherited historical slots must be
       // proven together by the same readable case, or the first linked TA.
-      return (todoOriginId(data.get('damageCaseId', null)) && todoOriginModuleVisible(profile, 'damages') && todoDamageOriginNamesMatch(data, needs))
+      return todoFirstOrderOriginNamesMatch(data, needs, profile) ? true
+        : (todoOriginId(data.get('damageCaseId', null)) && todoOriginModuleVisible(profile, 'damages') && todoDamageOriginNamesMatch(data, needs))
         || (todoOriginId(data.get('inkassoCaseId', null)) && todoOriginModuleVisible(profile, 'inkasso') && todoInkassoOriginNamesMatch(data, needs))
         || (todoOriginId(data.get('insolvencyId', null)) && todoOriginModuleVisible(profile, 'insolvencies') && todoInsolvencyOriginNamesMatch(data, needs))
-        || (todoOriginId(data.get('legalDisputeId', null)) && todoOriginModuleVisible(profile, 'legalDisputes') && todoLegalOriginNamesMatch(data, needs))
-        || todoFirstOrderOriginNamesMatch(data, needs, profile);
+        || (todoOriginId(data.get('legalDisputeId', null)) && todoOriginModuleVisible(profile, 'legalDisputes') && todoLegalOriginNamesMatch(data, needs));
     }
     function todoPartnerHasRole(partner, role) {
-      let roles = partner.get('businessPartnerRoles', []);
-      // Explicit roles are sufficient evidence in every supported list, string
-      // or map form. Retain the complete predicate for all other role facts.
-      return legalDisputeRoleValue(roles, role)
-        || legalDisputeRoleValue(partner.get('partnerRoles', []), role)
-        || (role == 'carrier' && 'taImportStatus' in partner && hasProvisionalTransportCarrierRole(partner))
-        || legalDisputePartnerHasRole(partner, role);
+      let number = partner.get(role == 'customer' ? 'debtorNumber' : 'creditorNumber', '');
+      return number is string && number.size() > 0 ? true
+        : ('businessPartnerRoles' in partner && legalDisputeRoleValue(partner.businessPartnerRoles, role)) ? true
+        : ('partnerRoles' in partner && legalDisputeRoleValue(partner.partnerRoles, role)) ? true
+        : (role == 'carrier' && 'taImportStatus' in partner && hasProvisionalTransportCarrierRole(partner)) ? true
+        : legalDisputePartnerHasRole(partner, role);
     }
-    function validNewTodoPartnerLinks(data) {
+    function validNewTodoPartnerLinks(data, profile) {
       let customerId = data.get('customerId', null);
       let carrierId = data.get('carrierId', null);
       let customerName = data.get('customerName', null);
@@ -1449,9 +1481,9 @@ service cloud.firestore {
       };
       return ((customerId == null && customerName == null && (('customerId' in data) == ('customerName' in data))) || (customerId is string && customerName is string && todoPartnerHasRole(customer, 'customer')))
         && ((carrierId == null && carrierName == null && (('carrierId' in data) == ('carrierName' in data))) || (carrierId is string && carrierName is string && todoPartnerHasRole(carrier, 'carrier')))
-        && (!(needs.customer || needs.carrier) || todoOriginNamesMatch(data, needs));
+        && (!(needs.customer || needs.carrier) || todoOriginNamesMatch(data, needs, profile));
     }
-    function validTodoPartnerLinks(data, previous) {
+    function validTodoPartnerLinks(data, previous, profile) {
       let customerId = data.get('customerId', null);
       let carrierId = data.get('carrierId', null);
       let customerChanged = !unchangedPartnerBinding(data, previous, ['customerId', 'customerName']);
@@ -1463,11 +1495,12 @@ service cloud.firestore {
         'carrier': carrierChanged && carrierId is string && data.get('carrierName', null) is string && data.carrierName != carrier.get('companyName', null)
       };
       return (!customerChanged || validCustomerLink(data, customer)) && (!carrierChanged || validCarrierLink(data, carrier))
-        && (!(needs.customer || needs.carrier) || todoOriginNamesMatch(data, needs));
+        && (!(needs.customer || needs.carrier) || todoOriginNamesMatch(data, needs, profile));
     }
     function todoKeysAreValid(data) {
-      return data.keys().hasAll(['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt']);
+      let required = ['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'];
+      return data.keys().hasAll(required)
+        && data.keys().hasOnly(required.concat(['reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceIds']));
     }
     function profileName(profile) {
       let first = profile.get('firstName', '');
@@ -1483,31 +1516,35 @@ service cloud.firestore {
       let first = profile.get('firstName', null);
       let last = profile.get('lastName', null);
       return (first is string && last is string && value == first + ' ' + last)
-        || value == profileName(profile);
+        ? true : value == profileName(profile);
     }
     function activeProfile(userId) {
       return exists(/databases/$(database)/documents/users/$(userId))
         && get(/databases/$(database)/documents/users/$(userId)).data.active == true;
     }
     function noAudienceIds(data) {
-      return !data.keys().hasAny(['audienceIds']) || data.audienceIds == null;
+      return data.get('audienceIds', null) == null;
     }
     function validTodoAudience(data) {
-      return data.audienceType == 'all' ? data.audienceId == null && noAudienceIds(data) && data.audienceLabel == 'Alle'
-        : data.audienceType == 'department' ? data.audienceId is string && data.audienceId.size() > 0 && noAudienceIds(data)
-          && (data.audienceLabel == data.audienceId || data.audienceLabel == 'Abteilung: ' + data.audienceId)
-        : data.audienceType == 'person' ? data.audienceId is string && noAudienceIds(data) && validTodoPersonAudience(data)
-        : (data.audienceType == 'people' && data.audienceId == null && data.keys().hasAll(['audienceIds'])
+      let type = data.audienceType;
+      let label = data.audienceLabel;
+      return type == 'people' ? data.audienceId == null
           && data.audienceIds is list && data.audienceIds.size() > 0 && data.audienceIds.size() <= 50
-          && data.audienceLabel is string && data.audienceLabel.size() > 0 && data.audienceLabel.size() <= 4000);
+          && label is string && label.size() > 0 && label.size() <= 4000
+        : type == 'all' ? data.audienceId == null && noAudienceIds(data) && label == 'Alle'
+        : type == 'department' ? data.audienceId is string && data.audienceId.size() > 0 && noAudienceIds(data)
+          && (label == data.audienceId || label == 'Abteilung: ' + data.audienceId)
+        : type == 'person' && data.audienceId is string && noAudienceIds(data) && validTodoPersonAudience(data);
     }
-    function validTodoExtras(data, previous) {
+    function validTodoExtras(data, previous, profile) {
       let reminder = data.get('reminderDate', null);
       let reference = data.get('reference', null);
       return data.get('priority', 'medium') in ['low', 'medium', 'high']
-        && (reminder == null || (reminder is string && reminder.size() == 10))
-        && (previous.size() == 0 ? validNewTodoPartnerLinks(data) : validTodoPartnerLinks(data, previous))
-        && validTransportOrderLink(data) && validTransportOrderLinks(data) && validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)
+        && (previous.size() == 0 || reminder == null || (reminder is string && reminder.size() == 10))
+        && (previous.size() == 0 ? validNewTodoPartnerLinks(data, profile) : validTodoPartnerLinks(data, previous, profile))
+        && validTransportOrderLink(data) && validTransportOrderLinks(data)
+        && ((data.get('damageCaseId', null) == null && data.get('insolvencyId', null) == null && data.get('legalDisputeId', null) == null && data.get('inkassoCaseId', null) == null)
+          || (validDamageCaseLink(data) && validInsolvencyLink(data) && validLegalDisputeLink(data) && validInkassoCaseLink(data)))
         && (reference == null || (reference is string && reference.size() <= 240));
     }
     function validCustomerLink(data, partner) {
@@ -1519,7 +1556,7 @@ service cloud.firestore {
         || (data.carrierId is string && data.carrierName is string && todoPartnerHasRole(partner, 'carrier'));
     }
     function validTransportOrderLink(data) {
-      return !data.keys().hasAny(['transportOrderId', 'transportOrderNumber']) || (data.transportOrderId == null && data.transportOrderNumber == null)
+      return (data.get('transportOrderId', null) == null && data.get('transportOrderNumber', null) == null)
         || (data.transportOrderId is string && data.transportOrderNumber is string
           && exists(/databases/$(database)/documents/transportOrders/$(data.transportOrderId))
           && data.transportOrderNumber == get(/databases/$(database)/documents/transportOrders/$(data.transportOrderId)).data.externalNumber);
@@ -1544,13 +1581,16 @@ service cloud.firestore {
       let id = data.get('inkassoCaseId', null);
       return id == null || (id is string && exists(/databases/$(database)/documents/inkassoCases/$(id)));
     }
-    function validTodoContent(data, previous) {
-      return data.title is string && data.title.size() > 0 && data.title.size() <= 240
-        && data.description is string && data.description.size() <= 4000
-        && (data.dueDate == null || data.dueDate is string)
+    function validTodoContent(data, previous, profile) {
+      let title = data.title;
+      let description = data.description;
+      let dueDate = data.dueDate;
+      return title is string && title.size() > 0 && title.size() <= 240
+        && description is string && description.size() <= 4000
+        && (dueDate == null || dueDate is string)
         && ((previous.size() == 0 && data.audienceType == 'person' && data.audienceId == request.auth.uid)
           ? noAudienceIds(data) && data.audienceLabel == data.creatorName
-          : validTodoAudience(data)) && validTodoExtras(data, previous);
+          : validTodoAudience(data)) && validTodoExtras(data, previous, profile);
     }
     function isTodoAudienceMember(data) {
       return data.audienceType == 'all'
@@ -1564,9 +1604,12 @@ service cloud.firestore {
     }
     function isCreatorOrSuperadmin() { return resource.data.creatorUserId == request.auth.uid || superadmin(); }
     function hasOpenAssignment(data) {
-      return data.status == 'open' && data.assignedUserId == null && data.assignedUserName == null && data.assignedAt == null
-        && data.completedAt == null && data.completedByUserId == null && data.completedByName == null
-        && data.withdrawnAt == null && data.withdrawnByUserId == null;
+      // All eight fields must exist and be null. Grouping the equalities avoids
+      // exhausting the expression budget after partner and reminder validation.
+      return data.status == 'open'
+        && [data.assignedUserId, data.assignedUserName, data.assignedAt,
+          data.completedAt, data.completedByUserId, data.completedByName,
+          data.withdrawnAt, data.withdrawnByUserId].hasOnly([null]);
     }
     function isCreatedOpenTodo(data) {
       return hasOpenAssignment(data);
@@ -1580,8 +1623,10 @@ service cloud.firestore {
     }
     function isCreatedTodo() {
       let data = request.resource.data;
-      return todoKeysAreValid(data) && validTodoContent(data, {}) && validNewTodoReminderSchedule(data)
-        && data.creatorUserId == request.auth.uid && todoProfileNameMatches(data.creatorName, ownProfile())
+      let profile = ownProfile();
+      return signedIn() && profile.active == true && (profile.role == 'superadmin' || profile.permissions.get('todos', 'none') == 'edit')
+        && todoKeysAreValid(data) && validTodoContent(data, {}, profile) && validNewTodoReminderSchedule(data)
+        && data.creatorUserId == request.auth.uid && todoProfileNameMatches(data.creatorName, profile)
         && (data.status == 'open' ? isCreatedOpenTodo(data) : isCreatedOwnTodo(data)) && data.createdAt == request.time && data.updatedAt == request.time;
     }
     function isTakeover() {
@@ -1621,13 +1666,13 @@ service cloud.firestore {
         && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt'])
-        && validTodoContent(request.resource.data, resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data);
+        && validTodoContent(request.resource.data, resource.data, ownProfile()) && validChangedTodoReminderSchedule(resource.data, request.resource.data);
     }
     function isCreatorResetAssignment() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
         && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt'])
-        && validTodoContent(request.resource.data, resource.data) && validChangedTodoReminderSchedule(resource.data, request.resource.data);
+        && validTodoContent(request.resource.data, resource.data, ownProfile()) && validChangedTodoReminderSchedule(resource.data, request.resource.data);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
@@ -1642,12 +1687,24 @@ service cloud.firestore {
     }
     function todoDocument(todoId) { return get(/databases/$(database)/documents/todos/$(todoId)).data; }
     function todoAfter(todoId) { return getAfter(/databases/$(database)/documents/todos/$(todoId)).data; }
-    function validTodoUpdate(data) {
+    function validTodoUpdate(data, parent) {
       return data.keys().hasAll(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
         && data.keys().hasOnly(['text', 'type', 'createdByUserId', 'createdByName', 'createdAt'])
         && data.text is string && data.text.size() > 0 && data.text.size() <= 1000
         && data.type in ['note', 'system'] && data.createdByUserId == request.auth.uid
-        && todoProfileNameMatches(data.createdByName, ownProfile()) && data.createdAt == request.time;
+        && ((data.type == 'system' && parent.createdAt == request.time && parent.creatorUserId == request.auth.uid)
+          ? data.createdByName == parent.creatorName : todoProfileNameMatches(data.createdByName, ownProfile()))
+        && data.createdAt == request.time;
+    }
+    function canCreateTodoUpdate(todoId) {
+      let parent = todoAfter(todoId);
+      let data = request.resource.data;
+      // The new parent is validated in this same atomic write, including its
+      // active-editor gate. An existing task retains the normal history ACL.
+      return ((data.type == 'system' && parent.createdAt == request.time && parent.creatorUserId == request.auth.uid
+          && !exists(/databases/$(database)/documents/todos/$(todoId))) ? true
+        : (((data.type == 'note' && todoAccess('view')) || (data.type == 'system' && todoAccess('edit')))
+          && canReadTodo(parent))) && validTodoUpdate(data, parent);
     }
     function validTodoDeadline(data) {
       return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
@@ -1666,8 +1723,8 @@ service cloud.firestore {
     function validNewTodoReminder(data) { return validNewDeadlineReminder(data); }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
-      allow create: if resource == null && todoAccess('edit') && isCreatedTodo();
-      allow update: if resource != null && ((todoAccess('edit') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
+      allow create: if resource == null ? isCreatedTodo() : false;
+      allow update: if resource == null ? false : ((todoAccess('edit') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
         || (todoAccess('view') && canReadTodo(resource.data) && todoKeysAreValid(request.resource.data) && isNoteTimestampTouch()));
       allow delete: if false;
 
@@ -1676,9 +1733,7 @@ service cloud.firestore {
         // A system entry already requires edit (which includes view). Notes
         // retain their existing view-only capability; neither branch bypasses
         // the parent task's audience/ownership or the payload validation.
-        allow create: if ((request.resource.data.type == 'note' && todoAccess('view'))
-            || (request.resource.data.type == 'system' && todoAccess('edit')))
-          && canReadTodo(todoAfter(id)) && validTodoUpdate(request.resource.data);
+        allow create: if canCreateTodoUpdate(id);
         allow update, delete: if false;
       }
 

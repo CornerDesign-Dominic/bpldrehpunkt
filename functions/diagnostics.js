@@ -4,13 +4,14 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { requireActiveProfile, requireRole } from './access.js'
 import { hasTrackingViewAccess } from './shipmentTracking.js'
 
-export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts', 'damages', 'inkasso', 'insolvencies'])
+export const DIAGNOSTIC_MODULES = Object.freeze(['transport-orders', 'transport-route', 'tracking-preview', 'shipment-tracking', 'shipment-tracking-manual-mail', 'document-templates', 'website', 'mailboxes', 'dycos-import', 'dycos-master-data', 'kvp', 'handbook', 'knowledgeGaps', 'mailTriageQuality', 'calendar', 'pallets', 'background-work', 'reminders', 'case-links', 'partner-links', 'legal-disputes', 'contracts', 'damages', 'inkasso', 'insolvencies', 'todos'])
 const PAGE_SIZE = 50
 const safeText = (value, maxLength = 160) => typeof value === 'string' ? value.trim().slice(0, maxLength) : ''
 const CASE_MODULE_PERMISSIONS = Object.freeze({ damages: 'damages', inkasso: 'inkasso', 'legal-disputes': 'legalDisputes', insolvencies: 'insolvencies' })
 const CASE_MESSAGES = Object.freeze({ load: 'Falldaten konnten nicht geladen werden.', save: 'Falländerung konnte nicht gespeichert werden.', delete: 'Falleintrag konnte nicht gelöscht werden.', upload: 'Falldokument konnte nicht hochgeladen werden.', download: 'Falldokument konnte nicht geladen werden.', cleanup: 'Falldokument konnte nach fehlgeschlagenem Speichern nicht bereinigt werden.', responsibility: 'Fallzuständigkeit konnte nicht übertragen werden.' })
 const CASE_STAGES = ['load', 'save', 'delete', 'upload', 'download', 'cleanup', 'responsibility']
 const CLIENT_STAGES = Object.freeze({
+  todos: ['save'],
   damages: CASE_STAGES, inkasso: CASE_STAGES, insolvencies: CASE_STAGES,
   contracts: ['load', 'save', 'delete', 'upload', 'download'],
   'case-links': ['load', 'save'],
@@ -49,6 +50,7 @@ const CLIENT_MESSAGES = {
 }
 
 const MAILBOX_MESSAGES = {
+  todos: { save: 'To-do konnte nicht gespeichert werden.' },
   contracts: { load: 'Vertragsdaten konnten nicht geladen werden.', save: 'Vertragsänderung konnte nicht gespeichert werden.', delete: 'Vertragseintrag konnte nicht gelöscht werden.', upload: 'Vertragsdokument konnte nicht hochgeladen werden.', download: 'Vertragsdokument konnte nicht geladen werden.' },
   'legal-disputes': { 'load-counterparty': 'Verknüpfte Gegenseite konnte nicht geladen werden.', 'load-counterparty-options': 'Partnerauswahl konnte nicht geladen werden.' },
   'partner-links': { load: 'Verknüpfte Vorgänge des Geschäftspartners konnten nicht vollständig geladen werden.', resolve: 'Die Partner-Weiterleitung konnte nicht aufgelöst werden.', 'resolve-list': 'Einige Partner-Weiterleitungen der Liste konnten nicht aufgelöst werden.', revalidate: 'Die aktuelle Partnerzuordnung konnte nicht erneut geprüft werden.', 'reload-after-save': 'Gespeicherte Stammdaten konnten nicht erneut geladen werden.', save: 'Die Stammdaten konnten nicht gespeichert werden.' },
@@ -66,6 +68,7 @@ const MAILBOX_MESSAGES = {
 
 export function canReportLinkDiagnostic(profile, module, orderId = '') {
   const view = (key) => profile?.role === 'superadmin' || ['view', 'edit'].includes(profile?.permissions?.[key])
+  if (module === 'todos') return profile?.active === true && view('todos')
   if (module === 'reminders') return profile?.active === true && ['calendar', 'todos', 'damages', 'insolvencies', 'legalDisputes', 'inkasso'].some(view)
   if (CASE_MODULE_PERMISSIONS[module]) return profile?.active === true && view(CASE_MODULE_PERMISSIONS[module])
   if (module === 'partner-links') return view('masterData') || view('crm')
@@ -113,6 +116,7 @@ export function normalizeClientDiagnostic(data) {
   const code = safeText(data?.code, 80)
   const orderId = safeText(data?.orderId, 240)
   const recordId = safeText(data?.recordId, 240)
+  if (module === 'todos' && (data?.orderId || data?.recordId)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (CASE_MODULE_PERMISSIONS[module] && (data?.orderId || (data?.recordId && !['load-counterparty', 'load-counterparty-options'].includes(stage)))) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (!CLIENT_STAGES[module]?.includes(stage) || !CLIENT_CODES.has(code)) throw new HttpsError('invalid-argument', 'Ungültige Diagnoseangaben.')
   if (data?.orderId && (!orderId || orderId.includes('/'))) throw new HttpsError('invalid-argument', 'Ungültige Auftrags-ID.')
