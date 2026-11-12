@@ -1,10 +1,13 @@
 # Zeiterfassung und Mitarbeiter-PWA
 
-Stand: 10.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
+Stand: 11.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
 der Korrekturen aus der Rechte- und Zeitkontoabnahme. Die erste Dev-Bereitstellung
 und die Ergänzungen für Vorlagen, Dashboard und Handy-Einstieg haben eigene
 Prüfbelege. [Dev-Bereitstellung](releases/time-recorder-dev-2026-11-10.md) ·
 [Vorlagen, Dashboard und Handy-Einstieg](releases/time-recorder-access-dev-2026-11-10.md).
+
+Die eigenen Web-Fachreiter wurden anschließend auf `dev` ergänzt;
+[Bereitstellung und Prüfungen vom 11.11.2026](releases/time-tabs-dev-2026-11-11.md).
 
 ## Gemeinsame Grundlage
 
@@ -121,6 +124,80 @@ verweisen. Ein genehmigter Abbau kann nur über den genehmigten Stornoweg aufgeh
 werden.
 
 ## Stempelbuchungen und Pausen
+
+### Eigene Arbeitszeit im Drehpunkt-Web
+
+Unter dem heutigen Stempelbereich stehen die Fachreiter **Aktuelle Woche**
+(Standard, Montag bis Sonntag), **Monatsübersicht** (Tageswerte des ausgewählten
+Monats als Tabelle) und **Alle Buchungen**. Die Monatstabelle enthält ausschließlich
+Tag, Sollzeit, Istzeit, Pause gesamt, Arbeitszeit und Plus/Minus. Istzeit ist die
+erfasste Anwesenheit einschließlich gebuchter Pausen; Pause gesamt addiert gebuchte
+und automatisch abgezogene Pausen; Arbeitszeit entspricht der angerechneten
+Zeit nach Pausenabzug. Tagesbuchungen, Korrekturknöpfe und Einzelhinweise stehen
+weiterhin in der Wochenansicht. Nicht berechenbare oder unvollständige Salden
+werden nicht als bestätigtes Plus/Minus angezeigt. Der heutige Stempelbereich und die
+Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
+Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
+
+**Aktuelle Woche** zeigt Montag bis Sonntag als sieben nebeneinanderstehende
+Tagesbalken mit gemeinsamer Höhenskala. Der Balken stellt die angerechnete Istzeit
+dar; eine gestrichelte Linie markiert die Sollzeit. Unter jedem Balken stehen
+Ist-/Sollzeit und die tatsächlich gebuchte Pausenzeit (ohne zusätzlichen
+automatischen Abzug). Fehlende Arbeitszeitvorgaben werden bei Soll als unbekannt
+angezeigt, nicht als erfundene Sollzeit. Der heutige Tag ist hervorgehoben.
+
+Pro Tag folgt darunter eine kleine Tabelle ausschließlich mit Stempelzeit und
+Aktion, chronologisch nach dem Ereigniszeitpunkt sortiert. Ein Stift im Tageskopf
+öffnet das bestehende Tageskorrektur-Modal. Zukunftstage, fehlendes Schreibrecht
+und nicht verfügbare Verbindung/Daten sperren die Bearbeitung wie bisher.
+Unvollständige Tage bleiben erkennbar; keine Änderung an Zeitberechnung oder
+Korrekturfrist. Bei schmalem Fenster bleibt die Siebentagesansicht horizontal
+scrollbar, statt Tage auszublenden. Die ausführliche Zeitmanager-Tabelle bleibt
+unverändert.
+
+**Alle Buchungen** ist unabhängig von der Monatsauswahl. Eine Hauptzeile entspricht
+einer stabilen Buchungs-ID und zeigt den aktuell gültigen Stand. Die neun
+Spalten sind Datum, Uhrzeit, Buchung, Erfassung, Über, Bearbeiter, Gespeichert am,
+Grund und Verlauf. Bearbeiter ist auf 150 Pixel begrenzt; die Grund-Spalte nutzt
+den frei werdenden Platz. Der Grund ist direkt lesbar, ein zusätzlicher
+Freitexthinweis bleibt aufklappbar. Erfassung ist schlichter Text: Gestempelt, Manueller Nachtrag oder
+Korrektur. Gelöschte Buchungen bleiben mit ihrer letzten Uhrzeit/Aktion und
+Erfassung Gelöscht erhalten. Historisch nicht belegte Angaben bleiben ausdrücklich
+nicht erfasst. Die Bezeichnung Original, Statusabzeichen und die Vorher-Spalte
+entfallen.
+
+Der Verlauf klappt frühere effektive Stände direkt unter der Hauptzeile als
+kompakte Tabellenzeilen mit denselben neun Spalten auf, neuester zuerst bis zur
+ersten Erfassung. Die Unterzeilen sind mit einem deutlich kontrastierenden, themeabhängig
+helleren beziehungsweise dunkleren Hintergrund abgesetzt und eingerückt; nur
+geänderte Werte werden hervorgehoben. 30 Stände bedeuten eine aktuelle Zeile und
+29 frühere Zeilen. Jeder Stand behält seinen gespeicherten Bearbeiter, Zeitpunkt
+und Erfassungsweg. Der Grund ist je Stand direkt in seiner eigenen Spalte
+lesbar; längere Freitexthinweise lassen sich dort bei Bedarf öffnen.
+
+Speicherungen ohne Änderung von Aktion/Zeitpunkt zählen nicht als weitere
+Version. Sie bleiben als Unverändert gespeichert separat aufklappbar erhalten
+und ersetzen nicht den Urheber des gültigen Standes. Ohne frühere Stände oder
+zusätzliche Speicherungen bleibt die Verlaufsspalte leer. Für einen aus der
+Vorher-Evidenz rekonstruierten ersten Stand wird kein historischer Bearbeiter
+erfunden. Unbekannte Geräteherkunft bleibt ebenfalls ausdrücklich nicht erfasst.
+
+`listOwnTimeBookings({before?})` prüft aktives Profil und eigenes Zeit-Leserecht.
+Die Zielperson ist ausschließlich die authentifizierte UID. Die Abfrage lädt
+30 gespeicherte Tage je Seite einschließlich ihrer vollständigen Stempel- und
+Korrekturhistorie; `nextBefore` ermöglicht das Laden älterer Tage. Sie nutzt den
+Index `timeDays: userId ASC, date DESC` und gibt keine Modelle oder Personaldaten
+zurück. Die bisherige 500-Einträge-Grenze der Workspace-Korrekturübersicht
+begrenzt diesen Buchungsverlauf nicht.
+
+Neue Web-Anfragen übergeben `client: web`. Die bestehende mobile Dev-App wird
+an ihren beiden exakten Firebase-Hosting-Origins erkannt; ihr Quellcode bleibt
+unverändert. Bei neuen Nachträgen und Änderungen wird die Herkunft gespeichert;
+unveränderte Ereignisse behalten ihre ursprüngliche Herkunft. Neue
+Historieneinträge speichern zusätzlich den Bearbeiternamen. Historische
+Bearbeiternamen werden, soweit möglich, aus dem aktuellen Benutzerprofil
+aufgelöst. Ohne gespeicherte Geräteherkunft erscheint **Nicht erfasst**;
+historische Live-/Offline-Angaben werden nicht nachträglich als Web/Handy geraten.
 
 Ereignisse: `come`, `pause_start`, `pause_end`, `go`. Mehrere Arbeitsabschnitte pro
 Tag sind möglich. Arbeitsdauer ist die Summe der Arbeitsabschnitte, ohne gebuchte
@@ -354,3 +431,93 @@ und [timeTracking.account.integration.test.js](../../functions/timeTracking.acco
    genau einmal sehen. Urlaub und Nachträge sind erst online wieder verfügbar.
    Der physische Gerätetest und der Abgleich mit einem Pilotkonto ergänzen
    den lokalen Chrome- und Emulatorlauf.
+
+## Einzelbuchungen aus dem Sammelstand (Dev-Freigabe 12.11.2026)
+
+Der zunächst unveröffentlichte Umfang wird auf ausdrücklichen Folgeauftrag
+zusammen mit den Karten- und Listenanpassungen auf Dev bereitgestellt. Die Oberfläche
+setzt einen Stift direkt an jede Buchung und Buchung hinzufügen unter jede
+Tagesliste. Jede Aktion öffnet ein kompaktes Einzelmodal mit eigenem Grund und
+optionalem Hinweis. Ein Nachtrag erhält eine stabile neue Ereignis-ID.
+
+Der Mülleimer im Einzelmodal öffnet eine gesonderte Bestätigung mit dem
+ursprünglichen Buchungszeitpunkt und eigener verpflichtender Löschbegründung.
+Abbrechen und fehlender Grund erzeugen keine Änderung. Im Zeitmanagerbereich
+und beim Hinweis auf unvollständige Tage führt die Tagesauswahl zunächst zu
+einer kompakten Leseliste mit Einzelstiften und Nachtragsknopf.
+
+Die bestehende Callable correctTimeDay bleibt bestehen: Gesendet wird die
+vollständige aktuelle Tagesliste, aber ausschließlich ein ausgewähltes Ereignis
+wird verändert, ergänzt oder entfernt. Unberührte Zeitpunkte einschließlich
+Sekunden bleiben erhalten. Jede Aktion hat ihren eigenen Grund in der Historie.
+Serverseitige Tagesfolgenprüfung und Korrekturfrist werden nicht umgangen;
+Korrekturen, die nur gemeinsam eine gültige Tagesfolge ergeben, können dadurch
+weiterhin nicht als ungültige Einzelschritte gespeichert werden.
+
+Revision und beim Öffnen erfasste Akteurs-UID sichern die Anfrage ab. Bei einem
+Konflikt muss der Benutzer explizit neu laden; Eingaben werden verworfen. Eine
+inzwischen gelöschte Zielbuchung wird nicht neu erzeugt. Nach bestätigtem
+Speichern und anschließend fehlgeschlagenem Nachladen ist nur erneutes Laden
+möglich, kein wiederholtes Schreiben. Handy-App und Produktion unverändert.
+
+## Eigene Übersichtsseite und Buchungssuche (12.11.2026)
+
+Die doppelte innere Seitenüberschrift entfällt. Drei reduzierte Karten zeigen
+links die angerechnete Arbeitszeit dieser Woche, mittig die dieses Monats und
+rechts den Gesamtsaldo. Zahlen bleiben neutral; Sollvergleiche und Zusatztexte
+unter den Zahlen entfallen. Ein tatsächlich vorläufiger Kontostand bleibt über
+einen zugänglichen Hinweis an der Kartenüberschrift erkennbar. Aktuelle Wochen-
+und Monatswerte werden auch bei historischer Monatsauswahl geladen.
+
+Die Stempelkarte betont heutigen Status und drei gleich große Aktionen. Einzelne
+Stempelereignisse werden dort nicht erneut angezeigt; sie stehen unter den
+Wochenbalken und im Buchungsjournal.
+
+Alle Buchungen zeigt höchstens 50 Buchungs-IDs je Seite mit Zurück/Weiter.
+Aufgeklappte Versions-/Speicherzeilen zählen nicht als zusätzliche Buchungen.
+Die zwei Datumsfelder Von/Bis begrenzen inklusive nach dem Buchungstag; leere
+Grenzen sind offen. Suchen setzt auf Seite 1 zurück; Zurücksetzen entfernt die
+Grenzen. Ungültige Reihenfolge wird vor dem Abruf abgewiesen.
+
+Die vorhandene Own-Data-Callable bleibt unverändert. Für die obere Datumsgrenze
+nutzt der Client den existierenden exklusiven Tagescursor. Er lädt vollständige
+Tagesabschnitte mit Historie nur bis genügend passende Buchungen für die Seite
+vorliegen beziehungsweise die untere Grenze erreicht ist. Ein Tagesabschnitt
+kann auf mehrere sichtbare Seiten verteilt werden, ohne seine Historie zu kürzen.
+Zwischenspeicher je Suche vermeidet erneute Abrufe beim Zurückblättern; alte
+Suchantworten überschreiben keine neue Suche. Keine neuen direkten Clientrechte.
+
+## Wochennavigation und Pausenanteil (12.11.2026)
+
+Die Wochenkarte besitzt stilgleiche Kalenderpfeile für Vorherige/Nächste Woche
+mit Heute dazwischen. Heute führt zur tatsächlichen laufenden Woche zurück,
+auch nach mehreren Monatswechseln. Der Zeitraum nennt das Jahr; aktuelle
+Übersichtskarten und heutiger Stempelstatus bleiben von der gewählten Woche
+unabhängig. Benötigte Wochen außerhalb der geladenen Monatsabschnitte werden
+als eigene siebentägige Own-Data-Abfrage geladen, statt einen unbegrenzt großen
+Zeitraum anzufordern. Bestehende Korrekturfristen richten sich weiterhin nach
+dem tatsächlichen heutigen Datum.
+
+Der Hinweis Sollzeit rechts oben entfällt. Die Sollmarkierung im einzelnen
+Tagesbalken und der Sollwert unter dem Balken bleiben erhalten. Ein deutlicher
+Rahmen kennzeichnet heute, ohne den ganzen Tag farbig zu füllen. Gebuchte
+Pausen erscheinen als eigener gelb/goldener Abschnitt über der angerechneten
+Arbeitszeit. Die gemeinsame Skala umfasst Arbeitszeit plus gebuchte Pause;
+Pausen werden nicht abgeschnitten oder nochmals als Arbeitszeit gezählt.
+Automatische Zusatzabzüge werden nicht als genommene Pause dargestellt.
+Farbhinweis und Dauer stehen direkt an der Pausenangabe unter dem Balken.
+
+## Deutlicher Pausenmodus und Handy-Einstieg (12.11.2026)
+
+Der heutige Status in der Stempelkarte ist größer, fett, mit Symbol/Rahmen und
+als zugängliche Statusmeldung ausgezeichnet. Während einer Pause erhält die
+Karte einen deutlichen Warnfarbenrahmen und eine dezente Warnfarbenfläche.
+Ein sichtbarer Rückkehrhinweis und der hervorgehobene Pause-beenden-Button
+machen den nötigen Abschluss erkennbar. Nach erfolgreichem pause_end fällt
+die Sonderdarstellung wieder weg. Keine automatische Pausenbeendigung,
+Animation oder Änderung an den Buchungsfunktionen.
+
+Im Handy-QR-Modal bleibt das X oben rechts der einzige Schließen-Button;
+Escape bleibt möglich. Der Link App auf diesem Gerät öffnen steht als letztes
+Element unter sämtlichen Installations-/Anmeldetexten. Zieladresse, QR-Code,
+Anmeldung und mobile Anwendung bleiben unverändert.

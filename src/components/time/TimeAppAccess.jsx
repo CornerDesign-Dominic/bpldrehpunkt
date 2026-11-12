@@ -22,9 +22,8 @@ function PhoneDialog({ onClose }) {
     <header><h2 id="time-phone-title">Meine Zeit am Handy</h2><button type="button" className="button button--secondary" aria-label="Schließen" onClick={onClose}>×</button></header>
     <p>Scanne den QR-Code mit der Handykamera und öffne den angezeigten Link.</p>
     <div className="time-phone-qr">{image ? <img src={image} width="256" height="256" alt="QR-Code zum Öffnen der Drehpunkt-Zeiterfassungs-App" /> : <p role="status">{error || 'QR-Code wird geladen …'}</p>}</div>
-    <a className="button" href={mobileUrl} target="_blank" rel="noopener noreferrer">App auf diesem Gerät öffnen</a>
     <div className="time-phone-instructions"><h3>Einmal öffnen, danach wie eine App starten</h3><p><strong>Android / Chrome:</strong> Browsermenü ⋮ → „App installieren“ oder „Zum Startbildschirm hinzufügen“.</p><p><strong>iPhone / Safari:</strong> Teilen → „Zum Home-Bildschirm“.</p><p>Mit deiner bestehenden Drehpunkt-Anmeldung anmelden. Für den ersten Start brauchst du Internet; danach funktionieren Zeitstempel auch offline.</p></div>
-    <footer><button type="button" className="button button--secondary" onClick={onClose}>Schließen</button></footer>
+    <a className="button" href={mobileUrl} target="_blank" rel="noopener noreferrer">App auf diesem Gerät öffnen</a>
   </dialog>
 }
 

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isTimeHoliday, mayManageTime, personnelTimeProjection, persistTimeCorrection, persistTimeStamp, requireExpectedTimeUser, requireOwnTimeAccess, requirePersonnelTimeAccess } from './timeTracking.js'
+import { isTimeHoliday, mayManageTime, personnelTimeProjection, persistTimeCorrection, persistTimeStamp, readOwnTimeBookings, requestTimeClient, requireExpectedTimeUser, requireOwnTimeAccess, requirePersonnelTimeAccess } from './timeTracking.js'
 
 const user = { active: true, role: 'user', departmentId: 'office', permissions: { timeTracking: 'edit' } }
 const now = new Date('2026-11-10T20:00:00Z')
@@ -29,6 +29,45 @@ function fakeDb(initial = {}) {
 }
 const stamp = { id: 'first', type: 'come', at: '2026-11-10T07:00:00.000Z', source: 'offline' }
 const correction = { userId: 'employee', date: '2026-11-10', events: [stamp], reason: 'forgot_stamp', note: '', expectedRevision: 0 }
+test('booking pages are user-scoped, keep history for deleted events, and advance past 30 days', async () => {
+  const snapshots = entries => ({ docs: entries.map((data, index) => ({ id: String(index), data: () => data })) })
+  const entries = Array.from({ length: 31 }, (_, index) => ({ date: `2026-10-${String(31 - index).padStart(2, '0')}`, events: [] }))
+  const scopes = []
+  const db = { collection(name) {
+    const query = {
+      where(field, op, value) { scopes.push([name, field, op, value]); return query },
+      orderBy() { return query }, startAfter(value) { assert.equal(value, '2026-11-01'); return query },
+      limit(value) { assert.equal(value, 31); return query },
+      async get() { return snapshots(name === 'timeDays' ? entries : [{ date: entries[0].date, kind: 'correction', before: [stamp], after: [], createdByName: 'Manager', createdAt: null }]) },
+    }
+    return query
+  } }
+  const page = await readOwnTimeBookings(db, 'employee', '2026-11-01')
+  assert.equal(page.days.length, 30)
+  assert.equal(page.nextBefore, '2026-10-02')
+  assert.equal(page.history[0].before[0].id, stamp.id)
+  assert.deepEqual(scopes.filter(([, field]) => field === 'userId').map(([, , , uid]) => uid), ['employee', 'employee'])
+  await assert.rejects(readOwnTimeBookings(db, 'employee', 'bad'), { code: 'invalid-argument' })
+})
+test('existing mobile origin is recognized without relabeling unknown legacy clients', () => {
+  assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-dev-time.web.app' } } }), 'mobile')
+  assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-dev-time.web.app.other.test' } } }), 'unknown')
+  assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-time.web.app' } } }), 'mobile')
+  assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-time.web.app.other.test' } } }), 'unknown')
+  assert.equal(requestTimeClient({ data: { client: 'web' } }), 'web')
+  assert.equal(requestTimeClient({}), 'unknown')
+})
+test('web origin and actor are recorded; unchanged original booking retains its origin', async () => {
+  const db = fakeDb({ 'users/employee': { ...user, firstName: 'Test', lastName: 'Person' } })
+  await persistTimeStamp(db, 'employee', { ...stamp, client: 'mobile' }, now)
+  await persistTimeCorrection(db, { ...correction, client: 'web', expectedRevision: 1 }, 'employee', now)
+  assert.equal(db.values.get('timeDays/employee_2026-11-10').events[0].client, 'mobile')
+  const audit = [...db.values.values()].find(value => value.kind === 'correction')
+  assert.equal(audit.client, 'web')
+  assert.equal(audit.createdByName, 'Test Person')
+  await persistTimeCorrection(db, { ...correction, client: 'web', expectedRevision: 2, events: [{ ...stamp, at: '2026-11-10T08:00:00.000Z' }] }, 'employee', now)
+  assert.equal(db.values.get('timeDays/employee_2026-11-10').events[0].client, 'web')
+})
 test('module access is distinct from role and disabled superadmin has no override', () => {
   requireOwnTimeAccess(user, true)
   for (const profile of [{ ...user, permissions: { timeTracking: 'view' } }, { active: true, role: 'admin' }, { active: false, role: 'superadmin' }]) assert.throws(() => requireOwnTimeAccess(profile, true), { code: 'permission-denied' })

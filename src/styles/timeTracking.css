@@ -29,6 +29,41 @@
 .time-table-card { padding: 0; overflow: hidden; }
 .time-table-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 18px; }
 .time-table-scroll { overflow-x: auto; }
+.time-tabs { margin-bottom: 0; }
+.time-tabs button { background: transparent; border-top: 0; border-left: 0; border-right: 0; cursor: pointer; font-family: inherit; }
+.time-tab-content { display: grid; gap: 16px; min-width: 0; }
+.time-bookings-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
+.time-bookings-table { table-layout: fixed; min-width: 1280px; }
+.time-bookings-date { width: 112px; }
+.time-bookings-time { width: 78px; }
+.time-bookings-action { width: 125px; }
+.time-bookings-method { width: 180px; }
+.time-bookings-client { width: 110px; }
+.time-bookings-actor { width: 150px; }
+.time-bookings-timestamp { width: 175px; }
+.time-bookings-reason { width: auto; }
+.time-bookings-trail { width: 180px; }
+.time-bookings-table td { padding-block: 6px; vertical-align: middle; }
+.time-bookings-table td:nth-child(n+4) { white-space: normal; overflow-wrap: anywhere; }
+.time-bookings-table .time-booking-version-row > td,
+.time-bookings-table .time-booking-save-row > td { background: color-mix(in srgb, var(--content-background) 80%, var(--text-primary) 20%); color: var(--text-primary); }
+.time-bookings-table .time-booking-version-row:hover > td,
+.time-bookings-table .time-booking-save-row:hover > td { background: color-mix(in srgb, var(--content-background) 72%, var(--text-primary) 28%); }
+.time-booking-version-row > td:first-child, .time-booking-save-row > td:first-child { box-shadow: inset 3px 0 var(--border); }
+.time-booking-indent { color: var(--text-secondary); }
+.time-booking-value-changed { color: var(--text-primary); font-weight: 700; text-decoration: underline; text-decoration-color: var(--status-warning-text); text-underline-offset: 3px; }
+.time-booking-toggle { padding: 3px 0; border: 0; color: var(--text-primary); background: transparent; font: inherit; cursor: pointer; white-space: nowrap; }
+.time-booking-toggle:focus-visible, .time-booking-reason > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.time-booking-deleted > td:nth-child(2), .time-booking-deleted > td:nth-child(3) { text-decoration: line-through; color: var(--text-secondary); }
+.time-booking-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.time-booking-reason { min-width: 0; font-size: 11px; }
+.time-booking-reason > summary { cursor: pointer; color: var(--text-secondary); }
+.time-booking-reason[open] { flex: 1 0 100%; }
+.time-booking-reason > div { display: grid; gap: 5px; padding-top: 6px; white-space: normal; overflow-wrap: anywhere; }
+.time-booking-saves-heading > td { background: var(--surface-secondary); font-size: 11px; }
+.time-booking-offline { font-size: 11px; color: var(--text-secondary); }
+.time-month-table th:not(:first-child), .time-month-table td:not(:first-child) { text-align: right; }
+.time-month-table td:last-child { font-weight: 700; }
 .time-table-scroll table { width: 100%; }
 .time-table-scroll td, .time-table-scroll th { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .time-event-cell span, .time-issue { display: block; font-size: 11px; line-height: 1.8; }
@@ -66,3 +101,65 @@
 .time-model-week small { font-size: 10px; color: var(--text-secondary); }
 @media (max-width: 950px) { .time-summary { grid-template-columns: 1fr; } .time-model-list article { flex-wrap: wrap; } .time-model-week { grid-template-columns: repeat(4, minmax(65px, 1fr)); } }
 @media (max-width: 600px) { .time-stamp-buttons { flex-direction: column; } .time-stamp-buttons button { width: 100%; } .time-model-day { grid-template-columns: 1fr; } .time-break-rule, .time-correction-row { grid-template-columns: 1fr 1fr; } .time-form-grid { grid-template-columns: 1fr; } .time-toolbar-fields { justify-content: flex-start; } }
+
+.time-week-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.time-week-nav .calendar-navigation__button:disabled { opacity: .4; cursor: default; }
+.time-week-scroll { overflow-x: auto; }
+.time-week-grid { display: grid; grid-template-columns: repeat(7, minmax(145px, 1fr)); min-width: 1015px; }
+.time-week-day { min-width: 0; padding: 0 12px 10px; border-inline-end: 1px solid var(--border); }
+.time-week-day:last-child { border-inline-end: 0; }
+.time-week-day--today { background: transparent; border-radius: 5px; outline: 2px solid var(--button-background); outline-offset: -2px; }
+.time-week-day-heading { display: flex; justify-content: space-between; align-items: center; gap: 4px; min-height: 34px; font-size: 12px; }
+.time-week-day-heading time { color: var(--text-secondary); font-size: 11px; }
+.time-week-edit { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--content-background); color: var(--text-primary); cursor: pointer; }
+.time-week-edit:disabled { opacity: .35; cursor: default; }
+.time-week-edit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.time-week-chart { display: flex; align-items: flex-end; justify-content: center; height: 150px; padding-top: 12px; border-bottom: 1px solid var(--border); }
+.time-week-bar-track { position: relative; height: 100%; width: 44px; border-radius: 4px 4px 0 0; background: var(--surface-secondary); }
+.time-week-bar { position: absolute; bottom: 0; inset-inline: 0; border-radius: 4px 4px 0 0; background: var(--button-background); }
+.time-week-bar--pause { background: var(--status-warning-text); }
+.time-week-target { position: absolute; left: -9px; right: -9px; border-top: 2px dashed var(--text-secondary); }
+.time-week-values { display: grid; gap: 5px; padding: 10px 0; font-size: 11px; font-variant-numeric: tabular-nums; }
+.time-week-values > div { display: flex; gap: 4px; justify-content: space-between; white-space: nowrap; }
+.time-week-values strong { font-weight: 600; }
+.time-week-pause { color: var(--text-secondary); }
+.time-week-pause::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 2px; background: var(--status-warning-text); }
+.time-week-bookings { width: 100%; border-collapse: collapse; font-size: 11px; }
+.time-week-bookings td { padding: 3px 0; height: auto; line-height: 1.4; border: 0; background: transparent; white-space: nowrap; }
+.time-week-bookings td:first-child:not([colspan]) { width: 36px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.time-week-empty { color: var(--text-secondary); }
+.time-week-warning { display: block; margin-top: 6px; color: var(--status-warning-text); font-size: 10px; }
+
+.time-week-booking-action { display: flex; align-items: center; justify-content: space-between; gap: 3px; }
+.time-week-booking-action .time-week-edit { width: 21px; height: 21px; flex-shrink: 0; background: transparent; border-color: transparent; }
+.time-week-booking-action .time-week-edit:hover:not(:disabled) { border-color: var(--border); background: var(--surface-secondary); }
+.time-week-add { width: 100%; margin-top: 8px; padding: 6px 2px; border: 1px solid var(--border); border-radius: 4px; background: var(--content-background); color: var(--text-primary); font: inherit; font-size: 10px; cursor: pointer; }
+.time-week-add:disabled { opacity: .4; cursor: default; }
+.time-week-add:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.time-single-booking-dialog { width: min(480px, calc(100vw - 40px)); }
+.time-single-booking-dialog > header { margin-bottom: 18px; }
+.time-single-booking-fields { display: grid; grid-template-columns: 1fr 110px; gap: 14px; }
+.time-booking-delete { display: inline-grid; place-items: center; width: 34px; height: 34px; margin-right: auto; padding: 0; border: 1px solid var(--border); border-radius: 4px; color: var(--status-danger-text); background: var(--content-background); cursor: pointer; }
+.time-booking-delete:disabled { opacity: .4; cursor: default; }
+.time-booking-delete:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.time-day-booking-choices { display: grid; gap: 4px; margin-bottom: 14px; }
+.time-day-booking-choices > div { display: grid; grid-template-columns: 54px 1fr 26px; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; }
+
+.time-summary--simple .time-card { align-content: center; min-height: 112px; box-sizing: border-box; gap: 12px; }
+.time-summary--simple strong { color: var(--text-primary); }
+.time-summary-info { font-size: 12px; cursor: help; }
+.time-stamp-panel--focus { padding: 22px; background: linear-gradient(115deg, color-mix(in srgb, var(--button-background) 5%, var(--content-background)), var(--content-background)); gap: 20px; }
+.time-stamp-panel--focus h3 { font-size: 16px; }
+.time-stamp-panel--focus .time-status { padding: 7px 12px; font-size: 12px; border-radius: 6px; }
+.time-stamp-panel--focus .time-stamp-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.time-stamp-panel--focus .time-stamp-buttons button { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; min-height: 64px; font-size: 15px; }
+.time-stamp-panel--focus .time-stamp-buttons button > span { font-size: 20px; }
+.time-booking-search { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 0 18px 18px; }
+.time-booking-search > .form-error { flex-basis: 100%; margin: 0; }
+.time-booking-pages { display: flex; gap: 8px; margin-left: auto; }
+@media (max-width: 600px) { .time-stamp-panel--focus .time-stamp-buttons { grid-template-columns: 1fr; } }
+
+.time-stamp-panel--focus .time-status { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 138px; padding: 11px 16px; border: 1px solid currentColor; font-size: 15px; font-weight: 700; }
+.time-status-symbol { font-size: 17px; line-height: 1; }
+.time-stamp-panel--focus .time-stamp-buttons .time-stamp-resume { color: var(--content-background); background: var(--status-warning-text); border-color: var(--status-warning-text); font-weight: 700; box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-warning-text) 20%, transparent); }
+.time-stamp-panel--focus .time-stamp-buttons .time-stamp-resume:hover:not(:disabled) { filter: brightness(.94); }
