@@ -190,9 +190,9 @@ function timeClient(value) { return ['web', 'mobile'].includes(value) ? value : 
 export function requestTimeClient(request) {
   const explicit = timeClient(request.data?.client)
   if (explicit !== 'unknown') return explicit
-  // Existing PWA versions need no update to identify their known Dev origin.
+  // Existing PWA versions need no update to identify their exact hosting origin.
   const origin = request.rawRequest?.headers?.origin
-  return ['https://db-bpl-drehpunkt-dev-time.web.app', 'https://db-bpl-drehpunkt-dev-time.firebaseapp.com'].includes(origin) ? 'mobile' : 'unknown'
+  return ['https://db-bpl-drehpunkt-dev-time.web.app', 'https://db-bpl-drehpunkt-dev-time.firebaseapp.com', 'https://db-bpl-drehpunkt-time.web.app', 'https://db-bpl-drehpunkt-time.firebaseapp.com'].includes(origin) ? 'mobile' : 'unknown'
 }
 function actorName(profile) { return [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') }
 

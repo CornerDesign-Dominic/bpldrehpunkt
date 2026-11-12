@@ -6,7 +6,7 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp } from
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore'
 import { deleteApp, initializeApp } from 'firebase/app'
 import { collection, connectFirestoreEmulator, deleteDoc, doc, getDoc, getDocs, getFirestore, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
-import { correctTimeDay, getOwnMobileVacation, listTimeWorkspace, saveTimeAccount, saveTimeWorkModel, stampTime } from './timeTracking.js'
+import { correctTimeDay, getOwnMobileVacation, listOwnTimeBookings, listTimeWorkspace, saveTimeAccount, saveTimeWorkModel, stampTime } from './timeTracking.js'
 import { archiveTimeWorkModelTemplate, listTimeWorkModelTemplates, saveTimeWorkModelTemplate } from './timeWorkModelTemplates.js'
 import { addTimeDays, berlinTimeDate } from './shared/timeTracking.js'
 
@@ -81,7 +81,7 @@ test('Zeit- und Urlaubsrechte gegen Firestore Emulator', { skip: !emulator }, as
     ])
 
     await t.test('alle Zeit- und Vorlagenfunktionen verlangen Anmeldung und ein ausdrücklich aktives Profil', async () => {
-      const endpoints = [listTimeWorkspace, stampTime, correctTimeDay, saveTimeWorkModel, saveTimeAccount, listTimeWorkModelTemplates, saveTimeWorkModelTemplate, archiveTimeWorkModelTemplate, getOwnMobileVacation]
+      const endpoints = [listOwnTimeBookings, listTimeWorkspace, stampTime, correctTimeDay, saveTimeWorkModel, saveTimeAccount, listTimeWorkModelTemplates, saveTimeWorkModelTemplate, archiveTimeWorkModelTemplate, getOwnMobileVacation]
       for (const fn of endpoints) {
         await assert.rejects(call(fn, null), deniedAuth)
         for (const name of ['missing', 'inactive', 'legacy']) {
@@ -311,6 +311,23 @@ test('Zeit- und Urlaubsrechte gegen Firestore Emulator', { skip: !emulator }, as
       assert.equal(revised.status, 'pending')
       assert.equal((await admin.doc(`vacationRequests/${replacedId}`).get()).data().supersededBy, revised.requestId)
       assert.equal((await call(withdrawVacationRequest, editor, { requestId: revised.requestId })).status, 'withdrawn')
+    })
+    await t.test('Buchungsjournal bleibt trotz fremder Ziel-ID ausschließlich beim angemeldeten Nutzer', async () => {
+      const date = '2000-01-03'
+      for (const actorId of [editor, viewer, outside]) {
+        const events = [{ id: `booking-${actorId}`, type: 'come', at: `${date}T08:00:00.000Z`, source: 'live' }]
+        await admin.doc(`timeDays/${actorId}_${date}`).set({ userId: actorId, date, events, revision: 1 })
+        await admin.doc(`timeHistory/${key}-audit-${actorId}`).set({ userId: actorId, date, kind: 'stamp', after: events[0], createdBy: actorId, createdAt: new Date() })
+      }
+      for (const actorId of [editor, viewer]) {
+        const result = await call(listOwnTimeBookings, actorId, { userId: outside, before: '2000-01-04' })
+        assert.equal(result.days.length, 1)
+        assert.equal(result.days[0].events[0].id, `booking-${actorId}`)
+        assert.ok(result.history.every(entry => entry.userId === actorId))
+        assert.equal(result.models, undefined)
+        assert.equal(result.employees, undefined)
+      }
+      for (const name of ['admin', 'manager', 'personnel', 'vacationManager']) await assert.rejects(call(listOwnTimeBookings, uid(name)), denied)
     })
   } finally {
     await Promise.all(apps.map((app) => deleteApp(app)))

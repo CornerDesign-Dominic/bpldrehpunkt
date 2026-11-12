@@ -52,6 +52,8 @@ test('booking pages are user-scoped, keep history for deleted events, and advanc
 test('existing mobile origin is recognized without relabeling unknown legacy clients', () => {
   assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-dev-time.web.app' } } }), 'mobile')
   assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-dev-time.web.app.other.test' } } }), 'unknown')
+  assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-time.web.app' } } }), 'mobile')
+  assert.equal(requestTimeClient({ rawRequest: { headers: { origin: 'https://db-bpl-drehpunkt-time.web.app.other.test' } } }), 'unknown')
   assert.equal(requestTimeClient({ data: { client: 'web' } }), 'web')
   assert.equal(requestTimeClient({}), 'unknown')
 })
