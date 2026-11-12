@@ -202,3 +202,20 @@ Karten/entfernten Duplikaten. Elf gezielte Node-Tests für Pagination und
 Versionsrekonstruktion erfolgreich; vollständiges ESLint, Shared-Abgleich und
 Web-Build werden für diesen Stand ausgeführt. Keine angemeldete Live-Abnahme
 behauptet; der Nutzer übernimmt anschließend die fachliche Dev-Prüfung.
+
+## Wochennavigation, Heute-Rahmen und Pausenfarbe (12.11.2026)
+
+- Wochenpfeile mit Heute im bestehenden Kalenderstil; Rückkehr aus vergangenen
+  und zukünftigen Wochen. Separate Wochenabfrage bei Bedarf, unveränderte
+  aktuelle Wochen-/Monatskarten und heutige Stempelkarte.
+- Sollzeit-Legende im Kartenkopf entfernt; heutiger Tag erhält Rahmen statt
+  blauer Fläche. Buchungslisten und Einzelkorrekturen bleiben erhalten.
+- Gebuchte Pause als eigener farbiger Balkenabschnitt, Skala für angerechnete
+  Arbeit plus gebuchte Pause; automatischer Abzug wird nicht als Pause erfunden.
+- React-/DOM-Prüfung deckt Navigation sechs Wochen zurück über eine Monatsgrenze,
+  Vorwärtsnavigation, Heute auch bei bereits gewählter aktueller Woche,
+  Zukunftssperren, unveränderte Übersichtskarten und sichtbaren Pausenanteil ab.
+
+Isolierter Release-Checkout: parallel noch nicht veröffentlichte To-do- und
+Reminderänderungen im Hauptarbeitsordner sind nicht Teil dieses Commits.
+Nur Dev-Webbereitstellung; keine Backend-, Rules-, Handy- oder Produktionsänderung.

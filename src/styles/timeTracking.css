@@ -103,13 +103,12 @@
 @media (max-width: 600px) { .time-stamp-buttons { flex-direction: column; } .time-stamp-buttons button { width: 100%; } .time-model-day { grid-template-columns: 1fr; } .time-break-rule, .time-correction-row { grid-template-columns: 1fr 1fr; } .time-form-grid { grid-template-columns: 1fr; } .time-toolbar-fields { justify-content: flex-start; } }
 
 .time-week-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.time-week-legend { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-.time-week-legend > span { width: 18px; border-top: 2px dashed var(--text-secondary); }
+.time-week-nav .calendar-navigation__button:disabled { opacity: .4; cursor: default; }
 .time-week-scroll { overflow-x: auto; }
 .time-week-grid { display: grid; grid-template-columns: repeat(7, minmax(145px, 1fr)); min-width: 1015px; }
 .time-week-day { min-width: 0; padding: 0 12px 10px; border-inline-end: 1px solid var(--border); }
 .time-week-day:last-child { border-inline-end: 0; }
-.time-week-day--today { background: var(--surface-active); border-radius: 5px; }
+.time-week-day--today { background: transparent; border-radius: 5px; outline: 2px solid var(--button-background); outline-offset: -2px; }
 .time-week-day-heading { display: flex; justify-content: space-between; align-items: center; gap: 4px; min-height: 34px; font-size: 12px; }
 .time-week-day-heading time { color: var(--text-secondary); font-size: 11px; }
 .time-week-edit { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--content-background); color: var(--text-primary); cursor: pointer; }
@@ -118,11 +117,13 @@
 .time-week-chart { display: flex; align-items: flex-end; justify-content: center; height: 150px; padding-top: 12px; border-bottom: 1px solid var(--border); }
 .time-week-bar-track { position: relative; height: 100%; width: 44px; border-radius: 4px 4px 0 0; background: var(--surface-secondary); }
 .time-week-bar { position: absolute; bottom: 0; inset-inline: 0; border-radius: 4px 4px 0 0; background: var(--button-background); }
+.time-week-bar--pause { background: var(--status-warning-text); }
 .time-week-target { position: absolute; left: -9px; right: -9px; border-top: 2px dashed var(--text-secondary); }
 .time-week-values { display: grid; gap: 5px; padding: 10px 0; font-size: 11px; font-variant-numeric: tabular-nums; }
 .time-week-values > div { display: flex; gap: 4px; justify-content: space-between; white-space: nowrap; }
 .time-week-values strong { font-weight: 600; }
 .time-week-pause { color: var(--text-secondary); }
+.time-week-pause::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 2px; background: var(--status-warning-text); }
 .time-week-bookings { width: 100%; border-collapse: collapse; font-size: 11px; }
 .time-week-bookings td { padding: 3px 0; height: auto; line-height: 1.4; border: 0; background: transparent; white-space: nowrap; }
 .time-week-bookings td:first-child:not([colspan]) { width: 36px; font-variant-numeric: tabular-nums; font-weight: 600; }

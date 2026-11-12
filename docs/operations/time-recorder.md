@@ -486,3 +486,23 @@ vorliegen beziehungsweise die untere Grenze erreicht ist. Ein Tagesabschnitt
 kann auf mehrere sichtbare Seiten verteilt werden, ohne seine Historie zu kürzen.
 Zwischenspeicher je Suche vermeidet erneute Abrufe beim Zurückblättern; alte
 Suchantworten überschreiben keine neue Suche. Keine neuen direkten Clientrechte.
+
+## Wochennavigation und Pausenanteil (12.11.2026)
+
+Die Wochenkarte besitzt stilgleiche Kalenderpfeile für Vorherige/Nächste Woche
+mit Heute dazwischen. Heute führt zur tatsächlichen laufenden Woche zurück,
+auch nach mehreren Monatswechseln. Der Zeitraum nennt das Jahr; aktuelle
+Übersichtskarten und heutiger Stempelstatus bleiben von der gewählten Woche
+unabhängig. Benötigte Wochen außerhalb der geladenen Monatsabschnitte werden
+als eigene siebentägige Own-Data-Abfrage geladen, statt einen unbegrenzt großen
+Zeitraum anzufordern. Bestehende Korrekturfristen richten sich weiterhin nach
+dem tatsächlichen heutigen Datum.
+
+Der Hinweis Sollzeit rechts oben entfällt. Die Sollmarkierung im einzelnen
+Tagesbalken und der Sollwert unter dem Balken bleiben erhalten. Ein deutlicher
+Rahmen kennzeichnet heute, ohne den ganzen Tag farbig zu füllen. Gebuchte
+Pausen erscheinen als eigener gelb/goldener Abschnitt über der angerechneten
+Arbeitszeit. Die gemeinsame Skala umfasst Arbeitszeit plus gebuchte Pause;
+Pausen werden nicht abgeschnitten oder nochmals als Arbeitszeit gezählt.
+Automatische Zusatzabzüge werden nicht als genommene Pause dargestellt.
+Farbhinweis und Dauer stehen direkt an der Pausenangabe unter dem Balken.

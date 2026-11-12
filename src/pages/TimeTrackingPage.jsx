@@ -10,7 +10,7 @@ import TimeBookingEditor, { TimeDayBookings } from '../components/time/TimeBooki
 import '../styles/moduleSections.css'
 import '../styles/timeTracking.css'
 
-async function loadTimeViews(targetUser, managed, month, today) {
+async function loadTimeViews(targetUser, managed, month, today, weekStart) {
   const range = monthRange(month)
   const { from: weekFrom, to: weekTo } = weekRange(today)
   const currentMonth = monthRange(today.slice(0, 7))
@@ -18,11 +18,14 @@ async function loadTimeViews(targetUser, managed, month, today) {
   const contextTo = currentMonth.to > weekTo ? currentMonth.to : weekTo
   const queryFrom = month === today.slice(0, 7) && weekFrom < range.from ? weekFrom : range.from
   const queryTo = month === today.slice(0, 7) && weekTo > range.to ? weekTo : range.to
-  const [monthWorkspace, currentWeek] = await Promise.all([
+  const selectedWeek = weekRange(weekStart || today)
+  const inside = (from, to) => selectedWeek.from >= from && selectedWeek.to <= to
+  const [monthWorkspace, currentWeek, selected] = await Promise.all([
     listTimeWorkspace({ ...(targetUser ? { userId: targetUser } : {}), managed, ownOnly: !managed, from: queryFrom, to: queryTo }),
     !managed && (contextFrom < queryFrom || contextTo > queryTo) ? listTimeWorkspace({ ownOnly: true, from: contextFrom, to: contextTo }) : null,
+    !managed && !inside(queryFrom, queryTo) && !inside(contextFrom, contextTo) ? listTimeWorkspace({ ownOnly: true, from: selectedWeek.from, to: selectedWeek.to }) : null,
   ])
-  return currentWeek ? { ...monthWorkspace, days: [...new Map([...monthWorkspace.days, ...currentWeek.days].map(day => [day.date, day])).values()] } : monthWorkspace
+  return { ...monthWorkspace, days: [...new Map([...monthWorkspace.days, ...(currentWeek?.days || []), ...(selected?.days || [])].map(day => [day.date, day])).values()] }
 }
 
 function MissingStampReminder({ day, onEdit, onClose }) {
@@ -39,6 +42,7 @@ function MissingStampReminder({ day, onEdit, onClose }) {
 export function TimeWorkspace({ managed = false }) {
   const { user, profile } = useAuth()
   const [tab, setTab] = useState('week')
+  const [weekStart, setWeekStart] = useState(null)
   const [month, setMonth] = useState(() => timeDate().slice(0, 7))
   const [selectedUser, setSelectedUser] = useState('')
   const [workspace, setWorkspace] = useState(null)
@@ -53,19 +57,20 @@ export function TimeWorkspace({ managed = false }) {
   const today = timeDate()
   const range = monthRange(month)
   const thisWeek = weekRange(today)
+  const selectedWeekFrom = weekStart || thisWeek.from
   const targetUser = managed ? selectedUser || undefined : undefined
 
   const load = useCallback(async () => {
     const id = ++requestId.current
     try {
-      const result = await loadTimeViews(targetUser, managed, month, today)
+      const result = await loadTimeViews(targetUser, managed, month, today, weekStart)
       if (id === requestId.current) { setWorkspace(result); setError('') }
       return result
     } catch (failure) {
       if (id === requestId.current) setError(timeError(failure))
       throw failure
     } finally { if (id === requestId.current) setLoading(false) }
-  }, [targetUser, managed, month, today])
+  }, [targetUser, managed, month, today, weekStart])
 
   useEffect(() => { void load().catch(() => {}); return () => { requestId.current += 1 } }, [load, refresh])
   useEffect(() => {
@@ -90,7 +95,8 @@ export function TimeWorkspace({ managed = false }) {
   const todayDay = days.find(day => day.date === today)
   const status = todayDay?.status || 'away'
   const currentMonthDays = days.filter(day => day.date >= `${today.slice(0, 7)}-01` && day.date <= today)
-  const weekDays = days.filter(day => day.date >= thisWeek.from && day.date <= thisWeek.to)
+  const currentWeekDays = days.filter(day => day.date >= thisWeek.from && day.date <= thisWeek.to)
+  const weekDays = days.filter(day => day.date >= selectedWeekFrom && day.date <= addDays(selectedWeekFrom, 6))
   const visibleDays = !managed && tab === 'week' ? weekDays : selectedDays
   const sum = (items, key) => items.reduce((total, day) => total + (Number(day[key]) || 0), 0)
   const ownView = !managed || (workspace?.user?.id === user.uid)
@@ -125,7 +131,7 @@ export function TimeWorkspace({ managed = false }) {
     {workspace && !pendingSelection && <>
       {!workspace.account?.startDate && <p className="time-notice">Das Zeitkonto ist noch nicht eingerichtet. Bitte den Superadmin kontaktieren.</p>}
       {!managed ? <section className="time-summary time-summary--simple" aria-label="Zeitübersicht">
-        <div className="time-card"><span>Diese Woche</span><strong>{minutesLabel(sum(weekDays.filter(day => day.date <= today), 'creditedMinutes'))} <small>Std.</small></strong></div>
+        <div className="time-card"><span>Diese Woche</span><strong>{minutesLabel(sum(currentWeekDays.filter(day => day.date <= today), 'creditedMinutes'))} <small>Std.</small></strong></div>
         <div className="time-card"><span>Dieser Monat</span><strong>{minutesLabel(sum(currentMonthDays, 'creditedMinutes'))} <small>Std.</small></strong></div>
         <div className="time-card"><span>Gesamt{workspace.balanceProvisional && <span className="time-summary-info" role="img" aria-label="Vorläufiger Kontostand" title="Vorläufig: Ungeklärte Buchungen oder fehlende Vorgaben sind noch nicht eingerechnet."> ⓘ</span>}</span><strong>{minutesLabel(workspace.balanceMinutes, true)} <small>Std.</small></strong></div>
       </section> : <>
@@ -149,7 +155,7 @@ export function TimeWorkspace({ managed = false }) {
       {!managed && tab === 'month' && <div className="time-toolbar"><h3>Monatsübersicht</h3><label>Monat<input type="month" value={month} onChange={event => changeMonth(event.target.value)} /></label></div>}
       {!managed && tab === 'month' ? <TimeMonthSummary days={selectedDays} today={today} /> : <>
       {incomplete.length > 0 && <div className="time-notice"><strong>{incomplete.length} unvollständige{incomplete.length === 1 ? 'r Tag' : ' Tage'}</strong><span> Fehlende Buchungen bleiben zur Klärung markiert. Arbeitszeit wird nicht über Nacht fortgeschrieben.</span></div>}
-      {!managed ? <TimeWeekOverview days={weekDays} from={thisWeek.from} today={today} disabled={viewUnavailable} canCorrect={canCorrect} onEdit={(day, event) => setEditing({ day, event })} /> : <section className="time-card time-table-card"><header><h3>{!managed && tab === 'week' ? `Aktuelle Woche · ${new Date(`${thisWeek.from}T12:00:00Z`).toLocaleDateString('de-DE')} – ${new Date(`${thisWeek.to}T12:00:00Z`).toLocaleDateString('de-DE')}` : 'Tagesübersicht'}</h3><span className="time-muted">{ownView ? 'Eigene Korrekturen: heute und die vergangenen 7 Kalendertage.' : 'Korrekturen im zugewiesenen Zuständigkeitsbereich.'}</span></header><div className="time-table-scroll"><table className="data-table"><thead><tr><th>Tag</th><th>Buchungen</th><th>Arbeit</th><th>Pause gebucht</th><th>Zusatzabzug</th><th>Angerechnet</th><th>Soll</th><th>Überstundenabbau</th><th>Saldo</th><th>Hinweise</th><th><span className="sr-only">Bearbeiten</span></th></tr></thead><tbody>
+      {!managed ? <TimeWeekOverview days={weekDays} from={selectedWeekFrom} today={today} navigationDisabled={loading || busy || !online} onWeekChange={value => { if (value === selectedWeekFrom) return; setLoading(true); setWeekStart(value === thisWeek.from ? null : value) }} disabled={viewUnavailable} canCorrect={canCorrect} onEdit={(day, event) => setEditing({ day, event })} /> : <section className="time-card time-table-card"><header><h3>{!managed && tab === 'week' ? `Aktuelle Woche · ${new Date(`${thisWeek.from}T12:00:00Z`).toLocaleDateString('de-DE')} – ${new Date(`${thisWeek.to}T12:00:00Z`).toLocaleDateString('de-DE')}` : 'Tagesübersicht'}</h3><span className="time-muted">{ownView ? 'Eigene Korrekturen: heute und die vergangenen 7 Kalendertage.' : 'Korrekturen im zugewiesenen Zuständigkeitsbereich.'}</span></header><div className="time-table-scroll"><table className="data-table"><thead><tr><th>Tag</th><th>Buchungen</th><th>Arbeit</th><th>Pause gebucht</th><th>Zusatzabzug</th><th>Angerechnet</th><th>Soll</th><th>Überstundenabbau</th><th>Saldo</th><th>Hinweise</th><th><span className="sr-only">Bearbeiten</span></th></tr></thead><tbody>
         {visibleDays.map(day => <tr key={day.date}><td>{new Date(`${day.date}T12:00:00`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' })}</td><td className="time-event-cell">{day.events?.length ? day.events.map(event => <span key={event.id}>{formatTime(event.at)} {TIME_ACTIONS[event.type]}{event.source === 'offline' ? ' (offline)' : ''}</span>) : '—'}</td><td>{minutesLabel(day.workedMinutes)}</td><td>{minutesLabel(day.bookedBreakMinutes)}</td><td>{minutesLabel(day.automaticBreakMinutes)}</td><td>{day.calculationIncomplete ? '—' : minutesLabel(day.creditedMinutes)}</td><td>{day.calculationIncomplete ? '—' : minutesLabel(day.targetMinutes)}</td><td>{minutesLabel(day.overtimeDebitMinutes)}{day.overtimeDebitMinutes > 0 && <span className="time-issue">Genehmigter Freizeitausgleich</span>}</td><td className={day.balanceMinutes < 0 ? 'time-negative' : ''}>{day.date <= today && !day.incomplete && !day.calculationIncomplete ? minutesLabel(day.balanceMinutes, true) : '—'}</td><td>{day.incomplete && <span className="time-status">Unvollständig</span>}{(day.issues || []).map((issue, i) => <span className="time-issue" key={i}>{typeof issue === 'string' ? issue : issue.message || 'Bitte prüfen'}</span>)}{(workspace.history || []).some(item => item.date === day.date) && <span className="time-issue">Nachtrag / Korrektur · siehe Verlauf</span>}</td><td><button className="button button--secondary" type="button" disabled={viewUnavailable || !canCorrect(day.date)} onClick={() => setEditing({ day, choose: true })}>Bearbeiten</button></td></tr>)}
         {!visibleDays.length && <tr><td colSpan="11">Keine Zeitdaten für diesen Zeitraum.</td></tr>}
       </tbody></table></div></section>}
