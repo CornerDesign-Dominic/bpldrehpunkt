@@ -64,7 +64,7 @@ test('reminder source rules preserve legacy edits, validate new schedules and de
    await denied(createDeadline(viewer,root,'viewer'))
    await denied(createDeadline(clients[3].db,root,'inactive'))
    await denied(createDeadline(clients[5].db,root,'wrong-module'))
-   if(root==='todos')await denied(createDeadline(other,root,'other-creator'));else await createDeadline(other,root,'other-editor')
+   await createDeadline(other,root,root==='todos'?'other-participant':'other-editor')
    await denied(getDoc(doc(clients[3].db,`${root}/case/deadlines/new`)))
    await denied(getDoc(doc(clients[5].db,`${root}/case/deadlines/new`)))
    for(const[id,patch]of Object.entries({clock:{time:'24:00'},missingClock:{time:null},date:{date:'2026-02-30'},leap:{date:'2100-02-29'},occurrence:{reminderOccurrence:'first'},recipient:{reminderRecipientEmail:'forged@example.invalid'}}))await denied(createDeadline(editor,root,`invalid-${id}`,patch))

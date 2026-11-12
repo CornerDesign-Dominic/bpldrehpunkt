@@ -8,10 +8,11 @@ import CalendarNavigation from '../components/ui/CalendarNavigation.jsx'
 import Toast from '../components/ui/Toast.jsx'
 import { createCalendarEvent, deleteCalendarEvent, listCalendarEvents, listUserCalendars, updateCalendarEvent } from '../lib/calendars.js'
 import { listSystemCalendarEvents, listSystemCalendars } from '../lib/systemCalendars.js'
-import { listTodoCalendarEntries } from '../lib/todos.js'
+import { listTodoCalendarProjection, mergeTodoCalendars, todoProjectionCalendars } from '../lib/todoCalendars.js'
 import { canView } from '../lib/permissions.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { calendarQueryRange } from '../lib/calendarQueryRange.js'
+import { subscribeCalendarRefresh } from '../lib/calendarRefresh.js'
 import { resolveVisibleCalendarIds } from '../lib/calendarSelection.js'
 import { contractCalendarDeepLink, contractCalendarReturnSource, contractCalendarVisibleIds } from '../lib/contractCalendarPresentation.js'
 import { createReturnState } from '../lib/recordNavigation.js'
@@ -44,34 +45,19 @@ function overlaps(event, start, end) {
   return event.startDate <= end && event.endDate >= start
 }
 
-async function loadCalendarData(userId, profile, calendars, range, calendarIds) {
+async function loadCalendarData(profile, calendars, range, calendarIds) {
   const selected = calendars.filter((calendar) => calendarIds.includes(calendar.id))
   const regularCalendars = selected.filter((calendar) => !calendar.systemCalendar)
-  const systemCalendars = selected.filter((calendar) => calendar.systemCalendar)
-  const [regularEvents, systemEvents, todoEntries] = await Promise.all([
+  const systemCalendars = selected.filter((calendar) => calendar.systemCalendar && !calendar.todoCalendar)
+  const [regularEvents, systemEvents, todoProjection] = await Promise.all([
     regularCalendars.length ? listCalendarEvents(regularCalendars, range) : [],
     listSystemCalendarEvents(systemCalendars, range),
-    regularCalendars.some((calendar) => calendar.ownerUserId === userId) && canView(profile, 'calendar') ? listTodoCalendarEntries(userId, range) : [],
+    canView(profile, 'todos') ? listTodoCalendarProjection(range) : { entries: [] },
   ])
-  const ownCalendars = regularCalendars.filter((calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId)
-  const personalCalendar = ownCalendars[0]
-  const todoEvents = personalCalendar ? todoEntries.map((entry) => ({
-    id: `todo-deadline:${entry.id}`,
-    calendarId: personalCalendar.id,
-    calendarName: personalCalendar.name,
-    calendarColor: personalCalendar.color,
-    title: entry.title,
-    description: entry.description,
-    startDate: entry.startDate,
-    endDate: entry.endDate,
-    allDay: entry.allDay !== false,
-    startTime: entry.startTime || '',
-    endTime: entry.endTime || '',
-    reminderEnabled: entry.reminderEnabled === true,
-    hasReminder: true,
-    todoDeadline: true,
-    targetPath: `/todos/${entry.todoId}`,
-  })) : []
+  const todoEvents = todoProjection.entries.filter((entry) => calendarIds.includes(entry.calendarId)).map((entry) => {
+    const calendar = calendars.find((item) => item.id === entry.calendarId)
+    return { ...entry, calendarName: calendar?.name || entry.calendarName, calendarColor: calendar?.color || entry.calendarColor }
+  })
   return [...regularEvents, ...systemEvents, ...todoEvents]
 }
 
@@ -111,7 +97,7 @@ function MonthGrid({ year, month, events, onDayClick, onEventClick }) {
       <div className="calendar-month__week-days">{week.map((cell) => <div className={`calendar-day${cell.outside ? ' calendar-day--outside' : ''}${companyHolidayDates.has(cell.date) ? ' calendar-day--company-holiday' : ''}${cell.date === today ? ' calendar-day--today' : ''}`} key={cell.date} role={companyHolidayDates.has(cell.date) ? 'button' : undefined} tabIndex={companyHolidayDates.has(cell.date) ? 0 : undefined} aria-label={companyHolidayDates.has(cell.date) ? `Feiertag am ${cell.date}. Details öffnen` : undefined} onClick={companyHolidayDates.has(cell.date) ? () => onDayClick(cell.date) : undefined} onKeyDown={companyHolidayDates.has(cell.date) ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onDayClick(cell.date) } } : undefined}>
         <button type="button" className="calendar-day__number" onClick={(event) => { event.stopPropagation(); onDayClick(cell.date) }} aria-label={companyHolidayDates.has(cell.date) ? `Feiertag am ${cell.date}. Details öffnen` : `Termin am ${cell.date} anlegen`}>{cell.day}</button>
       </div>)}</div>
-      <div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className={`calendar-event-bar${event.kind === 'company-holiday' ? ' calendar-event-bar--company-holiday' : ''}`} key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}${event.hasReminder ? ` · Erinnerung: ${event.reminderEnabled ? 'An' : 'Aus'}` : ''}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div>
+      <div className="calendar-month__week-bars">{weekBars(events, week, weekIndex).map((event) => <button type="button" className={`calendar-event-bar${event.kind === 'company-holiday' ? ' calendar-event-bar--company-holiday' : ''}`} key={`${event.id}-${weekIndex}`} style={{ '--calendar-color': event.calendarColor, gridColumn: `${event.startColumn} / ${event.endColumn + 1}`, gridRow: event.lane + 1 }} title={`${event.title} · ${event.calendarName}${event.hasReminder ? ` · ${event.todoDeadline ? 'Mail-Erinnerung' : 'Erinnerung'}: ${event.reminderEnabled ? 'An' : 'Aus'}` : ''}`} onClick={() => onEventClick(event)}>{event.showLabel && <><span>{!event.allDay && event.startTime ? `${event.startTime} ` : ''}{event.title}</span></>}</button>)}</div>
     </div>)}</div>
   </div>
 }
@@ -139,15 +125,21 @@ export default function CalendarPage() {
   const storageKey = userId ? `drehpunkt.calendar.visible.${userId}` : ''
   const selectedIds = useMemo(() => visibleCalendarIds ?? [], [visibleCalendarIds])
   const selectedIdsKey = JSON.stringify([...selectedIds].sort())
-  const range = useMemo(() => calendarQueryRange(year, month, todayValue()), [year, month])
+  const today = todayValue()
+  const range = useMemo(() => calendarQueryRange(year, month, today), [year, month, today])
+
+  useEffect(() => {
+    if (!userId) return undefined
+    return subscribeCalendarRefresh({ window, document, onRefresh: () => setReloadVersion((version) => version + 1) })
+  }, [userId])
 
   useEffect(() => {
     let active = true
     Promise.resolve().then(async () => {
-      if (active) { setMetadataReady(false); setLoading(true) }
+      if (active) { setMetadataReady(false); setLoading(true); setEvents([]) }
       const regular = canView(profile, 'calendar') ? await listUserCalendars(userId, isSuperadmin) : []
       const own = regular.filter((calendar) => calendar.kind === 'personal' && calendar.ownerUserId === userId)
-      return [...own, ...listSystemCalendars(profile), ...regular.filter((calendar) => !own.includes(calendar))]
+      return mergeTodoCalendars([...own, ...listSystemCalendars(profile), ...regular.filter((calendar) => !own.includes(calendar))], todoProjectionCalendars(userId, profile))
     })
       .then((availableCalendars) => {
         if (!active) return
@@ -169,7 +161,7 @@ export default function CalendarPage() {
       if (!active) return null
       setLoading(true)
       setError('')
-      return loadCalendarData(userId, profile, calendars, range, JSON.parse(selectedIdsKey))
+      return loadCalendarData(profile, calendars, range, JSON.parse(selectedIdsKey))
     }).then((calendarEvents) => { if (active && calendarEvents) setEvents(calendarEvents) })
       .catch((error) => { void reportTechnicalFailure({ module: 'calendar', stage: 'load', error }); if (active) setError('Kalenderdaten konnten nicht geladen werden. Bitte Firestore-Zugriff und Verbindung prüfen.') })
       .finally(() => { if (active) setLoading(false) })

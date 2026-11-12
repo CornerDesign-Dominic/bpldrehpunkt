@@ -15,7 +15,7 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 function StatusChip({ status }) {
   return (
     <span className={`todo-status todo-status--${status}`}>
-      {TODO_STATUS[status] || "—"}
+      <StaticText source={TODO_STATUS[status] || "—"} />
     </span>
   );
 }
@@ -45,8 +45,6 @@ function sortValue(todo, key) {
   if (key === "priority")
     return PRIORITY_ORDER[todoPriority(todo)] ?? Number.MAX_SAFE_INTEGER;
   if (key === "dueDate") return todo.dueDate || "9999-12-31";
-  if (key === "assignee")
-    return todo.assignedUserName || "Noch nicht übernommen";
   if (key === "creator") return todo.creatorName || "";
   if (key === "responsibility") return responsibilityLabel(todo);
   return "";
@@ -148,21 +146,15 @@ export default function TodosTable({ formatDate, onOpen, todos }) {
               onSort={toggleSort}
               sortKey="dueDate"
             /></TranslatedProps>
-            <TranslatedProps sources={{"label":"Bearbeiter"}}><SortableHeader
-              activeSort={sort}
-              label="Bearbeiter"
-              onSort={toggleSort}
-              sortKey="assignee"
-            /></TranslatedProps>
             <TranslatedProps sources={{"label":"Erstellt von"}}><SortableHeader
               activeSort={sort}
               label="Erstellt von"
               onSort={toggleSort}
               sortKey="creator"
             /></TranslatedProps>
-            <TranslatedProps sources={{"label":"Zuständigkeit"}}><SortableHeader
+            <TranslatedProps sources={{"label":"Beteiligte"}}><SortableHeader
               activeSort={sort}
-              label="Zuständigkeit"
+              label="Beteiligte"
               onSort={toggleSort}
               sortKey="responsibility"
             /></TranslatedProps>
@@ -214,9 +206,8 @@ export default function TodosTable({ formatDate, onOpen, todos }) {
                 >
                   {dueText}
                 </td>
-                <td>{todo.assignedUserName || <StaticText source={"Noch nicht übernommen"} />}</td>
                 <td>{todo.creatorName || "—"}</td>
-                <td>{responsibilityLabel(todo)}</td>
+                <td><StaticText source={responsibilityLabel(todo)} /></td>
               </tr>
             );
           })}

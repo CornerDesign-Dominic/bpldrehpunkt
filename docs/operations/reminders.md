@@ -1,5 +1,64 @@
 # Zentrale Termin- und Fristerinnerungen
 
+## Lokaler Dev-Entwurf vom 12.11.2026: gemeinsame To-dos
+
+Noch nicht veröffentlicht; `main`, Cloud Functions und aktive Regeln werden durch
+diesen lokalen Arbeitsstand nicht verändert. Die folgenden Abschnitte zum
+veröffentlichten Versandweg bleiben historische Betriebsbeschreibung.
+
+To-dos benötigen keine Annahme mehr. Aktuelle Beteiligte mit To-do-
+Bearbeitungsrecht sowie Ersteller/Superadmin bearbeiten offene Aufgaben und
+Termine gemeinsam und können erledigen/wieder öffnen. Teilnehmerkreis und
+Zurückziehen bleiben dem Ersteller/Superadmin vorbehalten. Leseberechtigte
+können weiterhin Hinweise ergänzen. Alte Bearbeiterzuordnungen verleihen
+keinen zusätzlichen Zugriff; erledigte Aufgaben müssen vor Inhaltsänderungen
+wieder geöffnet werden.
+
+Jede Haupt-Erinnerung und jeder einzelne Termin speichert
+`reminderRecipientMode` (`all` oder `selected`) und
+`reminderRecipientUserIds`. Ohne neue Auswahlfelder gilt `all` für den aktuellen
+Teilnehmerkreis, nicht für alte Bearbeiter/Ersteller außerhalb dieser Gruppe.
+Empfänger werden vor Reservierung und unmittelbar vor dem Versand erneut mit
+aktuellen aktiven Konten, Modulrechten und Abteilungszugehörigkeit abgeglichen.
+Eine leere gültige Auswahl wird als fehlende Konfiguration angezeigt; es gibt
+keinen stillen Ersatzempfänger. Die bisherigen Versandpause-, Zeitfenster- und
+Idempotenzregeln bleiben bestehen. Bei Teilnehmeränderungen werden explizite
+Empfänger aus Haupt-Erinnerung und Fristen im selben Schreibvorgang entfernt,
+soweit sie nicht mehr zur aktuellen Auswahl gehören.
+
+Die neue authentifizierte Callable `listTodoCalendarProjection` liefert
+quellengebundene Kalenderansichten. Personen-To-dos erscheinen gemäß Auswahl in
+den Personenkalendern; Abteilungs-To-dos ausschließlich im automatisch
+abgeleiteten Abteilungskalender `todo-department:<Abteilung>`. Dieser Kalender
+gewährt keinen Zugriff auf unabhängige, manuell freigegebene Kalender gleichen
+Namens. Wiederholte Wechsel Abteilung ↔ Personen benötigen keine kopierten
+Ereignisse: Die aktuellen Originaltermine behalten Identität, Datum, Uhrzeit und
+Hinweise. Alte `todoCalendarEntries` werden nicht mehr gelesen oder geschrieben
+und sind für Clients gesperrt. Erledigte Aufgaben behalten ihre sichtbaren
+Kalenderdaten ohne Versand; zurückgezogene Aufgaben erscheinen dort nicht.
+
+Offene Kalender prüfen Änderungen bei Fokus/Rückkehr und alle 30 Sekunden im
+sichtbaren Fenster. Bereits geladene Daten sind keine fortbestehende
+Zugriffsberechtigung; jeder Serverabruf prüft die aktuelle Identität neu.
+
+Ein späterer freigegebener Release muss Frontend, Firestore-Regeln, die neue
+Kalender-Callable, das reduzierte Mitarbeiterverzeichnis und die bestehenden
+Erinnerungs-Status-/Vorbereitungs-/Versand-/Quelltrigger gemeinsam berücksichtigen.
+Ein nur frontendseitiger Release reicht nicht. Keine Datenlöschung/Migration
+wurde ausgeführt, und es wurden keine echten Erinnerungen versendet.
+
+Lokale Prüfung: `node scripts/test-todo-collaboration-ui.mjs` prüft die
+Bedienoberfläche. Mit einem lokalen `FIRESTORE_EMULATOR_HOST` prüfen
+`node --experimental-test-module-mocks --test functions/todoCollaboration.integration.test.js functions/todoCalendarProjection.integration.test.js functions/todoReminderCollaboration.integration.test.js`
+die tatsächlichen Service-Schreibvorgänge/Regeln, wiederholte Kalenderwechsel,
+Empfängerentzug und den abschließenden Versand-Guard. Versandaufrufe bleiben
+in diesen Tests simuliert; die Demo-Projekte verwenden keine produktiven Daten.
+
+Die vertiefte Detailseiten-, Modal- und Berechtigungsprüfung einschließlich
+weiterer Konfliktkorrekturen ist im
+[lokalen To-do-Prüfprotokoll vom 12.11.2026](todo-collaboration-qa-2026-11-12.md)
+beschrieben.
+
 Aktualisierung 02.11.2026: Dienst und separater Providerflow sind nach ausdrücklicher
 Freigabe auch in Produktion veröffentlicht und aktiv. Normale Produktions-Empfänger
 sind freigegeben; Dev bleibt begrenzt. Betriebsmodus, Zeitpläne und Prüfung ohne echten

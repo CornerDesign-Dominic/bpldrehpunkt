@@ -11,7 +11,7 @@ function normalizedPriority(priority) {
 export function TodoPriority({ priority }) {
   const value = normalizedPriority(priority)
   const symbol = value === 'high' ? '!' : null
-  return <span className={`todo-priority-text todo-priority-text--${value}`}><span className="todo-priority-text__symbol" aria-hidden="true">{symbol || <TodoPriorityIcon priority={value} />}</span><span>{TODO_PRIORITY[value]}</span></span>
+  return <span className={`todo-priority-text todo-priority-text--${value}`}><span className="todo-priority-text__symbol" aria-hidden="true">{symbol || <TodoPriorityIcon priority={value} />}</span><span><StaticText source={TODO_PRIORITY[value]} /></span></span>
 }
 
 export function TodoPriorityPicker({ disabled = false, onChange, value }) {

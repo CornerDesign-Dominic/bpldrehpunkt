@@ -25,7 +25,7 @@ async function source(db, email, { deadline = false } = {}) {
   if (deadline) {
     await db.doc('damageCases/case').set({ title: 'Synthetic case', responsibleUserId: 'owner', status: 'new' })
     await db.doc(path).set({ date: '2026-11-02', time: '10:00', reminderEnabled: true })
-  } else await db.doc(path).set({ title: 'Synthetic task', creatorUserId: 'owner', status: 'open', reminderDate: '2026-11-02', reminderTime: '10:00' })
+  } else await db.doc(path).set({ title: 'Synthetic task', creatorUserId: 'owner', audienceType: 'person', audienceId: 'owner', status: 'open', reminderDate: '2026-11-02', reminderTime: '10:00' })
   await refreshReminderSource(db, path, { now: new Date('2026-11-02T08:59:00Z') })
   return path
 }

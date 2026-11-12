@@ -10,6 +10,7 @@ import { listCaseReminderUsersHandler, setReminderResponsibilityHandler } from '
 import { advanceTransportOrderListProjection } from './transportOrderListProjection.js'
 import { reportBackgroundFailure, withBackgroundDiagnostic } from './backgroundWork.js'
 import { listSystemCalendarSourcesHandler } from './calendarQueries.js'
+import { listTodoCalendarProjectionHandler } from './todoCalendarProjection.js'
 import { savePalletRecordHandler, listPalletAccountSummariesHandler, rebuildPalletSummariesHandler, listTransportOrderPalletMovementsHandler } from './palletSummaries.js'
 import { searchMailboxOrderCustomersHandler, assignMailboxOrderCustomerHandler } from './mailboxes.js'
 import { reviewMailboxInvoicesHandler, listTransportInvoiceChecksHandler } from './mailboxes.js'
@@ -128,6 +129,7 @@ export const listPalletAccountSummaries = onCall({ ...palletOptions, timeoutSeco
 export const rebuildPalletSummaries = onCall({ ...palletOptions, timeoutSeconds: 120, maxInstances: 1, concurrency: 1 }, rebuildPalletSummariesHandler)
 export const listTransportOrderPalletMovements = onCall(palletOptions, listTransportOrderPalletMovementsHandler)
 export const listSystemCalendarSources = onCall({ region: 'europe-west3', enforceAppCheck: true }, listSystemCalendarSourcesHandler)
+export const listTodoCalendarProjection = onCall({ region: 'europe-west3', enforceAppCheck: true }, listTodoCalendarProjectionHandler)
 export const prepareBackgroundWork = onCall({ region: 'europe-west3', enforceAppCheck: true, timeoutSeconds: 540, maxInstances: 1, concurrency: 1 }, async (request) => {
   await requireRole(await requireActiveProfile(request), ['superadmin'], 'Nur Superadmins dürfen die Arbeitsprojektionen vorbereiten.')
   const db = getFirestore()
@@ -415,10 +417,15 @@ function userDirectoryAccess(profile) {
   }
 }
 
+function todoDirectoryAccess(profile) {
+  return profile.role === 'superadmin' ? 'edit' : ['view', 'edit'].includes(profile.permissions?.todos) ? profile.permissions.todos : 'none'
+}
+
 function userDirectoryEntry(snapshot, includeContactDetails) {
   const profile = snapshot.data()
   return {
     id: snapshot.id,
+    todoAccessLevel: todoDirectoryAccess(profile),
     firstName: typeof profile.firstName === 'string' ? profile.firstName : '',
     lastName: typeof profile.lastName === 'string' ? profile.lastName : '',
     jobTitle: typeof profile.jobTitle === 'string' ? profile.jobTitle : '',

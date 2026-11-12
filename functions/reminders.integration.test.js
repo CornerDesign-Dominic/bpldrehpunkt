@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import process from 'node:process'
+import { randomUUID } from 'node:crypto'
 import test from 'node:test'
 import { deleteApp, initializeApp } from 'firebase-admin/app'
 import { getFirestore, Timestamp } from 'firebase-admin/firestore'
@@ -7,7 +8,7 @@ import { advanceReminderPreparation, listReminderStatusesHandler, refreshReminde
 import { loadReminderSource, reminderDeliveryId, reminderSourceKey } from './reminderSources.js'
 
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST)
-const app = enabled ? initializeApp({ projectId: `demo-reminders-core-${process.pid}` }, `reminders-core-${process.pid}`) : null
+const app = enabled ? initializeApp({ projectId: `demo-reminders-core-${randomUUID().slice(0, 12)}` }, `reminders-core-${process.pid}`) : null
 const db = enabled ? getFirestore(app) : null
 const due = new Date('2026-11-02T09:00:00Z')
 const clockAt = (seconds) => new Date(due.getTime() + seconds * 1000)
@@ -31,9 +32,9 @@ if (enabled) {
   test.after(async () => { await db.terminate(); await deleteApp(app) })
 }
 
-test('central reminders: creator receives unassigned To-do, then only current assignee; duplicate runs send once', { skip: !enabled }, async () => {
+test('central reminders: current selected audience receives To-do reminders; duplicate runs send once', { skip: !enabled }, async () => {
   const path = await todo('assignment', { description: 'Do not email the long main To-do description.' })
-  await db.doc(path).update({ assignedUserId: 'assignee' })
+  await db.doc(path).update({ audienceType: 'people', audienceId: null, audienceIds: ['assignee'] })
   const sent = []
   await run(clockAt(20), async (message) => { assert(await message.beforeSend()); assert.equal(message.values.note, '–'); assert(!JSON.stringify(message.values).includes('long main To-do')); sent.push(message.recipient); return { status: 'accepted' } })
   assert.deepEqual(sent, ['assignee@example.test'])
@@ -69,7 +70,7 @@ test('central reminders: shared calendar includes current active readers and sup
 test('central reminders: missed is terminal without catch-up; closed, unassigned cases and inactive assignees never fall back to creator', { skip: !enabled }, async () => {
   const missed = await todo('missed')
   const closed = await todo('closed', { status: 'completed' })
-  const inactive = await todo('inactive-assignee', { assignedUserId: 'inactive' })
+  const inactive = await todo('inactive-participant', { audienceId: 'inactive' })
   await db.doc('damageCases/config').set({ title: 'Config', status: 'new', createdBy: 'creator' })
   const noOwner = 'damageCases/config/deadlines/d'
   await db.doc(noOwner).set({ date: '2026-11-02', time: '10:00', reminderEnabled: true, reminderRecipientEmail: 'creator@example.test' })
@@ -94,7 +95,7 @@ test('central reminders: explicit case responsible user, permission changes, par
   await db.doc(disabled).update({ reminderDate: null })
   await refreshReminderSource(db, disabled, { now: clockAt(-60) })
   assert.equal((await statuses([disabled]))[0].status, 'disabled')
-  const revoked = await todo('revoked', { assignedUserId: 'reader' })
+  const revoked = await todo('revoked', { audienceId: 'reader' })
   await db.doc('users/reader').update({ 'permissions.todos': 'none' })
   const orphan = await todo('orphan')
   await db.doc(orphan).delete()
@@ -103,16 +104,24 @@ test('central reminders: explicit case responsible user, permission changes, par
   assert.equal((await statuses([revoked]))[0].status, 'configuration_required')
 })
 
-test('central reminders: source assignment/email/minute are rechecked immediately before the simulated HTTP action', { skip: !enabled }, async () => {
+test('central reminders: source audience/email/minute are rechecked immediately before the simulated HTTP action', { skip: !enabled }, async () => {
   const path = await todo('fencing')
   let httpCalls = 0
   await run(clockAt(20), async (message) => {
-    await db.doc(path).update({ assignedUserId: 'assignee' })
+    await db.doc(path).update({ audienceId: 'assignee' })
     if (!await message.beforeSend()) return { status: 'blocked', reason: 'no-longer-eligible' }
     httpCalls += 1
     return { status: 'accepted' }
   })
   assert.equal(httpCalls, 0)
+  // The removed creator is fenced out, while the new current audience can
+  // still receive its own single delivery during this same due minute.
+  await run(clockAt(25), async (message) => {
+    assert.equal(message.recipient, 'assignee@example.test')
+    assert(await message.beforeSend())
+    return { status: 'accepted' }
+  })
+  assert.equal((await statuses([path]))[0].status, 'accepted')
   const minute = await todo('minute-fencing')
   let current = clockAt(59)
   await runReminderDispatch(current, { db, clock: () => current, environment: 'production', send: async (message) => {
@@ -180,7 +189,8 @@ test('central reminders: duplicate projections avoid writes and parent scans res
   const parent = db.doc('calendars/many-children')
   await parent.set({ kind: 'personal', ownerUserId: 'creator', active: false })
   const batch = db.batch()
-  for (let index = 0; index < 101; index++) batch.set(parent.collection('events').doc(String(index).padStart(3, '0')), { title: 'Many', reminderEnabled: true, reminderDate: '2026-11-03', reminderTime: '10:00' })
+  const futureDate = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+  for (let index = 0; index < 101; index++) batch.set(parent.collection('events').doc(String(index).padStart(3, '0')), { title: 'Many', reminderEnabled: true, reminderDate: futureDate, reminderTime: '10:00' })
   await batch.commit()
   const initialRegistry = (await db.doc('reminderState/preparation').get()).data()
   assert.equal((await refreshReminderParent(db, parent.path)).complete, false)
@@ -203,7 +213,9 @@ test('central reminders: duplicate projections avoid writes and parent scans res
 
 test('central reminders: explicit HTTP failure is recorded and diagnosed without exposing a note or automatically retrying', { skip: !enabled }, async () => {
   const path = await todo('explicit-failure')
-  const result = await run(clockAt(20), async () => ({ status: 'failed', reason: 'provider-http-error' }))
+  const attempted = []
+  const result = await run(clockAt(20), async (message) => { attempted.push(message.values.title); return { status: 'failed', reason: 'provider-http-error' } })
+  assert.deepEqual(attempted, ['explicit-failure'])
   assert.equal(result.failed, 1)
   assert.equal((await statuses([path]))[0].status, 'failed')
   const diagnostics = await db.collection('diagnosticEvents').where('module', '==', 'reminders').get()

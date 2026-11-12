@@ -21,7 +21,7 @@ if (enabled) {
 
 test('all five existing deadline families use the central scheduler and current responsible user', { skip: !enabled }, async () => {
   for (const root of ['damageCases', 'inkassoCases', 'legalDisputes', 'insolvencies', 'todos']) {
-    await db.doc(`${root}/c`).set({ title: root, status: 'open', responsibleUserId: 'owner', creatorUserId: 'old-creator', assignedUserId: 'owner' })
+    await db.doc(`${root}/c`).set({ title: root, status: 'open', responsibleUserId: 'owner', creatorUserId: 'old-creator', audienceType: 'person', audienceId: 'owner', assignedUserId: 'owner' })
     const path = `${root}/c/deadlines/d`
     await db.doc(path).set({ date: '2026-11-02', time: '10:00', reminderEnabled: true, reminderRecipientEmail: 'old-creator@example.test' })
     await refreshReminderSource(db, path, { now: before })

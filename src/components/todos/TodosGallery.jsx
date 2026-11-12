@@ -24,8 +24,8 @@ export default function TodosGallery({ formatDate, getDueClass, loading, onOpen,
   return <div className="todos-gallery">
     {todos.map((todo) => {
       const due = todoDuePresentation(todo)
-      const contextLabel = todo.assignedUserId ? (todo.status === 'in_progress' ? 'Bearbeitet von' : 'Bearbeiter') : 'Zielgruppe'
-      const contextValue = todo.assignedUserId ? todo.assignedUserName || 'Unbekannt' : todo.audienceLabel || '—'
+      const contextLabel = 'Beteiligte'
+      const contextValue = todo.audienceLabel || '—'
       const dueLabel = !todo.dueDate
         ? t('todos.noDue')
         : due.kind === 'none' && due.days !== null

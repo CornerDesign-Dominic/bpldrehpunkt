@@ -96,7 +96,7 @@ export default function CalendarEventModal({ event, calendars, initialDate, edit
         <dl className="calendar-event-detail">
           <div><dt><StaticText source="Zeitraum" /></dt><dd>{formatPeriod(event)}</dd></div>
           <div><dt><StaticText source="Kalender" /></dt><dd><span className="calendar-color-dot" style={{ background: event.calendarColor }} />{event.calendarName}</dd></div>
-          {event.systemCalendar && event.hasReminder && <div><dt><StaticText source="Erinnerung" /></dt><dd><StaticText source={event.reminderEnabled ? 'An' : 'Aus'} /></dd></div>}
+          {event.systemCalendar && event.hasReminder && <div><dt><StaticText source={event.todoDeadline ? "Mail-Erinnerung" : "Erinnerung"} /></dt><dd><StaticText source={event.reminderEnabled ? 'An' : 'Aus'} /></dd></div>}
           {event.description && <div className="calendar-event-detail__wide"><dt><StaticText source="Beschreibung" /></dt><dd>{event.description}</dd></div>}
         </dl>
         <div className="calendar-modal__actions"><button className="button button--secondary" type="button" onClick={onClose}><StaticText source="Schließen" /></button></div>
