@@ -92,3 +92,12 @@ test('unicode, repeated words, punctuation and arbitrary line boundaries are los
     assert.equal(reconstruct(parts, 'removed'), normalized(after))
   }
 })
+
+test('applied comparison shows accepted human edits rather than the original generated proposal', () => {
+  const base = { id: 'article', revision: 1, title: 'Before', process: 'Transport', action: 'Original', status: 'valid' }
+  const result = buildKnowledgeLearningDiff({ status: 'applied', targetArticleId: 'article', targetArticleRevision: 1, baseArticle: base, proposal: { ...base, action: 'AI suggestion' }, appliedValues: { ...base, title: 'Reviewed title', process: 'Email', action: 'Human correction' } })
+  assert.equal(result.fields.find(field => field.key === 'title').after, 'Reviewed title')
+  assert.equal(result.fields.find(field => field.key === 'process').after, 'Email')
+  assert.equal(result.fields.find(field => field.key === 'action').after, 'Human correction')
+  assert.equal(result.fields.find(field => field.key === 'action').before, 'Original')
+})

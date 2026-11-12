@@ -65,12 +65,12 @@ export default function KnowledgeCaseReview({ record, cases, groups, articles, h
     catch (error) { if (active.current) setError(failure(error)) }
     finally { if (active.current) setBusy('') }
   }
-  async function apply() {
+  async function apply(values) {
     if (!canLearn || busy || !run || run.status !== 'ready') return
     setBusy('apply')
     setError('')
     try {
-      const result = await applyKnowledgeLearning({ runId: run.runId || run.id, expectedRevision: run.revision })
+      const result = await applyKnowledgeLearning({ runId: run.runId || run.id, expectedRevision: run.revision, values })
       if (active.current) { setAppliedArticleId(result.id) }
     } catch (error) { if (active.current) setError(failure(error)) }
     finally { if (active.current) setBusy('') }
@@ -132,5 +132,5 @@ export default function KnowledgeCaseReview({ record, cases, groups, articles, h
         </section>}
       </aside>
     </div>
-  </KnowledgeDialog>{showResult && run?.proposal && <KnowledgeLearningResult run={run} currentArticle={currentArticle} language={language} canApply={canLearn} busy={Boolean(busy)} error={error} onApply={() => void apply()} onDiscard={() => void discard()} onClose={() => { if (!busy) setShowResult(false) }} />}</>
+  </KnowledgeDialog>{showResult && run?.proposal && <KnowledgeLearningResult run={run} currentArticle={currentArticle} language={language} canApply={canLearn} busy={Boolean(busy)} error={error} onApply={(values) => void apply(values)} onDiscard={() => void discard()} onClose={() => { if (!busy) setShowResult(false) }} />}</>
 }

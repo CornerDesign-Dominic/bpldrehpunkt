@@ -155,10 +155,14 @@ test('learning requires edit on both modules and applying partial human text edi
   }
   const db = fakeDb()
   await learnSelectedKnowledgeCases(db, input({ targetArticleId: 'article', expectedArticleRevision: 3 }), actor, { generate: async () => proposed })
-  await applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1, values: { title: 'Geprüfte Überschrift' } }, actor)
+  await applySelectedKnowledgeLearning(db, { runId: 'run', expectedRevision: 1, values: { title: 'Geprüfte Überschrift', process: 'Statuskommunikation', action: 'Unternehmer fragen und den Kunden informieren.' } }, actor)
   assert.equal(db.records.get('knowledgeArticles/article').owner, 'Team')
   assert.equal(db.records.get('knowledgeArticles/article').lastReviewedDate, article.lastReviewedDate)
   assert.equal(db.records.get('knowledgeArticles/article').title, 'Geprüfte Überschrift')
+  assert.equal(db.records.get('knowledgeArticles/article').process, 'Statuskommunikation')
+  assert.equal(db.records.get('knowledgeArticles/article').action, 'Unternehmer fragen und den Kunden informieren.')
+  assert.equal(db.records.get('knowledgeLearningRuns/run').appliedValues.action, 'Unternehmer fragen und den Kunden informieren.')
+  assert.equal(db.records.get('knowledgeLearningRuns/run').proposal.action, proposed.proposal.action)
 })
 
 test('proposal validation and the AI request protect boundaries and use content-free usage logging', async () => {

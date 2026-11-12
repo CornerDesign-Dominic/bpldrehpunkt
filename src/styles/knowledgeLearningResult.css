@@ -15,6 +15,10 @@
 .knowledge-result-removed { color:var(--text-secondary); text-decoration:line-through; text-decoration-thickness:1.5px; }
 .knowledge-result-removed + .knowledge-result-added { margin-left:.15em; }
 .knowledge-result-actions { margin-top:18px; }
+.knowledge-result-edit { margin-left:auto; flex:none; }
+.quality-dialog .knowledge-result-field .knowledge-result-input { width:100%; box-sizing:border-box; font:inherit; font-size:15px; line-height:1.6; padding:10px; }
+.quality-dialog .knowledge-result-field input.knowledge-result-input { height:auto; min-height:42px; }
+.quality-dialog .knowledge-result-field textarea.knowledge-result-input { min-height:180px; resize:vertical; }
 .knowledge-result-applied { color:var(--status-success-text); font-size:13px; }
 .knowledge-result-applied a { color:inherit; }
 @media(max-width:1000px) { .knowledge-result-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }

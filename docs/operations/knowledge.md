@@ -95,6 +95,32 @@ und erneute Mailauswahl geprüft. Angemeldeter Dev-Durchlauf bleibt offen.
 Bereitzustellen: `discardKnowledgeLearning`, `learnKnowledgeCases` und Frontend.
 Keine Änderung an Rules oder Indizes.
 
+## Lernergebnis vor der Übernahme bearbeiten (12.11.2026)
+
+Im Ergebnisdialog lassen sich Titel, Prozess, Thema, Suchbegriffe und alle sechs
+Artikelabschnitte über den Stift am Feld bearbeiten. „Fertig“ wechselt zur
+Vergleichsanzeige mit den angepassten Texten zurück; eine Übernahme ist auch
+bei noch geöffneten Eingabefeldern möglich. Mehrzeilige Felder wachsen mit.
+Titel und Prozess sowie Situation/Vorgehen bei gültigen Artikeln bleiben
+Pflichtfelder. Metadaten und bestehende Berechtigungen bleiben erhalten.
+
+Manuelle Eingaben sind bis zur ausdrücklichen Übernahme lokal. Beim Schließen
+oder Neuladen wird vor dem Verlust ungespeicherter Änderungen gewarnt. Das
+Verwerfen lokaler Eingaben verwirft nicht den gespeicherten KI-Vorschlag.
+Die vorhandene Übernahme-API erhält die bearbeiteten Textfelder als `values`;
+Quellen- und Revisionsprüfungen gelten weiterhin. Der Lernlauf speichert die
+normalisierte übernommene Fassung in `appliedValues`, sodass die spätere
+Ergebnisansicht die tatsächlich übernommenen Texte statt des ursprünglichen
+KI-Vorschlags vergleicht. Bereits übernommene Ergebnisse sind hier nur lesbar.
+
+Prüfung: 27 gezielte Unit-Tests, neun echte Firestore-Emulatorprüfungen,
+Lint, Build und Shared-Abgleich (48 Module) erfolgreich. Lokaler Browser mit
+Testdaten: Titel/Prozess/Vorgehen bearbeiten, Vergleich, Pflichtfeldfehler,
+Schließen/Weiterbearbeiten, Übernahme und erneutes Öffnen der korrigierten
+Fassung geprüft. Angemeldeter Dev-Nutzertest bleibt offen.
+Backendumfang: `applyKnowledgeLearning`, `learnKnowledgeCases`; keine neuen
+Rules oder Indizes erforderlich.
+
 ## Fachlicher Ablauf
 
 Unter Qualität liegen Handbuch, Grundregeln und Wissenslücken. Das Handbuch ist

@@ -121,7 +121,7 @@ export function validateLearningProposal(value, previous = null) {
   return { proposal, insights, hasChanges, noChanges: Boolean(previous && !hasChanges) }
 }
 
-const publicRun = record => ({ id: record.runId, runId: record.runId, revision: record.revision, status: record.status, proposal: record.proposal, insights: record.insights, targetArticleId: record.targetArticleId, targetArticleRevision: record.targetArticleRevision, sources: record.sources, gapId: record.gapId, baseArticle: record.baseArticle || null, ...(typeof record.hasChanges === 'boolean' ? { hasChanges: record.hasChanges, noChanges: record.noChanges === true } : {}), ...(record.appliedResult ? { appliedResult: record.appliedResult } : {}) })
+const publicRun = record => ({ id: record.runId, runId: record.runId, revision: record.revision, status: record.status, proposal: record.proposal, insights: record.insights, targetArticleId: record.targetArticleId, targetArticleRevision: record.targetArticleRevision, sources: record.sources, gapId: record.gapId, baseArticle: record.baseArticle || null, ...(typeof record.hasChanges === 'boolean' ? { hasChanges: record.hasChanges, noChanges: record.noChanges === true } : {}), ...(record.appliedResult ? { appliedResult: record.appliedResult } : {}), ...(record.appliedValues ? { appliedValues: record.appliedValues } : {}) })
 
 export async function learnSelectedKnowledgeCases(db, input, actor, { generate = generateLearningProposal } = {}) {
   const runRef = db.doc(`knowledgeLearningRuns/${input.runId}`)
@@ -234,7 +234,7 @@ export async function applySelectedKnowledgeLearning(db, input, actor) {
       const revision = caseRevision(value) + (value.gapId !== targetGapId ? 1 : 0)
       tx.update(db.doc(`knowledgeGapEvidence/${run.sources[index].id}`), { gapId: targetGapId, caseRevision: revision, learnedRevision: revision, learningRunId: input.runId, learnedAt: now, learnedBy: actor.uid, ...(value.gapId !== targetGapId ? { movedAt: now, movedBy: actor.uid } : {}), updatedAt: now })
     })
-    tx.set(runRef, { ...run, status: 'applied', revision: 2, appliedAt: now, updatedAt: now, appliedBy: actor.uid, appliedResult })
+    tx.set(runRef, { ...run, status: 'applied', revision: 2, appliedAt: now, updatedAt: now, appliedBy: actor.uid, appliedResult, appliedValues: values })
     return { ...appliedResult, runId: input.runId }
   })
 }

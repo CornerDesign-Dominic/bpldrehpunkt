@@ -74,7 +74,8 @@ export function buildKnowledgeLearningDiff(run, currentArticle) {
   if (!isNew && matchingBase(run?.baseArticle, run)) { baseArticle = run.baseArticle; basis = 'snapshot' }
   else if (!isNew && matchingBase(currentArticle, run)) { baseArticle = currentArticle; basis = 'current' }
   const missingBase = basis === 'missing'
-  const proposal = run?.proposal && typeof run.proposal === 'object' && !Array.isArray(run.proposal) ? run.proposal : null
+  const result = run?.status === 'applied' && run.appliedValues ? run.appliedValues : run?.proposal
+  const proposal = result && typeof result === 'object' && !Array.isArray(result) ? result : null
   const fields = proposal ? [...KNOWLEDGE_LEARNING_TEXT_FIELDS, ...KNOWLEDGE_LEARNING_META_FIELDS].map((key) => {
     const before = missingBase ? null : fieldText(baseArticle, key)
     let after = fieldText(proposal, key)
