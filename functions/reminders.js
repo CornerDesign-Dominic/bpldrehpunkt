@@ -164,7 +164,7 @@ async function attemptRecipient(db, expected, userId, now, send, environment) {
 async function persistStatus(db, context, result, remove) {
   await db.runTransaction(async (transaction) => {
     const current = await loadReminderSource(db, context.sourcePath, transaction)
-    if (current.version !== context.version) return
+    if (current.version !== context.version || reminderParentVersion(current.parent) !== reminderParentVersion(context.parent)) return
     transaction.set(statusRef(db, context.sourcePath), { ...result, parentPath: context.parentPath, scheduleId: context.scheduleId, version: context.version, updatedAt: stamp() })
     if (remove) transaction.delete(workRef(db, context.sourcePath))
   })
@@ -183,7 +183,11 @@ async function processJob(db, sourcePath, now, send, environment) {
       for (const outcome of attempted) if (outcome && Object.hasOwn(outcomes, outcome.status)) outcomes[outcome.status] += 1
     }
   }
-  const result = await currentStatus(db, context, now(), undefined, environment)
+  // Audience membership can change while a provider request is guarded. Base
+  // the final status on the current source, so a new recipient is not lost
+  // when an obsolete recipient's delivery is cancelled.
+  const latest = await loadReminderSource(db, sourcePath)
+  const result = await currentStatus(db, latest, now(), undefined, environment)
   // A crashed worker's durable sending record is uncertain, not a retry lease.
   if (minute === 'missed') {
     const receipts = await db.collection('reminderDeliveries').where('scheduleId', '==', context.scheduleId).get()
@@ -193,7 +197,7 @@ async function processJob(db, sourcePath, now, send, environment) {
       await technicalFailure(db, 'worker-outcome-unknown', ref.id)
     }
   }
-  await persistStatus(db, context, result, !result.recipients.some((row) => row.status === 'sending'))
+  await persistStatus(db, latest, result, !result.recipients.some((row) => ['sending', 'pending'].includes(row.status)))
   return outcomes
 }
 

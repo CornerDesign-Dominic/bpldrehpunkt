@@ -9,10 +9,10 @@ test('registry accepts only canonical sources and never mirrors or unrelated tra
   for (const path of ['todoCalendarEntries/x', 'calendars/system-damages/events/e', 'transportOrderTrackings/o/events/e', 'notes/n/deadlines/d', 'todos/t/deadlines/d/extra/x', 'users/u', 'todos//deadlines/d']) assert.equal(reminderSourceDescriptor(path), null, path)
 })
 
-test('To-do routing switches exclusively from creator to assignee; cases never fall back to creator', () => {
+test('To-do routing uses live audience selections; cases never fall back to creator', () => {
   const todo = reminderSourceDescriptor('todos/t/deadlines/d')
-  assert.deepEqual(reminderRecipientPolicy(todo, { creatorUserId: 'creator' }).userIds, ['creator'])
-  assert.deepEqual(reminderRecipientPolicy(todo, { creatorUserId: 'creator', assignedUserId: 'assignee' }).userIds, ['assignee'])
+  assert.deepEqual(reminderRecipientPolicy(todo, { creatorUserId: 'creator' }), { type: 'todo-audience', mode: 'all', userIds: [] })
+  assert.deepEqual(reminderRecipientPolicy(todo, { assignedUserId: 'assignee' }, { reminderRecipientMode: 'selected', reminderRecipientUserIds: ['member'] }), { type: 'todo-audience', mode: 'selected', userIds: ['member'] })
   assert.deepEqual(reminderRecipientPolicy(reminderSourceDescriptor('damageCases/c/deadlines/d'), { createdBy: 'creator' }).userIds, [])
   assert.deepEqual(reminderRecipientPolicy(reminderSourceDescriptor('calendars/p/events/e'), { kind: 'personal', ownerUserId: 'owner' }).userIds, ['owner'])
 })

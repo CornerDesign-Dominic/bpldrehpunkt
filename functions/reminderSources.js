@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { resolveReminderTime } from './shared/reminderTime.js'
+import { canReadTodoForUser, todoAudienceMember, todoReminderRecipientIds } from './shared/todoCollaboration.js'
 
 export const reminderCaseModules = Object.freeze({ damageCases: 'damages', inkassoCases: 'inkasso', legalDisputes: 'legalDisputes', insolvencies: 'insolvencies', todos: 'todos' })
 const systemCalendars = new Set(['system-damages', 'system-insolvencies', 'system-legal-disputes', 'system-inkasso'])
@@ -37,9 +38,10 @@ export function reminderParentSuppressed(descriptor, parent, source) {
   return null
 }
 
-export function reminderRecipientPolicy(descriptor, parent) {
+export function reminderRecipientPolicy(descriptor, parent, source = parent) {
   if (descriptor.kind === 'calendar-event') return parent.kind === 'personal' ? { type: 'users', userIds: identifier(parent.ownerUserId) ? [parent.ownerUserId] : [] } : { type: 'calendar-readers', userIds: [] }
-  const userId = descriptor.root === 'todos' ? parent.assignedUserId || parent.creatorUserId : parent.responsibleUserId
+  if (descriptor.root === 'todos') return { type: 'todo-audience', mode: source?.reminderRecipientMode || 'all', userIds: source?.reminderRecipientMode === 'selected' && Array.isArray(source.reminderRecipientUserIds) ? source.reminderRecipientUserIds.filter(identifier) : [] }
+  const userId = parent.responsibleUserId
   return { type: 'users', userIds: identifier(userId) ? [userId] : [] }
 }
 
@@ -56,9 +58,9 @@ export async function loadReminderSource(db, sourcePath, reader = { get: (refere
   const time = descriptor.kind === 'deadline' ? source?.time : source?.reminderTime
   const occurrence = source?.reminderOccurrence || null
   const resolved = resolveReminderTime({ date, time, occurrence })
-  const policy = parent ? reminderRecipientPolicy(descriptor, parent) : { type: 'users', userIds: [] }
+  const policy = parent ? reminderRecipientPolicy(descriptor, parent, source) : { type: 'users', userIds: [] }
   const suppressed = reminderParentSuppressed(descriptor, parent, source)
-  const configuration = !resolved.valid ? resolved.message : policy.type === 'users' && !policy.userIds.length ? 'Bitte eine zuständige Person festlegen.' : null
+  const configuration = !resolved.valid ? resolved.message : policy.type === 'todo-audience' && policy.mode === 'selected' && !policy.userIds.length ? 'Keine Erinnerungsempfänger ausgewählt.' : policy.type === 'users' && !policy.userIds.length ? 'Bitte eine zuständige Person festlegen.' : null
   const scheduleId = resolved.valid ? reminderHash([sourcePath, resolved.dueAt]) : null
   const title = descriptor.kind === 'deadline' ? text(parent?.caseNumber) || text(parent?.title) || text(parent?.partnerName) || text(parent?.debtorName) || labels[descriptor.root] : text(source?.title) || 'Kalendertermin'
   const note = descriptor.kind === 'todo' ? '' : text(source?.note) || (descriptor.kind === 'calendar-event' ? text(source?.description) : '')
@@ -67,14 +69,14 @@ export async function loadReminderSource(db, sourcePath, reader = { get: (refere
 }
 
 export function reminderParentVersion(value) {
-  const keys = ['status', 'isClosed', 'responsibleUserId', 'assignedUserId', 'creatorUserId', 'ownerUserId', 'kind', 'active', 'splitArchivedAt', 'archivedAt', 'mergedIntoPartnerId', 'title', 'caseNumber', 'partnerName', 'debtorName', 'audienceType', 'audienceId', 'audienceIds']
+  const keys = ['status', 'isClosed', 'responsibleUserId', 'assignedUserId', 'creatorUserId', 'ownerUserId', 'kind', 'active', 'splitArchivedAt', 'archivedAt', 'mergedIntoPartnerId', 'title', 'caseNumber', 'partnerName', 'debtorName', 'audienceType', 'audienceId', 'audienceIds', 'reminderRecipientMode', 'reminderRecipientUserIds']
   return reminderHash(value ? keys.map((key) => value[key] ?? null) : null)
 }
 
 export function reminderParentChanged(before, after) { return reminderParentVersion(before) !== reminderParentVersion(after) }
 
 export function reminderSourceChanged(before, after) {
-  const keys = ['reminderEnabled', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'date', 'time', 'title', 'note', 'description', 'splitArchivedAt', 'archivedAt']
+  const keys = ['reminderEnabled', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'date', 'time', 'title', 'note', 'description', 'splitArchivedAt', 'archivedAt', 'reminderRecipientMode', 'reminderRecipientUserIds']
   const select = (value) => value ? keys.map((key) => value[key] ?? null) : null
   return JSON.stringify(select(before)) !== JSON.stringify(select(after))
 }
@@ -85,8 +87,7 @@ export function canReadReminderSource(context, userId, profile, permission = nul
   if (!context?.exists || !canView(profile, context.module)) return false
   if (context.kind === 'calendar-event') return profile.role === 'superadmin' || context.parent.ownerUserId === userId || ['view', 'edit'].includes(permission?.level)
   if (context.root !== 'todos') return true
-  const todo = context.parent
-  return profile.role === 'superadmin' || todo.creatorUserId === userId || todo.assignedUserId === userId || (todo.status !== 'withdrawn' && (todo.audienceType === 'all' || (todo.audienceType === 'person' && todo.audienceId === userId) || (todo.audienceType === 'people' && Array.isArray(todo.audienceIds) && todo.audienceIds.includes(userId)) || (todo.audienceType === 'department' && todo.audienceId === profile.department)))
+  return canReadTodoForUser(context.parent, userId, profile)
 }
 
 export async function reminderPermission(db, context, userId, reader = { get: (reference) => reference.get() }) {
@@ -97,7 +98,9 @@ function recipientDetails(context, userId, profile, permission) {
   const named = [text(profile?.firstName), text(profile?.lastName)].filter(Boolean).join(' ') || 'Benutzer'
   const email = text(profile?.email)
   const permitted = canReadReminderSource(context, userId, profile, permission)
-  const selected = context.policy.type === 'calendar-readers' || context.policy.userIds.includes(userId)
+  const selected = context.policy.type === 'todo-audience'
+    ? todoAudienceMember(context.parent, userId, profile) && (context.policy.mode === 'all' || (context.policy.mode === 'selected' && context.policy.userIds.includes(userId)))
+    : context.policy.type === 'calendar-readers' || context.policy.userIds.includes(userId)
   const eligible = selected && permitted && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
   return { userId, name: named.slice(0, 160), email, eligible, permitted, reason: !profile || profile.active !== true ? 'Die zuständige Person ist nicht aktiv.' : !selected || !permitted ? 'Die zuständige Person hat keinen aktuellen Lesezugriff.' : !eligible ? 'Für die zuständige Person fehlt eine gültige Profil-E-Mail-Adresse.' : null }
 }
@@ -119,6 +122,12 @@ export function createReminderRecipientCache(db) {
     return profiles.get(id)
   }
   return { async recipients(context) {
+    if (context.policy.type === 'todo-audience') {
+      directory ||= db.collection('users').where('active', '==', true).select('active', 'firstName', 'lastName', 'email', 'role', 'permissions', 'department').get().then((snapshot) => snapshot.docs.map((entry) => ({ userId: entry.id, profile: entry.data() })))
+      const users = await directory
+      const selected = new Set(todoReminderRecipientIds(context.parent, context.source || { reminderRecipientMode: context.policy.mode, reminderRecipientUserIds: context.policy.userIds }, users))
+      return users.filter((entry) => selected.has(entry.userId)).map((entry) => recipientDetails(context, entry.userId, entry.profile, null))
+    }
     if (context.policy.type !== 'calendar-readers') return Promise.all(context.policy.userIds.map(async (id) => recipientDetails(context, id, await profileFor(id), await reminderPermission(db, context, id))))
     directory ||= db.collection('users').where('active', '==', true).select('active', 'firstName', 'lastName', 'email', 'role', 'permissions', 'department').get().then((snapshot) => snapshot.docs.map((entry) => ({ userId: entry.id, profile: entry.data() })))
     const users = (await directory).filter((item) => canView(item.profile, 'calendar'))

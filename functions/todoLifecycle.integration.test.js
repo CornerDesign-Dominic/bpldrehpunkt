@@ -37,7 +37,7 @@ test('actual todo creation and handoff respect rules for normal and boundary pro
       await admin.doc('businessPartners/reminder-customer').set({ companyName: 'Reminder customer', businessPartnerRoles: ['customer'] })
       await admin.doc('businessPartners/reminder-carrier').set({ companyName: 'Reminder carrier', businessPartnerRoles: ['carrier'] })
       await admin.doc('transportOrders/261000309').set({ externalNumber: '261000309', imported: { customer: { partnerId: 'reminder-customer', name: 'Reminder customer' }, carrier: { partnerId: 'reminder-carrier', originalName: 'Reminder carrier' } } })
-      const next = { ...values, audienceType: 'people', audienceIds: [actor.user.uid], dueDate: '2026-11-12', reminderDate: '2026-11-12', reminderTime: '12:00', reminderOccurrence: 'earlier', customerId: 'reminder-customer', customerName: 'Reminder customer', carrierId: 'reminder-carrier', carrierName: 'Reminder carrier', transportOrderLinks: [{ id: '261000309', number: '261000309' }] }
+      const next = { ...values, audienceType: 'people', audienceIds: [actor.user.uid], reminderRecipientMode: 'selected', reminderRecipientUserIds: [actor.user.uid], dueDate: '2026-11-12', reminderDate: '2026-11-12', reminderTime: '12:00', reminderOccurrence: 'earlier', customerId: 'reminder-customer', customerName: 'Reminder customer', carrierId: 'reminder-carrier', carrierName: 'Reminder carrier', transportOrderLinks: [{ id: '261000309', number: '261000309' }] }
       const id = await service.createTodo(next, actor, users)
       const saved = await service.getTodoById(id)
       assert.equal(saved.status, 'open')
@@ -91,7 +91,7 @@ test('actual todo creation and handoff respect rules for normal and boundary pro
       const updates = await service.listTodoUpdates(id)
       assert.ok(updates.every((update) => update.text.length <= 1000))
     })
-    await t.test('unrelated users cannot read or modify a handed-off task; targets can take over', async () => {
+    await t.test('unrelated users cannot read or modify a handed-off task; targets collaborate immediately', async () => {
       const id = await service.createTodo({ ...values, audienceType: 'people', audienceIds: ['target-0'] }, actor, users)
       for (const [uid, allowed] of [['target-0', true], ['target-1', false]]) {
         const targetApp = initializeApp({ projectId, apiKey: 'emulator-only' }, `security-${uid}-${Date.now()}`)
@@ -101,7 +101,7 @@ test('actual todo creation and handoff respect rules for normal and boundary pro
           const ref = firestore.doc(targetDb, 'todos', id)
           if (allowed) {
             assert.equal((await firestore.getDoc(ref)).exists(), true)
-            await firestore.updateDoc(ref, { assignedUserId: uid, assignedUserName: `${users.get(uid).firstName} ${users.get(uid).lastName}`, assignedAt: firestore.serverTimestamp(), status: 'in_progress', updatedAt: firestore.serverTimestamp() })
+            await firestore.updateDoc(ref, { title: 'Shared edit', updatedAt: firestore.serverTimestamp() })
             for (const restricted of [{ active: true, permissions: { todos: 'none' } }, { active: false, permissions: { todos: 'edit' } }]) {
               await admin.doc(`users/${uid}`).update(restricted)
               await assert.rejects(firestore.getDocFromServer(ref), { code: 'permission-denied' })
@@ -129,7 +129,7 @@ test('actual todo creation and handoff respect rules for normal and boundary pro
         Object.assign(profile, names)
         await admin.doc('users/todo-editor').set(profile)
         const id = await service.createTodo(values, actor, users)
-        assert.equal((await service.getTodoById(id)).assignedUserId, actor.user.uid)
+        assert.equal((await service.getTodoById(id)).assignedUserId, null)
       }
     })
   } finally {

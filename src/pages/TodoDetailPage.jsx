@@ -1,9 +1,10 @@
-import { useLanguage } from '../i18n/useLanguage.js'
+import { canCollaborateTodo, canManageTodoAudience, canReadTodoForUser } from '../../shared/todoCollaboration.js'
+import { subscribeCalendarRefresh } from '../lib/calendarRefresh.js'
 import ReminderStatus from '../components/reminders/ReminderStatus.jsx'
 import { reminderTimestampKey } from '../lib/reminderForm.js'
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import Link from "../components/ui/ContextLink.jsx";
 import { recordDetailPath } from "../lib/recordNavigation.js";
@@ -31,18 +32,15 @@ import { resolvePartnerInIndex } from "../lib/partnerCluster.js";
 import { listDamageCases } from "../lib/damages.js";
 import { listInsolvencies } from "../lib/insolvencies.js";
 import {
-  assignTodoToCurrentUser,
   addTodoNote,
   audienceHasChanged,
   completeTodoForCurrentUser,
   createTodoDeadline,
   deleteTodoDeadline,
-  getTodoById,
-  isAudienceMember,
-  listTodoUpdates,
-  listTodoDeadlines,
+  subscribeTodo,
+  subscribeTodoUpdates,
+  subscribeTodoDeadlines,
   reactivateTodoForCurrentUser,
-  releaseTodoFromCurrentUser,
   TODO_STATUS,
   todoStatus,
   todoPriority,
@@ -82,19 +80,16 @@ function dueClass(todo) {
 }
 
 function Detail({ label, children }) {
-  const labels = {
-    Zielgruppe: "Zugewiesen an",
-    "Aktueller Bearbeiter": "In Bearbeitung durch",
-  };
   return (
     <div>
-      <dt>{labels[label] || label}</dt>
+      <dt><StaticText source={label} /></dt>
       <dd>{children || "—"}</dd>
     </div>
   );
 }
 
 function DetailSectionHeading({ children, onEdit }) {
+  const label = typeof children === 'string' ? children : children?.props?.source || 'Abschnitt';
   return (
     <div className="todo-detail-section-heading">
       <h3>{children}</h3>
@@ -103,8 +98,8 @@ function DetailSectionHeading({ children, onEdit }) {
           className="todo-detail-section-edit"
           type="button"
           onClick={onEdit}
-          title={`${children} bearbeiten`}
-          aria-label={`${children} bearbeiten`}
+          title={`${label} bearbeiten`}
+          aria-label={`${label} bearbeiten`}
         >
           <EditIcon size={14} />
         </button>
@@ -113,57 +108,31 @@ function DetailSectionHeading({ children, onEdit }) {
   );
 }
 
-function TodoActions({ actor, editable, onAction, todo }) {
+function TodoActions({ actor, onAction, todo, pending }) {
   const status = todoStatus(todo);
-  const isAssignee = todo.assignedUserId === actor.user.uid;
-  const canTake =
-    editable &&
-    status === "open" &&
-    !todo.assignedUserId &&
-    isAudienceMember(todo, actor);
-  const canReactivate = editable && status === "completed" && isAssignee;
-  if (!editable) return null;
-  return (
-    <div className="todo-detail-actions">
-      {canTake && (
-        <button
-          className="button"
-          type="button"
-          onClick={() => onAction("assign", todo)}
-        >
-          <StaticText source={"Aufgabe annehmen"} />
-        </button>
-      )}
-      {isAssignee && status === "in_progress" && (
-        <button
-          className="button"
-          type="button"
-          onClick={() => onAction("complete", todo)}
-        >
-          <StaticText source={"Erledigen"} />
-        </button>
-      )}
-      {canReactivate && (
-        <button
-          className="button"
-          type="button"
-          onClick={() => onAction("reactivate", todo)}
-        >
-          <StaticText source={"Reaktivieren"} />
-        </button>
-      )}
-    </div>
-  );
+  if (!canCollaborateTodo(todo, actor)) return null;
+  return <div className="todo-detail-actions">
+    {['open', 'in_progress'].includes(status) && <button className="button" type="button" disabled={pending} onClick={() => onAction('complete', todo)}><StaticText source="Erledigen" /></button>}
+    {status === 'completed' && <button className="button" type="button" disabled={pending} onClick={() => onAction('reactivate', todo)}><StaticText source="Wieder öffnen" /></button>}
+    {canManageTodoAudience(todo, actor) && ['open', 'in_progress'].includes(status) && <button className="button button--secondary" type="button" disabled={pending} onClick={() => onAction('withdraw', todo)}><StaticText source="Zurückziehen" /></button>}
+  </div>;
 }
 
 export default function TodoDetailPage() {
-  const { language } = useLanguage();
   const { todoId } = useParams();
+  const { user } = useAuth();
+  return <TodoDetailContent key={`${user?.uid || ''}:${todoId}`} todoId={todoId} />;
+}
+
+function TodoDetailContent({ todoId }) {
   const { user, profile } = useAuth();
   const { canEdit, canView } = usePermissions();
   const actor = useMemo(() => ({ user, profile }), [profile, user]);
   const [result, setResult] = useState(null);
+  const [subscriptionVersion, setSubscriptionVersion] = useState(0);
   const [users, setUsers] = useState([]);
+  const [directoryReady, setDirectoryReady] = useState(false);
+  const [directoryError, setDirectoryError] = useState('');
   const [partners, setPartners] = useState([]);
   const [damageCases, setDamageCases] = useState([]);
   const [insolvencies, setInsolvencies] = useState([]);
@@ -173,8 +142,11 @@ export default function TodoDetailPage() {
   const [updatesLoading, setUpdatesLoading] = useState(true);
   const [note, setNote] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const notePending = useRef(false);
   const [quickEditing, setQuickEditing] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const actionPending = useRef(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const editable = canEdit("todos");
@@ -199,33 +171,46 @@ export default function TodoDetailPage() {
     [activeUsers],
   );
 
-  async function loadTodo() {
-    const [todo, todoUpdates, todoDeadlines] = await Promise.all([
-      getTodoById(todoId),
-      listTodoUpdates(todoId),
-      listTodoDeadlines(todoId),
-    ]);
-    setResult({ todo, error: todo ? "" : "Aufgabe nicht gefunden." });
-    setUpdates(todoUpdates);
-    setDeadlines(todoDeadlines);
-    setUpdatesLoading(false);
-    setDeadlinesLoading(false);
-  }
+  useEffect(() => {
+    let current = true;
+    const fail = (loadError) => {
+      if (!current) return;
+      current = false;
+      setResult({ todo: null, error: loadError.code === 'permission-denied' ? 'Kein Zugriff auf diese Aufgabe.' : 'Die Aufgabe konnte nicht geladen werden. Bitte die Seite neu laden.' });
+      setUpdates([]);
+      setDeadlines([]);
+      setQuickEditing(null);
+      setConfirmation(null);
+      setUpdatesLoading(false);
+      setDeadlinesLoading(false);
+      void reportTechnicalFailure({ module: 'todos', stage: 'load', error: loadError });
+    };
+    const stop = [
+      subscribeTodo(todoId, (todo) => {
+        if (current) {
+          setResult({ todo, error: todo ? '' : 'Aufgabe nicht gefunden.' });
+          if (!canCollaborateTodo(todo, actor) || !['open', 'in_progress'].includes(todo.status)) {
+            setQuickEditing(null);
+            setConfirmation(null);
+          }
+        }
+      }, fail),
+      subscribeTodoUpdates(todoId, (entries) => { if (current) { setUpdates(entries); setUpdatesLoading(false); } }, fail),
+      subscribeTodoDeadlines(todoId, (entries) => { if (current) { setDeadlines(entries); setDeadlinesLoading(false); } }, fail),
+    ];
+    return () => { current = false; stop.forEach((unsubscribe) => unsubscribe()); };
+  }, [actor, todoId, subscriptionVersion]);
 
-  async function refreshAfterWrite() {
-    try { await loadTodo(); }
-    catch (loadError) {
-      setError(language === 'en' ? 'Change saved. The current data could not be reloaded. Please reload the page.' : 'Änderung gespeichert. Die aktuellen Daten konnten nicht neu geladen werden. Bitte die Seite neu laden.');
-      void reportTechnicalFailure({ module: 'website', stage: 'other', error: loadError });
-    }
-  }
+  useEffect(() => {
+    if (result?.todo && !result.error) return undefined;
+    // A denied Firestore listener ends permanently. Retry a fresh authorized
+    // subscription when returning, so re-added participants can recover.
+    return subscribeCalendarRefresh({ window, document, onRefresh: () => setSubscriptionVersion((version) => version + 1) });
+  }, [result]);
 
   useEffect(() => {
     let current = true;
     Promise.all([
-      getTodoById(todoId),
-      listTodoUpdates(todoId),
-      listTodoDeadlines(todoId),
       editable ? listVisibleUserDirectory() : Promise.resolve([]),
       canViewMasterData ? listBusinessPartners() : Promise.resolve([]),
       canViewDamageCases ? listDamageCases() : Promise.resolve([]),
@@ -233,21 +218,15 @@ export default function TodoDetailPage() {
     ])
       .then(
         ([
-          todo,
-          todoUpdates,
-          todoDeadlines,
           profiles,
           businessPartners,
           cases,
           insolvencyEntries,
         ]) => {
           if (current) {
-            setResult({ todo, error: todo ? "" : "Aufgabe nicht gefunden." });
-            setUpdates(todoUpdates);
-            setDeadlines(todoDeadlines);
-            setUpdatesLoading(false);
-            setDeadlinesLoading(false);
             setUsers(profiles);
+            setDirectoryReady(editable);
+            setDirectoryError('');
             setPartners(businessPartners);
             setDamageCases(cases);
             setInsolvencies(insolvencyEntries);
@@ -256,15 +235,10 @@ export default function TodoDetailPage() {
       )
       .catch((loadError) => {
         if (current) {
-          setResult({
-            todo: null,
-            error:
-              loadError.code === "permission-denied"
-                ? "Kein Zugriff auf diese Aufgabe."
-                : "Aufgabe nicht gefunden.",
-          });
-          setUpdatesLoading(false);
-          setDeadlinesLoading(false);
+          setUsers([]);
+          setDirectoryReady(false);
+          setDirectoryError('Die Auswahllisten konnten nicht geladen werden. Bitte die Seite neu laden.');
+          void reportTechnicalFailure({ module: 'todos', stage: 'load', error: loadError });
         }
       });
     return () => {
@@ -276,40 +250,35 @@ export default function TodoDetailPage() {
     canViewMasterData,
     editable,
     todoId,
+    actor,
   ]);
 
-  async function saveQuickEdit(values, options = {}) {
-    const todo = result.todo;
-    const audienceChanged = audienceHasChanged(todo, values, user.uid);
-    const resetAssignment = audienceChanged || options.releaseAssignment;
-    if (todo.assignedUserId && resetAssignment) {
-      setConfirmation({
-        type: "quick-save",
-        values,
-        title: "Übernahme zurücksetzen?",
-        message:
-          "Das To-do wurde bereits übernommen. Durch diese Änderung wird die Bearbeitung beendet und das To-do wieder geöffnet.",
+  useEffect(() => {
+    if (!editable) return undefined;
+    let current = true;
+    const stop = subscribeCalendarRefresh({ window, document, onRefresh: () => {
+      listVisibleUserDirectory().then((entries) => { if (current) { setUsers(entries); setDirectoryReady(true); setDirectoryError(''); } }).catch((loadError) => {
+        if (current) { setUsers([]); setDirectoryReady(false); setDirectoryError('Die Mitarbeiterliste konnte nicht geladen werden. Kalender und Empfänger können erst nach erneutem Laden geändert werden.'); }
+        void reportTechnicalFailure({ module: 'todos', stage: 'load', error: loadError });
       });
+    } });
+    return () => { current = false; stop(); };
+  }, [actor, editable]);
+
+  function openQuickEdit(section) { setQuickEditing({ section, todo: result.todo }); }
+
+  async function saveQuickEdit(values) {
+    if (audienceHasChanged(quickEditing.todo, values, user.uid)) {
+      setConfirmation({ type: 'quick-save', todo: quickEditing.todo, values, title: 'Beteiligte ändern?', message: 'Entfernte Personen verlieren den Zugriff auf dieses To-do. Ihre zugehörigen Kalendereinträge und Erinnerungen entfallen. Bestehende Empfängerauswahlen werden auf die verbleibenden Beteiligten begrenzt.' });
       return;
     }
-    await persistQuickEdit(values, resetAssignment);
+    await persistQuickEdit(values);
   }
 
-  async function persistQuickEdit(values, resetAssignment) {
-    await updateTodoByCreator(
-      result.todo,
-      values,
-      usersById,
-      resetAssignment,
-      actor,
-    );
-    await refreshAfterWrite();
+  async function persistQuickEdit(values, original = quickEditing.todo) {
+    await updateTodoByCreator(original, values, usersById, false, actor);
     setQuickEditing(null);
-    setToast(
-      resetAssignment
-        ? "To-do neu zugewiesen und wieder geöffnet."
-        : "To-do aktualisiert.",
-    );
+    setToast('To-do aktualisiert.');
   }
 
   async function handleAction(action, todo) {
@@ -318,35 +287,32 @@ export default function TodoDetailPage() {
       setConfirmation({
         type: "complete",
         todo,
-        title: "To-do als erledigt ablegen?",
+        title: "To-do erledigen?",
         message:
-          "Die Aufgabe wird als erledigt markiert und kann anschließend nicht mehr bearbeitet werden.",
+          "Die Aufgabe wird für alle Beteiligten als erledigt markiert. Berechtigte Beteiligte können sie später wieder öffnen.",
       });
       return;
     }
-    if (action === "withdraw" && todo.assignedUserId) {
+    if (action === "withdraw") {
       setConfirmation({
         type: "withdraw",
         todo,
         title: "To-do zurückziehen?",
         message:
-          "Die laufende Bearbeitung wird beendet. Das To-do bleibt zur Nachvollziehbarkeit gespeichert.",
+          "Das To-do wird zurückgezogen. Seine Kalendereinträge und Erinnerungen entfallen. Es bleibt zur Nachvollziehbarkeit gespeichert.",
       });
       return;
     }
+    if (actionPending.current) return;
+    actionPending.current = true;
+    setActionSaving(true);
     try {
-      if (action === "assign") await assignTodoToCurrentUser(todo.id, actor);
-      if (action === "release")
-        await releaseTodoFromCurrentUser(todo.id, actor);
       if (action === "reactivate")
         await reactivateTodoForCurrentUser(todo.id, actor);
       if (action === "withdraw") await withdrawTodo(todo.id, actor);
-      await refreshAfterWrite();
       setToast(
         {
-          assign: "Aufgabe angenommen.",
-          release: "Bearbeitung freigegeben.",
-          reactivate: "To-do reaktiviert.",
+          reactivate: "To-do wieder geöffnet.",
           complete: "To-do erledigt.",
           withdraw: "To-do zurückgezogen.",
         }[action],
@@ -355,21 +321,25 @@ export default function TodoDetailPage() {
       setError(
         actionError.message || "Die Änderung konnte nicht gespeichert werden.",
       );
+    } finally {
+      actionPending.current = false;
+      setActionSaving(false);
     }
   }
 
   async function confirmAction() {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    setActionSaving(true);
     try {
       if (confirmation.type === "quick-save")
-        await persistQuickEdit(confirmation.values, true);
+        await persistQuickEdit(confirmation.values, confirmation.todo);
       if (confirmation.type === "complete") {
         await completeTodoForCurrentUser(confirmation.todo.id, actor);
-        await refreshAfterWrite();
         setToast("To-do erledigt.");
       }
       if (confirmation.type === "withdraw") {
         await withdrawTodo(confirmation.todo.id, actor);
-        await refreshAfterWrite();
         setToast("To-do zurückgezogen.");
       }
       setConfirmation(null);
@@ -378,36 +348,40 @@ export default function TodoDetailPage() {
       setError(
         actionError.message || "Die Änderung konnte nicht gespeichert werden.",
       );
+    } finally {
+      actionPending.current = false;
+      setActionSaving(false);
     }
   }
 
   async function saveNote(event) {
     event.preventDefault();
+    if (notePending.current) return;
+    notePending.current = true;
     setError("");
     setNoteSaving(true);
     try {
       await addTodoNote(todoId, note, actor);
       setNote("");
-      await refreshAfterWrite();
       setToast("Hinweis hinzugefügt.");
     } catch (noteError) {
       setError(
         noteError.message || "Der Hinweis konnte nicht gespeichert werden.",
       );
     } finally {
+      notePending.current = false;
       setNoteSaving(false);
     }
   }
 
-  async function saveDeadline(existingDeadline, values) {
+  async function saveDeadline(existingDeadline, values, originalTodo = result.todo) {
     setError("");
     try {
       if (existingDeadline)
-        await updateTodoDeadline(result.todo, existingDeadline, values, actor);
-      else await createTodoDeadline(result.todo, values, actor);
-      await refreshAfterWrite();
+        await updateTodoDeadline(originalTodo, existingDeadline, values, actor);
+      else await createTodoDeadline(originalTodo, values, actor);
       setToast(
-        existingDeadline ? "Termin aktualisiert." : "Termin hinzugefügt.",
+        existingDeadline ? "Termin oder Frist aktualisiert." : "Termin oder Frist hinzugefügt.",
       );
     } catch (saveError) {
       setError(
@@ -417,12 +391,11 @@ export default function TodoDetailPage() {
     }
   }
 
-  async function deleteDeadline(deadline) {
+  async function deleteDeadline(deadline, originalTodo = result.todo) {
     setError("");
     try {
-      await deleteTodoDeadline(result.todo, deadline, actor);
-      await refreshAfterWrite();
-      setToast("Termin gelöscht.");
+      await deleteTodoDeadline(originalTodo, deadline, actor);
+      setToast("Termin oder Frist gelöscht.");
     } catch (deleteError) {
       setError(
         deleteError.message || "Der Termin konnte nicht gelöscht werden.",
@@ -431,11 +404,11 @@ export default function TodoDetailPage() {
     }
   }
 
-  if (!result) return <p className="page-state"><StaticText source={"Aufgabe wird geladen …"} /></p>;
-  if (result.error)
+  if (!result || (result.todo && result.todo.id !== todoId)) return <p className="page-state"><StaticText source={"Aufgabe wird geladen …"} /></p>;
+  if (result.error || !canReadTodoForUser(result.todo, user?.uid, profile))
     return (
       <section className="todo-detail-empty">
-        <h2>{result.error}</h2>
+        <h2>{result.error || 'Kein Zugriff auf diese Aufgabe.'}</h2>
         <BackLink to="/todos" />
       </section>
     );
@@ -443,10 +416,8 @@ export default function TodoDetailPage() {
   const { todo } = result;
   const caseUpdates = updates.filter((update) => update.type === "note");
   const history = updates.filter((update) => update.type === "system");
-  const canManageSections =
-    editable &&
-    (profile?.role === "superadmin" || todo.creatorUserId === user.uid) &&
-    ["open", "in_progress"].includes(todo.status);
+  const canManageSections = canCollaborateTodo(todo, actor) && ['open', 'in_progress'].includes(todo.status);
+  const canManageAudience = canManageTodoAudience(todo, actor) && ['open', 'in_progress'].includes(todo.status);
   const linkedDamageCase =
     canViewDamageCases && todo.damageCaseId
       ? damageCases.find((damageCase) => damageCase.id === todo.damageCaseId)
@@ -493,7 +464,8 @@ export default function TodoDetailPage() {
     <>
       {toast && <Toast message={toast} onDismiss={() => setToast("")} />}
       <ConfirmDialog
-        open={Boolean(confirmation)}
+        open={Boolean(confirmation) && canCollaborateTodo(todo, actor) && ['open', 'in_progress'].includes(todo.status)}
+        isSubmitting={actionSaving}
         title={confirmation?.title || ""}
         message={confirmation?.message || ""}
         cancelLabel={confirmation?.type === "complete" ? "Nein" : "Abbrechen"}
@@ -508,6 +480,7 @@ export default function TodoDetailPage() {
         <BackLink to="/todos" />
         <TodoActions
           actor={actor}
+          pending={actionSaving}
           editable={editable}
           onAction={handleAction}
           todo={todo}
@@ -521,7 +494,7 @@ export default function TodoDetailPage() {
               <TranslatedProps sources={{"title":"Titel bearbeiten","aria-label":"Titel bearbeiten"}}><button
                 className="todo-detail-section-edit"
                 type="button"
-                onClick={() => setQuickEditing("content")}
+                onClick={() => openQuickEdit("content")}
                 title="Titel bearbeiten"
                 aria-label="Titel bearbeiten"
               >
@@ -529,14 +502,15 @@ export default function TodoDetailPage() {
               </button></TranslatedProps>
             )}
             <span className={`todo-status todo-status--${todoStatus(todo)}`}>
-              {TODO_STATUS[todoStatus(todo)] || "—"}
+              <StaticText source={TODO_STATUS[todoStatus(todo)] || "—"} />
             </span>
           </div>
         </header>
         {error && <p className="form-error">{<StaticText source={error} />}</p>}
-        {quickEditing && (
+        {directoryError && <p className="form-error" role="status">{directoryError}</p>}
+        {quickEditing && canManageSections && (quickEditing.section !== 'responsibility' || canManageAudience) && (
           <TodoQuickEditModal
-            key={quickEditing}
+            key={quickEditing.section}
             canViewDamageCases={canViewDamageCases}
             canViewInsolvencies={canViewInsolvencies}
             canViewTransportOrders={canViewTransportOrders}
@@ -544,8 +518,10 @@ export default function TodoDetailPage() {
             damageCases={damageCases}
             insolvencies={insolvencies}
             partners={partners}
-            section={quickEditing}
-            todo={todo}
+            section={quickEditing.section}
+            suspended={Boolean(confirmation)}
+            recipientsAvailable={directoryReady}
+            todo={quickEditing.todo}
             users={activeUsers}
             onCancel={() => setQuickEditing(null)}
             onSubmit={saveQuickEdit}
@@ -556,7 +532,7 @@ export default function TodoDetailPage() {
             <section className="todo-detail-content">
               <DetailSectionHeading
                 onEdit={
-                  canManageSections ? () => setQuickEditing("content") : null
+                  canManageSections ? () => openQuickEdit("content") : null
                 }
               >
                 <StaticText source={"Beschreibung"} />
@@ -565,31 +541,31 @@ export default function TodoDetailPage() {
                 {todo.description || <StaticText source={"Keine Beschreibung hinterlegt."} />}
               </p>
             </section>
-            <TodoDeadlinesCard todoId={todo.id} refreshKey={reminderTimestampKey(todo.updatedAt)} canEdit={canManageSections} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
+            <TodoDeadlinesCard todo={todo} users={activeUsers} todoId={todo.id} refreshKey={reminderTimestampKey(todo.updatedAt)} canEdit={canManageSections && directoryReady} deadlines={deadlines} loading={deadlinesLoading} onDelete={deleteDeadline} onSave={saveDeadline} />
             <section
               className="todo-updates"
               aria-labelledby="todo-updates-title"
             >
               <div className="todo-updates__heading">
-                <h3 id="todo-updates-title"><StaticText source={"Updates zum Fall"} /></h3>
+                <h3 id="todo-updates-title"><StaticText source={"Updates zum To-do"} /></h3>
                 <span>{caseUpdates.length}</span>
               </div>
-              {canView("todos") && (
+              {canManageSections && (
                 <form className="todo-updates__form" onSubmit={saveNote}>
-                  <TranslatedProps sources={{"aria-label":"Update zum Fall","placeholder":"Update zum Fall hinzufügen …"}}><textarea
-                    aria-label="Update zum Fall"
+                  <TranslatedProps sources={{"aria-label":"Update zum To-do","placeholder":"Update hinzufügen …"}}><textarea
+                    aria-label="Update zum To-do"
                     rows="2"
                     value={note}
                     maxLength="1000"
                     onChange={(event) => setNote(event.target.value)}
-                    placeholder="Update zum Fall hinzufügen …"
+                    placeholder="Update hinzufügen …"
                   /></TranslatedProps>
                   <button
                     className="button"
                     type="submit"
                     disabled={noteSaving || !note.trim()}
                   >
-                    {<StaticText source={noteSaving ? "Wird gespeichert …" : "Update hinzufügen"} />}
+                    {<StaticText source={noteSaving ? "Wird gespeichert …" : "Hinzufügen"} />}
                   </button>
                 </form>
               )}
@@ -614,7 +590,7 @@ export default function TodoDetailPage() {
                 </ol>
               ) : (
                 <p className="todo-updates__empty">
-                  <StaticText source={"Noch keine Updates zum Fall."} />
+                  <StaticText source={"Noch keine Updates zum To-do."} />
                 </p>
               )}
             </section>
@@ -657,45 +633,40 @@ export default function TodoDetailPage() {
             <section>
               <DetailSectionHeading
                 onEdit={
-                  canManageSections ? () => setQuickEditing("schedule") : null
+                  canManageSections ? () => openQuickEdit("schedule") : null
                 }
               >
-                <StaticText source={"Priorität"} />
+                <StaticText source={"Terminierung"} />
               </DetailSectionHeading>
-              <TodoPriority priority={todoPriority(todo)} />
               <dl>
+                <Detail label="Wichtigkeit"><TodoPriority priority={todoPriority(todo)} /></Detail>
                 <TranslatedProps sources={{"label":"Fällig am"}}><Detail label="Fällig am">
                   <span className={dueClass(todo)}>
                     {formatDate(todo.dueDate)}
                   </span>
                 </Detail></TranslatedProps>
-                <TranslatedProps sources={{"label":"Erinnerung am"}}><Detail label="Erinnerung am">
+                <Detail label="Mail-Erinnerung">
                   {formatDate(todo.reminderDate)}{todo.reminderTime ? ` · ${todo.reminderTime} (Berlin)` : ""}
-                </Detail></TranslatedProps>
+                </Detail>
               </dl>
               <ReminderStatus sourcePath={`todos/${todo.id}`} enabled={Boolean(todo.reminderDate)} configured={Boolean(todo.reminderDate || todo.reminderTime)} recipientRule="todo" refreshKey={reminderTimestampKey(todo.updatedAt)} />
             </section>
             <section>
               <DetailSectionHeading
                 onEdit={
-                  canManageSections
-                    ? () => setQuickEditing("responsibility")
+                  canManageAudience
+                    ? () => openQuickEdit("responsibility")
                     : null
                 }
               >
-                <StaticText source={"Zuständigkeit"} />
+                <StaticText source={"Beteiligte"} />
               </DetailSectionHeading>
-              <dl>
-                <Detail label="Zielgruppe">{todo.audienceLabel}</Detail>
-                <Detail label="Aktueller Bearbeiter">
-                  {todo.assignedUserName || <StaticText source={"Noch nicht übernommen"} />}
-                </Detail>
-              </dl>
+              <p className="todo-detail-participants">{todo.audienceLabel || '—'}</p>
             </section>
             <section>
               <DetailSectionHeading
                 onEdit={
-                  canManageSections ? () => setQuickEditing("links") : null
+                  canManageSections ? () => openQuickEdit("links") : null
                 }
               >
                 <StaticText source={"Verknüpfungen"} />
@@ -775,9 +746,7 @@ export default function TodoDetailPage() {
                 <TranslatedProps sources={{"label":"Zuletzt aktualisiert"}}><Detail label="Zuletzt aktualisiert">
                   {formatTimestamp(todo.updatedAt)}
                 </Detail></TranslatedProps>
-                <Detail label="Übernommen am">
-                  {formatTimestamp(todo.assignedAt)}
-                </Detail>
+
                 {todo.completedAt && (
                   <>
                     <Detail label="Erledigt am">

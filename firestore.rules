@@ -1499,8 +1499,9 @@ service cloud.firestore {
     }
     function todoKeysAreValid(data) {
       let required = ['title', 'description', 'dueDate', 'creatorUserId', 'creatorName', 'audienceType', 'audienceId', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'withdrawnAt', 'withdrawnByUserId', 'createdAt', 'updatedAt'];
-      return data.keys().hasAll(required)
-        && data.keys().hasOnly(required.concat(['reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceIds']));
+      let keys = data.keys();
+      return keys.hasAll(required)
+        && keys.hasOnly(required.concat(['reminderDate', 'reminderTime', 'reminderOccurrence', 'reminderRecipientMode', 'reminderRecipientUserIds', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceIds']));
     }
     function profileName(profile) {
       let first = profile.get('firstName', '');
@@ -1588,18 +1589,20 @@ service cloud.firestore {
       return title is string && title.size() > 0 && title.size() <= 240
         && description is string && description.size() <= 4000
         && (dueDate == null || dueDate is string)
-        && ((previous.size() == 0 && data.audienceType == 'person' && data.audienceId == request.auth.uid)
-          ? noAudienceIds(data) && data.audienceLabel == data.creatorName
-          : validTodoAudience(data)) && validTodoExtras(data, previous, profile);
+        && (previous.size() == 0
+          ? ((data.audienceType == 'person' && data.audienceId == request.auth.uid)
+            ? noAudienceIds(data) && data.audienceLabel == data.creatorName : validTodoAudience(data))
+          : (!data.diff(previous).affectedKeys().hasAny(['audienceType', 'audienceId', 'audienceIds', 'audienceLabel']) || validTodoAudience(data)))
+        && validTodoExtras(data, previous, profile);
     }
     function isTodoAudienceMember(data) {
       return data.audienceType == 'all'
         || (data.audienceType == 'person' && data.audienceId == request.auth.uid)
         || (data.audienceType == 'people' && request.auth.uid in data.audienceIds)
-        || (data.audienceType == 'department' && data.audienceId == ownProfile().department);
+        || (data.audienceType == 'department' && data.audienceId == ownProfile().department.trim());
     }
     function canReadTodo(data) {
-      return data.creatorUserId == request.auth.uid || data.assignedUserId == request.auth.uid
+      return data.creatorUserId == request.auth.uid
         || (data.status != 'withdrawn' && isTodoAudienceMember(data)) || superadmin();
     }
     function isCreatorOrSuperadmin() { return resource.data.creatorUserId == request.auth.uid || superadmin(); }
@@ -1611,68 +1614,54 @@ service cloud.firestore {
           data.completedAt, data.completedByUserId, data.completedByName,
           data.withdrawnAt, data.withdrawnByUserId].hasOnly([null]);
     }
-    function isCreatedOpenTodo(data) {
-      return hasOpenAssignment(data);
-    }
-    function isCreatedOwnTodo(data) {
-      return data.audienceType == 'person' && data.audienceId == request.auth.uid && data.audienceLabel == data.creatorName
-        && data.status == 'in_progress' && data.assignedUserId == request.auth.uid
-        && data.assignedUserName == data.creatorName && data.assignedAt == request.time
-        && data.completedAt == null && data.completedByUserId == null && data.completedByName == null
-        && data.withdrawnAt == null && data.withdrawnByUserId == null;
-    }
     function isCreatedTodo() {
       let data = request.resource.data;
       let profile = ownProfile();
-      return signedIn() && profile.active == true && (profile.role == 'superadmin' || profile.permissions.get('todos', 'none') == 'edit')
+      return profile.active == true && (profile.role == 'superadmin' || profile.permissions.get('todos', 'none') == 'edit')
         && todoKeysAreValid(data) && validTodoContent(data, {}, profile) && validNewTodoReminderSchedule(data)
         && data.creatorUserId == request.auth.uid && todoProfileNameMatches(data.creatorName, profile)
-        && (data.status == 'open' ? isCreatedOpenTodo(data) : isCreatedOwnTodo(data)) && data.createdAt == request.time && data.updatedAt == request.time;
+        && hasOpenAssignment(data) && validTodoReminderRecipients(data) && [data.createdAt, data.updatedAt].hasOnly([request.time]);
     }
-    function isTakeover() {
-      return resource.data.assignedUserId == null && resource.data.status != 'withdrawn' && isTodoAudienceMember(resource.data)
-        && request.resource.data.status == 'in_progress' && request.resource.data.assignedUserId == request.auth.uid
-        && request.resource.data.assignedUserName == profileName(ownProfile()) && request.resource.data.assignedAt == request.time
-        && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
-        && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
+    function isTodoCollaborator(data) {
+      // All callers first require an active todos editor. Legacy assignment
+      // snapshots never grant collaboration or visibility.
+      return data.creatorUserId == request.auth.uid || ownProfile().role == 'superadmin' || isTodoAudienceMember(data);
     }
-    function isRelease() {
-      return resource.data.status == 'in_progress' && resource.data.assignedUserId == request.auth.uid
-        && !(resource.data.creatorUserId == request.auth.uid && resource.data.audienceType == 'person' && resource.data.audienceId == request.auth.uid)
-        && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt']);
+    function validTodoReminderRecipients(data) {
+      let mode = data.get('reminderRecipientMode', 'all');
+      let ids = data.get('reminderRecipientUserIds', []);
+      return mode == 'selected' ? ids is list && ids.size() <= 50
+        : mode == 'all' && ids == [];
     }
     function isCompletion() {
-      return resource.data.status == 'in_progress' && resource.data.assignedUserId == request.auth.uid
-        && request.resource.data.status == 'completed' && request.resource.data.assignedUserId == request.auth.uid
-        && request.resource.data.completedAt == request.time && request.resource.data.completedByUserId == request.auth.uid
-        && request.resource.data.completedByName == profileName(ownProfile()) && request.resource.data.updatedAt == request.time
-        && request.resource.data.withdrawnAt == null && request.resource.data.withdrawnByUserId == null
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
+      let data = request.resource.data;
+      return resource.data.status in ['open', 'in_progress'] && isTodoCollaborator(resource.data)
+        && data.status == 'completed' && data.completedAt == request.time && data.completedByUserId == request.auth.uid
+        && todoProfileNameMatches(data.completedByName, ownProfile()) && data.updatedAt == request.time
+        && data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
     }
     function isReactivation() {
-      return resource.data.status == 'completed' && resource.data.assignedUserId == request.auth.uid
-        && resource.data.completedByUserId == request.auth.uid
-        && request.resource.data.status == 'in_progress'
-        && request.resource.data.completedAt == null && request.resource.data.completedByUserId == null && request.resource.data.completedByName == null
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
+      let data = request.resource.data;
+      return resource.data.status == 'completed' && isTodoCollaborator(resource.data)
+        && data.status == 'open' && [data.completedAt, data.completedByUserId, data.completedByName].hasOnly([null])
+        && data.updatedAt == request.time
+        && data.diff(resource.data).affectedKeys().hasOnly(['status', 'completedAt', 'completedByUserId', 'completedByName', 'updatedAt']);
     }
     function isCreatorContentEdit() {
-      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
-        && request.resource.data.status == resource.data.status && request.resource.data.assignedUserId == resource.data.assignedUserId
-        && request.resource.data.assignedUserName == resource.data.assignedUserName && request.resource.data.assignedAt == resource.data.assignedAt
-        && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt'])
-        && validTodoContent(request.resource.data, resource.data, ownProfile()) && validChangedTodoReminderSchedule(resource.data, request.resource.data);
+      let data = request.resource.data;
+      return resource.data.status in ['open', 'in_progress'] && isTodoCollaborator(resource.data)
+        && data.updatedAt == request.time
+        && data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'reminderRecipientMode', 'reminderRecipientUserIds', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'updatedAt'])
+        && validTodoContent(data, resource.data, ownProfile()) && validChangedTodoReminderSchedule(resource.data, data)
+        && validTodoReminderRecipients(data);
     }
     function isCreatorResetAssignment() {
-      return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
-        && hasOpenAssignment(request.resource.data) && request.resource.data.updatedAt == request.time
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt'])
-        && validTodoContent(request.resource.data, resource.data, ownProfile()) && validChangedTodoReminderSchedule(resource.data, request.resource.data);
+      let data = request.resource.data;
+      return resource.data.status in ['open', 'in_progress'] && isCreatorOrSuperadmin()
+        && hasOpenAssignment(data) && data.updatedAt == request.time
+        && data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'dueDate', 'reminderDate', 'reminderTime', 'reminderOccurrence', 'reminderRecipientMode', 'reminderRecipientUserIds', 'priority', 'customerId', 'customerName', 'carrierId', 'carrierName', 'reference', 'transportOrderId', 'transportOrderNumber', 'transportOrderLinks', 'damageCaseId', 'insolvencyId', 'legalDisputeId', 'inkassoCaseId', 'audienceType', 'audienceId', 'audienceIds', 'audienceLabel', 'assignedUserId', 'assignedUserName', 'assignedAt', 'status', 'updatedAt'])
+        && validTodoContent(data, resource.data, ownProfile()) && validChangedTodoReminderSchedule(resource.data, data)
+        && validTodoReminderRecipients(data);
     }
     function isWithdrawal() {
       return isCreatorOrSuperadmin() && resource.data.status in ['open', 'in_progress']
@@ -1707,24 +1696,25 @@ service cloud.firestore {
           && canReadTodo(parent))) && validTodoUpdate(data, parent);
     }
     function validTodoDeadline(data) {
-      return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
-        && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+      return data.keys().hasAll(['type', 'date', 'reminderEnabled', 'note', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
+        && data.keys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderRecipientEmail', 'reminderOccurrence', 'reminderRecipientMode', 'reminderRecipientUserIds', 'note', 'calendarEntryId', 'createdAt', 'createdBy', 'createdByName', 'updatedAt', 'updatedBy', 'updatedByName'])
         && data.type in ['deadline', 'appointment'] && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && (!data.keys().hasAny(['time']) || data.time == null || (data.time is string && data.time.matches('^[0-9]{2}:[0-9]{2}$')))
         && data.reminderEnabled is bool && (!data.keys().hasAny(['reminderRecipientEmail']) || data.reminderRecipientEmail == null || (data.reminderRecipientEmail is string && data.reminderRecipientEmail.size() <= 320))
-        && (data.note == null || (data.note is string && data.note.size() <= 4000)) && data.calendarEntryId is string && data.calendarEntryId.size() > 0
+        && (data.note == null || (data.note is string && data.note.size() <= 4000))
+        && (data.get('calendarEntryId', null) == null || (data.calendarEntryId is string && data.calendarEntryId.size() > 0)) && validTodoReminderRecipients(data)
         && data.createdBy is string && data.createdByName is string && data.updatedBy is string && data.updatedByName is string && validDeadlineReminderFields(data);
     }
     function todoDeadlineEditor(todoId) {
-      return edit('todos') && (superadmin() || todoDocument(todoId).creatorUserId == request.auth.uid)
-        && todoDocument(todoId).status in ['open', 'in_progress'];
+      let parent = todoDocument(todoId);
+      return todoAccess('edit') && isTodoCollaborator(parent) && parent.status in ['open', 'in_progress'];
     }
     function todoDeadlineParentWasUpdated(todoId) { return todoAfter(todoId).updatedAt == request.time; }
     function validNewTodoReminder(data) { return validNewDeadlineReminder(data); }
     match /todos/{id} {
       allow read: if view('todos') && canReadTodo(resource.data);
       allow create: if resource == null ? isCreatedTodo() : false;
-      allow update: if resource == null ? false : ((todoAccess('edit') && todoKeysAreValid(request.resource.data) && (isTakeover() || isRelease() || isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
+      allow update: if resource == null ? false : ((todoAccess('edit') && todoKeysAreValid(request.resource.data) && (isCompletion() || isReactivation() || isCreatorContentEdit() || isCreatorResetAssignment() || isWithdrawal()))
         || (todoAccess('view') && canReadTodo(resource.data) && todoKeysAreValid(request.resource.data) && isNoteTimestampTouch()));
       allow delete: if false;
 
@@ -1747,28 +1737,12 @@ service cloud.firestore {
           && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.createdByName == resource.data.createdByName
           && request.resource.data.updatedAt == request.time && request.resource.data.updatedBy == request.auth.uid && request.resource.data.updatedByName == profileName(ownProfile())
           && validChangedDeadlineReminder(resource.data, request.resource.data)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderOccurrence', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['type', 'date', 'time', 'reminderEnabled', 'reminderOccurrence', 'reminderRecipientMode', 'reminderRecipientUserIds', 'note', 'updatedAt', 'updatedBy', 'updatedByName']);
         allow delete: if todoDeadlineEditor(id) && todoDeadlineParentWasUpdated(id);
       }
     }
-    function validTodoCalendarEntry(data, entryId) {
-      return data.keys().hasAll(['todoId', 'deadlineId', 'ownerUserId', 'title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'reminderEnabled', 'calendarEntryId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['todoId', 'deadlineId', 'ownerUserId', 'title', 'description', 'startDate', 'endDate', 'allDay', 'startTime', 'endTime', 'reminderEnabled', 'calendarEntryId', 'createdAt', 'updatedAt'])
-        && data.todoId is string && data.deadlineId is string && data.ownerUserId is string
-        && data.calendarEntryId is string && data.calendarEntryId == entryId
-        && data.title is string && data.title.size() > 0 && data.title.size() <= 160 && data.description is string && data.description.size() <= 4000
-        && data.startDate is string && data.endDate is string && data.startDate == data.endDate && data.allDay is bool
-        && data.startTime is string && data.endTime is string && data.reminderEnabled is bool;
-    }
-    match /todoCalendarEntries/{entryId} {
-      allow read: if view('calendar') && resource.data.ownerUserId == request.auth.uid;
-      allow create: if edit('todos') && validTodoCalendarEntry(request.resource.data, entryId) && request.resource.data.ownerUserId == request.auth.uid && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time
-        && existsAfter(/databases/$(database)/documents/todos/$(request.resource.data.todoId)/deadlines/$(request.resource.data.deadlineId))
-        && getAfter(/databases/$(database)/documents/todos/$(request.resource.data.todoId)/deadlines/$(request.resource.data.deadlineId)).data.createdBy == request.auth.uid;
-      allow update: if edit('todos') && validTodoCalendarEntry(request.resource.data, entryId) && request.resource.data.ownerUserId == resource.data.ownerUserId && request.resource.data.todoId == resource.data.todoId && request.resource.data.deadlineId == resource.data.deadlineId && request.resource.data.calendarEntryId == resource.data.calendarEntryId && request.resource.data.createdAt == resource.data.createdAt && request.resource.data.updatedAt == request.time
-        && (superadmin() || resource.data.ownerUserId == request.auth.uid);
-      allow delete: if edit('todos') && (superadmin() || resource.data.ownerUserId == request.auth.uid);
-    }
+    // Obsolete owner-only mirrors must never expose stale group task data.
+    match /todoCalendarEntries/{entryId} { allow read, write: if false; }
     match /contractCostCategories/{id} {
       allow read: if view('contracts');
       allow write: if false;

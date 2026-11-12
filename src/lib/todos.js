@@ -2,34 +2,34 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
-  limit,
+  getDocsFromServer,
+  onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
-  startAfter,
   where,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from './firebase.js'
-import { calendarWindowAndUpcoming } from './calendarQueryPages.js'
 import { calendarDaysUntil, reminderDeadlineTime } from './caseDeadline.js'
 import { getUserDisplayName } from './userProfiles.js'
 import { todoReminderFields, validateReminderForm } from './reminderForm.js'
 import { invalidateReminderStatuses } from './reminders.js'
 import { berlinToday } from '../../shared/reminderTime.js'
 import { reportCaseFailure } from './caseDiagnostics.js'
+import { canCollaborateTodo, canManageTodoAudience, canReadTodoForUser, normalizeTodoReminderRecipients, todoAudienceMember, todoEligibleParticipants } from '../../shared/todoCollaboration.js'
 
 export const TODOS_COLLECTION = 'todos'
-export const TODO_STATUS = { open: 'Keine Bearbeitung', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
+export const TODO_STATUS = { open: 'Offen', in_progress: 'In Bearbeitung', completed: 'Erledigt', withdrawn: 'Zurückgezogen' }
 export const TODO_PRIORITY = { low: 'Gering', medium: 'Mittel', high: 'Hoch' }
 export const TODO_SCHEDULE_TYPES = [
   { value: 'deadline', label: 'Frist' },
   { value: 'appointment', label: 'Termin' },
 ]
 const todosRef = collection(db, TODOS_COLLECTION)
-const todoCalendarEntriesRef = collection(db, 'todoCalendarEntries')
 const activePoolStatuses = ['open', 'in_progress', 'completed']
 const trim = (value) => (value ?? '').trim()
 const timestampValue = (value) => value?.toMillis?.() ?? 0
@@ -42,6 +42,48 @@ function actorName(actor) { return getUserDisplayName(actor.profile, { email: ac
 function updateCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'updates') }
 function deadlineCollection(todoId) { return collection(db, TODOS_COLLECTION, todoId, 'deadlines') }
 function systemUpdate(text, actor) { return { text: text.length > 1000 ? `${text.slice(0, 999)}…` : text, type: 'system', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() } }
+function todoAccessError(message) { return Object.assign(new Error(message), { code: 'permission-denied' }) }
+function todoConflict(message) { return Object.assign(new Error(message), { code: 'todo/stale-edit' }) }
+function sameStoredValue(left, right) {
+  if (left == null || right == null) return left == null && right == null
+  if (typeof left.toMillis === 'function' || typeof right.toMillis === 'function') {
+    if (typeof left.toMillis !== 'function' || typeof right.toMillis !== 'function') return false
+    return typeof left.isEqual === 'function' ? left.isEqual(right) : left.toMillis() === right.toMillis()
+  }
+  if (Array.isArray(left) || Array.isArray(right)) return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => sameStoredValue(value, right[index]))
+  if (typeof left === 'object' && typeof right === 'object') {
+    const keys = Object.keys(left)
+    return keys.length === Object.keys(right).length && keys.every((key) => Object.hasOwn(right, key) && sameStoredValue(left[key], right[key]))
+  }
+  return left === right
+}
+function assertCurrentSnapshot(expected, current, fields, label) {
+  if (fields.some((field) => !sameStoredValue(expected[field], current[field]))) throw todoConflict(`${label} wurde inzwischen geändert. Bitte erneut öffnen und die aktuellen Angaben prüfen.`)
+}
+async function freshTodoActor(transaction, actor) {
+  const snapshot = await transaction.get(doc(db, 'users', actor.user.uid))
+  if (!snapshot.exists() || snapshot.data().active !== true) throw todoAccessError('Der Benutzer ist nicht mehr aktiv.')
+  return { ...actor, profile: snapshot.data() }
+}
+function assertTodoEditable(todo, actor) {
+  if (!canCollaborateTodo(todo, actor)) throw todoAccessError('Keine Berechtigung, dieses To-do zu bearbeiten.')
+  if (!activeTodo(todo)) throw todoConflict(todo.status === 'completed' ? 'Das To-do wurde inzwischen erledigt. Bitte erneut öffnen, bevor du es bearbeitest.' : 'Das To-do wurde inzwischen zurückgezogen und kann nicht mehr bearbeitet werden.')
+}
+async function runTodoStatusTransaction(todoRef, actor, expectedStatuses, action) {
+  try { await runTransaction(db, action) }
+  catch (error) {
+    // A competing state transition can make the commit ACL fail before the
+    // SDK retries the transaction. Distinguish that race from revoked access.
+    if (['permission-denied', 'aborted'].includes(error?.code)) {
+      try {
+        const [snapshot, profile] = await Promise.all([getDocFromServer(todoRef), getDocFromServer(doc(db, 'users', actor.user.uid))])
+        if (snapshot.exists() && profile.exists() && canCollaborateTodo(snapshot.data(), { ...actor, profile: profile.data() })
+          && !expectedStatuses.includes(snapshot.data().status)) throw todoConflict('Der Status des To-dos wurde inzwischen geändert. Bitte die aktuellen Angaben prüfen.')
+      } catch (currentError) { if (currentError?.code === 'todo/stale-edit') throw currentError }
+    }
+    throw error
+  }
+}
 function uniqueIds(ids) { return [...new Set((ids || []).filter(Boolean))] }
 function optionalId(value) { return trim(value) || null }
 function optionalName(value) { return trim(value) || null }
@@ -75,6 +117,7 @@ function todoFields(values, previous = null) {
     description: trim(values.description),
     dueDate: values.dueDate || null,
     ...todoReminderFields(values, previous),
+    ...normalizeTodoReminderRecipients(values, previous),
     priority: priorityValue(values.priority),
     customerId: optionalId(values.customerId),
     customerName: optionalName(values.customerName),
@@ -111,13 +154,13 @@ function audienceValues(values, usersById, actor) {
 function sortTodos(todos) { return [...todos].sort((left, right) => timestampValue(right.createdAt) - timestampValue(left.createdAt)) }
 async function queryTodos(...constraints) { return (await getDocs(query(todosRef, ...constraints))).docs.map(mapSnapshot) }
 
-export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', reminderTime: '', reminderOccurrence: null, priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', transportOrderLinks: [], damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
+export function createEmptyTodo() { return { title: '', description: '', dueDate: '', reminderDate: '', reminderTime: '', reminderOccurrence: null, reminderRecipientMode: 'all', reminderRecipientUserIds: [], priority: 'medium', customerId: '', customerName: '', carrierId: '', carrierName: '', reference: '', transportOrderLinks: [], damageCaseId: '', insolvencyId: '', legalDisputeId: '', inkassoCaseId: '', audienceType: 'self', audienceId: '', audienceIds: [] } }
 export function isSelfTodo(todo, uid) { return todo.creatorUserId === uid && todo.audienceType === 'person' && todo.audienceId === uid }
 export function todoPriority(todo) { return priorityValue(todo.priority) }
-export function todoStatus(todo) { return !todo.assignedUserId && todo.status !== 'withdrawn' ? 'open' : TODO_STATUS[todo.status] ? todo.status : 'open' }
+export function todoStatus(todo) { return TODO_STATUS[todo.status] ? todo.status : 'open' }
 
 export function todoDuePresentation(todo, now = new Date()) {
-  if (!activeTodo(todo)) return { kind: 'none', label: todo.dueDate ? 'Keine aktive Frist' : 'Keine Fälligkeit', days: null }
+  if (!activeTodo(todo)) return { kind: 'none', label: todo.dueDate ? 'Fällig am' : 'Keine Fälligkeit', days: null }
   const days = dueDistance(todo, now)
   if (days === Number.MAX_SAFE_INTEGER) return { kind: 'none', label: 'Keine Fälligkeit', days: null }
   if (days < 0) return { kind: 'overdue', label: `${Math.abs(days)} ${Math.abs(days) === 1 ? 'Tag' : 'Tage'} überfällig`, days }
@@ -128,38 +171,18 @@ export function todoDuePresentation(todo, now = new Date()) {
 
 function validScheduleDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(value || '') }
 function cleanScheduleNote(value) { return trim(value).slice(0, 4000) }
-function todoDeadlinePayload(values) {
+function todoDeadlinePayload(values, previous = null) {
   const type = values?.type === 'appointment' ? 'appointment' : 'deadline'
   const date = trim(values?.date)
   if (!validScheduleDate(date)) throw new Error('Bitte ein gültiges Datum erfassen.')
   const time = reminderDeadlineTime(values)
   const resolved = values?.reminderEnabled ? validateReminderForm({ date, time, occurrence: values?.reminderOccurrence || null }) : null
-  return { type, date, time, reminderEnabled: values?.reminderEnabled === true, reminderOccurrence: resolved?.occurrence || null, note: cleanScheduleNote(values?.note) || null }
-}
-
-function todoCalendarEntry(todo, deadline, entryId, ownerUserId) {
-  const time = deadline.time || ''
-  const type = todoScheduleTypeLabel(deadline.type)
-  return {
-    todoId: todo.id,
-    deadlineId: deadline.id,
-    ownerUserId,
-    title: `${todo.title} · ${type}`.slice(0, 160),
-    description: deadline.note || '',
-    startDate: deadline.date,
-    endDate: deadline.date,
-    allDay: !time,
-    startTime: time,
-    endTime: time,
-    reminderEnabled: deadline.reminderEnabled === true,
-    calendarEntryId: entryId,
-    updatedAt: serverTimestamp(),
-  }
+  return { type, date, time, reminderEnabled: values?.reminderEnabled === true, reminderOccurrence: resolved?.occurrence || null, ...normalizeTodoReminderRecipients(values, previous), note: cleanScheduleNote(values?.note) || null }
 }
 
 export function todoScheduleTypeLabel(type) { return TODO_SCHEDULE_TYPES.find((item) => item.value === type)?.label || 'Frist' }
 
-export function createEmptyTodoDeadline() { return { type: 'deadline', date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, note: '' } }
+export function createEmptyTodoDeadline() { return { type: 'deadline', date: berlinToday(), time: '', reminderEnabled: false, reminderOccurrence: null, reminderRecipientMode: 'all', reminderRecipientUserIds: [], note: '' } }
 
 export function todoDeadlinePresentation(deadline, now = new Date()) {
   if (!validScheduleDate(deadline?.date)) return { kind: 'none', label: 'Kein Termin', days: null }
@@ -218,17 +241,23 @@ export function audienceHasChanged(todo, values, uid) {
   return currentIds.length !== nextIds.length || currentIds.some((id) => !nextIds.includes(id))
 }
 
-export function isAudienceMember(todo, actor) {
-  if (actor.profile?.role === 'superadmin') return true
-  if (todo.audienceType === 'all') return true
-  if (todo.audienceType === 'person') return todo.audienceId === actor.user.uid
-  if (todo.audienceType === 'people') return (todo.audienceIds || []).includes(actor.user.uid)
-  return todo.audienceType === 'department' && todo.audienceId === actor.profile?.department?.trim()
-}
+export function isAudienceMember(todo, actor) { return todoAudienceMember(todo, actor.user.uid, actor.profile) }
 
 export async function getTodoById(todoId) {
   const snapshot = await getDoc(doc(db, TODOS_COLLECTION, todoId))
   return snapshot.exists() ? mapSnapshot(snapshot) : null
+}
+
+export function subscribeTodo(todoId, onValue, onError) {
+  return onSnapshot(doc(db, TODOS_COLLECTION, todoId), (snapshot) => onValue(snapshot.exists() ? mapSnapshot(snapshot) : null), onError)
+}
+
+export function subscribeTodoUpdates(todoId, onValue, onError) {
+  return onSnapshot(query(updateCollection(todoId), orderBy('createdAt', 'desc')), (snapshot) => onValue(snapshot.docs.map(mapSnapshot)), onError)
+}
+
+export function subscribeTodoDeadlines(todoId, onValue, onError) {
+  return onSnapshot(query(deadlineCollection(todoId), orderBy('date', 'asc')), (snapshot) => onValue(snapshot.docs.map(mapSnapshot)), onError)
 }
 
 export async function listTodoUpdates(todoId) {
@@ -239,62 +268,63 @@ export async function listTodoDeadlines(todoId) {
   return (await getDocs(query(deadlineCollection(todoId), orderBy('date', 'asc')))).docs.map(mapSnapshot)
 }
 
-export async function listTodoCalendarEntries(userId, range = null) {
-  const owner = where('ownerUserId', '==', userId)
-  const snapshots = range ? await calendarWindowAndUpcoming(
-    async () => (await getDocs(query(todoCalendarEntriesRef, owner, where('startDate', '<=', range.until), where('endDate', '>=', range.from)))).docs,
-    async (cursor) => (await getDocs(query(todoCalendarEntriesRef, owner, where('startDate', '>=', ''), where('endDate', '>=', range.upcomingFrom), orderBy('startDate'), ...(cursor ? [startAfter(cursor)] : []), limit(20)))).docs,
-    (item) => validScheduleDate(item.data().startDate),
-  ) : (await getDocs(query(todoCalendarEntriesRef, owner))).docs
-  return snapshots
-    .map(mapSnapshot)
-    .filter((entry) => validScheduleDate(entry.startDate))
-}
-
 export async function createTodoDeadline(todo, values, actor) {
   const deadline = todoDeadlinePayload(values)
   const todoRef = doc(db, TODOS_COLLECTION, todo.id)
   const deadlineRef = doc(deadlineCollection(todo.id))
-  const calendarEntryRef = doc(todoCalendarEntriesRef)
-  const storedDeadline = { ...deadline, id: deadlineRef.id, calendarEntryId: calendarEntryRef.id }
-  const batch = writeBatch(db)
-  batch.update(todoRef, { updatedAt: serverTimestamp() })
-  batch.set(deadlineRef, {
-    ...deadline,
-    calendarEntryId: calendarEntryRef.id,
-    createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName(actor),
-    updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor),
+  await runTransaction(db, async (transaction) => {
+    const [snapshot, currentActor] = await Promise.all([transaction.get(todoRef), freshTodoActor(transaction, actor)])
+    if (!snapshot.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+    assertTodoEditable(snapshot.data(), currentActor)
+    assertCurrentSnapshot(todo, snapshot.data(), ['audienceType', 'audienceId', 'audienceIds'], 'Der Beteiligtenkreis des To-dos')
+    transaction.update(todoRef, { updatedAt: serverTimestamp() })
+    transaction.set(deadlineRef, {
+      ...deadline,
+      createdAt: serverTimestamp(), createdBy: actor.user.uid, createdByName: actorName(currentActor),
+      updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(currentActor),
+    })
+    transaction.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(currentActor)} hat ${deadline.type === 'appointment' ? 'einen Termin' : 'eine Frist'} für ${formatHistoryDate(deadline.date)} hinzugefügt.`, currentActor))
   })
-  batch.set(calendarEntryRef, { ...todoCalendarEntry(todo, storedDeadline, calendarEntryRef.id, actor.user.uid), createdAt: serverTimestamp() })
-  batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(deadline.type).toLocaleLowerCase('de-DE')} für ${deadline.date} hinzugefügt.`, actor))
-  await batch.commit()
   invalidateReminderStatuses()
 }
 
 export async function updateTodoDeadline(todo, deadline, values, actor) {
-  const next = todoDeadlinePayload(values)
-  const unchanged = Object.entries(next).every(([field, value]) => value === (deadline[field] ?? null))
-  if (unchanged) return false
+  const next = todoDeadlinePayload(values, deadline)
   const todoRef = doc(db, TODOS_COLLECTION, todo.id)
-  const calendarEntryRef = doc(db, 'todoCalendarEntries', deadline.calendarEntryId)
-  const storedDeadline = { ...deadline, ...next }
-  const batch = writeBatch(db)
-  batch.update(todoRef, { updatedAt: serverTimestamp() })
-  batch.update(doc(deadlineCollection(todo.id), deadline.id), { ...next, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(actor) })
-  batch.update(calendarEntryRef, todoCalendarEntry(todo, storedDeadline, deadline.calendarEntryId, deadline.createdBy))
-  batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(next.type).toLocaleLowerCase('de-DE')} vom ${next.date} aktualisiert.`, actor))
-  await batch.commit()
-  invalidateReminderStatuses()
-  return true
+  const deadlineRef = doc(deadlineCollection(todo.id), deadline.id)
+  const changed = await runTransaction(db, async (transaction) => {
+    const [snapshot, currentDeadline, currentActor] = await Promise.all([transaction.get(todoRef), transaction.get(deadlineRef), freshTodoActor(transaction, actor)])
+    if (!snapshot.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+    assertTodoEditable(snapshot.data(), currentActor)
+    assertCurrentSnapshot(todo, snapshot.data(), ['audienceType', 'audienceId', 'audienceIds'], 'Der Beteiligtenkreis des To-dos')
+    if (!currentDeadline.exists()) throw todoConflict('Der Termin wurde inzwischen entfernt. Bitte die aktuellen Angaben prüfen.')
+    assertCurrentSnapshot(deadline, currentDeadline.data(), Object.keys(next), 'Der Termin')
+    const unchanged = Object.entries(next).every(([field, value]) => sameStoredValue(value, currentDeadline.data()[field] ?? (Array.isArray(value) ? [] : null)))
+    if (unchanged) return false
+    transaction.update(todoRef, { updatedAt: serverTimestamp() })
+    transaction.update(deadlineRef, { ...next, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(currentActor) })
+    transaction.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(currentActor)} hat ${next.type === 'appointment' ? 'den Termin' : 'die Frist'} vom ${formatHistoryDate(next.date)} aktualisiert.`, currentActor))
+    return true
+  })
+  if (changed) invalidateReminderStatuses()
+  return changed
 }
 
 export async function deleteTodoDeadline(todo, deadline, actor) {
-  const batch = writeBatch(db)
-  batch.update(doc(db, TODOS_COLLECTION, todo.id), { updatedAt: serverTimestamp() })
-  batch.delete(doc(deadlineCollection(todo.id), deadline.id))
-  if (deadline.calendarEntryId) batch.delete(doc(db, 'todoCalendarEntries', deadline.calendarEntryId))
-  batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} hat ${todoScheduleTypeLabel(deadline.type).toLocaleLowerCase('de-DE')} vom ${deadline.date} gelöscht.`, actor))
-  await batch.commit()
+  const todoRef = doc(db, TODOS_COLLECTION, todo.id)
+  const deadlineRef = doc(deadlineCollection(todo.id), deadline.id)
+  await runTransaction(db, async (transaction) => {
+    const [snapshot, currentDeadline, currentActor] = await Promise.all([transaction.get(todoRef), transaction.get(deadlineRef), freshTodoActor(transaction, actor)])
+    if (!snapshot.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+    assertTodoEditable(snapshot.data(), currentActor)
+    assertCurrentSnapshot(todo, snapshot.data(), ['audienceType', 'audienceId', 'audienceIds'], 'Der Beteiligtenkreis des To-dos')
+    if (!currentDeadline.exists()) throw todoConflict('Der Termin wurde inzwischen entfernt. Bitte die aktuellen Angaben prüfen.')
+    const fields = ['type', 'date', 'time', 'note', 'reminderEnabled', 'reminderOccurrence', 'reminderRecipientMode', 'reminderRecipientUserIds']
+    assertCurrentSnapshot(deadline, currentDeadline.data(), fields, 'Der Termin')
+    transaction.update(todoRef, { updatedAt: serverTimestamp() })
+    transaction.delete(deadlineRef)
+    transaction.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(currentActor)} hat ${deadline.type === 'appointment' ? 'den Termin' : 'die Frist'} vom ${formatHistoryDate(deadline.date)} gelöscht.`, currentActor))
+  })
   invalidateReminderStatuses()
 }
 
@@ -306,7 +336,6 @@ export async function listTodosForActor(actor) {
     queryTodos(where('audienceType', '==', 'person'), where('audienceId', '==', uid), where('status', 'in', activePoolStatuses)),
     queryTodos(where('audienceType', '==', 'people'), where('audienceIds', 'array-contains', uid), where('status', 'in', activePoolStatuses)),
     queryTodos(where('creatorUserId', '==', uid)),
-    queryTodos(where('assignedUserId', '==', uid)),
   ]
   const department = actor.profile?.department?.trim()
   if (department) audienceQueries.push(queryTodos(where('audienceType', '==', 'department'), where('audienceId', '==', department), where('status', 'in', activePoolStatuses)))
@@ -316,13 +345,12 @@ export async function listTodosForActor(actor) {
 
 export async function createTodo(values, actor, usersById) {
   const todoRef = doc(todosRef)
-  const isForSelf = values.audienceType === 'self'
   const batch = writeBatch(db)
   batch.set(todoRef, {
     ...todoFields(values),
     creatorUserId: actor.user.uid, creatorName: actorName(actor), ...audienceValues(values, usersById, actor),
-    assignedUserId: isForSelf ? actor.user.uid : null, assignedUserName: isForSelf ? actorName(actor) : null, assignedAt: isForSelf ? serverTimestamp() : null,
-    status: isForSelf ? 'in_progress' : 'open', completedAt: null, completedByUserId: null, completedByName: null, withdrawnAt: null, withdrawnByUserId: null,
+    assignedUserId: null, assignedUserName: null, assignedAt: null,
+    status: 'open', completedAt: null, completedByUserId: null, completedByName: null, withdrawnAt: null, withdrawnByUserId: null,
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   })
   batch.set(doc(updateCollection(todoRef.id)), systemUpdate(`${actorName(actor)} hat die Aufgabe erstellt.`, actor))
@@ -334,62 +362,40 @@ export async function createTodo(values, actor, usersById) {
 export async function addTodoNote(todoId, text, actor) {
   const note = trim(text)
   if (!note) throw new Error('Bitte einen Hinweis eingeben.')
-  const batch = writeBatch(db)
-  batch.update(doc(db, TODOS_COLLECTION, todoId), { updatedAt: serverTimestamp() })
-  batch.set(doc(updateCollection(todoId)), { text: note, type: 'note', createdByUserId: actor.user.uid, createdByName: actorName(actor), createdAt: serverTimestamp() })
-  await batch.commit()
-  invalidateReminderStatuses()
-}
-
-export async function assignTodoToCurrentUser(todoId, actor) {
   const todoRef = doc(db, TODOS_COLLECTION, todoId)
   await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(todoRef)
-    if (!snapshot.exists()) throw new Error('To-do nicht gefunden.')
-    const todo = snapshot.data()
-    if (todo.assignedUserId || todo.status === 'withdrawn') throw new Error('Dieses To-do wurde inzwischen bereits angenommen.')
-    if (!isAudienceMember(todo, actor)) throw new Error('Dieses To-do ist nicht für Sie freigegeben.')
-    transaction.update(todoRef, { assignedUserId: actor.user.uid, assignedUserName: actorName(actor), assignedAt: serverTimestamp(), status: 'in_progress', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
-    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe angenommen.`, actor))
-  })
-  invalidateReminderStatuses()
-}
-
-export async function releaseTodoFromCurrentUser(todoId, actor) {
-  const todoRef = doc(db, TODOS_COLLECTION, todoId)
-  await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(todoRef)
-    if (!snapshot.exists()) throw new Error('To-do nicht gefunden.')
-    const todo = snapshot.data()
-    if (todo.status !== 'in_progress' || todo.assignedUserId !== actor.user.uid) throw new Error('Nur der aktuelle Bearbeiter kann freigeben.')
-    transaction.update(todoRef, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open', updatedAt: serverTimestamp() })
-    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe freigegeben.`, actor))
+    const [snapshot, currentActor] = await Promise.all([transaction.get(todoRef), freshTodoActor(transaction, actor)])
+    if (!snapshot.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+    if (!canReadTodoForUser(snapshot.data(), actor.user.uid, currentActor.profile)) throw todoAccessError('Keine Berechtigung für diese Notiz.')
+    transaction.update(todoRef, { updatedAt: serverTimestamp() })
+    transaction.set(doc(updateCollection(todoId)), { text: note, type: 'note', createdByUserId: actor.user.uid, createdByName: actorName(currentActor), createdAt: serverTimestamp() })
   })
   invalidateReminderStatuses()
 }
 
 export async function completeTodoForCurrentUser(todoId, actor) {
   const todoRef = doc(db, TODOS_COLLECTION, todoId)
-  await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(todoRef)
+  await runTodoStatusTransaction(todoRef, actor, ['open', 'in_progress'], async (transaction) => {
+    const [snapshot, currentActor] = await Promise.all([transaction.get(todoRef), freshTodoActor(transaction, actor)])
     if (!snapshot.exists()) throw new Error('To-do nicht gefunden.')
     const todo = snapshot.data()
-    if (todo.status !== 'in_progress' || todo.assignedUserId !== actor.user.uid) throw new Error('Nur der aktuelle Bearbeiter kann erledigen.')
-    transaction.update(todoRef, { status: 'completed', completedAt: serverTimestamp(), completedByUserId: actor.user.uid, completedByName: actorName(actor), updatedAt: serverTimestamp() })
-    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe erledigt.`, actor))
+    assertTodoEditable(todo, currentActor)
+    transaction.update(todoRef, { status: 'completed', completedAt: serverTimestamp(), completedByUserId: actor.user.uid, completedByName: actorName(currentActor), updatedAt: serverTimestamp() })
+    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(currentActor)} hat die Aufgabe erledigt.`, currentActor))
   })
   invalidateReminderStatuses()
 }
 
 export async function reactivateTodoForCurrentUser(todoId, actor) {
   const todoRef = doc(db, TODOS_COLLECTION, todoId)
-  await runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(todoRef)
+  await runTodoStatusTransaction(todoRef, actor, ['completed'], async (transaction) => {
+    const [snapshot, currentActor] = await Promise.all([transaction.get(todoRef), freshTodoActor(transaction, actor)])
     if (!snapshot.exists()) throw new Error('To-do nicht gefunden.')
     const todo = snapshot.data()
-    if (todo.status !== 'completed' || todo.assignedUserId !== actor.user.uid) throw new Error('Nur der bisherige Bearbeiter kann die Aufgabe reaktivieren.')
-    transaction.update(todoRef, { status: 'in_progress', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
-    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe reaktiviert.`, actor))
+    if (!canCollaborateTodo(todo, currentActor)) throw todoAccessError('Keine Berechtigung, dieses To-do erneut zu öffnen.')
+    if (todo.status !== 'completed') throw todoConflict('Das To-do ist nicht mehr erledigt. Bitte die aktuellen Angaben prüfen.')
+    transaction.update(todoRef, { status: 'open', completedAt: null, completedByUserId: null, completedByName: null, updatedAt: serverTimestamp() })
+    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(currentActor)} hat die Aufgabe wieder geöffnet.`, currentActor))
   })
   invalidateReminderStatuses()
 }
@@ -428,30 +434,66 @@ function changedFieldMessages(todo, fields, resetAssignment) {
   if ((todo.insolvencyId || null) !== fields.insolvencyId) messages.push(fields.insolvencyId ? 'hat den Insolvenzfall verknüpft.' : 'hat die Insolvenzfall-Verknüpfung entfernt.')
   if ((todo.legalDisputeId || null) !== fields.legalDisputeId) messages.push(fields.legalDisputeId ? 'hat den Gerichtsfall verknüpft.' : 'hat die Gerichtsfall-Verknüpfung entfernt.')
   if ((todo.inkassoCaseId || null) !== fields.inkassoCaseId) messages.push(fields.inkassoCaseId ? 'hat den Inkassofall verknüpft.' : 'hat die Inkassofall-Verknüpfung entfernt.')
-  if (todo.audienceLabel !== fields.audienceLabel) changed('die Zuständigkeit', todo.audienceLabel, fields.audienceLabel)
-  if (resetAssignment && todo.assignedUserName) changed('den Bearbeiter', todo.assignedUserName, null, 'nicht übernommen', 'nicht übernommen')
-  else if (resetAssignment && todo.audienceLabel === fields.audienceLabel) messages.push('hat die Aufgabe zur erneuten Übernahme freigegeben.')
+  if (todo.audienceLabel !== fields.audienceLabel) changed('die Beteiligten', todo.audienceLabel, fields.audienceLabel)
+  if (resetAssignment && todo.assignedUserName) messages.push('hat die bisherige Einzelzuweisung aufgehoben.')
+  else if (resetAssignment && todo.audienceLabel === fields.audienceLabel) messages.push('hat die Beteiligten und Kalenderzuordnung aktualisiert.')
   return messages
 }
 
 export async function updateTodoByCreator(todo, values, usersById, resetAssignment, actor) {
-  const audience = audienceHasChanged(todo, values, actor.user.uid)
-    ? audienceValues(values, usersById, actor)
-    : { audienceType: todo.audienceType, audienceId: todo.audienceId ?? null, audienceIds: todo.audienceIds ?? null, audienceLabel: todo.audienceLabel }
-  const fields = { ...todoFields(values, todo), ...audience, updatedAt: serverTimestamp() }
-  if (resetAssignment) Object.assign(fields, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open' })
-  const batch = writeBatch(db)
-  batch.update(doc(db, TODOS_COLLECTION, todo.id), fields)
-  const messages = changedFieldMessages(todo, fields, resetAssignment)
-  ;(messages.length ? messages : ['hat die Aufgabe aktualisiert.']).forEach((message) => batch.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(actor)} ${message}`, actor)))
-  try { await batch.commit() } catch (error) { reportCaseFailure('todos', 'save', error); throw error }
+  const audienceChanged = audienceHasChanged(todo, values, actor.user.uid)
+  resetAssignment = audienceChanged
+  const todoRef = doc(db, TODOS_COLLECTION, todo.id)
+  try {
+    // A query cannot be a Web SDK transaction read. Anchor its server result to
+    // the parent revision: every deadline mutation also touches updatedAt.
+    // This catches children created after the query as well as changed rows.
+    const queryParent = audienceChanged ? await getDocFromServer(todoRef) : null
+    if (queryParent && !queryParent.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+    const deadlines = audienceChanged ? (await getDocsFromServer(query(deadlineCollection(todo.id), orderBy('date', 'asc')))).docs : []
+    await runTransaction(db, async (transaction) => {
+      const [snapshot, currentActor, currentDeadlines] = await Promise.all([
+        transaction.get(todoRef), freshTodoActor(transaction, actor),
+        Promise.all(deadlines.map((deadline) => transaction.get(doc(deadlineCollection(todo.id), deadline.id)))),
+      ])
+      if (!snapshot.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+      const current = snapshot.data()
+      assertTodoEditable(current, currentActor)
+      if (queryParent) assertCurrentSnapshot(queryParent.data(), current, ['updatedAt'], 'Der Terminstand des To-dos')
+      if (audienceChanged && !canManageTodoAudience(current, currentActor)) throw todoAccessError('Nur der Ersteller darf die Beteiligten ändern.')
+      const audience = audienceChanged ? audienceValues(values, usersById, currentActor)
+        : { audienceType: todo.audienceType, audienceId: todo.audienceId ?? null, audienceIds: todo.audienceIds ?? null, audienceLabel: todo.audienceLabel }
+      const fields = { ...todoFields(values, todo), ...audience }
+      assertCurrentSnapshot(todo, current, Object.keys(fields), 'Das To-do')
+      const eligible = audienceChanged ? new Set(todoEligibleParticipants({ ...current, ...fields }, [...usersById.values()]).map((user) => user.id)) : null
+      if (audienceChanged) {
+        Object.assign(fields, { assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open' })
+        fields.reminderRecipientUserIds = fields.reminderRecipientUserIds.filter((id) => eligible.has(id))
+      }
+      transaction.update(todoRef, { ...fields, updatedAt: serverTimestamp() })
+      for (const deadline of currentDeadlines) {
+        if (!deadline.exists() || deadline.data().reminderRecipientMode !== 'selected') continue
+        const previousIds = deadline.data().reminderRecipientUserIds || []
+        const ids = previousIds.filter((id) => eligible.has(id))
+        if (ids.length === previousIds.length) continue
+        transaction.update(deadline.ref, { reminderRecipientUserIds: ids, updatedAt: serverTimestamp(), updatedBy: actor.user.uid, updatedByName: actorName(currentActor) })
+      }
+      const messages = changedFieldMessages(current, fields, resetAssignment)
+      ;(messages.length ? messages : ['hat die Aufgabe aktualisiert.']).forEach((message) => transaction.set(doc(updateCollection(todo.id)), systemUpdate(`${actorName(currentActor)} ${message}`, currentActor)))
+    })
+  } catch (error) { reportCaseFailure('todos', 'save', error); throw error }
   invalidateReminderStatuses()
 }
 
 export async function withdrawTodo(todoId, actor) {
-  const batch = writeBatch(db)
-  batch.update(doc(db, TODOS_COLLECTION, todoId), { status: 'withdrawn', withdrawnAt: serverTimestamp(), withdrawnByUserId: actor.user.uid, assignedUserId: null, assignedUserName: null, assignedAt: null, updatedAt: serverTimestamp() })
-  batch.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(actor)} hat die Aufgabe zurückgezogen.`, actor))
-  await batch.commit()
+  const todoRef = doc(db, TODOS_COLLECTION, todoId)
+  await runTransaction(db, async (transaction) => {
+    const [snapshot, currentActor] = await Promise.all([transaction.get(todoRef), freshTodoActor(transaction, actor)])
+    if (!snapshot.exists()) throw todoConflict('Das To-do wurde inzwischen entfernt.')
+    assertTodoEditable(snapshot.data(), currentActor)
+    if (!canManageTodoAudience(snapshot.data(), currentActor)) throw todoAccessError('Nur der Ersteller darf das To-do zurückziehen.')
+    transaction.update(todoRef, { status: 'withdrawn', withdrawnAt: serverTimestamp(), withdrawnByUserId: actor.user.uid, assignedUserId: null, assignedUserName: null, assignedAt: null, updatedAt: serverTimestamp() })
+    transaction.set(doc(updateCollection(todoId)), systemUpdate(`${actorName(currentActor)} hat die Aufgabe zurückgezogen.`, currentActor))
+  })
   invalidateReminderStatuses()
 }

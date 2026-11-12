@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import process from 'node:process'
+import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app'
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore'
@@ -9,10 +11,15 @@ import { mergeComparison } from './partnerMergeDecisions.js'
 import { loadMergeReversal, performPartnerMerge, performPartnerMergeReversal } from './partnerMerges.js'
 
 test('new follow-up todos preserve proven case origins after rename, merge and separation without master-data access', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async (t) => {
-  const projectId = `${process.env.GCLOUD_PROJECT || 'demo-drehpunkt-linked-todos'}-origins`
+  const projectId = `${process.env.GCLOUD_PROJECT || 'demo-drehpunkt-linked-todos'}-${randomUUID().slice(0, 12)}-origins`
   assert.ok(projectId.startsWith('demo-'), 'A real project must never be used')
   const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':')
   assert.ok(['127.0.0.1', 'localhost'].includes(host), 'Only a local emulator is allowed')
+  const rulesResponse = await fetch(`http://${host}:${port}/emulator/v1/projects/${projectId}:securityRules`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') }] } }),
+  })
+  assert.equal(rulesResponse.status, 200, await rulesResponse.text())
   const adminApp = initializeAdminApp({ projectId }, `todo-origins-admin-${Date.now()}`)
   const admin = getAdminFirestore(adminApp)
   const clients = []
@@ -64,7 +71,7 @@ test('new follow-up todos preserve proven case origins after rename, merge and s
       const batch = writeBatch(client.db)
       const payload = {
         ...defaults, ...values, creatorUserId: client.profile.id, creatorName: 'Origins Test', ...selection,
-        assignedUserId: self ? client.profile.id : null, assignedUserName: self ? 'Origins Test' : null, assignedAt: self ? serverTimestamp() : null, status: self ? 'in_progress' : 'open', completedAt: null, completedByUserId: null, completedByName: null, withdrawnAt: null, withdrawnByUserId: null,
+        assignedUserId: null, assignedUserName: null, assignedAt: null, status: 'open', completedAt: null, completedByUserId: null, completedByName: null, withdrawnAt: null, withdrawnByUserId: null,
         createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...unsafe,
       }
       for (const field of omittedFields) delete payload[field]
@@ -145,8 +152,8 @@ test('new follow-up todos preserve proven case origins after rename, merge and s
       for (const audience of ['self', 'all', 'department', 'people', 'person']) {
         const id = await create(damage, editor, audience)
         const saved = (await admin.doc(`todos/${id}`).get()).data()
-        assert.equal(saved.assignedUserId, audience === 'self' ? editor.profile.id : null)
-        assert.equal(saved.status, audience === 'self' ? 'in_progress' : 'open')
+        assert.equal(saved.assignedUserId, null)
+        assert.equal(saved.status, 'open')
         assert.equal((await admin.doc(`todos/${id}/updates/created`).get()).get('type'), 'system')
       }
       await create(order, editor, 'self')

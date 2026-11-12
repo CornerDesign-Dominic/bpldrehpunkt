@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import process from 'node:process'
+import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { initializeApp as initializeAdminApp, deleteApp as deleteAdminApp } from 'firebase-admin/app'
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore'
@@ -13,10 +15,15 @@ import { loadMergeReversal, performPartnerMerge, performPartnerMergeReversal } f
 // node --experimental-test-module-mocks --test functions/linkedTodoCreation.integration.test.js
 test('actual follow-up todo creation preserves edits and sources through merge, split and normal task lifecycle', { skip: !process.env.FIRESTORE_EMULATOR_HOST }, async (t) => {
   assert.equal(typeof t.mock.module, 'function', 'Run with --experimental-test-module-mocks')
-  const projectId = `${process.env.GCLOUD_PROJECT || 'demo-linked-todo-client'}-followup-client`
+  const projectId = `${process.env.GCLOUD_PROJECT || 'demo-linked-todo-client'}-${randomUUID().slice(0, 12)}-followup-client`
   assert.ok(projectId.startsWith('demo-'))
   const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(':')
   assert.ok(['127.0.0.1', 'localhost'].includes(host))
+  const rulesResponse = await fetch(`http://${host}:${port}/emulator/v1/projects/${projectId}:securityRules`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rules: { files: [{ name: 'firestore.rules', content: await readFile(new URL('../firestore.rules', import.meta.url), 'utf8') }] } }),
+  })
+  assert.equal(rulesResponse.status, 200, await rulesResponse.text())
   const adminApp = initializeAdminApp({ projectId }, `linked-admin-${Date.now()}`)
   const admin = getAdminFirestore(adminApp)
   const app = initializeApp({ projectId, apiKey: 'emulator-only' }, `linked-client-${Date.now()}`)
@@ -65,8 +72,8 @@ test('actual follow-up todo creation preserves edits and sources through merge, 
         const saved = await service.getTodoById(id)
         assert.equal(saved[binding.field], binding.id)
         for (const key of ['customerId', 'carrierId', 'customerName', 'carrierName']) if (binding.values[key]) assert.equal(saved[key], binding.values[key])
-        assert.equal(saved.status, 'in_progress')
-        assert.equal(saved.assignedUserId, actor.user.uid)
+        assert.equal(saved.status, 'open')
+        assert.equal(saved.assignedUserId, null)
         assert.equal((await service.listTodoUpdates(id)).length, 1)
       }
     })
@@ -78,8 +85,8 @@ test('actual follow-up todo creation preserves edits and sources through merge, 
       assert.equal(saved.carrierId, source.id)
       assert.equal(saved.carrierName, 'Carrier order historical')
       assert.deepEqual(saved.transportOrderLinks, [{ id: 'origin-order', number: 'ORIGIN-TA' }])
-      assert.equal(saved.assignedUserId, actor.user.uid)
-      assert.equal(saved.status, 'in_progress')
+      assert.equal(saved.assignedUserId, null)
+      assert.equal(saved.status, 'open')
       assert.equal((await service.listTodoUpdates(id)).length, 1)
     })
     await t.test('explicit changed/unlinked partners, references, TA selection and audience reach actual storage', async () => {
@@ -119,7 +126,7 @@ test('actual follow-up todo creation preserves edits and sources through merge, 
       await service.completeTodoForCurrentUser(todo.id, actor)
       assert.equal((await service.getTodoById(todo.id)).status, 'completed')
       await service.reactivateTodoForCurrentUser(todo.id, actor)
-      assert.equal((await service.getTodoById(todo.id)).status, 'in_progress')
+      assert.equal((await service.getTodoById(todo.id)).status, 'open')
       const visible = await service.listTodosForActor(actor)
       assert.ok(visible.some((entry) => entry.id === todo.id))
       assert.ok((await service.listTodoUpdates(todo.id)).length >= 5)

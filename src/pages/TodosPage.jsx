@@ -1,9 +1,11 @@
 import { reportTechnicalFailure } from '../lib/diagnostics.js'
+import { canReadTodoForUser } from '../../shared/todoCollaboration.js'
+import { subscribeCalendarRefresh } from '../lib/calendarRefresh.js'
 import { presentCasePartnerReferences } from '../lib/partnerReferenceNames.js'
 import PartnerReferenceWarning from '../components/business-partners/PartnerReferenceWarning.jsx'
 import { responsibilityLabel, transportOrderNumbers } from '../lib/todoListPresentation.js'
 import { StaticText, TranslatedProps } from '../i18n/AutoTranslate.jsx'
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TodoForm from "../components/todos/TodoForm.jsx";
 import TodosGallery from "../components/todos/TodosGallery.jsx";
@@ -56,6 +58,11 @@ function dueClass(todo) {
 
 
 export default function TodosPage() {
+  const { user } = useAuth();
+  return <TodosContent key={user?.uid || ''} />;
+}
+
+function TodosContent() {
   const { language } = useLanguage();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -67,12 +74,13 @@ export default function TodosPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const actionPending = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [filter, setFilter] = useState("active");
   const [search, setSearch] = useState("");
-  const [assigneeFilter, setAssigneeFilter] = useState("");
   const [creatorFilter, setCreatorFilter] = useState("");
   const [responsibilityFilter, setResponsibilityFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
@@ -98,11 +106,11 @@ export default function TodosPage() {
     () => new Map(activeUsers.map((item) => [item.id, item])),
     [activeUsers],
   );
+  const readableTodos = useMemo(() => todos.filter((todo) => canReadTodoForUser(todo, user?.uid, profile)), [todos, user, profile]);
   const filterOptions = useMemo(() => ({
-    assignees: [...new Set(todos.map((todo) => todo.assignedUserName || "Noch nicht übernommen"))].sort((left, right) => left.localeCompare(right, "de")),
-    creators: [...new Set(todos.map((todo) => todo.creatorName || "—"))].sort((left, right) => left.localeCompare(right, "de")),
-    responsibilities: [...new Set(todos.map(responsibilityLabel))].sort((left, right) => left.localeCompare(right, "de")),
-  }), [todos]);
+    creators: [...new Set(readableTodos.map((todo) => todo.creatorName || "—"))].sort((left, right) => left.localeCompare(right, "de")),
+    responsibilities: [...new Set(readableTodos.map(responsibilityLabel))].sort((left, right) => left.localeCompare(right, "de")),
+  }), [readableTodos]);
 
   useEffect(() => {
     window.localStorage.setItem("todos-view", view);
@@ -140,21 +148,38 @@ export default function TodosPage() {
     };
   }, [actor, canViewMasterData, editable]);
 
-  const displayedTodos = useMemo(() => presentCasePartnerReferences(todos, 'todo', partners, canViewMasterData), [todos, partners, canViewMasterData]);
+  useEffect(() => {
+    if (editable) return undefined;
+    let current = true;
+    queueMicrotask(() => { if (current) { setShowForm(false); setEditing(null); setConfirmation(null); } });
+    return () => { current = false; };
+  }, [editable]);
+
+  useEffect(() => {
+    let current = true;
+    const stop = subscribeCalendarRefresh({ window, document, onRefresh: () => {
+      listTodosForActor(actor).then((entries) => { if (current) setTodos(entries); }).catch((loadError) => {
+        if (current) { setTodos([]); setError('Die To-dos konnten nicht aktualisiert werden. Bitte erneut laden.'); }
+        void reportTechnicalFailure({ module: 'todos', stage: 'load', error: loadError });
+      });
+    } });
+    return () => { current = false; stop(); };
+  }, [actor]);
+
+  const displayedTodos = useMemo(() => presentCasePartnerReferences(readableTodos, 'todo', partners, canViewMasterData), [readableTodos, partners, canViewMasterData]);
   const todoGroups = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("de-DE");
     const visible = displayedTodos.filter((todo) => {
       const matchesStatus = filter === "all" || (filter === "active" ? ["open", "in_progress"].includes(todo.status) : todo.status === "completed");
       const matchesSearch = !needle || [todo.title, todo.partnerSearchText, ...transportOrderNumbers(todo)].some((value) => value.toLocaleLowerCase("de-DE").includes(needle));
       return matchesStatus && matchesSearch
-        && (!assigneeFilter || (todo.assignedUserName || "Noch nicht übernommen") === assigneeFilter)
         && (!creatorFilter || (todo.creatorName || "—") === creatorFilter)
         && (!responsibilityFilter || responsibilityLabel(todo) === responsibilityFilter)
         && (!priorityFilter || todo.priority === priorityFilter);
     });
     return {
       mine: sortTodosForGroup(
-        visible.filter((todo) => todo.assignedUserId === user.uid),
+        visible.filter((todo) => ['person', 'people'].includes(todo.audienceType) && isAudienceMember(todo, actor)),
         "mine",
       ),
       created: sortTodosForGroup(
@@ -164,17 +189,15 @@ export default function TodosPage() {
         ),
         "created",
       ),
-      // Übernommene Aufgaben bleiben für die berechtigte Zielgruppe sichtbar;
-      // nur die Übernahmeaktion selbst verschwindet dann.
       pool: sortTodosForGroup(
         visible.filter(
           (todo) =>
-            isAudienceMember(todo, actor) && !isSelfTodo(todo, user.uid),
+            ['all', 'department'].includes(todo.audienceType) && isAudienceMember(todo, actor),
         ),
         "pool",
       ),
     };
-  }, [actor, assigneeFilter, creatorFilter, filter, priorityFilter, responsibilityFilter, search, displayedTodos, user.uid]);
+  }, [actor, creatorFilter, filter, priorityFilter, responsibilityFilter, search, displayedTodos, user.uid]);
 
   async function refreshAfterWrite() {
     try { await loadTodos(); }
@@ -192,41 +215,39 @@ export default function TodosPage() {
 
   async function saveEdit(values) {
     const audienceChanged = audienceHasChanged(editing.todo, values, user.uid);
-    const resetAssignment = editing.reassign || audienceChanged;
-    if (editing.todo.assignedUserId && resetAssignment) {
+    if (audienceChanged) {
       setConfirmation({
         type: "save",
         values,
-        title: "Übernahme zurücksetzen?",
+        title: "Beteiligte ändern?",
         message:
-          "Das To-do wurde bereits übernommen. Durch diese Änderung wird die Bearbeitung beendet und das To-do wieder geöffnet.",
+          "Entfernte Personen verlieren den Zugriff. Ihre Kalendereinträge und Erinnerungen entfallen. Empfängerauswahlen werden auf verbleibende Beteiligte begrenzt.",
       });
       return { pendingConfirmation: true };
     }
-    await performSave(values, resetAssignment);
+    await performSave(values);
   }
 
-  async function performSave(values, resetAssignment) {
+  async function performSave(values) {
     await updateTodoByCreator(
       editing.todo,
       values,
       usersById,
-      resetAssignment,
+      false,
       actor,
     );
     await refreshAfterWrite();
     setEditing(null);
-    setToast(
-      resetAssignment
-        ? "To-do neu zugewiesen und wieder geöffnet."
-        : "To-do aktualisiert.",
-    );
+    setToast('To-do aktualisiert.');
   }
 
   async function confirmAction() {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    setActionSaving(true);
     try {
       if (confirmation.type === "save")
-        await performSave(confirmation.values, true);
+        await performSave(confirmation.values);
       if (confirmation.type === "withdraw") {
         await withdrawTodo(confirmation.todo.id, actor);
         await refreshAfterWrite();
@@ -238,6 +259,9 @@ export default function TodosPage() {
       setError(
         actionError.message || "Die Änderung konnte nicht gespeichert werden.",
       );
+    } finally {
+      actionPending.current = false;
+      setActionSaving(false);
     }
   }
 
@@ -319,21 +343,21 @@ export default function TodosPage() {
       <div className="todos-page">
         <TranslatedProps sources={{"aria-label":"To-dos durchsuchen und filtern"}}><div className="todo-filter-bar" aria-label="To-dos durchsuchen und filtern">
           <label className="search-field todo-filter-bar__search"><span className="sr-only"><StaticText source={"To-dos durchsuchen"} /></span><TranslatedProps sources={{"placeholder":"Aufgabe oder TA-Nummer suchen"}}><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Aufgabe oder TA-Nummer suchen" /></TranslatedProps></label>
-          <label className="filter-field"><span><StaticText source={"Bearbeiter"} /></span><select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}><option value=""><StaticText source={"Alle Bearbeiter"} /></option>{filterOptions.assignees.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label className="filter-field"><span><StaticText source={"Erstellt von"} /></span><select value={creatorFilter} onChange={(event) => setCreatorFilter(event.target.value)}><option value=""><StaticText source={"Alle Ersteller"} /></option>{filterOptions.creators.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-          <label className="filter-field"><span><StaticText source={"Zuständigkeit"} /></span><select value={responsibilityFilter} onChange={(event) => setResponsibilityFilter(event.target.value)}><option value=""><StaticText source={"Alle Zuständigkeiten"} /></option>{filterOptions.responsibilities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <label className="filter-field"><span><StaticText source={"Beteiligte"} /></span><select value={responsibilityFilter} onChange={(event) => setResponsibilityFilter(event.target.value)}><option value=""><StaticText source={"Alle Beteiligten"} /></option>{filterOptions.responsibilities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label className="filter-field"><span><StaticText source={"Wichtigkeit"} /></span><select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)}><option value=""><StaticText source={"Alle Wichtigkeiten"} /></option><option value="high"><StaticText source={"Hoch"} /></option><option value="medium"><StaticText source={"Mittel"} /></option><option value="low"><StaticText source={"Gering"} /></option></select></label>
         </div></TranslatedProps>
         {toast && <Toast message={toast} onDismiss={() => setToast("")} />}
         <ConfirmDialog
-          open={Boolean(confirmation)}
+          open={editable && Boolean(confirmation)}
+          isSubmitting={actionSaving}
           title={confirmation?.title || ""}
           message={confirmation?.message || ""}
           confirmLabel="Bestätigen"
           onCancel={() => setConfirmation(null)}
           onConfirm={confirmAction}
         />
-        {showForm && (
+        {showForm && editable && (
           <div
             className="todo-modal-backdrop"
             role="presentation"
@@ -359,7 +383,7 @@ export default function TodosPage() {
             </section></TranslatedProps>
           </div>
         )}
-        {editing && (
+        {editing && editable && (
           <TodoForm
             key={editing.todo.id}
             canViewTransportOrders={canViewTransportOrders}
@@ -382,7 +406,7 @@ export default function TodosPage() {
             {[
               ["mine", "Meine Aufgaben"],
               ["created", "Von mir erstellt"],
-              ["pool", "Aufgabenpool"],
+              ["pool", "Gemeinsame Aufgaben"],
             ].map(([key, title]) => (
               <section
                 className={`todo-section${view === "table" ? " todo-section--table" : ""}`}
