@@ -161,8 +161,5 @@
 
 .time-stamp-panel--focus .time-status { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 138px; padding: 11px 16px; border: 1px solid currentColor; font-size: 15px; font-weight: 700; }
 .time-status-symbol { font-size: 17px; line-height: 1; }
-.time-stamp-panel--paused { border: 2px solid var(--status-warning-text); background: color-mix(in srgb, var(--status-warning-background) 65%, var(--content-background)); }
-.time-pause-reminder { display: flex; align-items: baseline; gap: 8px 16px; flex-wrap: wrap; padding: 12px 15px; border-radius: 5px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 13px; }
-.time-pause-reminder strong { font-size: 16px; }
 .time-stamp-panel--focus .time-stamp-buttons .time-stamp-resume { color: var(--content-background); background: var(--status-warning-text); border-color: var(--status-warning-text); font-weight: 700; box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-warning-text) 20%, transparent); }
 .time-stamp-panel--focus .time-stamp-buttons .time-stamp-resume:hover:not(:disabled) { filter: brightness(.94); }

@@ -172,9 +172,9 @@ assert.equal(host.querySelector('.time-week-day-heading time').dateTime, week.fr
 
 await act(async () => { [...host.querySelectorAll('.time-stamp-buttons button')].find(button => button.textContent.includes('Pause starten')).click() })
 assert.equal(stamps.at(-1).type, 'pause_start')
-assert.ok(host.querySelector('.time-stamp-panel--paused'))
+assert.equal(host.querySelector('.time-stamp-panel--paused'), null)
 assert.ok(host.querySelector('.time-stamp-panel [role="status"]').textContent.includes('Pause läuft'))
-assert.ok(host.querySelector('.time-pause-reminder').textContent.includes('Zurück an der Arbeit?'))
+assert.equal(host.querySelector('.time-pause-reminder'), null)
 assert.ok(host.querySelector('.time-stamp-resume').textContent.includes('Pause beenden'))
 await act(async () => { host.querySelector('.time-stamp-resume').click() })
 assert.equal(stamps.at(-1).type, 'pause_end')
