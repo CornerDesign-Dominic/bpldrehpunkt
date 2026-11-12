@@ -7,15 +7,14 @@ import { JSDOM } from 'jsdom'
 import process from 'node:process'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
-await build({ configFile: false, root, logLevel: 'error', plugins: [{
+await build({ configFile: false, root, logLevel: 'error', define: { 'import.meta.env.VITE_TIME_PWA_URL': JSON.stringify('https://db-bpl-drehpunkt-dev-time.web.app') }, plugins: [{
   name: 'time-test-boundaries', enforce: 'pre',
   async load(id) {
     if (id.endsWith('/src/auth/useAuth.js')) return "export const useAuth = () => ({ user: { uid: 'test-user' }, profile: { active: true, role: 'user', permissions: { timeTracking: 'edit' } } })"
-    if (id.endsWith('/src/components/time/TimeAppAccess.jsx')) return 'export default function TimeAppAccess() { return null }'
     if (id.endsWith('/src/lib/timeTracking.js')) {
       const source = await readFile(id, 'utf8')
       const helpers = source.slice(source.indexOf('export const TIME_ACTIONS'))
-      return `${helpers}\nexport const listTimeWorkspace = data => globalThis.timeUiApi.workspace(data); export const listOwnTimeBookings = data => globalThis.timeUiApi.bookings(data); export const stampTime = async () => {}; export const correctTimeDay = data => globalThis.timeUiApi.correct?.(data);`
+      return `${helpers}\nexport const listTimeWorkspace = data => globalThis.timeUiApi.workspace(data); export const listOwnTimeBookings = data => globalThis.timeUiApi.bookings(data); export const stampTime = data => globalThis.timeUiApi.stamp?.(data); export const correctTimeDay = data => globalThis.timeUiApi.correct?.(data);`
     }
   },
 }, react()], build: { ssr: path.join(root, 'src/pages/TimeTrackingPage.ui.test.jsx'), outDir: path.join(root, 'tmp/time-ui-tests'), emptyOutDir: true, minify: false, rollupOptions: { output: { entryFileNames: 'tests.mjs' } } } })

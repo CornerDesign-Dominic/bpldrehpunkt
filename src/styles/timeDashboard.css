@@ -21,7 +21,6 @@
 .time-phone-dialog p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
 .time-phone-qr { display: grid; place-items: center; min-height: 256px; margin-bottom: 12px; }
 .time-phone-qr img { max-width: 100%; height: auto; border-radius: 8px; background: white; }
-.time-phone-dialog > .button { display: flex; justify-content: center; }
+.time-phone-dialog > .button { display: flex; justify-content: center; margin-top: 18px; }
 .time-phone-instructions h3 { margin: 18px 0 0; font-size: 14px; }
-.time-phone-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 @media (max-width: 650px) { .dashboard-time-totals { grid-template-columns: 1fr 1fr; } .dashboard-time-card > header { flex-direction: column; } .dashboard-time-actions .button { flex: 1 1 100%; } }

@@ -506,3 +506,18 @@ Arbeitszeit. Die gemeinsame Skala umfasst Arbeitszeit plus gebuchte Pause;
 Pausen werden nicht abgeschnitten oder nochmals als Arbeitszeit gezählt.
 Automatische Zusatzabzüge werden nicht als genommene Pause dargestellt.
 Farbhinweis und Dauer stehen direkt an der Pausenangabe unter dem Balken.
+
+## Deutlicher Pausenmodus und Handy-Einstieg (12.11.2026)
+
+Der heutige Status in der Stempelkarte ist größer, fett, mit Symbol/Rahmen und
+als zugängliche Statusmeldung ausgezeichnet. Während einer Pause erhält die
+Karte einen deutlichen Warnfarbenrahmen und eine dezente Warnfarbenfläche.
+Ein sichtbarer Rückkehrhinweis und der hervorgehobene Pause-beenden-Button
+machen den nötigen Abschluss erkennbar. Nach erfolgreichem pause_end fällt
+die Sonderdarstellung wieder weg. Keine automatische Pausenbeendigung,
+Animation oder Änderung an den Buchungsfunktionen.
+
+Im Handy-QR-Modal bleibt das X oben rechts der einzige Schließen-Button;
+Escape bleibt möglich. Der Link App auf diesem Gerät öffnen steht als letztes
+Element unter sämtlichen Installations-/Anmeldetexten. Zieladresse, QR-Code,
+Anmeldung und mobile Anwendung bleiben unverändert.

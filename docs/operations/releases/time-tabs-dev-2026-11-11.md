@@ -219,3 +219,18 @@ behauptet; der Nutzer übernimmt anschließend die fachliche Dev-Prüfung.
 Isolierter Release-Checkout: parallel noch nicht veröffentlichte To-do- und
 Reminderänderungen im Hauptarbeitsordner sind nicht Teil dieses Commits.
 Nur Dev-Webbereitstellung; keine Backend-, Rules-, Handy- oder Produktionsänderung.
+
+## Pausenmodus und Handy-Modal (12.11.2026)
+
+- Größerer Status mit Symbol und Rahmen in der Stempelkarte für alle Zustände.
+  Im Pausenmodus zusätzlich auffälliger Kartenrahmen, Rückkehrhinweis und
+  hervorgehobener Pause-beenden-Button; Rücknahme nach bestätigtem Pausenende.
+- Handy-QR-Modal ohne unteren Schließen-Button; Öffnen-Link unter alle Texte
+  verschoben. Oberes X, Escape, Zieladresse und mobile Anwendung bleiben erhalten.
+- Ausgeführte React-/DOM-Prüfung nutzt das echte Handy-Einstiegsmodul und prüft
+  Reihenfolge des Öffnen-Links, genau einen Schließen-Button sowie Öffnen/Schließen.
+  Pausenstart/-ende werden mit kontrollierter API-Grenze auf Zustandswechsel,
+  korrekten Aktionstyp und Hervorhebung geprüft.
+- Isolierte Dev-Webbereitstellung: parallele unveröffentlichte To-do-/Reminder-
+  Änderungen sind ausgeschlossen. Keine Backend-, Rules-, Handy- oder
+  Produktionsbereitstellung.

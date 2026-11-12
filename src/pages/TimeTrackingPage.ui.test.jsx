@@ -7,12 +7,15 @@ import { addDays, timeDate, weekRange } from '../lib/timeTracking.js'
 
 const today = timeDate()
 const week = weekRange(today)
+let stampStatus = 'working'
+const stamps = []
 let workspaceRevision = 0
 let failNextLoad = false
-const day = date => ({ date, revision: workspaceRevision, events: date === today ? [{ id: 'go', type: 'go', at: `${date}T15:00:00Z` }, { id: 'come', type: 'come', at: `${date}T07:00:00Z` }, { id: 'end', type: 'pause_end', at: `${date}T12:00:00Z` }, { id: 'start', type: 'pause_start', at: `${date}T11:30:00Z` }] : [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
+const day = date => ({ date, revision: workspaceRevision, status: date === today ? stampStatus : 'away', events: date === today ? [{ id: 'go', type: 'go', at: `${date}T15:00:00Z` }, { id: 'come', type: 'come', at: `${date}T07:00:00Z` }, { id: 'end', type: 'pause_end', at: `${date}T12:00:00Z` }, { id: 'start', type: 'pause_start', at: `${date}T11:30:00Z` }] : [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
 const calls = []
 const corrections = []
 globalThis.timeUiApi = {
+  stamp: async data => { stamps.push(data); stampStatus = data.type === 'pause_start' ? 'break' : data.type === 'pause_end' ? 'working' : data.type === 'go' ? 'away' : 'working' },
   correct: async data => { corrections.push(data) },
   workspace: async data => {
     if (failNextLoad) { failNextLoad = false; throw new Error('Aktualisierung fehlgeschlagen') }
@@ -167,6 +170,28 @@ assert.equal(host.querySelector('.time-summary').textContent, currentCards)
 await act(async () => { [...host.querySelectorAll('.time-week-nav button')].find(button => button.textContent === 'Heute').click() })
 assert.equal(host.querySelector('.time-week-day-heading time').dateTime, week.from)
 
+await act(async () => { [...host.querySelectorAll('.time-stamp-buttons button')].find(button => button.textContent.includes('Pause starten')).click() })
+assert.equal(stamps.at(-1).type, 'pause_start')
+assert.ok(host.querySelector('.time-stamp-panel--paused'))
+assert.ok(host.querySelector('.time-stamp-panel [role="status"]').textContent.includes('Pause läuft'))
+assert.ok(host.querySelector('.time-pause-reminder').textContent.includes('Zurück an der Arbeit?'))
+assert.ok(host.querySelector('.time-stamp-resume').textContent.includes('Pause beenden'))
+await act(async () => { host.querySelector('.time-stamp-resume').click() })
+assert.equal(stamps.at(-1).type, 'pause_end')
+assert.equal(host.querySelector('.time-stamp-panel--paused'), null)
+assert.equal(host.querySelector('.time-pause-reminder'), null)
+assert.ok(host.querySelector('.time-stamp-panel [role="status"]').textContent.includes('Bei der Arbeit'))
+await act(async () => { [...host.querySelectorAll('button')].find(button => button.textContent === 'Am Handy öffnen').click() })
+const phone = host.querySelector('.time-phone-dialog')
+assert.ok(phone)
+assert.equal(phone.querySelectorAll('button').length, 1)
+assert.equal(phone.querySelector('button').getAttribute('aria-label'), 'Schließen')
+assert.equal(phone.querySelector('footer'), null)
+assert.equal(phone.lastElementChild.tagName, 'A')
+assert.ok(phone.lastElementChild.textContent.includes('App auf diesem Gerät öffnen'))
+assert.equal(phone.lastElementChild.previousElementSibling.className, 'time-phone-instructions')
+await act(async () => { phone.querySelector('button').click() })
+assert.equal(host.querySelector('.time-phone-dialog'), null)
 assert.ok(calls.every(call => call.ownOnly === true))
 await act(async () => { root.unmount() })
 host.remove()
