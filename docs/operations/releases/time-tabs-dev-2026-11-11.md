@@ -128,3 +128,19 @@ Prüfung: vollständiges ESLint, Vite-Build, Abgleich der 48 gemeinsamen Module,
 30-Versionen-Fall, acht Zellen pro Unterzeile, Reihenfolge, Ein-/Ausklappen,
 Urheberzuordnung, getrennten Speicherungen und Grund/Hinweis.
 Die angemeldete Live-Browserabnahme wird damit nicht vorweggenommen.
+
+## Ergänzung 12.11.2026: Bearbeiter, Grund und Unterzeilen
+
+- Bearbeiter-Spalte auf 150 Pixel begrenzt; neue eigene Grund-Spalte übernimmt
+  den frei werdenden Platz. Gründe sind direkt lesbar, zusätzliche Hinweise
+  bleiben bei Bedarf aufklappbar.
+- Hauptzeilen, frühere Stände und unveränderte Speicherungen besitzen dieselben
+  neun Spalten. Verlauf enthält ausschließlich die Verlaufsschalter.
+- Frühere Stände und Speicherungen erhalten einen deutlich abgesetzten
+  Zellhintergrund, im dunklen Theme heller und im hellen Theme dunkler;
+  auch beim Überfahren mit der Maus bleibt die Abgrenzung erhalten.
+- Ausschließlich Dev-Webdarstellung; keine Backend-, Handy- oder Produktionsänderung.
+
+React-/DOM-Prüfung: eigene Grund-Spalte, neun ausgerichtete Zellen in allen
+30 Versionszeilen sowie unverändertes Ein-/Ausklappen und Zuordnung der
+Hinweise. Vollständiges ESLint und Web-Build gehören zur Veröffentlichungsprüfung.

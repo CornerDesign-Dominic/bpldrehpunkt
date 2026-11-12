@@ -33,18 +33,22 @@
 .time-tabs button { background: transparent; border-top: 0; border-left: 0; border-right: 0; cursor: pointer; font-family: inherit; }
 .time-tab-content { display: grid; gap: 16px; min-width: 0; }
 .time-bookings-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 12px 18px; }
-.time-bookings-table { table-layout: fixed; min-width: 1140px; }
+.time-bookings-table { table-layout: fixed; min-width: 1280px; }
 .time-bookings-date { width: 112px; }
 .time-bookings-time { width: 78px; }
 .time-bookings-action { width: 125px; }
 .time-bookings-method { width: 180px; }
 .time-bookings-client { width: 110px; }
-.time-bookings-actor { width: auto; }
+.time-bookings-actor { width: 150px; }
 .time-bookings-timestamp { width: 175px; }
-.time-bookings-trail { width: 210px; }
+.time-bookings-reason { width: auto; }
+.time-bookings-trail { width: 180px; }
 .time-bookings-table td { padding-block: 6px; vertical-align: middle; }
 .time-bookings-table td:nth-child(n+4) { white-space: normal; overflow-wrap: anywhere; }
-.time-booking-version-row, .time-booking-save-row { background: var(--surface-secondary); color: var(--text-secondary); }
+.time-bookings-table .time-booking-version-row > td,
+.time-bookings-table .time-booking-save-row > td { background: color-mix(in srgb, var(--content-background) 80%, var(--text-primary) 20%); color: var(--text-primary); }
+.time-bookings-table .time-booking-version-row:hover > td,
+.time-bookings-table .time-booking-save-row:hover > td { background: color-mix(in srgb, var(--content-background) 72%, var(--text-primary) 28%); }
 .time-booking-version-row > td:first-child, .time-booking-save-row > td:first-child { box-shadow: inset 3px 0 var(--border); }
 .time-booking-indent { color: var(--text-secondary); }
 .time-booking-value-changed { color: var(--text-primary); font-weight: 700; text-decoration: underline; text-decoration-color: var(--status-warning-text); text-underline-offset: 3px; }

@@ -140,21 +140,24 @@ Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
 Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
 
 **Alle Buchungen** ist unabhängig von der Monatsauswahl. Eine Hauptzeile entspricht
-einer stabilen Buchungs-ID und zeigt den aktuell gültigen Stand. Die acht
-Spalten sind Datum, Uhrzeit, Buchung, Erfassung, Über, Bearbeiter, Gespeichert am
-und Verlauf. Erfassung ist schlichter Text: Gestempelt, Manueller Nachtrag oder
+einer stabilen Buchungs-ID und zeigt den aktuell gültigen Stand. Die neun
+Spalten sind Datum, Uhrzeit, Buchung, Erfassung, Über, Bearbeiter, Gespeichert am,
+Grund und Verlauf. Bearbeiter ist auf 150 Pixel begrenzt; die Grund-Spalte nutzt
+den frei werdenden Platz. Der Grund ist direkt lesbar, ein zusätzlicher
+Freitexthinweis bleibt aufklappbar. Erfassung ist schlichter Text: Gestempelt, Manueller Nachtrag oder
 Korrektur. Gelöschte Buchungen bleiben mit ihrer letzten Uhrzeit/Aktion und
 Erfassung Gelöscht erhalten. Historisch nicht belegte Angaben bleiben ausdrücklich
 nicht erfasst. Die Bezeichnung Original, Statusabzeichen und die Vorher-Spalte
 entfallen.
 
 Der Verlauf klappt frühere effektive Stände direkt unter der Hauptzeile als
-kompakte Tabellenzeilen mit denselben acht Spalten auf, neuester zuerst bis zur
-ersten Erfassung. Die Unterzeilen sind leicht abgesetzt und eingerückt; nur
+kompakte Tabellenzeilen mit denselben neun Spalten auf, neuester zuerst bis zur
+ersten Erfassung. Die Unterzeilen sind mit einem deutlich kontrastierenden, themeabhängig
+helleren beziehungsweise dunkleren Hintergrund abgesetzt und eingerückt; nur
 geänderte Werte werden hervorgehoben. 30 Stände bedeuten eine aktuelle Zeile und
 29 frühere Zeilen. Jeder Stand behält seinen gespeicherten Bearbeiter, Zeitpunkt
-und Erfassungsweg. Grund und Freitext sind bei Bedarf am jeweiligen Stand über
-Grund einsehbar und blähen die geschlossene Zeile nicht auf.
+und Erfassungsweg. Der Grund ist je Stand direkt in seiner eigenen Spalte
+lesbar; längere Freitexthinweise lassen sich dort bei Bedarf öffnen.
 
 Speicherungen ohne Änderung von Aktion/Zeitpunkt zählen nicht als weitere
 Version. Sie bleiben als Unverändert gespeichert separat aufklappbar erhalten
