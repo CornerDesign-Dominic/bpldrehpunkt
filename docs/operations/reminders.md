@@ -1,10 +1,12 @@
 # Zentrale Termin- und Fristerinnerungen
 
-## Lokaler Dev-Entwurf vom 12.11.2026: gemeinsame To-dos
+## Dev-Stand vom 12.11.2026: gemeinsame To-dos
 
-Noch nicht veröffentlicht; `main`, Cloud Functions und aktive Regeln werden durch
-diesen lokalen Arbeitsstand nicht verändert. Die folgenden Abschnitte zum
-veröffentlichten Versandweg bleiben historische Betriebsbeschreibung.
+Nach ausdrücklicher Freigabe ausschließlich in Dev veröffentlicht. Quellstand,
+Functions, aktive Regeln und verbleibende Live-Prüfgrenzen stehen im
+[Dev-Releasebeleg](releases/todo-collaboration-dev-2026-11-12-status.md).
+`main` und Produktion bleiben unverändert. Die folgenden Abschnitte zum
+bisherigen Versandweg bleiben historische Betriebsbeschreibung.
 
 To-dos benötigen keine Annahme mehr. Aktuelle Beteiligte mit To-do-
 Bearbeitungsrecht sowie Ersteller/Superadmin bearbeiten offene Aufgaben und
@@ -41,7 +43,7 @@ Offene Kalender prüfen Änderungen bei Fokus/Rückkehr und alle 30 Sekunden im
 sichtbaren Fenster. Bereits geladene Daten sind keine fortbestehende
 Zugriffsberechtigung; jeder Serverabruf prüft die aktuelle Identität neu.
 
-Ein späterer freigegebener Release muss Frontend, Firestore-Regeln, die neue
+Eine Veröffentlichung muss Frontend, Firestore-Regeln, die neue
 Kalender-Callable, das reduzierte Mitarbeiterverzeichnis und die bestehenden
 Erinnerungs-Status-/Vorbereitungs-/Versand-/Quelltrigger gemeinsam berücksichtigen.
 Ein nur frontendseitiger Release reicht nicht. Keine Datenlöschung/Migration

@@ -1,7 +1,9 @@
 # To-do-Zusammenarbeit: lokale Prüfung am 12.11.2026
 
-Arbeitsstand ausschließlich lokal auf `dev`. Kein Commit, Push oder Deployment;
-`main` und die laufenden Umgebungen wurden nicht verändert.
+Dieses Protokoll dokumentiert die zunächst ausschließlich lokale Prüfung auf
+`dev`. Die danach ausdrücklich freigegebene Dev-Veröffentlichung und deren
+Nachweise stehen im [Releasebeleg](releases/todo-collaboration-dev-2026-11-12-status.md).
+`main` und Produktion bleiben unverändert.
 
 ## Prüfaufbau
 
@@ -122,4 +124,6 @@ Erneut geprüft: 39 UI-Tests, 12 gezielte Unit-Tests, 28 Service-/Berechtigungst
 Die Browserprüfung umfasst Anlegen, Auswahl „Alle“, den Terminierungseditor,
 Detail-/Listentexte und die Hilfe im Fristenmodal einschließlich Escape und
 vollständig sichtbarer Hilfebox. Lokale Belege: `tmp/todo-wording-evidence/`.
-Weiterhin ausschließlich lokal auf `dev`, ohne Push oder Deployment.
+Diese Prüfrunde erfolgte vor Push oder Deployment. Der abschließende Releasecheck
+bestand mit 1.642 Unit-, 95 Emulator-/Integrations- und 39 UI-Tests, ohne
+übersprungene Tests; zusätzlich ESLint, Build und Shared-Modul-Abgleich.
