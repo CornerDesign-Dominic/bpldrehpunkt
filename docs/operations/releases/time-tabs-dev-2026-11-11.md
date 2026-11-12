@@ -144,3 +144,19 @@ Die angemeldete Live-Browserabnahme wird damit nicht vorweggenommen.
 React-/DOM-Prüfung: eigene Grund-Spalte, neun ausgerichtete Zellen in allen
 30 Versionszeilen sowie unverändertes Ein-/Ausklappen und Zuordnung der
 Hinweise. Vollständiges ESLint und Web-Build gehören zur Veröffentlichungsprüfung.
+
+## Ergänzung 12.11.2026: Wochenbalken und Tagesbuchungen
+
+- Eigene aktuelle Woche mit sieben gleich skalierten Tagesbalken Montag–Sonntag.
+  Balken für angerechnete Istzeit, gestrichelte Sollmarkierung, darunter Ist/Soll
+  und tatsächlich gebuchte Pause. Heutiger Tag hervorgehoben, fehlendes Soll
+  als unbekannt. Über Soll liegende Arbeit wird nicht abgeschnitten.
+- Je Tag chronologisch sortierte, kompakte Buchungsliste mit ausschließlich
+  Stempelzeit und Aktion; Stift öffnet das bestehende Tageskorrekturfenster.
+  Bestehende Rechte, Korrekturfristen und Sperren bleiben erhalten.
+- Monatsübersicht, Einzeljournal, Zeitmanager-Tabelle und mobile App unverändert.
+  Keine Functions-, Rules- oder Produktionsbereitstellung erforderlich.
+- Ausgeführter React-/DOM-Test: sieben Balken/Tage, unsortierte Eingangsbuchungen
+  chronologisch dargestellt, zwei Buchungsspalten, Ist/Soll und gebuchte Pause,
+  Zukunftstage gesperrt sowie Öffnen/Schließen des bestehenden Korrekturmodals.
+  Bestehende Monats-/Journalprüfungen laufen weiter erfolgreich.

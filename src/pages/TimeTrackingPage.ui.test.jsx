@@ -7,7 +7,7 @@ import { addDays, timeDate, weekRange } from '../lib/timeTracking.js'
 
 const today = timeDate()
 const week = weekRange(today)
-const day = date => ({ date, events: [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
+const day = date => ({ date, events: date === today ? [{ id: 'go', type: 'go', at: `${date}T15:00:00Z` }, { id: 'come', type: 'come', at: `${date}T07:00:00Z` }, { id: 'end', type: 'pause_end', at: `${date}T12:00:00Z` }, { id: 'start', type: 'pause_start', at: `${date}T11:30:00Z` }] : [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
 const calls = []
 globalThis.timeUiApi = {
   workspace: async data => {
@@ -24,8 +24,23 @@ const root = createRoot(host)
 await act(async () => { root.render(<TimeTrackingPage />) })
 const clickTab = async label => { await act(async () => { [...host.querySelectorAll('[role="tab"]')].find(node => node.textContent === label).click() }) }
 assert.equal(host.querySelector('[aria-selected="true"]').textContent, 'Aktuelle Woche')
-assert.equal(host.querySelectorAll('[role="tabpanel"] tbody tr').length, 7)
-assert.ok(host.querySelector('[role="tabpanel"]').textContent.includes(new Date(`${week.from}T12:00:00Z`).toLocaleDateString('de-DE')))
+assert.equal(host.querySelectorAll('.time-week-day').length, 7)
+assert.equal(host.querySelectorAll('.time-week-chart').length, 7)
+assert.ok(host.querySelector('.time-week-heading').textContent.includes(new Date(`${week.from}T12:00:00Z`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })))
+const todayColumn = host.querySelector('.time-week-day--today')
+assert.deepEqual([...todayColumn.querySelectorAll('tbody tr')].map(row => row.cells[0].textContent), ['08:00', '12:30', '13:00', '16:00'])
+assert.deepEqual([...todayColumn.querySelectorAll('tbody tr')].map(row => row.cells[1].textContent), ['Kommen', 'Pause Start', 'Pause Ende', 'Gehen'])
+assert.ok([...host.querySelectorAll('.time-week-bookings tbody tr')].every(row => row.cells.length === 2))
+assert.ok(todayColumn.querySelector('.time-week-values').textContent.includes('Ist 07:40Soll 08:00'))
+assert.ok(todayColumn.querySelector('.time-week-pause').textContent.includes('00:20'))
+for (const column of host.querySelectorAll('.time-week-day')) {
+  if (column.querySelector('time').dateTime > today) assert.equal(column.querySelector('button').disabled, true)
+}
+await act(async () => { todayColumn.querySelector('button').click() })
+assert.ok(host.querySelector('dialog[open]'))
+assert.equal(host.querySelectorAll('dialog input[type="time"]').length, 4)
+await act(async () => { [...host.querySelectorAll('dialog button')].find(button => button.textContent === 'Abbrechen').click() })
+assert.equal(host.querySelector('dialog'), null)
 await clickTab('Monatsübersicht')
 assert.ok(host.querySelector('input[type="month"]'))
 assert.ok(host.querySelectorAll('[role="tabpanel"] tbody tr').length >= 28)

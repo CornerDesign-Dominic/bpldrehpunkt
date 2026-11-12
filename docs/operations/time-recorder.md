@@ -139,6 +139,22 @@ werden nicht als bestätigtes Plus/Minus angezeigt. Der heutige Stempelbereich u
 Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
 Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
 
+**Aktuelle Woche** zeigt Montag bis Sonntag als sieben nebeneinanderstehende
+Tagesbalken mit gemeinsamer Höhenskala. Der Balken stellt die angerechnete Istzeit
+dar; eine gestrichelte Linie markiert die Sollzeit. Unter jedem Balken stehen
+Ist-/Sollzeit und die tatsächlich gebuchte Pausenzeit (ohne zusätzlichen
+automatischen Abzug). Fehlende Arbeitszeitvorgaben werden bei Soll als unbekannt
+angezeigt, nicht als erfundene Sollzeit. Der heutige Tag ist hervorgehoben.
+
+Pro Tag folgt darunter eine kleine Tabelle ausschließlich mit Stempelzeit und
+Aktion, chronologisch nach dem Ereigniszeitpunkt sortiert. Ein Stift im Tageskopf
+öffnet das bestehende Tageskorrektur-Modal. Zukunftstage, fehlendes Schreibrecht
+und nicht verfügbare Verbindung/Daten sperren die Bearbeitung wie bisher.
+Unvollständige Tage bleiben erkennbar; keine Änderung an Zeitberechnung oder
+Korrekturfrist. Bei schmalem Fenster bleibt die Siebentagesansicht horizontal
+scrollbar, statt Tage auszublenden. Die ausführliche Zeitmanager-Tabelle bleibt
+unverändert.
+
 **Alle Buchungen** ist unabhängig von der Monatsauswahl. Eine Hauptzeile entspricht
 einer stabilen Buchungs-ID und zeigt den aktuell gültigen Stand. Die neun
 Spalten sind Datum, Uhrzeit, Buchung, Erfassung, Über, Bearbeiter, Gespeichert am,

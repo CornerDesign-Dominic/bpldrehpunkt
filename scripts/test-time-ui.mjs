@@ -22,5 +22,7 @@ await build({ configFile: false, root, logLevel: 'error', plugins: [{
 const dom = new JSDOM('<html><body></body></html>', { url: 'https://example.test/zeiterfassung', pretendToBeVisual: true })
 process.env.NODE_ENV = 'development'
 for (const name of ['window', 'document', 'navigator', 'HTMLElement', 'Event', 'MouseEvent', 'Node']) Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name] })
+dom.window.HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', '') }
+dom.window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 await import(pathToFileURL(path.join(root, 'tmp/time-ui-tests/tests.mjs')).href)
