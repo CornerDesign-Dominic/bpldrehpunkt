@@ -160,3 +160,45 @@ Hinweise. Vollständiges ESLint und Web-Build gehören zur Veröffentlichungspr�
   chronologisch dargestellt, zwei Buchungsspalten, Ist/Soll und gebuchte Pause,
   Zukunftstage gesperrt sowie Öffnen/Schließen des bestehenden Korrekturmodals.
   Bestehende Monats-/Journalprüfungen laufen weiter erfolgreich.
+
+## Lokaler Sammelstand 12.11.2026 – nicht veröffentlicht
+
+Auf Wunsch werden weitere Änderungen gesammelt: Stift je Buchung, Nachtrag
+unter jeder Tagesliste, Einzelmodal mit eigenem Grund und Mülleimer samt
+Bestätigung/eigener Löschbegründung. Der Tagesdialog dient nur noch als
+Auswahlliste, nicht zur gemeinsamen Bearbeitung vieler Buchungen mit einem Grund.
+
+Ausgeführte React-/DOM-Regression prüft isolierte Änderung einer Buchung,
+unveränderte übrige Ereignisse, Pflichtgrund beim Löschen, bestätigte Löschung,
+manuellen Nachtrag, Konflikt/Neuladen mit aktueller Revision und keine doppelte
+Schreibanfrage nach erfolgreichem Speichern mit fehlgeschlagener Aktualisierung.
+Der Umfang wird nicht gepusht oder deployt; bestehende Dev-Veröffentlichung,
+Handy-App und Produktion bleiben erhalten.
+
+## Gebündelte Dev-Freigabe 12.11.2026
+
+Der Nutzer gibt den zuvor nur lokalen Einzelbuchungs-Sammelstand ausdrücklich
+zusammen mit folgenden Ergänzungen zur Veröffentlichung auf der normalen
+Dev-Seite frei:
+
+- Doppelte innere Überschrift entfernt; Karten Woche, Monat, Gesamt in dieser
+  Reihenfolge, neutrale Zahlen ohne Sollvergleich und ohne Beschreibungen darunter.
+- Aktuelle Wochen-/Monatskarten bleiben unabhängig von historischer Monatswahl.
+- Aufgewertete Stempelkarte mit klaren Aktionen/Status und ohne Ereignisduplikate.
+- Buchungsjournal auf 50 Buchungen je Seite begrenzt; Von/Bis-Datumsfelder mit
+  inklusiven Grenzen, Suchen, Zurücksetzen und Zurück/Weiter. Ganze Historien bleiben
+  auch bei auf mehrere Seiten verteilten Tagen erhalten.
+- Einzelmodal, Stift je Buchung, Nachtrag unter jeder Tagesliste und Mülleimer mit
+  Bestätigung/eigenem Löschgrund aus dem bisher unveröffentlichten Umfang enthalten.
+
+Reine Webbereitstellung über dev/Vercel. Keine erneute Functions-, Rules-,
+Handy- oder Produktionsbereitstellung nötig. Die vorherigen Abschnitte mit
+Nicht-veröffentlicht-Vermerk beschreiben den damaligen Zwischenstand.
+
+Prüfung: React-/DOM-Abläufe einschließlich einzelner Änderungen, Nachträge,
+Löschpflichtgrund, Revisionskonflikt, bestätigtem Schreiben mit fehlgeschlagener
+Aktualisierung, 50er-Seitengrenze, Zeitraumfilter und Rücksetzen sowie neutralen
+Karten/entfernten Duplikaten. Elf gezielte Node-Tests für Pagination und
+Versionsrekonstruktion erfolgreich; vollständiges ESLint, Shared-Abgleich und
+Web-Build werden für diesen Stand ausgeführt. Keine angemeldete Live-Abnahme
+behauptet; der Nutzer übernimmt anschließend die fachliche Dev-Prüfung.

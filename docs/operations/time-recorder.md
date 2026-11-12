@@ -431,3 +431,58 @@ und [timeTracking.account.integration.test.js](../../functions/timeTracking.acco
    genau einmal sehen. Urlaub und Nachträge sind erst online wieder verfügbar.
    Der physische Gerätetest und der Abgleich mit einem Pilotkonto ergänzen
    den lokalen Chrome- und Emulatorlauf.
+
+## Einzelbuchungen aus dem Sammelstand (Dev-Freigabe 12.11.2026)
+
+Der zunächst unveröffentlichte Umfang wird auf ausdrücklichen Folgeauftrag
+zusammen mit den Karten- und Listenanpassungen auf Dev bereitgestellt. Die Oberfläche
+setzt einen Stift direkt an jede Buchung und Buchung hinzufügen unter jede
+Tagesliste. Jede Aktion öffnet ein kompaktes Einzelmodal mit eigenem Grund und
+optionalem Hinweis. Ein Nachtrag erhält eine stabile neue Ereignis-ID.
+
+Der Mülleimer im Einzelmodal öffnet eine gesonderte Bestätigung mit dem
+ursprünglichen Buchungszeitpunkt und eigener verpflichtender Löschbegründung.
+Abbrechen und fehlender Grund erzeugen keine Änderung. Im Zeitmanagerbereich
+und beim Hinweis auf unvollständige Tage führt die Tagesauswahl zunächst zu
+einer kompakten Leseliste mit Einzelstiften und Nachtragsknopf.
+
+Die bestehende Callable correctTimeDay bleibt bestehen: Gesendet wird die
+vollständige aktuelle Tagesliste, aber ausschließlich ein ausgewähltes Ereignis
+wird verändert, ergänzt oder entfernt. Unberührte Zeitpunkte einschließlich
+Sekunden bleiben erhalten. Jede Aktion hat ihren eigenen Grund in der Historie.
+Serverseitige Tagesfolgenprüfung und Korrekturfrist werden nicht umgangen;
+Korrekturen, die nur gemeinsam eine gültige Tagesfolge ergeben, können dadurch
+weiterhin nicht als ungültige Einzelschritte gespeichert werden.
+
+Revision und beim Öffnen erfasste Akteurs-UID sichern die Anfrage ab. Bei einem
+Konflikt muss der Benutzer explizit neu laden; Eingaben werden verworfen. Eine
+inzwischen gelöschte Zielbuchung wird nicht neu erzeugt. Nach bestätigtem
+Speichern und anschließend fehlgeschlagenem Nachladen ist nur erneutes Laden
+möglich, kein wiederholtes Schreiben. Handy-App und Produktion unverändert.
+
+## Eigene Übersichtsseite und Buchungssuche (12.11.2026)
+
+Die doppelte innere Seitenüberschrift entfällt. Drei reduzierte Karten zeigen
+links die angerechnete Arbeitszeit dieser Woche, mittig die dieses Monats und
+rechts den Gesamtsaldo. Zahlen bleiben neutral; Sollvergleiche und Zusatztexte
+unter den Zahlen entfallen. Ein tatsächlich vorläufiger Kontostand bleibt über
+einen zugänglichen Hinweis an der Kartenüberschrift erkennbar. Aktuelle Wochen-
+und Monatswerte werden auch bei historischer Monatsauswahl geladen.
+
+Die Stempelkarte betont heutigen Status und drei gleich große Aktionen. Einzelne
+Stempelereignisse werden dort nicht erneut angezeigt; sie stehen unter den
+Wochenbalken und im Buchungsjournal.
+
+Alle Buchungen zeigt höchstens 50 Buchungs-IDs je Seite mit Zurück/Weiter.
+Aufgeklappte Versions-/Speicherzeilen zählen nicht als zusätzliche Buchungen.
+Die zwei Datumsfelder Von/Bis begrenzen inklusive nach dem Buchungstag; leere
+Grenzen sind offen. Suchen setzt auf Seite 1 zurück; Zurücksetzen entfernt die
+Grenzen. Ungültige Reihenfolge wird vor dem Abruf abgewiesen.
+
+Die vorhandene Own-Data-Callable bleibt unverändert. Für die obere Datumsgrenze
+nutzt der Client den existierenden exklusiven Tagescursor. Er lädt vollständige
+Tagesabschnitte mit Historie nur bis genügend passende Buchungen für die Seite
+vorliegen beziehungsweise die untere Grenze erreicht ist. Ein Tagesabschnitt
+kann auf mehrere sichtbare Seiten verteilt werden, ohne seine Historie zu kürzen.
+Zwischenspeicher je Suche vermeidet erneute Abrufe beim Zurückblättern; alte
+Suchantworten überschreiben keine neue Suche. Keine neuen direkten Clientrechte.

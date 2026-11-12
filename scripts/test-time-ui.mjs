@@ -15,7 +15,7 @@ await build({ configFile: false, root, logLevel: 'error', plugins: [{
     if (id.endsWith('/src/lib/timeTracking.js')) {
       const source = await readFile(id, 'utf8')
       const helpers = source.slice(source.indexOf('export const TIME_ACTIONS'))
-      return `${helpers}\nexport const listTimeWorkspace = data => globalThis.timeUiApi.workspace(data); export const listOwnTimeBookings = data => globalThis.timeUiApi.bookings(data); export const stampTime = async () => {}; export const correctTimeDay = async () => {};`
+      return `${helpers}\nexport const listTimeWorkspace = data => globalThis.timeUiApi.workspace(data); export const listOwnTimeBookings = data => globalThis.timeUiApi.bookings(data); export const stampTime = async () => {}; export const correctTimeDay = data => globalThis.timeUiApi.correct?.(data);`
     }
   },
 }, react()], build: { ssr: path.join(root, 'src/pages/TimeTrackingPage.ui.test.jsx'), outDir: path.join(root, 'tmp/time-ui-tests'), emptyOutDir: true, minify: false, rollupOptions: { output: { entryFileNames: 'tests.mjs' } } } })

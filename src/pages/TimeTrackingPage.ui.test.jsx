@@ -7,10 +7,15 @@ import { addDays, timeDate, weekRange } from '../lib/timeTracking.js'
 
 const today = timeDate()
 const week = weekRange(today)
-const day = date => ({ date, events: date === today ? [{ id: 'go', type: 'go', at: `${date}T15:00:00Z` }, { id: 'come', type: 'come', at: `${date}T07:00:00Z` }, { id: 'end', type: 'pause_end', at: `${date}T12:00:00Z` }, { id: 'start', type: 'pause_start', at: `${date}T11:30:00Z` }] : [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
+let workspaceRevision = 0
+let failNextLoad = false
+const day = date => ({ date, revision: workspaceRevision, events: date === today ? [{ id: 'go', type: 'go', at: `${date}T15:00:00Z` }, { id: 'come', type: 'come', at: `${date}T07:00:00Z` }, { id: 'end', type: 'pause_end', at: `${date}T12:00:00Z` }, { id: 'start', type: 'pause_start', at: `${date}T11:30:00Z` }] : [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
 const calls = []
+const corrections = []
 globalThis.timeUiApi = {
+  correct: async data => { corrections.push(data) },
   workspace: async data => {
+    if (failNextLoad) { failNextLoad = false; throw new Error('Aktualisierung fehlgeschlagen') }
     calls.push(data)
     const days = []
     for (let date = data.from; date <= data.to; date = addDays(date, 1)) days.push(day(date))
@@ -24,6 +29,12 @@ const root = createRoot(host)
 await act(async () => { root.render(<TimeTrackingPage />) })
 const clickTab = async label => { await act(async () => { [...host.querySelectorAll('[role="tab"]')].find(node => node.textContent === label).click() }) }
 assert.equal(host.querySelector('[aria-selected="true"]').textContent, 'Aktuelle Woche')
+assert.equal(host.querySelector('.time-toolbar h2'), null)
+assert.deepEqual([...host.querySelectorAll('.time-summary .time-card > span')].map(node => node.textContent), ['Diese Woche', 'Dieser Monat', 'Gesamt'])
+assert.ok(!host.querySelector('.time-summary').textContent.includes('Soll'))
+assert.ok([...host.querySelectorAll('.time-summary .time-card')].every(card => card.children.length === 2))
+assert.equal(host.querySelector('.time-summary .time-positive, .time-summary .time-negative'), null)
+assert.equal(host.querySelector('.time-stamp-panel .time-today-events'), null)
 assert.equal(host.querySelectorAll('.time-week-day').length, 7)
 assert.equal(host.querySelectorAll('.time-week-chart').length, 7)
 assert.ok(host.querySelector('.time-week-heading').textContent.includes(new Date(`${week.from}T12:00:00Z`).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })))
@@ -38,8 +49,76 @@ for (const column of host.querySelectorAll('.time-week-day')) {
 }
 await act(async () => { todayColumn.querySelector('button').click() })
 assert.ok(host.querySelector('dialog[open]'))
-assert.equal(host.querySelectorAll('dialog input[type="time"]').length, 4)
+assert.equal(host.querySelectorAll('dialog input[type="time"]').length, 1)
 await act(async () => { [...host.querySelectorAll('dialog button')].find(button => button.textContent === 'Abbrechen').click() })
+assert.equal(host.querySelector('dialog'), null)
+assert.equal(host.querySelectorAll('.time-week-add').length, 7)
+const changeValue = async (node, value) => {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(node), 'value').set.call(node, value)
+    node.dispatchEvent(new Event(node.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }))
+  })
+}
+await act(async () => { todayColumn.querySelector('.time-week-edit').click() })
+const editForm = host.querySelector('dialog form')
+assert.equal(editForm.querySelector('button:not([type])').disabled, true)
+await changeValue(editForm.querySelector('input[type="time"]'), '08:05')
+await changeValue(editForm.querySelectorAll('select')[1], 'forgot_stamp')
+await act(async () => { editForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(corrections.length, 1)
+assert.equal(corrections[0].reason, 'forgot_stamp')
+assert.equal(corrections[0].events.length, 4)
+assert.equal(corrections[0].events.find(item => item.id === 'come').at, `${today}T07:05:00.000Z`)
+assert.equal(corrections[0].events.find(item => item.id === 'start').at, `${today}T11:30:00Z`)
+await act(async () => { [...host.querySelector('.time-week-day--today').querySelectorAll('.time-week-edit')].at(-1).click() })
+await act(async () => { host.querySelector('.time-booking-delete').click() })
+assert.equal(host.querySelectorAll('dialog[open]').length, 2)
+const deleteForm = [...host.querySelectorAll('dialog form')].at(-1)
+assert.ok(deleteForm.textContent.includes('wirklich löschen'))
+await act(async () => { deleteForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(corrections.length, 1)
+await changeValue(deleteForm.querySelector('select'), 'wrong_booking')
+await act(async () => { deleteForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(corrections.length, 2)
+assert.equal(corrections[1].reason, 'wrong_booking')
+assert.equal(corrections[1].events.length, 3)
+assert.equal(corrections[1].events.some(item => item.id === 'go'), false)
+await act(async () => { host.querySelector('.time-week-day--today .time-week-add').click() })
+assert.ok(host.querySelector('dialog h2').textContent.includes('Buchung nachtragen'))
+assert.equal(host.querySelector('.time-booking-delete'), null)
+const addForm = host.querySelector('dialog form')
+await changeValue(addForm.querySelector('input'), '16:30')
+await changeValue(addForm.querySelectorAll('select')[1], 'forgot_stamp')
+await act(async () => { addForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(corrections.length, 3)
+assert.equal(corrections[2].events.length, 5)
+assert.equal(corrections[2].events.filter(item => ['come', 'go', 'start', 'end'].includes(item.id)).length, 4)
+assert.equal(corrections[2].reason, 'forgot_stamp')
+globalThis.timeUiApi.correct = async () => { throw Object.assign(new Error('Zwischenzeitlich geändert'), { code: 'functions/aborted' }) }
+await act(async () => { host.querySelector('.time-week-day--today .time-week-edit').click() })
+let conflictForm = host.querySelector('dialog form')
+await changeValue(conflictForm.querySelector('input'), '08:05')
+await changeValue(conflictForm.querySelectorAll('select')[1], 'wrong_booking')
+await act(async () => { conflictForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.ok(host.querySelector('dialog').textContent.includes('Aktuellen Stand laden'))
+assert.equal(conflictForm.querySelector('button:not([type])').disabled, true)
+workspaceRevision = 4
+globalThis.timeUiApi.correct = async data => { corrections.push(data) }
+await act(async () => { [...host.querySelectorAll('dialog button')].find(button => button.textContent === 'Aktuellen Stand laden').click() })
+conflictForm = host.querySelector('dialog form')
+assert.equal(conflictForm.querySelector('input').value, '08:00')
+await changeValue(conflictForm.querySelector('input'), '08:10')
+await changeValue(conflictForm.querySelectorAll('select')[1], 'wrong_booking')
+failNextLoad = true
+await act(async () => { conflictForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(corrections.length, 4)
+assert.equal(corrections[3].expectedRevision, 4)
+assert.equal(corrections[3].expectedUserId, 'test-user')
+assert.ok(host.querySelector('dialog').textContent.includes('Die Änderung ist gespeichert'))
+assert.equal(host.querySelector('dialog button:not([type])').disabled, true)
+await act(async () => { host.querySelector('dialog form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(corrections.length, 4)
+await act(async () => { [...host.querySelectorAll('dialog button')].find(button => button.textContent === 'Ansicht aktualisieren').click() })
 assert.equal(host.querySelector('dialog'), null)
 await clickTab('Monatsübersicht')
 assert.ok(host.querySelector('input[type="month"]'))
@@ -66,7 +145,7 @@ let olderAttempts = 0
 const olderDate = addDays(today, -40)
 const first = { id: 'first', type: 'come', at: `${today}T07:00:00Z`, client: 'web' }
 globalThis.timeUiApi.bookings = async ({ before } = {}) => {
-  if (!before) return { days: [{ date: today, events: [first] }], history: [], nextBefore: today }
+  if (!before) return { days: [{ date: today, events: Array.from({ length: 51 }, (_, index) => ({ ...first, id: `page-${index}`, at: new Date(Date.parse(first.at) + index * 60000).toISOString() })) }], history: [], nextBefore: today }
   if (++olderAttempts === 1) throw new Error('Verbindung unterbrochen')
   return { days: [{ date: olderDate, events: [] }], history: [{ id: 'deleted', kind: 'correction', date: olderDate, before: [{ ...first, id: 'old', at: `${olderDate}T07:00:00Z` }], after: [], createdByName: 'Test Manager', createdAt: `${today}T09:00:00Z`, client: 'web' }], nextBefore: null }
 }
@@ -74,9 +153,10 @@ const bookingsHost = document.createElement('div')
 document.body.append(bookingsHost)
 const bookingsRoot = createRoot(bookingsHost)
 await act(async () => { bookingsRoot.render(<TimeBookings />) })
-await act(async () => { [...bookingsHost.querySelectorAll('button')].find(node => node.textContent === 'Ältere Buchungen laden').click() })
+assert.equal(bookingsHost.querySelectorAll('.time-booking-row').length, 50)
+await act(async () => { [...bookingsHost.querySelectorAll('button')].find(node => node.textContent === 'Weiter').click() })
 assert.ok(bookingsHost.querySelector('[role="alert"]').textContent.includes('Verbindung unterbrochen'))
-assert.equal(bookingsHost.querySelectorAll('tbody tr').length, 1)
+assert.equal(bookingsHost.querySelectorAll('tbody tr').length, 0)
 await act(async () => { [...bookingsHost.querySelectorAll('button')].find(node => node.textContent === 'Erneut versuchen').click() })
 assert.equal(bookingsHost.querySelectorAll('tbody tr').length, 2)
 assert.ok(bookingsHost.textContent.includes('Gelöscht'))
@@ -148,3 +228,28 @@ assert.equal(longHost.querySelector('tbody tr:last-child').cells[5].textContent,
 await act(async () => { longRoot.unmount() })
 longHost.remove()
 console.log('Time UI: thirty effective versions render one current row and 29 aligned earlier rows.')
+
+const rangeCalls = []
+globalThis.timeUiApi.bookings = async data => { rangeCalls.push(data); return { days: ['2026-11-01', '2026-11-10', '2026-11-20'].map(date => ({ date, events: [{ ...first, at: `${date}T07:00:00Z` }] })), history: [], nextBefore: null } }
+const rangeHost = document.createElement('div')
+document.body.append(rangeHost)
+const rangeRoot = createRoot(rangeHost)
+await act(async () => { rangeRoot.render(<TimeBookings />) })
+const dates = rangeHost.querySelectorAll('input[type="date"]')
+assert.equal(dates.length, 2)
+await changeValue(dates[0], '2026-11-05')
+await changeValue(dates[1], '2026-11-15')
+await act(async () => { rangeHost.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.equal(rangeHost.querySelectorAll('.time-booking-row').length, 1)
+assert.ok(rangeHost.querySelector('.time-booking-row').textContent.includes('10.11.2026'))
+assert.equal(rangeCalls.at(-1).before, '2026-11-16')
+const reads = rangeCalls.length
+await changeValue(dates[0], '2026-11-25')
+await act(async () => { rangeHost.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) })
+assert.ok(rangeHost.querySelector('[role="alert"]').textContent.includes('Von-Datum'))
+assert.equal(rangeCalls.length, reads)
+await act(async () => { [...rangeHost.querySelectorAll('button')].find(button => button.textContent === 'Zurücksetzen').click() })
+assert.equal(rangeHost.querySelectorAll('.time-booking-row').length, 3)
+await act(async () => { rangeRoot.unmount() })
+rangeHost.remove()
+console.log('Time UI: neutral summary cards, 50-row pages and inclusive date search/reset verified.')
