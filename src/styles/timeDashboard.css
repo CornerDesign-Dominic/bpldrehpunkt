@@ -1,11 +1,12 @@
-.dashboard-time-card { display: flex; flex-direction: column; gap: 18px; }
+.dashboard-time-card { display: flex; flex-direction: column; gap: 14px; container: dashboard-time / inline-size; }
+.dashboard-time-card > * { flex-shrink: 0; }
 .dashboard-time-card > header, .time-phone-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .dashboard-time-card h2, .time-phone-dialog h2 { margin: 0; color: var(--text-primary); font-size: var(--font-size-record-title); }
 .dashboard-time-card header p { margin: 7px 0 0; color: var(--text-secondary); font-size: 13px; }
 .dashboard-time-status { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 8px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 13px; font-weight: 700; }
 .dashboard-time-status--working { color: var(--status-success-text); background: var(--status-success-background); border-color: currentColor; }
 .dashboard-time-status--break { color: var(--status-warning-text); background: var(--status-warning-background); border-color: currentColor; }
-.dashboard-time-main { display: flex; flex-direction: column; justify-content: center; flex: 1; gap: 22px; padding-block: 8px; }
+.dashboard-time-main { display: flex; flex-direction: column; justify-content: center; flex: 1 0 auto; gap: 16px; padding-block: 4px; }
 .dashboard-time-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .dashboard-time-card .dashboard-time-actions .button { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 76px; padding: 12px 8px; font-size: 14px; font-weight: 650; }
 .dashboard-time-actions .button > span { font-size: 20px; }
@@ -19,8 +20,8 @@
 .dashboard-time-warning { margin: 0; color: var(--status-warning-text); font-size: 12px; line-height: 1.5; }
 .dashboard-time-feedback { margin: 0; color: var(--status-success-text); font-size: 12px; }
 .dashboard-time-muted { margin: 0; color: var(--text-muted); font-size: 12px; }
-.dashboard-time-card > footer { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-top: 15px; border-top: 1px solid var(--border); }
-.dashboard-time-card > footer > .button { display: inline-flex; align-items: center; justify-content: center; flex: 1; min-height: 40px; white-space: nowrap; }
+.dashboard-time-card > footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; align-items: center; gap: 10px; padding-top: 15px; border-top: 1px solid var(--border); }
+.dashboard-time-card > footer > .button { display: inline-flex; align-items: center; justify-content: center; min-width: 0; min-height: 40px; padding-inline: 8px; white-space: normal; text-align: center; }
 .dashboard-time-refresh { margin-left: auto; padding: 8px 0; border: 0; color: var(--text-secondary); background: transparent; cursor: pointer; font: inherit; font-size: 12px; text-decoration: underline; }
 .time-phone-dialog { width: min(100% - 32px, 470px); max-height: 90dvh; box-sizing: border-box; padding: 22px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); background: var(--content-background); }
 .time-phone-dialog::backdrop { background: rgb(0 0 0 / 55%); }
@@ -29,4 +30,24 @@
 .time-phone-qr img { max-width: 100%; height: auto; border-radius: 8px; background: white; }
 .time-phone-dialog > .button { display: flex; justify-content: center; margin-top: 18px; }
 .time-phone-instructions h3 { margin: 18px 0 0; font-size: 14px; }
+@container dashboard-time (max-width: 500px) {
+  .dashboard-time-main { gap: 12px; padding-block: 0; }
+  .dashboard-time-totals > div { padding: 10px; }
+  .dashboard-time-totals dd { margin-top: 8px; }
+  .dashboard-time-card > footer { padding-top: 12px; }
+}
+@container dashboard-time (max-width: 400px) {
+  .dashboard-time-card > header { flex-wrap: wrap; }
+  .dashboard-time-actions { grid-template-columns: 1fr; }
+  .dashboard-time-card .dashboard-time-actions .button { min-height: 56px; }
+  .dashboard-time-totals { gap: 8px; }
+  .dashboard-time-totals > div { min-height: 95px; padding: 10px 7px; }
+  .dashboard-time-totals dd { font-size: 22px; }
+  .dashboard-time-totals dt { font-size: 11px; }
+  .dashboard-time-card > footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-time-refresh { grid-column: 1 / -1; }
+}
+@container dashboard-time (max-width: 300px) {
+  .dashboard-time-totals { grid-template-columns: 1fr; }
+}
 @media (max-width: 650px) { .dashboard-time-card > header { flex-wrap: wrap; } .dashboard-time-actions { grid-template-columns: 1fr; } .dashboard-time-card .dashboard-time-actions .button { min-height: 56px; } .dashboard-time-totals { gap: 8px; } .dashboard-time-totals > div { min-height: 95px; padding: 10px 7px; } .dashboard-time-totals dd { font-size: 22px; } .dashboard-time-totals dt { font-size: 11px; } }

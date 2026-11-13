@@ -25,3 +25,21 @@ Statuswechsel, Rückkehrhervorhebung und Link zur Zeitübersicht. Bestehende Tes
 der Dashboard-Sitzung prüfen Rechte, Offlinefälle, Akteursbindung, veraltete
 Antworten, Mehrfachklicks und verlorene Serverantwort. Vollständiges ESLint und
 Web-Build gehören zur Veröffentlichungsprüfung. Keine Live-Testbuchungen angelegt.
+
+## Höhenreserve für die Zeitkachel
+
+Die obere Dashboard-Reihe erhält bis zu 480 Pixel Mindesthöhe. Bei geringer
+Fensterhöhe sinkt diese Reserve mit der verfügbaren Höhe. Die Zeitkachel hält
+ihre Inhalte in voller Höhe und scrollt bei Platzmangel. Ihre Aktionsleiste und
+Abstände passen sich der tatsächlichen Kachelbreite an. Die untere Reihe
+verwendet den übrigen Platz.
+
+Lokale Chrome-Prüfung der echten Dashboard-Komponenten mit synthetischen
+Zeitdaten bei 1920×1080, 1900×900, 1536×864, 1440×900, 1366×768 und 1280×720:
+kein vertikaler oder horizontaler Scrollbalken in der Zeitkachel, auch im
+Pausenstatus mit Zusatzabzug sowie Hinweisen auf vorläufigen Saldo und fehlende
+Buchungen. Stempelaktionen bleiben 76 Pixel hoch. Bei 1024×600 und 900×500 ist
+vertikales Scrollen möglich, ohne seitlichen Überlauf. Die bestehende
+React-/DOM-Suite und sechs Dashboard-Sitzungstests bestehen. ESLint und
+Produktionsbuild sind erfolgreich. Die Browserprüfung verwendet lokale
+Testdaten und erzeugt keine Mitarbeiterbuchungen.

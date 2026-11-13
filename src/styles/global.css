@@ -530,7 +530,7 @@ button, a { font: inherit; }
 .user-placeholder { display: inline-flex; align-items: center; gap: 8px; color: var(--legacy-9aa4b2); font-size: 12px; }
 .user-placeholder__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--legacy-c7ced8); }
 .app-content { min-height: 0; padding: 28px 36px 36px; overflow-x: hidden; overflow-y: auto; }
-.dashboard-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 16px; min-height: 520px; height: 100%; }
+.dashboard-page { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: minmax(min(480px, calc(100dvh - 200px)), 1fr) minmax(0, 1fr); gap: 16px; min-height: 520px; height: 100%; }
 .dashboard-card { min-width: 0; min-height: 0; padding: 20px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--content-background); }
 .dashboard-card--updates { display: flex; flex-direction: column; overflow: hidden; }
 .dashboard-card--updates > h2 { flex: 0 0 auto; margin: 0 0 14px; color: var(--text-primary); font-size: var(--font-size-record-title); font-weight: var(--font-weight-record-title); }
