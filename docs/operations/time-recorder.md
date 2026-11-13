@@ -521,3 +521,17 @@ Im Handy-QR-Modal bleibt das X oben rechts der einzige Schließen-Button;
 Escape bleibt möglich. Der Link App auf diesem Gerät öffnen steht als letztes
 Element unter sämtlichen Installations-/Anmeldetexten. Zieladresse, QR-Code,
 Anmeldung und mobile Anwendung bleiben unverändert.
+
+## Dashboard-Zeitkachel (13.11.2026, Dev)
+
+Die Zeitkachel nutzt ihre gesamte Breite für drei große Stempelaktionen und
+verteilt den verbleibenden Platz zwischen Tageswerten und unterer Aktionsleiste.
+Status mit Symbol/Rahmen und Pause-beenden-Hervorhebung entsprechen dem
+Zeitbereich, ohne Kartenrahmen/-hintergrund im Pausenmodus zu verändern.
+
+Drei neutrale Wertefelder zeigen heute angerechnete Arbeitszeit, gebuchte Pause
+und Zeitkontosaldo. Der Sollvergleich entfällt; ein tatsächlich vorhandener
+zusätzlicher Pausenabzug bleibt gesondert unter der gebuchten Pause erkennbar.
+Zeitübersicht/Handy-Einstieg stehen als größere Aktionen in einer abgesetzten
+unteren Leiste; Aktualisieren bleibt erreichbar. Bestehende Rechte, Own-Data-
+Abrufe, Buchungszustände, Fehlertoleranz und Nachtragserinnerungen unverändert.

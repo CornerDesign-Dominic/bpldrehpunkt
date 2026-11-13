@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
+import DashboardTimeCard from '../components/time/DashboardTimeCard.jsx'
 import TimeTrackingPage from './TimeTrackingPage.jsx'
 import TimeBookings from '../components/time/TimeBookings.jsx'
 import { addDays, timeDate, weekRange } from '../lib/timeTracking.js'
@@ -309,3 +311,23 @@ assert.equal(rangeHost.querySelectorAll('.time-booking-row').length, 3)
 await act(async () => { rangeRoot.unmount() })
 rangeHost.remove()
 console.log('Time UI: neutral summary cards, 50-row pages and inclusive date search/reset verified.')
+
+const dashboardHost = document.createElement('div')
+document.body.append(dashboardHost)
+const dashboardRoot = createRoot(dashboardHost)
+await act(async () => { dashboardRoot.render(<MemoryRouter><DashboardTimeCard /></MemoryRouter>) })
+assert.equal(dashboardHost.querySelectorAll('.dashboard-time-actions button').length, 3)
+assert.deepEqual([...dashboardHost.querySelectorAll('.dashboard-time-totals dt')].map(node => node.textContent), ['Heute gearbeitet', 'Gebuchte Pause', 'Zeitkonto'])
+assert.ok(!dashboardHost.querySelector('.dashboard-time-totals').textContent.includes('Soll'))
+assert.ok(dashboardHost.querySelector('.dashboard-time-status').textContent.includes('Bei der Arbeit'))
+await act(async () => { [...dashboardHost.querySelectorAll('.dashboard-time-actions button')].find(button => button.textContent.includes('Pause starten')).click() })
+assert.ok(dashboardHost.querySelector('.dashboard-time-status').textContent.includes('Pause läuft'))
+assert.ok(dashboardHost.querySelector('.dashboard-time-resume').textContent.includes('Pause beenden'))
+assert.equal(stamps.at(-1).type, 'pause_start')
+await act(async () => { dashboardHost.querySelector('.dashboard-time-resume').click() })
+assert.equal(stamps.at(-1).type, 'pause_end')
+assert.equal(dashboardHost.querySelector('.dashboard-time-resume'), null)
+assert.ok(dashboardHost.querySelector('a[href="/zeiterfassung"]'))
+await act(async () => { dashboardRoot.unmount() })
+dashboardHost.remove()
+console.log('Dashboard time UI: three primary actions, clear daily values and pause/resume status verified.')

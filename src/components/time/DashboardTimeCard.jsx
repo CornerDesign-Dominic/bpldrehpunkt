@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth.js'
 import { createDashboardTimeSession, dashboardTimeAccess } from '../../lib/dashboardTime.js'
-import { formatTime, listTimeWorkspace, minutesLabel, stampTime, timeDate } from '../../lib/timeTracking.js'
+import { listTimeWorkspace, minutesLabel, stampTime, timeDate } from '../../lib/timeTracking.js'
 import TimeAppAccess from './TimeAppAccess.jsx'
 import '../../styles/timeDashboard.css'
 
@@ -31,12 +31,11 @@ function ActiveTimeCard({ uid, editable }) {
     window.addEventListener('online', connected); window.addEventListener('offline', disconnected); window.addEventListener('focus', focused)
     document.addEventListener('visibilitychange', focused)
     const timer = window.setInterval(focused, 60000)
-    return () => { session.dispose(); clearInterval(timer); window.removeEventListener('online', connected); window.removeEventListener('offline', disconnected); window.removeEventListener('focus', focused); document.removeEventListener('visibilitychange', focused) }
+    return () => { session.dispose(); window.clearInterval(timer); window.removeEventListener('online', connected); window.removeEventListener('offline', disconnected); window.removeEventListener('focus', focused); document.removeEventListener('visibilitychange', focused) }
   }, [session])
   const day = view.workspace?.days?.find(item => item.date === timeDate())
   const status = day?.status || 'away'
   const unavailable = !online || view.loading || view.busy || !view.workspace || !editable || Boolean(view.error)
-  const latest = day?.events?.at(-1)
   async function record(type) {
     const accepted = await session.record(type)
     if (accepted && type === 'come' && session.isActive()) {
@@ -45,14 +44,20 @@ function ActiveTimeCard({ uid, editable }) {
     }
   }
   return <section className="dashboard-card dashboard-time-card" aria-labelledby="dashboard-time-title">
-    <header><div><h2 id="dashboard-time-title">Meine Arbeitszeit</h2><p>{new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p></div><span className={`dashboard-time-status dashboard-time-status--${status}`}>{status === 'working' ? 'Eingestempelt' : status === 'break' ? 'In Pause' : 'Ausgestempelt'}</span></header>
+    <header><div><h2 id="dashboard-time-title">Meine Arbeitszeit</h2><p>{new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</p></div><span className={`dashboard-time-status dashboard-time-status--${status}`} role="status" aria-live="polite" aria-atomic="true"><span aria-hidden="true">{status === 'break' ? 'Ⅱ' : status === 'working' ? '●' : '○'}</span>{status === 'working' ? 'Bei der Arbeit' : status === 'break' ? 'Pause läuft' : 'Ausgestempelt'}</span></header>
     {view.loading && <p role="status">Zeitdaten werden geladen …</p>}
     {!online && <p className="dashboard-time-warning">Keine Internetverbindung. Offline stempeln kannst du in der mobilen App.</p>}
     {view.error && <p className="form-error" role="alert">{view.error}</p>}
     {view.notice && <p className="dashboard-time-feedback" role="status">{view.notice}</p>}
-    <div className="dashboard-time-actions"><button type="button" className="button" disabled={unavailable || status !== 'away'} onClick={() => record('come')}>▶ Einstempeln</button><button type="button" className="button button--secondary" disabled={unavailable || status === 'away'} onClick={() => record(status === 'break' ? 'pause_end' : 'pause_start')}>☕ {status === 'break' ? 'Pause beenden' : 'Pause starten'}</button><button type="button" className="button button--secondary" disabled={unavailable || status === 'away'} onClick={() => record('go')}>↪ Ausstempeln</button></div>
-    {!editable && <p className="dashboard-time-muted">Du kannst deine Zeiten ansehen. Zum Stempeln ist das Bearbeitungsrecht erforderlich.</p>}
-    {day && <><dl className="dashboard-time-totals"><div><dt>Heute angerechnet</dt><dd>{day.calculationIncomplete ? '—' : minutesLabel(day.creditedMinutes)} <small>Std.</small></dd></div><div><dt>Sollzeit</dt><dd>{day.calculationIncomplete ? '—' : minutesLabel(day.targetMinutes)} <small>Std.</small></dd></div><div><dt>Pause / Zusatzabzug</dt><dd>{minutesLabel(day.bookedBreakMinutes)} / {minutesLabel(day.automaticBreakMinutes)}</dd></div></dl>{latest && <p className="dashboard-time-muted">Letzte Buchung um {formatTime(latest.at)} Uhr</p>}</>}
+    <div className="dashboard-time-main">
+      <div className="dashboard-time-actions">
+        <button type="button" className="button" disabled={unavailable || status !== 'away'} onClick={() => record('come')}><span aria-hidden="true">▶</span> Einstempeln</button>
+        <button type="button" className={`button button--secondary${status === 'break' ? ' dashboard-time-resume' : ''}`} disabled={unavailable || status === 'away'} onClick={() => record(status === 'break' ? 'pause_end' : 'pause_start')}><span aria-hidden="true">{status === 'break' ? '▶' : 'Ⅱ'}</span> {status === 'break' ? 'Pause beenden' : 'Pause starten'}</button>
+        <button type="button" className="button button--secondary" disabled={unavailable || status === 'away'} onClick={() => record('go')}><span aria-hidden="true">↪</span> Ausstempeln</button>
+      </div>
+      {!editable && <p className="dashboard-time-muted">Du kannst deine Zeiten ansehen. Zum Stempeln ist das Bearbeitungsrecht erforderlich.</p>}
+      {day && <dl className="dashboard-time-totals"><div><dt>Heute gearbeitet</dt><dd>{day.calculationIncomplete ? '—' : minutesLabel(day.creditedMinutes)} <small>Std.</small></dd></div><div><dt>Gebuchte Pause</dt><dd>{minutesLabel(day.bookedBreakMinutes)} <small>Std.</small></dd>{day.automaticBreakMinutes > 0 && <small className="dashboard-time-deduction">Zusatzabzug {minutesLabel(day.automaticBreakMinutes)}</small>}</div><div><dt>Zeitkonto</dt><dd>{minutesLabel(view.workspace.balanceMinutes, true)} <small>Std.</small></dd></div></dl>}
+    </div>
     {view.workspace?.balanceProvisional && <p className="dashboard-time-warning">Zeitkonto vorläufig: Unvollständige Buchungen oder fehlende Arbeitszeitvorgaben bitte in der Zeitübersicht prüfen.</p>}
     {view.workspace?.unresolvedDays?.length > 0 && <p className="dashboard-time-warning">Bei {view.workspace.unresolvedDays.length} früheren Arbeitstagen fehlen Buchungen. Bitte in der Zeitübersicht nachtragen.</p>}
     <footer><Link to="/zeiterfassung" className="button button--secondary">Zeitübersicht öffnen</Link><TimeAppAccess /><button type="button" className="dashboard-time-refresh" disabled={!online || view.busy} onClick={() => session.refresh()}>Aktualisieren</button></footer>
