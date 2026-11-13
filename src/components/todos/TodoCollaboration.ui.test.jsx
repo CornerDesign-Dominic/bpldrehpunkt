@@ -7,6 +7,7 @@ import TodoDetailPage from '../../pages/TodoDetailPage.jsx'
 import { DeadlineModal } from './TodoDeadlinesCard.jsx'
 import TodosTable from './TodosTable.jsx'
 import TodoForm from './TodoForm.jsx'
+import LinkedTodoCreateModal from './LinkedTodoCreateModal.jsx'
 import TodoQuickEditModal from './TodoQuickEditModal.jsx'
 import { LanguageContext } from '../../i18n/languageContext.js'
 
@@ -400,35 +401,90 @@ test('content modal traps keyboard focus, blocks duplicate submit and keeps a fa
   } finally { release?.(); await cleanup() }
 })
 
-test('create form groups scheduling, hides routine explanations, and preserves reminder validation and values', async () => {
+test('create form saves content, priority and audience without any scheduling fields or hidden inherited reminder', async () => {
   reset()
   const saves = []
-  const cleanup = await mount(<TodoForm currentUserId="participant" users={directory} onCancel={() => {}} onSubmit={async values => saves.push(values)} />)
+  const cleanup = await mount(<TodoForm currentUserId="participant" users={directory} initialValues={{ dueDate: '2099-12-01', reminderDate: '2099-12-01', reminderTime: '09:30', reminderOccurrence: 'later', reminderRecipientMode: 'selected', reminderRecipientUserIds: ['participant'] }} onCancel={() => {}} onSubmit={async values => saves.push(values)} />)
   try {
-    assert.equal(document.querySelectorAll('.todo-schedule__overview').length, 1)
-    assert.equal(document.querySelectorAll('.todo-schedule__reminder-fields input').length, 2)
+    assert.equal(document.querySelector('.todo-schedule'), null)
+    assert.equal(document.querySelector('input[type="date"], input[type="time"]'), null)
+    assert(!/Terminierung|Mail-Erinnerung|Fällig am/.test(text()))
+    assert.equal(document.querySelectorAll('form.todo-form > fieldset > section').length, 3)
     await enter(field('Aufgabe für'), 'all')
     assert.equal(document.querySelector('.todo-form__selection-hint'), null)
     assert(!/übernehm|annehmen|Bearbeiter/.test(text()))
-    const help = document.querySelector('.todo-reminder-help')
-    assert.equal(help.open, false)
-    await click(help.querySelector('summary'))
-    assert.equal(help.open, true)
-    assert.match(help.textContent, /Europe\/Berlin/)
-    await act(async () => help.querySelector('summary').dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    assert.equal(help.open, false)
-    await enter(field('Titel *'), 'Clear reminder form')
-    await enter(field('Erinnerung am'), '2099-12-01')
-    const submitForm = () => act(async () => document.querySelector('form.todo-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
-    await submitForm()
-    assert.equal(saves.length, 0)
-    assert.match(text(), /Uhrzeit für die Erinnerung/)
-    await enter(field('Uhrzeit *'), '09:30')
-    await submitForm()
+    await click(document.querySelector('input[name="priority"][value="high"]'))
+    await enter(field('Titel *'), 'Plan the dates after creation')
+    await act(async () => document.querySelector('form.todo-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
     assert.equal(saves.length, 1)
     assert.equal(saves[0].audienceType, 'all')
-    assert.equal(saves[0].reminderDate, '2099-12-01')
-    assert.equal(saves[0].reminderTime, '09:30')
+    assert.equal(saves[0].priority, 'high')
+    for (const key of ['dueDate', 'reminderDate', 'reminderTime']) assert.equal(saves[0][key], '')
+    assert.equal(saves[0].reminderOccurrence, null)
+    assert.equal(saves[0].reminderRecipientMode, 'all')
+    assert.deepEqual(saves[0].reminderRecipientUserIds, [])
+  } finally { await cleanup() }
+})
+
+test('case creation modals never inherit invisible dates or reminders and retain their fixed case link', async () => {
+  for (const caseField of ['damageCaseId', 'inkassoCaseId', 'legalDisputeId', 'insolvencyId']) {
+    reset()
+    const saves = []
+    const fixedLink = { field: caseField, id: 'case-1', label: 'Fall', value: 'Testfall', values: { title: 'Linked task', dueDate: '2099-12-01', reminderDate: '2099-12-01', reminderTime: '09:30' } }
+    const cleanup = await mount(<LinkedTodoCreateModal currentUserId="participant" fixedLink={fixedLink} users={directory} partners={[]} onCancel={() => {}} onSubmit={async values => saves.push(values)} />)
+    try {
+      assert.equal(document.querySelector('input[type="date"], input[type="time"]'), null)
+      await act(async () => document.querySelector('form.todo-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+      assert.equal(saves.length, 1)
+      assert.equal(saves[0][caseField], 'case-1')
+      assert.equal(saves[0].dueDate, '')
+      assert.equal(saves[0].reminderDate, '')
+      assert.equal(saves[0].reminderTime, '')
+    } finally { await cleanup() }
+  }
+})
+
+test('an unscheduled new to-do receives its first reminder, appointment and deadline on the detail page and retains them through completion and reopening', async () => {
+  const state = reset()
+  const createCleanup = await mount(<TodoForm currentUserId="participant" users={directory} onCancel={() => {}} onSubmit={async values => { state.todo = { ...state.todo, ...values, creatorUserId: 'participant', audienceType: 'all' } }} />)
+  try {
+    await enter(field('Titel *'), 'Created without dates')
+    await act(async () => document.querySelector('form.todo-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })))
+    assert.equal(state.todo.reminderDate, '')
+  } finally { await createCleanup() }
+  const cleanup = await mount()
+  try {
+    await click(document.querySelector('[aria-label="Terminierung bearbeiten"]'))
+    await enter(field('Fällig am'), '2099-12-02')
+    await enter(field('Erinnerung am'), '2099-12-01')
+    await submit()
+    assert.equal(state.calls.length, 0)
+    assert.match(text(), /Uhrzeit für die Erinnerung/)
+    await enter(field('Uhrzeit *'), '09:30')
+    await submit()
+    assert.equal(state.todo.dueDate, '2099-12-02')
+    assert.equal(state.todo.reminderDate, '2099-12-01')
+    assert.equal(state.todo.reminderTime, '09:30')
+    for (const type of ['appointment', 'deadline']) {
+      await click(button('Termin / Frist hinzufügen'))
+      await enter(field('Art *'), type)
+      await enter(field('Datum *'), '2099-12-02')
+      await enter(field('Erinnerung'), 'on')
+      await enter(field('Uhrzeit *'), '10:00')
+      await submit()
+      assert.equal(document.querySelector('[role="dialog"]'), null)
+    }
+    assert.deepEqual(state.deadlines.map(entry => entry.type), ['appointment', 'deadline'])
+    const dates = structuredClone(state.deadlines)
+    await click(button('Erledigen'))
+    await click(button('Ja, erledigen'))
+    assert.equal(state.todo.status, 'completed')
+    assert(![...document.querySelectorAll('button')].some(item => item.textContent.trim() === 'Termin / Frist hinzufügen'))
+    await click(button('Wieder öffnen'))
+    assert.equal(state.todo.status, 'open')
+    assert(button('Termin / Frist hinzufügen'))
+    assert.deepEqual(state.deadlines, dates)
+    assert.equal(state.todo.reminderTime, '09:30')
   } finally { await cleanup() }
 })
 
