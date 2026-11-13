@@ -8,6 +8,18 @@ const changed = { ...original, at: `${date}T08:00:00Z`, source: 'correction' }
 const entry = (id, before, after, kind = 'correction') => ({ id, date, kind, before, after, createdBy: 'actor', createdAt: `${date}T${id}:00:00Z` })
 const versions = (events, history) => bookingVersions(timeBookingRows([{ date, events }], history)[0])
 
+test('journal sorts dates and stamped instants newest first, including seconds within the same displayed minute', () => {
+  const rows = timeBookingRows([
+    { date: '2026-11-12', events: [{ ...original, id: 'previous-day', at: '2026-11-12T21:37:00Z' }] },
+    { date: '2026-11-13', events: [
+      { ...original, id: 'morning', at: '2026-11-13T11:51:22Z' },
+      { ...original, id: 'go', type: 'go', at: '2026-11-13T13:02:15Z' },
+      { ...original, id: 'come', at: '2026-11-13T13:02:18Z' },
+    ] },
+  ])
+  assert.deepEqual(rows.map(row => row.event.id), ['come', 'go', 'morning', 'previous-day'])
+})
+
 test('current state appears once; earlier states preserve the first booking and metadata', () => {
   const result = versions([changed], [entry('10', [original], [changed]), entry('09', null, original, 'stamp')])
   assert.equal(result.current.method, 'Korrektur')

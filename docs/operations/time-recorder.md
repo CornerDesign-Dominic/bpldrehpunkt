@@ -535,3 +535,13 @@ zusätzlicher Pausenabzug bleibt gesondert unter der gebuchten Pause erkennbar.
 Zeitübersicht/Handy-Einstieg stehen als größere Aktionen in einer abgesetzten
 unteren Leiste; Aktualisieren bleibt erreichbar. Bestehende Rechte, Own-Data-
 Abrufe, Buchungszustände, Fehlertoleranz und Nachtragserinnerungen unverändert.
+
+## Reihenfolge im Buchungsjournal (13.11.2026, Dev)
+
+Alle Buchungen sortiert nach Buchungsdatum absteigend und innerhalb eines Tages
+nach dem tatsächlichen Stempelzeitpunkt absteigend, einschließlich Sekunden.
+Die jüngste Buchung steht dadurch vor allen älteren Buchungen. Grundlage ist
+der Zeitpunkt der Buchung, nicht das spätere Speichern einer Korrektur.
+Die Reihenfolge wird vor der Aufteilung in 50er-Seiten bestimmt. Historische
+Unterzeilen behalten ihre Versionsreihenfolge; die Tageslisten unter den
+Wochenbalken bleiben weiterhin zeitlich aufsteigend.

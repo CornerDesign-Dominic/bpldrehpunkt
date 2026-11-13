@@ -244,9 +244,9 @@ document.body.append(statusHost)
 const statusRoot = createRoot(statusHost)
 await act(async () => { statusRoot.render(<TimeBookings />) })
 const mainRows = [...statusHost.querySelectorAll('.time-booking-row')]
-assert.deepEqual(mainRows.map(row => row.cells[3].textContent), ['Gestempelt', 'Korrektur', 'Manueller Nachtrag'])
+assert.deepEqual(mainRows.map(row => row.cells[3].textContent), ['Manueller Nachtrag', 'Korrektur', 'Gestempelt'])
 assert.ok(!statusHost.textContent.includes('Originalbuchung'))
-const originalRow = mainRows[0]
+const originalRow = mainRows[2]
 assert.ok(originalRow.textContent.includes('Original Actor'))
 assert.ok(!originalRow.textContent.includes('Later Actor'))
 assert.ok(originalRow.textContent.includes('1 Speicherung'))

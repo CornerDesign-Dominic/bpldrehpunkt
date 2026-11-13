@@ -22,7 +22,7 @@ export function timeBookingRows(days = [], history = []) {
       rows.get(key).changes.push({ ...entry, before: previous, after: next, unchanged, method: entry.kind === 'stamp' ? 'Originalbuchung' : unchanged ? 'Unverändert gespeichert' : !previous ? 'Manuell nachgetragen' : !next ? 'Gelöscht' : 'Geändert' })
     }
   }
-  return [...rows.values()].sort((a, b) => b.date.localeCompare(a.date) || a.event.at.localeCompare(b.event.at) || a.id.localeCompare(b.id))
+  return [...rows.values()].sort((a, b) => b.date.localeCompare(a.date) || Date.parse(b.event.at) - Date.parse(a.event.at) || a.id.localeCompare(b.id))
 }
 
 function creationMethod(event) {

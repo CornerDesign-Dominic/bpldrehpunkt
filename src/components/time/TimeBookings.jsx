@@ -65,7 +65,7 @@ export default function TimeBookings() {
     setter(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })
   }
   return <section className="time-card time-table-card">
-    <header><div><h3>Alle Buchungen</h3><p className="time-muted">50 Buchungen pro Seite · frühere Stände direkt darunter aufklappen.</p></div></header>
+    <header><div><h3>Alle Buchungen</h3><p className="time-muted">Neueste Buchungen zuerst · 50 pro Seite · frühere Stände aufklappen.</p></div></header>
     <form className="time-booking-search" onSubmit={search}>
       <label>Von<input type="date" min="2000-01-01" max="2199-12-31" value={from} onChange={event => setFrom(event.target.value)} /></label>
       <label>Bis<input type="date" min="2000-01-01" max="2199-12-31" value={to} onChange={event => setTo(event.target.value)} /></label>
