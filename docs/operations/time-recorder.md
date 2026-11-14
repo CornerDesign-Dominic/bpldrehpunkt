@@ -1,6 +1,6 @@
 # Zeiterfassung und Mitarbeiter-PWA
 
-Stand: 11.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
+Stand: 14.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
 der Korrekturen aus der Rechte- und Zeitkontoabnahme. Die erste Dev-Bereitstellung
 und die Ergänzungen für Vorlagen, Dashboard und Handy-Einstieg haben eigene
 Prüfbelege. [Dev-Bereitstellung](releases/time-recorder-dev-2026-11-10.md) ·
@@ -40,15 +40,18 @@ Arbeitszeitberechnung ist in `shared/timeTracking.js` zentral definiert;
   Eigene Zeiten laufen über **Meine Arbeitszeit** und brauchen weiterhin das
   eigene Modulrecht; das Zeitmanagerrecht verlängert die persönliche
   Korrekturfrist nicht. Superadmins können auch eigene ältere Tage korrigieren.
-- Arbeitszeitmodelle und deren Verwaltung sind ausschließlich Superadmins
-  zugänglich. Mitarbeiter und Zeitmanager erhalten berechnete Tageswerte, keine
-  vollständigen Modelle oder deren Änderungshistorie.
+- Arbeitszeitmodelle pflegen ausschließlich Superadmins. Mit eigenem
+  Zeit-Leserecht können Mitarbeiter ihre eigenen Gültigkeitszeiträume,
+  Sollstunden, Pausenregeln und die wirksame Feiertagsregion ansehen.
+  Zeitmanager erhalten darüber keinen Zugriff auf fremde Modelle.
+  Administrative Modellfelder und Modelländerungsverläufe bleiben privat.
 - Personal-Auswertungen und die Krankheitserfassung sind ein späterer Umfang.
   Keine Krankmeldefunktion in der PWA.
 
 | Vorgang | Berechtigung |
 | --- | --- |
 | Eigene Zeitübersicht, Zeitkonto und Verlauf | Zeiterfassung ansehen oder bearbeiten |
+| Eigenes Arbeitszeitmodell mit aktuellen, künftigen und früheren Zeiträumen ansehen | Zeiterfassung ansehen oder bearbeiten |
 | Eigene Stempel, Korrekturen und Nachträge | Zeiterfassung bearbeiten; Frist und Korrekturgrund siehe unten |
 | Fremde Zeiten im Drehpunkt-Web prüfen oder korrigieren | Zugewiesener Zeitmanager oder Superadmin |
 | Arbeitszeitmodell, Vorlage und Anfangssaldo einrichten | Nur aktiver Superadmin |
@@ -129,7 +132,7 @@ werden.
 
 Unter dem heutigen Stempelbereich stehen die Fachreiter **Aktuelle Woche**
 (Standard, Montag bis Sonntag), **Monatsübersicht** (Tageswerte des ausgewählten
-Monats als Tabelle) und **Alle Buchungen**. Die Monatstabelle enthält ausschließlich
+Monats als Tabelle), **Alle Buchungen** und **Mein Arbeitszeitmodell**. Die Monatstabelle enthält ausschließlich
 Tag, Sollzeit, Istzeit, Pause gesamt, Arbeitszeit und Plus/Minus. Istzeit ist die
 erfasste Anwesenheit einschließlich gebuchter Pausen; Pause gesamt addiert gebuchte
 und automatisch abgezogene Pausen; Arbeitszeit entspricht der angerechneten
@@ -140,15 +143,34 @@ Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
 Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
 
 **Aktuelle Woche** zeigt Montag bis Sonntag als sieben nebeneinanderstehende
-Tagesbalken mit gemeinsamer Höhenskala. Der Balken stellt die angerechnete Istzeit
-dar; eine gestrichelte Linie markiert die Sollzeit. Unter jedem Balken stehen
-Ist-/Sollzeit und die tatsächlich gebuchte Pausenzeit (ohne zusätzlichen
-automatischen Abzug). Fehlende Arbeitszeitvorgaben werden bei Soll als unbekannt
-angezeigt, nicht als erfundene Sollzeit. Der heutige Tag ist hervorgehoben.
+Tagesbalken mit gemeinsamer Höhenskala. Der blaue Balken ist direkt mit
+Arbeitszeit und der nach Pausenabzug angerechneten Dauer beschriftet. An der
+gestrichelten Linie stehen Soll und die angepasste Tagessollzeit. Die gelbe
+Erweiterung des Balkens zeigt ausschließlich gebuchte Pause. Unter dem
+Diagramm stehen Auf Arbeit (erfasste Arbeitsdauer plus gebuchte Pause), Pause
+und Tagessaldo. Fehlende Vorgaben erscheinen als Soll — und Erfasst statt
+einer vermeintlich berechneten Arbeitszeit. Der heutige Tag ist hervorgehoben.
+
+Jede der drei Tagesangaben hat einen per Klick, Touch oder Tastatur erreichbaren
+Info-Button. Das Dialogfenster zeigt Anwesenheit minus genommene Pause minus
+automatischen Zusatzabzug gleich angerechnete Arbeit. Danach werden die
+angepasste Sollzeit und gegebenenfalls genehmigter Überstundenabbau abgezogen.
+Unvollständige, nicht berechenbare oder zukünftige Tage erhalten keinen
+bestätigten Saldo. Ein laufender heutiger Tag wird in der Rechnung als vorläufig
+gekennzeichnet. Die angezeigten Werte stammen aus dem zuletzt geladenen
+Workspace. Der Dialog verändert keine Buchungen.
+
+Der Fachreiter Mein Arbeitszeitmodell zeigt den aktuell gültigen Zeitraum
+aufgeklappt, künftige und frühere Zeiträume zum Aufklappen sowie je Zeitraum
+die Wochensollzeit, Feiertagsregion und eine Tabelle für Montag bis Sonntag mit
+Tagessoll und Pausenstufen. Jede Stufe benennt Arbeitsdauergrenze und erforderliche
+Gesamtpause. Die Erläuterung beschreibt den schrittweisen Abzug und die Anrechnung
+gebuchter Pausen. Es gibt einen Aktualisieren-Button; Änderungen erfolgen über
+die bestehende Superadmin-Verwaltung.
 
 Pro Tag folgt darunter eine kleine Tabelle ausschließlich mit Stempelzeit und
-Aktion, chronologisch nach dem Ereigniszeitpunkt sortiert. Ein Stift im Tageskopf
-öffnet das bestehende Tageskorrektur-Modal. Zukunftstage, fehlendes Schreibrecht
+Aktion, chronologisch nach dem Ereigniszeitpunkt sortiert. Ein Stift an der Buchung
+öffnet das bestehende Einzelkorrektur-Modal. Zukunftstage, fehlendes Schreibrecht
 und nicht verfügbare Verbindung/Daten sperren die Bearbeitung wie bisher.
 Unvollständige Tage bleiben erkennbar; keine Änderung an Zeitberechnung oder
 Korrekturfrist. Bei schmalem Fenster bleibt die Siebentagesansicht horizontal
@@ -344,6 +366,15 @@ zugewiesenen Abteilungen. Diese Optionen sind getrennte Ansichten.
 `overtimeDebitMinutes`, `overtimeRequestIds`, `calculationIncomplete`. Es gewährt
 keinen Zugriff auf Modelle, Stempelereignisse oder Korrekturverläufe und kann
 nicht mit `ownOnly`/`managed` kombiniert werden.
+
+`getOwnTimeWorkModels()` verlangt App Check, Anmeldung, aktives Profil und eigenes
+Zeit-Leserecht. Die serverseitige Abfrage verwendet ausschließlich die
+authentifizierte UID. Eine abweichende Ziel-UID wird auch für Superadmins
+abgewiesen. Die Ausgabe enthält nur Gültigkeitsdaten, Sollminuten und Pausenstufen
+je Wochentag sowie die gemäß derselben Fallback-Regel wie in der Tagesberechnung
+wirksame Feiertagsregion. Dokument-IDs, User-IDs, Bearbeiter, administrative Felder,
+Vorlagen und Änderungshistorien werden nicht ausgeliefert. Die bisherigen
+Workspace-Projektionen und direkten Firestore-Rechte bleiben bestehen.
 
 Tageswerte unterscheiden `workedMinutes`, `bookedBreakMinutes`,
 `automaticBreakMinutes`, `creditedMinutes`, `targetMinutes` und

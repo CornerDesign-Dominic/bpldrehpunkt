@@ -114,16 +114,45 @@
 .time-week-edit { display: inline-grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--content-background); color: var(--text-primary); cursor: pointer; }
 .time-week-edit:disabled { opacity: .35; cursor: default; }
 .time-week-edit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.time-week-chart { display: flex; align-items: flex-end; justify-content: center; height: 150px; padding-top: 12px; border-bottom: 1px solid var(--border); }
-.time-week-bar-track { position: relative; height: 100%; width: 44px; border-radius: 4px 4px 0 0; background: var(--surface-secondary); }
-.time-week-bar { position: absolute; bottom: 0; inset-inline: 0; border-radius: 4px 4px 0 0; background: var(--button-background); }
+.time-week-chart { display: flex; align-items: flex-end; height: 200px; padding-top: 26px; border-bottom: 1px solid var(--border); }
+.time-week-bar-track { position: relative; height: 100%; width: 100%; }
+.time-week-bar-track::before { content: ""; position: absolute; left: 7px; bottom: 0; height: 100%; width: 30px; border-radius: 4px 4px 0 0; background: var(--surface-secondary); }
+.time-week-bar { position: absolute; bottom: 0; left: 7px; width: 30px; border-radius: 4px 4px 0 0; background: var(--button-background); }
 .time-week-bar--pause { background: var(--status-warning-text); }
-.time-week-target { position: absolute; left: -9px; right: -9px; border-top: 2px dashed var(--text-secondary); }
+.time-week-target { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--text-secondary); }
+.time-week-target > span { position: absolute; right: 0; bottom: 4px; padding-left: 3px; background: var(--content-background); font-size: 11px; white-space: nowrap; }
+.time-week-target-unknown { position: absolute; right: 0; top: 0; color: var(--text-secondary); font-size: 11px; }
+.time-week-bar-label { position: absolute; left: 44px; right: 0; display: grid; gap: 2px; font-size: 11px; }
+.time-week-bar-label strong { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .time-week-values { display: grid; gap: 5px; padding: 10px 0; font-size: 11px; font-variant-numeric: tabular-nums; }
-.time-week-values > div { display: flex; gap: 4px; justify-content: space-between; white-space: nowrap; }
+.time-week-values > div { display: flex; gap: 4px; justify-content: space-between; align-items: center; min-height: 28px; white-space: nowrap; }
+.time-week-number { display: inline-flex; gap: 2px; align-items: center; }
+.time-week-info { display: inline-grid; place-items: center; width: 24px; min-height: 28px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--text-secondary); cursor: pointer; font: inherit; font-size: 15px; }
+.time-week-info:hover { background: var(--surface-secondary); color: var(--text-primary); }
+.time-week-info:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.time-week-balance { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 7px; }
 .time-week-values strong { font-weight: 600; }
 .time-week-pause { color: var(--text-secondary); }
 .time-week-pause::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 2px; background: var(--status-warning-text); }
+.time-day-calculation > header { margin-bottom: 18px; }
+.time-calculation-rows { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 16px; margin: 0; font-size: 13px; }
+.time-calculation-rows dt { min-width: 0; }
+.time-calculation-rows dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.time-calculation-result { border-top: 1px solid var(--border); padding-top: 10px; font-weight: 650; }
+.time-calculation-explanation { margin-top: 20px; color: var(--text-secondary); font-size: 12px; line-height: 1.65; }
+.time-day-calculation > .time-notice { margin-top: 12px; }
+.time-own-models { display: grid; gap: 16px; }
+.time-own-models > .time-muted { margin: 0; }
+.time-own-model { border-top: 1px solid var(--border); }
+.time-own-model > summary { padding: 14px 0; cursor: pointer; font-size: 13px; }
+.time-own-model > summary span:first-child { font-weight: 650; margin-right: 16px; }
+.time-own-model-content { display: grid; gap: 14px; }
+.time-own-model-facts { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px 20px; font-size: 13px; }
+.time-own-model-table th, .time-own-model-table td { white-space: normal; text-align: left; }
+.time-own-model-table td:nth-child(2) { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.time-own-model-table td span { display: block; }
+.time-own-model-explanation { border-top: 1px solid var(--border); padding-top: 16px; font-size: 12px; line-height: 1.65; color: var(--text-secondary); }
+@media (pointer: coarse) { .time-week-info { min-width: 44px; min-height: 44px; } .time-week-grid { grid-template-columns: repeat(7, minmax(165px, 1fr)); } }
 .time-week-bookings { width: 100%; border-collapse: collapse; font-size: 11px; }
 .time-week-bookings td { padding: 3px 0; height: auto; line-height: 1.4; border: 0; background: transparent; white-space: nowrap; }
 .time-week-bookings td:first-child:not([colspan]) { width: 36px; font-variant-numeric: tabular-nums; font-weight: 600; }

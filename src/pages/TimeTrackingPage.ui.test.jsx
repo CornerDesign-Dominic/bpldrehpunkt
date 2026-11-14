@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import DashboardTimeCard from '../components/time/DashboardTimeCard.jsx'
 import TimeTrackingPage from './TimeTrackingPage.jsx'
 import TimeBookings from '../components/time/TimeBookings.jsx'
+import TimeWeekOverview from '../components/time/TimeWeekOverview.jsx'
 import { addDays, timeDate, weekRange } from '../lib/timeTracking.js'
 
 const today = timeDate()
@@ -13,10 +14,23 @@ let stampStatus = 'working'
 const stamps = []
 let workspaceRevision = 0
 let failNextLoad = false
+let modelCalls = 0
+let failModelLoad = false
+const modelWeekdays = Object.fromEntries(Array.from({ length: 7 }, (_, weekday) => [weekday, { targetMinutes: weekday > 0 && weekday < 6 ? 480 : 0, breaks: weekday > 0 && weekday < 6 ? [{ afterMinutes: 360, requiredMinutes: 30 }, { afterMinutes: 540, requiredMinutes: 45 }] : [] }]))
 const day = date => ({ date, revision: workspaceRevision, status: date === today ? stampStatus : 'away', events: date === today ? [{ id: 'go', type: 'go', at: `${date}T15:00:00Z` }, { id: 'come', type: 'come', at: `${date}T07:00:00Z` }, { id: 'end', type: 'pause_end', at: `${date}T12:00:00Z` }, { id: 'start', type: 'pause_start', at: `${date}T11:30:00Z` }] : [{ id: date, type: 'come', at: `${date}T07:00:00Z` }], workedMinutes: 470, bookedBreakMinutes: 20, automaticBreakMinutes: 10, creditedMinutes: 460, targetMinutes: 480, balanceMinutes: -20 })
 const calls = []
 const corrections = []
 globalThis.timeUiApi = {
+  models: async () => {
+    modelCalls++
+    if (failModelLoad) throw new Error('Modellabruf fehlgeschlagen')
+    const settings = { weekdays: modelWeekdays, holidayCountryCode: 'DE', holidaySubdivisionCode: 'NW' }
+    return { models: [
+      { ...settings, validFrom: addDays(today, -365), validTo: addDays(today, -31) },
+      { ...settings, validFrom: addDays(today, -30), validTo: addDays(today, 29) },
+      { ...settings, validFrom: addDays(today, 30), validTo: '' },
+    ] }
+  },
   stamp: async data => { stamps.push(data); stampStatus = data.type === 'pause_start' ? 'break' : data.type === 'pause_end' ? 'working' : data.type === 'go' ? 'away' : 'working' },
   correct: async data => { corrections.push(data) },
   workspace: async data => {
@@ -47,18 +61,26 @@ const todayColumn = host.querySelector('.time-week-day--today')
 assert.deepEqual([...todayColumn.querySelectorAll('tbody tr')].map(row => row.cells[0].textContent), ['08:00', '12:30', '13:00', '16:00'])
 assert.deepEqual([...todayColumn.querySelectorAll('tbody tr')].map(row => row.cells[1].textContent), ['Kommen', 'Pause Start', 'Pause Ende', 'Gehen'])
 assert.ok([...host.querySelectorAll('.time-week-bookings tbody tr')].every(row => row.cells.length === 2))
-assert.ok(todayColumn.querySelector('.time-week-values').textContent.includes('Ist 07:40Soll 08:00'))
-assert.ok(todayColumn.querySelector('.time-week-pause').textContent.includes('00:20'))
+assert.ok(todayColumn.querySelector('.time-week-chart').textContent.includes('Arbeitszeit07:40'))
+assert.ok(todayColumn.querySelector('.time-week-chart').textContent.includes('Soll 08:00'))
+assert.ok(todayColumn.querySelector('.time-week-values').textContent.includes('Auf Arbeit08:10'))
+assert.ok(todayColumn.querySelector('.time-week-values').textContent.includes('Pause00:20'))
 assert.equal(host.querySelector('.time-week-legend'), null)
 const pauseSegment = todayColumn.querySelector('.time-week-bar--pause')
 assert.ok(pauseSegment)
 assert.ok(Number.parseFloat(pauseSegment.style.height) > 0)
 assert.ok(Number.parseFloat(pauseSegment.style.height) + Number.parseFloat(pauseSegment.style.bottom) <= 100.00001)
 assert.ok(todayColumn.querySelector('.time-week-chart').getAttribute('aria-label').includes('Pause 00:20'))
+await act(async () => { todayColumn.querySelector('[aria-label^="Pausenberechnung"]').click() })
+assert.ok(host.querySelector('dialog h2').textContent.includes('Pausenberechnung'))
+assert.deepEqual([...host.querySelectorAll('dialog dd')].map(node => node.textContent), ['08:10', '00:20', '00:10', '07:40', '08:00', '−00:20'])
+assert.ok(host.querySelector('dialog').textContent.includes('schrittweise'))
+await act(async () => { host.querySelector('dialog [aria-label="Schließen"]').click() })
+assert.equal(host.querySelector('dialog'), null)
 for (const column of host.querySelectorAll('.time-week-day')) {
-  if (column.querySelector('time').dateTime > today) assert.equal(column.querySelector('button').disabled, true)
+  if (column.querySelector('time').dateTime > today) assert.equal(column.querySelector('.time-week-add').disabled, true)
 }
-await act(async () => { todayColumn.querySelector('button').click() })
+await act(async () => { todayColumn.querySelector('.time-week-edit').click() })
 assert.ok(host.querySelector('dialog[open]'))
 assert.equal(host.querySelectorAll('dialog input[type="time"]').length, 1)
 await act(async () => { [...host.querySelectorAll('dialog button')].find(button => button.textContent === 'Abbrechen').click() })
@@ -157,7 +179,7 @@ await act(async () => { host.querySelector('[aria-label="Nächste Woche"]').clic
 assert.equal(host.querySelector('.time-week-day-heading time').dateTime, week.from)
 for (let index = 0; index < 6; index++) await previousWeek()
 assert.equal(host.querySelector('.time-week-day-heading time').dateTime, addDays(week.from, -42))
-assert.ok([...host.querySelectorAll('.time-week-day button')].every(button => button.disabled))
+assert.ok([...host.querySelectorAll('.time-week-edit, .time-week-add')].every(button => button.disabled))
 assert.equal(host.querySelector('.time-summary').textContent, currentCards)
 assert.ok(calls.some(call => call.from === addDays(week.from, -42) && call.to === addDays(week.from, -36)))
 await act(async () => { [...host.querySelectorAll('.time-week-nav button')].find(button => button.textContent === 'Heute').click() })
@@ -167,7 +189,7 @@ await act(async () => { [...host.querySelectorAll('.time-week-nav button')].find
 assert.equal(host.querySelector('.time-week-nav button').disabled, false)
 await act(async () => { host.querySelector('[aria-label="Nächste Woche"]').click() })
 assert.equal(host.querySelector('.time-week-day-heading time').dateTime, addDays(week.from, 7))
-assert.ok([...host.querySelectorAll('.time-week-day button')].every(button => button.disabled))
+assert.ok([...host.querySelectorAll('.time-week-edit, .time-week-add')].every(button => button.disabled))
 assert.equal(host.querySelector('.time-summary').textContent, currentCards)
 await act(async () => { [...host.querySelectorAll('.time-week-nav button')].find(button => button.textContent === 'Heute').click() })
 assert.equal(host.querySelector('.time-week-day-heading time').dateTime, week.from)
@@ -195,6 +217,24 @@ assert.equal(phone.lastElementChild.previousElementSibling.className, 'time-phon
 await act(async () => { phone.querySelector('button').click() })
 assert.equal(host.querySelector('.time-phone-dialog'), null)
 assert.ok(calls.every(call => call.ownOnly === true))
+assert.equal(modelCalls, 0)
+await clickTab('Mein Arbeitszeitmodell')
+assert.equal(modelCalls, 1)
+assert.equal(host.querySelectorAll('.time-own-model').length, 3)
+assert.equal(host.querySelectorAll('.time-own-model[open]').length, 1)
+assert.ok(host.querySelector('.time-own-model[open]').textContent.includes('40:00 Std.'))
+assert.ok(host.querySelector('.time-own-model[open]').textContent.includes('Nordrhein-Westfalen'))
+assert.ok(host.querySelector('.time-own-model[open]').textContent.includes('Nach mehr als 06:00 Std.'))
+assert.ok(host.querySelector('.time-own-model[open]').textContent.includes('insgesamt 00:30 Std. Pause'))
+assert.ok(host.querySelector('.time-own-model[open]').textContent.includes('Keine Mindestpause hinterlegt'))
+assert.equal(host.querySelector('.time-own-models input, .time-own-models select'), null)
+assert.ok(host.querySelectorAll('.time-own-models button').length === 1)
+failModelLoad = true
+await act(async () => { host.querySelector('.time-own-models button').click() })
+assert.ok(host.querySelector('.time-own-models [role="alert"]').textContent.includes('Modellabruf fehlgeschlagen'))
+failModelLoad = false
+await act(async () => { host.querySelector('.time-own-models button').click() })
+assert.equal(host.querySelector('.time-own-models [role="alert"]'), null)
 await act(async () => { root.unmount() })
 host.remove()
 console.log('Time UI: default week, monthly table, individual bookings, keyboard navigation and own-data scope verified.')
@@ -331,3 +371,23 @@ assert.ok(dashboardHost.querySelector('a[href="/zeiterfassung"]'))
 await act(async () => { dashboardRoot.unmount() })
 dashboardHost.remove()
 console.log('Dashboard time UI: three primary actions, clear daily values and pause/resume status verified.')
+
+const calculationHost = document.createElement('div')
+document.body.append(calculationHost)
+const calculationRoot = createRoot(calculationHost)
+async function showCalculation(value) {
+  await act(async () => { calculationRoot.render(<TimeWeekOverview key={value.date + String(value.calculationIncomplete)} days={[value]} from={value.date} today={today} disabled={false} canCorrect={() => false} onEdit={() => {}} onWeekChange={() => {}} />) })
+  await act(async () => { calculationHost.querySelector('[aria-label^="Tagesrechnung"]').click() })
+}
+await showCalculation({ ...day(today), overtimeDebitMinutes: 240, targetMinutes: 240, balanceMinutes: -20 })
+assert.ok(calculationHost.querySelector('dialog').textContent.includes('Genehmigter Überstundenabbau'))
+assert.equal(calculationHost.querySelectorAll('dialog dd')[5].textContent, '04:00')
+await act(async () => { calculationHost.querySelector('dialog [aria-label="Schließen"]').click() })
+await showCalculation({ ...day(today), calculationIncomplete: true, issues: ['Kein Arbeitszeitmodell hinterlegt.'] })
+assert.equal(calculationHost.querySelector('dialog dd:last-child').textContent, '—')
+assert.equal(calculationHost.querySelector('.time-week-balance strong').textContent, '—')
+assert.equal(calculationHost.querySelector('.time-week-target-unknown').textContent, 'Soll —')
+assert.ok(calculationHost.querySelector('dialog').textContent.includes('Kein Arbeitszeitmodell hinterlegt.'))
+await act(async () => { calculationRoot.unmount() })
+calculationHost.remove()
+console.log('Time UI: labeled bars, complete pause calculation, overtime debit and private read-only own models verified.')

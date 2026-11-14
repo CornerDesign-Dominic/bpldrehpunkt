@@ -18,8 +18,9 @@ test('default invocation is a dry run and cannot execute the Firebase CLI', () =
 })
 
 test('every scope fixes the dev project and never includes deletion, storage, hosting or blanket functions', () => {
-  assert.equal(TIME_FUNCTIONS.length, 15)
-  assert.equal(new Set(TIME_FUNCTIONS).size, 15)
+  assert.equal(TIME_FUNCTIONS.length, 16)
+  assert.equal(new Set(TIME_FUNCTIONS).size, 16)
+  assert.ok(TIME_FUNCTIONS.includes('getOwnTimeWorkModels'))
   for (const scope of ['all', 'backend', 'rules', 'indexes']) {
     for (const { args } of deploymentPlan(scope)) {
       assert.equal(args[args.indexOf('--project') + 1], DEV_PROJECT)

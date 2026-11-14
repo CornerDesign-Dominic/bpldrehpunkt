@@ -6,6 +6,7 @@ import TimeAppAccess from '../components/time/TimeAppAccess.jsx'
 import TimeBookings from '../components/time/TimeBookings.jsx'
 import TimeMonthSummary from '../components/time/TimeMonthSummary.jsx'
 import TimeWeekOverview from '../components/time/TimeWeekOverview.jsx'
+import OwnTimeWorkModels from '../components/time/OwnTimeWorkModels.jsx'
 import TimeBookingEditor, { TimeDayBookings } from '../components/time/TimeBookingEditor.jsx'
 import '../styles/moduleSections.css'
 import '../styles/timeTracking.css'
@@ -146,12 +147,12 @@ export function TimeWorkspace({ managed = false }) {
         <button type="button" className={`button button--secondary${status === 'break' ? ' time-stamp-resume' : ''}`} disabled={viewUnavailable || !ownEditable || status === 'away'} onClick={() => stamp(status === 'break' ? 'pause_end' : 'pause_start')}><span aria-hidden="true">{status === 'break' ? '▶' : 'Ⅱ'}</span> {status === 'break' ? 'Pause beenden' : 'Pause starten'}</button>
         <button type="button" className="button button--secondary" disabled={viewUnavailable || !ownEditable || status === 'away'} onClick={() => stamp('go')}><span aria-hidden="true">↪</span> Ausstempeln</button>
       </div></section>}
-      {!managed && <div className="module-sections__tabs time-tabs" role="tablist" aria-label="Arbeitszeitansichten">{[['week', 'Aktuelle Woche'], ['month', 'Monatsübersicht'], ['bookings', 'Alle Buchungen']].map(([value, label], index, tabs) => <button key={value} type="button" role="tab" id={`time-tab-${value}`} aria-controls="time-tab-panel" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} className={`module-sections__tab${tab === value ? ' module-sections__tab--active' : ''}`} onClick={() => setTab(value)} onKeyDown={event => {
+      {!managed && <div className="module-sections__tabs time-tabs" role="tablist" aria-label="Arbeitszeitansichten">{[['week', 'Aktuelle Woche'], ['month', 'Monatsübersicht'], ['bookings', 'Alle Buchungen'], ['model', 'Mein Arbeitszeitmodell']].map(([value, label], index, tabs) => <button key={value} type="button" role="tab" id={`time-tab-${value}`} aria-controls="time-tab-panel" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} className={`module-sections__tab${tab === value ? ' module-sections__tab--active' : ''}`} onClick={() => setTab(value)} onKeyDown={event => {
         const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1
         if (next >= 0) { event.preventDefault(); setTab(tabs[next][0]); document.getElementById(`time-tab-${tabs[next][0]}`)?.focus() }
       }}>{label}</button>)}</div>}
       <div id={!managed ? 'time-tab-panel' : undefined} role={!managed ? 'tabpanel' : undefined} aria-labelledby={!managed ? `time-tab-${tab}` : undefined} className="time-tab-content">
-      {!managed && tab === 'bookings' ? <TimeBookings key={user.uid} /> : <>
+      {!managed && tab === 'model' ? <OwnTimeWorkModels key={user.uid} today={today} online={online} /> : !managed && tab === 'bookings' ? <TimeBookings key={user.uid} /> : <>
       {!managed && tab === 'month' && <div className="time-toolbar"><h3>Monatsübersicht</h3><label>Monat<input type="month" value={month} onChange={event => changeMonth(event.target.value)} /></label></div>}
       {!managed && tab === 'month' ? <TimeMonthSummary days={selectedDays} today={today} /> : <>
       {incomplete.length > 0 && <div className="time-notice"><strong>{incomplete.length} unvollständige{incomplete.length === 1 ? 'r Tag' : ' Tage'}</strong><span> Fehlende Buchungen bleiben zur Klärung markiert. Arbeitszeit wird nicht über Nacht fortgeschrieben.</span></div>}

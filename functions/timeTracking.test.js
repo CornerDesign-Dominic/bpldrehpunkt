@@ -1,9 +1,21 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isTimeHoliday, mayManageTime, personnelTimeProjection, persistTimeCorrection, persistTimeStamp, readOwnTimeBookings, requestTimeClient, requireExpectedTimeUser, requireOwnTimeAccess, requirePersonnelTimeAccess } from './timeTracking.js'
+import { isTimeHoliday, mayManageTime, ownTimeWorkModel, personnelTimeProjection, persistTimeCorrection, persistTimeStamp, readOwnTimeBookings, requestTimeClient, requireExpectedTimeUser, requireOwnTimeAccess, requirePersonnelTimeAccess } from './timeTracking.js'
 
 const user = { active: true, role: 'user', departmentId: 'office', permissions: { timeTracking: 'edit' } }
 const now = new Date('2026-11-10T20:00:00Z')
+test('own work model exposes only schedule, validity and the effective holiday region', () => {
+  const original = { id: 'private-model', userId: 'employee', createdBy: 'private-admin', updatedAt: 'private-time', notes: 'private', validFrom: '2026-11-01', weekdays: { 1: { targetMinutes: 480, extra: 'private', breaks: [{ afterMinutes: 360, requiredMinutes: 30, extra: 'private' }] } } }
+  const projected = ownTimeWorkModel(original, { countryCode: 'DE', subdivisionCode: 'DE-NI' })
+  assert.deepEqual(Object.keys(projected).sort(), ['holidayCountryCode', 'holidaySubdivisionCode', 'validFrom', 'validTo', 'weekdays'])
+  assert.equal(projected.holidayCountryCode, 'DE')
+  assert.equal(projected.holidaySubdivisionCode, 'NI')
+  assert.equal(Object.keys(projected.weekdays).length, 7)
+  assert.deepEqual(projected.weekdays[1], { targetMinutes: 480, breaks: [{ afterMinutes: 360, requiredMinutes: 30 }] })
+  projected.weekdays[1].breaks[0].requiredMinutes = 99
+  assert.equal(original.weekdays[1].breaks[0].requiredMinutes, 30)
+  assert.equal(ownTimeWorkModel({ ...original, holidayCountryCode: 'DE', holidaySubdivisionCode: 'DE-NW' }).holidaySubdivisionCode, 'NW')
+})
 function fakeDb(initial = {}) {
   const values = new Map(Object.entries({ 'users/employee': user, ...initial }))
   let pending = Promise.resolve()

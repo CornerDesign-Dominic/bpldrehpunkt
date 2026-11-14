@@ -230,6 +230,30 @@ export function isTimeHoliday(date, model, holidays, companyRegion = { countryCo
     return holiday.nationalHoliday === true || holiday.subdivisionCodes?.some((code) => code.replace(new RegExp(`^${holiday.countryCode}-`), '') === subdivision)
   })
 }
+export function ownTimeWorkModel(model, companyRegion = {}) {
+  const country = model.holidayCountryCode || companyRegion.countryCode || 'DE'
+  const subdivision = (model.holidaySubdivisionCode || companyRegion.subdivisionCode || 'DE-NW').replace(new RegExp(`^${country}-`), '')
+  return {
+    validFrom: model.validFrom,
+    validTo: model.validTo || '',
+    holidayCountryCode: country,
+    holidaySubdivisionCode: subdivision,
+    weekdays: Object.fromEntries(Array.from({ length: 7 }, (_, day) => {
+      const setting = model.weekdays?.[day]
+      return [day, { targetMinutes: setting?.targetMinutes || 0, breaks: (setting?.breaks || []).map(({ afterMinutes, requiredMinutes }) => ({ afterMinutes, requiredMinutes })) }]
+    })),
+  }
+}
+export const getOwnTimeWorkModels = onCall(options, async request => {
+  requireOwnTimeAccess(await requireActiveProfile(request))
+  if (request.data?.userId !== undefined && request.data.userId !== request.auth.uid) throw new HttpsError('permission-denied', 'Diese Ansicht zeigt ausschließlich deine eigenen Arbeitszeitmodelle.')
+  const db = getFirestore()
+  const [models, settings] = await Promise.all([
+    db.collection('timeWorkModels').where('userId', '==', request.auth.uid).get(),
+    db.doc('appSettings/holidayCalendar').get(),
+  ])
+  return { models: records(models).map(model => ownTimeWorkModel(model, settings.data()?.companyHolidayRegion)).sort((a, b) => a.validFrom.localeCompare(b.validFrom)) }
+})
 export const listTimeWorkspace = onCall(options, async (request) => {
   const profile = await requireActiveProfile(request)
   const ownId = request.auth.uid

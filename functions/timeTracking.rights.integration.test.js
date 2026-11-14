@@ -6,7 +6,7 @@ import { deleteApp as deleteAdminApp, initializeApp as initializeAdminApp } from
 import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore'
 import { deleteApp, initializeApp } from 'firebase/app'
 import { collection, connectFirestoreEmulator, deleteDoc, doc, getDoc, getDocs, getFirestore, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
-import { correctTimeDay, getOwnMobileVacation, listOwnTimeBookings, listTimeWorkspace, saveTimeAccount, saveTimeWorkModel, stampTime } from './timeTracking.js'
+import { correctTimeDay, getOwnMobileVacation, getOwnTimeWorkModels, listOwnTimeBookings, listTimeWorkspace, saveTimeAccount, saveTimeWorkModel, stampTime } from './timeTracking.js'
 import { archiveTimeWorkModelTemplate, listTimeWorkModelTemplates, saveTimeWorkModelTemplate } from './timeWorkModelTemplates.js'
 import { addTimeDays, berlinTimeDate } from './shared/timeTracking.js'
 
@@ -81,7 +81,7 @@ test('Zeit- und Urlaubsrechte gegen Firestore Emulator', { skip: !emulator }, as
     ])
 
     await t.test('alle Zeit- und Vorlagenfunktionen verlangen Anmeldung und ein ausdrücklich aktives Profil', async () => {
-      const endpoints = [listOwnTimeBookings, listTimeWorkspace, stampTime, correctTimeDay, saveTimeWorkModel, saveTimeAccount, listTimeWorkModelTemplates, saveTimeWorkModelTemplate, archiveTimeWorkModelTemplate, getOwnMobileVacation]
+      const endpoints = [getOwnTimeWorkModels, listOwnTimeBookings, listTimeWorkspace, stampTime, correctTimeDay, saveTimeWorkModel, saveTimeAccount, listTimeWorkModelTemplates, saveTimeWorkModelTemplate, archiveTimeWorkModelTemplate, getOwnMobileVacation]
       for (const fn of endpoints) {
         await assert.rejects(call(fn, null), deniedAuth)
         for (const name of ['missing', 'inactive', 'legacy']) {
@@ -107,6 +107,27 @@ test('Zeit- und Urlaubsrechte gegen Firestore Emulator', { skip: !emulator }, as
       template = (await call(saveTimeWorkModelTemplate, superadmin, { name: key, weekdays: model.weekdays })).template
       assert.equal(template.revision, 1)
       assert.ok((await call(listTimeWorkModelTemplates, superadmin)).templates.some((entry) => entry.id === template.id))
+    })
+
+    await t.test('eigene Arbeitszeitmodelle sind eine reine Projektion mit eigenem Zeit-Leserecht', async () => {
+      const viewerPeriods = [
+        { validFrom: addTimeDays(older, -30), validTo: addTimeDays(older, -1) },
+        { validFrom: older, validTo: addTimeDays(today, 30) },
+        { validFrom: addTimeDays(today, 31), validTo: '' },
+      ]
+      await Promise.all(viewerPeriods.map((period, index) => admin.doc(`timeWorkModels/${key}-viewer-model-${index}`).set({ ...model, ...period, userId: viewer, id: `${key}-viewer-model-${index}`, createdBy: 'private-admin', note: 'private-model-note' })))
+      for (const actorId of [editor, viewer]) {
+        const result = await call(getOwnTimeWorkModels, actorId)
+        assert.equal(result.models.length, actorId === viewer ? 3 : 1)
+        if (actorId === viewer) assert.deepEqual(result.models.map(entry => entry.validFrom), viewerPeriods.map(entry => entry.validFrom))
+        assert.deepEqual(Object.keys(result.models[0]).sort(), ['holidayCountryCode', 'holidaySubdivisionCode', 'validFrom', 'validTo', 'weekdays'])
+        assert.equal(result.models[0].weekdays[1].targetMinutes, 480)
+        await assert.rejects(call(getOwnTimeWorkModels, actorId, { userId: outside }), denied)
+        await assert.rejects(call(saveTimeWorkModel, actorId, { model }), denied)
+      }
+      for (const actorId of [manager, uid('admin'), uid('personnel'), uid('vacationManager')]) await assert.rejects(call(getOwnTimeWorkModels, actorId), denied)
+      assert.deepEqual((await call(getOwnTimeWorkModels, superadmin)).models, [])
+      await assert.rejects(call(getOwnTimeWorkModels, superadmin, { userId: editor }), denied)
     })
 
     await t.test('eigene Zeitdaten unterscheiden Lesen und Bearbeiten, Konto-Wechsel bleiben gesperrt', async () => {
