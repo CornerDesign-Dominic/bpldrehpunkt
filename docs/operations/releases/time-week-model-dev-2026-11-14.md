@@ -54,10 +54,12 @@ Praxistest auf Dev ergänzt die automatisierten Prüfungen.
 
 ## Bereitstellung
 
-Die neue Callable wird gezielt im Projekt `db-bpl-drehpunkt-dev` bereitgestellt,
-anschließend der Webstand über Branch `dev` und Vercel veröffentlicht. Die
-Aktivierung der Callable, der unangemeldete Zugriff und die Commit-Zuordnung
-der Dev-Domain werden nach der Veröffentlichung kontrolliert.
+Die neue Callable wurde gezielt im Projekt `db-bpl-drehpunkt-dev`
+bereitgestellt. Der Web-Codecommit `78ba07c` ist über Branch `dev`
+veröffentlicht. Vercel-Deployment `dpl_J9hxmqa6NcmjK7kTYi6t6iQMG6gG` meldet
+`READY`; die Zuordnung des Alias `dev.drehpunktlogistik.de` zu genau diesem
+Commit und Branch wurde über die Vercel-API zurückgelesen. Der vorherige
+Dev-Codecommit ist `75950d2`.
 
 Die neue Callable ist in Dev aktiv, Runtime Node.js 22, Revision
 `getowntimeworkmodels-00001-qux`. Ein unangemeldeter Live-Aufruf aus dem Origin
