@@ -1,6 +1,6 @@
 # Zeiterfassung und Mitarbeiter-PWA
 
-Stand: 14.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
+Stand: 15.11.2026. Diese Referenz beschreibt die Zeiterfassung einschließlich
 der Korrekturen aus der Rechte- und Zeitkontoabnahme. Die erste Dev-Bereitstellung
 und die Ergänzungen für Vorlagen, Dashboard und Handy-Einstieg haben eigene
 Prüfbelege. [Dev-Bereitstellung](releases/time-recorder-dev-2026-11-10.md) ·
@@ -143,16 +143,17 @@ Wochenwerte bleiben auch beim Anzeigen eines anderen Monats aktuell. Die
 Zeitmanageransicht und die mobile Oberfläche behalten ihren bisherigen Aufbau.
 
 **Aktuelle Woche** zeigt Montag bis Sonntag als sieben nebeneinanderstehende
-Tagesbalken mit gemeinsamer Höhenskala. Der blaue Balken ist direkt mit
-Arbeitszeit und der nach Pausenabzug angerechneten Dauer beschriftet. An der
+Tagesbalken mit gemeinsamer Höhenskala. Über jedem mittig angeordneten blauen
+Balken stehen Arbeitszeit und die nach Pausenabzug angerechnete Dauer auf
+gleicher Höhe. An der
 gestrichelten Linie stehen Soll und die angepasste Tagessollzeit. Die gelbe
 Erweiterung des Balkens zeigt ausschließlich gebuchte Pause. Unter dem
-Diagramm stehen Auf Arbeit (erfasste Arbeitsdauer plus gebuchte Pause), Pause
-und Tagessaldo. Fehlende Vorgaben erscheinen als Soll — und Erfasst statt
+Diagramm stehen genommene Pause, zusätzlicher automatischer Pausenabzug und
+Tagessaldo. Fehlende Vorgaben erscheinen als Soll — und Erfasste Zeit statt
 einer vermeintlich berechneten Arbeitszeit. Der heutige Tag ist hervorgehoben.
 
-Jede der drei Tagesangaben hat einen per Klick, Touch oder Tastatur erreichbaren
-Info-Button. Das Dialogfenster zeigt Anwesenheit minus genommene Pause minus
+Ein einzelner Info-Button neben dem Tagesdatum ist per Klick, Touch oder Tastatur
+erreichbar. Das Dialogfenster zeigt Anwesenheit minus genommene Pause minus
 automatischen Zusatzabzug gleich angerechnete Arbeit. Danach werden die
 angepasste Sollzeit und gegebenenfalls genehmigter Überstundenabbau abgezogen.
 Unvollständige, nicht berechenbare oder zukünftige Tage erhalten keinen
@@ -168,8 +169,11 @@ Gesamtpause. Die Erläuterung beschreibt den schrittweisen Abzug und die Anrechn
 gebuchter Pausen. Es gibt einen Aktualisieren-Button; Änderungen erfolgen über
 die bestehende Superadmin-Verwaltung.
 
-Pro Tag folgt darunter eine kleine Tabelle ausschließlich mit Stempelzeit und
-Aktion, chronologisch nach dem Ereigniszeitpunkt sortiert. Ein Stift an der Buchung
+Pro Tag lassen sich die zunächst eingeklappten Buchungen über ihre Anzahl und
+anzeigen/ausblenden öffnen oder schließen. Darin stehen eine kleine Tabelle
+mit Stempelzeit und Aktion, chronologisch nach Ereigniszeitpunkt sortiert, sowie
+Buchung hinzufügen. Tage ohne Buchungen zeigen den Nachtragsknopf direkt.
+Ein Stift an der Buchung
 öffnet das bestehende Einzelkorrektur-Modal. Zukunftstage, fehlendes Schreibrecht
 und nicht verfügbare Verbindung/Daten sperren die Bearbeitung wie bisher.
 Unvollständige Tage bleiben erkennbar; keine Änderung an Zeitberechnung oder
