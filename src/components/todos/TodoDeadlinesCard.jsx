@@ -4,7 +4,8 @@ import { todoFormRecipientValues } from '../../lib/todoFormRecipients.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReminderFields from '../reminders/ReminderFields.jsx'
-import { reminderValidationMessage, validateReminderForm } from '../../lib/reminderForm.js'
+import ReminderStatus from '../reminders/ReminderStatus.jsx'
+import { reminderTimestampKey, reminderValidationMessage, validateReminderForm } from '../../lib/reminderForm.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { TODO_SCHEDULE_TYPES, createEmptyTodoDeadline, todoDeadlinePresentation, todoScheduleTypeLabel } from '../../lib/todos.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
@@ -111,36 +112,38 @@ function sourceRecipients(todo, deadline, users, en) {
   return { label: names.length ? names.join(', ') : (en ? 'No current recipients' : 'Keine aktuellen Empfänger'), count: names.length }
 }
 
-export default function TodoDeadlinesCard({ todo, users = [], canEdit, deadlines, loading, onDelete, onSave }) {
+export default function TodoDeadlinesCard({ todo, users = [], todoId, refreshKey, canEdit, deadlines, loading, onDelete, onSave }) {
   const { language } = useLanguage()
   const en = language === 'en'
   const parentInactive = ['completed', 'withdrawn'].includes(todo?.status)
   const canEditDates = Boolean(canEdit) && !parentInactive
   const [editing, setEditing] = useState(null)
+  const [expandedRecipients, setExpandedRecipients] = useState({})
   const closeEditor = useCallback(() => setEditing(null), [])
   useEffect(() => { if (!canEditDates) { let active = true; queueMicrotask(() => { if (active) setEditing(null) }); return () => { active = false } } }, [canEditDates])
-  const groups = useMemo(() => {
+  const orderedDeadlines = useMemo(() => {
     const upcoming = []; const past = []
     for (const deadline of deadlines) (todoDeadlinePresentation(deadline).days < 0 ? past : upcoming).push(deadline)
     const compare = (left, right) => `${left.date || ''}T${left.time || '00:00'}`.localeCompare(`${right.date || ''}T${right.time || '00:00'}`) || String(left.id).localeCompare(String(right.id))
-    return [{ key: 'upcoming', title: en ? 'Upcoming' : 'Bevorstehend', entries: upcoming.sort(compare) }, { key: 'past', title: en ? 'Past' : 'Vergangen', entries: past.sort((left, right) => compare(right, left)) }]
-  }, [deadlines, en])
+    return [...upcoming.sort(compare), ...past.sort((left, right) => compare(right, left))]
+  }, [deadlines])
   function openDeadline(deadline) { if (canEditDates) setEditing(deadline) }
   function handleRowKeyDown(event, deadline) { if (event.target === event.currentTarget && canEditDates && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openDeadline(deadline) } }
   return <section className="todo-detail-content todo-deadlines" aria-labelledby="todo-deadlines-title">
     {canEditDates && editing !== null && <DeadlineModal todo={todo} users={users} deadline={editing === 'new' ? null : editing} onClose={closeEditor} onDelete={onDelete} onSave={onSave} />}
     <div className="todo-detail-section-heading todo-deadlines__heading"><div><h3 id="todo-deadlines-title"><StaticText source="Termine & Fristen" /></h3></div>{canEditDates && <button className="button damage-deadlines__add" type="button" onClick={() => setEditing('new')}><StaticText source="Termin / Frist hinzufügen" /></button>}</div>
-    {loading ? <p className="todo-deadlines__empty"><StaticText source="Termine und Fristen werden geladen …" /></p> : !deadlines.length ? <p className="todo-deadlines__empty"><CalendarIcon size={22} /><StaticText source="Noch keine Termine oder Fristen hinterlegt." /></p> : <div className="todo-deadlines__groups">{groups.filter((group) => group.entries.length).map((group) => <section key={group.key} className={`todo-deadlines__group todo-deadlines__group--${group.key}`} aria-labelledby={`todo-deadlines-${group.key}`}><h4 id={`todo-deadlines-${group.key}`}>{group.title}<span>{group.entries.length}</span></h4><ul>{group.entries.map((deadline) => {
+    {loading ? <p className="todo-deadlines__empty"><StaticText source="Termine und Fristen werden geladen …" /></p> : !deadlines.length ? <p className="todo-deadlines__empty"><CalendarIcon size={22} /><StaticText source="Noch keine Termine oder Fristen hinterlegt." /></p> : <ul className="todo-deadlines__list">{orderedDeadlines.map((deadline) => {
       const recipients = sourceRecipients(todo, deadline, users, en)
+      const recipientsOpen = Boolean(expandedRecipients[deadline.id])
       return <li key={deadline.id} className="todo-deadline-row">
         <div className={`todo-deadline-row__main${canEditDates ? ' is-editable' : ''}`} role={canEditDates ? 'button' : undefined} tabIndex={canEditDates ? 0 : undefined} onClick={() => openDeadline(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={canEditDates ? `${todoScheduleTypeLabel(deadline.type)} vom ${formatDate(deadline.date, language)} bearbeiten` : undefined}>
-          <div className="todo-deadline-row__title"><span className="todo-deadline-row__type">{todoScheduleTypeLabel(deadline.type)}</span><time dateTime={deadline.time ? `${deadline.date}T${deadline.time}` : deadline.date}>{formatDate(deadline.date, language)}{deadline.time && <span> · {deadline.time}</span>}</time>{canEditDates && <span className="todo-deadline-row__edit" aria-hidden="true"><EditIcon size={15} /></span>}</div>
+          <div className="todo-deadline-row__title"><span className="todo-deadline-row__type">{todoScheduleTypeLabel(deadline.type)}</span><time dateTime={deadline.time ? `${deadline.date}T${deadline.time}` : deadline.date}>{formatDate(deadline.date, language)}{deadline.time && <span> · {deadline.time}</span>}</time>{deadline.reminderEnabled && (parentInactive ? <span className="reminder-status-badge" data-status="paused">{en ? 'Paused' : 'Pausiert'}</span> : <ReminderStatus compact sourcePath={todoId ? `todos/${todoId}/deadlines/${deadline.id}` : null} enabled recipientRule="todo" refreshKey={`${refreshKey || ''}:${reminderTimestampKey(deadline.updatedAt)}`} />)}{canEditDates && <span className="todo-deadline-row__edit" aria-hidden="true"><EditIcon size={15} /></span>}</div>
         </div>
         <div className="todo-deadline-row__secondary">
           <p className="todo-deadline-row__note" title={deadline.note || undefined}>{deadline.note || '—'}</p>
-          {deadline.reminderEnabled ? <details className={`todo-deadline-row__recipients${parentInactive ? ' is-paused' : ''}${recipients.count === 0 ? ' is-empty' : ''}`}><summary>{recipients.count === 0 ? (en ? 'No recipients' : 'Keine Empfänger') : <>{en ? 'Recipients' : 'Empfänger'}{recipients.count !== null && ` (${recipients.count})`}</>}{parentInactive && <> · {en ? 'paused' : 'pausiert'}</>}</summary><p>{recipients.label}</p></details> : <span className="todo-deadline-row__reminder">{en ? 'No reminder' : 'Keine Erinnerung'}</span>}
+          {deadline.reminderEnabled ? <><button type="button" className={`todo-deadline-row__recipients${recipients.count === 0 ? ' is-empty' : ''}`} aria-expanded={recipientsOpen} aria-controls={`todo-deadline-recipients-${deadline.id}`} onClick={() => setExpandedRecipients((current) => ({ ...current, [deadline.id]: !current[deadline.id] }))}><span aria-hidden="true">{recipientsOpen ? '▾' : '▸'}</span> {recipients.count === 0 ? (en ? 'No recipients' : 'Keine Empfänger') : <>{en ? 'Recipients' : 'Empfänger'}{recipients.count !== null && ` (${recipients.count})`}</>}</button><p id={`todo-deadline-recipients-${deadline.id}`} className="todo-deadline-row__recipient-names" hidden={!recipientsOpen}>{recipients.label}</p></> : <span className="todo-deadline-row__reminder">{en ? 'No reminder' : 'Keine Erinnerung'}</span>}
         </div>
       </li>
-    })}</ul></section>)}</div>}
+    })}</ul>}
   </section>
 }

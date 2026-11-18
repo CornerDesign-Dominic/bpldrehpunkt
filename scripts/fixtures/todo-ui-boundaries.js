@@ -52,4 +52,9 @@ export const createTodoDeadline = async (...args) => mutation('deadline.create',
 export const updateTodoDeadline = async (...args) => mutation('deadline.update', args, () => { state().deadlines = state().deadlines.map(item => item.id === args[1].id ? { ...item, ...args[2] } : item) })
 export const deleteTodoDeadline = async (...args) => mutation('deadline.delete', args, () => { state().deadlines = state().deadlines.filter(item => item.id !== args[1].id) })
 export const reportTechnicalFailure = async () => false
-export const getReminderStatus = async () => ({ status: 'scheduled', recipients: [] })
+export const getReminderStatus = async (sourcePath, options) => {
+  const current = state()
+  ;(current.reminderStatusCalls ||= []).push({ sourcePath, options })
+  if (current.reminderStatusError) throw current.reminderStatusError
+  return current.reminderStatuses?.[sourcePath] || { status: 'scheduled', recipients: [] }
+}

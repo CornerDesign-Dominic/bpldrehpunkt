@@ -71,23 +71,20 @@
 .todo-recipient-selection .form-field__hint { color: var(--text-secondary); font-size: 11px; line-height: 1.45; }
 .todo-recipient-selection__warning { padding: 9px 11px; border-radius: 5px; color: var(--status-warning-text); background: var(--status-warning-background); font-size: 12px; line-height: 1.45; }
 
-/* Each source date takes two lines; only recipients expand on request. */
+/* Two-line entries; recipient names expand into a separate row. */
 .todo-deadlines { min-width: 0; }
 .todo-deadlines__heading { align-items: flex-start; }
 .todo-deadlines__heading h3 { margin: 0; }
 .todo-deadlines__heading p { margin: 5px 0 0; color: var(--text-muted); font-size: 11px; line-height: 1.45; }
 .todo-deadlines__heading > button { flex: 0 0 auto; }
 .todo-deadlines__empty { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 75px; margin: 14px 0 0; padding: 12px; border: 1px dashed var(--border); border-radius: 6px; color: var(--text-muted); font-size: 12px; }
-.todo-deadlines__groups { display: grid; gap: 14px; margin-top: 14px; }
-.todo-deadlines__group h4 { display: flex; align-items: center; gap: 8px; margin: 0 0 9px; color: var(--text-secondary); font-size: 11px; font-weight: 700; }
-.todo-deadlines__group h4 > span { display: inline-grid; place-items: center; min-width: 18px; min-height: 18px; padding: 0 5px; border-radius: 10px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 10px; }
-.todo-deadlines__group ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.todo-deadlines__list { display: grid; gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; }
 .todo-deadline-row { min-width: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--content-background); overflow: hidden; }
 .todo-deadline-row__main { padding: 8px 11px 0; outline-offset: -3px; }
 .todo-deadline-row__main.is-editable { cursor: pointer; }
 .todo-deadline-row__main.is-editable:hover { background: var(--table-hover-background); }
 .todo-deadline-row__main:focus-visible { outline: 2px solid var(--button-background); }
-.todo-deadline-row__title { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 22px; white-space: nowrap; }
+.todo-deadline-row__title { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 22px; white-space: nowrap; }
 .todo-deadline-row__type { flex: 0 0 auto; padding: 3px 6px; border-radius: 4px; color: var(--text-secondary); background: var(--surface-secondary); font-size: 10px; font-weight: 650; }
 .todo-deadline-row time { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary); font-size: 13px; font-weight: 700; }
 .todo-deadline-row time span { color: var(--text-secondary); font-weight: 500; }
@@ -95,14 +92,14 @@
 .todo-deadline-row__secondary { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; padding: 2px 11px 8px; font-size: 11px; line-height: 18px; }
 .todo-deadline-row__note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; color: var(--text-secondary); }
 .todo-deadline-row__reminder { white-space: nowrap; color: var(--text-muted); }
-.todo-deadline-row__recipients { min-width: 0; color: var(--text-secondary); }
-.todo-deadline-row__recipients summary { white-space: nowrap; color: var(--button-background); cursor: pointer; }
-.todo-deadline-row__recipients summary:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
-.todo-deadline-row__recipients[open] { grid-column: 1 / -1; }
-.todo-deadline-row__recipients p { margin: 3px 0 0; overflow-wrap: anywhere; }
-.todo-deadline-row__recipients.is-paused summary { color: var(--text-muted); }
-.todo-deadline-row__recipients.is-empty summary { color: var(--status-warning-text); }
-.todo-deadlines__group--past .todo-deadline-row__type { background: transparent; border: 1px solid var(--border); }
+.todo-deadline-row__recipients { justify-self: end; min-width: 0; border: 0; padding: 0; background: none; white-space: nowrap; color: var(--button-background); font: inherit; cursor: pointer; }
+.todo-deadline-row__recipients:focus-visible { outline: 2px solid var(--button-background); outline-offset: 2px; }
+.todo-deadline-row__recipients.is-empty { color: var(--status-warning-text); }
+.todo-deadline-row__recipient-names { grid-column: 1 / -1; margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.todo-deadline-row .reminder-status-badge { flex: 0 1 auto; min-width: 0; padding: 1px 5px; overflow: hidden; text-overflow: ellipsis; border-radius: 4px; background: var(--surface-secondary); color: var(--text-secondary); font-size: 10px; line-height: 16px; }
+.todo-deadline-row .reminder-status-badge:is([data-status="sent"], [data-status="accepted"]) { background: var(--status-success-background); color: var(--status-success-text); }
+.todo-deadline-row .reminder-status-badge:is([data-status="partial"], [data-status="uncertain"], [data-status="blocked"], [data-status="configuration_required"]) { background: var(--status-warning-background); color: var(--status-warning-text); }
+.todo-deadline-row .reminder-status-badge:is([data-status="failed"], [data-status="error"], [data-status="missed"]) { background: var(--status-danger-background); color: var(--status-danger-text); }
 
 @media (max-width: 600px) {
   .todo-quick-edit-modal.todo-deadline-modal { max-height: calc(100dvh - 24px); }
