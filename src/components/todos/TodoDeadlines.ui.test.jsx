@@ -131,24 +131,35 @@ test('losing editing access removes the open deadline draft and it does not reap
   } finally { await ui.cleanup() }
 })
 
-test('date overview separates upcoming and past entries in date/time order with concise delivery details', async () => {
+test('five dates stay sorted and expose only recipients on demand, without relative dates or delivery status', async () => {
+  const longNote = 'A detailed note that must fit on one line in the overview.\nThe full note remains available when editing.'
   const entries = [
     { ...existing, id: 'late', time: '14:00', note: 'Later upcoming' },
     { ...existing, id: 'old', date: '1999-01-01', reminderEnabled: false, note: 'Old past' },
     { ...existing, id: 'early', time: '08:00', reminderEnabled: false, note: 'First upcoming' },
     { ...existing, id: 'recent', date: '2000-01-01', type: 'appointment', reminderEnabled: false, note: 'Recent past' },
+    { ...existing, id: 'last', date: '2099-12-02', reminderEnabled: false, note: longNote },
   ]
   const ui = await mount(<TodoDeadlinesCard todo={todo} users={users} todoId="task" canEdit={false} deadlines={entries} loading={false} />)
   try {
     const upcoming = document.querySelector('.todo-deadlines__group--upcoming')
     const past = document.querySelector('.todo-deadlines__group--past')
-    assert.match(upcoming.querySelector('h4').textContent, /Bevorstehend2/)
-    assert.deepEqual([...upcoming.querySelectorAll('.todo-deadline-row__note')].map(item => item.textContent), ['First upcoming', 'Later upcoming'])
+    assert.match(upcoming.querySelector('h4').textContent, /Bevorstehend3/)
+    assert.deepEqual([...upcoming.querySelectorAll('.todo-deadline-row__note')].map(item => item.textContent), ['First upcoming', 'Later upcoming', longNote])
     assert.deepEqual([...past.querySelectorAll('.todo-deadline-row__note')].map(item => item.textContent), ['Recent past', 'Old past'])
     assert.match(past.querySelector('h4').textContent, /Vergangen2/)
-    assert.equal(document.querySelectorAll('details.todo-deadline-row__status').length, 1)
-    assert.equal(document.querySelector('details.todo-deadline-row__status').open, false)
-    assert.match(upcoming.textContent, /Abteilungskalender Ops/)
+    assert.equal(document.querySelectorAll('.todo-deadline-row').length, 5)
+    assert.equal(document.querySelector('.todo-deadline-row__timing, .reminder-status'), null)
+    assert.doesNotMatch(upcoming.textContent, /Versandstatus|Status aktualisieren|In \d+ Tagen|Abteilungskalender/)
+    assert.equal(upcoming.querySelectorAll('.todo-deadline-row__note')[2].title, longNote)
+    const recipients = document.querySelector('details.todo-deadline-row__recipients')
+    assert.equal(document.querySelectorAll('details.todo-deadline-row__recipients').length, 1)
+    assert.equal(recipients.open, false)
+    assert.equal(recipients.querySelector('summary').textContent, 'Empfänger (1)')
+    await click(recipients.querySelector('summary'))
+    assert.equal(recipients.open, true)
+    assert.equal(recipients.querySelector('p').textContent, 'Alpha Test')
+    assert.doesNotMatch(recipients.textContent, /Other Team|Versandstatus|Geplant/)
   } finally { await ui.cleanup() }
 })
 
@@ -217,23 +228,22 @@ test('completed and withdrawn parents pause delivery presentation without discar
   const props = { users, todoId: 'task', deadlines: [existing], canEdit: true, loading: false }
   const ui = await mount(<TodoDeadlinesCard {...props} todo={{ ...todo, status: 'open' }} />)
   try {
-    assert.match(document.querySelector('.todo-deadline-row__reminder').textContent, /Erinnerung an/)
-    assert.ok(document.querySelector('.reminder-status'))
+    assert.equal(document.querySelector('.todo-deadline-row__recipients summary').textContent, 'Empfänger (1)')
+    assert.equal(document.querySelector('.reminder-status'), null)
     await click(document.querySelector('[role="button"]'))
     assert.ok(document.querySelector('[role="dialog"]'))
     await ui.render(<TodoDeadlinesCard {...props} todo={{ ...todo, status: 'completed' }} />)
-    assert.match(document.querySelector('.todo-deadline-row__reminder').textContent, /Erinnerung pausiert · To-do erledigt/)
+    assert.match(document.querySelector('.todo-deadline-row__recipients summary').textContent, /pausiert/)
     assert.equal(document.querySelector('.reminder-status'), null)
     assert.equal(document.querySelector('[role="dialog"]'), null)
     assert.equal(button('Termin / Frist hinzufügen'), undefined)
-    assert.match(document.querySelector('.todo-deadline-row__status').textContent, /wird keine Mail versendet/)
     await ui.render(<TodoDeadlinesCard {...props} todo={{ ...todo, status: 'withdrawn' }} />)
-    assert.match(document.querySelector('.todo-deadline-row__reminder').textContent, /Erinnerung pausiert · To-do zurückgezogen/)
+    assert.match(document.querySelector('.todo-deadline-row__recipients summary').textContent, /pausiert/)
     assert.equal(document.querySelector('.reminder-status'), null)
     assert.equal(existing.reminderEnabled, true)
     await ui.render(<TodoDeadlinesCard {...props} todo={{ ...todo, status: 'open' }} />)
-    assert.match(document.querySelector('.todo-deadline-row__reminder').textContent, /Erinnerung an/)
-    assert.ok(document.querySelector('.reminder-status'))
+    assert.equal(document.querySelector('.todo-deadline-row__recipients summary').textContent, 'Empfänger (1)')
+    assert.equal(document.querySelector('.reminder-status'), null)
     assert.equal(document.querySelector('[role="dialog"]'), null)
     assert.deepEqual(existing.reminderRecipientUserIds, ['alpha'])
   } finally { await ui.cleanup() }

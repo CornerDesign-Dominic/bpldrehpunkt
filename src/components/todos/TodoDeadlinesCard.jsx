@@ -4,8 +4,7 @@ import { todoFormRecipientValues } from '../../lib/todoFormRecipients.js'
 import { StaticText } from '../../i18n/AutoTranslate.jsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReminderFields from '../reminders/ReminderFields.jsx'
-import ReminderStatus from '../reminders/ReminderStatus.jsx'
-import { reminderTimestampKey, reminderValidationMessage, validateReminderForm } from '../../lib/reminderForm.js'
+import { reminderValidationMessage, validateReminderForm } from '../../lib/reminderForm.js'
 import { useLanguage } from '../../i18n/useLanguage.js'
 import { TODO_SCHEDULE_TYPES, createEmptyTodoDeadline, todoDeadlinePresentation, todoScheduleTypeLabel } from '../../lib/todos.js'
 import { getUserDisplayName } from '../../lib/userProfiles.js'
@@ -104,13 +103,15 @@ export function DeadlineModal({ deadline, todo, users = [], onClose, onDelete, o
 }
 
 function sourceRecipients(todo, deadline, users, en) {
-  if (!users.length) return deadline.reminderRecipientMode === 'selected' ? `${deadline.reminderRecipientUserIds?.length || 0} ${en ? 'selected people' : 'ausgewählte Personen'}` : (en ? 'All current participants' : 'Alle aktuellen Beteiligten')
+  if (!users.length) return deadline.reminderRecipientMode === 'selected'
+    ? { label: `${deadline.reminderRecipientUserIds?.length || 0} ${en ? 'selected people' : 'ausgewählte Personen'}`, count: deadline.reminderRecipientUserIds?.length || 0 }
+    : { label: en ? 'All current participants' : 'Alle aktuellen Beteiligten', count: null }
   const ids = todoReminderRecipientIds(todo, deadline, users)
   const names = users.filter((entry) => ids.includes(entry.id)).map((entry) => getUserDisplayName(entry, entry))
-  return names.length ? names.join(', ') : (en ? 'No current recipients' : 'Keine aktuellen Empfänger')
+  return { label: names.length ? names.join(', ') : (en ? 'No current recipients' : 'Keine aktuellen Empfänger'), count: names.length }
 }
 
-export default function TodoDeadlinesCard({ todo, users = [], todoId, refreshKey, canEdit, deadlines, loading, onDelete, onSave }) {
+export default function TodoDeadlinesCard({ todo, users = [], canEdit, deadlines, loading, onDelete, onSave }) {
   const { language } = useLanguage()
   const en = language === 'en'
   const parentInactive = ['completed', 'withdrawn'].includes(todo?.status)
@@ -130,17 +131,15 @@ export default function TodoDeadlinesCard({ todo, users = [], todoId, refreshKey
     {canEditDates && editing !== null && <DeadlineModal todo={todo} users={users} deadline={editing === 'new' ? null : editing} onClose={closeEditor} onDelete={onDelete} onSave={onSave} />}
     <div className="todo-detail-section-heading todo-deadlines__heading"><div><h3 id="todo-deadlines-title"><StaticText source="Termine & Fristen" /></h3></div>{canEditDates && <button className="button damage-deadlines__add" type="button" onClick={() => setEditing('new')}><StaticText source="Termin / Frist hinzufügen" /></button>}</div>
     {loading ? <p className="todo-deadlines__empty"><StaticText source="Termine und Fristen werden geladen …" /></p> : !deadlines.length ? <p className="todo-deadlines__empty"><CalendarIcon size={22} /><StaticText source="Noch keine Termine oder Fristen hinterlegt." /></p> : <div className="todo-deadlines__groups">{groups.filter((group) => group.entries.length).map((group) => <section key={group.key} className={`todo-deadlines__group todo-deadlines__group--${group.key}`} aria-labelledby={`todo-deadlines-${group.key}`}><h4 id={`todo-deadlines-${group.key}`}>{group.title}<span>{group.entries.length}</span></h4><ul>{group.entries.map((deadline) => {
-      const presentation = todoDeadlinePresentation(deadline)
       const recipients = sourceRecipients(todo, deadline, users, en)
-      const department = todo?.audienceType === 'department'
-      return <li key={deadline.id} className={`todo-deadline-row todo-deadline-row--${presentation.kind}`}>
+      return <li key={deadline.id} className="todo-deadline-row">
         <div className={`todo-deadline-row__main${canEditDates ? ' is-editable' : ''}`} role={canEditDates ? 'button' : undefined} tabIndex={canEditDates ? 0 : undefined} onClick={() => openDeadline(deadline)} onKeyDown={(event) => handleRowKeyDown(event, deadline)} aria-label={canEditDates ? `${todoScheduleTypeLabel(deadline.type)} vom ${formatDate(deadline.date, language)} bearbeiten` : undefined}>
           <div className="todo-deadline-row__title"><span className="todo-deadline-row__type">{todoScheduleTypeLabel(deadline.type)}</span><time dateTime={deadline.time ? `${deadline.date}T${deadline.time}` : deadline.date}>{formatDate(deadline.date, language)}{deadline.time && <span> · {deadline.time}</span>}</time>{canEditDates && <span className="todo-deadline-row__edit" aria-hidden="true"><EditIcon size={15} /></span>}</div>
-          <span className="todo-deadline-row__timing">{presentation.days < 0 && deadline.type === 'appointment' ? (en ? 'Past' : 'Vergangen') : presentation.label}</span>
-          {deadline.note && <p className="todo-deadline-row__note" title={deadline.note}>{deadline.note}</p>}
         </div>
-        <div className="todo-deadline-row__meta"><span className="todo-deadline-row__calendar"><CalendarIcon size={14} />{department ? `${en ? 'Department calendar' : 'Abteilungskalender'} ${todo.audienceId}` : `${en ? 'Personal calendars' : 'Persönliche Kalender'} · ${recipients}`}</span><span className={`todo-deadline-row__reminder${deadline.reminderEnabled ? parentInactive ? ' is-paused' : ' is-enabled' : ''}`}>{deadline.reminderEnabled && parentInactive ? (en ? `Reminder paused · to-do ${todo.status === 'completed' ? 'completed' : 'withdrawn'}` : `Mail-Erinnerung pausiert · To-do ${todo.status === 'completed' ? 'erledigt' : 'zurückgezogen'}`) : <>{en ? 'Email reminder' : 'Mail-Erinnerung'} {deadline.reminderEnabled ? (en ? 'on' : 'an') : (en ? 'off' : 'aus')}</>}</span></div>
-        {deadline.reminderEnabled && <details className="todo-deadline-row__status"><summary>{en ? 'Recipients and delivery status' : 'Empfänger & Versandstatus'}<span>{recipients}</span></summary>{parentInactive ? <p className="todo-deadline-row__paused">{en ? 'No email is sent while the to-do is completed or withdrawn. The reminder settings are retained for reopening; missed times are not sent later.' : 'Bei erledigten oder zurückgezogenen To-dos wird keine Mail versendet. Die Erinnerung bleibt für ein Wiederöffnen gespeichert; verpasste Zeitpunkte werden nicht nachgeholt.'}</p> : <ReminderStatus sourcePath={todoId ? `todos/${todoId}/deadlines/${deadline.id}` : null} enabled recipientRule="todo" refreshKey={`${refreshKey || ''}:${reminderTimestampKey(deadline.updatedAt)}`} />}</details>}
+        <div className="todo-deadline-row__secondary">
+          <p className="todo-deadline-row__note" title={deadline.note || undefined}>{deadline.note || '—'}</p>
+          {deadline.reminderEnabled ? <details className={`todo-deadline-row__recipients${parentInactive ? ' is-paused' : ''}${recipients.count === 0 ? ' is-empty' : ''}`}><summary>{recipients.count === 0 ? (en ? 'No recipients' : 'Keine Empfänger') : <>{en ? 'Recipients' : 'Empfänger'}{recipients.count !== null && ` (${recipients.count})`}</>}{parentInactive && <> · {en ? 'paused' : 'pausiert'}</>}</summary><p>{recipients.label}</p></details> : <span className="todo-deadline-row__reminder">{en ? 'No reminder' : 'Keine Erinnerung'}</span>}
+        </div>
       </li>
     })}</ul></section>)}</div>}
   </section>
